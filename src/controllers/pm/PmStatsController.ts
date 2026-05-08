@@ -1,11 +1,22 @@
 import { Response } from "express";
 import { AuthRequest } from "../../middleware/auth";
 import { db } from "../../database/connection";
+import { PmTaskModel, PmVelocityRange } from "../../models/PmTaskModel";
 
 function handleError(res: Response, error: unknown, operation: string): Response {
   console.error(`[PM-STATS] ${operation} failed:`, error);
   const message = error instanceof Error ? error.message : String(error);
   return res.status(500).json({ success: false, error: message });
+}
+
+function parseUserId(value: string | undefined): number | null {
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function parseVelocityRange(value: unknown): PmVelocityRange {
+  return value === "4w" || value === "3m" ? value : "7d";
 }
 
 // GET /api/pm/stats
@@ -202,144 +213,51 @@ export async function getChartData(_req: AuthRequest, res: Response): Promise<an
 // GET /api/pm/stats/me
 export async function getMyStats(req: AuthRequest, res: Response): Promise<any> {
   try {
-    const userId = req.user!.userId;
-
-    const [focusResult] = await db("pm_tasks")
-      .join("pm_projects", "pm_tasks.project_id", "pm_projects.id")
-      .where("pm_projects.status", "active")
-      .whereNull("pm_tasks.completed_at")
-      .where("pm_tasks.assigned_to", userId)
-      .whereIn("pm_tasks.priority", ["P1", "P2"])
-      .count("* as count");
-    const focusCount = parseInt(focusResult.count as string, 10) || 0;
-
-    // This Week: P3 (3 days) and P4 (this week) — excludes P1/P2 (already in Focus Today) and P5 (next week)
-    const [weekResult] = await db("pm_tasks")
-      .join("pm_projects", "pm_tasks.project_id", "pm_projects.id")
-      .where("pm_projects.status", "active")
-      .whereNull("pm_tasks.completed_at")
-      .where("pm_tasks.assigned_to", userId)
-      .whereIn("pm_tasks.priority", ["P3", "P4"])
-      .count("* as count");
-    const weekCount = parseInt(weekResult.count as string, 10) || 0;
-
-    const focus_today = {
-      count: focusCount,
-      subtitle: focusCount === 0 ? "You're clear" : `${focusCount} urgent`,
-      severity: focusCount === 0 ? "green" : focusCount <= 3 ? "amber" : "red",
-    };
-
-    const this_week = {
-      count: weekCount,
-      subtitle: weekCount === 0 ? "All scheduled" : `${weekCount} this week`,
-    };
-
-    return res.json({ success: true, data: { focus_today, this_week } });
+    const stats = await PmTaskModel.getAssignedStats(req.user!.userId);
+    return res.json({ success: true, data: stats });
   } catch (error) {
     return handleError(res, error, "getMyStats");
+  }
+}
+
+// GET /api/pm/stats/assigned/:userId
+export async function getAssignedStats(req: AuthRequest, res: Response): Promise<any> {
+  try {
+    const userId = parseUserId(req.params.userId);
+    if (!userId) {
+      return res.status(400).json({ success: false, error: "Valid userId is required" });
+    }
+
+    const stats = await PmTaskModel.getAssignedStats(userId);
+    return res.json({ success: true, data: stats });
+  } catch (error) {
+    return handleError(res, error, "getAssignedStats");
   }
 }
 
 // GET /api/pm/stats/velocity/me
 export async function getMyVelocity(req: AuthRequest, res: Response): Promise<any> {
   try {
-    const userId = req.user!.userId;
-    const range = (req.query.range as string) || "7d";
-
-    let completedQuery: string;
-    let overdueQuery: string;
-    let labelFormat: string;
-
-    if (range === "4w") {
-      completedQuery = `
-        SELECT DATE_TRUNC('week', completed_at)::date as period_start, COUNT(*)::int as completed
-        FROM pm_tasks WHERE completed_at IS NOT NULL AND assigned_to = ?
-          AND completed_at >= DATE_TRUNC('week', CURRENT_DATE) - INTERVAL '3 weeks'
-        GROUP BY DATE_TRUNC('week', completed_at) ORDER BY period_start ASC
-      `;
-      overdueQuery = `
-        SELECT w.week_start::date as period_start, COUNT(t.id)::int as overdue
-        FROM generate_series(DATE_TRUNC('week', CURRENT_DATE) - INTERVAL '3 weeks', DATE_TRUNC('week', CURRENT_DATE), '1 week') as w(week_start)
-        LEFT JOIN pm_tasks t ON t.deadline IS NOT NULL AND t.assigned_to = ?
-          AND t.deadline >= w.week_start AND t.deadline < w.week_start + INTERVAL '7 days'
-          AND (t.completed_at IS NULL OR DATE(t.completed_at AT TIME ZONE 'America/Los_Angeles') > DATE(t.deadline AT TIME ZONE 'UTC'))
-        GROUP BY w.week_start ORDER BY w.week_start ASC
-      `;
-      labelFormat = "week";
-    } else if (range === "3m") {
-      completedQuery = `
-        SELECT DATE_TRUNC('month', completed_at)::date as period_start, COUNT(*)::int as completed
-        FROM pm_tasks WHERE completed_at IS NOT NULL AND assigned_to = ?
-          AND completed_at >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '2 months'
-        GROUP BY DATE_TRUNC('month', completed_at) ORDER BY period_start ASC
-      `;
-      overdueQuery = `
-        SELECT m.month_start::date as period_start, COUNT(t.id)::int as overdue
-        FROM generate_series(DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '2 months', DATE_TRUNC('month', CURRENT_DATE), '1 month') as m(month_start)
-        LEFT JOIN pm_tasks t ON t.deadline IS NOT NULL AND t.assigned_to = ?
-          AND t.deadline >= m.month_start AND t.deadline < m.month_start + INTERVAL '1 month'
-          AND (t.completed_at IS NULL OR DATE(t.completed_at AT TIME ZONE 'America/Los_Angeles') > DATE(t.deadline AT TIME ZONE 'UTC'))
-        GROUP BY m.month_start ORDER BY m.month_start ASC
-      `;
-      labelFormat = "month";
-    } else {
-      completedQuery = `
-        SELECT DATE(completed_at) as period_start, COUNT(*)::int as completed
-        FROM pm_tasks WHERE completed_at IS NOT NULL AND assigned_to = ?
-          AND completed_at >= CURRENT_DATE - INTERVAL '6 days'
-        GROUP BY DATE(completed_at) ORDER BY period_start ASC
-      `;
-      overdueQuery = `
-        SELECT d.date::date as period_start, COUNT(t.id)::int as overdue
-        FROM generate_series(CURRENT_DATE - INTERVAL '6 days', CURRENT_DATE, '1 day') as d(date)
-        LEFT JOIN pm_tasks t ON t.deadline IS NOT NULL AND t.assigned_to = ?
-          AND t.deadline >= d.date AND t.deadline < d.date + INTERVAL '1 day'
-          AND (t.completed_at IS NULL OR DATE(t.completed_at AT TIME ZONE 'America/Los_Angeles') > DATE(t.deadline AT TIME ZONE 'UTC'))
-        GROUP BY d.date ORDER BY d.date ASC
-      `;
-      labelFormat = "day";
-    }
-
-    const [completedRows, overdueRows] = await Promise.all([
-      db.raw(completedQuery, [userId]),
-      db.raw(overdueQuery, [userId]),
-    ]);
-
-    const completedMap = new Map<string, number>();
-    for (const r of completedRows.rows) {
-      completedMap.set(r.period_start.toISOString().slice(0, 10), r.completed);
-    }
-
-    const overdueMap = new Map<string, number>();
-    for (const r of overdueRows.rows) {
-      overdueMap.set(r.period_start.toISOString().slice(0, 10), r.overdue);
-    }
-
-    const allDates = new Set([...completedMap.keys(), ...overdueMap.keys()]);
-    const sortedDates = [...allDates].sort();
-
-    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-    const data = sortedDates.map((dateStr) => {
-      const d = new Date(dateStr);
-      let label: string;
-      if (labelFormat === "day") label = dayNames[d.getUTCDay()];
-      else if (labelFormat === "week") label = `${monthNames[d.getUTCMonth()]} ${d.getUTCDate()}`;
-      else label = monthNames[d.getUTCMonth()];
-      return {
-        label,
-        period_start: dateStr,
-        completed: completedMap.get(dateStr) || 0,
-        overdue: overdueMap.get(dateStr) || 0,
-      };
-    });
-
-    const completed_total = data.reduce((s, d) => s + d.completed, 0);
-    const overdue_total = data.reduce((s, d) => s + d.overdue, 0);
-
-    return res.json({ success: true, data: { completed_total, overdue_total, data } });
+    const range = parseVelocityRange(req.query.range);
+    const velocity = await PmTaskModel.getAssignedVelocity(req.user!.userId, range);
+    return res.json({ success: true, data: velocity });
   } catch (error) {
     return handleError(res, error, "getMyVelocity");
+  }
+}
+
+// GET /api/pm/stats/velocity/assigned/:userId
+export async function getAssignedVelocity(req: AuthRequest, res: Response): Promise<any> {
+  try {
+    const userId = parseUserId(req.params.userId);
+    if (!userId) {
+      return res.status(400).json({ success: false, error: "Valid userId is required" });
+    }
+
+    const range = parseVelocityRange(req.query.range);
+    const velocity = await PmTaskModel.getAssignedVelocity(userId, range);
+    return res.json({ success: true, data: velocity });
+  } catch (error) {
+    return handleError(res, error, "getAssignedVelocity");
   }
 }

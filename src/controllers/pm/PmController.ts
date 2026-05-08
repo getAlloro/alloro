@@ -37,7 +37,7 @@ export async function listUsers(_req: Request, res: Response): Promise<any> {
       .select("id", "email");
 
     const userMap = new Map<string, number>(
-      dbUsers.map((u: any) => [u.email.toLowerCase(), u.id])
+      dbUsers.map((u: any) => [u.email.toLowerCase(), Number(u.id)])
     );
 
     const users = emails

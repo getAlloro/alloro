@@ -18,6 +18,8 @@ import type {
   PmTaskComment,
   PmVelocityData,
   ChartDataResponse,
+  PmBacklogProjectGroup,
+  PmUser,
 } from "../types/pm";
 
 const API_BASE =
@@ -50,7 +52,7 @@ function pmEnvelopeError(res: unknown): Error {
   return new Error(`[PM API] ${msg}`);
 }
 
-function unwrapPmEnvelope<T = any>(res: unknown): T {
+function unwrapPmEnvelope<T = unknown>(res: unknown): T {
   if (
     res &&
     typeof res === "object" &&
@@ -231,9 +233,7 @@ export async function clearActivity(): Promise<void> {
 
 // --- Users ---
 
-export async function fetchPmUsers(): Promise<
-  Array<{ id: number; display_name: string; email: string }>
-> {
+export async function fetchPmUsers(): Promise<PmUser[]> {
   const res = await apiGet({ path: "/pm/users" });
   return unwrapPmEnvelope(res);
 }
@@ -252,6 +252,31 @@ export async function fetchMyVelocity(range: "7d" | "4w" | "3m" = "7d"): Promise
 
 export async function fetchMyTasks(): Promise<PmMyTasksResponse> {
   const res = await apiGet({ path: "/pm/tasks/mine" });
+  return unwrapPmEnvelope(res);
+}
+
+export async function fetchBacklogTasks(): Promise<PmBacklogProjectGroup[]> {
+  const res = await apiGet({ path: "/pm/tasks/backlog" });
+  return unwrapPmEnvelope(res);
+}
+
+export async function fetchAssignedStats(userId: number): Promise<PmMyStats> {
+  const res = await apiGet({ path: `/pm/stats/assigned/${userId}` });
+  return unwrapPmEnvelope(res);
+}
+
+export async function fetchAssignedVelocity(
+  userId: number,
+  range: "7d" | "4w" | "3m" = "7d"
+): Promise<PmVelocityData> {
+  const res = await apiGet({
+    path: `/pm/stats/velocity/assigned/${userId}?range=${range}`,
+  });
+  return unwrapPmEnvelope(res);
+}
+
+export async function fetchAssignedTasks(userId: number): Promise<PmMyTasksResponse> {
+  const res = await apiGet({ path: `/pm/tasks/assigned/${userId}` });
   return unwrapPmEnvelope(res);
 }
 
@@ -348,12 +373,12 @@ export async function fetchBatch(batchId: string): Promise<PmAiSynthBatch> {
   return unwrapPmEnvelope(res);
 }
 
-export async function approveBatchTask(batchId: string, taskId: string): Promise<any> {
+export async function approveBatchTask(batchId: string, taskId: string): Promise<unknown> {
   const res = await apiPut({ path: `/pm/ai-synth/batches/${batchId}/tasks/${taskId}/approve`, passedData: {} });
   return unwrapPmEnvelope(res);
 }
 
-export async function rejectBatchTask(batchId: string, taskId: string): Promise<any> {
+export async function rejectBatchTask(batchId: string, taskId: string): Promise<unknown> {
   const res = await apiPut({ path: `/pm/ai-synth/batches/${batchId}/tasks/${taskId}/reject`, passedData: {} });
   return unwrapPmEnvelope(res);
 }

@@ -53,6 +53,29 @@ export interface PmTask {
   assignee_name?: string | null;
 }
 
+export type PmUser = {
+  id: number;
+  display_name: string;
+  email: string;
+};
+
+export type PmProjectColumnSummary = {
+  id: string;
+  project_id: string;
+  name: string;
+  position: number;
+  is_backlog: boolean;
+  task_count: number;
+};
+
+export type PmProjectColumnIds = {
+  backlog_id: string;
+  todo_id: string;
+  in_progress_id: string;
+  done_id: string;
+  columns: PmProjectColumnSummary[];
+};
+
 export interface PmProjectDetail extends PmProject {
   columns: PmColumn[];
 }
@@ -140,13 +163,26 @@ export interface PmMyStats {
 
 export interface PmMyTask extends PmTask {
   project_name: string;
-  project_column_ids: { todo_id: string; in_progress_id: string; done_id: string };
+  project_color?: string;
+  project_icon?: string;
+  column_name?: string;
+  column_is_backlog?: boolean;
+  project_column_ids: PmProjectColumnIds;
 }
 
 export interface PmMyTasksResponse {
   todo: PmMyTask[];
   in_progress: PmMyTask[];
   done: PmMyTask[];
+}
+
+export interface PmBacklogProjectGroup {
+  project_id: string;
+  project_name: string;
+  project_color: string;
+  project_icon: string;
+  column_ids: PmProjectColumnIds;
+  tasks: PmMyTask[];
 }
 
 export interface PmTaskAttachment {
