@@ -5,28 +5,19 @@ import type {
   CreateSupportTicketPayload,
   SupportTicketType,
 } from "../../api/support";
+import { SupportTicketAttachmentPicker } from "./SupportTicketAttachmentPicker";
 import { SupportTypeSelector } from "./SupportTypeSelector";
+import {
+  formatFieldLabel,
+  getSupportFieldConfig,
+  initialSupportAnswers,
+} from "./supportTicketComposerFields";
 
 export type SupportTicketComposerProps = {
   locationId?: number | null;
   isSubmitting: boolean;
   errorMessage?: string | null;
-  onCreateTicket: (payload: CreateSupportTicketPayload) => void;
-};
-
-const initialAnswers = {
-  bug_report: { summary: "", stepsToReproduce: "", expectedBehavior: "" },
-  feature_request: { idea: "", problem: "", impact: "" },
-  website_edit: { pageUrl: "", requestedChange: "", approvalNotes: "" },
-};
-
-type FieldConfig = {
-  name: string;
-  label: string;
-  required: boolean;
-  kind: "input" | "textarea";
-  rows?: number;
-  placeholder: string;
+  onCreateTicket: (payload: CreateSupportTicketPayload, files: File[]) => void;
 };
 
 export function SupportTicketComposer({
@@ -36,21 +27,25 @@ export function SupportTicketComposer({
   onCreateTicket,
 }: SupportTicketComposerProps) {
   const [type, setType] = useState<SupportTicketType>("bug_report");
-  const [answers, setAnswers] = useState(initialAnswers);
+  const [answers, setAnswers] = useState(initialSupportAnswers);
   const [additionalContext, setAdditionalContext] = useState("");
   const [requestedCompletionDate, setRequestedCompletionDate] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onCreateTicket({
-      type,
-      guidedAnswers: answers[type],
-      additionalContext,
-      requestedCompletionDate:
-        type === "website_edit" ? requestedCompletionDate : undefined,
-      currentPageUrl: window.location.href,
-      locationId,
-    });
+    onCreateTicket(
+      {
+        type,
+        guidedAnswers: answers[type],
+        additionalContext,
+        requestedCompletionDate:
+          type === "website_edit" ? requestedCompletionDate : undefined,
+        currentPageUrl: window.location.href,
+        locationId,
+      },
+      files,
+    );
   };
 
   const handleAnswerChange = (field: string, value: string) => {
@@ -84,20 +79,26 @@ export function SupportTicketComposer({
         {type === "website_edit" && (
           <label className="space-y-1.5 text-left">
             <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
-              Requested completion (optional)
+              Requested completion
             </span>
             <input
+              required
               type="date"
               value={requestedCompletionDate}
               onChange={(event) =>
                 setRequestedCompletionDate(event.target.value)
               }
-              style={{ colorScheme: "light" }}
               className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[13px] font-medium text-alloro-navy focus:border-alloro-orange focus:outline-none focus:ring-4 focus:ring-alloro-orange/15"
             />
           </label>
         )}
       </div>
+
+      <SupportTicketAttachmentPicker
+        files={files}
+        isDisabled={isSubmitting}
+        onFilesChange={setFiles}
+      />
 
       <label className="block space-y-1.5 text-left">
         <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
@@ -107,7 +108,7 @@ export function SupportTicketComposer({
           value={additionalContext}
           onChange={(event) => setAdditionalContext(event.target.value)}
           rows={4}
-          placeholder="Add screenshots, exact copy, links, business context, or anything the team should know."
+          placeholder="Add exact copy, links, business context, or anything the team should know."
           className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[13px] font-medium text-alloro-navy placeholder:text-slate-400 focus:border-alloro-orange focus:outline-none focus:ring-4 focus:ring-alloro-orange/15"
         />
       </label>
@@ -131,7 +132,7 @@ function renderFields(
   values: Record<string, string>,
   onChange: (field: string, value: string) => void,
 ) {
-  const fields = getFieldConfig(type);
+  const fields = getSupportFieldConfig(type);
   return fields.map((field) => (
     <label
       key={field.name}
@@ -150,6 +151,20 @@ function renderFields(
           placeholder={field.placeholder}
           className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[13px] font-medium text-alloro-navy placeholder:text-slate-400 focus:border-alloro-orange focus:outline-none focus:ring-4 focus:ring-alloro-orange/15"
         />
+      ) : field.kind === "select" ? (
+        <select
+          required={field.required}
+          value={values[field.name] || ""}
+          onChange={(event) => onChange(field.name, event.target.value)}
+          className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[13px] font-medium text-alloro-navy focus:border-alloro-orange focus:outline-none focus:ring-4 focus:ring-alloro-orange/15"
+        >
+          <option value="">{field.placeholder}</option>
+          {field.options?.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
       ) : (
         <textarea
           required={field.required}
@@ -162,91 +177,4 @@ function renderFields(
       )}
     </label>
   ));
-}
-
-function formatFieldLabel(field: FieldConfig): string {
-  return field.required ? field.label : `${field.label} (optional)`;
-}
-
-function getFieldConfig(type: SupportTicketType): FieldConfig[] {
-  if (type === "feature_request") {
-    return [
-      {
-        name: "idea",
-        label: "Feature idea",
-        required: true,
-        kind: "input",
-        placeholder: "What should Alloro add?",
-      },
-      {
-        name: "impact",
-        label: "Expected impact",
-        required: false,
-        kind: "input",
-        placeholder: "How often would your team use it?",
-      },
-      {
-        name: "problem",
-        label: "Problem solved",
-        required: true,
-        kind: "textarea",
-        rows: 3,
-        placeholder: "What workflow or pain does this improve?",
-      },
-    ];
-  }
-
-  if (type === "website_edit") {
-    return [
-      {
-        name: "pageUrl",
-        label: "Page URL",
-        required: true,
-        kind: "input",
-        placeholder: "https://yourpractice.com/page",
-      },
-      {
-        name: "requestedChange",
-        label: "Requested change",
-        required: true,
-        kind: "textarea",
-        rows: 4,
-        placeholder: "Describe the exact edit, copy, image, or layout change.",
-      },
-      {
-        name: "approvalNotes",
-        label: "Approval notes",
-        required: false,
-        kind: "textarea",
-        rows: 3,
-        placeholder: "Add legal, clinical, or brand approval details.",
-      },
-    ];
-  }
-
-  return [
-    {
-      name: "summary",
-      label: "What is broken?",
-      required: true,
-      kind: "input",
-      placeholder: "Briefly describe the issue.",
-    },
-    {
-      name: "stepsToReproduce",
-      label: "Steps to reproduce",
-      required: true,
-      kind: "textarea",
-      rows: 4,
-      placeholder: "Tell us where you clicked and what happened.",
-    },
-    {
-      name: "expectedBehavior",
-      label: "Expected behavior",
-      required: false,
-      kind: "textarea",
-      rows: 3,
-      placeholder: "What did you expect to happen?",
-    },
-  ];
 }

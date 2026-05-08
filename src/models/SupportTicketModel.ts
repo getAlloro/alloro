@@ -16,8 +16,8 @@ export type SupportTicketStatus =
   | "wont_fix"
   | "archived";
 
-export type SupportTicketSeverity = "low" | "medium" | "high" | "urgent";
-export type SupportTicketPriority = "low" | "normal" | "high" | "urgent";
+export type SupportTicketSeverity = "low" | "medium" | "high";
+export type SupportTicketPriority = "p0" | "p1" | "p2" | "p3";
 
 export interface SupportTicket {
   id: string;
@@ -30,6 +30,7 @@ export interface SupportTicket {
   status: SupportTicketStatus;
   severity: SupportTicketSeverity;
   priority: SupportTicketPriority;
+  /** Deprecated. Category was removed from the support product surface. */
   category: string | null;
   target_sprint: string | null;
   title: string;

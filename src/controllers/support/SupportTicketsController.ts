@@ -12,7 +12,11 @@ import {
   validateCreateSupportMessageInput,
   validateCreateSupportTicketInput,
 } from "./support-utils/supportTicketValidation";
-import { presentMessage, presentTicket } from "./support-utils/supportTicketPresenter";
+import {
+  presentClientAttachment,
+  presentClientMessage,
+  presentClientTicket,
+} from "./support-utils/supportTicketPresenter";
 import { sendError, sendSuccess } from "./support-utils/supportResponses";
 
 export async function listTickets(req: LocationScopedRequest, res: Response) {
@@ -35,7 +39,7 @@ export async function listTickets(req: LocationScopedRequest, res: Response) {
     );
 
     return sendSuccess(res, {
-      tickets: result.data.map(presentTicket),
+      tickets: result.data.map(presentClientTicket),
       pagination: buildPagination(page, limit, result.total),
     });
   } catch (error) {
@@ -69,8 +73,9 @@ export async function createTicket(req: LocationScopedRequest, res: Response) {
     return sendSuccess(
       res,
       {
-        ticket: presentTicket(result.ticket),
-        messages: result.messages.map(presentMessage),
+        ticket: presentClientTicket(result.ticket),
+        messages: result.messages.map(presentClientMessage),
+        attachments: result.attachments.map(presentClientAttachment),
       },
       201
     );
@@ -91,8 +96,9 @@ export async function getTicket(req: LocationScopedRequest, res: Response) {
     );
 
     return sendSuccess(res, {
-      ticket: presentTicket(result.ticket),
-      messages: result.messages.map(presentMessage),
+      ticket: presentClientTicket(result.ticket),
+      messages: result.messages.map(presentClientMessage),
+      attachments: result.attachments.map(presentClientAttachment),
     });
   } catch (error) {
     return handleSupportError(res, error, "Failed to load support ticket.");
@@ -123,8 +129,9 @@ export async function addMessage(req: LocationScopedRequest, res: Response) {
     );
 
     return sendSuccess(res, {
-      ticket: presentTicket(result.ticket),
-      messages: result.messages.map(presentMessage),
+      ticket: presentClientTicket(result.ticket),
+      messages: result.messages.map(presentClientMessage),
+      attachments: result.attachments.map(presentClientAttachment),
     });
   } catch (error) {
     return handleSupportError(res, error, "Failed to add support message.");

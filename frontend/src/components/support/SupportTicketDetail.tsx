@@ -1,14 +1,20 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { MessageSquare } from "lucide-react";
-import type { SupportTicket, SupportTicketMessage } from "../../api/support";
+import type {
+  SupportTicket,
+  SupportTicketAttachment,
+  SupportTicketMessage,
+} from "../../api/support";
 import { SupportStatusBadge } from "./SupportStatusBadge";
 import { SupportMessageThread } from "./SupportMessageThread";
+import { SupportTicketAttachments } from "./SupportTicketAttachments";
 import { ticketTypeMeta } from "./supportMeta";
 
 export type SupportTicketDetailProps = {
   ticket?: SupportTicket;
   messages?: SupportTicketMessage[];
+  attachments?: SupportTicketAttachment[];
   isLoading: boolean;
   isReplying: boolean;
   onReply: (body: string) => void;
@@ -17,6 +23,7 @@ export type SupportTicketDetailProps = {
 export function SupportTicketDetail({
   ticket,
   messages = [],
+  attachments = [],
   isLoading,
   isReplying,
   onReply,
@@ -61,6 +68,9 @@ export function SupportTicketDetail({
   }
 
   const type = ticketTypeMeta[ticket.type];
+  const canReply = !["resolved", "wont_fix", "archived"].includes(
+    ticket.status,
+  );
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.03),0_1px_3px_rgba(0,0,0,0.05)] sm:p-6">
@@ -81,9 +91,14 @@ export function SupportTicketDetail({
         <SupportStatusBadge status={ticket.status} />
       </div>
 
+      <SupportTicketAttachments
+        ticketId={ticket.id}
+        attachments={attachments}
+      />
+
       <SupportMessageThread messages={messages} />
 
-      {ticket.status !== "resolved" && ticket.status !== "wont_fix" && (
+      {canReply && (
         <form onSubmit={handleSubmit} className="mt-5 space-y-3">
           <label className="sr-only" htmlFor="support-reply">
             Reply to support

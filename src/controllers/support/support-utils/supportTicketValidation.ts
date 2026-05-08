@@ -29,7 +29,6 @@ export interface AdminSupportTicketUpdateData {
   status?: SupportTicketStatus;
   severity?: SupportTicketSeverity;
   priority?: SupportTicketPriority;
-  category?: string | null;
   assignedToUserId?: number | null;
   targetSprint?: string | null;
   internalNotes?: string | null;
@@ -56,8 +55,8 @@ const STATUSES: SupportTicketStatus[] = [
   "archived",
 ];
 
-const SEVERITIES: SupportTicketSeverity[] = ["low", "medium", "high", "urgent"];
-const PRIORITIES: SupportTicketPriority[] = ["low", "normal", "high", "urgent"];
+const SEVERITIES: SupportTicketSeverity[] = ["low", "medium", "high"];
+const PRIORITIES: SupportTicketPriority[] = ["p0", "p1", "p2", "p3"];
 
 export function validateCreateSupportTicketInput(
   body: Record<string, unknown>,
@@ -81,6 +80,13 @@ export function validateCreateSupportTicketInput(
   const requiredError = validateGuidedAnswers(type, guidedAnswers);
   if (requiredError) {
     return failure("MISSING_DETAILS", requiredError);
+  }
+
+  if (type === "website_edit" && !requestedCompletionDate) {
+    return failure(
+      "MISSING_COMPLETION_DATE",
+      "Choose the date you need this website edit completed.",
+    );
   }
 
   return {
@@ -136,8 +142,6 @@ export function validateAdminSupportTicketUpdateInput(
     data.priority = body.priority as SupportTicketPriority;
   }
 
-  if (body.category !== undefined)
-    data.category = cleanNullableText(body.category, 80);
   if (body.targetSprint !== undefined) {
     data.targetSprint = cleanNullableText(body.targetSprint, 120);
   }
@@ -150,19 +154,6 @@ export function validateAdminSupportTicketUpdateInput(
 
   if (body.assignedToUserId !== undefined) {
     data.assignedToUserId = cleanOptionalNumber(body.assignedToUserId);
-  }
-
-  if (data.status && ["resolved", "wont_fix"].includes(data.status)) {
-    const resolutionNotes =
-      data.resolutionNotes !== undefined
-        ? data.resolutionNotes
-        : cleanNullableText(body.resolutionNotes, 8000);
-    if (!resolutionNotes) {
-      return failure(
-        "MISSING_RESOLUTION",
-        "Add resolution notes before closing a ticket.",
-      );
-    }
   }
 
   return { valid: true, data };
@@ -193,11 +184,14 @@ function validateGuidedAnswers(
   guidedAnswers: Record<string, unknown>,
 ): string | null {
   if (type === "bug_report") {
-    if (!cleanText(guidedAnswers.summary, 255)) {
-      return "Briefly describe what is broken.";
+    if (!cleanText(guidedAnswers.tryingToDo, 255)) {
+      return "Tell us what you were trying to do.";
     }
-    if (!cleanText(guidedAnswers.stepsToReproduce, 2000)) {
-      return "Add steps to reproduce the issue.";
+    if (!cleanText(guidedAnswers.whatHappened, 2000)) {
+      return "Tell us what happened instead.";
+    }
+    if (!cleanText(guidedAnswers.workImpact, 1000)) {
+      return "Tell us how this is affecting your work.";
     }
   }
 
@@ -205,8 +199,8 @@ function validateGuidedAnswers(
     if (!cleanText(guidedAnswers.idea, 255)) {
       return "Add the feature idea you want us to evaluate.";
     }
-    if (!cleanText(guidedAnswers.problem, 2000)) {
-      return "Describe the problem this feature would solve.";
+    if (!cleanText(guidedAnswers.usefulness, 2000)) {
+      return "Tell us how this would help your practice use Alloro.";
     }
   }
 
@@ -216,6 +210,9 @@ function validateGuidedAnswers(
     }
     if (!cleanText(guidedAnswers.requestedChange, 2000)) {
       return "Describe the website change you want made.";
+    }
+    if (!cleanText(guidedAnswers.approvalNotes, 2000)) {
+      return "Add the approval notes for this website change.";
     }
   }
 

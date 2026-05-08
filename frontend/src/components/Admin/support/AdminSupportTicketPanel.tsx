@@ -5,9 +5,11 @@ import type {
   AdminSupportTicketUpdatePayload,
   SupportMessageVisibility,
   SupportTicket,
+  SupportTicketAttachment,
   SupportTicketMessage,
 } from "../../../api/support";
 import { SupportMessageThread } from "../../support/SupportMessageThread";
+import { SupportTicketAttachments } from "../../support/SupportTicketAttachments";
 import { ticketTypeMeta } from "../../support/supportMeta";
 import { AdminSupportReplyForm } from "./AdminSupportReplyForm";
 import { AdminSupportTriageForm } from "./AdminSupportTriageForm";
@@ -16,6 +18,7 @@ import { SupportSignalBadge } from "./SupportSignalBadge";
 export type AdminSupportTicketPanelProps = {
   ticket?: SupportTicket;
   messages?: SupportTicketMessage[];
+  attachments?: SupportTicketAttachment[];
   isLoading: boolean;
   isUpdating: boolean;
   isMessaging: boolean;
@@ -27,6 +30,7 @@ export type AdminSupportTicketPanelProps = {
 export function AdminSupportTicketPanel({
   ticket,
   messages = [],
+  attachments = [],
   isLoading,
   isUpdating,
   isMessaging,
@@ -43,9 +47,8 @@ export function AdminSupportTicketPanel({
     if (!ticket) return;
     setForm({
       status: ticket.status,
-      severity: ticket.severity,
-      priority: ticket.priority,
-      category: ticket.category || "",
+      severity: ticket.severity || "medium",
+      priority: ticket.priority || "p2",
       assignedToUserId: ticket.assignedToUserId || null,
       targetSprint: ticket.targetSprint || "",
       internalNotes: ticket.internalNotes || "",
@@ -116,8 +119,12 @@ export function AdminSupportTicketPanel({
         </div>
         <div className="flex flex-wrap gap-2 lg:justify-end">
           <SupportSignalBadge kind="status" value={ticket.status} />
-          <SupportSignalBadge kind="severity" value={ticket.severity} />
-          <SupportSignalBadge kind="priority" value={ticket.priority} />
+          {ticket.severity && (
+            <SupportSignalBadge kind="severity" value={ticket.severity} />
+          )}
+          {ticket.priority && (
+            <SupportSignalBadge kind="priority" value={ticket.priority} />
+          )}
         </div>
       </div>
 
@@ -130,7 +137,14 @@ export function AdminSupportTicketPanel({
       />
 
       <div className="mt-6 grid gap-5 xl:grid-cols-[1fr_340px]">
-        <SupportMessageThread messages={messages} />
+        <div>
+          <SupportTicketAttachments
+            ticketId={ticket.id}
+            attachments={attachments}
+            isAdmin
+          />
+          <SupportMessageThread messages={messages} />
+        </div>
         <AdminSupportReplyForm
           message={message}
           visibility={visibility}

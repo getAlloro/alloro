@@ -9,7 +9,7 @@ export type SupportTicketComposerModalProps = {
   isSubmitting: boolean;
   errorMessage?: string | null;
   onClose: () => void;
-  onCreateTicket: (payload: CreateSupportTicketPayload) => void;
+  onCreateTicket: (payload: CreateSupportTicketPayload, files: File[]) => void;
 };
 
 export function SupportTicketComposerModal({

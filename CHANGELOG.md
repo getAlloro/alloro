@@ -2,6 +2,30 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.61] - May 2026
+
+### Support Ticket Feedback Alignment
+
+Aligned the client and admin support-ticketing system with the latest Alloro review feedback, including warmer client language, screenshot/file attachments, required website edit approval details, clearer internal triage semantics, and safer client/admin response contracts.
+
+**Key Changes:**
+- Rewrote client ticket prompts to use client-facing language instead of developer terms
+- Added S3-backed support ticket attachments with image/PDF restrictions, size limits, and scoped client/admin access
+- Required website edit approval notes and requested completion date in UI and backend validation
+- Separated client-impact severity from internal P-level priority
+- Removed Category from the support product surface while keeping the existing DB column deprecated
+- Required resolution notes for resolved, closed, and archived states
+- Split client-safe and admin-full support presenters so internal fields are not exposed to client ticket APIs
+
+**Commits:**
+- `src/database/migrations/20260508000000_support_feedback_alignment.ts` — priority/severity enum migration and support attachment metadata table
+- `src/controllers/support/*` and `src/models/SupportTicketAttachmentModel.ts` — support attachment upload/list/signing flow and client-safe ticket presentation
+- `src/routes/support.ts` and `src/routes/admin/support.ts` — client/admin attachment endpoints
+- `frontend/src/api/support.ts` and `frontend/src/hooks/queries/useSupportQueries.ts` — typed attachment APIs and create-ticket upload orchestration
+- `frontend/src/components/support/*` and `frontend/src/pages/Help.tsx` — client copy updates, required fields, attachment picker, and attachment list
+- `frontend/src/components/Admin/support/*` and `frontend/src/pages/admin/SupportDashboard.tsx` — Category removal, P-level priority labels, client-impact severity labels, and admin attachment display
+- `plans/05082026-no-ticket-support-feedback-alignment/*` — executed spec and migration planning artifacts
+
 ## [0.0.60] - May 2026
 
 ### Admin PM Global Backlog And Assignee Views

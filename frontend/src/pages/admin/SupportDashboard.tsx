@@ -45,7 +45,10 @@ export default function SupportDashboard() {
   const organizationsQuery = useAdminOrganizations();
   const assigneesQuery = useAdminSupportAssignees();
 
-  const tickets = listQuery.data?.tickets || [];
+  const tickets = useMemo(
+    () => listQuery.data?.tickets || [],
+    [listQuery.data?.tickets],
+  );
   const groups = useMemo(() => groupTicketsByClient(tickets), [tickets]);
 
   useEffect(() => {
@@ -90,6 +93,7 @@ export default function SupportDashboard() {
           <AdminSupportTicketPanel
             ticket={detailQuery.data?.ticket}
             messages={detailQuery.data?.messages}
+            attachments={detailQuery.data?.attachments}
             isLoading={detailQuery.isLoading}
             isUpdating={updateTicket.isPending}
             isMessaging={createMessage.isPending}

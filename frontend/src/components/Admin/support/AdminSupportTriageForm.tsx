@@ -31,7 +31,9 @@ export function AdminSupportTriageForm({
   onSubmit,
 }: AdminSupportTriageFormProps) {
   const isResolutionRequired =
-    form.status === "resolved" || form.status === "wont_fix";
+    form.status === "resolved" ||
+    form.status === "wont_fix" ||
+    form.status === "archived";
   const assigneeOptions = [
     { value: null, label: "Unassigned" },
     ...assignees.map((assignee) => ({
@@ -54,7 +56,7 @@ export function AdminSupportTriageForm({
           onChange={(status) => onFormChange({ ...form, status })}
         />
         <AdminSelect
-          label="Severity"
+          label="Client impact"
           value={form.severity || "medium"}
           options={severityOptions.map((option) => ({
             ...option,
@@ -63,18 +65,13 @@ export function AdminSupportTriageForm({
           onChange={(severity) => onFormChange({ ...form, severity })}
         />
         <AdminSelect
-          label="Priority"
-          value={form.priority || "normal"}
+          label="Internal priority"
+          value={form.priority || "p2"}
           options={priorityOptions.map((option) => ({
             ...option,
             meta: getSignalMeta("priority", option.value),
           }))}
           onChange={(priority) => onFormChange({ ...form, priority })}
-        />
-        <AdminInput
-          label="Category (optional)"
-          value={String(form.category || "")}
-          onChange={(category) => onFormChange({ ...form, category })}
         />
         <AdminInput
           label="Target sprint (optional)"
