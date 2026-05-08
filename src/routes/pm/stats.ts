@@ -9,6 +9,8 @@ router.get("/", authenticateToken, superAdminMiddleware, controller.getStats);
 router.get("/velocity", authenticateToken, superAdminMiddleware, controller.getVelocity);
 router.get("/chart-data", authenticateToken, superAdminMiddleware, controller.getChartData);
 router.get("/me", authenticateToken, superAdminMiddleware, controller.getMyStats);
+router.get("/assigned/:userId", authenticateToken, superAdminMiddleware, controller.getAssignedStats);
 router.get("/velocity/me", authenticateToken, superAdminMiddleware, controller.getMyVelocity);
+router.get("/velocity/assigned/:userId", authenticateToken, superAdminMiddleware, controller.getAssignedVelocity);
 
 export default router;

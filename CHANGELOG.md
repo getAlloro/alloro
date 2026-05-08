@@ -2,6 +2,29 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.60] - May 2026
+
+### Admin PM Global Backlog And Assignee Views
+
+Added cross-project PM triage views so admins can inspect backlog work without opening every project and review workload for Dave or any other PM assignee without hardcoding a person.
+
+**Key Changes:**
+- Added a clickable Backlog metric tile that opens `/admin/pm?view=backlog`
+- Added a global backlog view grouped by project with assignment and real project-column move controls
+- Added a reusable assignee workload view with `Me` preserved as the current-user shortcut
+- Added People view support for `/admin/pm?view=assignee&userId={id}`
+- Added backend aggregate PM task queries that avoid client-side project-board fanout
+- Normalized PM user IDs to numeric values so URL params and picker state agree
+
+**Commits:**
+- `src/models/PmTaskModel.ts` and `src/models/PmColumnModel.ts` — aggregate backlog, assigned-task, velocity, and project-column map helpers
+- `src/controllers/pm/PmTaskViewsController.ts`, `src/controllers/pm/PmStatsController.ts`, and `src/routes/pm/*` — new backlog, assigned-user, and shared `mine` task routes
+- `src/controllers/pm/PmController.ts` — numeric PM user IDs for assignee picker contracts
+- `frontend/src/pages/admin/ProjectsDashboard.tsx` and `frontend/src/components/pm/StatsRow.tsx` — dashboard tabs and clickable Backlog tile
+- `frontend/src/components/pm/BacklogTabView.tsx` and `frontend/src/components/pm/BacklogProjectGroup.tsx` — project-grouped backlog triage UI
+- `frontend/src/components/pm/AssigneeTabView.tsx` and `frontend/src/components/pm/MeTabView.tsx` — reusable Me/People workload board
+- `frontend/src/api/pm.ts` and `frontend/src/types/pm.ts` — typed backlog, assignee, user, stats, and velocity client contracts
+
 ## [0.0.59] - May 2026
 
 ### Article And Review Shortcode Pagination

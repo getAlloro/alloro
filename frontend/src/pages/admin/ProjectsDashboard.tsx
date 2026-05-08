@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Plus, Sparkles } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import { usePmStore } from "../../stores/pmStore";
 import { CreateProjectModal } from "../../components/pm/CreateProjectModal";
@@ -13,6 +14,8 @@ import { ActivityTimeline } from "../../components/pm/ActivityTimeline";
 import { ActivityModal } from "../../components/pm/ActivityModal";
 import { FloatingClock } from "../../components/pm/FloatingClock";
 import { MeTabView } from "../../components/pm/MeTabView";
+import { BacklogTabView } from "../../components/pm/BacklogTabView";
+import { AssigneeTabView } from "../../components/pm/AssigneeTabView";
 import { CrossProjectAISynthModal } from "../../components/pm/CrossProjectAISynthModal";
 import { NoProjects } from "../../components/pm/EmptyStates";
 import { formatDeadline } from "../../utils/pmDateFormat";
@@ -27,9 +30,12 @@ const cardVariants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" as const } },
 };
 
+type DashboardView = "overview" | "backlog" | "me" | "assignee";
+
 function ProjectIcon({ icon, color }: { icon: string; color: string }) {
   const name = icon.charAt(0).toUpperCase() + icon.slice(1);
-  const IconComponent = (LucideIcons as any)[name] || LucideIcons.FolderKanban;
+  const iconMap = LucideIcons as unknown as Record<string, LucideIcon>;
+  const IconComponent = iconMap[name] || LucideIcons.FolderKanban;
   return <IconComponent className="h-5 w-5" strokeWidth={1.5} style={{ color }} />;
 }
 
@@ -41,11 +47,25 @@ export default function ProjectsDashboard() {
   const [showCrossProjectSynth, setShowCrossProjectSynth] = useState(false);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeView = searchParams.get("view") === "me" ? "me" : "overview";
+  const viewParam = searchParams.get("view");
+  const activeView: DashboardView =
+    viewParam === "backlog" || viewParam === "me" || viewParam === "assignee"
+      ? viewParam
+      : "overview";
+  const assigneeUserIdParam = Number(searchParams.get("userId"));
+  const assigneeUserId =
+    Number.isInteger(assigneeUserIdParam) && assigneeUserIdParam > 0
+      ? assigneeUserIdParam
+      : null;
 
   useEffect(() => {
     fetchProjects();
   }, [fetchProjects]);
+
+  const tabStyle = (view: DashboardView) => ({
+    backgroundColor: activeView === view ? "var(--color-pm-bg-hover)" : "transparent",
+    color: activeView === view ? "var(--color-pm-text-primary)" : "var(--color-pm-text-muted)",
+  });
 
   return (
     <div
@@ -57,27 +77,47 @@ export default function ProjectsDashboard() {
         <button
           onClick={() => setSearchParams({})}
           className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150"
-          style={{
-            backgroundColor: activeView === "overview" ? "var(--color-pm-bg-hover)" : "transparent",
-            color: activeView === "overview" ? "var(--color-pm-text-primary)" : "var(--color-pm-text-muted)",
-          }}
+          style={tabStyle("overview")}
         >
           Overview
         </button>
         <button
+          onClick={() => setSearchParams({ view: "backlog" })}
+          className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150"
+          style={tabStyle("backlog")}
+        >
+          Backlog
+        </button>
+        <button
           onClick={() => setSearchParams({ view: "me" })}
           className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150"
-          style={{
-            backgroundColor: activeView === "me" ? "var(--color-pm-bg-hover)" : "transparent",
-            color: activeView === "me" ? "var(--color-pm-text-primary)" : "var(--color-pm-text-muted)",
-          }}
+          style={tabStyle("me")}
         >
           Me
         </button>
+        <button
+          onClick={() => setSearchParams({ view: "assignee" })}
+          className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150"
+          style={tabStyle("assignee")}
+        >
+          People
+        </button>
       </div>
+
+      {/* BACKLOG tab */}
+      {activeView === "backlog" && <BacklogTabView />}
 
       {/* ME tab */}
       {activeView === "me" && <MeTabView />}
+
+      {/* ASSIGNEE tab */}
+      {activeView === "assignee" && (
+        <AssigneeTabView
+          showUserPicker
+          userId={assigneeUserId}
+          onUserChange={(userId) => setSearchParams({ view: "assignee", userId: String(userId) })}
+        />
+      )}
 
       {/* OVERVIEW tab */}
       {activeView === "overview" && <>
@@ -113,7 +153,7 @@ export default function ProjectsDashboard() {
       <div className="space-y-6 max-w-[1400px] mx-auto">
         {/* Stats + Velocity in one row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <StatsRow />
+          <StatsRow onBacklogClick={() => setSearchParams({ view: "backlog" })} />
           <VelocityChart />
         </div>
 

@@ -1,7 +1,7 @@
 import express from "express";
 import { authenticateToken } from "../../middleware/auth";
 import { superAdminMiddleware } from "../../middleware/superAdmin";
-import { getMyTasks } from "../../controllers/pm/PmMyTasksController";
+import { getMyTasks } from "../../controllers/pm/PmTaskViewsController";
 
 const router = express.Router();
 

@@ -2,8 +2,25 @@ import express from "express";
 import { authenticateToken } from "../../middleware/auth";
 import { superAdminMiddleware } from "../../middleware/superAdmin";
 import * as controller from "../../controllers/pm/PmTasksController";
+import * as taskViews from "../../controllers/pm/PmTaskViewsController";
 
 const router = express.Router();
+
+// GET /api/pm/tasks/backlog — global backlog grouped by project
+router.get(
+  "/tasks/backlog",
+  authenticateToken,
+  superAdminMiddleware,
+  taskViews.getBacklogTasks
+);
+
+// GET /api/pm/tasks/assigned/:userId — cross-project task groups for a PM user
+router.get(
+  "/tasks/assigned/:userId",
+  authenticateToken,
+  superAdminMiddleware,
+  taskViews.getAssignedTasks
+);
 
 // POST /api/pm/projects/:id/tasks — create task in specified column
 router.post(

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { Target, CalendarRange, Inbox } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { PmStats } from "../../types/pm";
 import { fetchStats } from "../../api/pm";
 
@@ -16,12 +17,29 @@ function AnimatedNum({ value }: { value: number }) {
 
 const SEVERITY_COLORS: Record<string, string> = { green: "#3D8B40", amber: "#D4920A", red: "#C43333" };
 
-export function StatsRow() {
+type StatsRowProps = {
+  onBacklogClick?: () => void;
+};
+
+type StatCard = {
+  key: string;
+  label: string;
+  icon: LucideIcon;
+  iconColor: string;
+  iconBg: string;
+  count: number;
+  subtitle: string;
+  numberColor: string;
+  subtitleColor?: string;
+  onClick?: () => void;
+};
+
+export function StatsRow({ onBacklogClick }: StatsRowProps) {
   const [stats, setStats] = useState<PmStats | null>(null);
 
   useEffect(() => { fetchStats().then(setStats).catch(console.error); }, []);
 
-  const cards = [
+  const cards: StatCard[] = [
     {
       key: "focus",
       label: "FOCUS TODAY",
@@ -53,6 +71,7 @@ export function StatsRow() {
       subtitle: stats?.backlog.subtitle ?? "",
       numberColor: "var(--color-pm-text-primary)",
       subtitleColor: stats?.backlog.severity === "amber" ? "#D4920A" : undefined,
+      onClick: onBacklogClick,
     },
   ];
 
@@ -60,16 +79,8 @@ export function StatsRow() {
     <div className="grid grid-cols-3 gap-3">
       {cards.map((c, i) => {
         const Icon = c.icon;
-        return (
-          <motion.div
-            key={c.key}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.06, duration: 0.3, ease: "easeOut" }}
-            whileHover={{ y: -1, transition: { duration: 0.15 } }}
-            className="rounded-xl p-4"
-            style={{ backgroundColor: "var(--color-pm-bg-secondary)", boxShadow: "var(--pm-shadow-card)" }}
-          >
+        const content = (
+          <>
             <div className="flex items-center gap-2 mb-3">
               <div className="flex h-7 w-7 items-center justify-center rounded-md" style={{ backgroundColor: c.iconBg }}>
                 <Icon className="h-4 w-4" strokeWidth={1.5} style={{ color: c.iconColor }} />
@@ -80,6 +91,42 @@ export function StatsRow() {
               <AnimatedNum value={c.count} />
             </div>
             <p className="text-[11px] mt-0.5" style={{ color: c.subtitleColor || "var(--color-pm-text-muted)" }}>{c.subtitle}</p>
+          </>
+        );
+        const motionProps = {
+          initial: { opacity: 0, y: 8 },
+          animate: { opacity: 1, y: 0 },
+          transition: { delay: i * 0.06, duration: 0.3, ease: "easeOut" as const },
+          whileHover: { y: -1, transition: { duration: 0.15 } },
+        };
+        const style = {
+          backgroundColor: "var(--color-pm-bg-secondary)",
+          boxShadow: "var(--pm-shadow-card)",
+        };
+
+        if (c.onClick) {
+          return (
+            <motion.button
+              key={c.key}
+              type="button"
+              onClick={c.onClick}
+              {...motionProps}
+              className="w-full rounded-xl p-4 text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#D66853]/30"
+              style={style}
+            >
+              {content}
+            </motion.button>
+          );
+        }
+
+        return (
+          <motion.div
+            key={c.key}
+            {...motionProps}
+            className="rounded-xl p-4"
+            style={style}
+          >
+            {content}
           </motion.div>
         );
       })}
