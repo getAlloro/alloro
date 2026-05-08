@@ -14,36 +14,35 @@ export type SupportTicketStatus =
   | "wont_fix"
   | "archived";
 
-export type SupportTicketSeverity = "low" | "medium" | "high" | "urgent";
-export type SupportTicketPriority = "low" | "normal" | "high" | "urgent";
+export type SupportTicketSeverity = "low" | "medium" | "high";
+export type SupportTicketPriority = "p0" | "p1" | "p2" | "p3";
 export type SupportMessageVisibility = "client_visible" | "internal";
 
 export type SupportTicket = {
   id: string;
   publicId: string;
-  organizationId: number;
+  organizationId?: number;
   organizationName?: string | null;
   locationId: number | null;
-  createdByUserId: number | null;
+  createdByUserId?: number | null;
   createdByName?: string | null;
   createdByEmail?: string | null;
-  assignedToUserId: number | null;
+  assignedToUserId?: number | null;
   assignedToName?: string | null;
   assignedToEmail?: string | null;
   type: SupportTicketType;
   status: SupportTicketStatus;
-  severity: SupportTicketSeverity;
-  priority: SupportTicketPriority;
-  category: string | null;
-  targetSprint: string | null;
+  severity?: SupportTicketSeverity | null;
+  priority?: SupportTicketPriority | null;
+  targetSprint?: string | null;
   title: string;
   currentPageUrl: string | null;
   requestedCompletionDate: string | null;
   guidedAnswers: Record<string, unknown>;
-  internalNotes: string | null;
+  internalNotes?: string | null;
   resolutionNotes: string | null;
-  ackEmailSentAt: string | null;
-  resolvedEmailSentAt: string | null;
+  ackEmailSentAt?: string | null;
+  resolvedEmailSentAt?: string | null;
   resolvedAt: string | null;
   latestMessageAt?: string | null;
   clientVisibleMessageCount?: number;
@@ -64,6 +63,20 @@ export type SupportTicketMessage = {
   updatedAt: string;
 };
 
+export type SupportTicketAttachment = {
+  id: string;
+  ticketId: string;
+  uploadedByUserId?: number | null;
+  uploaderRole: "client" | "admin" | "system";
+  visibility: SupportMessageVisibility;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  uploadedByName?: string | null;
+  uploadedByEmail?: string | null;
+  createdAt: string;
+};
+
 export type SupportPagination = {
   page: number;
   limit: number;
@@ -79,6 +92,7 @@ export type SupportTicketListResponse = {
 export type SupportTicketDetailResponse = {
   ticket: SupportTicket;
   messages: SupportTicketMessage[];
+  attachments: SupportTicketAttachment[];
 };
 
 export type CreateSupportTicketPayload = {
@@ -107,7 +121,6 @@ export type AdminSupportTicketUpdatePayload = {
   status?: SupportTicketStatus;
   severity?: SupportTicketSeverity;
   priority?: SupportTicketPriority;
-  category?: string | null;
   assignedToUserId?: number | null;
   targetSprint?: string | null;
   internalNotes?: string | null;
@@ -118,6 +131,11 @@ export type AdminSupportAssignee = {
   id: number;
   email: string;
   displayName: string;
+};
+
+export type SupportAttachmentUrlResponse = {
+  url: string;
+  expiresInSeconds: number;
 };
 
 type ApiEnvelope<T> = {
@@ -143,6 +161,35 @@ export async function createSupportTicket(
 ): Promise<SupportTicketDetailResponse> {
   return unwrap(
     await apiPost({ path: "/support/tickets", passedData: payload }),
+  );
+}
+
+export async function uploadSupportTicketAttachment(
+  ticketId: string,
+  file: File,
+): Promise<SupportTicketAttachment> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const data = unwrap<{ attachment: SupportTicketAttachment }>(
+    await apiPost({
+      path: `/support/tickets/${ticketId}/attachments`,
+      passedData: formData,
+    }),
+  );
+  return data.attachment;
+}
+
+export async function fetchSupportTicketAttachmentUrl(
+  ticketId: string,
+  attachmentId: string,
+  download = false,
+): Promise<SupportAttachmentUrlResponse> {
+  return unwrap(
+    await apiGet({
+      path: `/support/tickets/${ticketId}/attachments/${attachmentId}/url${
+        download ? "?download=1" : ""
+      }`,
+    }),
   );
 }
 
@@ -180,6 +227,37 @@ export async function updateAdminSupportTicket(
     await apiPatch({
       path: `/admin/support/tickets/${ticketId}`,
       passedData: payload,
+    }),
+  );
+}
+
+export async function uploadAdminSupportTicketAttachment(
+  ticketId: string,
+  file: File,
+  visibility: SupportMessageVisibility = "client_visible",
+): Promise<SupportTicketAttachment> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("visibility", visibility);
+  const data = unwrap<{ attachment: SupportTicketAttachment }>(
+    await apiPost({
+      path: `/admin/support/tickets/${ticketId}/attachments`,
+      passedData: formData,
+    }),
+  );
+  return data.attachment;
+}
+
+export async function fetchAdminSupportTicketAttachmentUrl(
+  ticketId: string,
+  attachmentId: string,
+  download = false,
+): Promise<SupportAttachmentUrlResponse> {
+  return unwrap(
+    await apiGet({
+      path: `/admin/support/tickets/${ticketId}/attachments/${attachmentId}/url${
+        download ? "?download=1" : ""
+      }`,
     }),
   );
 }

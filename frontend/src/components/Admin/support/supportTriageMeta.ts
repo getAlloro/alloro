@@ -43,21 +43,22 @@ export const ticketStatusOptions: Array<{
 export const severityOptions: Array<{
   value: SupportTicketSeverity;
   label: string;
+  hint?: string;
 }> = [
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-  { value: "urgent", label: "Urgent" },
+  { value: "high", label: "High", hint: "Client cannot move forward" },
+  { value: "medium", label: "Medium", hint: "Annoying, but task can continue" },
+  { value: "low", label: "Low", hint: "Minor, cosmetic, or polish" },
 ];
 
 export const priorityOptions: Array<{
   value: SupportTicketPriority;
   label: string;
+  hint?: string;
 }> = [
-  { value: "low", label: "Low" },
-  { value: "normal", label: "Normal" },
-  { value: "high", label: "High" },
-  { value: "urgent", label: "Urgent" },
+  { value: "p0", label: "P0", hint: "Action within 24 hours" },
+  { value: "p1", label: "P1", hint: "Current sprint" },
+  { value: "p2", label: "P2", hint: "Not urgent" },
+  { value: "p3", label: "P3", hint: "Backlog or polish" },
 ];
 
 export const statusMeta: Record<SupportTicketStatus, SupportSignalMeta> = {
@@ -120,44 +121,38 @@ export const severityMeta: Record<SupportTicketSeverity, SupportSignalMeta> = {
     shape: "diamond",
   },
   high: {
-    label: "High",
+    label: "High impact",
     dotClass: "bg-orange-500",
     badgeClass: "border-orange-200 bg-orange-50 text-orange-700",
-    shape: "square",
-  },
-  urgent: {
-    label: "Urgent",
-    dotClass: "bg-red-500",
-    badgeClass: "border-red-200 bg-red-50 text-red-700",
     shape: "square",
   },
 };
 
 export const priorityMeta: Record<SupportTicketPriority, SupportSignalMeta> = {
-  low: {
-    label: "Low",
-    dotClass: "bg-slate-400",
-    badgeClass: "border-slate-200 bg-slate-50 text-slate-600",
-    shape: "circle",
+  p0: {
+    label: "P0",
+    dotClass: "bg-red-500",
+    badgeClass: "border-red-200 bg-red-50 text-red-700",
+    shape: "square",
   },
-  normal: {
-    label: "Normal",
-    dotClass: "bg-teal-500",
-    badgeClass: "border-teal-200 bg-teal-50 text-teal-700",
-    shape: "circle",
-  },
-  high: {
-    label: "High",
+  p1: {
+    label: "P1",
     dotClass: "bg-alloro-orange",
     badgeClass:
       "border-alloro-orange/25 bg-alloro-orange/10 text-alloro-orange",
     shape: "diamond",
   },
-  urgent: {
-    label: "Urgent",
-    dotClass: "bg-red-500",
-    badgeClass: "border-red-200 bg-red-50 text-red-700",
-    shape: "square",
+  p2: {
+    label: "P2",
+    dotClass: "bg-teal-500",
+    badgeClass: "border-teal-200 bg-teal-50 text-teal-700",
+    shape: "circle",
+  },
+  p3: {
+    label: "P3",
+    dotClass: "bg-slate-400",
+    badgeClass: "border-slate-200 bg-slate-50 text-slate-600",
+    shape: "circle",
   },
 };
 

@@ -4,8 +4,13 @@ import {
   AdminTicketFilters,
   ClientTicketFilters,
   SupportTicket,
+  SupportTicketListItem,
   SupportTicketModel,
 } from "../../../models/SupportTicketModel";
+import {
+  SupportTicketAttachment,
+  SupportTicketAttachmentModel,
+} from "../../../models/SupportTicketAttachmentModel";
 import { SupportTicketEventModel } from "../../../models/SupportTicketEventModel";
 import {
   SupportMessageVisibility,
@@ -42,8 +47,9 @@ export class SupportServiceError extends Error {
 }
 
 type TicketWithMessages = {
-  ticket: SupportTicket;
+  ticket: SupportTicket | SupportTicketListItem;
   messages: SupportTicketMessage[];
+  attachments: SupportTicketAttachment[];
 };
 
 type CreateTicketContext = {
@@ -147,7 +153,10 @@ export class SupportTicketService {
     }
 
     const messages = await SupportTicketMessageModel.listForTicket(ticket.id);
-    return { ticket, messages };
+    const attachments = await SupportTicketAttachmentModel.listForTicket(
+      ticket.id,
+    );
+    return { ticket, messages, attachments };
   }
 
   static async addClientMessage(
@@ -165,6 +174,13 @@ export class SupportTicketService {
         "TICKET_NOT_FOUND",
         "Support ticket not found.",
         404,
+      );
+    }
+    if (["resolved", "wont_fix", "archived"].includes(existing.status)) {
+      throw new SupportServiceError(
+        "TICKET_CLOSED",
+        "This ticket is closed. Create a new ticket if you need more help.",
+        400,
       );
     }
 
@@ -221,7 +237,11 @@ export class SupportTicketService {
     const messages = await SupportTicketMessageModel.listForTicket(ticket.id, {
       includeInternal: true,
     });
-    return { ticket, messages };
+    const attachments = await SupportTicketAttachmentModel.listForTicket(
+      ticket.id,
+      { includeInternal: true },
+    );
+    return { ticket, messages, attachments };
   }
 
   static async updateAdminTicket(
@@ -237,6 +257,8 @@ export class SupportTicketService {
         404,
       );
     }
+
+    assertAdminUpdateAllowed(existing, input);
 
     const updateData = buildAdminUpdateData(input);
     const updated = await db.transaction(async (trx) => {
@@ -306,5 +328,26 @@ export class SupportTicketService {
     }
 
     return this.getAdminTicket(existing.id);
+  }
+}
+
+function assertAdminUpdateAllowed(
+  existing: SupportTicket | SupportTicketListItem,
+  input: AdminSupportTicketUpdateData,
+): void {
+  const nextStatus = input.status ?? existing.status;
+  const nextResolution =
+    input.resolutionNotes !== undefined
+      ? input.resolutionNotes
+      : existing.resolution_notes;
+
+  if (["resolved", "wont_fix", "archived"].includes(nextStatus)) {
+    if (!nextResolution?.trim()) {
+      throw new SupportServiceError(
+        "MISSING_RESOLUTION",
+        "Add resolution notes before closing or archiving a ticket.",
+        400,
+      );
+    }
   }
 }

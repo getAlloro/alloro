@@ -4,12 +4,15 @@ import {
   createAdminSupportMessage,
   createSupportTicket,
   createSupportTicketMessage,
+  fetchAdminSupportTicketAttachmentUrl,
+  fetchSupportTicket,
+  fetchSupportTicketAttachmentUrl,
   fetchAdminSupportAssignees,
   fetchAdminSupportTicket,
   fetchAdminSupportTickets,
-  fetchSupportTicket,
   fetchSupportTickets,
   updateAdminSupportTicket,
+  uploadSupportTicketAttachment,
 } from "../../api/support";
 import type {
   AdminSupportTicketFilters,
@@ -41,12 +44,42 @@ export function useSupportTicket(ticketId: string | null) {
 export function useCreateSupportTicket() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: CreateSupportTicketPayload) =>
-      createSupportTicket(payload),
+    mutationFn: async ({
+      payload,
+      files = [],
+    }: {
+      payload: CreateSupportTicketPayload;
+      files?: File[];
+    }) => {
+      const created = await createSupportTicket(payload);
+      if (files.length === 0) return created;
+
+      await Promise.all(
+        files.map((file) => uploadSupportTicketAttachment(created.ticket.id, file)),
+      );
+      return fetchSupportTicket(created.ticket.id);
+    },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: QUERY_KEYS.supportTicketsAll });
       qc.setQueryData(QUERY_KEYS.supportTicket(data.ticket.id), data);
     },
+  });
+}
+
+export function useSupportAttachmentUrl(isAdmin = false) {
+  return useMutation({
+    mutationFn: ({
+      ticketId,
+      attachmentId,
+      download = false,
+    }: {
+      ticketId: string;
+      attachmentId: string;
+      download?: boolean;
+    }) =>
+      isAdmin
+        ? fetchAdminSupportTicketAttachmentUrl(ticketId, attachmentId, download)
+        : fetchSupportTicketAttachmentUrl(ticketId, attachmentId, download),
   });
 }
 

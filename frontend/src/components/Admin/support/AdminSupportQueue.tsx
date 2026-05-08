@@ -98,16 +98,20 @@ export function AdminSupportQueue({
                         />
                       </div>
                       <div className="mt-3 flex flex-wrap gap-1.5">
-                        <SupportSignalBadge
-                          kind="severity"
-                          value={ticket.severity}
-                          compact
-                        />
-                        <SupportSignalBadge
-                          kind="priority"
-                          value={ticket.priority}
-                          compact
-                        />
+                        {ticket.severity && (
+                          <SupportSignalBadge
+                            kind="severity"
+                            value={ticket.severity}
+                            compact
+                          />
+                        )}
+                        {ticket.priority && (
+                          <SupportSignalBadge
+                            kind="priority"
+                            value={ticket.priority}
+                            compact
+                          />
+                        )}
                       </div>
                       <div className="mt-3 flex items-center justify-between gap-3 text-[11px] font-medium text-slate-400">
                         <span>Opened {formatDate(ticket.createdAt)}</span>

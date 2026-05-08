@@ -9,7 +9,11 @@ import {
   SupportTicketService,
 } from "../support/support-services/SupportTicketService";
 import { sendError, sendSuccess } from "../support/support-utils/supportResponses";
-import { presentMessage, presentTicket } from "../support/support-utils/supportTicketPresenter";
+import {
+  presentAdminMessage,
+  presentAdminAttachment,
+  presentAdminTicket,
+} from "../support/support-utils/supportTicketPresenter";
 import {
   validateAdminSupportMessageInput,
   validateAdminSupportTicketUpdateInput,
@@ -32,7 +36,7 @@ export async function listTickets(req: Request, res: Response) {
     });
 
     return sendSuccess(res, {
-      tickets: result.data.map(presentTicket),
+      tickets: result.data.map(presentAdminTicket),
       pagination: buildPagination(page, limit, result.total),
     });
   } catch (error) {
@@ -44,8 +48,9 @@ export async function getTicket(req: Request, res: Response) {
   try {
     const result = await SupportTicketService.getAdminTicket(req.params.ticketId);
     return sendSuccess(res, {
-      ticket: presentTicket(result.ticket),
-      messages: result.messages.map(presentMessage),
+      ticket: presentAdminTicket(result.ticket),
+      messages: result.messages.map(presentAdminMessage),
+      attachments: result.attachments.map(presentAdminAttachment),
     });
   } catch (error) {
     return handleSupportError(res, error, "Failed to load support ticket.");
@@ -76,8 +81,9 @@ export async function updateTicket(req: AuthRequest, res: Response) {
     );
 
     return sendSuccess(res, {
-      ticket: presentTicket(result.ticket),
-      messages: result.messages.map(presentMessage),
+      ticket: presentAdminTicket(result.ticket),
+      messages: result.messages.map(presentAdminMessage),
+      attachments: result.attachments.map(presentAdminAttachment),
     });
   } catch (error) {
     return handleSupportError(res, error, "Failed to update support ticket.");
@@ -109,8 +115,9 @@ export async function addMessage(req: AuthRequest, res: Response) {
     );
 
     return sendSuccess(res, {
-      ticket: presentTicket(result.ticket),
-      messages: result.messages.map(presentMessage),
+      ticket: presentAdminTicket(result.ticket),
+      messages: result.messages.map(presentAdminMessage),
+      attachments: result.attachments.map(presentAdminAttachment),
     });
   } catch (error) {
     return handleSupportError(res, error, "Failed to add support message.");

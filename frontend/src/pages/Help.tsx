@@ -62,9 +62,12 @@ export default function Help() {
     }
   };
 
-  const handleSubmitTicket = (payload: CreateSupportTicketPayload) => {
+  const handleSubmitTicket = (
+    payload: CreateSupportTicketPayload,
+    files: File[],
+  ) => {
     setComposerError(null);
-    createTicket.mutate(payload, {
+    createTicket.mutate({ payload, files }, {
       onSuccess: (data) => {
         toast.success("Support ticket created");
         handleSelectTicket(data.ticket.id);
@@ -131,6 +134,7 @@ export default function Help() {
           <SupportTicketDetail
             ticket={detailQuery.data?.ticket}
             messages={detailQuery.data?.messages}
+            attachments={detailQuery.data?.attachments}
             isLoading={detailQuery.isLoading}
             isReplying={createMessage.isPending}
             onReply={handleReply}

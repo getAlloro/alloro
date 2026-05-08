@@ -32,7 +32,7 @@ export function buildTitle(
   }[type];
   const source =
     type === "bug_report"
-      ? answers.summary
+      ? answers.tryingToDo || answers.summary
       : type === "feature_request"
         ? answers.idea
         : answers.requestedChange;
@@ -59,15 +59,14 @@ export function buildAdminUpdateData(input: AdminSupportTicketUpdateData) {
   const data: Partial<SupportTicket> = {};
   if (input.status !== undefined) {
     data.status = input.status;
-    if (["resolved", "wont_fix"].includes(input.status)) {
+    if (["resolved", "wont_fix", "archived"].includes(input.status)) {
       data.resolved_at = new Date();
-    } else if (input.status !== "archived") {
+    } else {
       data.resolved_at = null;
     }
   }
   if (input.severity !== undefined) data.severity = input.severity;
   if (input.priority !== undefined) data.priority = input.priority;
-  if (input.category !== undefined) data.category = input.category;
   if (input.assignedToUserId !== undefined) {
     data.assigned_to_user_id = input.assignedToUserId;
   }
@@ -107,6 +106,20 @@ export function displayUserName(user: {
 }
 
 function labelize(key: string): string {
+  const labels: Record<string, string> = {
+    tryingToDo: "What you were trying to do",
+    whatHappened: "What happened instead",
+    workImpact: "How this affects your work",
+    idea: "What you would like Alloro to do",
+    usefulness: "How this would help your practice use Alloro",
+    importance: "How important this is right now",
+    pageUrl: "Where on the site this change belongs",
+    requestedChange: "What should change",
+    approvalNotes: "Approval notes",
+  };
+
+  if (labels[key]) return labels[key];
+
   return key
     .replace(/([A-Z])/g, " $1")
     .replace(/[_-]/g, " ")
