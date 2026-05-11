@@ -28,4 +28,16 @@ export class TemplatePageModel extends BaseModel {
       this.deserializeJsonFields(row)
     );
   }
+
+  static async findSectionsByTemplateId(
+    templateId: string,
+    trx?: QueryContext
+  ): Promise<Array<Pick<ITemplatePage, "id" | "path" | "sections">>> {
+    const rows = await this.table(trx)
+      .where({ template_id: templateId })
+      .select("id", "path", "sections");
+    return rows.map((row: ITemplatePage) =>
+      this.deserializeJsonFields(row)
+    );
+  }
 }

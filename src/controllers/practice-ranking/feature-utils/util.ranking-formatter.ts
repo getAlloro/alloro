@@ -8,6 +8,149 @@
 
 import { parseJsonField } from "./util.json-parser";
 
+type SearchResultEntry = {
+  placeId?: string;
+  name?: string;
+  position?: number;
+  rating?: number;
+  reviewCount?: number;
+  primaryType?: string;
+  types?: string[];
+  isClient?: boolean;
+};
+
+type CompetitorSnapshotEntry = {
+  placeId?: string;
+  name?: string;
+  rating?: number | null;
+  reviewCount?: number | null;
+  lat?: number | null;
+  lng?: number | null;
+  discoveryPosition?: number | null;
+  discoveryQuery?: string | null;
+  discoverySource?: string | null;
+  discoveryCheckedAt?: string | null;
+  profileStrengthScore?: number | null;
+  profileStrengthTier?: string | null;
+};
+
+type CompetitorSnapshot = {
+  competitors?: CompetitorSnapshotEntry[];
+};
+
+function haversineMiles(
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number },
+): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const earthRadiusMiles = 3958.8;
+  const dLat = toRad(to.lat - from.lat);
+  const dLng = toRad(to.lng - from.lng);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(from.lat)) *
+      Math.cos(toRad(to.lat)) *
+      Math.sin(dLng / 2) ** 2;
+  return 2 * earthRadiusMiles * Math.asin(Math.sqrt(a));
+}
+
+function buildSelectedCompetitorSearchResults(ranking: any) {
+  const searchResults = parseJsonField(ranking.search_results);
+  const competitorSnapshot = parseJsonField(
+    ranking.competitor_snapshot,
+  ) as CompetitorSnapshot | null;
+  const selected = Array.isArray(competitorSnapshot?.competitors)
+    ? competitorSnapshot.competitors
+    : [];
+
+  if (selected.length === 0) return null;
+
+  const searchByPlaceId = new Map<string, SearchResultEntry>();
+  if (Array.isArray(searchResults)) {
+    for (const result of searchResults as SearchResultEntry[]) {
+      if (typeof result?.placeId === "string") {
+        searchByPlaceId.set(result.placeId, result);
+      }
+    }
+  }
+
+  const searchFailed =
+    ranking.search_status === "api_error" ||
+    ranking.search_status === "bias_unavailable" ||
+    !Array.isArray(searchResults);
+  const searchLat =
+    ranking.search_lat === null || ranking.search_lat === undefined
+      ? null
+      : Number(ranking.search_lat);
+  const searchLng =
+    ranking.search_lng === null || ranking.search_lng === undefined
+      ? null
+      : Number(ranking.search_lng);
+
+  const mapped = selected.map((competitor, index) => {
+    const match =
+      typeof competitor.placeId === "string"
+        ? searchByPlaceId.get(competitor.placeId)
+        : undefined;
+    const measuredPosition =
+      typeof match?.position === "number" && Number.isFinite(match.position)
+        ? match.position
+        : null;
+    const competitorLat =
+      competitor.lat === null || competitor.lat === undefined
+        ? null
+        : Number(competitor.lat);
+    const competitorLng =
+      competitor.lng === null || competitor.lng === undefined
+        ? null
+        : Number(competitor.lng);
+    const distanceMiles =
+      searchLat !== null &&
+      searchLng !== null &&
+      competitorLat !== null &&
+      competitorLng !== null
+        ? haversineMiles(
+            { lat: searchLat, lng: searchLng },
+            { lat: competitorLat, lng: competitorLng },
+          )
+        : null;
+
+    return {
+      placeId: competitor.placeId ?? null,
+      name: match?.name ?? competitor.name ?? "Selected competitor",
+      position: measuredPosition,
+      status: measuredPosition
+        ? "measured"
+        : searchFailed
+          ? "not_measured"
+          : "not_in_top_20",
+      rating:
+        typeof match?.rating === "number"
+          ? match.rating
+          : competitor.rating ?? null,
+      reviewCount:
+        typeof match?.reviewCount === "number"
+          ? match.reviewCount
+          : competitor.reviewCount ?? null,
+      primaryType: match?.primaryType ?? null,
+      discoveryPosition: competitor.discoveryPosition ?? null,
+      distanceMiles,
+      profileStrengthScore: competitor.profileStrengthScore ?? null,
+      profileStrengthTier: competitor.profileStrengthTier ?? null,
+      selectedOrder: index + 1,
+    };
+  });
+
+  return mapped.sort((a, b) => {
+    if (a.position !== null && b.position !== null) {
+      return a.position - b.position;
+    }
+    if (a.position !== null) return -1;
+    if (b.position !== null) return 1;
+    return a.selectedOrder - b.selectedOrder;
+  });
+}
+
 // =====================================================================
 // TRIGGER RESPONSE
 // =====================================================================
@@ -156,6 +299,15 @@ export function formatFullResults(ranking: any) {
       rankScore: ranking.rank_score,
       rankPosition: ranking.rank_position,
       totalCompetitors: ranking.total_competitors,
+      competitorSetRevision: ranking.competitor_set_revision ?? null,
+      competitorSnapshot: parseJsonField(ranking.competitor_snapshot),
+      competitorDiscoveryRadiusMeters:
+        ranking.competitor_discovery_radius_meters ?? null,
+      selectedCompetitorSearchResults:
+        buildSelectedCompetitorSearchResults(ranking),
+      runReason: ranking.run_reason ?? null,
+      includeInSummaryRecommendations:
+        ranking.include_in_summary_recommendations ?? true,
       rankingFactors: parseJsonField(ranking.ranking_factors),
       rawData: parseJsonField(ranking.raw_data),
       llmAnalysis: parseJsonField(ranking.llm_analysis),
@@ -269,14 +421,23 @@ export function formatLatestRanking(
     searchQuery: ranking.search_query,
     searchStatus: ranking.search_status,
     searchResults: parseJsonField(ranking.search_results),
+    selectedCompetitorSearchResults:
+      buildSelectedCompetitorSearchResults(ranking),
     searchLat: toNumberOrNull(ranking.search_lat),
     searchLng: toNumberOrNull(ranking.search_lng),
     searchRadiusMeters: ranking.search_radius_meters,
+    competitorDiscoveryRadiusMeters:
+      ranking.competitor_discovery_radius_meters ?? null,
     searchCheckedAt: ranking.search_checked_at,
     // Source of `searchPosition` (apify_maps | places_text | null). Used by the
     // frontend to suppress the position trend arrow across the cutover.
     // Spec: plans/04282026-no-ticket-live-google-rank-apify-maps-swap/spec.md (T3)
     searchPositionSource: ranking.search_position_source ?? null,
+    competitorSetRevision: ranking.competitor_set_revision ?? null,
+    competitorSnapshot: parseJsonField(ranking.competitor_snapshot),
+    runReason: ranking.run_reason ?? null,
+    includeInSummaryRecommendations:
+      ranking.include_in_summary_recommendations ?? true,
     rankingFactors: parseJsonField(ranking.ranking_factors),
     rawData: parseJsonField(ranking.raw_data),
     llmAnalysis: parseJsonField(ranking.llm_analysis),

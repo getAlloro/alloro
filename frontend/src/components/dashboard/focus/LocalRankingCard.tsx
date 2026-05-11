@@ -4,7 +4,6 @@ import { RefreshCw, MapPin } from "lucide-react";
 import { useAuth } from "../../../hooks/useAuth";
 import { useLocationContext } from "../../../contexts/locationContext";
 import { useDashboardMetrics } from "../../../hooks/queries/useDashboardMetrics";
-import { useRankingHistory } from "../../../hooks/queries/useRankingHistory";
 import FactorBar from "./FactorBar";
 
 /**
@@ -13,8 +12,6 @@ import FactorBar from "./FactorBar";
  * Reads:
  *   - useDashboardMetrics(orgId, locationId) for ranking summary metrics
  *     (position, total_competitors, score, lowest_factor).
- *   - useRankingHistory(orgId, locationId, '6m') for the position-change
- *     trend pill.
  *   - useLatestRanking(orgId, locationId) (defined inline below) for the
  *     full rankingFactors jsonb (need all 8 factor scores) plus the
  *     specialty (category) and location (city) metadata. Wraps the same
@@ -35,6 +32,11 @@ interface RankingResultLite {
   specialty: string;
   location: string;
   rankingFactors: Record<string, unknown> | null;
+  searchPosition: number | null;
+  searchStatus: "ok" | "not_in_top_20" | "bias_unavailable" | "api_error" | null;
+  searchQuery: string | null;
+  searchCheckedAt: string | null;
+  practiceHealth: number | null;
 }
 
 interface LatestRankingResponse {
@@ -132,7 +134,7 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
 function SkeletonShell() {
   return (
     <CardShell>
-      <Eyebrow>Local Ranking</Eyebrow>
+      <Eyebrow>Local Visibility</Eyebrow>
       <div className="space-y-3">
         <div className="h-9 w-32 animate-pulse rounded-md bg-neutral-100" />
         <div className="h-3 w-56 animate-pulse rounded bg-neutral-100" />
@@ -161,7 +163,7 @@ function ErrorShell({
 }) {
   return (
     <CardShell>
-      <Eyebrow>Local Ranking</Eyebrow>
+      <Eyebrow>Local Visibility</Eyebrow>
       <div
         className="rounded-md border px-3 py-2 text-xs"
         style={{
@@ -188,7 +190,7 @@ function ErrorShell({
 function EmptyShell() {
   return (
     <CardShell>
-      <Eyebrow>Local Ranking</Eyebrow>
+      <Eyebrow>Local Visibility</Eyebrow>
       <div className="flex flex-col items-center justify-center text-center py-6">
         <div
           className="flex items-center justify-center rounded-full mb-3"
@@ -215,26 +217,6 @@ function EmptyShell() {
         </p>
       </div>
     </CardShell>
-  );
-}
-
-function PositionTrendPill({ change }: { change: number | null }) {
-  if (change === null || change === 0) return null;
-  // For positions, a *decrease* (lower number) is an improvement. So
-  // "up" pill should appear when change < 0. We render the magnitude.
-  const improved = change < 0;
-  const magnitude = Math.abs(change);
-  return (
-    <span
-      className="ml-auto font-bold"
-      style={{
-        fontSize: 11,
-        color: improved ? "#4F8A5B" : "#B3503E",
-      }}
-    >
-      {improved ? "▲" : "▼"} {improved ? "+" : "-"}
-      {magnitude}
-    </span>
   );
 }
 
@@ -290,15 +272,13 @@ const LocalRankingCard: React.FC = () => {
   const locationId = selectedLocation?.id ?? null;
 
   const metrics = useDashboardMetrics(orgId, locationId);
-  const history = useRankingHistory(orgId, locationId, "6m");
   const latest = useLatestRanking(orgId, locationId);
 
-  const isLoading = metrics.isLoading || history.isLoading || latest.isLoading;
-  const isError = metrics.isError || history.isError || latest.isError;
+  const isLoading = metrics.isLoading || latest.isLoading;
+  const isError = metrics.isError || latest.isError;
 
   const retry = () => {
     metrics.refetch();
-    history.refetch();
     latest.refetch();
   };
 
@@ -307,7 +287,6 @@ const LocalRankingCard: React.FC = () => {
   if (isError) {
     const msg =
       (metrics.error as Error)?.message ||
-      (history.error as Error)?.message ||
       (latest.error as Error)?.message ||
       "Could not load ranking data.";
     return <ErrorShell onRetry={retry} message={msg} />;
@@ -316,35 +295,27 @@ const LocalRankingCard: React.FC = () => {
   const ranking = metrics.data?.ranking;
   const latestRow = latest.data;
 
-  if (!ranking || ranking.position === null || !latestRow) {
+  if (!latestRow) {
     return <EmptyShell />;
   }
 
-  const rankPosition = ranking.position;
-  const totalCompetitors = ranking.total_competitors ?? 0;
-  const rankScore = ranking.score ?? 0;
+  const mapsEstimate = latestRow.searchPosition;
+  const searchStatus = latestRow.searchStatus ?? "ok";
+  const rankScore =
+    latestRow.practiceHealth ?? latestRow.rankScore ?? ranking?.score ?? 0;
   const category = latestRow.specialty || "Local market";
   const city = latestRow.location || "";
-
-  // Position change: history points are oldest→newest. Compare oldest vs current.
-  const histPoints = history.data ?? [];
-  let positionChange: number | null = null;
-  if (histPoints.length >= 2) {
-    const first = histPoints[0].rankPosition;
-    const last = histPoints[histPoints.length - 1].rankPosition;
-    positionChange = last - first; // negative = improved (lower rank #)
-  }
 
   const factors = latestRow.rankingFactors;
   const googleAvg = avgScore(factors, GOOGLE_KEYS);
   const healthAvg = avgScore(factors, HEALTH_KEYS);
 
-  const lowestName = ranking.lowest_factor?.name ?? null;
+  const lowestName = ranking?.lowest_factor?.name ?? null;
   const hint = lowestFactorHint(lowestName);
 
   return (
     <CardShell>
-      <Eyebrow>Local Ranking</Eyebrow>
+      <Eyebrow>Local Visibility</Eyebrow>
 
       <div className="flex flex-wrap items-baseline gap-2">
         <span
@@ -357,19 +328,22 @@ const LocalRankingCard: React.FC = () => {
             color: INK,
           }}
         >
-          #{rankPosition}
+          {searchStatus === "not_in_top_20"
+            ? "20+"
+            : mapsEstimate !== null
+              ? `#${mapsEstimate}`
+              : "—"}
         </span>
         <span className="font-medium" style={{ fontSize: 12, color: MUTED }}>
-          of {totalCompetitors} competitors
+          Maps estimate
         </span>
-        <PositionTrendPill change={positionChange} />
       </div>
 
       <div
         className="mt-1.5 leading-relaxed"
         style={{ fontSize: 12, color: MUTED }}
       >
-        Visibility {rankScore} · {category}
+        Practice Health {Math.round(Number(rankScore))}/100 · {category}
         {city ? ` · ${city}` : ""}
       </div>
 
@@ -384,7 +358,7 @@ const LocalRankingCard: React.FC = () => {
               color: INK_SOFT,
             }}
           >
-            Google Search
+            Google Maps signals
           </span>
           <span
             style={{

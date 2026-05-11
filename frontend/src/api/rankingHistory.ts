@@ -19,6 +19,7 @@ export interface RankingHistoryPoint {
   observedAt: string;
   rankScore: number;
   rankPosition: number;
+  searchPosition: number | null;
   factorScores: Record<string, number>;
 }
 

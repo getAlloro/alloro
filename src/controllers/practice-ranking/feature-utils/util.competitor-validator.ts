@@ -5,6 +5,15 @@
  */
 
 export const MAX_COMPETITORS_PER_LOCATION = 10;
+export const DEFAULT_COMPETITOR_DISCOVERY_RADIUS_METERS = 40234; // 25 miles
+export const COMPETITOR_DISCOVERY_RADIUS_PRESETS_METERS = [
+  8047, // 5 miles
+  16093, // 10 miles
+  24140, // 15 miles
+  DEFAULT_COMPETITOR_DISCOVERY_RADIUS_METERS,
+  80467, // 50 miles
+  160934, // 100 miles
+] as const;
 
 export interface ValidationOk {
   valid: true;
@@ -77,4 +86,43 @@ export function validateUnderCap(currentCount: number): ValidationResult {
     };
   }
   return { valid: true };
+}
+
+export interface DiscoveryRadiusValidationOk {
+  valid: true;
+  radiusMeters: number;
+}
+
+export type DiscoveryRadiusValidationResult =
+  | DiscoveryRadiusValidationOk
+  | ValidationError;
+
+export function validateDiscoveryRadiusMeters(
+  raw: unknown,
+  fallback: number = DEFAULT_COMPETITOR_DISCOVERY_RADIUS_METERS
+): DiscoveryRadiusValidationResult {
+  if (raw === undefined || raw === null || raw === "") {
+    return { valid: true, radiusMeters: fallback };
+  }
+
+  const radiusMeters = Number(raw);
+  if (
+    !Number.isFinite(radiusMeters) ||
+    !Number.isInteger(radiusMeters) ||
+    !COMPETITOR_DISCOVERY_RADIUS_PRESETS_METERS.includes(
+      radiusMeters as (typeof COMPETITOR_DISCOVERY_RADIUS_PRESETS_METERS)[number]
+    )
+  ) {
+    return {
+      valid: false,
+      status: 400,
+      body: {
+        success: false,
+        error: "INVALID_DISCOVERY_RADIUS",
+        message: "radiusMeters must be one of the supported radius presets.",
+      },
+    };
+  }
+
+  return { valid: true, radiusMeters };
 }

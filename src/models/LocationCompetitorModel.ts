@@ -4,6 +4,26 @@ import type { LocationCompetitorOnboardingStatus } from "./LocationModel";
 
 export type { LocationCompetitorOnboardingStatus };
 export type LocationCompetitorSource = "initial_scrape" | "user_added";
+export type CompetitorDiscoverySource =
+  | "apify_maps"
+  | "places_text"
+  | "user_added"
+  | "unknown";
+export type ProfileStrengthTier =
+  | "strong"
+  | "competitive"
+  | "needs_review"
+  | "not_measured";
+
+export interface ProfileStrengthFactors {
+  rating: number | null;
+  reviewCount: number | null;
+  hasWebsite: boolean;
+  hasPhone: boolean;
+  hasCategory: boolean;
+  hasCoordinates: boolean;
+  hasPhoto: boolean;
+}
 
 export interface ILocationCompetitor {
   id: number;
@@ -19,6 +39,14 @@ export interface ILocationCompetitor {
   phone: string | null;
   website: string | null;
   photo_name: string | null;
+  discovery_position: number | null;
+  discovery_query: string | null;
+  discovery_source: CompetitorDiscoverySource | null;
+  discovery_checked_at: Date | null;
+  discovery_radius_meters: number | null;
+  profile_strength_score: number | null;
+  profile_strength_tier: ProfileStrengthTier | null;
+  profile_strength_factors: ProfileStrengthFactors | null;
   source: LocationCompetitorSource;
   added_at: Date;
   added_by_user_id: number | null;
@@ -39,6 +67,14 @@ export interface AddCompetitorInput {
   phone?: string | null;
   website?: string | null;
   photoName?: string | null;
+  discoveryPosition?: number | null;
+  discoveryQuery?: string | null;
+  discoverySource?: CompetitorDiscoverySource | null;
+  discoveryCheckedAt?: Date | null;
+  discoveryRadiusMeters?: number | null;
+  profileStrengthScore?: number | null;
+  profileStrengthTier?: ProfileStrengthTier | null;
+  profileStrengthFactors?: ProfileStrengthFactors | null;
   source: LocationCompetitorSource;
   addedByUserId?: number | null;
 }
@@ -48,27 +84,50 @@ export interface OnboardingStatusResult {
   finalizedAt: Date | null;
 }
 
+function compareCompetitorDisplayOrder(
+  a: ILocationCompetitor,
+  b: ILocationCompetitor
+): number {
+  const aPosition =
+    typeof a.discovery_position === "number" && a.discovery_position > 0
+      ? a.discovery_position
+      : Number.POSITIVE_INFINITY;
+  const bPosition =
+    typeof b.discovery_position === "number" && b.discovery_position > 0
+      ? b.discovery_position
+      : Number.POSITIVE_INFINITY;
+
+  if (aPosition !== bPosition) return aPosition - bPosition;
+  return new Date(a.added_at).getTime() - new Date(b.added_at).getTime();
+}
+
 export class LocationCompetitorModel extends BaseModel {
   protected static tableName = "location_competitors";
-  protected static jsonFields: string[] = [];
+  protected static jsonFields: string[] = ["profile_strength_factors"];
 
   static async findActiveByLocationId(
     locationId: number,
     trx?: QueryContext
   ): Promise<ILocationCompetitor[]> {
-    return this.table(trx)
+    const rows = await this.table(trx)
       .where({ location_id: locationId })
       .whereNull("removed_at")
       .orderBy("added_at", "asc");
+    return rows
+      .map((row: ILocationCompetitor) => this.deserializeJsonFields(row))
+      .sort(compareCompetitorDisplayOrder);
   }
 
   static async findIncludingRemoved(
     locationId: number,
     trx?: QueryContext
   ): Promise<ILocationCompetitor[]> {
-    return this.table(trx)
+    const rows = await this.table(trx)
       .where({ location_id: locationId })
       .orderBy("added_at", "asc");
+    return rows.map((row: ILocationCompetitor) =>
+      this.deserializeJsonFields(row)
+    );
   }
 
   static async findActiveByLocationAndPlace(
@@ -76,10 +135,11 @@ export class LocationCompetitorModel extends BaseModel {
     placeId: string,
     trx?: QueryContext
   ): Promise<ILocationCompetitor | undefined> {
-    return this.table(trx)
+    const row = await this.table(trx)
       .where({ location_id: locationId, place_id: placeId })
       .whereNull("removed_at")
       .first();
+    return row ? this.deserializeJsonFields(row) : undefined;
   }
 
   /**
@@ -92,10 +152,11 @@ export class LocationCompetitorModel extends BaseModel {
     placeId: string,
     trx?: QueryContext
   ): Promise<ILocationCompetitor | undefined> {
-    return this.table(trx)
+    const row = await this.table(trx)
       .where({ location_id: locationId, place_id: placeId })
       .orderBy("id", "desc")
       .first();
+    return row ? this.deserializeJsonFields(row) : undefined;
   }
 
   /**
@@ -132,6 +193,20 @@ export class LocationCompetitorModel extends BaseModel {
           phone: input.phone ?? existing.phone,
           website: input.website ?? existing.website,
           photo_name: input.photoName ?? existing.photo_name,
+          discovery_position:
+            input.discoveryPosition ?? existing.discovery_position,
+          discovery_query: input.discoveryQuery ?? existing.discovery_query,
+          discovery_source: input.discoverySource ?? existing.discovery_source,
+          discovery_checked_at:
+            input.discoveryCheckedAt ?? existing.discovery_checked_at,
+          discovery_radius_meters:
+            input.discoveryRadiusMeters ?? existing.discovery_radius_meters,
+          profile_strength_score:
+            input.profileStrengthScore ?? existing.profile_strength_score,
+          profile_strength_tier:
+            input.profileStrengthTier ?? existing.profile_strength_tier,
+          profile_strength_factors:
+            input.profileStrengthFactors ?? existing.profile_strength_factors,
           // If user is re-adding, mark it as user_added so the audit trail
           // reflects intent. If still active, keep original source.
           source: wasRemoved ? input.source : existing.source,
@@ -145,7 +220,7 @@ export class LocationCompetitorModel extends BaseModel {
       const updated = await this.table(trx)
         .where({ id: existing.id })
         .first();
-      return updated as ILocationCompetitor;
+      return this.deserializeJsonFields(updated) as ILocationCompetitor;
     }
 
     const [row] = await this.table(trx)
@@ -162,6 +237,14 @@ export class LocationCompetitorModel extends BaseModel {
         phone: input.phone ?? null,
         website: input.website ?? null,
         photo_name: input.photoName ?? null,
+        discovery_position: input.discoveryPosition ?? null,
+        discovery_query: input.discoveryQuery ?? null,
+        discovery_source: input.discoverySource ?? null,
+        discovery_checked_at: input.discoveryCheckedAt ?? null,
+        discovery_radius_meters: input.discoveryRadiusMeters ?? null,
+        profile_strength_score: input.profileStrengthScore ?? null,
+        profile_strength_tier: input.profileStrengthTier ?? null,
+        profile_strength_factors: input.profileStrengthFactors ?? null,
         source: input.source,
         added_at: now,
         added_by_user_id: input.addedByUserId ?? null,
@@ -171,7 +254,7 @@ export class LocationCompetitorModel extends BaseModel {
       })
       .returning("*");
 
-    return row as ILocationCompetitor;
+    return this.deserializeJsonFields(row) as ILocationCompetitor;
   }
 
   /**
@@ -187,6 +270,51 @@ export class LocationCompetitorModel extends BaseModel {
       .where({ location_id: locationId, place_id: placeId })
       .whereNull("removed_at")
       .update({ removed_at: now, updated_at: now });
+  }
+
+  static async removeCompetitorsNotInPlaceIds(
+    locationId: number,
+    placeIdsToKeep: string[],
+    trx?: QueryContext
+  ): Promise<number> {
+    const now = new Date();
+    const query = this.table(trx)
+      .where({ location_id: locationId })
+      .whereNull("removed_at");
+
+    if (placeIdsToKeep.length > 0) {
+      query.whereNotIn("place_id", placeIdsToKeep);
+    }
+
+    return query.update({ removed_at: now, updated_at: now });
+  }
+
+  static async getCompetitorSetRevision(
+    locationId: number,
+    trx?: QueryContext
+  ): Promise<number> {
+    const row = await (trx || db)("locations")
+      .where({ id: locationId })
+      .select("competitor_set_revision")
+      .first();
+    return Number(row?.competitor_set_revision ?? 1);
+  }
+
+  static async incrementCompetitorSetRevision(
+    locationId: number,
+    trx?: QueryContext
+  ): Promise<number> {
+    const result = await (trx || db).raw(
+      `
+      UPDATE locations
+      SET competitor_set_revision = COALESCE(competitor_set_revision, 1) + 1,
+          updated_at = ?
+      WHERE id = ?
+      RETURNING competitor_set_revision
+      `,
+      [new Date(), locationId]
+    );
+    return Number(result.rows?.[0]?.competitor_set_revision ?? 1);
   }
 
   static async countActive(

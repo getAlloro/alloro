@@ -34,10 +34,31 @@ export interface DiscoveredCompetitor {
   hoursComplete: boolean;
   photosCount: number;
   photoName?: string;
+  discoveryPosition?: number;
+  discoveryQuery?: string;
+  discoverySource?: "places_text";
+  discoveryCheckedAt?: Date;
+  specialtyEvidenceTier?: CompetitorSpecialtyEvidenceTier;
   location?: {
     lat: number;
     lng: number;
   };
+}
+
+export type CompetitorSpecialtyEvidenceTier =
+  | "exact_specialist"
+  | "multi_specialty_evidence"
+  | "general_only"
+  | "unknown";
+
+export interface ComparisonSpecialty {
+  value: string;
+  label: string;
+  query: string;
+  normalizedSpecialty: string;
+  primaryTypes: string[];
+  isDental: boolean;
+  isDentalSpecialist: boolean;
 }
 
 // Google Places API primaryType values mapped to our specialty keys
@@ -82,6 +103,76 @@ const DENTAL_TYPES = [
   "prosthodontist",
 ];
 
+const GENERAL_DENTAL_TYPES = ["dentist", "dental_clinic"];
+
+interface ComparisonSpecialtyConfig {
+  value: string;
+  label: string;
+  query: string;
+  primaryTypes: string[];
+  evidenceTerms: string[];
+}
+
+const COMPARISON_SPECIALTY_CONFIG: Record<string, ComparisonSpecialtyConfig> = {
+  endodontics: {
+    value: "endodontist",
+    label: "Endodontists",
+    query: "endodontist",
+    primaryTypes: ["endodontist"],
+    evidenceTerms: ["endodont", "root canal"],
+  },
+  orthodontics: {
+    value: "orthodontist",
+    label: "Orthodontists",
+    query: "orthodontist",
+    primaryTypes: ["orthodontist"],
+    evidenceTerms: ["orthodont", "braces", "invisalign"],
+  },
+  periodontics: {
+    value: "periodontist",
+    label: "Periodontists",
+    query: "periodontist",
+    primaryTypes: ["periodontist"],
+    evidenceTerms: ["periodont", "gum disease", "gum surgery"],
+  },
+  oral_surgery: {
+    value: "oral_surgeon",
+    label: "Oral surgeons",
+    query: "oral surgeon",
+    primaryTypes: ["oral_surgeon"],
+    evidenceTerms: ["oral surgeon", "oral surgery", "wisdom teeth"],
+  },
+  pediatric: {
+    value: "pediatric_dentist",
+    label: "Pediatric dentists",
+    query: "pediatric dentist",
+    primaryTypes: ["pediatric_dentist"],
+    evidenceTerms: ["pediatric", "children", "kids"],
+  },
+  prosthodontics: {
+    value: "prosthodontist",
+    label: "Prosthodontists",
+    query: "prosthodontist",
+    primaryTypes: ["prosthodontist"],
+    evidenceTerms: ["prosthodont", "denture", "implant restoration"],
+  },
+  general: {
+    value: "dentist",
+    label: "General dentists",
+    query: "dentist",
+    primaryTypes: ["dentist", "dental_clinic"],
+    evidenceTerms: [],
+  },
+};
+
+export const COMPARISON_SPECIALTY_OPTIONS = Object.values(
+  COMPARISON_SPECIALTY_CONFIG
+).map((config) => ({
+  value: config.value,
+  label: config.label,
+  query: config.query,
+}));
+
 // All known valid business types across all verticals
 const ALL_KNOWN_TYPES = [
   ...DENTAL_TYPES,
@@ -96,6 +187,191 @@ function log(message: string): void {
   console.log(`[PLACES-DISCOVERY] ${message}`);
 }
 
+function distanceMiles(
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number }
+): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const earthRadiusMiles = 3958.8;
+  const dLat = toRad(to.lat - from.lat);
+  const dLng = toRad(to.lng - from.lng);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(from.lat)) *
+      Math.cos(toRad(to.lat)) *
+      Math.sin(dLng / 2) ** 2;
+  return 2 * earthRadiusMiles * Math.asin(Math.sqrt(a));
+}
+
+function destinationPoint(
+  origin: { lat: number; lng: number },
+  distanceMeters: number,
+  bearingDegrees: number
+): { lat: number; lng: number } {
+  const earthRadiusMeters = 6371000;
+  const bearing = (bearingDegrees * Math.PI) / 180;
+  const lat1 = (origin.lat * Math.PI) / 180;
+  const lng1 = (origin.lng * Math.PI) / 180;
+  const angularDistance = distanceMeters / earthRadiusMeters;
+
+  const lat2 = Math.asin(
+    Math.sin(lat1) * Math.cos(angularDistance) +
+      Math.cos(lat1) * Math.sin(angularDistance) * Math.cos(bearing)
+  );
+  const lng2 =
+    lng1 +
+    Math.atan2(
+      Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(lat1),
+      Math.cos(angularDistance) - Math.sin(lat1) * Math.sin(lat2)
+    );
+
+  return {
+    lat: (lat2 * 180) / Math.PI,
+    lng: ((((lng2 * 180) / Math.PI + 540) % 360) - 180),
+  };
+}
+
+function bearingDegrees(
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number }
+): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const toDeg = (rad: number) => (rad * 180) / Math.PI;
+  const lat1 = toRad(from.lat);
+  const lat2 = toRad(to.lat);
+  const dLng = toRad(to.lng - from.lng);
+  const y = Math.sin(dLng) * Math.cos(lat2);
+  const x =
+    Math.cos(lat1) * Math.sin(lat2) -
+    Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+  return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
+
+function wideRadiusSampleBiases(locationBias: {
+  lat: number;
+  lng: number;
+  radiusMeters?: number;
+}): Array<{ lat: number; lng: number; radiusMeters: number; sector: number }> {
+  const radiusMeters = locationBias.radiusMeters ?? 40234;
+  const center = { lat: locationBias.lat, lng: locationBias.lng };
+  const sampleDistanceMeters = radiusMeters * 0.62;
+  const sampleRadiusMeters = Math.max(12070, radiusMeters * 0.28);
+  const bearings = [0, 45, 90, 135, 180, 225, 270, 315];
+  return [
+    { ...center, radiusMeters: Math.max(12070, radiusMeters * 0.22), sector: -1 },
+    ...bearings.map((bearing, index) => ({
+      ...destinationPoint(center, sampleDistanceMeters, bearing),
+      radiusMeters: sampleRadiusMeters,
+      sector: index,
+    })),
+  ];
+}
+
+function sortBestWithinRadius(
+  competitors: DiscoveredCompetitor[],
+  locationBias: { lat: number; lng: number; radiusMeters?: number },
+): DiscoveredCompetitor[] {
+  const radiusMiles = (locationBias.radiusMeters ?? 40234) / 1609.344;
+  const center = { lat: locationBias.lat, lng: locationBias.lng };
+  return competitors
+    .map((competitor) => ({
+      competitor,
+      distance:
+        competitor.location
+          ? distanceMiles(center, competitor.location)
+          : Number.NEGATIVE_INFINITY,
+    }))
+    .filter(({ distance }) => distance <= radiusMiles * 1.05)
+    .sort((a, b) => {
+      if (b.competitor.reviewsCount !== a.competitor.reviewsCount) {
+        return b.competitor.reviewsCount - a.competitor.reviewsCount;
+      }
+      if (b.competitor.totalScore !== a.competitor.totalScore) {
+        return b.competitor.totalScore - a.competitor.totalScore;
+      }
+      if (a.distance !== b.distance) return a.distance - b.distance;
+      return a.competitor.placeId.localeCompare(b.competitor.placeId);
+    })
+    .map(({ competitor }, index) => ({
+      ...competitor,
+      discoveryPosition: index + 1,
+    }));
+}
+
+function selectDistributedBestWithinRadius(
+  competitors: DiscoveredCompetitor[],
+  locationBias: { lat: number; lng: number; radiusMeters?: number },
+): DiscoveredCompetitor[] {
+  const radiusMiles = (locationBias.radiusMeters ?? 40234) / 1609.344;
+  const center = { lat: locationBias.lat, lng: locationBias.lng };
+  const scored = competitors
+    .map((competitor) => {
+      const distance =
+        competitor.location
+          ? distanceMiles(center, competitor.location)
+          : Number.POSITIVE_INFINITY;
+      const bearing =
+        competitor.location && distance > 5
+          ? bearingDegrees(center, competitor.location)
+          : -1;
+      return {
+        competitor,
+        distance,
+        sector: bearing >= 0 ? Math.floor((bearing + 22.5) / 45) % 8 : -1,
+      };
+    })
+    .filter(({ distance }) => distance <= radiusMiles * 1.05);
+
+  const byQuality = (a: typeof scored[number], b: typeof scored[number]) => {
+    if (b.competitor.reviewsCount !== a.competitor.reviewsCount) {
+      return b.competitor.reviewsCount - a.competitor.reviewsCount;
+    }
+    if (b.competitor.totalScore !== a.competitor.totalScore) {
+      return b.competitor.totalScore - a.competitor.totalScore;
+    }
+    if (a.distance !== b.distance) return a.distance - b.distance;
+    return a.competitor.placeId.localeCompare(b.competitor.placeId);
+  };
+
+  const selected = new Map<string, DiscoveredCompetitor>();
+  for (const sector of [0, 1, 2, 3, 4, 5, 6, 7]) {
+    const bestInSector = scored
+      .filter((item) => item.sector === sector)
+      .sort(byQuality)[0];
+    if (bestInSector) {
+      selected.set(bestInSector.competitor.placeId, bestInSector.competitor);
+    }
+  }
+
+  for (const item of scored.sort(byQuality)) {
+    selected.set(item.competitor.placeId, item.competitor);
+  }
+
+  return Array.from(selected.values()).map((competitor, index) => ({
+    ...competitor,
+    discoveryPosition: index + 1,
+  }));
+}
+
+function compareByMapsEstimateThenProfile(
+  a: DiscoveredCompetitor,
+  b: DiscoveredCompetitor,
+): number {
+  const aPosition =
+    typeof a.discoveryPosition === "number" && a.discoveryPosition > 0
+      ? a.discoveryPosition
+      : Number.POSITIVE_INFINITY;
+  const bPosition =
+    typeof b.discoveryPosition === "number" && b.discoveryPosition > 0
+      ? b.discoveryPosition
+      : Number.POSITIVE_INFINITY;
+
+  if (aPosition !== bPosition) return aPosition - bPosition;
+  if (b.reviewsCount !== a.reviewsCount) return b.reviewsCount - a.reviewsCount;
+  if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
+  return a.placeId.localeCompare(b.placeId);
+}
+
 /**
  * Normalize specialty input to internal key.
  * Supports dental specialties + all universal verticals.
@@ -104,12 +380,26 @@ function normalizeSpecialty(specialty: string): string {
   const aliases: Record<string, string> = {
     // Dental
     orthodontist: "orthodontics",
+    orthodontists: "orthodontics",
     endodontist: "endodontics",
+    endodontists: "endodontics",
     periodontist: "periodontics",
+    periodontists: "periodontics",
     "oral surgeon": "oral_surgery",
+    "oral surgeons": "oral_surgery",
+    oral_surgeon: "oral_surgery",
     prosthodontist: "prosthodontics",
+    prosthodontists: "prosthodontics",
     "pediatric dentist": "pediatric",
+    "pediatric dentists": "pediatric",
+    pediatric_dentist: "pediatric",
     dentist: "general",
+    dentists: "general",
+    "general dentist": "general",
+    "general dentists": "general",
+    "general dentistry": "general",
+    dental_clinic: "general",
+    "dental clinic": "general",
     orthodontics: "orthodontics",
     endodontics: "endodontics",
     periodontics: "periodontics",
@@ -166,6 +456,103 @@ function normalizeSpecialty(specialty: string): string {
   return aliases[specialty.toLowerCase().trim()] || specialty.toLowerCase().trim();
 }
 
+export function resolveComparisonSpecialty(raw: string | null | undefined): ComparisonSpecialty {
+  const input = raw?.trim() || "dentist";
+  const normalizedSpecialty = normalizeSpecialty(input);
+  const config = COMPARISON_SPECIALTY_CONFIG[normalizedSpecialty];
+  if (config) {
+    return {
+      value: config.value,
+      label: config.label,
+      query: config.query,
+      normalizedSpecialty,
+      primaryTypes: config.primaryTypes,
+      isDental: DENTAL_TYPES.some((type) =>
+        config.primaryTypes.includes(type)
+      ),
+      isDentalSpecialist: normalizedSpecialty !== "general",
+    };
+  }
+
+  const primaryTypes = SPECIALTY_PRIMARY_TYPES[normalizedSpecialty] || [];
+  const title = input
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+  return {
+    value: input.toLowerCase().replace(/\s+/g, "_"),
+    label: title,
+    query: input,
+    normalizedSpecialty,
+    primaryTypes,
+    isDental: primaryTypes.some((type) => DENTAL_TYPES.includes(type)),
+    isDentalSpecialist:
+      primaryTypes.some((type) => DENTAL_TYPES.includes(type)) &&
+      normalizedSpecialty !== "general",
+  };
+}
+
+function hasSpecialtyTextEvidence(
+  comp: DiscoveredCompetitor,
+  normalizedSpecialty: string
+): boolean {
+  const terms =
+    COMPARISON_SPECIALTY_CONFIG[normalizedSpecialty]?.evidenceTerms || [];
+  if (terms.length === 0) return false;
+  const haystack = [
+    comp.name,
+    comp.category,
+    comp.primaryType,
+    ...(comp.types || []),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .replace(/_/g, " ");
+  return terms.some((term) => haystack.includes(term));
+}
+
+export function classifyCompetitorSpecialtyEvidence(
+  comp: DiscoveredCompetitor,
+  specialty: string
+): CompetitorSpecialtyEvidenceTier {
+  const comparison = resolveComparisonSpecialty(specialty);
+  const pt = comp.primaryType.toLowerCase();
+  const types = (comp.types || []).map((type) => type.toLowerCase());
+  const isDental =
+    DENTAL_TYPES.includes(pt) ||
+    types.some((type) => DENTAL_TYPES.includes(type));
+  const hasExactType =
+    comparison.primaryTypes.includes(pt) ||
+    types.some((type) => comparison.primaryTypes.includes(type));
+
+  if (hasExactType) {
+    return "exact_specialist";
+  }
+
+  if (!comparison.isDentalSpecialist) {
+    return hasSpecialtyTextEvidence(comp, comparison.normalizedSpecialty)
+      ? "multi_specialty_evidence"
+      : "unknown";
+  }
+
+  if (!isDental) {
+    return "unknown";
+  }
+
+  if (hasSpecialtyTextEvidence(comp, comparison.normalizedSpecialty)) {
+    return "multi_specialty_evidence";
+  }
+
+  if (
+    GENERAL_DENTAL_TYPES.includes(pt) ||
+    types.some((type) => GENERAL_DENTAL_TYPES.includes(type))
+  ) {
+    return "general_only";
+  }
+
+  return "unknown";
+}
+
 // =====================================================================
 // BROADENING MAP: specialty -> adjacent broader category for fallback
 // =====================================================================
@@ -198,8 +585,12 @@ const BROADENING_MAP: Record<string, string> = {
 /**
  * Convert raw Google Places results to DiscoveredCompetitor array.
  */
-function placesToCompetitors(places: any[]): DiscoveredCompetitor[] {
-  return places.map((place: any) => {
+function placesToCompetitors(
+  places: any[],
+  discoveryQuery: string,
+  discoveryCheckedAt: Date,
+): DiscoveredCompetitor[] {
+  return places.map((place: any, index: number) => {
     const hours = place.regularOpeningHours;
     const hasHours = !!hours;
     const hoursComplete = hasHours
@@ -222,6 +613,10 @@ function placesToCompetitors(places: any[]): DiscoveredCompetitor[] {
       hoursComplete,
       photosCount: place.photos?.length ?? 0,
       photoName: place.photos?.[0]?.name,
+      discoveryPosition: index + 1,
+      discoveryQuery,
+      discoverySource: "places_text",
+      discoveryCheckedAt,
       location: place.location
         ? { lat: place.location.latitude, lng: place.location.longitude }
         : undefined,
@@ -251,19 +646,60 @@ export async function discoverCompetitorsViaPlaces(
   const searchQuery = `${specialty} in ${marketLocation}`;
   log(`Searching: "${searchQuery}" (limit: ${limit})${locationBias ? ` [biased to ${locationBias.lat.toFixed(4)},${locationBias.lng.toFixed(4)}]` : ""}`);
 
+  const checkedAt = new Date();
   const places = await textSearch(searchQuery, limit, locationBias);
   log(`Found ${places.length} raw results`);
 
-  const competitors = placesToCompetitors(places);
+  const competitors = placesToCompetitors(places, searchQuery, checkedAt);
 
-  // Sort by review count (desc), then rating (desc), then placeId (deterministic)
-  competitors.sort((a, b) => {
-    if (b.reviewsCount !== a.reviewsCount) return b.reviewsCount - a.reviewsCount;
-    if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
-    return a.placeId.localeCompare(b.placeId);
-  });
+  // Keep the list aligned with the displayed Maps estimate. Profile strength is
+  // only a tie-breaker, not the primary ordering signal.
+  competitors.sort(compareByMapsEstimateThenProfile);
 
   return competitors;
+}
+
+/**
+ * Wide-radius suggestion discovery. The normal query includes
+ * `in ${marketLocation}`, which is correct for local ranking snapshots but too
+ * city-bound for a 50-mile suggestion radius. This path searches the specialty
+ * with only a Places radius bias, filters to the selected radius, then returns
+ * the best candidates by review count/rating.
+ */
+export async function discoverCompetitorsViaPlacesWideRadius(
+  specialty: string,
+  limit: number = 20,
+  locationBias: { lat: number; lng: number; radiusMeters?: number },
+): Promise<DiscoveredCompetitor[]> {
+  const searchQuery = specialty;
+  const checkedAt = new Date();
+  const requestedLimit = 20;
+  const sampleBiases = wideRadiusSampleBiases(locationBias);
+  log(
+    `Wide-radius searching: "${searchQuery}" (${sampleBiases.length} samples, limit: ${requestedLimit}) [center=${locationBias.lat.toFixed(4)},${locationBias.lng.toFixed(4)}, radius=${locationBias.radiusMeters ?? 40234}m]`
+  );
+  const merged = new Map<string, DiscoveredCompetitor>();
+  for (const sample of sampleBiases) {
+    const places = await textSearch(searchQuery, requestedLimit, sample);
+    const competitors = placesToCompetitors(places, searchQuery, checkedAt);
+    for (const competitor of competitors) {
+      if (!merged.has(competitor.placeId)) {
+        merged.set(competitor.placeId, competitor);
+      }
+    }
+  }
+  const candidates = Array.from(merged.values());
+  const sameSpecialty = filterBySpecialty(candidates, specialty);
+  const comparison = resolveComparisonSpecialty(specialty);
+  const eligible = comparison.isDentalSpecialist
+    ? sameSpecialty
+    : sameSpecialty.length >= limit
+      ? sameSpecialty
+      : candidates;
+  log(
+    `Found ${candidates.length} unique wide-radius results (${sameSpecialty.length} same-specialty)`
+  );
+  return selectDistributedBestWithinRadius(eligible, locationBias).slice(0, limit);
 }
 
 /**
@@ -318,24 +754,22 @@ export async function discoverCompetitorsWithFallback(
   const broaderResults = await discoverCompetitorsViaPlaces(
     broaderCategory, marketLocation, limit, locationBias,
   );
+  const filteredBroaderResults = filterBySpecialty(
+    broaderResults,
+    specialty
+  );
 
   // Step 6: Merge, deduplicating by placeId (specialty results first)
   const seenIds = new Set(specialtyFiltered.map((c) => c.placeId));
-  const additionalCompetitors = broaderResults.filter((c) => !seenIds.has(c.placeId));
+  const additionalCompetitors = filteredBroaderResults.filter(
+    (c) => !seenIds.has(c.placeId)
+  );
 
-  // Sort each group by reviews, but ALWAYS put specialty matches first.
+  // Sort each group by Maps estimate, but ALWAYS put specialty matches first.
   // An endodontist's real competitor is another endodontist, not a general
   // dentist with more reviews. Trust depends on this.
-  const specialtySet = new Set(specialtyFiltered.map((c) => c.placeId));
-
-  const sortByReviews = (a: any, b: any) => {
-    if (b.reviewsCount !== a.reviewsCount) return b.reviewsCount - a.reviewsCount;
-    if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
-    return a.placeId.localeCompare(b.placeId);
-  };
-
-  specialtyFiltered.sort(sortByReviews);
-  additionalCompetitors.sort(sortByReviews);
+  specialtyFiltered.sort(compareByMapsEstimateThenProfile);
+  additionalCompetitors.sort(compareByMapsEstimateThenProfile);
 
   // Specialty matches first, then broader matches
   const merged = [...specialtyFiltered, ...additionalCompetitors];
@@ -365,23 +799,37 @@ export function filterBySpecialty(
   competitors: DiscoveredCompetitor[],
   specialty: string,
 ): DiscoveredCompetitor[] {
-  const normalizedSpecialty = normalizeSpecialty(specialty);
+  const comparison = resolveComparisonSpecialty(specialty);
+  const normalizedSpecialty = comparison.normalizedSpecialty;
   const targetDisplayNames = (
     SPECIALTY_CATEGORIES[normalizedSpecialty] || []
   ).map((name) => name.toLowerCase());
 
   const beforeCount = competitors.length;
-  const isDentalVertical = DENTAL_TYPES.some((t) =>
-    (SPECIALTY_PRIMARY_TYPES[normalizedSpecialty] || []).includes(t)
-  ) || normalizedSpecialty === "general";
+  const isDentalVertical = comparison.isDental || normalizedSpecialty === "general";
   const isGeneral = normalizedSpecialty === "general";
-  const specialtyTypes = SPECIALTY_PRIMARY_TYPES[normalizedSpecialty] || [];
+  const specialtyTypes =
+    comparison.primaryTypes.length > 0
+      ? comparison.primaryTypes
+      : SPECIALTY_PRIMARY_TYPES[normalizedSpecialty] || [];
 
-  const filtered = competitors.filter((comp) => {
+  const filtered = competitors.map((comp) => ({
+    ...comp,
+    specialtyEvidenceTier: classifyCompetitorSpecialtyEvidence(
+      comp,
+      comparison.query
+    ),
+  })).filter((comp) => {
     const pt = comp.primaryType.toLowerCase();
     const displayCat = comp.category.toLowerCase();
 
     if (isDentalVertical) {
+      if (comparison.isDentalSpecialist) {
+        return (
+          comp.specialtyEvidenceTier === "exact_specialist" ||
+          comp.specialtyEvidenceTier === "multi_specialty_evidence"
+        );
+      }
       // Dental verticals: type filtering with name/category fallback.
       // Google often lists specialists under generic "dentist" primaryType,
       // so we also check display category and business name for the specialty term.

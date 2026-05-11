@@ -37,6 +37,7 @@ import {
 import { createNotification } from "../../../utils/core/notificationHelper";
 import { listLocalPostsInRange } from "../../../routes/gbp";
 import { runRankingAnalysis, RankingLlmPayload } from "./service.ranking-llm";
+import { DEFAULT_COMPETITOR_DISCOVERY_RADIUS_METERS } from "../feature-utils/util.competitor-validator";
 
 // Batch processing configuration
 export const MAX_RETRIES = 3;
@@ -64,6 +65,64 @@ export interface LocationParams {
   state?: string | null;
   postalCode?: string | null;
   city?: string | null;
+}
+
+interface SearchResultPayloadEntry {
+  placeId: string;
+  name: string;
+  position: number;
+  rating: number;
+  reviewCount: number;
+  primaryType: string;
+  types: string[];
+  isClient: boolean;
+}
+
+type SelectedCompetitorMapsStatus =
+  | "measured"
+  | "not_in_top_20"
+  | "not_measured";
+
+interface SelectedCompetitorMapsContext {
+  selected_order: number;
+  place_id: string;
+  name: string;
+  maps_position: number | null;
+  maps_status: SelectedCompetitorMapsStatus;
+  rating: number | null;
+  review_count: number | null;
+  primary_type: string | null;
+}
+
+function buildSelectedCompetitorMapsContext(
+  competitors: any[],
+  searchResults: SearchResultPayloadEntry[],
+  searchStatus: "ok" | "not_in_top_20" | "bias_unavailable" | "api_error",
+): SelectedCompetitorMapsContext[] {
+  const searchByPlaceId = new Map(
+    searchResults
+      .filter((entry) => entry.placeId)
+      .map((entry) => [entry.placeId, entry]),
+  );
+
+  return competitors.map((competitor, index) => {
+    const match = searchByPlaceId.get(competitor.placeId);
+    const mapsStatus: SelectedCompetitorMapsStatus = match
+      ? "measured"
+      : searchStatus === "api_error" || searchStatus === "bias_unavailable"
+        ? "not_measured"
+        : "not_in_top_20";
+    return {
+      selected_order: index + 1,
+      place_id: competitor.placeId,
+      name: competitor.name,
+      maps_position: match?.position ?? null,
+      maps_status: mapsStatus,
+      rating: match?.rating ?? competitor.totalScore ?? null,
+      review_count: match?.reviewCount ?? competitor.reviewsCount ?? null,
+      primary_type: match?.primaryType ?? competitor.primaryType ?? null,
+    };
+  });
 }
 
 /**
@@ -220,6 +279,21 @@ export async function processLocationRanking(
     throw new Error(`Account ${googleAccountId} not found`);
   }
 
+  const rankingRunContext = await db("practice_rankings as pr")
+    .leftJoin("locations as l", "l.id", "pr.location_id")
+    .where("pr.id", rankingId)
+    .select(
+      "pr.location_id",
+      "pr.competitor_discovery_radius_meters as ranking_discovery_radius",
+      "l.competitor_discovery_radius_meters as location_discovery_radius",
+    )
+    .first();
+  const competitorDiscoveryRadiusMeters = Number(
+    rankingRunContext?.ranking_discovery_radius ??
+      rankingRunContext?.location_discovery_radius ??
+      DEFAULT_COMPETITOR_DISCOVERY_RADIUS_METERS,
+  );
+
   const propertyIds =
     typeof account.google_property_ids === "string"
       ? JSON.parse(account.google_property_ids)
@@ -250,7 +324,6 @@ export async function processLocationRanking(
     log,
   );
 
-  const SEARCH_RADIUS_METERS = 40234; // 25 miles
   const searchQuery = `${specialty} in ${marketLocation}`;
 
   let clientVantage: { lat: number; lng: number } | null = null;
@@ -300,7 +373,7 @@ export async function processLocationRanking(
         ? {
             lat: clientVantage.lat,
             lng: clientVantage.lng,
-            radiusMeters: SEARCH_RADIUS_METERS,
+            radiusMeters: competitorDiscoveryRadiusMeters,
           }
         : undefined,
     );
@@ -418,7 +491,7 @@ export async function processLocationRanking(
   // the rankings UI table reflects the Maps panel that the Live Google Rank
   // number measures. Fall back to Places API discoveries when Apify did not
   // produce results, so the table still has *something* to render.
-  const searchResultsPayload =
+  const searchResultsPayload: SearchResultPayloadEntry[] =
     apifyOrderedResults !== null && apifyOrderedResults.length > 0
       ? apifyOrderedResults.map((r) => ({
           placeId: r.placeId,
@@ -449,8 +522,9 @@ export async function processLocationRanking(
       search_query: searchQuery,
       search_lat: clientVantage?.lat ?? null,
       search_lng: clientVantage?.lng ?? null,
-      search_radius_meters: clientVantage ? SEARCH_RADIUS_METERS : null,
+      search_radius_meters: clientVantage ? competitorDiscoveryRadiusMeters : null,
       search_results: JSON.stringify(searchResultsPayload),
+      competitor_discovery_radius_meters: competitorDiscoveryRadiusMeters,
       search_checked_at: new Date(),
       search_status: searchStatus,
       search_position_source: searchPositionSource,
@@ -483,6 +557,11 @@ export async function processLocationRanking(
     });
   log(
     `[RANKING] [${rankingId}] Competitor source resolved: ${resolved.source}, ${discoveredCompetitors.length} competitors used for Practice Health`,
+  );
+  const selectedCompetitorMapsContext = buildSelectedCompetitorMapsContext(
+    discoveredCompetitors,
+    searchResultsPayload,
+    searchStatus,
   );
 
   // ========== STEP 1: Fetch GBP Data ==========
@@ -840,6 +919,7 @@ export async function processLocationRanking(
       }),
     competitors_discovered: competitorDetails.length,
     competitors_from_cache: usedCache,
+    competitor_discovery_radius_meters: competitorDiscoveryRadiusMeters,
     website_audit: websiteAudit,
   };
 
@@ -984,6 +1064,8 @@ export async function processLocationRanking(
         status: searchStatus,
         not_in_top_20: searchStatus === "not_in_top_20",
         top_5: top5SearchResults,
+        selected_competitors: selectedCompetitorMapsContext,
+        discovery_radius_meters: competitorDiscoveryRadiusMeters,
       },
     },
   };

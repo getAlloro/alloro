@@ -51,6 +51,16 @@ export class PageModel extends BaseModel {
       .select(fields);
   }
 
+  static async findSectionsByProjectId(
+    projectId: string,
+    trx?: QueryContext
+  ): Promise<Array<Pick<IPage, "id" | "path" | "sections">>> {
+    const rows = await this.table(trx)
+      .where({ project_id: projectId })
+      .select("id", "path", "sections");
+    return rows.map((row: IPage) => this.deserializeJsonFields(row));
+  }
+
   /**
    * Find published pages by project, ordered by path.
    * Used by the user-facing website endpoint.

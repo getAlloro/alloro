@@ -99,6 +99,8 @@ export async function processBatch(
           batch_id: batchId,
           observed_at: new Date(),
           status: "pending",
+          run_reason: "manual",
+          include_in_summary_recommendations: true,
           status_detail: JSON.stringify({
             currentStep: "queued",
             message: "Waiting in queue...",

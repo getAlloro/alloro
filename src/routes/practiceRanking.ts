@@ -17,9 +17,11 @@
  * v2 Curated Competitor Lists (location-scoped, client-facing, RBAC-gated):
  * - GET    /locations/:locationId/competitors
  * - POST   /locations/:locationId/competitors/discover
+ * - POST   /locations/:locationId/competitors/preview-place
  * - POST   /locations/:locationId/competitors
  * - DELETE /locations/:locationId/competitors/:placeId
  * - POST   /locations/:locationId/competitors/finalize-and-run
+ * - POST   /locations/:locationId/competitors/reselect-and-run
  */
 
 import express from "express";
@@ -83,6 +85,24 @@ router.post(
 );
 
 router.post(
+  "/locations/:locationId/competitors/discover-candidates",
+  authenticateToken,
+  rbacMiddleware,
+  locationScopeMiddleware,
+  requireRole("admin", "manager"),
+  controller.previewLocationCompetitorDiscovery
+);
+
+router.post(
+  "/locations/:locationId/competitors/preview-place",
+  authenticateToken,
+  rbacMiddleware,
+  locationScopeMiddleware,
+  requireRole("admin", "manager"),
+  controller.previewLocationCompetitorPlace
+);
+
+router.post(
   "/locations/:locationId/competitors",
   authenticateToken,
   rbacMiddleware,
@@ -107,6 +127,15 @@ router.post(
   locationScopeMiddleware,
   requireRole("admin", "manager"),
   controller.finalizeLocationAndRun
+);
+
+router.post(
+  "/locations/:locationId/competitors/reselect-and-run",
+  authenticateToken,
+  rbacMiddleware,
+  locationScopeMiddleware,
+  requireRole("admin", "manager"),
+  controller.reselectLocationCompetitorsAndRun
 );
 
 // Authed photo proxy for Place Photo media. Behind login + rate limit because

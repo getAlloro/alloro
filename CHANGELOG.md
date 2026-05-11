@@ -2,6 +2,28 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.62] - May 2026
+
+### Rankings Clarity And Competitor Workflow
+
+Redesigned the client rankings experience around defensible Google Maps estimates, Practice Health scoring, and an explicit comparison-set workflow that lets users refresh, curate, save, and rerank competitors without creating tasks.
+
+**Key Changes:**
+- Reworked `/rankings` labels, cards, loading state, and competitor list copy to avoid implying exact personalized Google rankings
+- Added selected-competitor Maps projection so the dashboard shows only the saved comparison set with `Est. #`, `Not in top 20`, or `Not measured yet`
+- Added comparison-set reselection with rerank-only save behavior and 5-10 minute expectation copy
+- Added suggestion-radius controls up to 100 miles with a visible map radius and confirmation before refreshing suggestions
+- Added specialty-aware automated competitor filtering that defaults from the client specialty and excludes pure general dentists for specialist practices
+- Added migration support for competitor discovery metadata, selected-set snapshots, rerun reason, radius metadata, and Summary task guardrails
+
+**Commits:**
+- `frontend/src/components/dashboard/RankingsDashboard.tsx` and `frontend/src/components/dashboard/rankings/RankingsLoadingState.tsx` — redesigned rankings surface, selected-competitor Maps list, and dashboard loading behavior
+- `frontend/src/pages/competitor-onboarding/LocationCompetitorOnboarding.tsx` — comparison-set reselection, radius UI, map pins, manual add measurement, and specialty control
+- `src/controllers/practice-ranking/*` and `src/models/*Ranking*` — ranking response contract, competitor snapshots, radius-aware discovery, rerank-only persistence, and selected-competitor projection
+- `src/controllers/agents/feature-services/service.ranking-recommendations.ts` — guardrail excluding rerank-only competitor reselection rows from Summary task creation
+- `src/database/migrations/20260510000000_rankings_clarity_competitor_reselection.ts` and `src/database/migrations/20260510000001_selected_competitor_maps_radius.ts` — schema support for ranking clarity, competitor reselection, and radius metadata
+- `plans/05092026-no-ticket-rankings-clarity-competitor-reselection/*`, `plans/05102026-no-ticket-selected-competitor-maps-radius/*`, and `plans/05102026-no-ticket-specialty-aware-competitor-filter/*` — executed specs
+
 ## [0.0.61] - May 2026
 
 ### Support Ticket Feedback Alignment

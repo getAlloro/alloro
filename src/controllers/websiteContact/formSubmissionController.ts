@@ -37,7 +37,7 @@ import { getCrmQueue } from "../../workers/queues";
 import { db } from "../../database/connection";
 import { NewsletterSignupModel } from "../../models/website-builder/NewsletterSignupModel";
 import { uploadToS3 } from "../../utils/core/s3";
-import { resolveRecipients } from "../../services/recipientSettingsService";
+import { resolveWebsiteFormRecipients } from "../../services/formRecipientRoutingService";
 
 const MAX_FIELDS = 100; // Raised from 20 to support onboarding forms with many repeater fields
 const MAX_KEY_LENGTH = 100;
@@ -405,12 +405,13 @@ export async function handleFormSubmission(req: Request, res: Response): Promise
       }
     }
 
-    // ── 12. Resolve recipients through canonical org recipient settings ──
+    // ── 12. Resolve recipients through per-form rule, then canonical fallback ──
     let recipients: string[] = [];
     try {
-      const resolution = await resolveRecipients({
+      const resolution = await resolveWebsiteFormRecipients({
+        projectId: String(projectId),
+        formName: sanitizedFormName,
         organizationId: project?.organization_id,
-        channel: "website_form",
         legacyProjectRecipients: project?.recipients,
       });
       recipients = resolution.recipients;

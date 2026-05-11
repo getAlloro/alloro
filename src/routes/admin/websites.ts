@@ -11,6 +11,7 @@ import express from "express";
 import multer from "multer";
 import * as controller from "../../controllers/admin-websites/AdminWebsitesController";
 import * as backupController from "../../controllers/admin-websites/BackupController";
+import * as formsController from "../../controllers/admin-websites/WebsiteFormsController";
 import * as integrationsController from "../../controllers/admin-websites/WebsiteIntegrationsController";
 import importsRouter from "./imports";
 
@@ -344,6 +345,12 @@ router.get("/:id/recipients", controller.getRecipients);
 
 // PUT  /:id/recipients — Update recipients list
 router.put("/:id/recipients", controller.updateRecipients);
+
+// GET  /:id/forms/catalog — Detected forms + recipient rule state
+router.get("/:id/forms/catalog", formsController.listFormCatalog);
+
+// PUT  /:id/forms/recipients — Upsert per-form recipient rule
+router.put("/:id/forms/recipients", formsController.updateFormRecipientRule);
 
 // =====================================================================
 // FORM SUBMISSIONS

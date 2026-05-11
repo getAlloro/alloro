@@ -1262,6 +1262,63 @@ export const updateRecipients = async (
   return response.json();
 };
 
+export interface WebsiteFormCatalogItem {
+  form_name: string;
+  form_key: string;
+  submission_count: number;
+  last_seen: string | null;
+  sources: {
+    submissions: boolean;
+    markup: boolean;
+  };
+  rule: {
+    id: string;
+    recipients: string[];
+    is_enabled: boolean;
+    updated_at: string;
+  } | null;
+}
+
+export interface FormRecipientCatalogResponse {
+  success: boolean;
+  data: WebsiteFormCatalogItem[];
+}
+
+export const fetchFormRecipientCatalog = async (
+  projectId: string,
+): Promise<FormRecipientCatalogResponse> => {
+  const response = await fetch(`${API_BASE}/${projectId}/forms/catalog`);
+  if (!response.ok) throw new Error("Failed to fetch form catalog");
+  return response.json();
+};
+
+export const updateFormRecipientRule = async (
+  projectId: string,
+  payload: { formName: string; recipients: string[]; isEnabled: boolean },
+): Promise<{
+  success: boolean;
+  data: {
+    id: string;
+    project_id: string;
+    form_name: string;
+    form_key: string;
+    recipients: string[];
+    is_enabled: boolean;
+    updated_at: string;
+  };
+}> => {
+  const response = await fetch(`${API_BASE}/${projectId}/forms/recipients`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to update form recipients");
+  }
+  return response.json();
+};
+
 // =====================================================================
 // FORM SUBMISSIONS
 // =====================================================================

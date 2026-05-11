@@ -11,6 +11,26 @@ export type LocationCompetitorOnboardingStatus =
   | "curating"
   | "finalized";
 export type LocationCompetitorSource = "initial_scrape" | "user_added";
+export type CompetitorDiscoverySource =
+  | "apify_maps"
+  | "places_text"
+  | "user_added"
+  | "unknown";
+export type ProfileStrengthTier =
+  | "strong"
+  | "competitive"
+  | "needs_review"
+  | "not_measured";
+
+export interface ProfileStrengthFactors {
+  rating: number | null;
+  reviewCount: number | null;
+  hasWebsite: boolean;
+  hasPhone: boolean;
+  hasCategory: boolean;
+  hasCoordinates: boolean;
+  hasPhoto: boolean;
+}
 
 export interface CuratedCompetitor {
   id: number;
@@ -25,6 +45,14 @@ export interface CuratedCompetitor {
   phone: string | null;
   website: string | null;
   photoName: string | null;
+  discoveryPosition: number | null;
+  discoveryQuery: string | null;
+  discoverySource: CompetitorDiscoverySource | null;
+  discoveryCheckedAt: string | null;
+  discoveryRadiusMeters: number | null;
+  profileStrengthScore: number | null;
+  profileStrengthTier: ProfileStrengthTier | null;
+  profileStrengthFactors: ProfileStrengthFactors | null;
   source: LocationCompetitorSource;
   addedAt: string;
   addedByUserId: number | null;
@@ -46,9 +74,25 @@ export interface GetLocationCompetitorsResponse {
   };
   practiceLocation: PracticeLocationRef | null;
   selfFilterStatus: SelfFilterStatus;
+  competitorDiscoveryRadiusMeters: number;
+  comparisonSpecialty: ComparisonSpecialtyRef | null;
+  comparisonSpecialtyOptions: ComparisonSpecialtyOption[];
   competitors: CuratedCompetitor[];
   count: number;
   cap: number;
+}
+
+export interface ComparisonSpecialtyRef {
+  value: string;
+  label: string;
+  query: string;
+  sourceSpecialty: string;
+}
+
+export interface ComparisonSpecialtyOption {
+  value: string;
+  label: string;
+  query: string;
 }
 
 export interface RunDiscoveryResponse {
@@ -57,6 +101,63 @@ export interface RunDiscoveryResponse {
   competitorCount: number;
   specialty: string | null;
   marketLocation: string | null;
+  radiusMeters: number;
+  comparisonSpecialty: ComparisonSpecialtyRef | null;
+}
+
+export interface CompetitorDiscoverySuggestion {
+  placeId: string;
+  name: string;
+  address: string | null;
+  primaryType: string | null;
+  rating: number | null;
+  reviewCount: number | null;
+  lat: number | null;
+  lng: number | null;
+  phone: string | null;
+  website: string | null;
+  photoName: string | null;
+  discoveryPosition: number | null;
+  discoveryQuery: string | null;
+  discoverySource: CompetitorDiscoverySource | null;
+  discoveryCheckedAt: string | null;
+  discoveryRadiusMeters: number;
+  profileStrengthScore: number | null;
+  profileStrengthTier: ProfileStrengthTier | null;
+  profileStrengthFactors: ProfileStrengthFactors | null;
+}
+
+export interface PreviewCompetitorDiscoveryResponse
+  extends RunDiscoveryResponse {
+  suggestions: CompetitorDiscoverySuggestion[];
+}
+
+export interface PreviewCompetitorPlaceResponse {
+  success: true;
+  competitor: CompetitorDiscoverySuggestion;
+  radiusMeters: number;
+  mapsMatched: boolean;
+  comparisonSpecialty: ComparisonSpecialtyRef | null;
+}
+
+export type SelectedCompetitorSearchStatus =
+  | "measured"
+  | "not_in_top_20"
+  | "not_measured";
+
+export interface SelectedCompetitorSearchResult {
+  placeId: string | null;
+  name: string;
+  position: number | null;
+  status: SelectedCompetitorSearchStatus;
+  rating: number | null;
+  reviewCount: number | null;
+  primaryType: string | null;
+  discoveryPosition: number | null;
+  distanceMiles: number | null;
+  profileStrengthScore: number | null;
+  profileStrengthTier: ProfileStrengthTier | null;
+  selectedOrder: number;
 }
 
 export interface AddCompetitorResponse {
@@ -78,7 +179,11 @@ export interface FinalizeAndRunResponse {
   batchId: string;
   rankingId: number;
   reused: boolean;
+  competitorSetRevision: number;
+  selectedCount: number;
 }
+
+export type ReselectAndRunResponse = FinalizeAndRunResponse;
 
 export type BatchStatus = "processing" | "completed" | "failed";
 
@@ -124,11 +229,46 @@ export async function getLocationCompetitors(
 }
 
 export async function runCompetitorDiscovery(
-  locationId: number
+  locationId: number,
+  radiusMeters?: number,
+  comparisonSpecialty?: string | null
 ): Promise<RunDiscoveryResponse> {
   return apiPost({
     path: `${BASE}/${locationId}/competitors/discover`,
-    passedData: {},
+    passedData: {
+      ...(radiusMeters ? { radiusMeters } : {}),
+      ...(comparisonSpecialty ? { comparisonSpecialty } : {}),
+    },
+  });
+}
+
+export async function previewCompetitorDiscovery(
+  locationId: number,
+  radiusMeters?: number,
+  comparisonSpecialty?: string | null
+): Promise<PreviewCompetitorDiscoveryResponse> {
+  return apiPost({
+    path: `${BASE}/${locationId}/competitors/discover-candidates`,
+    passedData: {
+      ...(radiusMeters ? { radiusMeters } : {}),
+      ...(comparisonSpecialty ? { comparisonSpecialty } : {}),
+    },
+  });
+}
+
+export async function previewCompetitorPlace(
+  locationId: number,
+  placeId: string,
+  radiusMeters?: number,
+  comparisonSpecialty?: string | null
+): Promise<PreviewCompetitorPlaceResponse> {
+  return apiPost({
+    path: `${BASE}/${locationId}/competitors/preview-place`,
+    passedData: {
+      placeId,
+      ...(radiusMeters ? { radiusMeters } : {}),
+      ...(comparisonSpecialty ? { comparisonSpecialty } : {}),
+    },
   });
 }
 
@@ -157,6 +297,17 @@ export async function finalizeAndRun(
   return apiPost({
     path: `${BASE}/${locationId}/competitors/finalize-and-run`,
     passedData: {},
+  });
+}
+
+export async function reselectAndRun(
+  locationId: number,
+  placeIds: string[],
+  radiusMeters?: number
+): Promise<ReselectAndRunResponse> {
+  return apiPost({
+    path: `${BASE}/${locationId}/competitors/reselect-and-run`,
+    passedData: radiusMeters ? { placeIds, radiusMeters } : { placeIds },
   });
 }
 
