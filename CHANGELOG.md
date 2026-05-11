@@ -2,6 +2,29 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.64] - May 2026
+
+### Form Submissions UX Refresh
+
+Rebuilt the Forms submissions workflow around detected forms, with form-scoped inbox filtering, safer per-form routing settings, visual-only form labels, and persistent form ordering for admin and client website users.
+
+**Key Changes:**
+- Grouped submissions by detected form with a left sidebar and selected-form submissions pane
+- Moved per-form routing into a selected-form Settings tab while keeping global Form Settings focused on default fallback recipients
+- Added form-scoped `All`, `Verified`, and `Flagged` filters plus a scoped `Mark all as read` action
+- Added 5-second refresh for form submissions/catalog counts and orange unread indicators in the form sidebar
+- Added persisted visual-only form labels and manual ordering without changing original `form_name` routing semantics
+- Added user-scoped form catalog, routing, and preference endpoints for the client-facing website tab
+
+**Commits:**
+- `src/database/migrations/20260511000000_create_form_recipient_rules.ts` and `src/database/migrations/20260512000000_create_form_catalog_preferences.ts` — schema support for per-form recipient overrides and visual form labels/order
+- `src/models/website-builder/FormSubmissionModel.ts`, `FormRecipientRuleModel.ts`, and `FormCatalogPreferenceModel.ts` — form stats, unread counts, form-scoped mark-all-read, routing rules, and catalog preferences
+- `src/controllers/admin-websites/*`, `src/controllers/user-website/UserWebsiteController.ts`, `src/routes/admin/websites.ts`, and `src/routes/user/website.ts` — admin and user-scoped APIs for catalog, routing, preferences, submissions, and read state
+- `frontend/src/components/Admin/FormSubmissionsTab.tsx`, `FormSubmissionsSidebar.tsx`, `SelectedFormRoutingSettings.tsx`, and `FormSubmissionsViewTabs.tsx` — grouped inbox UI, selected-form settings, unread indicators, reorder/rename controls, and scoped actions
+- `frontend/src/components/Admin/FormRecipient*` — focused routing controls with clearer loading states and recipient editing behavior
+- `frontend/src/api/websites.ts`, `frontend/src/hooks/queries/useWebsiteFormRecipientRouting.ts`, `frontend/src/pages/admin/WebsiteDetail.tsx`, and `frontend/src/pages/DFYWebsite.tsx` — typed client contracts and admin/client wiring
+- `plans/05112026-no-ticket-form-submissions-ux-refresh/*` — executed spec and revisions
+
 ## [0.0.63] - May 2026
 
 ### GSC Integration Connect Flow

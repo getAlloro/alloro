@@ -2705,17 +2705,22 @@ export async function listFormSubmissions(
     const limit = Math.min(parseInt(req.query.limit as string, 10) || 20, 100);
     const readFilter = req.query.read;
     const filterParam = req.query.filter as string | undefined;
+    const formName =
+      typeof req.query.formName === "string"
+        ? req.query.formName.trim()
+        : "";
 
     const filters: { is_read?: boolean; is_flagged?: boolean; form_name?: string; form_name_not?: string } = {};
     if (readFilter === "true") filters.is_read = true;
     if (readFilter === "false") filters.is_read = false;
+    if (formName) filters.form_name = formName;
 
     if (filterParam === "verified") {
       filters.is_flagged = false;
-      filters.form_name_not = "Newsletter Signup";
+      if (!formName) filters.form_name_not = "Newsletter Signup";
     } else if (filterParam === "flagged") {
       filters.is_flagged = true;
-    } else if (filterParam === "optins") {
+    } else if (filterParam === "optins" && !formName) {
       filters.form_name = "Newsletter Signup";
     }
 
@@ -2725,19 +2730,54 @@ export async function listFormSubmissions(
       filters,
     );
 
-    const [unreadCount, flaggedCount, verifiedCount, optinsCount] = await Promise.all([
-      FormSubmissionModel.countUnreadByProjectId(id),
-      FormSubmissionModel.countFlaggedByProjectId(id),
-      FormSubmissionModel.countVerifiedByProjectId(id),
-      FormSubmissionModel.countOptinsByProjectId(id),
+    const baseCountFilters = formName ? { form_name: formName } : {};
+    const [allCount, unreadCount, flaggedCount, verifiedCount, optinsCount] = await Promise.all([
+      FormSubmissionModel.countByProjectId(id, baseCountFilters),
+      FormSubmissionModel.countByProjectId(id, { ...baseCountFilters, is_read: false }),
+      FormSubmissionModel.countByProjectId(id, { ...baseCountFilters, is_flagged: true }),
+      FormSubmissionModel.countByProjectId(id, {
+        ...baseCountFilters,
+        is_flagged: false,
+        ...(formName ? {} : { form_name_not: "Newsletter Signup" }),
+      }),
+      formName
+        ? formName === "Newsletter Signup"
+          ? FormSubmissionModel.countByProjectId(id, baseCountFilters)
+          : Promise.resolve(0)
+        : FormSubmissionModel.countOptinsByProjectId(id),
     ]);
 
     const totalPages = Math.ceil(result.total / limit);
 
-    return res.json({ success: true, data: result.data, pagination: { page, limit, total: result.total, totalPages }, unreadCount, flaggedCount, verifiedCount, optinsCount });
+    return res.json({ success: true, data: result.data, pagination: { page, limit, total: result.total, totalPages }, allCount, unreadCount, flaggedCount, verifiedCount, optinsCount });
   } catch (error: any) {
     console.error("[Admin Websites] Error listing form submissions:", error);
     return res.status(500).json({ success: false, error: "FETCH_ERROR", message: error?.message || "Failed to fetch submissions" });
+  }
+}
+
+/** PATCH /:id/form-submissions/mark-all-read — Mark submissions read */
+export async function markAllFormSubmissionsRead(
+  req: Request,
+  res: Response
+): Promise<Response> {
+  try {
+    const { id } = req.params;
+    const formName =
+      typeof req.body?.formName === "string" ? req.body.formName.trim() : "";
+    const updated = await FormSubmissionModel.markAllAsReadByProjectId(
+      id,
+      formName || undefined,
+    );
+
+    return res.json({ success: true, data: { updated } });
+  } catch (error: any) {
+    console.error("[Admin Websites] Error marking submissions read:", error);
+    return res.status(500).json({
+      success: false,
+      error: "UPDATE_ERROR",
+      message: error?.message || "Failed to mark submissions read",
+    });
   }
 }
 

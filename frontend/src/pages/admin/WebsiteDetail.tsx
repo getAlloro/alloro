@@ -73,7 +73,6 @@ import LayoutInputsModal from "../../components/Admin/LayoutInputsModal";
 import MediaTab from "../../components/Admin/MediaTab";
 import CodeManagerTab from "../../components/Admin/CodeManagerTab";
 import ConnectDomainModal from "../../components/Admin/ConnectDomainModal";
-import { FormRecipientRoutingPanel } from "../../components/Admin/FormRecipientRoutingPanel";
 import RecipientsConfig from "../../components/Admin/RecipientsConfig";
 import FormSubmissionsTab from "../../components/Admin/FormSubmissionsTab";
 import PostsTab from "../../components/Admin/PostsTab";
@@ -2008,16 +2007,21 @@ export default function WebsiteDetail() {
           transition={{ delay: 0.2 }}
           className="space-y-6"
         >
-          {/* Recipients config */}
-          <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Default Recipients</h3>
-            <RecipientsConfig projectId={id!} />
-          </div>
-
-          <FormRecipientRoutingPanel projectId={id!} />
-
           {/* Submissions table */}
-          <FormSubmissionsTab projectId={id!} isAdmin />
+          <FormSubmissionsTab
+            projectId={id!}
+            isAdmin
+            settingsContent={
+              <div className="space-y-5">
+                <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                  <h3 className="mb-3 text-sm font-semibold text-gray-900">
+                    Default Recipients
+	                  </h3>
+	                  <RecipientsConfig projectId={id!} />
+	                </div>
+	              </div>
+	            }
+	          />
         </motion.div>
       )}
 

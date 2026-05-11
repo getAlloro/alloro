@@ -20,6 +20,9 @@ import { resolveShortcodes } from "./user-website-services/shortcodeResolver.ser
 import { ProjectModel } from "../../models/website-builder/ProjectModel";
 import { FormSubmissionModel } from "../../models/website-builder/FormSubmissionModel";
 import { db } from "../../database/connection";
+import * as formDetection from "../admin-websites/feature-services/service.form-detection";
+import { upsertFormCatalogPreferences } from "../../services/formCatalogPreferenceService";
+import { upsertFormRecipientRule } from "../../services/formRecipientRuleService";
 import {
   getConfiguredRecipients,
   listOrgUserRecipientOptions,
@@ -331,6 +334,85 @@ export async function updateRecipients(
   }
 }
 
+/** GET /api/user/website/forms/catalog */
+export async function listFormCatalog(
+  req: RBACRequest,
+  res: Response
+): Promise<Response> {
+  try {
+    const orgId = req.organizationId;
+    if (!orgId) return res.status(400).json({ error: "No organization found" });
+
+    const project = await ProjectModel.findByOrganizationId(orgId);
+    if (!project) return res.status(404).json({ error: "No website found" });
+
+    const data = await formDetection.listFormCatalog(project.id);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "Fetch form catalog");
+  }
+}
+
+/** PUT /api/user/website/forms/recipients */
+export async function updateFormRecipientRule(
+  req: RBACRequest,
+  res: Response
+): Promise<Response> {
+  try {
+    const orgId = req.organizationId;
+    if (!orgId) return res.status(400).json({ error: "No organization found" });
+
+    const project = await ProjectModel.findByOrganizationId(orgId);
+    if (!project) return res.status(404).json({ error: "No website found" });
+
+    const data = await upsertFormRecipientRule({
+      projectId: project.id,
+      formName: req.body.formName,
+      recipients: req.body.recipients,
+      isEnabled: req.body.isEnabled,
+    });
+
+    return res.json({ success: true, data });
+  } catch (error: any) {
+    if (typeof error?.statusCode === "number") {
+      return res.status(error.statusCode).json({
+        error: error.code || "FORM_RECIPIENT_RULE_ERROR",
+        message: error.message || "Failed to update form recipients",
+      });
+    }
+    return handleError(res, error, "Update form recipients");
+  }
+}
+
+/** PUT /api/user/website/forms/preferences */
+export async function updateFormPreferences(
+  req: RBACRequest,
+  res: Response
+): Promise<Response> {
+  try {
+    const orgId = req.organizationId;
+    if (!orgId) return res.status(400).json({ error: "No organization found" });
+
+    const project = await ProjectModel.findByOrganizationId(orgId);
+    if (!project) return res.status(404).json({ error: "No website found" });
+
+    const data = await upsertFormCatalogPreferences({
+      projectId: project.id,
+      preferences: req.body?.preferences,
+    });
+
+    return res.json({ success: true, data });
+  } catch (error: any) {
+    if (typeof error?.statusCode === "number") {
+      return res.status(error.statusCode).json({
+        error: error.code || "FORM_CATALOG_PREFERENCES_ERROR",
+        message: error.message || "Failed to update form preferences",
+      });
+    }
+    return handleError(res, error, "Update form preferences");
+  }
+}
+
 // =====================================================================
 // FORM SUBMISSIONS
 // =====================================================================
@@ -462,7 +544,12 @@ export async function markAllFormSubmissionsRead(
     const project = await ProjectModel.findByOrganizationId(orgId);
     if (!project) return res.status(404).json({ error: "No website found" });
 
-    const updated = await FormSubmissionModel.markAllAsReadByProjectId(project.id);
+    const formName =
+      typeof req.body?.formName === "string" ? req.body.formName.trim() : "";
+    const updated = await FormSubmissionModel.markAllAsReadByProjectId(
+      project.id,
+      formName || undefined,
+    );
 
     return res.json({ success: true, updated });
   } catch (error) {
@@ -492,17 +579,22 @@ export async function listFormSubmissions(
     const limit = Math.min(parseInt(req.query.limit as string, 10) || 20, 100);
     const readFilter = req.query.read;
     const filterParam = req.query.filter as string | undefined;
+    const formName =
+      typeof req.query.formName === "string"
+        ? req.query.formName.trim()
+        : "";
 
     const filters: { is_read?: boolean; is_flagged?: boolean; form_name?: string; form_name_not?: string } = {};
     if (readFilter === "true") filters.is_read = true;
     if (readFilter === "false") filters.is_read = false;
+    if (formName) filters.form_name = formName;
 
     if (filterParam === "verified") {
       filters.is_flagged = false;
-      filters.form_name_not = "Newsletter Signup";
+      if (!formName) filters.form_name_not = "Newsletter Signup";
     } else if (filterParam === "flagged") {
       filters.is_flagged = true;
-    } else if (filterParam === "optins") {
+    } else if (filterParam === "optins" && !formName) {
       filters.form_name = "Newsletter Signup";
     }
 
@@ -512,16 +604,32 @@ export async function listFormSubmissions(
       filters,
     );
 
-    const [unreadCount, flaggedCount, verifiedCount, optinsCount] = await Promise.all([
-      FormSubmissionModel.countUnreadByProjectId(project.id),
-      FormSubmissionModel.countFlaggedByProjectId(project.id),
-      FormSubmissionModel.countVerifiedByProjectId(project.id),
-      FormSubmissionModel.countOptinsByProjectId(project.id),
+    const baseCountFilters = formName ? { form_name: formName } : {};
+    const [allCount, unreadCount, flaggedCount, verifiedCount, optinsCount] = await Promise.all([
+      FormSubmissionModel.countByProjectId(project.id, baseCountFilters),
+      FormSubmissionModel.countByProjectId(project.id, {
+        ...baseCountFilters,
+        is_read: false,
+      }),
+      FormSubmissionModel.countByProjectId(project.id, {
+        ...baseCountFilters,
+        is_flagged: true,
+      }),
+      FormSubmissionModel.countByProjectId(project.id, {
+        ...baseCountFilters,
+        is_flagged: false,
+        ...(formName ? {} : { form_name_not: "Newsletter Signup" }),
+      }),
+      formName
+        ? formName === "Newsletter Signup"
+          ? FormSubmissionModel.countByProjectId(project.id, baseCountFilters)
+          : Promise.resolve(0)
+        : FormSubmissionModel.countOptinsByProjectId(project.id),
     ]);
 
     const totalPages = Math.ceil(result.total / limit);
 
-    return res.json({ success: true, data: result.data, pagination: { page, limit, total: result.total, totalPages }, unreadCount, flaggedCount, verifiedCount, optinsCount });
+    return res.json({ success: true, data: result.data, pagination: { page, limit, total: result.total, totalPages }, allCount, unreadCount, flaggedCount, verifiedCount, optinsCount });
   } catch (error) {
     return handleError(res, error, "Fetch form submissions");
   }

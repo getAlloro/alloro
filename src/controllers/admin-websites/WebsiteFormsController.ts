@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import * as formDetection from "./feature-services/service.form-detection";
+import { upsertFormCatalogPreferences } from "../../services/formCatalogPreferenceService";
 import { upsertFormRecipientRule } from "../../services/formRecipientRuleService";
 
 function ok<T>(res: Response, data: T, status = 200): Response {
@@ -65,6 +66,38 @@ export async function updateFormRecipientRule(
       500,
       "UPDATE_ERROR",
       "Failed to update form recipients",
+    );
+  }
+}
+
+export async function updateFormPreferences(
+  req: Request,
+  res: Response,
+): Promise<Response> {
+  try {
+    const projectId = String(req.params.id);
+    const data = await upsertFormCatalogPreferences({
+      projectId,
+      preferences: req.body?.preferences,
+    });
+
+    return ok(res, data);
+  } catch (error: any) {
+    if (typeof error?.statusCode === "number") {
+      return fail(
+        res,
+        error.statusCode,
+        error.code || "FORM_CATALOG_PREFERENCES_ERROR",
+        error.message || "Failed to update form preferences",
+      );
+    }
+
+    console.error("[Website Forms] updateFormPreferences failed:", error);
+    return fail(
+      res,
+      500,
+      "UPDATE_ERROR",
+      "Failed to update form preferences",
     );
   }
 }

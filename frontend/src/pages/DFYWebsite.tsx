@@ -291,9 +291,11 @@ export function DFYWebsite() {
     page: number,
     limit: number,
     filter?: string,
+    formName?: string,
   ) => {
     const params = new URLSearchParams({ page: String(page), limit: String(limit) });
     if (filter) params.set("filter", filter);
+    if (formName) params.set("formName", formName);
     return apiGet({
       path: `/user/website/form-submissions?${params}`,
     });
@@ -316,6 +318,51 @@ export function DFYWebsite() {
     apiDelete({
       path: `/user/website/form-submissions/${submissionId}`,
     });
+
+  const userMarkAllRead = async (_projectId: string, formName?: string) => {
+    void _projectId;
+    return apiPatch({
+      path: "/user/website/form-submissions/mark-all-read",
+      passedData: { formName },
+    });
+  };
+
+  const userFetchFormCatalog = async (_projectId: string) => {
+    void _projectId;
+    return apiGet({ path: "/user/website/forms/catalog" });
+  };
+
+  const userUpdateFormRecipientRule = async (
+    _projectId: string,
+    payload: {
+      formName: string;
+      recipients: string[];
+      isEnabled: boolean;
+    },
+  ) => {
+    void _projectId;
+    return apiPut({
+      path: "/user/website/forms/recipients",
+      passedData: payload,
+    });
+  };
+
+  const userUpdateFormPreferences = async (
+    _projectId: string,
+    payload: {
+      preferences: Array<{
+        formName: string;
+        displayLabel: string | null;
+        sortOrder: number;
+      }>;
+    },
+  ) => {
+    void _projectId;
+    return apiPut({
+      path: "/user/website/forms/preferences",
+      passedData: payload,
+    });
+  };
 
   // User-facing API wrappers for Posts
   const userFetchPosts = async (_projectId: string, filters?: { post_type_id?: string; status?: string }) => {
@@ -1171,23 +1218,33 @@ export function DFYWebsite() {
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {project && (
             <>
-              <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
-                <h3 className="text-sm font-semibold text-gray-900 mb-3">
-                  Email Recipients
-                </h3>
-                <RecipientsConfig
-                  projectId={project.id}
-                  fetchRecipientsFn={userFetchRecipients}
-                  updateRecipientsFn={userUpdateRecipients}
-                />
-              </div>
               <FormSubmissionsTab
                 projectId={project.id}
                 fetchSubmissionsFn={userFetchSubmissions}
+                fetchFormCatalogFn={userFetchFormCatalog}
+                fetchRecipientsFn={userFetchRecipients}
+                updateFormRecipientRuleFn={userUpdateFormRecipientRule}
+                updateFormPreferencesFn={userUpdateFormPreferences}
+                markAllReadFn={userMarkAllRead}
+                formCatalogQueryScope="client"
                 toggleReadFn={userToggleRead}
                 deleteSubmissionFn={userDeleteSubmission}
                 onExport={handleExportSubmissions}
-              />
+                settingsContent={
+                  <div className="space-y-5">
+                    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                      <h3 className="mb-3 text-sm font-semibold text-gray-900">
+                        Default Recipients
+                      </h3>
+                      <RecipientsConfig
+                        projectId={project.id}
+                        fetchRecipientsFn={userFetchRecipients}
+	                        updateRecipientsFn={userUpdateRecipients}
+	                      />
+	                    </div>
+	                  </div>
+	                }
+	              />
             </>
           )}
         </div>
