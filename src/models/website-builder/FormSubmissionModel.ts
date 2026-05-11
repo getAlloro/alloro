@@ -30,6 +30,12 @@ export interface IFormSubmission {
   flag_reason?: string;
 }
 
+export interface FormSubmissionFormStats {
+  form_name: string;
+  submission_count: number;
+  last_seen: Date | null;
+}
+
 export class FormSubmissionModel extends BaseModel {
   protected static tableName = "website_builder.form_submissions";
 
@@ -138,6 +144,52 @@ export class FormSubmissionModel extends BaseModel {
       .count("* as count")
       .first();
     return parseInt(result?.count as string, 10) || 0;
+  }
+
+  static async listDetectedFormStats(
+    projectId: string,
+    excludedFormNames: string[] = [],
+    trx?: QueryContext,
+  ): Promise<FormSubmissionFormStats[]> {
+    let query = this.table(trx)
+      .select("form_name")
+      .count("* as submission_count")
+      .max("submitted_at as last_seen")
+      .where({ project_id: projectId })
+      .groupBy("form_name")
+      .orderBy("last_seen", "desc");
+
+    if (excludedFormNames.length > 0) {
+      query = query.whereNotIn("form_name", excludedFormNames);
+    }
+
+    const rows = await query;
+
+    return rows.map((row: {
+      form_name: string;
+      submission_count: string | number;
+      last_seen: Date | null;
+    }) => ({
+      form_name: row.form_name,
+      submission_count:
+        typeof row.submission_count === "number"
+          ? row.submission_count
+          : parseInt(String(row.submission_count), 10) || 0,
+      last_seen: row.last_seen,
+    }));
+  }
+
+  static async listRecentContentsByProjectAndForm(
+    projectId: string,
+    formName: string,
+    sampleSize: number,
+    trx?: QueryContext,
+  ): Promise<Array<{ contents: FormContents }>> {
+    return this.table(trx)
+      .select("contents")
+      .where({ project_id: projectId, form_name: formName })
+      .orderBy("submitted_at", "desc")
+      .limit(sampleSize);
   }
 
   static async deleteById(

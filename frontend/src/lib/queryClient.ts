@@ -129,6 +129,10 @@ export const QUERY_KEYS = {
     ["admin", "website-detail", uuid, "reviews"] as const,
   adminWebsiteReviewJob: (uuid: string, jobId: string) =>
     ["admin", "website-detail", uuid, "review-job", jobId] as const,
+  adminWebsiteRecipients: (uuid: string) =>
+    ["admin", "website-detail", uuid, "recipients"] as const,
+  adminWebsiteFormCatalog: (uuid: string) =>
+    ["admin", "website-detail", uuid, "form-catalog"] as const,
 
   // Client — notifications
   notifications: (orgId: number | null, locationId: number | null) =>

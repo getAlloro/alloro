@@ -1,27 +1,35 @@
 /**
  * Form Detection Service
  *
- * Derives the website-side form catalog directly from existing
- * `form_submissions` rows. There is no separate "forms" table in this schema
- * — form names and field shapes are observed retroactively from what visitors
- * have actually submitted.
+ * Derives the website-side form catalog from existing submissions and current
+ * page/template markup. There is no separate "forms" table in this schema;
+ * form names and field shapes are observed from runtime artifacts.
  *
  * Used by the Integrations UI so customers can see which forms exist on their
  * site (and what fields each one collects) BEFORE creating a HubSpot mapping.
  */
 
-import { db } from "../../../database/connection";
 import { flattenSubmissionContents } from "../../../utils/formContentsFlattener";
-import type { FormContents } from "../../../models/website-builder/FormSubmissionModel";
-
-const FORM_SUBMISSIONS_TABLE = "website_builder.form_submissions";
-
-const NEWSLETTER_FORM_NAME = "Newsletter Signup";
+import {
+  FormSubmissionModel,
+} from "../../../models/website-builder/FormSubmissionModel";
+import { PageModel } from "../../../models/website-builder/PageModel";
+import { ProjectModel } from "../../../models/website-builder/ProjectModel";
+import { TemplatePageModel } from "../../../models/website-builder/TemplatePageModel";
+import {
+  FormRecipientRuleModel,
+  type IFormRecipientRule,
+} from "../../../models/website-builder/FormRecipientRuleModel";
+import {
+  NEWSLETTER_FORM_NAME,
+  normalizeFormDisplayName,
+  normalizeFormKey,
+} from "../../../utils/formName";
 
 export interface DetectedForm {
   form_name: string;
   submission_count: number;
-  last_seen: Date;
+  last_seen: Date | null;
 }
 
 export interface FieldShapeEntry {
@@ -30,35 +38,182 @@ export interface FieldShapeEntry {
   sample_value: string | null;
 }
 
+export interface FormCatalogItem {
+  form_name: string;
+  form_key: string;
+  submission_count: number;
+  last_seen: Date | null;
+  sources: {
+    submissions: boolean;
+    markup: boolean;
+  };
+  rule: {
+    id: string;
+    recipients: string[];
+    is_enabled: boolean;
+    updated_at: Date;
+  } | null;
+}
+
+const DATA_FORM_NAME_REGEX =
+  /data-form-name\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi;
+
 /**
  * List distinct form names for a project, with submission counts and last-seen
  * timestamps. Newsletter signups are excluded — they're a separate flow with
  * double-opt-in and are explicitly out of scope for HubSpot mapping in v1.
  */
 export async function listDetectedForms(projectId: string): Promise<DetectedForm[]> {
-  const rawRows = await db(FORM_SUBMISSIONS_TABLE)
-    .select("form_name")
-    .count("* as submission_count")
-    .max("submitted_at as last_seen")
-    .where({ project_id: projectId })
-    .whereNot("form_name", NEWSLETTER_FORM_NAME)
-    .groupBy("form_name")
-    .orderBy("last_seen", "desc");
+  return FormSubmissionModel.listDetectedFormStats(projectId, [
+    NEWSLETTER_FORM_NAME,
+  ]);
+}
 
-  const rows = rawRows as unknown as Array<{
-    form_name: string;
-    submission_count: string | number;
-    last_seen: Date;
-  }>;
+function addCatalogItem(
+  forms: Map<string, FormCatalogItem>,
+  formName: string,
+  source: "submissions" | "markup",
+  stats?: { submission_count: number; last_seen: Date | null },
+): void {
+  const displayName = normalizeFormDisplayName(formName);
+  if (!displayName || displayName === NEWSLETTER_FORM_NAME) return;
 
-  return rows.map((r) => ({
-    form_name: r.form_name,
-    submission_count:
-      typeof r.submission_count === "number"
-        ? r.submission_count
-        : parseInt(String(r.submission_count), 10) || 0,
-    last_seen: r.last_seen,
-  }));
+  const formKey = normalizeFormKey(displayName);
+  const existing = forms.get(formKey);
+  if (existing) {
+    existing.sources[source] = true;
+    if (stats) {
+      existing.submission_count = stats.submission_count;
+      existing.last_seen = stats.last_seen;
+      existing.form_name = displayName;
+    }
+    return;
+  }
+
+  forms.set(formKey, {
+    form_name: displayName,
+    form_key: formKey,
+    submission_count: stats?.submission_count ?? 0,
+    last_seen: stats?.last_seen ?? null,
+    sources: {
+      submissions: source === "submissions",
+      markup: source === "markup",
+    },
+    rule: null,
+  });
+}
+
+function collectStringValues(value: unknown, output: string[]): void {
+  if (typeof value === "string") {
+    output.push(value);
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) collectStringValues(item, output);
+    return;
+  }
+
+  if (value && typeof value === "object") {
+    for (const item of Object.values(value)) collectStringValues(item, output);
+  }
+}
+
+function extractMarkupFormNames(value: unknown): string[] {
+  const strings: string[] = [];
+  collectStringValues(value, strings);
+
+  const names = new Set<string>();
+  for (const text of strings) {
+    if (!text.includes("data-form-name")) continue;
+
+    DATA_FORM_NAME_REGEX.lastIndex = 0;
+    let match = DATA_FORM_NAME_REGEX.exec(text);
+    while (match) {
+      const formName = normalizeFormDisplayName(
+        match[1] ?? match[2] ?? match[3] ?? "",
+      );
+      if (formName && formName !== NEWSLETTER_FORM_NAME) {
+        names.add(formName);
+      }
+      match = DATA_FORM_NAME_REGEX.exec(text);
+    }
+  }
+
+  return Array.from(names);
+}
+
+function serializeRule(rule: IFormRecipientRule | undefined) {
+  if (!rule) return null;
+
+  return {
+    id: rule.id,
+    recipients: Array.isArray(rule.recipients) ? rule.recipients : [],
+    is_enabled: rule.is_enabled,
+    updated_at: rule.updated_at,
+  };
+}
+
+function addRuleOnlyCatalogItem(
+  forms: Map<string, FormCatalogItem>,
+  rule: IFormRecipientRule,
+): void {
+  if (forms.has(rule.form_key)) return;
+
+  forms.set(rule.form_key, {
+    form_name: rule.form_name,
+    form_key: rule.form_key,
+    submission_count: 0,
+    last_seen: null,
+    sources: {
+      submissions: false,
+      markup: false,
+    },
+    rule: null,
+  });
+}
+
+export async function listFormCatalog(projectId: string): Promise<FormCatalogItem[]> {
+  const project = await ProjectModel.findById(projectId);
+  const [submissionStats, pages, templatePages, rules] = await Promise.all([
+    FormSubmissionModel.listDetectedFormStats(projectId, [NEWSLETTER_FORM_NAME]),
+    PageModel.findSectionsByProjectId(projectId),
+    project?.template_id
+      ? TemplatePageModel.findSectionsByTemplateId(project.template_id)
+      : Promise.resolve([]),
+    FormRecipientRuleModel.listByProject(projectId),
+  ]);
+
+  const forms = new Map<string, FormCatalogItem>();
+  for (const form of submissionStats) {
+    addCatalogItem(forms, form.form_name, "submissions", {
+      submission_count: form.submission_count,
+      last_seen: form.last_seen,
+    });
+  }
+
+  for (const page of [...pages, ...templatePages]) {
+    for (const formName of extractMarkupFormNames(page.sections)) {
+      addCatalogItem(forms, formName, "markup");
+    }
+  }
+
+  const rulesByKey = new Map(rules.map((rule) => [rule.form_key, rule]));
+  for (const rule of rules) addRuleOnlyCatalogItem(forms, rule);
+
+  for (const [formKey, item] of forms.entries()) {
+    item.rule = serializeRule(rulesByKey.get(formKey));
+  }
+
+  return Array.from(forms.values()).sort((a, b) => {
+    if (b.submission_count !== a.submission_count) {
+      return b.submission_count - a.submission_count;
+    }
+    const aLastSeen = a.last_seen ? new Date(a.last_seen).getTime() : 0;
+    const bLastSeen = b.last_seen ? new Date(b.last_seen).getTime() : 0;
+    if (bLastSeen !== aLastSeen) return bLastSeen - aLastSeen;
+    return a.form_name.localeCompare(b.form_name);
+  });
 }
 
 /**
@@ -75,11 +230,11 @@ export async function getFormFieldShape(
   formName: string,
   sampleSize = 20,
 ): Promise<FieldShapeEntry[]> {
-  const rows: Array<{ contents: FormContents }> = await db(FORM_SUBMISSIONS_TABLE)
-    .select("contents")
-    .where({ project_id: projectId, form_name: formName })
-    .orderBy("submitted_at", "desc")
-    .limit(sampleSize);
+  const rows = await FormSubmissionModel.listRecentContentsByProjectAndForm(
+    projectId,
+    formName,
+    sampleSize,
+  );
 
   const counts = new Map<string, number>();
   const samples = new Map<string, string>();
