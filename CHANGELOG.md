@@ -2,6 +2,32 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.63] - May 2026
+
+### GSC Integration Connect Flow
+
+Completed the end-to-end Google Search Console connect flow so the daily harvest worker can start pulling search performance data. The backend plumbing (adapter, worker, data storage) was already functional — this fills the missing connection UI, scope detection, and admin endpoints.
+
+**Key Changes:**
+- Added GSC to the scope parser so the settings page correctly detects when Search Console access is missing
+- Fixed the reconnect endpoint to encode auth context in OAuth state, ensuring callbacks link connections to the correct organization
+- Added admin GSC endpoints: list Google connections with GSC scope, list available Search Console sites, create GSC integration for a project
+- Rewrote the admin GscConnectPanel as a multi-step flow: pick Google account → pick site → connect
+- Fixed the settings page "Grant Access" button to use popup OAuth instead of navigating to a JSON endpoint
+- Supports separate admin Google account for GSC (admin's connection referenced by ID across all client projects)
+
+**Commits:**
+- `src/controllers/settings/feature-utils/util.scope-parser.ts` — added GSC to SCOPE_MAP and buildScopeStatus
+- `src/controllers/auth/AuthController.ts` — reconnect endpoint encodes auth context in OAuth state
+- `src/controllers/admin-websites/WebsiteIntegrationsController.ts` — listGscConnections, listGscSites, createGscIntegration
+- `src/models/GoogleConnectionModel.ts` — findByOrgWithScope, findAllWithScope query methods
+- `src/routes/admin/websites.ts` — three new GSC-specific routes
+- `frontend/src/api/integrations.ts` — GSC API functions and types
+- `frontend/src/components/Admin/integrations/GscConnectPanel.tsx` — multi-step connect flow with popup OAuth
+- `frontend/src/components/Admin/integrations/GscTab.tsx` — simplified, self-contained state
+- `frontend/src/components/Admin/IntegrationsTab.tsx` — removed broken phantom metadata checks
+- `frontend/src/pages/settings/IntegrationsRoute.tsx` — popup OAuth for scope grant, fixed scope key check
+
 ## [0.0.62] - May 2026
 
 ### Rankings Clarity And Competitor Workflow
