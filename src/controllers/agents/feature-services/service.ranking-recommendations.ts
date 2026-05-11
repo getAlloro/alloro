@@ -33,6 +33,7 @@ export async function fetchLatestRankingRecommendations(
     let query = db("practice_rankings").where({
       organization_id: orgId,
       status: "completed",
+      include_in_summary_recommendations: true,
     });
     if (locationId !== null) {
       query = query.where({ location_id: locationId });

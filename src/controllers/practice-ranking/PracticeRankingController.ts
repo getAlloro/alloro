@@ -61,16 +61,26 @@ import {
 } from "./feature-services/service.ranking-pipeline";
 import {
   runDiscoveryForLocation,
+  previewDiscoveryCandidatesForLocation,
+  previewManualCompetitorForLocation,
+  getDefaultComparisonSpecialtyForLocation,
+  COMPARISON_SPECIALTY_PAYLOAD_OPTIONS,
   addCustomCompetitor,
   removeCompetitorFromList,
   finalizeAndTriggerRun,
+  reselectCompetitorsAndTriggerRun,
 } from "./feature-services/service.location-competitor-onboarding";
-import { LocationCompetitorModel } from "../../models/LocationCompetitorModel";
+import {
+  type ILocationCompetitor,
+  LocationCompetitorModel,
+} from "../../models/LocationCompetitorModel";
 import { LocationModel } from "../../models/LocationModel";
 import { getPlacePhotoMedia } from "../places/feature-services/GooglePlacesApiService";
 import {
   validateLocationIdParam,
   validatePlaceIdInput,
+  validateDiscoveryRadiusMeters,
+  DEFAULT_COMPETITOR_DISCOVERY_RADIUS_METERS,
   MAX_COMPETITORS_PER_LOCATION,
 } from "./feature-utils/util.competitor-validator";
 import { GooglePropertyModel } from "../../models/GooglePropertyModel";
@@ -152,6 +162,8 @@ export async function triggerBatchAnalysis(
             batch_id: batchId,
             observed_at: new Date(),
             status: "pending",
+            run_reason: "manual",
+            include_in_summary_recommendations: true,
             status_detail: JSON.stringify({
               currentStep: "queued",
               message: "Waiting in queue...",
@@ -704,6 +716,7 @@ export async function retryRanking(
     // Reset record
     await db("practice_rankings").where({ id: rankingId }).update({
       status: "pending",
+      run_reason: "retry",
       error_message: null,
       status_detail: JSON.stringify({
         currentStep: "queued",
@@ -815,6 +828,7 @@ export async function retryBatch(
     const retryableIds = retryable.map((r: any) => r.id);
     await db("practice_rankings").whereIn("id", retryableIds).update({
       status: "pending",
+      run_reason: "retry",
       error_message: null,
       status_detail: JSON.stringify({
         currentStep: "queued",
@@ -1154,6 +1168,7 @@ export async function getRankingHistory(
         "observed_at",
         "rank_score",
         "rank_position",
+        "search_position",
         "ranking_factors",
       );
 
@@ -1189,6 +1204,10 @@ export async function getRankingHistory(
         rankScore: row.rank_score === null ? 0 : Number(row.rank_score),
         rankPosition:
           row.rank_position === null ? 0 : Number(row.rank_position),
+        searchPosition:
+          row.search_position === null || row.search_position === undefined
+            ? null
+            : Number(row.search_position),
         factorScores,
       };
     });
@@ -1300,6 +1319,43 @@ export async function getRankingTasks(
 // Spec: plans/04282026-no-ticket-practice-ranking-v2-user-curated-competitors/spec.md
 // =====================================================================
 
+function formatLocationCompetitor(c: ILocationCompetitor) {
+  return {
+    id: c.id,
+    placeId: c.place_id,
+    name: c.name,
+    address: c.address,
+    primaryType: c.primary_type,
+    rating: c.rating === null ? null : Number(c.rating),
+    reviewCount: c.review_count,
+    lat: c.lat === null ? null : Number(c.lat),
+    lng: c.lng === null ? null : Number(c.lng),
+    phone: c.phone,
+    website: c.website,
+    photoName: c.photo_name,
+    discoveryPosition: c.discovery_position,
+    discoveryQuery: c.discovery_query,
+    discoverySource: c.discovery_source,
+    discoveryCheckedAt: c.discovery_checked_at,
+    discoveryRadiusMeters: c.discovery_radius_meters,
+    profileStrengthScore:
+      c.profile_strength_score === null
+        ? null
+        : Number(c.profile_strength_score),
+    profileStrengthTier: c.profile_strength_tier,
+    profileStrengthFactors: c.profile_strength_factors,
+    source: c.source,
+    addedAt: c.added_at,
+    addedByUserId: c.added_by_user_id,
+  };
+}
+
+function readComparisonSpecialtyInput(raw: unknown): string | undefined {
+  return typeof raw === "string" && raw.trim().length > 0
+    ? raw.trim()
+    : undefined;
+}
+
 // GET /locations/:locationId/competitors
 export async function getLocationCompetitors(
   req: Request,
@@ -1315,6 +1371,8 @@ export async function getLocationCompetitors(
       LocationCompetitorModel.findActiveByLocationId(locationId),
       LocationModel.findById(locationId),
     ]);
+    const comparisonSpecialty =
+      await getDefaultComparisonSpecialtyForLocation(locationId);
 
     const practiceLocation =
       location?.client_place_id &&
@@ -1335,23 +1393,12 @@ export async function getLocationCompetitors(
       },
       practiceLocation,
       selfFilterStatus: location?.client_place_id ? "resolved" : "unresolved",
-      competitors: competitors.map((c) => ({
-        id: c.id,
-        placeId: c.place_id,
-        name: c.name,
-        address: c.address,
-        primaryType: c.primary_type,
-        rating: c.rating === null ? null : Number(c.rating),
-        reviewCount: c.review_count,
-        lat: c.lat === null ? null : Number(c.lat),
-        lng: c.lng === null ? null : Number(c.lng),
-        phone: c.phone,
-        website: c.website,
-        photoName: c.photo_name,
-        source: c.source,
-        addedAt: c.added_at,
-        addedByUserId: c.added_by_user_id,
-      })),
+      competitorDiscoveryRadiusMeters:
+        location?.competitor_discovery_radius_meters ??
+        DEFAULT_COMPETITOR_DISCOVERY_RADIUS_METERS,
+      comparisonSpecialty,
+      comparisonSpecialtyOptions: COMPARISON_SPECIALTY_PAYLOAD_OPTIONS,
+      competitors: competitors.map(formatLocationCompetitor),
       count: competitors.length,
       cap: MAX_COMPETITORS_PER_LOCATION,
     });
@@ -1374,8 +1421,14 @@ export async function discoverLocationCompetitors(
     const v = validateLocationIdParam(req.params.locationId);
     if (!v.valid) return res.status(v.status).json(v.body);
     const locationId = Number(req.params.locationId);
+    const radiusV = validateDiscoveryRadiusMeters(req.body?.radiusMeters);
+    if (!radiusV.valid) return res.status(radiusV.status).json(radiusV.body);
 
-    const result = await runDiscoveryForLocation(locationId);
+    const result = await runDiscoveryForLocation(
+      locationId,
+      req.body?.radiusMeters === undefined ? undefined : radiusV.radiusMeters,
+      readComparisonSpecialtyInput(req.body?.comparisonSpecialty)
+    );
     return res.json({ success: true, ...result });
   } catch (error: any) {
     logError("POST /locations/:locationId/competitors/discover", error);
@@ -1393,6 +1446,93 @@ export async function discoverLocationCompetitors(
       success: false,
       error: "DISCOVERY_ERROR",
       message: error.message || "Discovery failed",
+    });
+  }
+}
+
+// POST /locations/:locationId/competitors/discover-candidates
+export async function previewLocationCompetitorDiscovery(
+  req: Request,
+  res: Response
+): Promise<Response> {
+  try {
+    const v = validateLocationIdParam(req.params.locationId);
+    if (!v.valid) return res.status(v.status).json(v.body);
+    const radiusV = validateDiscoveryRadiusMeters(req.body?.radiusMeters);
+    if (!radiusV.valid) return res.status(radiusV.status).json(radiusV.body);
+
+    const locationId = Number(req.params.locationId);
+    const result = await previewDiscoveryCandidatesForLocation(
+      locationId,
+      req.body?.radiusMeters === undefined ? undefined : radiusV.radiusMeters,
+      readComparisonSpecialtyInput(req.body?.comparisonSpecialty)
+    );
+    return res.json({ success: true, ...result });
+  } catch (error: any) {
+    logError(
+      "POST /locations/:locationId/competitors/discover-candidates",
+      error
+    );
+    if (error?.code === "INVALID_DISCOVERY_RADIUS") {
+      return res.status(400).json({
+        success: false,
+        error: error.code,
+        message: error.message,
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      error: "DISCOVERY_PREVIEW_ERROR",
+      message: error.message || "Failed to refresh competitor suggestions",
+    });
+  }
+}
+
+// POST /locations/:locationId/competitors/preview-place
+export async function previewLocationCompetitorPlace(
+  req: Request,
+  res: Response
+): Promise<Response> {
+  try {
+    const locV = validateLocationIdParam(req.params.locationId);
+    if (!locV.valid) return res.status(locV.status).json(locV.body);
+    const placeV = validatePlaceIdInput(req.body?.placeId);
+    if (!placeV.valid) return res.status(placeV.status).json(placeV.body);
+    const radiusV = validateDiscoveryRadiusMeters(req.body?.radiusMeters);
+    if (!radiusV.valid) return res.status(radiusV.status).json(radiusV.body);
+
+    const locationId = Number(req.params.locationId);
+    const result = await previewManualCompetitorForLocation(
+      locationId,
+      String(req.body.placeId).trim(),
+      req.body?.radiusMeters === undefined ? undefined : radiusV.radiusMeters,
+      readComparisonSpecialtyInput(req.body?.comparisonSpecialty)
+    );
+
+    return res.json({ success: true, ...result });
+  } catch (error: any) {
+    logError(
+      "POST /locations/:locationId/competitors/preview-place",
+      error
+    );
+    if (error?.code === "PLACES_LOOKUP_FAILED") {
+      return res.status(502).json({
+        success: false,
+        error: "PLACES_LOOKUP_FAILED",
+        message: error.message,
+      });
+    }
+    if (error?.code === "INVALID_DISCOVERY_RADIUS") {
+      return res.status(400).json({
+        success: false,
+        error: error.code,
+        message: error.message,
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      error: "COMPETITOR_PREVIEW_ERROR",
+      message: error.message || "Failed to measure competitor profile",
     });
   }
 }
@@ -1415,21 +1555,7 @@ export async function addLocationCompetitor(
     const result = await addCustomCompetitor(locationId, placeId, userId);
     return res.json({
       success: true,
-      added: {
-        id: result.added.id,
-        placeId: result.added.place_id,
-        name: result.added.name,
-        address: result.added.address,
-        primaryType: result.added.primary_type,
-        rating:
-          result.added.rating === null ? null : Number(result.added.rating),
-        reviewCount: result.added.review_count,
-        lat: result.added.lat === null ? null : Number(result.added.lat),
-        lng: result.added.lng === null ? null : Number(result.added.lng),
-        source: result.added.source,
-        addedAt: result.added.added_at,
-        addedByUserId: result.added.added_by_user_id,
-      },
+      added: formatLocationCompetitor(result.added),
       activeCount: result.activeCount,
       cap: MAX_COMPETITORS_PER_LOCATION,
     });
@@ -1524,6 +1650,8 @@ export async function finalizeLocationAndRun(
       batchId: result.batchId,
       rankingId: result.rankingId,
       reused: result.reused,
+      competitorSetRevision: result.competitorSetRevision,
+      selectedCount: result.selectedCount,
     });
   } catch (error: any) {
     logError("POST /locations/:locationId/competitors/finalize-and-run", error);
@@ -1531,6 +1659,81 @@ export async function finalizeLocationAndRun(
       success: false,
       error: "FINALIZE_ERROR",
       message: error.message || "Failed to finalize and trigger run",
+    });
+  }
+}
+
+// POST /locations/:locationId/competitors/reselect-and-run
+export async function reselectLocationCompetitorsAndRun(
+  req: Request,
+  res: Response
+): Promise<Response> {
+  try {
+    const v = validateLocationIdParam(req.params.locationId);
+    if (!v.valid) return res.status(v.status).json(v.body);
+
+    const placeIds: unknown[] = Array.isArray(req.body?.placeIds)
+      ? req.body.placeIds
+      : [];
+    const invalidPlaceId = placeIds.find(
+      (placeId) => !validatePlaceIdInput(placeId).valid
+    );
+    if (invalidPlaceId !== undefined) {
+      return res.status(400).json({
+        success: false,
+        error: "INVALID_PLACE_ID",
+        message: "Each placeId must be a non-empty string",
+      });
+    }
+    const radiusV = validateDiscoveryRadiusMeters(req.body?.radiusMeters);
+    if (!radiusV.valid) return res.status(radiusV.status).json(radiusV.body);
+
+    const locationId = Number(req.params.locationId);
+    const userId = (req as RBACRequest).userId ?? null;
+    const result = await reselectCompetitorsAndTriggerRun(
+      locationId,
+      placeIds.map((placeId) => String(placeId)),
+      userId,
+      req.body?.radiusMeters === undefined ? undefined : radiusV.radiusMeters
+    );
+
+    return res.json({
+      success: true,
+      batchId: result.batchId,
+      rankingId: result.rankingId,
+      reused: result.reused,
+      competitorSetRevision: result.competitorSetRevision,
+      selectedCount: result.selectedCount,
+    });
+  } catch (error: any) {
+    logError(
+      "POST /locations/:locationId/competitors/reselect-and-run",
+      error
+    );
+    if (
+      [
+        "EMPTY_COMPETITOR_SET",
+        "COMPETITOR_CAP_REACHED",
+        "LOCATION_NOT_FINALIZED",
+      ].includes(error?.code)
+    ) {
+      return res.status(error.code === "LOCATION_NOT_FINALIZED" ? 409 : 400).json({
+        success: false,
+        error: error.code,
+        message: error.message,
+      });
+    }
+    if (error?.code === "PLACES_LOOKUP_FAILED") {
+      return res.status(502).json({
+        success: false,
+        error: "PLACES_LOOKUP_FAILED",
+        message: error.message,
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      error: "RESELECT_COMPETITORS_ERROR",
+      message: error.message || "Failed to rerun ranking",
     });
   }
 }

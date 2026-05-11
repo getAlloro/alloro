@@ -44,10 +44,10 @@ export interface RankingLlmPayload {
     competitors: any[];
     benchmarks: Record<string, any>;
     /**
-     * Live Google Search Position context.
+     * Google Maps position snapshot context.
      * Spec: plans/04122026-no-ticket-practice-health-search-position-split/spec.md
-     * Lets the LLM reference where the practice actually appears on Google,
-     * separately from the proprietary 8-factor Practice Health score.
+     * Lets the LLM reference the sampled Maps estimate separately from the
+     * proprietary 8-factor Practice Health score.
      */
     search_position?: {
       query: string;
@@ -61,6 +61,17 @@ export interface RankingLlmPayload {
         rating: number;
         is_client: boolean;
       }>;
+      selected_competitors?: Array<{
+        selected_order: number;
+        place_id: string;
+        name: string;
+        maps_position: number | null;
+        maps_status: "measured" | "not_in_top_20" | "not_measured";
+        rating: number | null;
+        review_count: number | null;
+        primary_type: string | null;
+      }>;
+      discovery_radius_meters?: number;
     };
   };
 }
@@ -85,7 +96,7 @@ const SYSTEM_PROMPT = `You are an expert SEO and local search analyst specializi
 1. **Gap Analysis**: Where the practice underperforms vs competitors
 2. **Driver Analysis**: Which factors impact their ranking most
 3. **Recommendations**: Prioritized actions to improve
-4. **Search Position Awareness**: When \`search_position\` is provided in the input, acknowledge the client's current Google position and factor it into the recommendations. If they're ranking above what their Practice Health score would predict, identify what's protecting that advantage and recommend preserving it. If below, prioritize actions that influence the signals Google weights most for local pack ranking (review count, recency, profile completeness, NAP consistency). If \`search_position.not_in_top_20\` is true, treat breaking into the top 20 as the primary goal.
+4. **Search Position Awareness**: When \`search_position\` is provided in the input, treat it as a sampled Google Maps estimate, not a guaranteed live rank. Factor the estimate into recommendations without over-claiming precision. If they're showing above what their Practice Health score would predict, identify what's protecting that advantage and recommend preserving it. If below, prioritize actions that influence the signals Google weights most for local pack ranking (review count, recency, profile completeness, NAP consistency). If \`search_position.not_in_top_20\` is true, treat breaking into the top 20 as the primary goal.
 
 ## Rules
 - Be specific with numbers and comparisons

@@ -17,6 +17,12 @@ export type SearchPositionStatus =
  * Spec: plans/04282026-no-ticket-live-google-rank-apify-maps-swap/spec.md (T3)
  */
 export type SearchPositionSource = "apify_maps" | "places_text";
+export type RankingRunReason =
+  | "scheduled"
+  | "manual"
+  | "first_competitor_finalize"
+  | "competitor_reselection"
+  | "retry";
 
 export interface SearchResultEntry {
   placeId: string;
@@ -58,6 +64,11 @@ export interface IPracticeRanking {
   search_checked_at: Date | null;
   search_status: SearchPositionStatus | null;
   search_position_source: SearchPositionSource | null;
+  competitor_discovery_radius_meters: number | null;
+  competitor_set_revision: number | null;
+  competitor_snapshot: Record<string, unknown> | null;
+  run_reason: RankingRunReason | null;
+  include_in_summary_recommendations: boolean;
   llm_analysis: Record<string, unknown> | null;
   ranking_factors: Record<string, unknown> | null;
   raw_data: Record<string, unknown> | null;
@@ -84,6 +95,7 @@ export class PracticeRankingModel extends BaseModel {
     "ranking_factors",
     "raw_data",
     "search_results",
+    "competitor_snapshot",
   ];
 
   static async findById(
@@ -202,6 +214,21 @@ export class PracticeRankingModel extends BaseModel {
     return row
       ? this.deserializeJsonFields(row)
       : undefined;
+  }
+
+  static async findRecentInFlightByLocation(
+    organizationId: number,
+    locationId: number,
+    since: Date,
+    trx?: QueryContext
+  ): Promise<IPracticeRanking | undefined> {
+    const row = await this.table(trx)
+      .where({ organization_id: organizationId, location_id: locationId })
+      .whereIn("status", ["pending", "processing"])
+      .where("created_at", ">=", since)
+      .orderBy("created_at", "desc")
+      .first();
+    return row ? this.deserializeJsonFields(row) : undefined;
   }
 
   static async findLatestCompletedByOrganizationLocations(

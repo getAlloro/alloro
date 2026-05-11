@@ -1,0 +1,27 @@
+-- Rankings Clarity and Competitor Reselection
+-- Microsoft SQL Server planning scaffold.
+-- TODO during execution: fill with equivalent DDL if this deployment target is required.
+
+-- Intended schema additions:
+-- 1. location_competitors discovery/search estimate metadata:
+--    discovery_position INT NULL
+--    discovery_query NVARCHAR(MAX) NULL
+--    discovery_source NVARCHAR(32) NULL
+--    discovery_checked_at DATETIMEOFFSET NULL
+--    profile_strength_score DECIMAL(6,2) NULL
+--    profile_strength_tier NVARCHAR(32) NULL
+--    profile_strength_factors NVARCHAR(MAX) NULL, JSON text
+--
+-- 2. locations competitor set revision:
+--    competitor_set_revision INT NOT NULL DEFAULT 1
+--
+-- 3. practice_rankings competitor set traceability:
+--    competitor_set_revision INT NULL
+--    competitor_snapshot NVARCHAR(MAX) NULL, JSON text
+--    run_reason NVARCHAR(40) NULL
+--    include_in_summary_recommendations BIT NOT NULL DEFAULT 1
+--
+-- Constraints to mirror in implementation:
+--    discovery_source IN ('apify_maps', 'places_text', 'user_added', 'unknown')
+--    profile_strength_tier IN ('strong', 'competitive', 'needs_review', 'not_measured')
+--    run_reason IS NULL OR run_reason IN ('scheduled', 'manual', 'first_competitor_finalize', 'competitor_reselection', 'retry')

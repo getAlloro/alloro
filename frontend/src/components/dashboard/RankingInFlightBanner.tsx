@@ -74,7 +74,8 @@ export function RankingInFlightBanner({
             Ranking in progress
           </p>
           <p className="text-sm font-medium text-alloro-textDark">
-            You have a new analysis running. Come back later for the result.
+            You have a new analysis running. This usually takes around 5-10
+            minutes, so come back later for the result.
           </p>
         </div>
         <button

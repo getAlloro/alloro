@@ -14,6 +14,8 @@ export interface ILocation {
   business_data: Record<string, unknown> | null;
   location_competitor_onboarding_status: LocationCompetitorOnboardingStatus;
   location_competitor_onboarding_finalized_at: Date | null;
+  competitor_set_revision: number;
+  competitor_discovery_radius_meters: number;
   client_place_id: string | null;
   client_lat: number | null;
   client_lng: number | null;
@@ -67,6 +69,8 @@ export class LocationModel extends BaseModel {
       | "business_data"
       | "location_competitor_onboarding_status"
       | "location_competitor_onboarding_finalized_at"
+      | "competitor_set_revision"
+      | "competitor_discovery_radius_meters"
       | "client_place_id"
       | "client_lat"
       | "client_lng"
@@ -74,6 +78,8 @@ export class LocationModel extends BaseModel {
       business_data?: Record<string, unknown> | null;
       location_competitor_onboarding_status?: LocationCompetitorOnboardingStatus;
       location_competitor_onboarding_finalized_at?: Date | null;
+      competitor_set_revision?: number;
+      competitor_discovery_radius_meters?: number;
       client_place_id?: string | null;
       client_lat?: number | null;
       client_lng?: number | null;
@@ -107,6 +113,19 @@ export class LocationModel extends BaseModel {
         client_place_id: data.placeId,
         client_lat: data.lat,
         client_lng: data.lng,
+        updated_at: new Date(),
+      });
+  }
+
+  static async setCompetitorDiscoveryRadius(
+    locationId: number,
+    radiusMeters: number,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id: locationId })
+      .update({
+        competitor_discovery_radius_meters: radiusMeters,
         updated_at: new Date(),
       });
   }

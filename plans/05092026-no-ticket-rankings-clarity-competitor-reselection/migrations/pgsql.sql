@@ -1,0 +1,32 @@
+-- Rankings Clarity and Competitor Reselection
+-- PostgreSQL planning scaffold.
+-- TODO during execution: fill with concrete DDL or keep this as documentation if Knex is the execution path.
+
+-- Intended schema additions:
+-- 1. location_competitors discovery/search estimate metadata:
+--    discovery_position integer null
+--    discovery_query text null
+--    discovery_source varchar(32) null
+--    discovery_checked_at timestamptz null
+--    profile_strength_score numeric(6,2) null
+--    profile_strength_tier varchar(32) null
+--    profile_strength_factors jsonb null
+--
+-- 2. locations competitor set revision:
+--    competitor_set_revision integer not null default 1
+--
+-- 3. practice_rankings competitor set traceability:
+--    competitor_set_revision integer null
+--    competitor_snapshot jsonb null
+--    run_reason varchar(40) null
+--    include_in_summary_recommendations boolean not null default true
+--
+-- Constraints to implement:
+--    discovery_source is null or in ('apify_maps', 'places_text', 'user_added', 'unknown')
+--    profile_strength_tier is null or in ('strong', 'competitive', 'needs_review', 'not_measured')
+--    run_reason is null or in ('scheduled', 'manual', 'first_competitor_finalize', 'competitor_reselection', 'retry')
+--
+-- Indexes to consider:
+--    location_competitors(location_id, discovery_checked_at)
+--    practice_rankings(location_id, competitor_set_revision)
+--    practice_rankings(organization_id, location_id, include_in_summary_recommendations, created_at)

@@ -18,7 +18,11 @@ import {
 import { useLocationContext } from "../../contexts/locationContext";
 import { CompetitorOnboardingBanner } from "./CompetitorOnboardingBanner";
 import { RankingInFlightBanner } from "./RankingInFlightBanner";
-import { getInFlightRanking } from "../../api/practiceRanking";
+import {
+  getInFlightRanking,
+  type SelectedCompetitorSearchResult,
+} from "../../api/practiceRanking";
+import { RankingsLoadingState } from "./rankings/RankingsLoadingState";
 
 /**
  * Date when the Practice Health scoring methodology changed (Practice Health +
@@ -181,6 +185,7 @@ interface RankingResult {
     }>;
     render_text: string;
     client_summary?: string | null;
+    one_line_summary?: string | null;
     top_recommendations?: Array<{
       priority: number;
       title: string;
@@ -221,10 +226,12 @@ interface RankingResult {
     types: string[];
     isClient: boolean;
   }> | null;
+  selectedCompetitorSearchResults: SelectedCompetitorSearchResult[] | null;
   searchLat: number | null;
   searchLng: number | null;
   searchRadiusMeters: number | null;
   searchCheckedAt: string | null;
+  competitorDiscoveryRadiusMeters: number | null;
   // Practice Health aliases (same data as rankScore/rankPosition).
   practiceHealth: number | null;
   practiceHealthRank: number | null;
@@ -233,6 +240,16 @@ interface RankingResult {
   // Places API legacy source vs the new Apify Maps source).
   // Spec: plans/04282026-no-ticket-live-google-rank-apify-maps-swap/spec.md (T3)
   searchPositionSource: "apify_maps" | "places_text" | null;
+  competitorSetRevision: number | null;
+  competitorSnapshot: unknown | null;
+  runReason:
+    | "scheduled"
+    | "manual"
+    | "first_competitor_finalize"
+    | "competitor_reselection"
+    | "retry"
+    | null;
+  includeInSummaryRecommendations: boolean;
   // Previous run's Search Position data — used to gate growth arrow stability.
   previousSearchPosition: number | null;
   previousSearchQuery: string | null;
@@ -407,33 +424,7 @@ export function RankingsDashboard({
   };
 
   if (loading && !isWizardActive) {
-    return (
-      <div className="min-h-screen bg-alloro-bg font-body text-alloro-textDark pb-32 selection:bg-alloro-orange selection:text-white">
-        {/* Header */}
-        <header className="glass-header border-b border-black/5 lg:sticky lg:top-0 z-40">
-          <div className="max-w-[1100px] mx-auto px-6 lg:px-10 py-6 flex items-center justify-between">
-            <div className="flex items-center gap-5">
-              <div className="w-10 h-10 bg-alloro-navy text-white rounded-xl flex items-center justify-center shadow-lg">
-                <Target size={20} />
-              </div>
-              <div className="flex flex-col text-left">
-                <h1 className="text-[11px] font-black font-heading text-alloro-textDark uppercase tracking-[0.25em] leading-none">
-                  Market Intelligence
-                </h1>
-                <span className="text-[9px] font-bold text-alloro-textDark/40 uppercase tracking-widest mt-1.5 hidden sm:inline">
-                  Loading data...
-                </span>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {/* Skeleton Content */}
-        <main className="w-full max-w-[1100px] mx-auto px-6 lg:px-10 py-10 lg:py-16 space-y-12 lg:space-y-20">
-          <LoadingSkeleton />
-        </main>
-      </div>
-    );
+    return <RankingsLoadingState />;
   }
 
   // When wizard is active, bypass error/empty checks and use demo data
@@ -444,7 +435,7 @@ export function RankingsDashboard({
           <div className="p-4 bg-red-50 rounded-2xl w-fit mx-auto mb-4">
             <AlertCircle className="h-10 w-10 text-red-500" />
           </div>
-          <h3 className="text-xl font-black text-alloro-navy font-heading mb-2 tracking-tight">
+          <h3 className="font-display text-xl font-medium text-alloro-navy mb-2 tracking-tight">
             Unable to Load Rankings
           </h3>
           <p className="text-slate-500 text-sm font-bold mb-6">{error}</p>
@@ -467,7 +458,7 @@ export function RankingsDashboard({
           <div className="p-4 bg-slate-100 rounded-2xl w-fit mx-auto mb-4">
             <Trophy className="h-10 w-10 text-slate-400" />
           </div>
-          <h3 className="text-xl font-black text-alloro-navy font-heading mb-2 tracking-tight">
+          <h3 className="font-display text-xl font-medium text-alloro-navy mb-2 tracking-tight">
             No Account Connected
           </h3>
           <p className="text-slate-500 text-sm font-bold">
@@ -502,7 +493,7 @@ export function RankingsDashboard({
           {/* Action Card */}
           <div
             onClick={() => navigate("/settings/integrations")}
-            className="group bg-white rounded-3xl border-2 border-alloro-orange shadow-xl shadow-alloro-orange/10 p-8 cursor-pointer hover:shadow-2xl hover:shadow-alloro-orange/20 transition-all duration-300 hover:-translate-y-1"
+            className="group bg-white rounded-[14px] border-2 border-alloro-orange shadow-xl shadow-alloro-orange/10 p-8 cursor-pointer hover:shadow-2xl hover:shadow-alloro-orange/20 transition-all duration-300 hover:-translate-y-1"
           >
             <div className="flex items-start gap-6">
               <div className="shrink-0">
@@ -704,11 +695,46 @@ export function RankingsDashboard({
               isClient: false,
             },
           ],
+          selectedCompetitorSearchResults: [
+            {
+              placeId: "demo-1",
+              name: "Smile Orthodontics",
+              position: 1,
+              status: "measured",
+              rating: 4.9,
+              reviewCount: 156,
+              primaryType: "orthodontist",
+              discoveryPosition: 1,
+              distanceMiles: 1.4,
+              profileStrengthScore: 92,
+              profileStrengthTier: "strong",
+              selectedOrder: 1,
+            },
+            {
+              placeId: "demo-2",
+              name: "Perfect Teeth Ortho",
+              position: 2,
+              status: "measured",
+              rating: 4.7,
+              reviewCount: 134,
+              primaryType: "orthodontist",
+              discoveryPosition: 2,
+              distanceMiles: 2.1,
+              profileStrengthScore: 81,
+              profileStrengthTier: "strong",
+              selectedOrder: 2,
+            },
+          ],
           searchLat: 37.7749,
           searchLng: -122.4194,
           searchRadiusMeters: 40234,
           searchCheckedAt: new Date().toISOString(),
+          competitorDiscoveryRadiusMeters: 40234,
           searchPositionSource: "apify_maps",
+          competitorSetRevision: 1,
+          competitorSnapshot: null,
+          runReason: "manual",
+          includeInSummaryRecommendations: true,
           practiceHealth: 78,
           practiceHealthRank: wizardDemoData.rankingData[0].rank,
           previousSearchPosition: null,
@@ -731,44 +757,59 @@ export function RankingsDashboard({
 
   // Use the first ranking (backend filters by locationId)
   const selectedRanking = effectiveRankings[0] || null;
+  const selectedInsight =
+    selectedRanking?.llmAnalysis?.one_line_summary ||
+    selectedRanking?.llmAnalysis?.client_summary ||
+    null;
 
   return (
     <div className="min-h-screen bg-alloro-bg font-body text-alloro-textDark pb-32 selection:bg-alloro-orange selection:text-white">
-      {/* Header */}
-      <header className="glass-header border-b border-black/5 lg:sticky lg:top-0 z-40">
-        <div className="max-w-[1100px] mx-auto px-6 lg:px-10 py-6 flex items-center justify-between">
-          <div className="flex items-center gap-5">
-            <div className="w-10 h-10 bg-alloro-navy text-white rounded-xl flex items-center justify-center shadow-lg">
-              <Target size={20} />
+      <main className="w-full max-w-[1320px] mx-auto px-6 lg:px-10 py-8 lg:py-10 space-y-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-alloro-navy/45 mb-2">
+              Market Intelligence
             </div>
-            <div className="flex flex-col text-left">
-              <h1 className="text-[11px] font-black font-heading text-alloro-textDark uppercase tracking-[0.25em] leading-none">
-                Local Rankings
-              </h1>
-              <span className="text-[9px] font-bold text-alloro-textDark/40 uppercase tracking-widest mt-1.5 hidden sm:inline">
-                How you compare to others
+            <h1 className="font-display text-[28px] font-medium tracking-tight text-alloro-navy">
+              Local Rankings
+            </h1>
+            <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-alloro-navy/55">
+              How you compare to competitors in your area.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-[14px] border border-line-soft bg-white px-5 py-4 shadow-premium sm:flex-row sm:items-center">
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Latest snapshot:
+              </span>
+              <span className="text-[12px] font-black text-alloro-navy">
+                {selectedRanking?.gbpLocationName || "Location"} •{" "}
+                {new Date(
+                  selectedRanking?.observedAt || new Date()
+                ).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                })}
               </span>
             </div>
-          </div>
-          <div className="hidden sm:flex items-center gap-5 bg-white px-6 py-3 rounded-2xl border border-black/5 shadow-premium">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-              Latest Analysis:
-            </span>
-            <span className="text-[11px] font-black text-alloro-navy flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-green-500"></div>{" "}
-              {selectedRanking?.gbpLocationName || "Location"} •{" "}
-              {new Date(
-                selectedRanking?.observedAt || new Date(),
-              ).toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-              })}
-            </span>
+            {selectedRanking?.locationId && (
+              <button
+                type="button"
+                onClick={() =>
+                  navigate(
+                    `/dashboard/competitors/${selectedRanking.locationId}/onboarding?mode=reselect`
+                  )
+                }
+                className="inline-flex items-center justify-center gap-2 rounded-[10px] bg-alloro-navy px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white transition-colors hover:bg-alloro-navy/90"
+              >
+                <Settings size={13} />
+                Manage competitors
+              </button>
+            )}
           </div>
         </div>
-      </header>
 
-      <main className="w-full max-w-[1180px] mx-auto px-6 lg:px-10 py-10 lg:py-16 space-y-5 lg:space-y-6">
         {/* In-flight ranking progress banner — auto-detected on mount or
             seeded from ?batchId= in the URL. Sticks to the viewport top so it
             stays visible while the user scrolls the dashboard. */}
@@ -796,18 +837,18 @@ export function RankingsDashboard({
             />
           )}
 
-        {/* CLIENT SUMMARY CARD — soft cream callout, serif body, info eyebrow */}
-        {selectedRanking?.llmAnalysis?.client_summary && (
+        {/* CLIENT SUMMARY CARD — soft cream callout, concise by default */}
+        {selectedInsight && (
           <section className="animate-in fade-in slide-in-from-bottom-2 duration-700 delay-150">
-            <div className="bg-[#FCFAED] border border-[#EDE5C0] rounded-2xl px-5 py-4 lg:px-6 lg:py-5">
+            <div className="bg-[#FCFAED] border border-[#EDE5C0] rounded-[14px] px-5 py-4 lg:px-6 lg:py-5">
               <div className="flex items-center gap-1.5 mb-2 text-[#8A7A4A]">
                 <Info size={12} />
                 <span className="text-[10px] font-bold uppercase tracking-[0.14em]">
                   Practice insight
                 </span>
               </div>
-              <p className="font-display text-sm lg:text-[15px] text-[#1A1A1A] leading-relaxed">
-                {selectedRanking.llmAnalysis.client_summary}
+              <p className="font-display text-[14px] leading-[1.65] text-[#2C2A26]">
+                {selectedInsight}
               </p>
             </div>
           </section>
@@ -835,8 +876,14 @@ export function RankingsDashboard({
  */
 function SearchPositionSection({ result }: { result: RankingResult }) {
   const status = result.searchStatus ?? "ok";
-  const topResults = (result.searchResults ?? []).slice(0, 5);
-  if (status !== "ok" || topResults.length === 0) return null;
+  const selectedResults = result.selectedCompetitorSearchResults ?? [];
+  const hasSelectedProjection = selectedResults.length > 0;
+  const topResults = hasSelectedProjection
+    ? []
+    : (result.searchResults ?? []).slice(0, 5);
+  if (!hasSelectedProjection && (status !== "ok" || topResults.length === 0)) {
+    return null;
+  }
 
   const accent = "#D66853";
   const checkedDate = result.searchCheckedAt
@@ -849,7 +896,7 @@ function SearchPositionSection({ result }: { result: RankingResult }) {
   return (
     <section
       data-wizard-target="rankings-competitors"
-      className="bg-white border border-line-soft rounded-3xl shadow-premium overflow-hidden"
+      className="bg-white border border-line-soft rounded-[14px] shadow-premium overflow-hidden"
     >
       <header className="px-6 lg:px-7 py-4 flex items-center justify-between border-b border-line-soft gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
@@ -859,8 +906,18 @@ function SearchPositionSection({ result }: { result: RankingResult }) {
           />
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-2">
-              <SectionTitle>Top {topResults.length} on Google Maps</SectionTitle>
-              <InfoTip content="The top results Google Maps shows for this search in your area. Your row is highlighted." />
+              <SectionTitle>
+                {hasSelectedProjection
+                  ? "Selected competitors in Google Maps"
+                  : `Top ${topResults.length} on Google Maps`}
+              </SectionTitle>
+              <InfoTip
+                content={
+                  hasSelectedProjection
+                    ? "These are the competitors in your saved comparison set, shown with their position in the latest sampled Google Maps snapshot when available. Other Google results are hidden because they are not part of your selected comparison set."
+                    : "The top results Google Maps shows for this search in your area. Your row is highlighted."
+                }
+              />
             </div>
             {result.searchQuery && (
               <span className="text-[11.5px] font-medium text-alloro-navy/45 truncate mt-0.5">
@@ -871,12 +928,74 @@ function SearchPositionSection({ result }: { result: RankingResult }) {
         </div>
         {checkedDate && (
           <span className="font-mono-display text-[10px] tracking-widest text-alloro-navy/35 uppercase shrink-0">
-            live • {checkedDate}
+            snapshot • {checkedDate}
           </span>
         )}
       </header>
       <div>
-        {topResults.map((row) => {
+        {hasSelectedProjection && selectedResults.map((row) => {
+          const hasPosition =
+            row.status === "measured" && typeof row.position === "number";
+          const statusLabel = hasPosition
+            ? `Est. #${row.position}`
+            : row.status === "not_in_top_20"
+              ? "Not in top 20"
+              : "Not measured yet";
+          const distanceLabel =
+            typeof row.distanceMiles === "number" &&
+            Number.isFinite(row.distanceMiles)
+              ? `${row.distanceMiles < 10 ? row.distanceMiles.toFixed(1) : Math.round(row.distanceMiles)} mi`
+              : null;
+          return (
+            <div
+              key={row.placeId || `${row.name}-${row.selectedOrder}`}
+              className="grid grid-cols-[150px_minmax(0,1fr)_auto] items-center gap-4 px-6 lg:px-7 py-3.5 border-b last:border-b-0 border-line-soft transition-colors hover:bg-[rgba(17,21,28,0.025)]"
+            >
+              <div className="flex items-baseline gap-2">
+                <span
+                  className={`whitespace-nowrap text-[10px] font-black uppercase tracking-[0.12em] ${
+                    hasPosition
+                      ? "text-alloro-orange"
+                      : "text-slate-500"
+                  }`}
+                >
+                  {statusLabel}
+                </span>
+                {distanceLabel && (
+                  <span className="whitespace-nowrap text-[10px] font-semibold text-alloro-navy/35">
+                    {distanceLabel}
+                  </span>
+                )}
+              </div>
+              <div className="min-w-0">
+                <span className="block truncate font-bold text-[15px] text-alloro-navy">
+                  {row.name}
+                </span>
+                {row.primaryType && (
+                  <span className="mt-0.5 block text-[10px] font-bold uppercase tracking-widest text-alloro-navy/35">
+                    {row.primaryType.replace(/_/g, " ")}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-5 shrink-0">
+                {typeof row.rating === "number" && (
+                  <div className="flex items-center gap-1.5 tabular-nums text-[13px] font-bold text-alloro-navy/80">
+                    <StarIcon size={12} /> {row.rating.toFixed(1)}
+                  </div>
+                )}
+                {typeof row.reviewCount === "number" && (
+                  <div className="text-[13px] font-bold tabular-nums text-alloro-navy min-w-[52px] text-right">
+                    {row.reviewCount.toLocaleString()}
+                    <span className="ml-1 text-[10px] font-semibold text-alloro-navy/35 uppercase tracking-wider">
+                      rev
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        {!hasSelectedProjection && topResults.map((row) => {
           const isYou = row.isClient;
           return (
             <div
@@ -1141,8 +1260,8 @@ function HealthGauge({ value, prev }: { value: number; prev?: number | null }) {
           x="90"
           y="78"
           textAnchor="middle"
-          fontFamily="Plus Jakarta Sans"
-          fontWeight="800"
+          fontFamily="Fraunces, Literata, Georgia, serif"
+          fontWeight="500"
           fontSize="42"
           fill="#11151C"
           className="tabular-nums"
@@ -1301,7 +1420,7 @@ function CohortRankNote({ result }: { result: RankingResult }) {
   }
 
   const tooltip = isCurated
-    ? "Your Practice Health score ranked against the competitor list you curated. Independent of your live Google rank."
+    ? "Your Practice Health score ranked against the competitor list you curated. Independent of your sampled Maps estimate."
     : "Your Practice Health score is currently being compared against competitors Google surfaced for your area. Curate the list for a comparison against practices you actually compete with.";
 
   return (
@@ -1320,7 +1439,7 @@ function CohortRankNote({ result }: { result: RankingResult }) {
 }
 
 /**
- * HERO — Live Google rank composite (left) + Practice Health gauge (right).
+ * HERO — Google Maps estimate composite (left) + Practice Health gauge (right).
  * Replaces the legacy 4-up KPICard grid and absorbs the SearchPositionSection
  * headline + searchStatus branching. The body's SearchPositionSection now
  * renders only the top-5 list.
@@ -1376,16 +1495,16 @@ function HeroPanel({
 
   return (
     <section className="grid grid-cols-1 lg:grid-cols-[1.35fr_1fr] gap-4 lg:gap-5">
-      {/* LEFT — Live Google rank (or branched copy for non-ok statuses) */}
-      <div className="bg-white border border-line-soft rounded-3xl shadow-premium p-7 lg:p-9">
+      {/* LEFT — Google Maps estimate (or branched copy for non-ok statuses) */}
+      <div className="bg-white border border-line-soft rounded-[14px] shadow-premium p-7 lg:p-9">
         <div className="flex items-center justify-between mb-6 gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             <span
               className="w-1.5 h-1.5 rounded-full shrink-0"
               style={{ background: accent }}
             />
-            <SectionTitle>Live Google rank</SectionTitle>
-            <InfoTip content="Your position in Google Maps for the search a real patient runs in your city. Refreshed on each ranking run." />
+            <SectionTitle>Google Maps estimate</SectionTitle>
+            <InfoTip content="A sampled Google Maps position for the selected query and location. Results can vary by device, searcher location, and personalization, so treat this as an estimate, not a guaranteed exact rank." />
           </div>
           {checkedDate && (
             <span className="font-mono-display text-[10px] tracking-widest text-alloro-navy/40 uppercase shrink-0">
@@ -1400,7 +1519,7 @@ function HeroPanel({
               <div className="leading-[0.85]">
                 <div className="flex items-baseline">
                   <span
-                    className="text-[110px] lg:text-[140px] font-extrabold tracking-tighter tabular-nums"
+                    className="font-display text-[110px] lg:text-[140px] font-medium tracking-tight tabular-nums"
                     style={{ color: rankColor, lineHeight: 0.85 }}
                   >
                     #{rank}
@@ -1444,7 +1563,7 @@ function HeroPanel({
 
         {status === "not_in_top_20" && (
           <div className="flex flex-col gap-2 py-2">
-            <span className="text-3xl lg:text-4xl font-extrabold text-alloro-navy/45 tracking-tight leading-tight">
+            <span className="font-display text-3xl lg:text-4xl font-medium text-alloro-navy/45 tracking-tight leading-tight">
               Not ranked in top 20
             </span>
             <p className="text-sm font-medium text-alloro-navy/65 max-w-[44ch] leading-relaxed">
@@ -1460,7 +1579,7 @@ function HeroPanel({
 
         {status === "bias_unavailable" && (
           <div className="flex flex-col gap-2 py-2">
-            <span className="text-3xl lg:text-4xl font-extrabold text-alloro-navy/45 tracking-tight leading-tight">
+            <span className="font-display text-3xl lg:text-4xl font-medium text-alloro-navy/45 tracking-tight leading-tight">
               Couldn't locate your practice on Google
             </span>
             <p className="text-sm font-medium text-alloro-navy/65 max-w-[44ch] leading-relaxed">
@@ -1479,7 +1598,7 @@ function HeroPanel({
 
         {status === "api_error" && (
           <div className="flex flex-col gap-2 py-2">
-            <span className="text-3xl lg:text-4xl font-extrabold text-alloro-navy/45 tracking-tight leading-tight">
+            <span className="font-display text-3xl lg:text-4xl font-medium text-alloro-navy/45 tracking-tight leading-tight">
               Google search temporarily unavailable
             </span>
             <p className="text-sm font-medium text-alloro-navy/65 max-w-[44ch] leading-relaxed">
@@ -1490,14 +1609,14 @@ function HeroPanel({
       </div>
 
       {/* RIGHT — Practice Health gauge */}
-      <div className="bg-white border border-line-soft rounded-3xl shadow-premium p-7 lg:p-9 flex flex-col">
+      <div className="bg-white border border-line-soft rounded-[14px] shadow-premium p-7 lg:p-9 flex flex-col">
         <div className="flex items-center mb-2 gap-2.5">
           <span
             className="w-1.5 h-1.5 rounded-full shrink-0"
             style={{ background: "#22c55e" }}
           />
           <SectionTitle>Practice Health</SectionTitle>
-          <InfoTip content="Alloro's diagnostic score (0–100) for your local SEO fundamentals: review velocity, rating, profile completeness, NAP consistency, sentiment. Independent of your live Google rank." />
+          <InfoTip content="Alloro's diagnostic score (0–100) for your local SEO fundamentals: review velocity, rating, profile completeness, NAP consistency, sentiment. Independent of your sampled Maps estimate." />
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center pt-2">
@@ -1554,7 +1673,7 @@ function DriversPanel({ result }: { result: RankingResult }) {
   return (
     <section
       data-wizard-target="rankings-factors"
-      className="bg-white border border-line-soft rounded-3xl shadow-premium overflow-hidden"
+      className="bg-white border border-line-soft rounded-[14px] shadow-premium overflow-hidden"
     >
       <header className="px-6 lg:px-7 py-4 flex items-center justify-between border-b border-line-soft gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
@@ -1562,8 +1681,8 @@ function DriversPanel({ result }: { result: RankingResult }) {
             className="w-1.5 h-1.5 rounded-full shrink-0"
             style={{ background: "#11151C" }}
           />
-          <SectionTitle>What's driving your rank</SectionTitle>
-          <InfoTip content="The factors moving your rank most. Green is working for you; red is holding you back. Click a factor for the specific insight." />
+          <SectionTitle>What's driving visibility</SectionTitle>
+          <InfoTip content="The factors moving your local visibility most. Green is working for you; red is holding you back. Click a factor for the specific insight." />
         </div>
         <span className="font-mono-display text-[10px] tracking-widest text-alloro-navy/40 uppercase shrink-0">
           {drivers.length} factors
@@ -1750,7 +1869,7 @@ function FactorBreakdown({ result }: { result: RankingResult }) {
     .sort((a, b) => b.weighted - a.weighted);
 
   return (
-    <section className="bg-white border border-line-soft rounded-3xl shadow-premium overflow-hidden">
+    <section className="bg-white border border-line-soft rounded-[14px] shadow-premium overflow-hidden">
       <header className="px-6 lg:px-7 py-4 flex items-center justify-between border-b border-line-soft gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <span
@@ -1831,7 +1950,7 @@ function NextMoves({ result }: { result: RankingResult }) {
   const accent = "#D66853";
 
   return (
-    <section className="bg-white border border-line-soft rounded-3xl shadow-premium overflow-hidden">
+    <section className="bg-white border border-line-soft rounded-[14px] shadow-premium overflow-hidden">
       <header className="px-6 lg:px-7 py-4 flex items-center justify-between border-b border-line-soft gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <span
@@ -1839,7 +1958,7 @@ function NextMoves({ result }: { result: RankingResult }) {
             style={{ background: accent }}
           />
           <SectionTitle>Top moves to climb</SectionTitle>
-          <InfoTip content="Highest-impact actions to climb your local rank, ordered by priority. Click any move to see why it matters and how to do it." />
+          <InfoTip content="Highest-impact actions to improve local visibility, ordered by priority. Click any move to see why it matters and how to do it." />
         </div>
         <span className="font-mono-display text-[10px] tracking-widest text-alloro-navy/40 uppercase shrink-0">
           {recs.length} actions
@@ -1911,7 +2030,7 @@ function GapsPanel({ result }: { result: RankingResult }) {
         : { c: "#11151C", b: "rgba(17,21,28,0.05)" };
 
   return (
-    <section className="bg-white border border-line-soft rounded-3xl shadow-premium overflow-hidden">
+    <section className="bg-white border border-line-soft rounded-[14px] shadow-premium overflow-hidden">
       <header className="px-6 lg:px-7 py-4 flex items-center justify-between border-b border-line-soft gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <span
@@ -1974,7 +2093,11 @@ function GapsPanel({ result }: { result: RankingResult }) {
 }
 
 // Performance Dashboard View Component
-function PerformanceDashboard({ result }: { result: RankingResult }) {
+function PerformanceDashboard({
+  result,
+}: {
+  result: RankingResult;
+}) {
   const competitors = result.rawData?.competitors || [];
 
   // Market average rating (from curated competitors) — surfaced on the hero
@@ -2007,53 +2130,6 @@ function PerformanceDashboard({ result }: { result: RankingResult }) {
           <NextMoves result={result} />
           <GapsPanel result={result} />
         </div>
-      </div>
-    </div>
-  );
-}
-
-// Loading Skeleton Component
-function LoadingSkeleton() {
-  return (
-    <div className="space-y-12 animate-pulse">
-      {/* Location Cards Skeleton */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {[...Array(2)].map((_, i) => (
-          <div
-            key={i}
-            className="p-10 rounded-3xl border-2 border-slate-100 bg-white"
-          >
-            <div className="flex gap-6 mb-10">
-              <div className="w-14 h-14 bg-slate-200 rounded-2xl" />
-              <div>
-                <div className="h-6 w-40 bg-slate-200 rounded mb-2" />
-                <div className="h-3 w-24 bg-slate-200 rounded" />
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              {[...Array(3)].map((_, j) => (
-                <div key={j} className="bg-slate-50 rounded-2xl p-5">
-                  <div className="h-8 w-12 bg-slate-200 rounded mx-auto mb-2" />
-                  <div className="h-3 w-16 bg-slate-200 rounded mx-auto" />
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* KPI Grid Skeleton */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {[...Array(4)].map((_, i) => (
-          <div
-            key={i}
-            className="rounded-2xl border border-slate-200 bg-white p-8"
-          >
-            <div className="h-3 w-24 bg-slate-200 rounded mb-8" />
-            <div className="h-12 w-32 bg-slate-200 rounded mb-2" />
-            <div className="h-3 w-40 bg-slate-200 rounded" />
-          </div>
-        ))}
       </div>
     </div>
   );
