@@ -1,5 +1,6 @@
 export const SCOPE_MAP = {
   gbp: "https://www.googleapis.com/auth/business.manage",
+  gsc: "https://www.googleapis.com/auth/webmasters.readonly",
 } as const;
 
 export function parseScopes(scopeString: string | null | undefined): string[] {
@@ -27,6 +28,13 @@ export function buildScopeStatus(normalizedScopes: string[]) {
       name: "Google Business Profile",
       description:
         "Manage business listings (used for read access and future review replies)",
+    },
+    gsc: {
+      granted: normalizedScopes.includes(SCOPE_MAP.gsc),
+      scope: SCOPE_MAP.gsc,
+      name: "Google Search Console",
+      description:
+        "Read search performance data and site information",
     },
   };
 }

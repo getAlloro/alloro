@@ -284,7 +284,17 @@ export async function getReconnectUrl(req: Request, res: Response): Promise<Resp
     validateEnvironmentVariables();
     const oauth2Client = createOAuth2Client();
 
-    const state = generateSecureState() + "_reconnect";
+    let state = generateSecureState() + "_reconnect";
+    const authCtx = tryExtractAuthContext(req);
+    if (authCtx) {
+      const orgUser = await db("organization_users")
+        .where({ user_id: authCtx.userId })
+        .first();
+      if (orgUser) {
+        state = encodeAuthState(authCtx.userId, orgUser.organization_id);
+        console.log(`[AUTH] Encoded auth context in reconnect state for user ${authCtx.userId}, org ${orgUser.organization_id}`);
+      }
+    }
 
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: "offline",

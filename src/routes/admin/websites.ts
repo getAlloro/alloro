@@ -391,6 +391,11 @@ router.get("/:id/integrations", integrationsController.listIntegrations);
 // POST   /:id/integrations — Create + validate a new integration
 router.post("/:id/integrations", integrationsController.createIntegration);
 
+// GSC-specific routes (must be before /:integrationId params)
+router.get("/:id/integrations/gsc/connections", integrationsController.listGscConnections);
+router.get("/:id/integrations/gsc/sites", integrationsController.listGscSites);
+router.post("/:id/integrations/gsc", integrationsController.createGscIntegration);
+
 // GET    /:id/detected-forms — List website forms derived from submissions
 router.get("/:id/detected-forms", integrationsController.listDetectedForms);
 

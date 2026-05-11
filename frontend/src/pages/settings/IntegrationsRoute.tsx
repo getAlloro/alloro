@@ -49,9 +49,71 @@ function GscSettingsSection({
   onGrantAccess: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const hasGscScope = !missingScopes.includes(
-    "https://www.googleapis.com/auth/webmasters.readonly",
-  );
+  const [granting, setGranting] = useState(false);
+  const hasGscScope = !missingScopes.includes("gsc");
+
+  const handleGrantAccess = async () => {
+    setGranting(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/auth/google/reconnect?scopes=gsc", {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      const data = await res.json();
+      if (!data.success || !data.authUrl) {
+        setGranting(false);
+        return;
+      }
+
+      const left = window.screenX + (window.outerWidth - 500) / 2;
+      const top = window.screenY + (window.outerHeight - 600) / 2;
+      const popup = window.open(
+        data.authUrl,
+        "gsc_scope_grant",
+        `left=${left},top=${top},width=500,height=600,resizable=yes,scrollbars=yes`,
+      );
+
+      if (!popup) {
+        setGranting(false);
+        return;
+      }
+
+      const handleMessage = (event: MessageEvent) => {
+        const allowedOrigins = [
+          window.location.origin,
+          "http://localhost:3000",
+          "http://localhost:5173",
+          "http://localhost:5174",
+        ];
+        if (!allowedOrigins.includes(event.origin)) return;
+        if (event.data.type === "GOOGLE_OAUTH_SUCCESS" || event.data.type === "GOOGLE_OAUTH_ERROR") {
+          try { popup.close(); } catch { /* COOP */ }
+          setGranting(false);
+          window.removeEventListener("message", handleMessage);
+          if (event.data.type === "GOOGLE_OAUTH_SUCCESS") onGrantAccess();
+        }
+      };
+
+      window.addEventListener("message", handleMessage);
+
+      const checkClosed = () => {
+        try {
+          if (popup.closed) {
+            setGranting(false);
+            window.removeEventListener("message", handleMessage);
+            return;
+          }
+        } catch { /* COOP */ }
+        setTimeout(checkClosed, 1000);
+      };
+      checkClosed();
+    } catch {
+      setGranting(false);
+    }
+  };
 
   return (
     <motion.div
@@ -115,17 +177,13 @@ function GscSettingsSection({
                     Grant Search Console access to unlock website performance
                     insights in your dashboard.
                   </p>
-                  <a
-                    href="/api/auth/google/reconnect?scopes=gsc"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => {
-                      setTimeout(onGrantAccess, 3000);
-                    }}
-                    className="shrink-0 px-4 py-2 bg-alloro-orange text-white text-sm font-bold rounded-xl hover:bg-alloro-orange/90 transition-colors"
+                  <button
+                    onClick={handleGrantAccess}
+                    disabled={granting}
+                    className="shrink-0 px-4 py-2 bg-alloro-orange text-white text-sm font-bold rounded-xl hover:bg-alloro-orange/90 transition-colors disabled:opacity-50"
                   >
-                    Grant Access
-                  </a>
+                    {granting ? "Granting..." : "Grant Access"}
+                  </button>
                 </div>
               )}
             </div>

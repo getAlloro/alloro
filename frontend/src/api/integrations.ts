@@ -314,3 +314,44 @@ export const rerunHarvest = (
     `/${projectId}/integrations/${integrationId}/rerun`,
     { method: "POST", body: JSON.stringify({ harvestDate }) },
   );
+
+// =====================================================================
+// GSC (Google Search Console) — admin connect flow
+// =====================================================================
+
+export interface GscConnection {
+  id: number;
+  email: string;
+  organization_id: number;
+}
+
+export interface GscSite {
+  siteUrl: string;
+  permissionLevel: string;
+}
+
+export const fetchGscConnections = (projectId: string) =>
+  request<Envelope<GscConnection[]>>(`/${projectId}/integrations/gsc/connections`);
+
+export const fetchGscSites = (projectId: string, connectionId: number) =>
+  request<Envelope<GscSite[]>>(`/${projectId}/integrations/gsc/sites?connectionId=${connectionId}`);
+
+export const createGscIntegration = (
+  projectId: string,
+  payload: { connectionId: number; siteUrl: string },
+) =>
+  request<Envelope<Integration>>(`/${projectId}/integrations/gsc`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+export async function getReconnectUrl(scopes: string): Promise<{ success: boolean; authUrl?: string }> {
+  const token = localStorage.getItem("token");
+  const res = await fetch(`/api/auth/google/reconnect?scopes=${encodeURIComponent(scopes)}`, {
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  return res.json();
+}
