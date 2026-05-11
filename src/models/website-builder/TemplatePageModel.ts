@@ -32,10 +32,10 @@ export class TemplatePageModel extends BaseModel {
   static async findSectionsByTemplateId(
     templateId: string,
     trx?: QueryContext
-  ): Promise<Array<Pick<ITemplatePage, "id" | "path" | "sections">>> {
+  ): Promise<Array<Pick<ITemplatePage, "id" | "sections">>> {
     const rows = await this.table(trx)
       .where({ template_id: templateId })
-      .select("id", "path", "sections");
+      .select("id", "sections");
     return rows.map((row: ITemplatePage) =>
       this.deserializeJsonFields(row)
     );
