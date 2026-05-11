@@ -1265,8 +1265,11 @@ export const updateRecipients = async (
 export interface WebsiteFormCatalogItem {
   form_name: string;
   form_key: string;
+  display_label: string | null;
+  sort_order: number | null;
   submission_count: number;
   last_seen: string | null;
+  unread_count: number;
   sources: {
     submissions: boolean;
     markup: boolean;
@@ -1319,6 +1322,39 @@ export const updateFormRecipientRule = async (
   return response.json();
 };
 
+export type FormCatalogPreferenceInput = {
+  formName: string;
+  displayLabel: string | null;
+  sortOrder: number;
+};
+
+export const updateFormCatalogPreferences = async (
+  projectId: string,
+  payload: { preferences: FormCatalogPreferenceInput[] },
+): Promise<{
+  success: boolean;
+  data: Array<{
+    id: string;
+    project_id: string;
+    form_name: string;
+    form_key: string;
+    display_label: string | null;
+    sort_order: number | null;
+    updated_at: string;
+  }>;
+}> => {
+  const response = await fetch(`${API_BASE}/${projectId}/forms/preferences`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to update form preferences");
+  }
+  return response.json();
+};
+
 // =====================================================================
 // FORM SUBMISSIONS
 // =====================================================================
@@ -1354,6 +1390,7 @@ export interface FormSubmissionsResponse {
   success: boolean;
   data: FormSubmission[];
   pagination: { page: number; limit: number; total: number; totalPages: number };
+  allCount?: number;
   unreadCount: number;
   flaggedCount: number;
   verifiedCount: number;
@@ -1365,11 +1402,26 @@ export const fetchFormSubmissions = async (
   page = 1,
   limit = 20,
   filter?: string,
+  formName?: string,
 ): Promise<FormSubmissionsResponse> => {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (filter) params.set("filter", filter);
+  if (formName) params.set("formName", formName);
   const response = await fetch(`${API_BASE}/${projectId}/form-submissions?${params}`);
   if (!response.ok) throw new Error("Failed to fetch form submissions");
+  return response.json();
+};
+
+export const markAllFormSubmissionsRead = async (
+  projectId: string,
+  formName?: string,
+): Promise<{ success: boolean; data?: { updated: number }; updated?: number }> => {
+  const response = await fetch(`${API_BASE}/${projectId}/form-submissions/mark-all-read`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ formName }),
+  });
+  if (!response.ok) throw new Error("Failed to mark submissions read");
   return response.json();
 };
 

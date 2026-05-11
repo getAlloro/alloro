@@ -87,6 +87,30 @@ userWebsiteRoutes.put(
   controller.updateRecipients
 );
 
+userWebsiteRoutes.get(
+  "/forms/catalog",
+  authenticateToken,
+  rbacMiddleware,
+  requireRole("admin", "manager"),
+  controller.listFormCatalog
+);
+
+userWebsiteRoutes.put(
+  "/forms/recipients",
+  authenticateToken,
+  rbacMiddleware,
+  requireRole("admin"),
+  controller.updateFormRecipientRule
+);
+
+userWebsiteRoutes.put(
+  "/forms/preferences",
+  authenticateToken,
+  rbacMiddleware,
+  requireRole("admin"),
+  controller.updateFormPreferences
+);
+
 // Form submissions
 userWebsiteRoutes.get(
   "/form-submissions/stats",

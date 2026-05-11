@@ -7,29 +7,11 @@ interface Props {
   projectId: string;
   integration: Integration | null;
   onRefresh: () => void;
-  googleEmail?: string | null;
-  hasGoogleConnection: boolean;
-  hasGscScope: boolean;
 }
 
-export default function GscTab({
-  projectId,
-  integration,
-  onRefresh,
-  googleEmail,
-  hasGoogleConnection,
-  hasGscScope,
-}: Props) {
+export default function GscTab({ projectId, integration, onRefresh }: Props) {
   if (!integration) {
-    if (!hasGoogleConnection) {
-      return <GscConnectPanel state="no_google" />;
-    }
-    if (!hasGscScope) {
-      return (
-        <GscConnectPanel state="missing_scope" googleEmail={googleEmail} />
-      );
-    }
-    return <GscConnectPanel state="no_google" />;
+    return <GscConnectPanel projectId={projectId} onConnected={onRefresh} />;
   }
 
   const siteUrl = integration.metadata?.siteUrl
@@ -37,7 +19,7 @@ export default function GscTab({
     : null;
   const email = integration.metadata?.googleEmail
     ? String(integration.metadata.googleEmail)
-    : googleEmail || null;
+    : null;
 
   return (
     <div className="p-6">

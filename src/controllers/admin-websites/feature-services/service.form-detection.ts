@@ -2,8 +2,9 @@
  * Form Detection Service
  *
  * Derives the website-side form catalog from existing submissions and current
- * page/template markup. There is no separate "forms" table in this schema;
- * form names and field shapes are observed from runtime artifacts.
+ * page/template markup. There is no separate "forms" source of truth in this
+ * schema; form names and field shapes are observed from runtime artifacts.
+ * Visual-only labels/order are layered on from form catalog preferences.
  *
  * Used by the Integrations UI so customers can see which forms exist on their
  * site (and what fields each one collects) BEFORE creating a HubSpot mapping.
@@ -21,6 +22,10 @@ import {
   type IFormRecipientRule,
 } from "../../../models/website-builder/FormRecipientRuleModel";
 import {
+  FormCatalogPreferenceModel,
+  type IFormCatalogPreference,
+} from "../../../models/website-builder/FormCatalogPreferenceModel";
+import {
   NEWSLETTER_FORM_NAME,
   normalizeFormDisplayName,
   normalizeFormKey,
@@ -30,6 +35,7 @@ export interface DetectedForm {
   form_name: string;
   submission_count: number;
   last_seen: Date | null;
+  unread_count: number;
 }
 
 export interface FieldShapeEntry {
@@ -41,8 +47,11 @@ export interface FieldShapeEntry {
 export interface FormCatalogItem {
   form_name: string;
   form_key: string;
+  display_label: string | null;
+  sort_order: number | null;
   submission_count: number;
   last_seen: Date | null;
+  unread_count: number;
   sources: {
     submissions: boolean;
     markup: boolean;
@@ -73,7 +82,11 @@ function addCatalogItem(
   forms: Map<string, FormCatalogItem>,
   formName: string,
   source: "submissions" | "markup",
-  stats?: { submission_count: number; last_seen: Date | null },
+  stats?: {
+    submission_count: number;
+    last_seen: Date | null;
+    unread_count: number;
+  },
 ): void {
   const displayName = normalizeFormDisplayName(formName);
   if (!displayName || displayName === NEWSLETTER_FORM_NAME) return;
@@ -85,6 +98,7 @@ function addCatalogItem(
     if (stats) {
       existing.submission_count = stats.submission_count;
       existing.last_seen = stats.last_seen;
+      existing.unread_count = stats.unread_count;
       existing.form_name = displayName;
     }
     return;
@@ -93,8 +107,11 @@ function addCatalogItem(
   forms.set(formKey, {
     form_name: displayName,
     form_key: formKey,
+    display_label: null,
+    sort_order: null,
     submission_count: stats?.submission_count ?? 0,
     last_seen: stats?.last_seen ?? null,
+    unread_count: stats?.unread_count ?? 0,
     sources: {
       submissions: source === "submissions",
       markup: source === "markup",
@@ -163,8 +180,11 @@ function addRuleOnlyCatalogItem(
   forms.set(rule.form_key, {
     form_name: rule.form_name,
     form_key: rule.form_key,
+    display_label: null,
+    sort_order: null,
     submission_count: 0,
     last_seen: null,
+    unread_count: 0,
     sources: {
       submissions: false,
       markup: false,
@@ -173,15 +193,47 @@ function addRuleOnlyCatalogItem(
   });
 }
 
+function applyCatalogPreferences(
+  forms: Map<string, FormCatalogItem>,
+  preferences: IFormCatalogPreference[],
+): void {
+  const preferencesByKey = new Map(
+    preferences.map((preference) => [preference.form_key, preference]),
+  );
+
+  for (const [formKey, item] of forms.entries()) {
+    const preference = preferencesByKey.get(formKey);
+    if (!preference) continue;
+
+    item.display_label = preference.display_label;
+    item.sort_order = preference.sort_order;
+  }
+}
+
+function compareCatalogItems(a: FormCatalogItem, b: FormCatalogItem): number {
+  const aOrder = a.sort_order ?? Number.MAX_SAFE_INTEGER;
+  const bOrder = b.sort_order ?? Number.MAX_SAFE_INTEGER;
+  if (aOrder !== bOrder) return aOrder - bOrder;
+
+  if (b.submission_count !== a.submission_count) {
+    return b.submission_count - a.submission_count;
+  }
+  const aLastSeen = a.last_seen ? new Date(a.last_seen).getTime() : 0;
+  const bLastSeen = b.last_seen ? new Date(b.last_seen).getTime() : 0;
+  if (bLastSeen !== aLastSeen) return bLastSeen - aLastSeen;
+  return a.form_name.localeCompare(b.form_name);
+}
+
 export async function listFormCatalog(projectId: string): Promise<FormCatalogItem[]> {
   const project = await ProjectModel.findById(projectId);
-  const [submissionStats, pages, templatePages, rules] = await Promise.all([
+  const [submissionStats, pages, templatePages, rules, preferences] = await Promise.all([
     FormSubmissionModel.listDetectedFormStats(projectId, [NEWSLETTER_FORM_NAME]),
     PageModel.findSectionsByProjectId(projectId),
     project?.template_id
       ? TemplatePageModel.findSectionsByTemplateId(project.template_id)
       : Promise.resolve([]),
     FormRecipientRuleModel.listByProject(projectId),
+    FormCatalogPreferenceModel.listByProject(projectId),
   ]);
 
   const forms = new Map<string, FormCatalogItem>();
@@ -189,6 +241,7 @@ export async function listFormCatalog(projectId: string): Promise<FormCatalogIte
     addCatalogItem(forms, form.form_name, "submissions", {
       submission_count: form.submission_count,
       last_seen: form.last_seen,
+      unread_count: form.unread_count,
     });
   }
 
@@ -205,15 +258,9 @@ export async function listFormCatalog(projectId: string): Promise<FormCatalogIte
     item.rule = serializeRule(rulesByKey.get(formKey));
   }
 
-  return Array.from(forms.values()).sort((a, b) => {
-    if (b.submission_count !== a.submission_count) {
-      return b.submission_count - a.submission_count;
-    }
-    const aLastSeen = a.last_seen ? new Date(a.last_seen).getTime() : 0;
-    const bLastSeen = b.last_seen ? new Date(b.last_seen).getTime() : 0;
-    if (bLastSeen !== aLastSeen) return bLastSeen - aLastSeen;
-    return a.form_name.localeCompare(b.form_name);
-  });
+  applyCatalogPreferences(forms, preferences);
+
+  return Array.from(forms.values()).sort(compareCatalogItems);
 }
 
 /**

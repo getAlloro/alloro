@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import type { ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Inbox,
   Mail,
   MailOpen,
-  MailCheck,
   Trash2,
   ChevronLeft,
   ChevronRight,
@@ -24,6 +24,7 @@ import { toast } from "react-hot-toast";
 import {
   fetchFormSubmissions,
   fetchFormSubmission,
+  markAllFormSubmissionsRead,
   toggleFormSubmissionRead,
   deleteFormSubmission,
   sendFormSubmissionEmail,
@@ -31,8 +32,29 @@ import {
   bulkDeleteFormSubmissions,
   bulkToggleFormSubmissionsRead,
 } from "../../api/websites";
-import type { FormSubmission, FileValue, FormSection, FormContents } from "../../api/websites";
+import type {
+  FileValue,
+  FormContents,
+  FormSection,
+  FormSubmission,
+  FormSubmissionsResponse,
+} from "../../api/websites";
+import {
+  type FetchFormRecipientCatalogFn,
+  type UpdateFormCatalogPreferencesFn,
+  type FetchWebsiteRecipientsFn,
+  type UpdateFormRecipientRuleFn,
+  useUpdateWebsiteFormCatalogPreferences,
+  useWebsiteFormRecipientCatalog,
+} from "../../hooks/queries/useWebsiteFormRecipientRouting";
 import { BulkActionBar } from "../ui/DesignSystem";
+import { FormSubmissionsSettingsModal } from "./FormSubmissionsSettingsModal";
+import { FormSubmissionsSidebar } from "./FormSubmissionsSidebar";
+import {
+  FormSubmissionsViewTabs,
+  type FormSubmissionsView,
+} from "./FormSubmissionsViewTabs";
+import { SelectedFormRoutingSettings } from "./SelectedFormRoutingSettings";
 
 function isFileValue(value: unknown): value is FileValue {
   return (
@@ -73,60 +95,232 @@ function previewFields(contents: FormContents): string {
 interface Props {
   projectId: string;
   isAdmin?: boolean;
-  fetchSubmissionsFn?: (projectId: string, page: number, limit: number, filter?: string) => Promise<any>;
-  toggleReadFn?: (projectId: string, submissionId: string, is_read: boolean) => Promise<any>;
-  deleteSubmissionFn?: (projectId: string, submissionId: string) => Promise<any>;
+  fetchSubmissionsFn?: FetchSubmissionsFn;
+  fetchFormCatalogFn?: FetchFormRecipientCatalogFn;
+  fetchRecipientsFn?: FetchWebsiteRecipientsFn;
+  updateFormRecipientRuleFn?: UpdateFormRecipientRuleFn;
+  updateFormPreferencesFn?: UpdateFormCatalogPreferencesFn;
+  markAllReadFn?: MarkAllReadFn;
+  formCatalogQueryScope?: "admin" | "client";
+  toggleReadFn?: typeof toggleFormSubmissionRead;
+  deleteSubmissionFn?: typeof deleteFormSubmission;
   onExport?: () => void;
+  settingsContent?: ReactNode;
 }
 
-type TabFilter = "all" | "verified" | "flagged" | "optins";
+type FormSubmissionsResult = FormSubmissionsResponse & {
+  error?: string;
+  errorMessage?: string;
+};
 
-export default function FormSubmissionsTab({ projectId, isAdmin: _isAdmin, fetchSubmissionsFn, toggleReadFn, deleteSubmissionFn, onExport }: Props) {
+type FetchSubmissionsFn = (
+  projectId: string,
+  page: number,
+  limit: number,
+  filter?: string,
+  formName?: string,
+) => Promise<FormSubmissionsResult>;
+
+type MarkAllReadFn = (
+  projectId: string,
+  formName?: string,
+) => Promise<unknown>;
+
+type TabFilter = "all" | "verified" | "flagged";
+
+export default function FormSubmissionsTab({
+  projectId,
+  isAdmin = false,
+  fetchSubmissionsFn,
+  fetchFormCatalogFn,
+  fetchRecipientsFn,
+  updateFormRecipientRuleFn,
+  updateFormPreferencesFn,
+  markAllReadFn,
+  formCatalogQueryScope = "admin",
+  toggleReadFn,
+  deleteSubmissionFn,
+  onExport,
+  settingsContent,
+}: Props) {
   const [submissions, setSubmissions] = useState<FormSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [allCount, setAllCount] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
   const [flaggedCount, setFlaggedCount] = useState(0);
   const [verifiedCount, setVerifiedCount] = useState(0);
-  const [optinsCount, setOptinsCount] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabFilter>("all");
+  const [activeView, setActiveView] =
+    useState<FormSubmissionsView>("submissions");
+  const [selectedFormKey, setSelectedFormKey] = useState<string | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [detailSubmission, setDetailSubmission] = useState<FormSubmission | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
   // Multi-select state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
+  const catalogQueryKey = useMemo(
+    () => [formCatalogQueryScope, "website", projectId, "form-catalog"],
+    [formCatalogQueryScope, projectId],
+  );
+  const catalogQuery = useWebsiteFormRecipientCatalog(projectId, {
+    fetchCatalogFn: fetchFormCatalogFn,
+    queryKey: catalogQueryKey,
+    refetchInterval: 5000,
+  });
+  const updateFormPreferences = useUpdateWebsiteFormCatalogPreferences(
+    projectId,
+    {
+      updatePreferencesFn: updateFormPreferencesFn,
+      catalogQueryKey,
+    },
+  );
+  const forms = useMemo(() => catalogQuery.data ?? [], [catalogQuery.data]);
+  const selectedForm = useMemo(
+    () =>
+      forms.find((form) => form.form_key === selectedFormKey) ??
+      forms[0] ??
+      null,
+    [forms, selectedFormKey],
+  );
 
-  const load = useCallback(async () => {
+  useEffect(() => {
+    if (forms.length === 0) {
+      setSelectedFormKey(null);
+      return;
+    }
+
+    if (!selectedFormKey || !forms.some((form) => form.form_key === selectedFormKey)) {
+      setSelectedFormKey(forms[0].form_key);
+    }
+  }, [forms, selectedFormKey]);
+
+  const load = useCallback(async (options?: { silent?: boolean }) => {
+    if (catalogQuery.isLoading) return;
+    if (!selectedForm?.form_name) {
+      setSubmissions([]);
+      setTotalPages(1);
+      setAllCount(0);
+      setUnreadCount(0);
+      setFlaggedCount(0);
+      setVerifiedCount(0);
+      setLoading(false);
+      return;
+    }
+
     try {
-      setLoading(true);
-      const fetchFn = fetchSubmissionsFn || fetchFormSubmissions;
+      if (!options?.silent) setLoading(true);
+      const fetchFn: FetchSubmissionsFn =
+        fetchSubmissionsFn ??
+        (fetchFormSubmissions as FetchSubmissionsFn);
       const filterParam = activeTab === "all" ? undefined : activeTab;
-      const res = await fetchFn(projectId, page, 20, filterParam);
+      const res = await fetchFn(
+        projectId,
+        page,
+        20,
+        filterParam,
+        selectedForm.form_name,
+      );
       if (res.error || res.success === false) {
-        toast.error(res.error || res.errorMessage || "Failed to load submissions");
+        if (!options?.silent) {
+          toast.error(res.error || res.errorMessage || "Failed to load submissions");
+        }
         return;
       }
       setSubmissions(res.data || []);
       setTotalPages(res.pagination?.totalPages || 1);
-      setTotal(res.pagination?.total || 0);
+      setAllCount(res.allCount ?? selectedForm.submission_count ?? 0);
       setUnreadCount(res.unreadCount || 0);
       setFlaggedCount(res.flaggedCount || 0);
       setVerifiedCount(res.verifiedCount || 0);
-      setOptinsCount(res.optinsCount || 0);
     } catch {
-      toast.error("Failed to load submissions");
+      if (!options?.silent) toast.error("Failed to load submissions");
     } finally {
-      setLoading(false);
+      if (!options?.silent) setLoading(false);
     }
-  }, [projectId, page, activeTab]);
+  }, [
+    projectId,
+    page,
+    activeTab,
+    fetchSubmissionsFn,
+    catalogQuery.isLoading,
+    selectedForm,
+  ]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      load({ silent: true });
+    }, 5000);
+
+    return () => window.clearInterval(intervalId);
+  }, [load]);
+
+  const buildPreferencePayload = useCallback(
+    (nextForms: typeof forms) => ({
+      preferences: nextForms.map((form, index) => ({
+        formName: form.form_name,
+        displayLabel: form.display_label,
+        sortOrder: index,
+      })),
+    }),
+    [],
+  );
+
+  const handleRenameForm = async (formKey: string, label: string) => {
+    const form = forms.find((item) => item.form_key === formKey);
+    if (!form) return;
+
+    const trimmedLabel = label.trim();
+    const displayLabel =
+      !trimmedLabel || trimmedLabel === form.form_name ? null : trimmedLabel;
+    const nextForms = forms.map((item) =>
+      item.form_key === formKey
+        ? { ...item, display_label: displayLabel }
+        : item,
+    );
+
+    try {
+      await updateFormPreferences.mutateAsync(
+        buildPreferencePayload(nextForms),
+      );
+      toast.success("Form label updated");
+    } catch {
+      toast.error("Failed to update form label");
+    }
+  };
+
+  const handleMoveForm = async (
+    formKey: string,
+    direction: "up" | "down",
+  ) => {
+    const currentIndex = forms.findIndex((form) => form.form_key === formKey);
+    if (currentIndex < 0) return;
+
+    const nextIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    if (nextIndex < 0 || nextIndex >= forms.length) return;
+
+    const nextForms = [...forms];
+    [nextForms[currentIndex], nextForms[nextIndex]] = [
+      nextForms[nextIndex],
+      nextForms[currentIndex],
+    ];
+
+    try {
+      await updateFormPreferences.mutateAsync(
+        buildPreferencePayload(nextForms),
+      );
+    } catch {
+      toast.error("Failed to reorder forms");
+    }
+  };
 
   /** Check if contents has any file values that need pre-signed URLs */
   const hasFiles = (contents: FormContents): boolean => {
@@ -191,7 +385,7 @@ export default function FormSubmissionsTab({ projectId, isAdmin: _isAdmin, fetch
       const deleteFn = deleteSubmissionFn || deleteFormSubmission;
       await deleteFn(projectId, id);
       setSubmissions((prev) => prev.filter((s) => s.id !== id));
-      setTotal((t) => t - 1);
+      setAllCount((count) => Math.max(0, count - 1));
       if (selectedId === id) {
         setSelectedId(null);
         setDetailSubmission(null);
@@ -200,6 +394,22 @@ export default function FormSubmissionsTab({ projectId, isAdmin: _isAdmin, fetch
       toast.success("Deleted");
     } catch {
       toast.error("Failed to delete");
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    if (!selectedForm?.form_name || unreadCount === 0) return;
+
+    try {
+      const markAllFn = markAllReadFn || markAllFormSubmissionsRead;
+      await markAllFn(projectId, selectedForm.form_name);
+      setSubmissions((prev) => prev.map((sub) => ({ ...sub, is_read: true })));
+      setUnreadCount(0);
+      await catalogQuery.refetch();
+      await load({ silent: true });
+      toast.success("Marked all as read");
+    } catch {
+      toast.error("Failed to mark submissions read");
     }
   };
 
@@ -253,7 +463,7 @@ export default function FormSubmissionsTab({ projectId, isAdmin: _isAdmin, fetch
       setBulkLoading(true);
       await bulkDeleteFormSubmissions(projectId, selectedList);
       setSubmissions((prev) => prev.filter((s) => !selectedIds.has(s.id)));
-      setTotal((t) => Math.max(0, t - selectedIds.size));
+      setAllCount((count) => Math.max(0, count - selectedIds.size));
       if (selectedId && selectedIds.has(selectedId)) {
         setSelectedId(null);
         setDetailSubmission(null);
@@ -299,6 +509,8 @@ export default function FormSubmissionsTab({ projectId, isAdmin: _isAdmin, fetch
   };
 
   const currentDetail = detailSubmission && detailSubmission.id === selectedId ? detailSubmission : null;
+  const canUseBulkActions = isAdmin;
+  const canResendSubmission = isAdmin;
 
   const bulkActions = [
     {
@@ -323,122 +535,201 @@ export default function FormSubmissionsTab({ projectId, isAdmin: _isAdmin, fetch
       disabled: bulkLoading,
     },
   ];
+  const tabs: Array<{
+    key: TabFilter;
+    label: string;
+    count: number;
+    icon: ReactNode;
+    title: string;
+  }> = [
+    {
+      key: "all",
+      label: "All",
+      count: allCount,
+      icon: <Inbox size={14} />,
+      title: "All submissions for this form",
+    },
+    {
+      key: "verified",
+      label: "Verified",
+      count: verifiedCount,
+      icon: <CheckCircle2 size={14} />,
+      title: "Submissions for this form that were not flagged by AI",
+    },
+    {
+      key: "flagged",
+      label: "Flagged",
+      count: flaggedCount,
+      icon: <ShieldAlert size={14} />,
+      title: "Submissions for this form held from email delivery",
+    },
+  ];
 
   return (
     <>
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-        {/* Header */}
-        <div className="border-b border-gray-100 px-5 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h3 className="text-lg font-semibold text-gray-900">Form Submissions</h3>
-            <span className="text-xs text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full font-medium">
-              {total}
-            </span>
-            {unreadCount > 0 && (
-              <span className="text-xs text-white bg-alloro-orange px-2.5 py-1 rounded-full font-medium">
-                {unreadCount} new
-              </span>
-            )}
+      <div className="grid overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm lg:grid-cols-[300px_minmax(0,1fr)]">
+        <FormSubmissionsSidebar
+          forms={forms}
+          selectedFormKey={selectedForm?.form_key ?? null}
+          isLoading={catalogQuery.isLoading}
+          onSelectForm={(formKey) => {
+            setSelectedFormKey(formKey);
+            setPage(1);
+            setActiveTab("all");
+            setSelectedId(null);
+            setDetailSubmission(null);
+            setSelectedIds(new Set());
+          }}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onRenameForm={handleRenameForm}
+          onMoveForm={handleMoveForm}
+          isUpdatingPreferences={updateFormPreferences.isPending}
+        />
+
+        <section className="min-w-0">
+          {/* Header */}
+          <div className="border-b border-gray-100 px-5 py-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-alloro-orange/10 text-alloro-orange">
+                  <Inbox size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900">
+                    {selectedForm?.display_label ||
+                      selectedForm?.form_name ||
+                      "Form Submissions"}
+                  </h3>
+                  {selectedForm && (
+                    <p className="mt-0.5 text-[11px] text-gray-400">
+                      {selectedForm.form_name}
+                    </p>
+                  )}
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
+                      {allCount} total
+                    </span>
+                    {unreadCount > 0 && (
+                      <span className="rounded-full bg-alloro-orange px-2.5 py-1 text-xs font-medium text-white">
+                        {unreadCount} new
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {onExport && allCount > 0 && activeView === "submissions" && (
+                  <button
+                    onClick={onExport}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-gray-300 hover:bg-gray-50"
+                    title="Export submissions as CSV"
+                  >
+                    <Download size={14} />
+                    Export
+                  </button>
+                )}
+                <FormSubmissionsViewTabs
+                  activeView={activeView}
+                  onChange={setActiveView}
+                />
+              </div>
+            </div>
           </div>
-          {onExport && total > 0 && (
-            <button
-              onClick={onExport}
-              className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 transition px-3 py-1.5 rounded-lg hover:bg-gray-100"
-            >
-              <Download size={14} />
-              Export CSV
-            </button>
+
+          {/* Tabs */}
+          {activeView === "submissions" && (
+            <div className="flex flex-col gap-3 border-b border-gray-100 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap gap-2">
+                {tabs.map((tab) => {
+                  const isActive = activeTab === tab.key;
+                  return (
+                    <button
+                      key={tab.key}
+                      onClick={() => handleTabChange(tab.key)}
+                      title={tab.title}
+                      className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                        isActive
+                          ? "border-alloro-orange bg-alloro-orange/10 text-alloro-orange"
+                          : "border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      {tab.icon}
+                      {tab.label}
+                      <span
+                        className={`rounded-full px-1.5 py-0.5 text-[11px] ${
+                          isActive
+                            ? "bg-white text-alloro-orange"
+                            : "bg-gray-100 text-gray-500"
+                        }`}
+                      >
+                        {tab.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={handleMarkAllRead}
+                disabled={unreadCount === 0}
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-gray-300 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                title="Mark all submissions for this form as read"
+              >
+                <CheckCircle2 size={14} />
+                Mark all as read
+              </button>
+            </div>
           )}
-        </div>
 
-        {/* Tabs */}
-        <div className="border-b border-gray-100 px-5 flex gap-1">
-          <button
-            onClick={() => handleTabChange("all")}
-            className={`px-3 py-2 text-sm font-medium border-b-2 transition ${
-              activeTab === "all"
-                ? "border-gray-900 text-gray-900"
-                : "border-transparent text-gray-400 hover:text-gray-600"
-            }`}
-          >
-            All
-          </button>
-          <button
-            onClick={() => handleTabChange("verified")}
-            className={`px-3 py-2 text-sm font-medium border-b-2 transition flex items-center gap-1.5 ${
-              activeTab === "verified"
-                ? "border-emerald-500 text-emerald-600"
-                : "border-transparent text-gray-400 hover:text-gray-600"
-            }`}
-          >
-            <CheckCircle2 size={14} />
-            Verified
-            {verifiedCount > 0 && (
-              <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-medium">
-                {verifiedCount}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => handleTabChange("flagged")}
-            className={`px-3 py-2 text-sm font-medium border-b-2 transition flex items-center gap-1.5 ${
-              activeTab === "flagged"
-                ? "border-amber-500 text-amber-600"
-                : "border-transparent text-gray-400 hover:text-gray-600"
-            }`}
-          >
-            <ShieldAlert size={14} />
-            Flagged
-            {flaggedCount > 0 && (
-              <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">
-                {flaggedCount}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => handleTabChange("optins")}
-            className={`px-3 py-2 text-sm font-medium border-b-2 transition flex items-center gap-1.5 ${
-              activeTab === "optins"
-                ? "border-sky-500 text-sky-600"
-                : "border-transparent text-gray-400 hover:text-gray-600"
-            }`}
-          >
-            <MailCheck size={14} />
-            Confirmed Opt-ins
-            {optinsCount > 0 && (
-              <span className="text-xs bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded-full font-medium">
-                {optinsCount}
-              </span>
-            )}
-          </button>
-        </div>
-
-        {/* Content */}
-        {loading ? (
-          <div className="p-8 text-center text-gray-400 text-sm">Loading...</div>
-        ) : submissions.length === 0 ? (
-          <div className="p-8 text-center">
-            <Inbox className="mx-auto mb-3 text-gray-300" size={32} />
-            <p className="text-gray-400 text-sm">
-              {activeTab === "verified"
-                ? "No verified submissions"
-                : activeTab === "flagged"
-                  ? "No flagged submissions"
-                  : activeTab === "optins"
-                    ? "No confirmed opt-ins yet"
-                    : "No form submissions yet"}
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* Table */}
+          {activeView === "settings" ? (
+            <SelectedFormRoutingSettings
+              projectId={projectId}
+              form={selectedForm}
+              fetchRecipientsFn={fetchRecipientsFn}
+              updateRuleFn={updateFormRecipientRuleFn}
+              queryScope={formCatalogQueryScope}
+              catalogQueryKey={catalogQueryKey}
+            />
+          ) : (
+            <>
+              {/* Content */}
+              {catalogQuery.isLoading || loading ? (
+                <div className="space-y-3 p-5">
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <div
+                      key={index}
+                      className="h-16 animate-pulse rounded-lg bg-gray-100"
+                    />
+                  ))}
+                </div>
+              ) : !selectedForm ? (
+                <div className="p-8 text-center">
+                  <Inbox className="mx-auto mb-3 text-gray-300" size={32} />
+                  <p className="text-sm text-gray-400">
+                    No forms detected yet.
+                  </p>
+                </div>
+              ) : submissions.length === 0 ? (
+                <div className="p-8 text-center">
+                  <Inbox className="mx-auto mb-3 text-gray-300" size={32} />
+                  <p className="text-gray-400 text-sm">
+                    {activeTab === "verified"
+                      ? "No verified submissions for this form"
+                      : activeTab === "flagged"
+                        ? "No flagged submissions for this form"
+                        : "No submissions for this form yet"}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Table */}
             <div className="divide-y divide-gray-100">
               {submissions.map((sub) => {
                 const isMultiSelected = selectedIds.has(sub.id);
                 return (
                   <div
                     key={sub.id}
-                    className={`px-5 py-3 flex items-center gap-3 hover:bg-gray-50 cursor-pointer transition ${
+                    className={`flex cursor-pointer items-center gap-3 px-5 py-4 transition hover:bg-gray-50 ${
                       isMultiSelected
                         ? "bg-blue-50 border-l-2 border-blue-400"
                         : !sub.is_read
@@ -449,18 +740,20 @@ export default function FormSubmissionsTab({ projectId, isAdmin: _isAdmin, fetch
                     }`}
                     onClick={() => handleSelect(sub)}
                   >
-                    {/* Multi-select checkbox */}
-                    <button
-                      onClick={(e) => toggleSelectItem(sub.id, e)}
-                      className="flex-shrink-0 text-gray-300 hover:text-blue-500 transition"
-                      title={isMultiSelected ? "Deselect" : "Select"}
-                    >
-                      {isMultiSelected ? (
-                        <CheckCircle size={16} className="text-blue-500" />
-                      ) : (
-                        <Circle size={16} />
-                      )}
-                    </button>
+                    {canUseBulkActions && (
+                      <button
+                        onClick={(e) => toggleSelectItem(sub.id, e)}
+                        className="flex-shrink-0 text-gray-300 transition hover:text-blue-500"
+                        title={isMultiSelected ? "Deselect" : "Select"}
+                        aria-label={isMultiSelected ? "Deselect submission" : "Select submission"}
+                      >
+                        {isMultiSelected ? (
+                          <CheckCircle size={16} className="text-blue-500" />
+                        ) : (
+                          <Circle size={16} />
+                        )}
+                      </button>
+                    )}
 
                     <div className="flex-shrink-0">
                       {sub.is_flagged ? (
@@ -472,34 +765,53 @@ export default function FormSubmissionsTab({ projectId, isAdmin: _isAdmin, fetch
                       )}
                     </div>
 
-                    <div className="w-36 flex-shrink-0">
-                      <span className={`text-sm ${!sub.is_read ? "font-semibold text-gray-900" : "text-gray-600"}`}>
-                        {sub.form_name}
-                      </span>
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-400 truncate">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`text-sm ${!sub.is_read ? "font-semibold text-gray-900" : "font-medium text-gray-700"}`}>
+                          {sub.form_name}
+                        </span>
+                        <SubmissionStatusChip submission={sub} />
+                        {sub.recipients_sent_to.length > 0 ? (
+                          <span
+                            className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500"
+                            title={sub.recipients_sent_to.join(", ")}
+                          >
+                            {sub.recipients_sent_to.length} recipient{sub.recipients_sent_to.length === 1 ? "" : "s"}
+                          </span>
+                        ) : (
+                          <span
+                            className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-600"
+                            title="No recipients were resolved when this submission was saved"
+                          >
+                            no email
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 truncate text-sm text-gray-500">
                         {previewFields(sub.contents)}
                       </p>
                     </div>
 
-                    <div className="flex-shrink-0 text-xs text-gray-400">
+                    <div className="hidden flex-shrink-0 text-xs text-gray-400 sm:block">
                       {relativeTime(sub.submitted_at)}
                     </div>
 
                     <div className="flex-shrink-0 flex items-center gap-1">
-                      <button
-                        onClick={(e) => handleSendSingle(sub, e)}
-                        className={`p-1.5 rounded-lg transition ${sub.is_flagged ? "hover:bg-amber-50 text-amber-400 hover:text-amber-600" : "hover:bg-gray-100 text-gray-400 hover:text-gray-600"}`}
-                        title="Resend to recipients"
-                      >
-                        <Send size={14} />
-                      </button>
+                      {canResendSubmission && (
+                        <button
+                          onClick={(e) => handleSendSingle(sub, e)}
+                          className={`p-1.5 rounded-lg transition ${sub.is_flagged ? "hover:bg-amber-50 text-amber-400 hover:text-amber-600" : "hover:bg-gray-100 text-gray-400 hover:text-gray-600"}`}
+                          title="Resend to saved recipients"
+                          aria-label="Resend submission"
+                        >
+                          <Send size={14} />
+                        </button>
+                      )}
                       <button
                         onClick={(e) => { e.stopPropagation(); handleToggleRead(sub); }}
                         className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition"
                         title={sub.is_read ? "Mark unread" : "Mark read"}
+                        aria-label={sub.is_read ? "Mark unread" : "Mark read"}
                       >
                         <Eye size={14} />
                       </button>
@@ -507,6 +819,7 @@ export default function FormSubmissionsTab({ projectId, isAdmin: _isAdmin, fetch
                         onClick={(e) => { e.stopPropagation(); handleDelete(sub.id); }}
                         className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"
                         title="Delete"
+                        aria-label="Delete submission"
                       >
                         <Trash2 size={14} />
                       </button>
@@ -528,7 +841,7 @@ export default function FormSubmissionsTab({ projectId, isAdmin: _isAdmin, fetch
                   onClick={() => { setSelectedId(null); setDetailSubmission(null); }}
                 >
                   {/* Backdrop */}
-                  <div className="absolute inset-0 bg-black/40" />
+                  <div className="absolute inset-0 bg-alloro-navy/40 backdrop-blur-sm" />
 
                   {/* Modal content */}
                   <motion.div
@@ -536,31 +849,35 @@ export default function FormSubmissionsTab({ projectId, isAdmin: _isAdmin, fetch
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: 10 }}
                     transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                    className="relative bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col"
+                    className="relative flex max-h-[82vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {/* Modal header */}
-                    <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+                    <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4">
                       <div className="min-w-0">
-                        <h4 className="font-semibold text-gray-900 truncate">{currentDetail.form_name}</h4>
-                        <p className="text-xs text-gray-400 mt-0.5 truncate">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="truncate font-semibold text-gray-900">{currentDetail.form_name}</h4>
+                          <SubmissionStatusChip submission={currentDetail} />
+                        </div>
+                        <p className="mt-1 text-xs text-gray-400">
                           {new Date(currentDetail.submitted_at).toLocaleString()}
-                          {currentDetail.recipients_sent_to.length > 0 && (
-                            <>{" \u00b7 Sent to: "}{currentDetail.recipients_sent_to.join(", ")}</>
-                          )}
                         </p>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        <button
-                          onClick={(e) => handleSendSingle(currentDetail, e)}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition text-sm font-medium border ${currentDetail.is_flagged ? "bg-amber-50 text-amber-600 hover:bg-amber-100 border-amber-200" : "bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200"}`}
-                        >
-                          <Send size={13} />
-                          Resend
-                        </button>
+                        {canResendSubmission && (
+                          <button
+                            onClick={(e) => handleSendSingle(currentDetail, e)}
+                            title="Resend to saved recipients"
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition text-sm font-medium border ${currentDetail.is_flagged ? "bg-amber-50 text-amber-600 hover:bg-amber-100 border-amber-200" : "bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200"}`}
+                          >
+                            <Send size={13} />
+                            Resend
+                          </button>
+                        )}
                         <button
                           onClick={() => { setSelectedId(null); setDetailSubmission(null); }}
                           className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition"
+                          aria-label="Close submission details"
                         >
                           <X size={16} />
                         </button>
@@ -568,7 +885,7 @@ export default function FormSubmissionsTab({ projectId, isAdmin: _isAdmin, fetch
                     </div>
 
                     {/* Modal body */}
-                    <div className="px-5 py-4 overflow-y-auto flex-1">
+                    <div className="flex-1 overflow-y-auto px-5 py-4">
                       {currentDetail.is_flagged && currentDetail.flag_reason && (
                         <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-2.5 flex items-start gap-2">
                           <ShieldAlert size={16} className="text-amber-500 mt-0.5 flex-shrink-0" />
@@ -578,6 +895,8 @@ export default function FormSubmissionsTab({ projectId, isAdmin: _isAdmin, fetch
                           </div>
                         </div>
                       )}
+
+                      <RecipientsSummary recipients={currentDetail.recipients_sent_to} />
 
                       {detailLoading ? (
                         <div className="text-sm text-gray-400 py-4">Loading file details...</div>
@@ -616,18 +935,85 @@ export default function FormSubmissionsTab({ projectId, isAdmin: _isAdmin, fetch
                 </div>
               </div>
             )}
+              </>
+            )}
           </>
         )}
+        </section>
       </div>
 
+      <FormSubmissionsSettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      >
+        {settingsContent}
+      </FormSubmissionsSettingsModal>
+
       {/* Floating bulk action bar */}
-      <BulkActionBar
-        selectedCount={selectedIds.size}
-        totalCount={submissions.length}
-        actions={bulkActions}
-        onClear={clearSelection}
-      />
+      {canUseBulkActions && activeView === "submissions" && (
+        <BulkActionBar
+          selectedCount={selectedIds.size}
+          totalCount={submissions.length}
+          actions={bulkActions}
+          onClear={clearSelection}
+        />
+      )}
     </>
+  );
+}
+
+function SubmissionStatusChip({ submission }: { submission: FormSubmission }) {
+  if (submission.is_flagged) {
+    return (
+      <span
+        className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700"
+        title={submission.flag_reason || "Flagged by AI; email was held"}
+      >
+        flagged
+      </span>
+    );
+  }
+
+  if (!submission.is_read) {
+    return (
+      <span
+        className="rounded-full bg-alloro-orange/10 px-2 py-0.5 text-[11px] font-medium text-alloro-orange"
+        title="Unread submission"
+      >
+        new
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500"
+      title="Read submission"
+    >
+      read
+    </span>
+  );
+}
+
+function RecipientsSummary({ recipients }: { recipients: string[] }) {
+  return (
+    <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
+      <p className="text-xs font-medium text-gray-500">Saved recipients</p>
+      {recipients.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {recipients.map((email) => (
+            <span
+              key={email}
+              className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-gray-600 ring-1 ring-gray-200"
+            >
+              {email}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-1 text-sm text-red-600">No recipients were saved.</p>
+      )}
+    </div>
   );
 }
 

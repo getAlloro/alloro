@@ -34,7 +34,15 @@ export interface FormSubmissionFormStats {
   form_name: string;
   submission_count: number;
   last_seen: Date | null;
+  unread_count: number;
 }
+
+type FormSubmissionFilters = {
+  is_read?: boolean;
+  is_flagged?: boolean;
+  form_name?: string;
+  form_name_not?: string;
+};
 
 export class FormSubmissionModel extends BaseModel {
   protected static tableName = "website_builder.form_submissions";
@@ -65,7 +73,7 @@ export class FormSubmissionModel extends BaseModel {
   static async findByProjectId(
     projectId: string,
     pagination: PaginationParams,
-    filters?: { is_read?: boolean; is_flagged?: boolean; form_name?: string; form_name_not?: string },
+    filters?: FormSubmissionFilters,
     trx?: QueryContext,
   ): Promise<PaginatedResult<IFormSubmission>> {
     const buildQuery = (qb: Knex.QueryBuilder) => {
@@ -85,6 +93,30 @@ export class FormSubmissionModel extends BaseModel {
       return qb.orderBy("submitted_at", "desc");
     };
     return this.paginate<IFormSubmission>(buildQuery, pagination, trx);
+  }
+
+  static async countByProjectId(
+    projectId: string,
+    filters?: FormSubmissionFilters,
+    trx?: QueryContext,
+  ): Promise<number> {
+    let query = this.table(trx).where("project_id", projectId);
+
+    if (filters?.is_read !== undefined) {
+      query = query.where("is_read", filters.is_read);
+    }
+    if (filters?.is_flagged !== undefined) {
+      query = query.where("is_flagged", filters.is_flagged);
+    }
+    if (filters?.form_name !== undefined) {
+      query = query.where("form_name", filters.form_name);
+    }
+    if (filters?.form_name_not !== undefined) {
+      query = query.whereNot("form_name", filters.form_name_not);
+    }
+
+    const result = await query.count("* as count").first();
+    return parseInt(result?.count as string, 10) || 0;
   }
 
   static async markAsRead(
@@ -163,7 +195,28 @@ export class FormSubmissionModel extends BaseModel {
       query = query.whereNotIn("form_name", excludedFormNames);
     }
 
-    const rows = await query;
+    let unreadQuery = this.table(trx)
+      .select("form_name")
+      .count("* as unread_count")
+      .where({ project_id: projectId, is_read: false })
+      .groupBy("form_name");
+
+    if (excludedFormNames.length > 0) {
+      unreadQuery = unreadQuery.whereNotIn("form_name", excludedFormNames);
+    }
+
+    const [rows, unreadRows] = await Promise.all([query, unreadQuery]);
+    const unreadCounts = new Map(
+      unreadRows.map((row: {
+        form_name: string;
+        unread_count: string | number;
+      }) => [
+        row.form_name,
+        typeof row.unread_count === "number"
+          ? row.unread_count
+          : parseInt(String(row.unread_count), 10) || 0,
+      ]),
+    );
 
     return rows.map((row: {
       form_name: string;
@@ -176,6 +229,7 @@ export class FormSubmissionModel extends BaseModel {
           ? row.submission_count
           : parseInt(String(row.submission_count), 10) || 0,
       last_seen: row.last_seen,
+      unread_count: unreadCounts.get(row.form_name) ?? 0,
     }));
   }
 
@@ -208,11 +262,17 @@ export class FormSubmissionModel extends BaseModel {
 
   static async markAllAsReadByProjectId(
     projectId: string,
+    formName?: string,
     trx?: QueryContext,
   ): Promise<number> {
-    return this.table(trx)
-      .where({ project_id: projectId, is_read: false })
-      .update({ is_read: true });
+    let query = this.table(trx).where({
+      project_id: projectId,
+      is_read: false,
+    });
+
+    if (formName) query = query.where("form_name", formName);
+
+    return query.update({ is_read: true });
   }
 
   static async bulkMarkAsRead(

@@ -108,6 +108,30 @@ export class GoogleConnectionModel extends BaseModel {
     return super.updateById(id, tokens as Record<string, unknown>, trx);
   }
 
+  static async findByOrgWithScope(
+    orgId: number,
+    scopeSubstring: string,
+    trx?: QueryContext
+  ): Promise<IGoogleConnection[]> {
+    const rows = await this.table(trx)
+      .where({ organization_id: orgId })
+      .andWhere("scopes", "ilike", `%${scopeSubstring}%`);
+    return rows.map((row: IGoogleConnection) =>
+      this.deserializeJsonFields(row)
+    );
+  }
+
+  static async findAllWithScope(
+    scopeSubstring: string,
+    trx?: QueryContext
+  ): Promise<IGoogleConnection[]> {
+    const rows = await this.table(trx)
+      .where("scopes", "ilike", `%${scopeSubstring}%`);
+    return rows.map((row: IGoogleConnection) =>
+      this.deserializeJsonFields(row)
+    );
+  }
+
   /**
    * Generic findOne for arbitrary where clauses.
    */

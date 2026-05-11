@@ -228,29 +228,11 @@ export default function IntegrationsTab({ projectId }: Props) {
     }
 
     if (selectedPlatform === "gsc") {
-      const googleIntegration = integrations.find(
-        (i) => i.platform === "gsc",
-      );
-      const hasGoogleConnection =
-        !!googleIntegration?.metadata?.hasGoogleConnection ||
-        integrations.some(
-          (i) =>
-            i.metadata?.googleConnected === true ||
-            i.metadata?.googleEmail,
-        );
-      const hasGscScope = !!googleIntegration?.metadata?.hasGscScope;
-      const googleEmail = googleIntegration?.metadata?.googleEmail
-        ? String(googleIntegration.metadata.googleEmail)
-        : null;
-
       return (
         <GscTab
           projectId={projectId}
           integration={selectedIntegration}
           onRefresh={loadIntegrations}
-          googleEmail={googleEmail}
-          hasGoogleConnection={hasGoogleConnection}
-          hasGscScope={hasGscScope}
         />
       );
     }

@@ -1,7 +1,7 @@
 import type { Knex } from "knex";
 
 const SCHEMA = "website_builder";
-const TABLE = "form_recipient_rules";
+const TABLE = "form_catalog_preferences";
 
 export async function up(knex: Knex): Promise<void> {
   await knex.schema.withSchema(SCHEMA).createTable(TABLE, (table) => {
@@ -14,8 +14,8 @@ export async function up(knex: Knex): Promise<void> {
       .onDelete("CASCADE");
     table.text("form_name").notNullable();
     table.text("form_key").notNullable();
-    table.jsonb("recipients").notNullable().defaultTo(knex.raw("'[]'::jsonb"));
-    table.boolean("is_enabled").notNullable().defaultTo(true);
+    table.text("display_label").nullable();
+    table.integer("sort_order").nullable();
     table
       .timestamp("created_at", { useTz: true })
       .notNullable()
@@ -27,15 +27,19 @@ export async function up(knex: Knex): Promise<void> {
 
     table.unique(
       ["project_id", "form_key"],
-      "uniq_form_recipient_rules_project_form_key",
+      "uniq_form_catalog_preferences_project_form_key",
     );
-    table.index(["project_id"], "idx_form_recipient_rules_project");
+    table.index(["project_id"], "idx_form_catalog_preferences_project");
+    table.index(
+      ["project_id", "sort_order"],
+      "idx_form_catalog_preferences_project_sort",
+    );
   });
 
   await knex.raw(`
     ALTER TABLE "${SCHEMA}"."${TABLE}"
-      ADD CONSTRAINT form_recipient_rules_recipients_array_check
-      CHECK (jsonb_typeof(recipients) = 'array')
+      ADD CONSTRAINT form_catalog_preferences_sort_order_check
+      CHECK (sort_order IS NULL OR sort_order >= 0)
   `);
 }
 

@@ -352,12 +352,18 @@ router.get("/:id/forms/catalog", formsController.listFormCatalog);
 // PUT  /:id/forms/recipients — Upsert per-form recipient rule
 router.put("/:id/forms/recipients", formsController.updateFormRecipientRule);
 
+// PUT  /:id/forms/preferences — Upsert visual-only form labels/order
+router.put("/:id/forms/preferences", formsController.updateFormPreferences);
+
 // =====================================================================
 // FORM SUBMISSIONS
 // =====================================================================
 
 // GET  /:id/form-submissions — List submissions with pagination
 router.get("/:id/form-submissions", controller.listFormSubmissions);
+
+// PATCH /:id/form-submissions/mark-all-read — Mark form submissions read
+router.patch("/:id/form-submissions/mark-all-read", controller.markAllFormSubmissionsRead);
 
 // Bulk routes must be registered before parameterized :submissionId routes
 // POST /:id/form-submissions/bulk/send-email — Bulk send flagged submissions
@@ -390,6 +396,11 @@ router.get("/:id/integrations", integrationsController.listIntegrations);
 
 // POST   /:id/integrations — Create + validate a new integration
 router.post("/:id/integrations", integrationsController.createIntegration);
+
+// GSC-specific routes (must be before /:integrationId params)
+router.get("/:id/integrations/gsc/connections", integrationsController.listGscConnections);
+router.get("/:id/integrations/gsc/sites", integrationsController.listGscSites);
+router.post("/:id/integrations/gsc", integrationsController.createGscIntegration);
 
 // GET    /:id/detected-forms — List website forms derived from submissions
 router.get("/:id/detected-forms", integrationsController.listDetectedForms);
