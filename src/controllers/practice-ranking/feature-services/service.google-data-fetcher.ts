@@ -6,7 +6,10 @@
  */
 
 import { getValidOAuth2Client } from "../../../auth/oauth2Helper";
-import { fetchGBPDataForRange } from "../../../utils/dataAggregation/dataAggregator";
+import {
+  fetchGBPDataForRange,
+  FetchGBPDataOptions,
+} from "../../../utils/dataAggregation/dataAggregator";
 
 interface GbpLocation {
   accountId: string;
@@ -17,8 +20,11 @@ interface GbpLocation {
 /**
  * Get a valid OAuth2 client for the given Google Account.
  */
-export async function getOAuth2Client(googleAccountId: number) {
-  return getValidOAuth2Client(googleAccountId);
+export async function getOAuth2Client(
+  googleAccountId: number,
+  options: { forceRefresh?: boolean } = {},
+) {
+  return getValidOAuth2Client(googleAccountId, options);
 }
 
 /**
@@ -27,6 +33,7 @@ export async function getOAuth2Client(googleAccountId: number) {
 export async function fetchRecentGBPData(
   oauth2Client: any,
   targetLocation: GbpLocation,
+  options: FetchGBPDataOptions = {},
 ) {
   const endDate = new Date();
   const startDate = new Date();
@@ -39,5 +46,6 @@ export async function fetchRecentGBPData(
     [targetLocation],
     startDateStr,
     endDateStr,
+    options,
   );
 }

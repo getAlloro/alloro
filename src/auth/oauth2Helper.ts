@@ -8,6 +8,10 @@ interface OAuth2Config {
   redirectUri: string;
 }
 
+interface GoogleOAuthClientOptions {
+  forceRefresh?: boolean;
+}
+
 // Get OAuth2 configuration from environment variables
 const getOAuth2Config = (): OAuth2Config => {
   const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -78,7 +82,10 @@ export const createOAuth2ClientForConnection = async (connectionId: number) => {
  * @param connectionId - The ID from google_connections table
  * @returns OAuth2Client with valid credentials
  */
-export const getValidOAuth2ClientByConnection = async (connectionId: number) => {
+export const getValidOAuth2ClientByConnection = async (
+  connectionId: number,
+  options: GoogleOAuthClientOptions = {}
+) => {
   const config = getOAuth2Config();
 
   const connection = await db("google_connections")
@@ -106,10 +113,13 @@ export const getValidOAuth2ClientByConnection = async (connectionId: number) => 
     ? new Date(connection.expiry_date)
     : new Date(0);
   const isExpiringSoon = expiryDate.getTime() - Date.now() < 5 * 60 * 1000;
+  const shouldRefresh = options.forceRefresh || isExpiringSoon;
 
-  if (isExpiringSoon) {
+  if (shouldRefresh) {
     console.log(
-      `[OAuth Helper] Token expiring soon, refreshing for connection ${connectionId}`
+      options.forceRefresh
+        ? `[OAuth Helper] Force refreshing token for connection ${connectionId}`
+        : `[OAuth Helper] Token expiring soon, refreshing for connection ${connectionId}`
     );
 
     oauth2Client.setCredentials({
@@ -171,7 +181,10 @@ export const getValidOAuth2ClientByConnection = async (connectionId: number) => 
  * @param organizationId - The organization ID
  * @returns OAuth2Client with valid credentials
  */
-export const getValidOAuth2ClientByOrg = async (organizationId: number) => {
+export const getValidOAuth2ClientByOrg = async (
+  organizationId: number,
+  options: GoogleOAuthClientOptions = {}
+) => {
   const connection = await db("google_connections")
     .where({ organization_id: organizationId })
     .first();
@@ -182,7 +195,7 @@ export const getValidOAuth2ClientByOrg = async (organizationId: number) => {
     );
   }
 
-  return getValidOAuth2ClientByConnection(connection.id);
+  return getValidOAuth2ClientByConnection(connection.id, options);
 };
 
 // Backward-compatible aliases — callers will be migrated in Plan 04 Step 7

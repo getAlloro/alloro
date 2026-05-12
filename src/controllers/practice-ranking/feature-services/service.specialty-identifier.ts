@@ -67,7 +67,8 @@ export async function identifyAndUpdate(
           updated_at: new Date(),
         });
 
-      const oauth2Client = await googleDataFetcher.getOAuth2Client(googleAccountId);
+      let oauth2Client =
+        await googleDataFetcher.getOAuth2Client(googleAccountId);
       const account = await db("google_connections")
         .where({ id: googleAccountId })
         .first();
@@ -83,6 +84,16 @@ export async function identifyAndUpdate(
         const gbpData = await googleDataFetcher.fetchRecentGBPData(
           oauth2Client,
           targetLocation,
+          {
+            refreshOAuth2Client: async () => {
+              oauth2Client = await googleDataFetcher.getOAuth2Client(
+                googleAccountId,
+                { forceRefresh: true },
+              );
+              return oauth2Client;
+            },
+            throwOnLocationError: true,
+          },
         );
 
         const locationData = gbpData?.locations?.[0]?.data || {};

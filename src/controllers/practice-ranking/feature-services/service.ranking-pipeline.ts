@@ -226,6 +226,41 @@ export async function updateStatus(
   }
 }
 
+async function markRankingFailed(
+  rankingId: number,
+  step: string,
+  message: string,
+  error: unknown,
+  existingDetail?: StatusDetail,
+  logger?: (msg: string) => void,
+): Promise<void> {
+  const detail: StatusDetail = existingDetail || {
+    currentStep: step,
+    message,
+    progress: 0,
+    stepsCompleted: [],
+    timestamps: { started_at: new Date().toISOString() },
+  };
+  const errorMessage = error instanceof Error ? error.message : String(error);
+
+  detail.currentStep = step;
+  detail.message = message;
+  detail.timestamps[`${step}_failed_at`] = new Date().toISOString();
+
+  await db("practice_rankings")
+    .where({ id: rankingId })
+    .update({
+      status: "failed",
+      status_detail: JSON.stringify(detail),
+      error_message: errorMessage,
+      updated_at: new Date(),
+    });
+
+  if (logger) {
+    logger(`[RANKING] [${rankingId}] Failed at ${step}: ${errorMessage}`);
+  }
+}
+
 /**
  * Process ranking analysis for a single location
  * @param rankingId - Database ID for this ranking record
@@ -300,7 +335,7 @@ export async function processLocationRanking(
       : account.google_property_ids;
 
   // Get OAuth client
-  const oauth2Client = await getValidOAuth2Client(googleAccountId);
+  let oauth2Client = await getValidOAuth2Client(googleAccountId);
 
   // Get date range (last 30 days)
   const endDate = new Date();
@@ -586,12 +621,51 @@ export async function processLocationRanking(
     );
   }
 
-  const clientGbpData = await fetchGBPDataForRange(
-    oauth2Client,
-    [targetLocation],
-    startDateStr,
-    endDateStr,
-  );
+  let clientGbpData: any;
+  try {
+    clientGbpData = await fetchGBPDataForRange(
+      oauth2Client,
+      [targetLocation],
+      startDateStr,
+      endDateStr,
+      {
+        refreshOAuth2Client: async () => {
+          oauth2Client = await getValidOAuth2Client(googleAccountId, {
+            forceRefresh: true,
+          });
+          return oauth2Client;
+        },
+        throwOnLocationError: true,
+      },
+    );
+  } catch (error: any) {
+    const message =
+      "Google Business Profile data could not be loaded. Reconnect Google or retry the ranking after token refresh.";
+    await markRankingFailed(
+      rankingId,
+      "fetching_client_gbp",
+      message,
+      error,
+      statusDetail,
+      log,
+    );
+    throw error;
+  }
+
+  if (!clientGbpData?.locations?.[0]?.data) {
+    const error = new Error(
+      `GBP data missing for ${gbpLocationName} (${gbpLocationId})`,
+    );
+    await markRankingFailed(
+      rankingId,
+      "fetching_client_gbp",
+      "Google Business Profile data is missing, so Practice Health cannot be calculated safely.",
+      error,
+      statusDetail,
+      log,
+    );
+    throw error;
+  }
 
   // ========== STEP 2: Discover Competitors ==========
   // The competitor list was already fetched in Step 0 via location-biased Places

@@ -19,6 +19,18 @@ export type FormCatalogPreferenceUpsert = {
   sort_order: number | null;
 };
 
+type DatabaseError = {
+  code?: unknown;
+};
+
+function isMissingPreferenceTableError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as DatabaseError).code === "42P01"
+  );
+}
+
 export class FormCatalogPreferenceModel extends BaseModel {
   protected static tableName = "website_builder.form_catalog_preferences";
 
@@ -26,10 +38,15 @@ export class FormCatalogPreferenceModel extends BaseModel {
     projectId: string,
     trx?: QueryContext,
   ): Promise<IFormCatalogPreference[]> {
-    return this.table(trx)
-      .where({ project_id: projectId })
-      .orderBy("sort_order", "asc", "last")
-      .orderBy("form_name", "asc");
+    try {
+      return await this.table(trx)
+        .where({ project_id: projectId })
+        .orderBy("sort_order", "asc", "last")
+        .orderBy("form_name", "asc");
+    } catch (error) {
+      if (isMissingPreferenceTableError(error)) return [];
+      throw error;
+    }
   }
 
   static async upsertMany(
