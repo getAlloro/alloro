@@ -721,6 +721,12 @@ export async function computeDashboardMetrics(
       }`
     );
   }
+  const refreshOAuth2Client = async () => {
+    oauth2Client = await getValidOAuth2ClientByOrg(orgId, {
+      forceRefresh: true,
+    });
+    return oauth2Client;
+  };
 
   let gbpLocations: Array<{
     accountId: string;
@@ -752,7 +758,8 @@ export async function computeDashboardMetrics(
         oauth2Client,
         gbpLocations,
         dateRange.start,
-        dateRange.end
+        dateRange.end,
+        { refreshOAuth2Client }
       );
     } catch (err: any) {
       console.warn(
@@ -776,7 +783,8 @@ export async function computeDashboardMetrics(
         oauth2Client,
         gbpLocations,
         prevStartStr,
-        prevEndStr
+        prevEndStr,
+        { refreshOAuth2Client }
       );
       const ratings: number[] = [];
       for (const loc of prevGbp?.locations ?? []) {

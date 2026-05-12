@@ -22,6 +22,16 @@ export interface GooglePropertyIds {
   }>;
 }
 
+export interface FetchGBPDataOptions {
+  refreshOAuth2Client?: () => Promise<any>;
+  throwOnLocationError?: boolean;
+}
+
+function isUnauthorizedGoogleError(error: any): boolean {
+  const status = error?.response?.status ?? error?.code;
+  return Number(status) === 401;
+}
+
 // =====================================================================
 // GOOGLE SERVICES DATA AGGREGATION
 // =====================================================================
@@ -42,32 +52,90 @@ export async function fetchGBPDataForRange(
     displayName: string;
   }>,
   startDate: string,
-  endDate: string
+  endDate: string,
+  options: FetchGBPDataOptions = {}
 ): Promise<any> {
   try {
     if (!locations || locations.length === 0) {
       return { locations: [] };
     }
 
+    let refreshedClientPromise: Promise<any> | null = null;
+    const getRefreshedClient = async () => {
+      if (!options.refreshOAuth2Client) return null;
+      if (!refreshedClientPromise) {
+        refreshedClientPromise = options.refreshOAuth2Client();
+      }
+      return refreshedClientPromise;
+    };
+
     // Fetch data for all locations in parallel
     const locationDataPromises = locations.map(async (location) => {
       try {
-        const data = await getGBPAIReadyData(
+        let data = await getGBPAIReadyData(
           oauth2Client,
           location.accountId,
           location.locationId,
           startDate,
           endDate
         );
+
+        if (!data) {
+          throw new Error(`GBP data unavailable for location ${location.locationId}`);
+        }
+
         return {
           locationId: location.locationId,
           displayName: location.displayName,
-          data: data,
+          data,
         };
       } catch (error: any) {
+        if (isUnauthorizedGoogleError(error) && options.refreshOAuth2Client) {
+          try {
+            const refreshedClient = await getRefreshedClient();
+            if (refreshedClient) {
+              const data = await getGBPAIReadyData(
+                refreshedClient,
+                location.accountId,
+                location.locationId,
+                startDate,
+                endDate
+              );
+
+              if (!data) {
+                throw new Error(
+                  `GBP data unavailable after token refresh for location ${location.locationId}`
+                );
+              }
+
+              return {
+                locationId: location.locationId,
+                displayName: location.displayName,
+                data,
+              };
+            }
+          } catch (retryError: any) {
+            console.error(
+              `Error retrying GBP data for location ${location.locationId} after token refresh: ${retryError}`
+            );
+            if (options.throwOnLocationError) {
+              throw retryError;
+            }
+            return {
+              locationId: location.locationId,
+              displayName: location.displayName,
+              data: null,
+              error: retryError?.message || String(retryError),
+            };
+          }
+        }
+
         console.error(
           `Error fetching GBP data for location ${location.locationId}: ${error}`
         );
+        if (options.throwOnLocationError) {
+          throw error;
+        }
         return {
           locationId: location.locationId,
           displayName: location.displayName,
@@ -85,6 +153,9 @@ export async function fetchGBPDataForRange(
     };
   } catch (error: any) {
     console.error(`Error fetching GBP data: ${error}`);
+    if (options.throwOnLocationError) {
+      throw error;
+    }
     return { locations: [], error: error?.message || String(error) };
   }
 }

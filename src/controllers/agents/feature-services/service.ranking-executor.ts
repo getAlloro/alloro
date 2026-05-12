@@ -209,7 +209,7 @@ export async function processRankingWork(workItems: WorkItem[]): Promise<void> {
       let specialty = "";
       let marketLocation = "";
       try {
-        const oauth2Client = await getValidOAuth2Client(loc.connectionId);
+        let oauth2Client = await getValidOAuth2Client(loc.connectionId);
         const gbpProfile = await fetchGBPDataForRange(
           oauth2Client,
           [{
@@ -219,6 +219,15 @@ export async function processRankingWork(workItems: WorkItem[]): Promise<void> {
           }],
           new Date().toISOString().split("T")[0],
           new Date().toISOString().split("T")[0],
+          {
+            refreshOAuth2Client: async () => {
+              oauth2Client = await getValidOAuth2Client(loc.connectionId, {
+                forceRefresh: true,
+              });
+              return oauth2Client;
+            },
+            throwOnLocationError: true,
+          },
         );
         const locationData = gbpProfile?.locations?.[0]?.data || {};
         const meta = await identifyLocationMeta(locationData, work.domain);

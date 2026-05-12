@@ -2,6 +2,27 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.65] - May 2026
+
+### Google Token Refresh Ranking Guardrail
+
+Prevented ranking reruns from publishing bad Practice Health scores when Google Business Profile requests reject a stale access token. GBP fetches now retry once with a forced refresh, and required ranking GBP data fails safely instead of being scored as an empty profile.
+
+**Key Changes:**
+- Added force-refresh support to Google OAuth client resolution
+- Added a shared one-time 401 retry path for GBP data aggregation
+- Blocked ranking completion when required client GBP data is still unavailable after retry
+- Kept dashboard and PMS-adjacent GBP metrics best-effort while giving them the same forced-refresh retry
+- Extended the retry path to scheduled ranking identification and competitor onboarding specialty fallback
+
+**Commits:**
+- `src/auth/oauth2Helper.ts` — optional forced OAuth refresh for connection and organization lookups
+- `src/utils/dataAggregation/dataAggregator.ts` — one-time GBP 401 retry with shared refreshed client
+- `src/controllers/practice-ranking/feature-services/service.ranking-pipeline.ts` — fail-safe ranking guardrail for missing client GBP data
+- `src/utils/dashboard-metrics/service.dashboard-metrics.ts` — forced-refresh retry for dashboard/PMS-adjacent GBP metrics
+- `src/controllers/agents/feature-services/service.ranking-executor.ts` and `src/controllers/practice-ranking/feature-services/*` — retry support for ranking identification and onboarding fallback fetches
+- `plans/05122026-no-ticket-google-token-refresh-ranking-guardrail/*` — executed spec
+
 ## [0.0.64] - May 2026
 
 ### Form Submissions UX Refresh

@@ -748,7 +748,7 @@ async function resolveSpecialtyAndMarket(
   }
 
   // Fallback: run the Identifier Agent against fresh GBP data
-  const oauth2Client = await getValidOAuth2Client(
+  let oauth2Client = await getValidOAuth2Client(
     ctx.selectedGbp.google_connection_id
   );
   const today = new Date().toISOString().split("T")[0];
@@ -762,7 +762,17 @@ async function resolveSpecialtyAndMarket(
       },
     ],
     today,
-    today
+    today,
+    {
+      refreshOAuth2Client: async () => {
+        oauth2Client = await getValidOAuth2Client(
+          ctx.selectedGbp.google_connection_id,
+          { forceRefresh: true }
+        );
+        return oauth2Client;
+      },
+      throwOnLocationError: true,
+    }
   );
   const locationData = gbpProfile?.locations?.[0]?.data || {};
   const meta = await identifyLocationMeta(locationData, ctx.organizationDomain);
