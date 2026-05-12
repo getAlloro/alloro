@@ -67,6 +67,17 @@ export class GoogleConnectionModel extends BaseModel {
     return row ? this.deserializeJsonFields(row) : undefined;
   }
 
+  static async findByIdForOrganization(
+    id: number,
+    orgId: number,
+    trx?: QueryContext
+  ): Promise<IGoogleConnection | undefined> {
+    const row = await this.table(trx)
+      .where({ id, organization_id: orgId })
+      .first();
+    return row ? this.deserializeJsonFields(row) : undefined;
+  }
+
   static async create(
     data: Partial<IGoogleConnection>,
     trx?: QueryContext
@@ -116,17 +127,6 @@ export class GoogleConnectionModel extends BaseModel {
     const rows = await this.table(trx)
       .where({ organization_id: orgId })
       .andWhere("scopes", "ilike", `%${scopeSubstring}%`);
-    return rows.map((row: IGoogleConnection) =>
-      this.deserializeJsonFields(row)
-    );
-  }
-
-  static async findAllWithScope(
-    scopeSubstring: string,
-    trx?: QueryContext
-  ): Promise<IGoogleConnection[]> {
-    const rows = await this.table(trx)
-      .where("scopes", "ilike", `%${scopeSubstring}%`);
     return rows.map((row: IGoogleConnection) =>
       this.deserializeJsonFields(row)
     );

@@ -113,6 +113,7 @@ export class WebsiteIntegrationModel extends BaseModel {
   static async update(
     id: string,
     data: {
+      type?: IntegrationType;
       label?: string | null;
       credentials?: string | null;
       metadata?: Record<string, unknown>;

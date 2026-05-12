@@ -20,6 +20,9 @@ export default function GscTab({ projectId, integration, onRefresh }: Props) {
   const email = integration.metadata?.googleEmail
     ? String(integration.metadata.googleEmail)
     : null;
+  const permissionLevel = integration.metadata?.permissionLevel
+    ? String(integration.metadata.permissionLevel)
+    : null;
 
   return (
     <div className="p-6">
@@ -34,7 +37,7 @@ export default function GscTab({ projectId, integration, onRefresh }: Props) {
           transition={{ duration: 0.2, delay: 0.05 }}
           className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
         >
-          <div className="grid grid-cols-2 gap-4 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
             <div>
               <div className="text-gray-400 uppercase tracking-wide font-semibold mb-0.5">
                 Site URL
@@ -49,6 +52,14 @@ export default function GscTab({ projectId, integration, onRefresh }: Props) {
               </div>
               <div className="text-gray-900 font-medium truncate">
                 {email || "--"}
+              </div>
+            </div>
+            <div>
+              <div className="text-gray-400 uppercase tracking-wide font-semibold mb-0.5">
+                Permission
+              </div>
+              <div className="text-gray-900 font-medium truncate">
+                {permissionLevel || "--"}
               </div>
             </div>
           </div>

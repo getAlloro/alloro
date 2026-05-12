@@ -255,7 +255,7 @@ export async function getReconnectUrl(req: Request, res: Response): Promise<Resp
         success: false,
         error: "Missing scopes parameter",
         message:
-          "Please specify which scopes to request (e.g., scopes=gbp or scopes=all)",
+          "Please specify which scopes to request (e.g., scopes=gbp, scopes=gsc, or scopes=all)",
         timestamp: new Date().toISOString(),
       });
     }
@@ -272,8 +272,8 @@ export async function getReconnectUrl(req: Request, res: Response): Promise<Resp
         success: false,
         error: resolveResult.error,
         message: isInvalidKey
-          ? "Valid scope keys are: gbp, or 'all'"
-          : "Please specify at least one valid scope (gbp or all)",
+          ? "Valid scope keys are: gbp, gsc, or 'all'"
+          : "Please specify at least one valid scope (gbp, gsc, or all)",
         timestamp: new Date().toISOString(),
       });
     }

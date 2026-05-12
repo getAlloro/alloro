@@ -1,7 +1,9 @@
+import { apiGet } from "./index";
+
 /**
- * Website Integrations API — admin portal client for per-website CRM connectors.
+ * Website Integrations API — admin portal client for per-website connectors.
  *
- * v1: HubSpot only. Adapter-agnostic types so future vendors slot in.
+ * Adapter-agnostic types so future vendors slot in.
  */
 
 // =====================================================================
@@ -322,12 +324,32 @@ export const rerunHarvest = (
 export interface GscConnection {
   id: number;
   email: string;
-  organization_id: number;
+  organization_id?: number;
 }
 
 export interface GscSite {
   siteUrl: string;
-  permissionLevel: string;
+  permissionLevel: string | null;
+}
+
+export interface InitialHarvestResult {
+  queued: boolean;
+  harvestDate: string;
+  warning?: string;
+}
+
+export interface GscIntegrationCreateResponse {
+  integration: Integration;
+  initialHarvest: InitialHarvestResult;
+}
+
+export interface GoogleReconnectResponse {
+  success: boolean;
+  authUrl?: string;
+  state?: string;
+  requestedScopes?: string[];
+  message?: string;
+  error?: string;
 }
 
 export const fetchGscConnections = (projectId: string) =>
@@ -340,18 +362,12 @@ export const createGscIntegration = (
   projectId: string,
   payload: { connectionId: number; siteUrl: string },
 ) =>
-  request<Envelope<Integration>>(`/${projectId}/integrations/gsc`, {
+  request<Envelope<GscIntegrationCreateResponse>>(`/${projectId}/integrations/gsc`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
 
-export async function getReconnectUrl(scopes: string): Promise<{ success: boolean; authUrl?: string }> {
-  const token = localStorage.getItem("token");
-  const res = await fetch(`/api/auth/google/reconnect?scopes=${encodeURIComponent(scopes)}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
-  return res.json();
-}
+export const getReconnectUrl = (scopes: string) =>
+  apiGet({
+    path: `/auth/google/reconnect?scopes=${encodeURIComponent(scopes)}`,
+  }) as Promise<GoogleReconnectResponse>;

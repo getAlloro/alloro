@@ -144,15 +144,20 @@ function buildAccountData(
   googleProfile: GoogleUserProfile,
   tokens: any,
 ): Partial<IGoogleConnection> {
-  return {
+  const accountData: Partial<IGoogleConnection> = {
     google_user_id: googleProfile.id,
     email: googleProfile.email.toLowerCase(),
-    refresh_token: tokens.refresh_token,
     access_token: tokens.access_token,
     token_type: tokens.token_type || "Bearer",
     expiry_date: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
     scopes: tokens.scope || REQUIRED_SCOPES.join(","),
   };
+
+  if (tokens.refresh_token) {
+    accountData.refresh_token = tokens.refresh_token;
+  }
+
+  return accountData;
 }
 
 /**
@@ -269,6 +274,10 @@ export async function completeOAuthFlow(
         }
       }
 
+      if (!accountData.refresh_token) {
+        throw new Error("No refresh token received for new Google connection");
+      }
+
       googleAccount = await GoogleConnectionModel.create(
         { ...accountData, organization_id: organizationId },
         trx,
@@ -350,6 +359,10 @@ export async function handleFallbackAuth(
           { user_id: user.id, organization_id: organizationId, role: "admin" },
         );
       }
+    }
+
+    if (!accountData.refresh_token) {
+      throw new Error("No refresh token received for new Google connection");
     }
 
     googleAccount = await GoogleConnectionModel.create(

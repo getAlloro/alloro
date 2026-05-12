@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { useSettingsScopes, usePmsStatus } from "../../hooks/queries/useSettingsQueries";
+import { useGoogleReconnect } from "../../hooks/queries/useWebsiteIntegrations";
 import { useOnboardingWizard } from "../../contexts/OnboardingWizardContext";
 import { PropertiesTab } from "../../components/settings/PropertiesTab";
 import { MissingScopeBanner } from "../../components/settings/MissingScopeBanner";
@@ -49,22 +50,17 @@ function GscSettingsSection({
   onGrantAccess: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [granting, setGranting] = useState(false);
+  const [oauthPending, setOauthPending] = useState(false);
+  const reconnectMutation = useGoogleReconnect();
+  const granting = reconnectMutation.isPending || oauthPending;
   const hasGscScope = !missingScopes.includes("gsc");
 
   const handleGrantAccess = async () => {
-    setGranting(true);
+    setOauthPending(true);
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch("/api/auth/google/reconnect?scopes=gsc", {
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-      const data = await res.json();
+      const data = await reconnectMutation.mutateAsync("gsc");
       if (!data.success || !data.authUrl) {
-        setGranting(false);
+        setOauthPending(false);
         return;
       }
 
@@ -77,7 +73,7 @@ function GscSettingsSection({
       );
 
       if (!popup) {
-        setGranting(false);
+        setOauthPending(false);
         return;
       }
 
@@ -91,7 +87,7 @@ function GscSettingsSection({
         if (!allowedOrigins.includes(event.origin)) return;
         if (event.data.type === "GOOGLE_OAUTH_SUCCESS" || event.data.type === "GOOGLE_OAUTH_ERROR") {
           try { popup.close(); } catch { /* COOP */ }
-          setGranting(false);
+          setOauthPending(false);
           window.removeEventListener("message", handleMessage);
           if (event.data.type === "GOOGLE_OAUTH_SUCCESS") onGrantAccess();
         }
@@ -102,7 +98,7 @@ function GscSettingsSection({
       const checkClosed = () => {
         try {
           if (popup.closed) {
-            setGranting(false);
+            setOauthPending(false);
             window.removeEventListener("message", handleMessage);
             return;
           }
@@ -111,7 +107,7 @@ function GscSettingsSection({
       };
       checkClosed();
     } catch {
-      setGranting(false);
+      setOauthPending(false);
     }
   };
 

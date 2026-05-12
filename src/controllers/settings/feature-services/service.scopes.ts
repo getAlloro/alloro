@@ -1,10 +1,5 @@
 import { GoogleConnectionModel } from "../../../models/GoogleConnectionModel";
-import {
-  SCOPE_MAP,
-  parseScopes,
-  buildScopeStatus,
-  getMissingScopes,
-} from "../feature-utils/util.scope-parser";
+import { parseScopes, buildScopeStatus, getMissingScopes } from "../feature-utils/util.scope-parser";
 
 export async function getGrantedScopes(organizationId: number) {
   if (!organizationId) {
@@ -14,24 +9,20 @@ export async function getGrantedScopes(organizationId: number) {
     throw error;
   }
 
-  const googleConnection = await GoogleConnectionModel.findOneByOrganization(organizationId);
+  const googleConnections = await GoogleConnectionModel.findByOrganization(organizationId);
 
-  if (!googleConnection) {
+  if (googleConnections.length === 0) {
     const error = new Error("Account not found") as any;
     error.statusCode = 404;
     error.body = { error: "Account not found" };
     throw error;
   }
 
-  const scopeString = googleConnection.scopes || "";
-  const normalizedScopes = parseScopes(scopeString);
-
-  // Debug logging
-  console.log("[Settings] Scopes for organization", organizationId, ":", {
-    raw: scopeString,
-    parsed: normalizedScopes,
-    checkingFor: Object.values(SCOPE_MAP),
-  });
+  const normalizedScopes = Array.from(
+    new Set(
+      googleConnections.flatMap((connection) => parseScopes(connection.scopes)),
+    ),
+  );
 
   const scopeStatus = buildScopeStatus(normalizedScopes);
   const missingScopes = getMissingScopes(scopeStatus);

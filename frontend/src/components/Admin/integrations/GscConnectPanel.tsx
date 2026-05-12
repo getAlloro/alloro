@@ -1,16 +1,14 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Search, Loader2, ChevronDown, ExternalLink, AlertTriangle } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { ActionButton } from "../../ui/DesignSystem";
 import {
-  fetchGscConnections,
-  fetchGscSites,
-  createGscIntegration,
-  getReconnectUrl,
-  type GscConnection,
-  type GscSite,
-} from "../../../api/integrations";
+  useCreateGscIntegration,
+  useGoogleReconnect,
+  useGscConnections,
+  useGscSites,
+} from "../../../hooks/queries/useWebsiteIntegrations";
 
 interface Props {
   projectId: string;
@@ -21,75 +19,58 @@ const POPUP_WIDTH = 500;
 const POPUP_HEIGHT = 600;
 
 export default function GscConnectPanel({ projectId, onConnected }: Props) {
-  const [loading, setLoading] = useState(true);
-  const [connections, setConnections] = useState<GscConnection[]>([]);
   const [selectedConnectionId, setSelectedConnectionId] = useState<number | null>(null);
-  const [sites, setSites] = useState<GscSite[]>([]);
-  const [sitesLoading, setSitesLoading] = useState(false);
   const [selectedSiteUrl, setSelectedSiteUrl] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [oauthLoading, setOauthLoading] = useState(false);
+  const [oauthPending, setOauthPending] = useState(false);
   const popupRef = useRef<Window | null>(null);
 
-  const loadConnections = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetchGscConnections(projectId);
-      setConnections(res.data || []);
-    } catch {
-      toast.error("Failed to load Google connections");
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId]);
+  const connectionsQuery = useGscConnections(projectId);
+  const sitesQuery = useGscSites(projectId, selectedConnectionId);
+  const createMutation = useCreateGscIntegration(projectId);
+  const reconnectMutation = useGoogleReconnect();
 
-  useEffect(() => {
-    loadConnections();
-  }, [loadConnections]);
+  const connections = connectionsQuery.data?.data ?? [];
+  const sites = sitesQuery.isPlaceholderData ? [] : sitesQuery.data?.data ?? [];
+  const loading = connectionsQuery.isLoading && !connectionsQuery.data;
+  const sitesLoading =
+    !!selectedConnectionId && (sitesQuery.isLoading || sitesQuery.isFetching || sitesQuery.isPlaceholderData);
+  const creating = createMutation.isPending;
+  const oauthLoading = reconnectMutation.isPending || oauthPending;
 
-  const handleSelectConnection = async (connId: number) => {
+  const handleSelectConnection = (connId: number) => {
     setSelectedConnectionId(connId);
     setSelectedSiteUrl(null);
-    setSites([]);
-    setSitesLoading(true);
-    try {
-      const res = await fetchGscSites(projectId, connId);
-      setSites(res.data || []);
-      if ((res.data || []).length === 0) {
-        toast.error("No sites found in this account's Search Console");
-      }
-    } catch {
-      toast.error("Failed to load Search Console sites");
-    } finally {
-      setSitesLoading(false);
-    }
   };
 
   const handleCreate = async () => {
     if (!selectedConnectionId || !selectedSiteUrl) return;
-    setCreating(true);
+
     try {
-      await createGscIntegration(projectId, {
+      const result = await createMutation.mutateAsync({
         connectionId: selectedConnectionId,
         siteUrl: selectedSiteUrl,
       });
       toast.success("Search Console connected");
+
+      if (result.data.initialHarvest.warning) {
+        toast.error(result.data.initialHarvest.warning);
+      } else if (result.data.initialHarvest.queued) {
+        toast.success(`Initial harvest queued for ${result.data.initialHarvest.harvestDate}`);
+      }
+
       onConnected();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to connect");
-    } finally {
-      setCreating(false);
     }
   };
 
   const handleConnectAccount = async () => {
-    setOauthLoading(true);
+    setOauthPending(true);
+
     try {
-      const data = await getReconnectUrl("gsc");
+      const data = await reconnectMutation.mutateAsync("gsc");
       if (!data.success || !data.authUrl) {
-        toast.error("Failed to generate authorization URL");
-        setOauthLoading(false);
-        return;
+        throw new Error(data.message || "Failed to generate authorization URL");
       }
 
       const left = window.screenX + (window.outerWidth - POPUP_WIDTH) / 2;
@@ -99,9 +80,7 @@ export default function GscConnectPanel({ projectId, onConnected }: Props) {
       popupRef.current = window.open(data.authUrl, "gsc_oauth", features);
 
       if (!popupRef.current) {
-        toast.error("Popup blocked — please allow popups for this site");
-        setOauthLoading(false);
-        return;
+        throw new Error("Popup blocked — please allow popups for this site");
       }
 
       const handleMessage = (event: MessageEvent) => {
@@ -116,14 +95,14 @@ export default function GscConnectPanel({ projectId, onConnected }: Props) {
         if (event.data.type === "GOOGLE_OAUTH_SUCCESS") {
           try { popupRef.current?.close(); } catch { /* COOP */ }
           popupRef.current = null;
-          setOauthLoading(false);
+          setOauthPending(false);
           window.removeEventListener("message", handleMessage);
           toast.success("Google account connected");
-          loadConnections();
+          connectionsQuery.refetch();
         } else if (event.data.type === "GOOGLE_OAUTH_ERROR") {
           try { popupRef.current?.close(); } catch { /* COOP */ }
           popupRef.current = null;
-          setOauthLoading(false);
+          setOauthPending(false);
           window.removeEventListener("message", handleMessage);
           toast.error("Authorization failed");
         }
@@ -134,7 +113,7 @@ export default function GscConnectPanel({ projectId, onConnected }: Props) {
       const checkClosed = () => {
         try {
           if (popupRef.current?.closed) {
-            setOauthLoading(false);
+            setOauthPending(false);
             window.removeEventListener("message", handleMessage);
             return;
           }
@@ -142,9 +121,9 @@ export default function GscConnectPanel({ projectId, onConnected }: Props) {
         setTimeout(checkClosed, 1000);
       };
       checkClosed();
-    } catch {
-      toast.error("Failed to start authorization");
-      setOauthLoading(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to start authorization");
+      setOauthPending(false);
     }
   };
 
@@ -152,6 +131,31 @@ export default function GscConnectPanel({ projectId, onConnected }: Props) {
     return (
       <div className="p-12 flex items-center justify-center">
         <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  if (connectionsQuery.isError) {
+    return (
+      <div className="p-8 max-w-lg mx-auto">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold">Failed to load Google connections</p>
+            <p className="text-xs mt-1 leading-relaxed">
+              {connectionsQuery.error instanceof Error
+                ? connectionsQuery.error.message
+                : "Please try again."}
+            </p>
+            <button
+              type="button"
+              onClick={() => connectionsQuery.refetch()}
+              className="mt-3 text-xs font-semibold text-red-700 hover:text-red-900"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -186,7 +190,6 @@ export default function GscConnectPanel({ projectId, onConnected }: Props) {
         </>
       ) : (
         <div className="w-full text-left space-y-4 mt-3">
-          {/* Connection picker */}
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
               Google Account
@@ -211,7 +214,6 @@ export default function GscConnectPanel({ projectId, onConnected }: Props) {
             </div>
           </div>
 
-          {/* Site picker */}
           {selectedConnectionId && (
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
@@ -220,6 +222,11 @@ export default function GscConnectPanel({ projectId, onConnected }: Props) {
               {sitesLoading ? (
                 <div className="flex items-center gap-2 text-sm text-gray-400 py-2">
                   <Loader2 className="w-4 h-4 animate-spin" /> Loading sites...
+                </div>
+              ) : sitesQuery.isError ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-600" />
+                  <span>Failed to load Search Console sites.</span>
                 </div>
               ) : sites.length > 0 ? (
                 <div className="relative">
@@ -231,7 +238,7 @@ export default function GscConnectPanel({ projectId, onConnected }: Props) {
                     <option value="">Select a site...</option>
                     {sites.map((s) => (
                       <option key={s.siteUrl} value={s.siteUrl}>
-                        {s.siteUrl}
+                        {s.permissionLevel ? `${s.siteUrl} (${s.permissionLevel})` : s.siteUrl}
                       </option>
                     ))}
                   </select>
@@ -246,7 +253,6 @@ export default function GscConnectPanel({ projectId, onConnected }: Props) {
             </div>
           )}
 
-          {/* Connect button */}
           {selectedSiteUrl && (
             <motion.div
               initial={{ opacity: 0, y: 5 }}
@@ -262,7 +268,6 @@ export default function GscConnectPanel({ projectId, onConnected }: Props) {
             </motion.div>
           )}
 
-          {/* Add another account option */}
           <div className="pt-2 border-t border-gray-100">
             <button
               onClick={handleConnectAccount}

@@ -133,6 +133,12 @@ export const QUERY_KEYS = {
     ["admin", "website-detail", uuid, "recipients"] as const,
   adminWebsiteFormCatalog: (uuid: string) =>
     ["admin", "website-detail", uuid, "form-catalog"] as const,
+  adminWebsiteIntegrations: (uuid: string) =>
+    ["admin", "website-detail", uuid, "integrations"] as const,
+  adminWebsiteGscConnections: (uuid: string) =>
+    ["admin", "website-detail", uuid, "integrations", "gsc", "connections"] as const,
+  adminWebsiteGscSites: (uuid: string, connectionId: number | null) =>
+    ["admin", "website-detail", uuid, "integrations", "gsc", "sites", connectionId] as const,
 
   // Client — notifications
   notifications: (orgId: number | null, locationId: number | null) =>
