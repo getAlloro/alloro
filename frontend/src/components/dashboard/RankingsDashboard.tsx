@@ -699,6 +699,7 @@ export function RankingsDashboard({
             {
               placeId: "demo-1",
               name: "Smile Orthodontics",
+              address: "125 Market St, San Francisco, CA 94105",
               position: 1,
               status: "measured",
               rating: 4.9,
@@ -713,6 +714,7 @@ export function RankingsDashboard({
             {
               placeId: "demo-2",
               name: "Perfect Teeth Ortho",
+              address: "410 Mission Bay Blvd, San Francisco, CA 94158",
               position: 2,
               status: "measured",
               rating: 4.7,
@@ -971,9 +973,12 @@ function SearchPositionSection({ result }: { result: RankingResult }) {
                 <span className="block truncate font-bold text-[15px] text-alloro-navy">
                   {row.name}
                 </span>
-                {row.primaryType && (
-                  <span className="mt-0.5 block text-[10px] font-bold uppercase tracking-widest text-alloro-navy/35">
-                    {row.primaryType.replace(/_/g, " ")}
+                {row.address && (
+                  <span
+                    className="mt-0.5 block max-w-full truncate text-[11px] font-semibold leading-snug text-alloro-navy/40"
+                    title={row.address}
+                  >
+                    {row.address}
                   </span>
                 )}
               </div>

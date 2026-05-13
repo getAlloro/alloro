@@ -22,6 +22,7 @@ type SearchResultEntry = {
 type CompetitorSnapshotEntry = {
   placeId?: string;
   name?: string;
+  address?: string | null;
   rating?: number | null;
   reviewCount?: number | null;
   lat?: number | null;
@@ -133,6 +134,7 @@ function buildSelectedCompetitorSearchResults(ranking: any) {
           ? match.reviewCount
           : competitor.reviewCount ?? null,
       primaryType: match?.primaryType ?? null,
+      address: competitor.address ?? null,
       discoveryPosition: competitor.discoveryPosition ?? null,
       distanceMiles,
       profileStrengthScore: competitor.profileStrengthScore ?? null,

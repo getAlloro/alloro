@@ -2,6 +2,66 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.72] - May 2026
+
+### Ranking Labels, Media Uploads, And Website Admin Signals
+
+Closed out remaining dashboard and website-admin polish by clarifying selected competitor labels, improving large media upload handling, and surfacing active integrations in the admin websites list.
+
+**Key Changes:**
+- Added selected competitor address metadata to latest ranking responses and rendered truncated address labels with full-address tooltips
+- Increased admin website media upload handling to 500 MB per file with readable client and server error messages
+- Replaced noisy page-editor media upload alerts with inline upload errors
+- Added active integration metadata to website project listing responses
+- Displayed active HubSpot, Rybbit, Clarity, and Search Console badges beside website names in the admin list
+- Added missing plan specs for selected competitor address labels, media upload handling, and GBP-less identity generation
+
+**Commits:**
+- `src/controllers/practice-ranking/*` and `frontend/src/components/dashboard/RankingsDashboard.tsx` — selected competitor address enrichment and display
+- `src/routes/admin/media.ts`, `frontend/src/components/Admin/MediaTab.tsx`, and `frontend/src/components/PageEditor/ChatPanel.tsx` — 500 MB upload limit and safer upload errors
+- `src/controllers/admin-websites/feature-services/service.project-manager.ts`, `frontend/src/api/websites.ts`, and `frontend/src/pages/admin/WebsitesList.tsx` — active integration metadata and badges
+- `plans/05122026-no-ticket-selected-competitor-address-labels/spec.md`, `plans/05132026-no-ticket-media-upload-limit-error-handling/spec.md`, and `plans/05132026-no-ticket-allow-gbp-less-identity-generation/spec.md` — finalized planning artifacts
+
+## [0.0.71] - May 2026
+
+### GSC Freshness Window And Date Display
+
+Refreshed recent analytics windows for scheduled harvests and normalized GSC date-only fields so admin tables and charts stop drifting a day early.
+
+**Key Changes:**
+- Added provider-specific daily harvest freshness windows: four recent UTC dates for GSC and three for Rybbit and Clarity
+- Preserved explicit manual and historic harvest jobs as one-date jobs
+- Returned GSC harvest and report dates as plain `YYYY-MM-DD` strings from the model/API boundary
+- Added a GSC refresh action for successful zero-row harvest logs
+- Verified stored GSC log and dashboard payloads keep dates such as `2026-05-12` unchanged
+
+**Commits:**
+- `src/workers/processors/dataHarvest.processor.ts` — provider-specific rolling harvest windows
+- `src/models/website-builder/IntegrationHarvestLogModel.ts` and `GscDataModel.ts` — date-only API serialization
+- `src/controllers/admin-websites/feature-services/service.gsc-performance.ts` — dashboard date normalization fallback
+- `frontend/src/components/Admin/integrations/IntegrationPanel.tsx` — zero-row GSC refresh action
+- `plans/05142026-no-ticket-gsc-freshness-window-date-display/spec.md` — executed spec and verification checklist
+
+## [0.0.70] - May 2026
+
+### Ranking Resilience And Website Basics Audit
+
+Hardened the local ranking pipeline so transient failures retry safely, permanent failures fail clearly, and website audit outages no longer create fake zero-score recommendations.
+
+**Key Changes:**
+- Added classified max-3 retry handling for ranking LLM, Identifier, GBP fetches, Apify Maps, and competitor detail scrape boundaries
+- Replaced the broken Apify Lighthouse dependency with an internal website basics check that records reachability, HTTPS, metadata, schema, robots, sitemap, and NAP hints
+- Changed website audit failure semantics from fake zero scores to `failed`, `skipped`, `unknown`, or nullable measured fields
+- Updated ranking LLM context so failed or skipped website checks cannot produce false critical website recommendations
+- Added retry evidence to ranking pipeline timing details for observability
+
+**Commits:**
+- `src/controllers/practice-ranking/feature-services/service.ranking-resilience.ts` — shared classified retry helper and attempt summaries
+- `src/controllers/practice-ranking/feature-services/service.website-audit.ts` and `service.website-audit-parser.ts` — custom single-URL website basics audit
+- `src/controllers/practice-ranking/feature-services/service.ranking-pipeline.ts`, `service.apify.ts`, and `service.ranking-llm.ts` — retry telemetry, Apify retry boundaries, and safe LLM audit compaction
+- `src/controllers/agents/feature-services/service.ranking-executor.ts`, `service.webhook-orchestrator.ts`, and `src/controllers/practice-ranking/feature-services/service.location-competitor-onboarding.ts` — resilient GBP/Identifier paths and safer specialty fallback
+- `plans/05142026-no-ticket-ranking-resilience-custom-auditor/spec.md` — executed spec and verification checklist
+
 ## [0.0.69] - May 2026
 
 ### Rybbit Integration Cleanup And Dashboard

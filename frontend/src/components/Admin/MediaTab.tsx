@@ -2,7 +2,7 @@
  * MediaTab Component
  *
  * Displays project media library with upload, grid view, and management features
- * - Bulk upload (up to 20 files, 25MB each)
+ * - Bulk upload (up to 20 files, 500MB each)
  * - Grid layout with thumbnails for images, icons for videos/PDFs
  * - Copy URL, edit metadata (display name, alt text), delete
  * - Storage quota display (5GB per project)
@@ -70,15 +70,48 @@ interface MediaResponse {
 
 interface UploadResponse {
   success: boolean;
-  data: MediaItem[];
+  data?: MediaItem[];
   error?: string;
+  message?: string;
   failed?: Array<{ filename: string; message: string }>;
-  quota: {
+  quota?: {
     used: number;
     limit: number;
     percentage: number;
   };
 }
+
+const MAX_MEDIA_FILE_SIZE_MB = 500;
+const MAX_MEDIA_FILE_SIZE_BYTES = MAX_MEDIA_FILE_SIZE_MB * 1024 * 1024;
+const MAX_MEDIA_FILE_SIZE_LABEL = `${MAX_MEDIA_FILE_SIZE_MB} MB`;
+
+const parseUploadResponse = (responseText: string): UploadResponse | null => {
+  if (!responseText.trim()) return null;
+
+  try {
+    return JSON.parse(responseText) as UploadResponse;
+  } catch {
+    return null;
+  }
+};
+
+const getUploadErrorMessage = (
+  xhr: XMLHttpRequest,
+  data: UploadResponse | null,
+): string => {
+  if (data?.message) return data.message;
+  if (data?.error === "FILE_TOO_LARGE" || xhr.status === 413) {
+    return `Each media file must be ${MAX_MEDIA_FILE_SIZE_LABEL} or smaller.`;
+  }
+  if (data?.error === "QUOTA_EXCEEDED" || xhr.status === 507) {
+    return "Storage quota exceeded for this project.";
+  }
+  if (data?.error) return data.error;
+  if (xhr.status >= 500) {
+    return "Upload failed because the server returned an unexpected response.";
+  }
+  return "Upload failed";
+};
 
 // =====================================================================
 // Main Component
@@ -136,12 +169,26 @@ export default function MediaTab({ projectId }: { projectId: string }) {
   };
 
   const uploadFiles = async (files: File[]) => {
+    const oversizedFiles = files.filter(
+      (file) => file.size > MAX_MEDIA_FILE_SIZE_BYTES,
+    );
+    const uploadableFiles = files.filter(
+      (file) => file.size <= MAX_MEDIA_FILE_SIZE_BYTES,
+    );
+    const initialUploadErrors = oversizedFiles.map(
+      (file) =>
+        `${file.name}: file is larger than ${MAX_MEDIA_FILE_SIZE_LABEL}.`,
+    );
+
+    setError(null);
+    setUploadErrors(initialUploadErrors);
+    if (uploadableFiles.length === 0) return;
+
     setUploading(true);
     setUploadProgress(0);
-    setUploadErrors([]);
 
     const formData = new FormData();
-    files.forEach((file) => formData.append("files", file));
+    uploadableFiles.forEach((file) => formData.append("files", file));
 
     const xhr = new XMLHttpRequest();
 
@@ -153,23 +200,31 @@ export default function MediaTab({ projectId }: { projectId: string }) {
 
     xhr.addEventListener("load", async () => {
       try {
-        const data: UploadResponse = JSON.parse(xhr.responseText);
+        const data = parseUploadResponse(xhr.responseText);
+
+        if (!data) {
+          throw new Error(getUploadErrorMessage(xhr, data));
+        }
 
         if (!data.success) {
-          throw new Error(
-            xhr.status === 507
-              ? data.error || "Storage quota exceeded"
-              : data.error || "Upload failed"
-          );
+          throw new Error(getUploadErrorMessage(xhr, data));
+        }
+
+        if (!data.data || data.data.length === 0) {
+          throw new Error(data.message || "No media files were uploaded.");
         }
 
         if (data.failed && data.failed.length > 0) {
           setUploadErrors(
-            data.failed.map((f) => `${f.filename}: ${f.message}`)
+            initialUploadErrors.concat(
+              data.failed.map((f) => `${f.filename}: ${f.message}`),
+            ),
           );
         }
 
-        setQuota(data.quota);
+        if (data.quota) {
+          setQuota(data.quota);
+        }
         await fetchMedia();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Upload failed");
@@ -180,7 +235,7 @@ export default function MediaTab({ projectId }: { projectId: string }) {
     });
 
     xhr.addEventListener("error", () => {
-      setError("Upload failed — network error");
+      setError("Upload failed - network error");
       setUploading(false);
       setUploadProgress(0);
     });

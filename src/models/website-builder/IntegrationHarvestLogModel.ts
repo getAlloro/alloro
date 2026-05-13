@@ -1,4 +1,5 @@
 import { BaseModel, PaginatedResult, PaginationParams, QueryContext } from "../BaseModel";
+import { db } from "../../database/connection";
 
 export type HarvestOutcome = "success" | "failed";
 
@@ -14,6 +15,18 @@ export interface IIntegrationHarvestLog {
   retry_count: number;
   attempted_at: Date;
 }
+
+const HARVEST_LOG_COLUMNS = [
+  "id",
+  "integration_id",
+  "platform",
+  "outcome",
+  "rows_fetched",
+  "error",
+  "error_details",
+  "retry_count",
+  "attempted_at",
+];
 
 export class IntegrationHarvestLogModel extends BaseModel {
   protected static tableName = "website_builder.integration_harvest_logs";
@@ -52,15 +65,25 @@ export class IntegrationHarvestLogModel extends BaseModel {
     pagination: PaginationParams,
     trx?: QueryContext,
   ): Promise<PaginatedResult<IIntegrationHarvestLog>> {
-    return this.paginate<IIntegrationHarvestLog>(
-      (qb) =>
-        qb
-          .where({ integration_id: integrationId })
-          .orderBy("harvest_date", "desc")
-          .orderBy("attempted_at", "desc"),
-      pagination,
-      trx,
-    );
+    const { limit = 50, offset = 0 } = pagination;
+    const baseQuery = this.table(trx).where({ integration_id: integrationId });
+
+    const totalResult = await baseQuery
+      .clone()
+      .count("* as count")
+      .first();
+    const total = parseInt(totalResult?.count as string, 10) || 0;
+
+    const rows = await baseQuery
+      .clone()
+      .select(HARVEST_LOG_COLUMNS)
+      .select(db.raw("harvest_date::text as harvest_date"))
+      .orderBy("harvest_date", "desc")
+      .orderBy("attempted_at", "desc")
+      .limit(limit)
+      .offset(offset);
+
+    return { data: rows as IIntegrationHarvestLog[], total };
   }
 
   static async findFailedByIntegrationId(

@@ -13,10 +13,10 @@ import { fetchGBPDataForRange } from "../../../utils/dataAggregation/dataAggrega
 import {
   getCompetitorDetails,
   enrichCompetitorReviewCounts,
-  auditWebsite,
   getSpecialtyKeywords,
   getSearchPositionViaApifyMaps,
 } from "./service.apify";
+import { auditWebsite } from "./service.website-audit";
 import {
   discoverCompetitorsViaPlaces,
   filterBySpecialty,
@@ -38,6 +38,11 @@ import { createNotification } from "../../../utils/core/notificationHelper";
 import { listLocalPostsInRange } from "../../../routes/gbp";
 import { runRankingAnalysis, RankingLlmPayload } from "./service.ranking-llm";
 import { DEFAULT_COMPETITOR_DISCOVERY_RADIUS_METERS } from "../feature-utils/util.competitor-validator";
+import {
+  isRetryableExternalError,
+  runWithRetry,
+  summarizeRetryAttempts,
+} from "./service.ranking-resilience";
 
 // Batch processing configuration
 export const MAX_RETRIES = 3;
@@ -638,6 +643,7 @@ export async function processLocationRanking(
   // above for competitor discovery; the two coexist intentionally.
   // Spec: plans/04282026-no-ticket-live-google-rank-apify-maps-swap/spec.md (T2)
   let searchPositionSource: "apify_maps" | "places_text" | null = null;
+  let apifyMapsRetrySummary = "apify_attempts=0";
   let apifyOrderedResults: Array<{
     placeId: string;
     name: string;
@@ -656,6 +662,9 @@ export async function processLocationRanking(
       searchQuery,
       clientPlaceId,
       locationParams,
+    );
+    apifyMapsRetrySummary = summarizeRetryAttempts(
+      apifyResult.retryAttempts || [],
     );
 
     if (apifyResult.status === "ok") {
@@ -756,7 +765,7 @@ export async function processLocationRanking(
     pipelineTimings,
     searchPositionTiming,
     "success",
-    `status=${searchStatus};position=${searchPosition ?? "n/a"}`,
+    `status=${searchStatus};position=${searchPosition ?? "n/a"};${apifyMapsRetrySummary}`,
   );
 
   // ========== STEP 0.5: Competitor Source Resolution (v2) ==========
@@ -820,6 +829,7 @@ export async function processLocationRanking(
 
   let clientGbpData: any;
   let clientGbpSource: "prefetch" | "fetched" = "fetched";
+  let clientGbpRetrySummary = "attempts=0";
   try {
     if (
       isMatchingPrefetchedClientGbpData(
@@ -837,28 +847,43 @@ export async function processLocationRanking(
         `[RANKING] [${rankingId}] Step 1: reused pre-fetched GBP payload for ${gbpAccountId}/${gbpLocationId}`,
       );
     } else {
-      clientGbpData = await fetchGBPDataForRange(
-        oauth2Client,
-        [targetLocation],
-        startDateStr,
-        endDateStr,
+      const gbpFetchResult = await runWithRetry(
+        () =>
+          fetchGBPDataForRange(
+            oauth2Client,
+            [targetLocation],
+            startDateStr,
+            endDateStr,
+            {
+              refreshOAuth2Client: async () => {
+                oauth2Client = await getValidOAuth2Client(googleAccountId, {
+                  forceRefresh: true,
+                });
+                return oauth2Client;
+              },
+              throwOnLocationError: true,
+            },
+          ),
         {
-          refreshOAuth2Client: async () => {
-            oauth2Client = await getValidOAuth2Client(googleAccountId, {
-              forceRefresh: true,
-            });
-            return oauth2Client;
-          },
-          throwOnLocationError: true,
+          label: `GBP data fetch ${gbpAccountId}/${gbpLocationId}`,
+          maxAttempts: 3,
+          logger: log,
+          shouldRetry: isRetryableExternalError,
         },
       );
+      clientGbpData = gbpFetchResult.value;
+      clientGbpRetrySummary = summarizeRetryAttempts(gbpFetchResult.attempts);
+      log(
+        `[RANKING] [${rankingId}] Step 1: GBP fetch ${clientGbpRetrySummary}`,
+      );
+      clientGbpSource = "fetched";
     }
   } catch (error: any) {
     finishPipelineTiming(
       pipelineTimings,
       clientGbpTiming,
       "failed",
-      error.message,
+      `${error.message};${summarizeRetryAttempts(error.retryAttempts || [])}`,
     );
     const message =
       "Google Business Profile data could not be loaded. Reconnect Google or retry the ranking after token refresh.";
@@ -897,7 +922,7 @@ export async function processLocationRanking(
     pipelineTimings,
     clientGbpTiming,
     "success",
-    `source=${clientGbpSource}`,
+    `source=${clientGbpSource};${clientGbpRetrySummary}`,
   );
 
   // ========== STEP 2: Discover Competitors ==========
@@ -987,7 +1012,9 @@ export async function processLocationRanking(
         pipelineTimings,
         competitorDetailsTiming,
         staleCompetitors.length > 0 ? "success" : "skipped",
-        `reused=${reusableDetails.size};scraped=${scrapedDetails.length}`,
+        `reused=${reusableDetails.size};scraped=${scrapedDetails.length};${summarizeRetryAttempts(
+          (scrapedDetails as any).retryAttempts || [],
+        )}`,
       );
     } else {
       const competitorPlaceIds = discoveredCompetitors.map((c) => c.placeId);
@@ -999,7 +1026,9 @@ export async function processLocationRanking(
         pipelineTimings,
         competitorDetailsTiming,
         "success",
-        `scraped=${competitorDetails.length}`,
+        `scraped=${competitorDetails.length};${summarizeRetryAttempts(
+          (competitorDetails as any).retryAttempts || [],
+        )}`,
       );
     }
 
@@ -1013,7 +1042,7 @@ export async function processLocationRanking(
       pipelineTimings,
       competitorDetailsTiming,
       "failed",
-      error.message,
+      `${error.message};${summarizeRetryAttempts(error.retryAttempts || [])}`,
     );
     log(
       `[RANKING] [${rankingId}] Detailed scrape failed, using discovery fallback: ${error.message}`,
@@ -1105,12 +1134,24 @@ export async function processLocationRanking(
   let websiteAudit = null;
   const clientWebsite = resolveAuditWebsite(profileData?.websiteUri, domain);
   try {
-    websiteAudit = await auditWebsite(clientWebsite);
+    websiteAudit = await auditWebsite(clientWebsite, {
+      phone:
+        profileData?.phoneNumbers?.primaryPhone ||
+        profileData?.primaryPhone ||
+        null,
+      addressLines: [
+        ...(profileData?.storefrontAddress?.addressLines || []),
+        profileData?.storefrontAddress?.locality,
+        profileData?.storefrontAddress?.administrativeArea,
+      ].filter(Boolean),
+    });
     finishPipelineTiming(
       pipelineTimings,
       websiteAuditTiming,
-      "success",
-      `url=${clientWebsite}`,
+      websiteAudit.status === "failed" ? "failed" : "success",
+      `url=${clientWebsite};status=${websiteAudit.status};${summarizeRetryAttempts(
+        websiteAudit.retryAttempts || [],
+      )}`,
     );
   } catch (error: any) {
     finishPipelineTiming(
@@ -1484,8 +1525,12 @@ export async function processLocationRanking(
     llmTiming,
     llmResult.success ? "success" : "failed",
     llmResult.success
-      ? `tokens=${llmResult.inputTokens ?? "n/a"}/${llmResult.outputTokens ?? "n/a"}`
-      : llmResult.error,
+      ? `tokens=${llmResult.inputTokens ?? "n/a"}/${llmResult.outputTokens ?? "n/a"};${summarizeRetryAttempts(
+          llmResult.retryAttempts || [],
+        )}`
+      : `${llmResult.error};${summarizeRetryAttempts(
+          llmResult.retryAttempts || [],
+        )}`,
   );
   rawData.pipeline_timings = pipelineTimings;
   await db("practice_rankings")

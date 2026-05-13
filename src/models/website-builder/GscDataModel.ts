@@ -1,4 +1,5 @@
 import { BaseModel, QueryContext } from "../BaseModel";
+import { db } from "../../database/connection";
 
 export interface IGscData {
   id: string;
@@ -12,6 +13,13 @@ export interface IGscData {
 export class GscDataModel extends BaseModel {
   protected static tableName = "website_builder.gsc_data";
   protected static jsonFields = ["data"];
+  private static readonly selectColumns = [
+    "id",
+    "project_id",
+    "data",
+    "created_at",
+    "updated_at",
+  ];
 
   static async upsert(
     projectId: string,
@@ -43,6 +51,8 @@ export class GscDataModel extends BaseModel {
     trx?: QueryContext,
   ): Promise<IGscData[]> {
     const rows = await this.table(trx)
+      .select(this.selectColumns)
+      .select(db.raw("report_date::text as report_date"))
       .where("project_id", projectId)
       .andWhereBetween("report_date", [startDate, endDate])
       .orderBy("report_date", "desc");
@@ -55,8 +65,8 @@ export class GscDataModel extends BaseModel {
   ): Promise<string | null> {
     const row = await this.table(trx)
       .where({ project_id: projectId })
-      .max<{ latest_report_date: string | null }>(
-        "report_date as latest_report_date",
+      .select<{ latest_report_date: string | null }[]>(
+        db.raw("max(report_date)::text as latest_report_date"),
       )
       .first();
     return row?.latest_report_date ?? null;

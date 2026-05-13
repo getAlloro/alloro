@@ -1,5 +1,9 @@
 import { Job } from "bullmq";
-import { WebsiteIntegrationModel, type IntegrationType } from "../../models/website-builder/WebsiteIntegrationModel";
+import {
+  WebsiteIntegrationModel,
+  type IntegrationPlatform,
+  type IntegrationType,
+} from "../../models/website-builder/WebsiteIntegrationModel";
 import { IntegrationHarvestLogModel } from "../../models/website-builder/IntegrationHarvestLogModel";
 import { ClarityDataModelV2 } from "../../models/website-builder/ClarityDataModelV2";
 import { RybbitDataModel } from "../../models/website-builder/RybbitDataModel";
@@ -13,6 +17,15 @@ export interface DataHarvestJobData {
 
 const LOG_PREFIX = "[DATA-HARVEST]";
 const MAX_RETRIES = 3;
+const GSC_FRESHNESS_DAYS = 4;
+const RYBBIT_FRESHNESS_DAYS = 3;
+const CLARITY_FRESHNESS_DAYS = 3;
+
+const PROVIDER_FRESHNESS_DAYS: Partial<Record<IntegrationPlatform, number>> = {
+  gsc: GSC_FRESHNESS_DAYS,
+  rybbit: RYBBIT_FRESHNESS_DAYS,
+  clarity: CLARITY_FRESHNESS_DAYS,
+};
 
 const DATA_MODELS: Record<string, { upsert: (projectId: string, date: string, data: unknown) => Promise<void> }> = {
   clarity: ClarityDataModelV2,
@@ -22,8 +35,24 @@ const DATA_MODELS: Record<string, { upsert: (projectId: string, date: string, da
 
 function getYesterday(): string {
   const d = new Date();
-  d.setDate(d.getDate() - 1);
+  d.setUTCDate(d.getUTCDate() - 1);
   return d.toISOString().split("T")[0];
+}
+
+function addUtcDays(dateString: string, days: number): string {
+  const d = new Date(`${dateString}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().split("T")[0];
+}
+
+export function getHarvestDatesForPlatform(
+  platform: IntegrationPlatform,
+  latestDate: string = getYesterday(),
+): string[] {
+  const windowDays = PROVIDER_FRESHNESS_DAYS[platform] ?? 1;
+  return Array.from({ length: windowDays }, (_, index) =>
+    addUtcDays(latestDate, -index),
+  );
 }
 
 export async function processDataHarvest(job: Job<DataHarvestJobData>): Promise<void> {
@@ -36,15 +65,19 @@ export async function processDataHarvest(job: Job<DataHarvestJobData>): Promise<
 
   const harvestTypes: IntegrationType[] = ["data_harvest", "hybrid"];
   const integrations = await WebsiteIntegrationModel.findActiveByTypes(harvestTypes);
-  const date = harvestDate || getYesterday();
+  const latestDate = harvestDate || getYesterday();
 
-  console.log(`${LOG_PREFIX} Starting daily harvest for ${integrations.length} integrations (date=${date})`);
+  console.log(`${LOG_PREFIX} Starting daily harvest for ${integrations.length} integrations (latestDate=${latestDate})`);
 
   for (const integration of integrations) {
-    try {
-      await harvestSingle(integration.id, date);
-    } catch (err) {
-      console.error(`${LOG_PREFIX} Unexpected error for integration ${integration.id}:`, err);
+    const dates = getHarvestDatesForPlatform(integration.platform, latestDate);
+
+    for (const date of dates) {
+      try {
+        await harvestSingle(integration.id, date);
+      } catch (err) {
+        console.error(`${LOG_PREFIX} Unexpected error for integration ${integration.id} date=${date}:`, err);
+      }
     }
   }
 
