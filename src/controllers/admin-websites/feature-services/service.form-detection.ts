@@ -215,12 +215,13 @@ function compareCatalogItems(a: FormCatalogItem, b: FormCatalogItem): number {
   const bOrder = b.sort_order ?? Number.MAX_SAFE_INTEGER;
   if (aOrder !== bOrder) return aOrder - bOrder;
 
-  if (b.submission_count !== a.submission_count) {
-    return b.submission_count - a.submission_count;
-  }
   const aLastSeen = a.last_seen ? new Date(a.last_seen).getTime() : 0;
   const bLastSeen = b.last_seen ? new Date(b.last_seen).getTime() : 0;
   if (bLastSeen !== aLastSeen) return bLastSeen - aLastSeen;
+
+  if (b.submission_count !== a.submission_count) {
+    return b.submission_count - a.submission_count;
+  }
   return a.form_name.localeCompare(b.form_name);
 }
 

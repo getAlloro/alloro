@@ -55,10 +55,10 @@ export async function getGoogleAuthUrl(req: Request, res: Response): Promise<voi
         .where({ user_id: authCtx.userId })
         .first();
 
-      if (orgUser) {
-        state = encodeAuthState(authCtx.userId, orgUser.organization_id);
-        console.log(`[AUTH] Encoded auth context in state for user ${authCtx.userId}, org ${orgUser.organization_id}`);
-      }
+      state = encodeAuthState(authCtx.userId, orgUser?.organization_id ?? null);
+      console.log(
+        `[AUTH] Encoded auth context in state for user ${authCtx.userId}, org ${orgUser?.organization_id || "none"}`,
+      );
     }
 
     const authUrl = oauth2Client.generateAuthUrl({
@@ -255,7 +255,7 @@ export async function getReconnectUrl(req: Request, res: Response): Promise<Resp
         success: false,
         error: "Missing scopes parameter",
         message:
-          "Please specify which scopes to request (e.g., scopes=gbp or scopes=all)",
+          "Please specify which scopes to request (e.g., scopes=gbp, scopes=gsc, or scopes=all)",
         timestamp: new Date().toISOString(),
       });
     }
@@ -272,8 +272,8 @@ export async function getReconnectUrl(req: Request, res: Response): Promise<Resp
         success: false,
         error: resolveResult.error,
         message: isInvalidKey
-          ? "Valid scope keys are: gbp, or 'all'"
-          : "Please specify at least one valid scope (gbp or all)",
+          ? "Valid scope keys are: gbp, gsc, or 'all'"
+          : "Please specify at least one valid scope (gbp, gsc, or all)",
         timestamp: new Date().toISOString(),
       });
     }
@@ -290,10 +290,10 @@ export async function getReconnectUrl(req: Request, res: Response): Promise<Resp
       const orgUser = await db("organization_users")
         .where({ user_id: authCtx.userId })
         .first();
-      if (orgUser) {
-        state = encodeAuthState(authCtx.userId, orgUser.organization_id);
-        console.log(`[AUTH] Encoded auth context in reconnect state for user ${authCtx.userId}, org ${orgUser.organization_id}`);
-      }
+      state = encodeAuthState(authCtx.userId, orgUser?.organization_id ?? null);
+      console.log(
+        `[AUTH] Encoded auth context in reconnect state for user ${authCtx.userId}, org ${orgUser?.organization_id || "none"}`,
+      );
     }
 
     const authUrl = oauth2Client.generateAuthUrl({

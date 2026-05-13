@@ -28,13 +28,13 @@ interface Props {
 const DEFAULT_PLATFORM = "hubspot";
 
 /**
- * Integrations tab — v1 ships HubSpot only.
+ * Integrations tab — per-website provider management.
  *
  * Layout: 30/70 sidebar+main (matches PostsTab convention).
  * Sidebar: provider list with connection status badge.
  * Main: state-driven content based on the selected provider.
  *
- * All state local — no React Query, no global store.
+ * Provider detail state stays local; focused provider flows can use query hooks.
  */
 export default function IntegrationsTab({ projectId }: Props) {
   // --- top-level data ---
@@ -124,7 +124,7 @@ export default function IntegrationsTab({ projectId }: Props) {
     }
     loadDetectedForms();
     loadMappings(selectedIntegration.id);
-  }, [selectedIntegration?.id, selectedIntegration?.status, loadDetectedForms, loadMappings]);
+  }, [selectedIntegration, loadDetectedForms, loadMappings]);
 
   // Reset selected form when integration changes
   useEffect(() => {
@@ -142,7 +142,7 @@ export default function IntegrationsTab({ projectId }: Props) {
     setShowConnectModal(true);
   };
 
-  const handleConnectSaved = (_integration: Integration) => {
+  const handleConnectSaved = () => {
     // Refetch the integrations list so status badges and metadata update.
     loadIntegrations();
   };

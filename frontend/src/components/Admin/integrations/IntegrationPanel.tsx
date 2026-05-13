@@ -42,6 +42,24 @@ function formatTimestamp(iso: string | null): string {
   }
 }
 
+function formatReportDate(value: string | null): string {
+  if (!value) return "--";
+  const datePart = String(value).split("T")[0];
+  const date = new Date(`${datePart}T00:00:00`);
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function getLocalDateString(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 const STATUS_VISUALS: Record<
   string,
   { label: string; icon: ReactNode; className: string }
@@ -89,6 +107,7 @@ export default function IntegrationPanel({
   const [logsOffset, setLogsOffset] = useState(0);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [rerunningId, setRerunningId] = useState<string | null>(null);
+  const [runningToday, setRunningToday] = useState(false);
 
   const sv = STATUS_VISUALS[integration.status] ?? {
     label: integration.status,
@@ -187,6 +206,23 @@ export default function IntegrationPanel({
     }
   };
 
+  const handleRunToday = async () => {
+    const today = getLocalDateString();
+    setRunningToday(true);
+    try {
+      await rerunHarvest(projectId, integration.id, today);
+      toast.success(`Harvest queued for ${today}`);
+      setLogsOffset(0);
+      loadLogs(0);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to queue today's run",
+      );
+    } finally {
+      setRunningToday(false);
+    }
+  };
+
   const handlePageChange = (newOffset: number) => {
     setLogsOffset(newOffset);
     loadLogs(newOffset);
@@ -253,6 +289,19 @@ export default function IntegrationPanel({
 
         {/* Actions */}
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleRunToday}
+            disabled={runningToday}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition disabled:opacity-50"
+          >
+            {runningToday ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <RotateCcw className="w-3.5 h-3.5" />
+            )}
+            Run Today
+          </button>
           <button
             type="button"
             onClick={handleTest}
@@ -340,7 +389,7 @@ export default function IntegrationPanel({
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
                     <th className="text-left px-5 py-2 text-[11px] font-bold uppercase tracking-wider text-gray-500">
-                      Date
+                      Report Date
                     </th>
                     <th className="text-left px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-gray-500">
                       Outcome
@@ -370,7 +419,12 @@ export default function IntegrationPanel({
                     return (
                       <tr key={log.id} className="hover:bg-gray-50/50 group">
                         <td className="px-5 py-2 text-xs text-gray-500 whitespace-nowrap">
-                          {formatTimestamp(log.attempted_at)}
+                          <div className="font-medium text-gray-700">
+                            {formatReportDate(log.harvest_date)}
+                          </div>
+                          <div className="text-[11px] text-gray-400">
+                            Ran {formatTimestamp(log.attempted_at)}
+                          </div>
                         </td>
                         <td className="px-3 py-2">
                           <span

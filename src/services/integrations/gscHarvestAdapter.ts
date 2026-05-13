@@ -8,6 +8,11 @@ interface GscMetadata {
   siteUrl?: string;
 }
 
+type GscDimensionSet = "summary" | "queries" | "pages" | "countries" | "devices";
+
+const GSC_QUERY_LIMIT = 25000;
+const GSC_PAGE_LIMIT = 25000;
+
 export class GscHarvestAdapter implements IDataHarvestAdapter {
   async validateConnection(integration: IWebsiteIntegrationSafe): Promise<ValidateHarvestResult> {
     const meta = integration.metadata as GscMetadata;
@@ -47,18 +52,66 @@ export class GscHarvestAdapter implements IDataHarvestAdapter {
       const auth = await getValidOAuth2ClientByConnection(meta.googleConnectionId);
       const searchconsole = google.searchconsole({ version: "v1", auth });
 
-      const res = await searchconsole.searchanalytics.query({
-        siteUrl: meta.siteUrl,
-        requestBody: {
-          startDate: date,
-          endDate: date,
-          dimensions: ["query", "page"],
-          rowLimit: 1000,
-        },
-      });
+      const fetchDimensionSet = async (
+        dimensionSet: GscDimensionSet,
+      ) => {
+        const dimensions = {
+          summary: ["date"],
+          queries: ["query"],
+          pages: ["page"],
+          countries: ["country"],
+          devices: ["device"],
+        }[dimensionSet];
+        const rowLimit =
+          dimensionSet === "summary"
+            ? 1
+            : dimensionSet === "queries"
+              ? GSC_QUERY_LIMIT
+              : GSC_PAGE_LIMIT;
 
-      const rows = res.data.rows || [];
-      return { ok: true, data: res.data, rowCount: rows.length };
+        const res = await searchconsole.searchanalytics.query({
+          siteUrl: meta.siteUrl,
+          requestBody: {
+            startDate: date,
+            endDate: date,
+            dimensions,
+            rowLimit,
+            type: "web",
+          },
+        });
+
+        return res.data;
+      };
+
+      const [summary, queries, pages, countries, devices] = await Promise.all([
+        fetchDimensionSet("summary"),
+        fetchDimensionSet("queries"),
+        fetchDimensionSet("pages"),
+        fetchDimensionSet("countries"),
+        fetchDimensionSet("devices"),
+      ]);
+
+      const rowCount =
+        (summary.rows || []).length +
+        (queries.rows || []).length +
+        (pages.rows || []).length +
+        (countries.rows || []).length +
+        (devices.rows || []).length;
+
+      return {
+        ok: true,
+        data: {
+          schemaVersion: 3,
+          searchType: "web",
+          fetchedAt: new Date().toISOString(),
+          summary,
+          queries,
+          pages,
+          countries,
+          devices,
+        },
+        rowCount,
+      };
     } catch (err: any) {
       const status = err?.code || err?.response?.status;
       const body = err?.response?.data ? JSON.stringify(err.response.data).slice(0, 4096) : undefined;

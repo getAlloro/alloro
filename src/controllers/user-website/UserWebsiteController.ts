@@ -13,6 +13,7 @@ import { Response } from "express";
 import { RBACRequest } from "../../middleware/rbac";
 import * as userWebsiteService from "./user-website-services/userWebsite.service";
 import * as customDomainService from "../admin-websites/feature-services/service.custom-domain";
+import * as gscIntegration from "../admin-websites/feature-services/service.gsc-integration";
 import * as postManager from "../admin-websites/feature-services/service.post-manager";
 import * as postTypeManager from "../admin-websites/feature-services/service.post-type-manager";
 import * as menuManager from "../admin-websites/feature-services/service.menu-manager";
@@ -58,6 +59,22 @@ function handleError(
     error: `Failed to ${operation.toLowerCase()}`,
     message: error?.message || "Unknown error occurred",
   });
+}
+
+function handleGscError(
+  res: Response,
+  error: unknown,
+  operation: string,
+): Response {
+  if (error instanceof gscIntegration.GscIntegrationError) {
+    return res.status(error.status).json({
+      success: false,
+      error: error.code,
+      message: error.message,
+    });
+  }
+
+  return handleError(res, error, operation);
 }
 
 // =====================================================================
@@ -185,6 +202,98 @@ export async function editPageComponent(
 async function getProjectIdForOrg(orgId: number): Promise<string | null> {
   const project = await ProjectModel.findByOrganizationId(orgId);
   return project?.id || null;
+}
+
+// =====================================================================
+// Google Search Console integration
+// =====================================================================
+
+/** GET /api/user/website/gsc */
+export async function getGscIntegration(
+  req: RBACRequest,
+  res: Response
+): Promise<Response> {
+  try {
+    const orgId = req.organizationId;
+    if (!orgId) return res.status(400).json({ error: "No organization found" });
+
+    const data = await userWebsiteService.getGscIntegration(orgId);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleGscError(res, error, "Fetch Search Console integration");
+  }
+}
+
+/** GET /api/user/website/gsc/connections */
+export async function listGscConnections(
+  req: RBACRequest,
+  res: Response
+): Promise<Response> {
+  try {
+    const orgId = req.organizationId;
+    if (!orgId) return res.status(400).json({ error: "No organization found" });
+
+    const data = await userWebsiteService.listGscConnections(orgId);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleGscError(res, error, "List Search Console connections");
+  }
+}
+
+/** GET /api/user/website/gsc/sites?connectionId=123 */
+export async function listGscSites(
+  req: RBACRequest,
+  res: Response
+): Promise<Response> {
+  try {
+    const orgId = req.organizationId;
+    if (!orgId) return res.status(400).json({ error: "No organization found" });
+
+    const connectionId = Number(req.query.connectionId);
+    if (!Number.isInteger(connectionId) || connectionId <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: "INVALID_INPUT",
+        message: "connectionId is required",
+      });
+    }
+
+    const data = await userWebsiteService.listGscSites(orgId, connectionId);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleGscError(res, error, "List Search Console sites");
+  }
+}
+
+/** POST /api/user/website/gsc */
+export async function saveGscIntegration(
+  req: RBACRequest,
+  res: Response
+): Promise<Response> {
+  try {
+    const orgId = req.organizationId;
+    if (!orgId) return res.status(400).json({ error: "No organization found" });
+
+    const connectionId = Number(req.body?.connectionId);
+    const siteUrl = typeof req.body?.siteUrl === "string" ? req.body.siteUrl : "";
+
+    if (!Number.isInteger(connectionId) || connectionId <= 0 || !siteUrl.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: "INVALID_INPUT",
+        message: "connectionId and siteUrl are required",
+      });
+    }
+
+    const data = await userWebsiteService.saveGscIntegration(
+      orgId,
+      connectionId,
+      siteUrl,
+    );
+    return res.status(201).json({ success: true, data });
+  } catch (error) {
+    return handleGscError(res, error, "Save Search Console integration");
+  }
 }
 
 // =====================================================================

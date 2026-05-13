@@ -21,7 +21,7 @@ export function useSettingsUsers() {
 export function useSettingsScopes() {
   return useQuery<{
     scopes: unknown[];
-    missingScopes: unknown[];
+    missingScopes: string[];
     missingCount: number;
   }>({
     queryKey: QUERY_KEYS.settings.scopes,
@@ -29,7 +29,7 @@ export function useSettingsScopes() {
     initialData: () =>
       queryClient.getQueryData<{
         scopes: unknown[];
-        missingScopes: unknown[];
+        missingScopes: string[];
         missingCount: number;
       }>(QUERY_KEYS.settings.scopes),
     initialDataUpdatedAt: () =>

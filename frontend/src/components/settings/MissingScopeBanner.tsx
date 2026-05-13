@@ -107,7 +107,6 @@ export const MissingScopeBanner: React.FC<MissingScopeBannerProps> = ({
         }
 
         if (event.data.type === "GOOGLE_OAUTH_SUCCESS") {
-          console.log("[Reconnect] OAuth success - scopes granted");
           closePopup();
           setIsLoading(false);
           window.removeEventListener("message", handleMessage);
@@ -120,7 +119,6 @@ export const MissingScopeBanner: React.FC<MissingScopeBannerProps> = ({
             window.location.reload();
           }
         } else if (event.data.type === "GOOGLE_OAUTH_ERROR") {
-          console.error("[Reconnect] OAuth error:", event.data.error);
           closePopup();
           setIsLoading(false);
           window.removeEventListener("message", handleMessage);
@@ -145,8 +143,7 @@ export const MissingScopeBanner: React.FC<MissingScopeBannerProps> = ({
       };
 
       checkClosed();
-    } catch (error) {
-      console.error("Error initiating reconnection:", error);
+    } catch {
       setIsLoading(false);
       closePopup();
     }
@@ -158,6 +155,8 @@ export const MissingScopeBanner: React.FC<MissingScopeBannerProps> = ({
     switch (scope) {
       case "gbp":
         return "Business Profile";
+      case "gsc":
+        return "Search Console";
       default:
         return scope.toUpperCase();
     }

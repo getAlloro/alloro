@@ -23,7 +23,7 @@
  */
 
 import { Request, Response } from "express";
-import { google } from "googleapis";
+import type { RBACRequest } from "../../middleware/rbac";
 import {
   WebsiteIntegrationModel,
   type IntegrationStatus,
@@ -31,13 +31,13 @@ import {
 import { IntegrationFormMappingModel } from "../../models/website-builder/IntegrationFormMappingModel";
 import { CrmSyncLogModel } from "../../models/website-builder/CrmSyncLogModel";
 import { IntegrationHarvestLogModel } from "../../models/website-builder/IntegrationHarvestLogModel";
-import { GoogleConnectionModel } from "../../models/GoogleConnectionModel";
 import { getAdapter } from "../../services/integrations";
 import { getHarvestAdapter } from "../../services/integrations/harvest-registry";
 import { inferFieldMapping } from "../../services/integrations/fieldInference";
 import { getHarvestQueue } from "../../workers/queues";
-import { getValidOAuth2ClientByConnection } from "../../auth/oauth2Helper";
 import * as formDetection from "./feature-services/service.form-detection";
+import * as gscIntegration from "./feature-services/service.gsc-integration";
+import * as gscPerformance from "./feature-services/service.gsc-performance";
 
 const LOG_PREFIX = "[Website Integrations]";
 
@@ -622,22 +622,47 @@ export async function rerunHarvest(req: Request, res: Response): Promise<Respons
 // GSC (Google Search Console) — admin connect flow
 // ---------------------------------------------------------------------------
 
-const GSC_SCOPE = "webmasters.readonly";
+function failGscError(res: Response, error: unknown, fallbackMessage: string): Response {
+  if (error instanceof gscIntegration.GscIntegrationError) {
+    return fail(res, error.status, error.code, error.message);
+  }
 
-export async function listGscConnections(_req: Request, res: Response): Promise<Response> {
+  console.error(`${LOG_PREFIX} ${fallbackMessage}:`, error);
+  const maybeCode = (error as { code?: number; response?: { status?: number } })?.code;
+  const maybeStatus = (error as { response?: { status?: number } })?.response?.status;
+  const status = maybeCode || maybeStatus;
+  if (status === 401 || status === 403) {
+    return fail(res, 401, "AUTH_FAILED", "Google OAuth token is invalid or expired");
+  }
+
+  return fail(res, 500, "GSC_ERROR", fallbackMessage);
+}
+
+function getAdminGscActor(req: Request): gscIntegration.GscActorContext {
+  const authReq = req as RBACRequest;
+  if (!authReq.userId) {
+    throw new gscIntegration.GscIntegrationError(
+      401,
+      "AUTH_REQUIRED",
+      "Authentication is required to manage Search Console integrations",
+    );
+  }
+
+  return {
+    mode: "admin",
+    userId: authReq.userId,
+    organizationId: authReq.organizationId,
+  };
+}
+
+export async function listGscConnections(req: Request, res: Response): Promise<Response> {
   try {
-    const connections = await GoogleConnectionModel.findAllWithScope(GSC_SCOPE);
-
-    const safe = connections.map((c) => ({
-      id: c.id,
-      email: c.email,
-      organization_id: c.organization_id,
-    }));
-
-    return ok(res, safe);
+    const projectId = String(req.params.id);
+    const actor = getAdminGscActor(req);
+    const connections = await gscIntegration.listConnections(projectId, actor);
+    return ok(res, connections);
   } catch (error) {
-    console.error(`${LOG_PREFIX} listGscConnections failed:`, error);
-    return fail(res, 500, "FETCH_ERROR", "Failed to list GSC connections");
+    return failGscError(res, error, "Failed to list GSC connections");
   }
 }
 
@@ -648,30 +673,12 @@ export async function listGscSites(req: Request, res: Response): Promise<Respons
       return fail(res, 400, "INVALID_INPUT", "connectionId query parameter is required");
     }
 
-    const connection = await GoogleConnectionModel.findById(connectionId);
-    if (!connection) {
-      return fail(res, 404, "NOT_FOUND", "Google connection not found");
-    }
-
-    if (!connection.scopes?.includes(GSC_SCOPE)) {
-      return fail(res, 400, "MISSING_SCOPE", "This Google connection does not have Search Console scope");
-    }
-
-    const auth = await getValidOAuth2ClientByConnection(connectionId);
-    const searchconsole = google.searchconsole({ version: "v1", auth });
-    const siteRes = await searchconsole.sites.list();
-    const sites = (siteRes.data.siteEntry || []).map((s) => ({
-      siteUrl: s.siteUrl,
-      permissionLevel: s.permissionLevel,
-    }));
-
+    const projectId = String(req.params.id);
+    const actor = getAdminGscActor(req);
+    const sites = await gscIntegration.listSites(projectId, connectionId, actor);
     return ok(res, sites);
-  } catch (error: any) {
-    console.error(`${LOG_PREFIX} listGscSites failed:`, error);
-    if (error?.code === 401 || error?.code === 403) {
-      return fail(res, 401, "AUTH_FAILED", "Google OAuth token is invalid or expired");
-    }
-    return fail(res, 500, "FETCH_ERROR", "Failed to list Search Console sites");
+  } catch (error) {
+    return failGscError(res, error, "Failed to list Search Console sites");
   }
 }
 
@@ -687,50 +694,52 @@ export async function createGscIntegration(req: Request, res: Response): Promise
       return fail(res, 400, "INVALID_INPUT", "connectionId and siteUrl are required");
     }
 
-    const connection = await GoogleConnectionModel.findById(connectionId);
-    if (!connection) {
-      return fail(res, 404, "NOT_FOUND", "Google connection not found");
+    const result = await gscIntegration.saveIntegration(
+      projectId,
+      connectionId,
+      siteUrl,
+      getAdminGscActor(req),
+    );
+
+    return ok(res, result, 201);
+  } catch (error) {
+    return failGscError(res, error, "Failed to create GSC integration");
+  }
+}
+
+export async function backfillGscHistory(req: Request, res: Response): Promise<Response> {
+  try {
+    const integration = await loadIntegrationForProject(req, res);
+    if (!integration) return res;
+
+    const result = await gscIntegration.queueHistoricBackfill(integration);
+    return ok(res, result, 202);
+  } catch (error) {
+    return failGscError(res, error, "Failed to queue GSC historic refresh");
+  }
+}
+
+export async function getGscPerformance(req: Request, res: Response): Promise<Response> {
+  try {
+    const integration = await loadIntegrationForProject(req, res);
+    if (!integration) return res;
+
+    if (integration.platform !== "gsc") {
+      return fail(
+        res,
+        400,
+        "UNSUPPORTED_PLATFORM",
+        "GSC performance is only available for Search Console integrations",
+      );
     }
 
-    if (!connection.scopes?.includes(GSC_SCOPE)) {
-      return fail(res, 400, "MISSING_SCOPE", "This Google connection does not have Search Console scope");
-    }
-
-    const existing = await WebsiteIntegrationModel.findByProjectAndPlatform(projectId, "gsc");
-    if (existing) {
-      return fail(res, 409, "ALREADY_CONNECTED", "A GSC integration already exists for this project");
-    }
-
-    // Validate the site exists in this connection's GSC account
-    const auth = await getValidOAuth2ClientByConnection(connectionId);
-    const searchconsole = google.searchconsole({ version: "v1", auth });
-    const siteRes = await searchconsole.sites.list();
-    const sites = siteRes.data.siteEntry || [];
-    const found = sites.some((s) => s.siteUrl === siteUrl);
-    if (!found) {
-      return fail(res, 400, "SITE_NOT_FOUND", `Site ${siteUrl} not found in this Google account's Search Console`);
-    }
-
-    const integration = await WebsiteIntegrationModel.create({
-      project_id: projectId,
-      platform: "gsc",
-      type: "data_harvest",
-      connected_by: "admin",
-      metadata: {
-        googleConnectionId: connectionId,
-        siteUrl,
-        googleEmail: connection.email,
-      },
-    });
-
-    await WebsiteIntegrationModel.updateLastValidated(integration.id, new Date());
-
-    return ok(res, integration, 201);
-  } catch (error: any) {
-    console.error(`${LOG_PREFIX} createGscIntegration failed:`, error);
-    if (error?.code === 401 || error?.code === 403) {
-      return fail(res, 401, "AUTH_FAILED", "Google OAuth token is invalid or expired");
-    }
-    return fail(res, 500, "CREATE_ERROR", "Failed to create GSC integration");
+    const result = await gscPerformance.getDashboard(
+      integration,
+      req.query.rangeDays,
+    );
+    return ok(res, result);
+  } catch (error) {
+    console.error(`${LOG_PREFIX} getGscPerformance failed:`, error);
+    return fail(res, 500, "FETCH_ERROR", "Failed to fetch GSC performance");
   }
 }
