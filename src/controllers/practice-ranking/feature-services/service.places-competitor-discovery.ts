@@ -81,6 +81,21 @@ const DENTAL_TYPES = [
   "prosthodontist",
 ];
 
+// Name/category stems that signal a dental specialty when Google lists the
+// place under generic primaryType="dentist" (which it does for the vast
+// majority of dental specialists in the SLC market and elsewhere). Stems
+// match both noun form (Endodontics) and practitioner form (Endodontist),
+// and are long enough to avoid false positives on unrelated dental names
+// (e.g. "Brendon's Dental" does not contain "endodont").
+const SPECIALTY_NAME_STEMS: Record<string, string[]> = {
+  orthodontics: ["orthodont"],
+  endodontics: ["endodont", "root canal"],
+  periodontics: ["periodont"],
+  oral_surgery: ["oral surgeon", "oral surgery", "maxillofacial"],
+  pediatric: ["pediatric dent", "children's dent", "kids dent"],
+  prosthodontics: ["prosthodont"],
+};
+
 // All known valid business types across all verticals
 const ALL_KNOWN_TYPES = [
   ...DENTAL_TYPES,
@@ -393,15 +408,14 @@ export function filterBySpecialty(
       if (comp.types?.some((t) => specialtyTypes.includes(t.toLowerCase()))) return true;
       // Display category match (e.g. "Orthodontist" in category text)
       if (targetDisplayNames.some((name) => displayCat.includes(name))) return true;
-      // Name-based match: if business name contains the specialty term,
-      // trust it. Google's text search already scoped to this specialty.
-      const specTerms = specialtyTypes.map((t) => t.replace(/_/g, " "));
+      // Stem match on name or category. Covers the common case where Google
+      // lists a real specialist as primaryType="dentist" with the specialty
+      // signal carried only by the business name (e.g. "Greater Endodontics
+      // Riverton"). Stems are long enough that a general dentist's name
+      // ("Smith Family Dental") will not falsely match.
       const nameLower = comp.name.toLowerCase();
-      if (specTerms.some((term) => nameLower.includes(term))) return true;
-      // Display category keyword fallback for specialists listed as "dentist":
-      // check if the original specialty word appears in the category or name
-      const specWord = specialty.toLowerCase().replace(/s$/, "");
-      if (displayCat.includes(specWord) || nameLower.includes(specWord)) return true;
+      const stems = SPECIALTY_NAME_STEMS[normalizedSpecialty] || [];
+      if (stems.some((s) => nameLower.includes(s) || displayCat.includes(s))) return true;
       return false;
     }
 
