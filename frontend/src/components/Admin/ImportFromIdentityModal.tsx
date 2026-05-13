@@ -138,7 +138,8 @@ export default function ImportFromIdentityModal({
       const list: ProjectIdentityLocation[] = Array.isArray(identity.locations)
         ? identity.locations
         : [];
-      return list.map((loc) => {
+      return list.filter((loc) => !!loc.place_id).map((loc) => {
+        const placeId = loc.place_id as string;
         const pills: Array<{
           label: string;
           tone: "default" | "primary" | "warn";
@@ -148,14 +149,14 @@ export default function ImportFromIdentityModal({
           pills.push({ label: "Scrape failed", tone: "warn" });
         if (loc.stale) pills.push({ label: "Stale", tone: "warn" });
         return {
-          key: loc.place_id,
-          sourceUrl: loc.place_id,
+          key: placeId,
+          sourceUrl: placeId,
           name: loc.name || "Untitled location",
           title: loc.name || "Untitled location",
           subtitle: loc.address || "No address on file",
           metaPills: pills,
           last_synced_at: loc.last_synced_at,
-          alreadyImported: existingSourceUrls.has(loc.place_id),
+          alreadyImported: existingSourceUrls.has(placeId),
         };
       });
     }

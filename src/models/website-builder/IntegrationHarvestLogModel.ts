@@ -56,6 +56,7 @@ export class IntegrationHarvestLogModel extends BaseModel {
       (qb) =>
         qb
           .where({ integration_id: integrationId })
+          .orderBy("harvest_date", "desc")
           .orderBy("attempted_at", "desc"),
       pagination,
       trx,

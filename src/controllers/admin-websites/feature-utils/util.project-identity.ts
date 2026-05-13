@@ -89,16 +89,15 @@ type IdentityReadinessInput = {
   business?: {
     name?: string | null;
   };
+  locations?: unknown;
 } | null;
 
 export function hasUsableIdentityForPageGeneration(
   identity: IdentityReadinessInput,
-): identity is NonNullable<IdentityReadinessInput> & {
-  business: { name: string };
-} {
+): identity is NonNullable<IdentityReadinessInput> {
   return (
-    typeof identity?.business?.name === "string" &&
-    identity.business.name.trim().length > 0
+    hasText(identity?.business?.name) ||
+    hasUsableLocations(identity?.locations)
   );
 }
 
@@ -112,4 +111,19 @@ export function hasUsableIdentityForSlotGeneration(
   identity: IdentityReadinessInput,
 ): boolean {
   return hasUsableIdentityForPageGeneration(identity);
+}
+
+function hasUsableLocations(locations: unknown): boolean {
+  return (
+    Array.isArray(locations) &&
+    locations.some((location) => {
+      if (!location || typeof location !== "object") return false;
+      const l = location as { name?: unknown; stale?: unknown };
+      return l.stale !== true && hasText(l.name);
+    })
+  );
+}
+
+function hasText(value: unknown): boolean {
+  return typeof value === "string" && value.trim().length > 0;
 }

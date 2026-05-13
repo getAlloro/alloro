@@ -93,7 +93,8 @@ function readPayloadRows(payload: unknown): Array<Record<string, unknown>> {
 }
 
 function isVersionedPayload(data: GscStoredPayload): boolean {
-  return data.schemaVersion === 2;
+  const schemaVersion = Number(data.schemaVersion);
+  return Number.isFinite(schemaVersion) && schemaVersion >= 2;
 }
 
 function readSummaryRows(data: GscStoredPayload): Array<Record<string, unknown>> {

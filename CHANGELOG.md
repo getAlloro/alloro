@@ -2,6 +2,28 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.67] - May 2026
+
+### No GBP Manual Identity Intake
+
+Added a first-class No GBP path for website identity warmup so new projects can provide structured business and location basics without pretending they have Google Business Profile data.
+
+**Key Changes:**
+- Added a No GBP yet mode to the Project Identity modal with business basics, hours, and repeatable manual locations
+- Required either a selected GBP profile or complete No GBP manual data before warmup can start
+- Stored manual locations with explicit manual source metadata and no fake Google place IDs
+- Cleared stale selected GBP columns when running a valid manual-only warmup
+- Kept layout/page generation blocked when identity only has raw URL/text scrape evidence and no structured business or location anchor
+
+**Commits:**
+- `frontend/src/components/Admin/IdentityModal.tsx` — No GBP mode, manual fields, rerun rehydration, and source-aware location rows
+- `frontend/src/api/websites.ts` — manual identity payload and nullable/manual location types
+- `src/controllers/admin-websites/AdminWebsitesController.ts` — hard source gate and stale GBP selection clearing
+- `src/controllers/admin-websites/feature-services/service.identity-warmup.ts` — manual business/location identity construction
+- `src/controllers/admin-websites/feature-utils/util.identity-context.ts` and `util.project-identity.ts` — manual location shape and strict generation readiness
+- `frontend/src/components/Admin/ImportFromIdentityModal.tsx` and `ReviewsTab.tsx` — GBP-only consumers ignore manual rows
+- `plans/05132026-no-ticket-no-gbp-manual-identity-intake/spec.md` — executed spec and revision log
+
 ## [0.0.65] - May 2026
 
 ### Google Token Refresh Ranking Guardrail

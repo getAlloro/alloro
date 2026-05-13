@@ -81,6 +81,8 @@ export interface WarmupInputs {
    */
   urls?: Array<string | WarmupUrlInput>;
   texts?: Array<{ label?: string; text: string }>;
+  manualBusiness?: ManualBusinessInput;
+  manualLocations?: ManualLocationInput[];
   logoUrl?: string;
   primaryColor?: string;
   accentColor?: string;
@@ -92,6 +94,26 @@ export interface WarmupInputs {
     text_color?: "white" | "dark";
     preset?: GradientPreset;
   };
+}
+
+export interface ManualBusinessInput {
+  name?: string;
+  category?: string;
+  phone?: string;
+  websiteUrl?: string;
+}
+
+export interface ManualLocationInput {
+  id?: string;
+  name?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  phone?: string;
+  websiteUrl?: string;
+  hours?: Record<string, string>;
+  isPrimary?: boolean;
 }
 
 export type GradientPreset =
@@ -133,6 +155,11 @@ interface IdentityBrand {
   fonts: { heading: string; body: string };
 }
 
+interface BusinessFallback {
+  name: string | null;
+  websiteUrl: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // PUBLIC: runIdentityWarmup
 // ---------------------------------------------------------------------------
@@ -151,6 +178,14 @@ export async function runIdentityWarmup(
 
   try {
     checkCancel(signal);
+
+    const project = await db(PROJECTS_TABLE)
+      .where("id", projectId)
+      .select("display_name", "selected_website_url")
+      .first();
+    if (!project) {
+      throw new Error(`Project ${projectId} not found`);
+    }
 
     // --- 1. GBP scrape ---
     let gbpData: any = null;
@@ -316,17 +351,23 @@ export async function runIdentityWarmup(
 
     // --- 3b. Multi-location sweep (runs BEFORE image processing so every
     // GBP's photos feed into the unified vision-analyzed manifest) ---
-    const { locations, secondaryImageUrls } = await buildLocationsArray(
+    const { locations: gbpLocations, secondaryImageUrls } = await buildLocationsArray(
       projectId,
       inputs.placeId,
       gbpData,
       inputs.practiceSearchString,
       signal,
     );
+    const manualLocations = buildManualLocations(
+      inputs.manualLocations,
+      gbpLocations.length === 0,
+    );
+    const locations = [...gbpLocations, ...manualLocations];
     log("Locations assembled", {
       total: locations.length,
       ready: locations.filter((l) => l.warmup_status === "ready").length,
       failed: locations.filter((l) => l.warmup_status === "failed").length,
+      manual: locations.filter((l) => l.source === "manual").length,
       secondary_images: secondaryImageUrls.length,
     });
 
@@ -403,7 +444,13 @@ export async function runIdentityWarmup(
     });
 
     // --- 8. Build identity + persist ---
-    const business = buildBusinessFromGbp(gbpData, inputs.placeId);
+    const business = buildBusinessFromGbp(
+      gbpData,
+      inputs.placeId,
+      getBusinessFallback(project, inputs),
+      inputs.manualBusiness,
+      locations,
+    );
     const brand = buildBrand(inputs, business.name, logoS3Url);
 
     // (Locations already assembled in step 3b — reused here in the identity
@@ -436,6 +483,17 @@ export async function runIdentityWarmup(
           label: t.label,
           char_length: (t.text || "").length,
         })),
+        manual:
+          inputs.manualBusiness || manualLocations.length > 0
+            ? {
+                business: inputs.manualBusiness || null,
+                locations: manualLocations.map((location) => ({
+                  id: location.id,
+                  name: location.name,
+                  is_primary: location.is_primary,
+                })),
+              }
+            : null,
       },
       business,
       brand,
@@ -514,22 +572,135 @@ function cleanForClaude(html: string): string {
 function buildBusinessFromGbp(
   gbpData: any,
   fallbackPlaceId: string | undefined,
+  fallback: BusinessFallback = { name: null, websiteUrl: null },
+  manualBusiness?: ManualBusinessInput,
+  locations: IdentityLocation[] = [],
 ): IdentityBusiness {
   const g = gbpData || {};
+  const primaryManualLocation =
+    locations.find((location) => location.source === "manual" && location.is_primary) ||
+    locations.find((location) => location.source === "manual") ||
+    null;
   return {
-    name: g.title || g.name || null,
-    category: g.categoryName || g.category || null,
-    phone: g.phone || null,
-    address: g.address || null,
-    city: g.city || null,
-    state: g.state || null,
-    zip: g.postalCode || null,
-    hours: g.openingHours || null,
+    name: firstNonEmptyString(g.title, g.name, manualBusiness?.name, primaryManualLocation?.name, fallback.name),
+    category: firstNonEmptyString(g.categoryName, g.category, manualBusiness?.category, primaryManualLocation?.category),
+    phone: firstNonEmptyString(g.phone, manualBusiness?.phone, primaryManualLocation?.phone),
+    address: firstNonEmptyString(g.address, primaryManualLocation?.address),
+    city: firstNonEmptyString(g.city, primaryManualLocation?.city),
+    state: firstNonEmptyString(g.state, primaryManualLocation?.state),
+    zip: firstNonEmptyString(g.postalCode, primaryManualLocation?.zip),
+    hours: g.openingHours || primaryManualLocation?.hours || null,
     rating: g.totalScore ?? g.rating ?? null,
     review_count: g.reviewsCount ?? g.reviewCount ?? null,
-    website_url: g.website || null,
+    website_url: firstNonEmptyString(
+      g.website,
+      manualBusiness?.websiteUrl,
+      primaryManualLocation?.website_url,
+      fallback.websiteUrl,
+    ),
     place_id: fallbackPlaceId || g.placeId || null,
   };
+}
+
+function getBusinessFallback(
+  project: { display_name?: string | null; selected_website_url?: string | null },
+  inputs: WarmupInputs,
+): BusinessFallback {
+  return {
+    name: firstNonEmptyString(project.display_name, inputs.practiceSearchString),
+    websiteUrl: firstNonEmptyString(
+      project.selected_website_url,
+      getFirstInputUrl(inputs.urls),
+    ),
+  };
+}
+
+function getFirstInputUrl(
+  urls: Array<string | WarmupUrlInput> | undefined,
+): string | null {
+  if (!Array.isArray(urls)) return null;
+  for (const entry of urls) {
+    const url = typeof entry === "string" ? entry : entry?.url;
+    const trimmed = firstNonEmptyString(url);
+    if (trimmed) return trimmed;
+  }
+  return null;
+}
+
+function firstNonEmptyString(
+  ...values: Array<string | null | undefined>
+): string | null {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const trimmed = value.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return null;
+}
+
+function normalizeText(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : null;
+}
+
+function isCompleteManualLocationInput(
+  location: ManualLocationInput,
+): boolean {
+  if (!location || typeof location !== "object") return false;
+  return (
+    !!normalizeText(location.name) &&
+    !!normalizeText(location.address) &&
+    !!normalizeText(location.city) &&
+    !!normalizeText(location.state) &&
+    !!normalizeText(location.zip) &&
+    !!normalizeText(location.phone) &&
+    hasManualHours(location.hours)
+  );
+}
+
+function hasManualHours(hours: ManualLocationInput["hours"]): boolean {
+  return (
+    !!hours &&
+    typeof hours === "object" &&
+    Object.values(hours).some((value) => normalizeText(value) !== null)
+  );
+}
+
+function normalizeManualHours(
+  hours: ManualLocationInput["hours"],
+): Record<string, string> | null {
+  if (!hours || typeof hours !== "object") return null;
+  const normalized: Record<string, string> = {};
+  for (const [day, value] of Object.entries(hours)) {
+    const text = normalizeText(value);
+    if (text) normalized[day] = text;
+  }
+  return Object.keys(normalized).length > 0 ? normalized : null;
+}
+
+function getManualLocationId(
+  location: ManualLocationInput,
+  index: number,
+): string {
+  const existing = normalizeText(location.id);
+  if (existing) return existing;
+  const basis = [
+    location.name,
+    location.address,
+    location.city,
+    location.state,
+    location.zip,
+  ]
+    .map((value) => normalizeText(value))
+    .filter((value): value is string => !!value)
+    .join(" ");
+  const slug = basis
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return `manual-${slug || `location-${index + 1}`}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -537,9 +708,14 @@ function buildBusinessFromGbp(
 // ---------------------------------------------------------------------------
 
 export interface IdentityLocation {
-  place_id: string;
+  id?: string;
+  source?: "gbp" | "manual";
+  place_id: string | null;
   name: string;
   address: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
   phone: string | null;
   rating: number | null;
   review_count: number | null;
@@ -560,9 +736,14 @@ function buildLocationEntryFromGbp(
 ): IdentityLocation {
   const g = gbpData || {};
   return {
+    id: placeId,
+    source: "gbp",
     place_id: placeId,
     name: g.title || g.name || "",
     address: g.address || null,
+    city: g.city || null,
+    state: g.state || null,
+    zip: g.postalCode || null,
     phone: g.phone || null,
     rating: (g.totalScore ?? g.rating ?? null) as number | null,
     review_count: (g.reviewsCount ?? g.reviewCount ?? null) as number | null,
@@ -573,6 +754,43 @@ function buildLocationEntryFromGbp(
     is_primary: isPrimary,
     warmup_status: "ready",
   };
+}
+
+function buildManualLocations(
+  manualLocations: ManualLocationInput[] | undefined,
+  shouldMarkFirstPrimary: boolean,
+): IdentityLocation[] {
+  if (!Array.isArray(manualLocations)) return [];
+
+  const validLocations = manualLocations.filter(isCompleteManualLocationInput);
+  const explicitPrimaryIndex = validLocations.findIndex((location) => location.isPrimary);
+
+  return validLocations.map((location, index) => {
+    const isPrimary = explicitPrimaryIndex >= 0
+      ? index === explicitPrimaryIndex
+      : shouldMarkFirstPrimary && index === 0;
+    const id = getManualLocationId(location, index);
+
+    return {
+      id,
+      source: "manual",
+      place_id: null,
+      name: normalizeText(location.name) || "",
+      address: normalizeText(location.address),
+      city: normalizeText(location.city),
+      state: normalizeText(location.state),
+      zip: normalizeText(location.zip),
+      phone: normalizeText(location.phone),
+      rating: null,
+      review_count: null,
+      category: null,
+      website_url: normalizeText(location.websiteUrl),
+      hours: normalizeManualHours(location.hours),
+      last_synced_at: new Date().toISOString(),
+      is_primary: isPrimary,
+      warmup_status: "ready",
+    };
+  });
 }
 
 /**
@@ -642,9 +860,14 @@ async function buildLocationsArray(
       // scrape failed). Mark the entry pending so the UI shows it needs a
       // retry; do not throw — warmup overall still succeeded on other signals.
       results[i] = {
+        id,
+        source: "gbp",
         place_id: id,
         name: "",
         address: null,
+        city: null,
+        state: null,
+        zip: null,
         phone: null,
         rating: null,
         review_count: null,
@@ -674,9 +897,14 @@ async function buildLocationsArray(
       const scraped = await scrapeGbp(id, practiceSearchString, signal);
       if (!scraped) {
         results[i] = {
+          id,
+          source: "gbp",
           place_id: id,
           name: "",
           address: null,
+          city: null,
+          state: null,
+          zip: null,
           phone: null,
           rating: null,
           review_count: null,
@@ -700,9 +928,14 @@ async function buildLocationsArray(
     } catch (err: any) {
       log("Location scrape failed", { placeId: id, error: err?.message });
       results[i] = {
+        id,
+        source: "gbp",
         place_id: id,
         name: "",
         address: null,
+        city: null,
+        state: null,
+        zip: null,
         phone: null,
         rating: null,
         review_count: null,
@@ -1052,11 +1285,12 @@ async function distillContent(
       .map((l) => {
         const name = l.name || "(unnamed)";
         const addr = l.address || "(no address)";
-        return `- ${l.place_id} — ${name} — ${addr}`;
+        const id = l.place_id || l.id || "manual-location";
+        return `- ${id} — ${name} — ${addr}`;
       })
       .join("\n");
     parts.push(
-      `## LOCATIONS (use these place_ids for doctors[].location_place_ids when the doctor is explicitly tied to an office)\n\n${locLines}`,
+      `## LOCATIONS (use these location ids for doctors[].location_place_ids when the doctor is explicitly tied to an office)\n\n${locLines}`,
     );
   }
 

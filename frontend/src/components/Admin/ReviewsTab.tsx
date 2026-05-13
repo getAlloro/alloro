@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, RefreshCw } from "lucide-react";
 import type { ReviewItem } from "../../api/reviewBlocks";
+import type { ProjectIdentityLocation } from "../../api/websites";
 import {
   useAdminReviewJob,
   useAdminReviews,
@@ -27,13 +28,24 @@ type ReviewsTabProps = {
   projectId: string;
   organizationId?: number;
   identity?: {
-    locations?: ReviewLocation[];
+    locations?: Array<ReviewLocation | ProjectIdentityLocation>;
   } | null;
 };
 
 export default function ReviewsTab({ projectId, organizationId, identity }: ReviewsTabProps) {
   const confirm = useConfirm();
-  const locations = useMemo(() => identity?.locations || [], [identity?.locations]);
+  const locations = useMemo<ReviewLocation[]>(
+    () =>
+      (identity?.locations || [])
+        .filter((loc) => typeof loc.place_id === "string" && loc.place_id.length > 0)
+        .map((loc) => ({
+          name: loc.name,
+          place_id: loc.place_id as string,
+          is_primary: loc.is_primary,
+          review_count: loc.review_count,
+        })),
+    [identity?.locations],
+  );
   const [activeJob, setActiveJob] = useState<ActiveReviewJob | null>(() => getStoredReviewJob(projectId));
   const [actionError, setActionError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");

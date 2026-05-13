@@ -189,9 +189,14 @@ export interface ProjectIdentity {
     }>;
   };
   locations?: Array<{
-    place_id: string;
+    id?: string;
+    source?: "gbp" | "manual";
+    place_id?: string | null;
     name: string;
     address: string | null;
+    city?: string | null;
+    state?: string | null;
+    zip?: string | null;
     phone: string | null;
     rating: number | null;
     review_count: number | null;

@@ -555,6 +555,28 @@ export interface WarmupUrlInput {
   strategy?: ScrapeStrategy;
 }
 
+export type ManualHours = Record<string, string>;
+
+export interface ManualBusinessInput {
+  name: string;
+  category: string;
+  phone: string;
+  websiteUrl?: string;
+}
+
+export interface ManualLocationInput {
+  id?: string;
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  phone: string;
+  websiteUrl?: string;
+  hours: ManualHours;
+  isPrimary?: boolean;
+}
+
 export interface WarmupInputs {
   /** Primary GBP place_id. When `placeIds` is present, primary should match its first entry. */
   placeId?: string;
@@ -564,6 +586,8 @@ export interface WarmupInputs {
   /** String or object-with-strategy. Backend accepts both. */
   urls?: Array<string | WarmupUrlInput>;
   texts?: Array<{ label?: string; text: string }>;
+  manualBusiness?: ManualBusinessInput;
+  manualLocations?: ManualLocationInput[];
   logoUrl?: string;
   primaryColor?: string;
   accentColor?: string;
@@ -2061,9 +2085,14 @@ export interface ProjectIdentityListEntry {
 
 /** Structured location entry stored in `identity.locations[]`. */
 export interface ProjectIdentityLocation {
-  place_id: string;
+  id?: string;
+  source?: "gbp" | "manual";
+  place_id?: string | null;
   name: string;
   address: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
   phone: string | null;
   rating: number | null;
   review_count: number | null;
