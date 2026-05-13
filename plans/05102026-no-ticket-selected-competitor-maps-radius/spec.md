@@ -241,3 +241,8 @@ For execution, this is large enough to split by ownership if sub-agents are expl
 **Change:** Make 25 mi the recommended default radius in the selector/reselector UI, add a visible recommended badge/tooltip, and preserve local Google Places result order while filtering automated suggestions to the selected radius.
 **Reason:** The default selector should favor competitors that appear in the local Maps query (for example, `endodontist in Falls Church, VA`) so the selected comparison set better matches the numbered Maps list. Wider 50/100 mi searches can remain broader exploratory modes where more competitors may be outside the top local snapshot.
 **Updated Done criteria:** Verify the 25 mi control shows a recommended badge/tooltip, reselection opens on 25 mi, default discovery still resolves to 25 mi, and local-radius suggestions are ordered by sampled Maps position rather than profile strength.
+
+### Rev 5 — 2026-05-14
+**Change:** Make local specialist discovery trust the exact Google Places query order before applying lower-level specialty filtering.
+**Reason:** Google often returns relevant specialist practices with generic `dentist` primary types. Filtering those out during refresh causes skipped Maps estimate numbers even when the default 25-mile search should select the local top competitors first.
+**Updated Done criteria:** Recommended-radius refresh should select the top local Google Places results for the exact specialty query, excluding the user's own listing afterward, before broader or manually curated selections can create skipped rank numbers.

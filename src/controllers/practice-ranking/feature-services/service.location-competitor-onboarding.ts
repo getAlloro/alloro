@@ -383,6 +383,14 @@ async function discoverCompetitorCandidates(
     comparison.isDentalSpecialist ? 20 : limit,
     locationBias
   );
+
+  if (comparison.isDentalSpecialist) {
+    // The exact query ("endodontist in Falls Church, VA") is the primary
+    // local-rank signal. Google often labels relevant specialist practices as
+    // generic dentists, so do not reorder or drop top local Maps results here.
+    return rawCompetitors.slice(0, limit);
+  }
+
   return filterBySpecialty(rawCompetitors, comparison.query).slice(0, limit);
 }
 
