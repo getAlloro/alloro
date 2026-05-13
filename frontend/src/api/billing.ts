@@ -108,3 +108,19 @@ export async function createPortalSession(): Promise<PortalResponse> {
 export async function getBillingDetails(): Promise<BillingDetails> {
   return apiGet({ path: "/billing/details" });
 }
+
+/**
+ * Admin: create a Stripe Checkout Session for an arbitrary organization.
+ * Used by the "Add Payment" button in the admin Org Subscription view.
+ * Returns a Stripe-hosted checkout URL that captures a card and starts the subscription.
+ * Fix for BUG-01.
+ */
+export async function adminCreateCheckoutForOrg(
+  orgId: number,
+  tier: "DWY" | "DFY" | "growth" | "full" = "DFY",
+): Promise<CheckoutResponse> {
+  return apiPost({
+    path: "/billing/admin/checkout",
+    passedData: { orgId, tier, isOnboarding: false },
+  });
+}

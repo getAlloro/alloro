@@ -30,6 +30,7 @@ import {
   type AdminBillingDetails,
   type AccountType,
 } from "../../api/admin-organizations";
+import { adminCreateCheckoutForOrg } from "../../api/billing";
 import { fetchWebsites, linkWebsiteToOrganization } from "../../api/websites";
 
 interface OrgSubscriptionSectionProps {
@@ -46,6 +47,7 @@ export function OrgSubscriptionSection({
   const confirm = useConfirm();
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [isRemovingPayment, setIsRemovingPayment] = useState(false);
+  const [isAddingPayment, setIsAddingPayment] = useState(false);
   const [isLockoutLoading, setIsLockoutLoading] = useState(false);
   const [isSavingType, setIsSavingType] = useState(false);
   const [billingDetails, setBillingDetails] = useState<AdminBillingDetails | null>(null);
@@ -138,6 +140,28 @@ export function OrgSubscriptionSection({
       toast.error(error?.message || "Failed to attach website");
     } finally {
       setIsAttaching(false);
+    }
+  };
+
+  const handleAddPayment = async () => {
+    setIsAddingPayment(true);
+    try {
+      const response = await adminCreateCheckoutForOrg(orgId);
+      if (response.success && response.url) {
+        // Stripe-hosted checkout in a new tab so the admin doesn't lose context
+        window.open(response.url, "_blank", "noopener,noreferrer");
+        toast.success("Stripe checkout opened in a new tab");
+      } else {
+        toast.error(response.error || "Failed to open payment form");
+      }
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.error ||
+        error?.message ||
+        "Failed to open payment form";
+      toast.error(message);
+    } finally {
+      setIsAddingPayment(false);
     }
   };
 
@@ -636,6 +660,24 @@ export function OrgSubscriptionSection({
                 </div>
               )}
             </div>
+          )}
+
+          {!org.stripe_customer_id && (
+            <button
+              onClick={handleAddPayment}
+              disabled={isAddingPayment}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-alloro-orange rounded-lg hover:bg-alloro-orange/90 transition-colors disabled:opacity-50"
+            >
+              <CreditCard className="h-3.5 w-3.5" />
+              {isAddingPayment ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Opening...
+                </>
+              ) : (
+                "Add Payment"
+              )}
+            </button>
           )}
 
           {org.stripe_customer_id && (
