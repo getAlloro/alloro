@@ -771,6 +771,24 @@ export async function auditWebsite(url: string): Promise<WebsiteAuditResult> {
  * Get specialty-specific keywords for name matching
  */
 export function getSpecialtyKeywords(specialty: string): string[] {
+  const normalizedSpecialty =
+    {
+      orthodontist: "orthodontics",
+      orthodontists: "orthodontics",
+      endodontist: "endodontics",
+      endodontists: "endodontics",
+      periodontist: "periodontics",
+      periodontists: "periodontics",
+      "oral surgeon": "oral_surgery",
+      "oral surgeons": "oral_surgery",
+      oral_surgeon: "oral_surgery",
+      "pediatric dentist": "pediatric",
+      "pediatric dentists": "pediatric",
+      pediatric_dentist: "pediatric",
+      prosthodontist: "prosthodontics",
+      prosthodontists: "prosthodontics",
+    }[specialty.toLowerCase().trim()] || specialty.toLowerCase().trim();
+
   const keywordMap: Record<string, string[]> = {
     orthodontics: ["orthodont", "braces", "invisalign", "ortho"],
     endodontics: ["endodont", "root canal", "endo"],
@@ -780,7 +798,7 @@ export function getSpecialtyKeywords(specialty: string): string[] {
     prosthodontics: ["prosthodont", "dentures", "implants", "crowns"],
   };
 
-  return keywordMap[specialty.toLowerCase()] || [];
+  return keywordMap[normalizedSpecialty] || [];
 }
 
 export default {

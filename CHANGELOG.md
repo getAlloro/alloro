@@ -2,6 +2,27 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.68] - May 2026
+
+### Ranking Pipeline Optimization
+
+Reduced local ranking runtime while preserving the client-facing analysis contract by reusing GBP data, avoiding unnecessary competitor scrapes, and recording structured step timings.
+
+**Key Changes:**
+- Reused the pre-identification Google Business Profile payload in scheduled-style ranking runs when account, location, and date window match
+- Added `raw_data.pipeline_timings` records for search position, competitor resolution, GBP, competitor details, website audit, posts, score calculation, and LLM
+- Skipped full Apify competitor detail scraping when finalized curated competitors already have fresh Google Places metadata
+- Normalized specialty keyword aliases such as `endodontist` to the same endodontic keyword set used by scoring
+- Preferred the GBP `websiteUri` for website audit instead of falling back to the root domain first
+- Compacted the ranking LLM input and tightened prose length guidance while preserving the existing JSON schema
+
+**Commits:**
+- `src/controllers/agents/feature-services/service.ranking-executor.ts` — pass pre-fetched GBP profile data into the ranking pipeline
+- `src/controllers/practice-ranking/feature-services/service.ranking-pipeline.ts` — GBP reuse, timing telemetry, curated competitor fast path, and GBP website audit URL
+- `src/controllers/practice-ranking/feature-services/service.ranking-llm.ts` — compact LLM input packet, output-length guidance, and timing success/failure return
+- `src/controllers/practice-ranking/feature-services/service.apify.ts` and `service.competitor-source-resolver.ts` — specialty alias normalization and curated metadata freshness markers
+- `plans/05122026-no-ticket-ranking-pipeline-optimization/*` — executed spec and Falls Church quality/timing fixture
+
 ## [0.0.67] - May 2026
 
 ### No GBP Manual Identity Intake

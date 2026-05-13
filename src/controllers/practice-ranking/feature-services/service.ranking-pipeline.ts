@@ -67,6 +67,36 @@ export interface LocationParams {
   city?: string | null;
 }
 
+export interface PrefetchedClientGbpData {
+  accountId: string;
+  locationId: string;
+  displayName: string;
+  startDate: string;
+  endDate: string;
+  data: any;
+}
+
+export interface ProcessLocationRankingOptions {
+  prefetchedClientGbpData?: PrefetchedClientGbpData;
+}
+
+type PipelineTimingOutcome = "success" | "failed" | "skipped";
+
+export interface PipelineTimingRecord {
+  step: string;
+  startedAt: string;
+  endedAt: string;
+  durationMs: number;
+  outcome: PipelineTimingOutcome;
+  detail?: string;
+}
+
+interface ActivePipelineTiming {
+  step: string;
+  startedAt: Date;
+  startedAtMs: number;
+}
+
 interface SearchResultPayloadEntry {
   placeId: string;
   name: string;
@@ -92,6 +122,153 @@ interface SelectedCompetitorMapsContext {
   rating: number | null;
   review_count: number | null;
   primary_type: string | null;
+}
+
+function beginPipelineTiming(step: string): ActivePipelineTiming {
+  return {
+    step,
+    startedAt: new Date(),
+    startedAtMs: Date.now(),
+  };
+}
+
+function finishPipelineTiming(
+  timings: PipelineTimingRecord[],
+  active: ActivePipelineTiming,
+  outcome: PipelineTimingOutcome = "success",
+  detail?: string,
+): void {
+  timings.push({
+    step: active.step,
+    startedAt: active.startedAt.toISOString(),
+    endedAt: new Date().toISOString(),
+    durationMs: Date.now() - active.startedAtMs,
+    outcome,
+    ...(detail ? { detail } : {}),
+  });
+}
+
+function isMatchingPrefetchedClientGbpData(
+  prefetched: PrefetchedClientGbpData | undefined,
+  targetLocation: { accountId: string; locationId: string },
+  startDate: string,
+  endDate: string,
+): prefetched is PrefetchedClientGbpData {
+  return (
+    !!prefetched?.data &&
+    prefetched.accountId === targetLocation.accountId &&
+    prefetched.locationId === targetLocation.locationId &&
+    prefetched.startDate === startDate &&
+    prefetched.endDate === endDate
+  );
+}
+
+function buildClientGbpDataFromPrefetch(
+  prefetched: PrefetchedClientGbpData,
+): any {
+  return {
+    locations: [
+      {
+        accountId: prefetched.accountId,
+        locationId: prefetched.locationId,
+        displayName: prefetched.displayName,
+        data: prefetched.data,
+      },
+    ],
+    totalLocations: 1,
+  };
+}
+
+function normalizeAuditWebsiteUrl(
+  candidate: string | null | undefined,
+): string | null {
+  if (!candidate || typeof candidate !== "string") return null;
+  const trimmed = candidate.trim();
+  if (!trimmed) return null;
+  const withProtocol = /^https?:\/\//i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`;
+
+  try {
+    const parsed = new URL(withProtocol);
+    if (!parsed.hostname) return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function resolveAuditWebsite(
+  gbpWebsiteUri: string | null | undefined,
+  domain: string,
+): string {
+  return (
+    normalizeAuditWebsiteUrl(gbpWebsiteUri) ||
+    normalizeAuditWebsiteUrl(domain) ||
+    `https://${domain}`
+  );
+}
+
+function hasFreshCuratedCompetitorMetadata(competitor: any): boolean {
+  const checkedAt =
+    competitor.discoveryCheckedAt instanceof Date
+      ? competitor.discoveryCheckedAt
+      : competitor.discoveryCheckedAt
+        ? new Date(competitor.discoveryCheckedAt)
+        : null;
+  const maxAgeMs = 24 * 60 * 60 * 1000;
+  const isFresh =
+    checkedAt !== null &&
+    !Number.isNaN(checkedAt.getTime()) &&
+    Date.now() - checkedAt.getTime() <= maxAgeMs;
+
+  return (
+    isFresh &&
+    !!competitor.placeId &&
+    !!competitor.name &&
+    !!competitor.address &&
+    !!(competitor.primaryType || competitor.category) &&
+    typeof competitor.totalScore === "number" &&
+    Number.isFinite(competitor.totalScore) &&
+    typeof competitor.reviewsCount === "number" &&
+    Number.isFinite(competitor.reviewsCount)
+  );
+}
+
+function buildCompetitorDetailFromDiscovery(
+  competitor: any,
+  specialtyKeywords: string[],
+): any {
+  const primaryCategory =
+    competitor.category || competitor.primaryType || "Unknown";
+  const hasKeywordInName = specialtyKeywords.some((keyword) =>
+    (competitor.name || "").toLowerCase().includes(keyword.toLowerCase()),
+  );
+
+  return {
+    placeId: competitor.placeId,
+    name: competitor.name,
+    address: competitor.address || "",
+    categories:
+      Array.isArray(competitor.types) && competitor.types.length > 0
+        ? competitor.types
+        : [primaryCategory],
+    primaryCategory,
+    totalReviews: competitor.reviewsCount ?? 0,
+    averageRating: competitor.totalScore ?? 0,
+    reviewsLast30d: 0,
+    reviewsLast90d: 0,
+    photosCount: competitor.photosCount ?? 0,
+    postsLast90d: 0,
+    hasWebsite: !!competitor.website,
+    hasPhone: !!competitor.phone,
+    hasHours: !!competitor.hasHours,
+    hoursComplete: !!competitor.hoursComplete,
+    descriptionLength: 0,
+    hasKeywordInName,
+    website: competitor.website,
+    phone: competitor.phone,
+  };
 }
 
 function buildSelectedCompetitorMapsContext(
@@ -275,6 +452,7 @@ async function markRankingFailed(
  * @param logger - Optional logging function
  * @param keywords - Optional custom keywords from Identifier Agent for scoring
  * @param locationParams - Optional location parameters from Identifier Agent for Apify search
+ * @param options - Optional execution context such as pre-fetched client GBP data
  */
 export async function processLocationRanking(
   rankingId: number,
@@ -289,9 +467,11 @@ export async function processLocationRanking(
   logger?: (msg: string) => void,
   keywords?: string[],
   locationParams?: LocationParams,
+  options: ProcessLocationRankingOptions = {},
 ): Promise<LocationRankingResult> {
   const startTime = Date.now();
   const log = logger || console.log;
+  const pipelineTimings: PipelineTimingRecord[] = [];
 
   log(
     `[RANKING] [${rankingId}] START: ${gbpLocationName} (${specialty} in ${marketLocation})`,
@@ -349,6 +529,7 @@ export async function processLocationRanking(
   // using the practice's own coordinates as the location bias. The same competitor
   // set drives Practice Health scoring (Option A — see spec).
   // Spec: plans/04122026-no-ticket-practice-health-search-position-split/spec.md
+  const searchPositionTiming = beginPipelineTiming("search_position");
   await updateStatus(
     rankingId,
     "processing",
@@ -571,6 +752,12 @@ export async function processLocationRanking(
       searchPosition ?? "n/a"
     }, source=${searchPositionSource ?? "n/a"}, places_api_competitors=${discoveredCompetitors.length}`,
   );
+  finishPipelineTiming(
+    pipelineTimings,
+    searchPositionTiming,
+    "success",
+    `status=${searchStatus};position=${searchPosition ?? "n/a"}`,
+  );
 
   // ========== STEP 0.5: Competitor Source Resolution (v2) ==========
   // For finalized locations (user has curated their competitor list), swap
@@ -578,6 +765,9 @@ export async function processLocationRanking(
   // against the user's chosen comparison group. Search Position above is
   // unaffected — it always uses raw Google top-N.
   // Spec: plans/04282026-no-ticket-practice-ranking-v2-user-curated-competitors/spec.md
+  const competitorResolutionTiming = beginPipelineTiming(
+    "competitor_resolution",
+  );
   const resolved = await resolveCompetitorsForRanking(
     rankingId,
     discoveredCompetitors,
@@ -593,6 +783,12 @@ export async function processLocationRanking(
   log(
     `[RANKING] [${rankingId}] Competitor source resolved: ${resolved.source}, ${discoveredCompetitors.length} competitors used for Practice Health`,
   );
+  finishPipelineTiming(
+    pipelineTimings,
+    competitorResolutionTiming,
+    "success",
+    `source=${resolved.source};competitors=${discoveredCompetitors.length}`,
+  );
   const selectedCompetitorMapsContext = buildSelectedCompetitorMapsContext(
     discoveredCompetitors,
     searchResultsPayload,
@@ -600,6 +796,7 @@ export async function processLocationRanking(
   );
 
   // ========== STEP 1: Fetch GBP Data ==========
+  const clientGbpTiming = beginPipelineTiming("client_gbp");
   await updateStatus(
     rankingId,
     "processing",
@@ -622,23 +819,47 @@ export async function processLocationRanking(
   }
 
   let clientGbpData: any;
+  let clientGbpSource: "prefetch" | "fetched" = "fetched";
   try {
-    clientGbpData = await fetchGBPDataForRange(
-      oauth2Client,
-      [targetLocation],
-      startDateStr,
-      endDateStr,
-      {
-        refreshOAuth2Client: async () => {
-          oauth2Client = await getValidOAuth2Client(googleAccountId, {
-            forceRefresh: true,
-          });
-          return oauth2Client;
+    if (
+      isMatchingPrefetchedClientGbpData(
+        options.prefetchedClientGbpData,
+        targetLocation,
+        startDateStr,
+        endDateStr,
+      )
+    ) {
+      clientGbpData = buildClientGbpDataFromPrefetch(
+        options.prefetchedClientGbpData,
+      );
+      clientGbpSource = "prefetch";
+      log(
+        `[RANKING] [${rankingId}] Step 1: reused pre-fetched GBP payload for ${gbpAccountId}/${gbpLocationId}`,
+      );
+    } else {
+      clientGbpData = await fetchGBPDataForRange(
+        oauth2Client,
+        [targetLocation],
+        startDateStr,
+        endDateStr,
+        {
+          refreshOAuth2Client: async () => {
+            oauth2Client = await getValidOAuth2Client(googleAccountId, {
+              forceRefresh: true,
+            });
+            return oauth2Client;
+          },
+          throwOnLocationError: true,
         },
-        throwOnLocationError: true,
-      },
-    );
+      );
+    }
   } catch (error: any) {
+    finishPipelineTiming(
+      pipelineTimings,
+      clientGbpTiming,
+      "failed",
+      error.message,
+    );
     const message =
       "Google Business Profile data could not be loaded. Reconnect Google or retry the ranking after token refresh.";
     await markRankingFailed(
@@ -656,6 +877,12 @@ export async function processLocationRanking(
     const error = new Error(
       `GBP data missing for ${gbpLocationName} (${gbpLocationId})`,
     );
+    finishPipelineTiming(
+      pipelineTimings,
+      clientGbpTiming,
+      "failed",
+      error.message,
+    );
     await markRankingFailed(
       rankingId,
       "fetching_client_gbp",
@@ -666,6 +893,12 @@ export async function processLocationRanking(
     );
     throw error;
   }
+  finishPipelineTiming(
+    pipelineTimings,
+    clientGbpTiming,
+    "success",
+    `source=${clientGbpSource}`,
+  );
 
   // ========== STEP 2: Discover Competitors ==========
   // The competitor list was already fetched in Step 0 via location-biased Places
@@ -709,19 +942,79 @@ export async function processLocationRanking(
     `[RANKING] [${rankingId}] Using ${specialtyKeywords.length} keywords (source: ${keywords && keywords.length > 0 ? "Identifier Agent" : "hardcoded"})`,
   );
   let competitorDetails: any[] = [];
+  const competitorDetailsTiming = beginPipelineTiming("competitor_details");
 
   try {
-    const competitorPlaceIds = discoveredCompetitors.map((c) => c.placeId);
-    competitorDetails = await getCompetitorDetails(
-      competitorPlaceIds,
-      specialtyKeywords,
-    );
+    if (resolved.source === "curated") {
+      const reusableDetails = new Map<string, any>();
+      const staleCompetitors: any[] = [];
+
+      for (const competitor of discoveredCompetitors) {
+        if (hasFreshCuratedCompetitorMetadata(competitor)) {
+          reusableDetails.set(
+            competitor.placeId,
+            buildCompetitorDetailFromDiscovery(competitor, specialtyKeywords),
+          );
+        } else {
+          staleCompetitors.push(competitor);
+        }
+      }
+
+      const scrapedDetails =
+        staleCompetitors.length > 0
+          ? await getCompetitorDetails(
+              staleCompetitors.map((c) => c.placeId),
+              specialtyKeywords,
+            )
+          : [];
+      const scrapedByPlaceId = new Map(
+        scrapedDetails.map((detail) => [detail.placeId, detail]),
+      );
+
+      competitorDetails = discoveredCompetitors
+        .map((competitor) => {
+          return (
+            reusableDetails.get(competitor.placeId) ||
+            scrapedByPlaceId.get(competitor.placeId)
+          );
+        })
+        .filter(Boolean);
+
+      log(
+        `[RANKING] [${rankingId}] Curated competitor details: reused ${reusableDetails.size}, scraped ${scrapedDetails.length}`,
+      );
+      finishPipelineTiming(
+        pipelineTimings,
+        competitorDetailsTiming,
+        staleCompetitors.length > 0 ? "success" : "skipped",
+        `reused=${reusableDetails.size};scraped=${scrapedDetails.length}`,
+      );
+    } else {
+      const competitorPlaceIds = discoveredCompetitors.map((c) => c.placeId);
+      competitorDetails = await getCompetitorDetails(
+        competitorPlaceIds,
+        specialtyKeywords,
+      );
+      finishPipelineTiming(
+        pipelineTimings,
+        competitorDetailsTiming,
+        "success",
+        `scraped=${competitorDetails.length}`,
+      );
+    }
+
     const withReviews = competitorDetails.filter((c) => c.totalReviews > 0).length;
     const withRatings = competitorDetails.filter((c) => c.averageRating > 0).length;
     log(
-      `[RANKING] [${rankingId}] Deep scrape: ${competitorDetails.length} competitors, ${withReviews} with review data, ${withRatings} with ratings`,
+      `[RANKING] [${rankingId}] Competitor details: ${competitorDetails.length} competitors, ${withReviews} with review data, ${withRatings} with ratings`,
     );
   } catch (error: any) {
+    finishPipelineTiming(
+      pipelineTimings,
+      competitorDetailsTiming,
+      "failed",
+      error.message,
+    );
     log(
       `[RANKING] [${rankingId}] Detailed scrape failed, using discovery fallback: ${error.message}`,
     );
@@ -793,7 +1086,12 @@ export async function processLocationRanking(
     });
   }
 
+  const clientLocation = clientGbpData?.locations?.[0];
+  const gbpData = clientLocation?.data;
+  const profileData = gbpData?.profile;
+
   // ========== STEP 4: Website Audit ==========
+  const websiteAuditTiming = beginPipelineTiming("website_audit");
   await updateStatus(
     rankingId,
     "processing",
@@ -805,10 +1103,22 @@ export async function processLocationRanking(
   );
 
   let websiteAudit = null;
-  const clientWebsite = targetLocation?.website || `https://${domain}`;
+  const clientWebsite = resolveAuditWebsite(profileData?.websiteUri, domain);
   try {
     websiteAudit = await auditWebsite(clientWebsite);
+    finishPipelineTiming(
+      pipelineTimings,
+      websiteAuditTiming,
+      "success",
+      `url=${clientWebsite}`,
+    );
   } catch (error: any) {
+    finishPipelineTiming(
+      pipelineTimings,
+      websiteAuditTiming,
+      "failed",
+      error.message,
+    );
     log(`[RANKING] [${rankingId}] Website audit failed: ${error.message}`);
   }
 
@@ -823,11 +1133,8 @@ export async function processLocationRanking(
     log,
   );
 
-  const clientLocation = clientGbpData?.locations?.[0];
-  const gbpData = clientLocation?.data;
-  const profileData = gbpData?.profile;
-
   // Fetch local posts for last 30 days via GBP API
+  const postsTiming = beginPipelineTiming("posts");
   let postsLast30d = 0;
   try {
     const postsEndDate = new Date();
@@ -852,7 +1159,19 @@ export async function processLocationRanking(
     log(
       `[RANKING] [${rankingId}] ✓ Fetched ${postsLast30d} posts from last 30 days`,
     );
+    finishPipelineTiming(
+      pipelineTimings,
+      postsTiming,
+      "success",
+      `posts=${postsLast30d}`,
+    );
   } catch (error: any) {
+    finishPipelineTiming(
+      pipelineTimings,
+      postsTiming,
+      "failed",
+      error.message,
+    );
     log(`[RANKING] [${rankingId}] ✗ Failed to fetch posts: ${error.message}`);
     // Continue with postsLast30d = 0 if fetch fails
   }
@@ -889,6 +1208,7 @@ export async function processLocationRanking(
     }
   }
 
+  const scoreCalculationTiming = beginPipelineTiming("score_calculation");
   const clientPracticeData: PracticeData = {
     name: gbpLocationName || profileData?.title || domain,
     primaryCategory: profileData?.primaryCategory || "Dentist",
@@ -995,6 +1315,7 @@ export async function processLocationRanking(
     competitors_from_cache: usedCache,
     competitor_discovery_radius_meters: competitorDiscoveryRadiusMeters,
     website_audit: websiteAudit,
+    pipeline_timings: pipelineTimings,
   };
 
   const rankingFactors = {
@@ -1067,6 +1388,12 @@ export async function processLocationRanking(
       details: clientRanking.factors.sentiment.details,
     },
   };
+  finishPipelineTiming(
+    pipelineTimings,
+    scoreCalculationTiming,
+    "success",
+    `score=${clientRanking.totalScore};rank=${clientRankResult?.rankPosition || 1}`,
+  );
 
   await db("practice_rankings")
     .where({ id: rankingId })
@@ -1144,7 +1471,29 @@ export async function processLocationRanking(
     },
   };
 
-  await runRankingAnalysis(rankingId, llmPayload, ranking, statusDetail, log);
+  const llmTiming = beginPipelineTiming("llm");
+  const llmResult = await runRankingAnalysis(
+    rankingId,
+    llmPayload,
+    ranking,
+    statusDetail,
+    log,
+  );
+  finishPipelineTiming(
+    pipelineTimings,
+    llmTiming,
+    llmResult.success ? "success" : "failed",
+    llmResult.success
+      ? `tokens=${llmResult.inputTokens ?? "n/a"}/${llmResult.outputTokens ?? "n/a"}`
+      : llmResult.error,
+  );
+  rawData.pipeline_timings = pipelineTimings;
+  await db("practice_rankings")
+    .where({ id: rankingId })
+    .update({
+      raw_data: JSON.stringify(rawData),
+      updated_at: new Date(),
+    });
 
   log(
     `[RANKING] [${rankingId}] COMPLETE in ${(

@@ -18,6 +18,7 @@ import {
   processLocationRanking,
   MAX_RETRIES,
   RETRY_DELAY_MS,
+  type PrefetchedClientGbpData,
 } from "../../practice-ranking/feature-services/service.ranking-pipeline";
 import { identifyLocationMeta } from "./service.webhook-orchestrator";
 import { log, logError, delay } from "../feature-utils/agentLogger";
@@ -208,8 +209,16 @@ export async function processRankingWork(workItems: WorkItem[]): Promise<void> {
 
       let specialty = "";
       let marketLocation = "";
+      let prefetchedClientGbpData: PrefetchedClientGbpData | undefined;
       try {
         let oauth2Client = await getValidOAuth2Client(loc.connectionId);
+        const prefetchEndDate = new Date();
+        const prefetchStartDate = new Date();
+        prefetchStartDate.setDate(prefetchStartDate.getDate() - 30);
+        const prefetchStartDateStr = prefetchStartDate
+          .toISOString()
+          .split("T")[0];
+        const prefetchEndDateStr = prefetchEndDate.toISOString().split("T")[0];
         const gbpProfile = await fetchGBPDataForRange(
           oauth2Client,
           [{
@@ -217,8 +226,8 @@ export async function processRankingWork(workItems: WorkItem[]): Promise<void> {
             locationId: loc.gbpLocationId,
             displayName: loc.gbpLocationName,
           }],
-          new Date().toISOString().split("T")[0],
-          new Date().toISOString().split("T")[0],
+          prefetchStartDateStr,
+          prefetchEndDateStr,
           {
             refreshOAuth2Client: async () => {
               oauth2Client = await getValidOAuth2Client(loc.connectionId, {
@@ -230,6 +239,16 @@ export async function processRankingWork(workItems: WorkItem[]): Promise<void> {
           },
         );
         const locationData = gbpProfile?.locations?.[0]?.data || {};
+        if (locationData && Object.keys(locationData).length > 0) {
+          prefetchedClientGbpData = {
+            accountId: loc.gbpAccountId,
+            locationId: loc.gbpLocationId,
+            displayName: loc.gbpLocationName,
+            startDate: prefetchStartDateStr,
+            endDate: prefetchEndDateStr,
+            data: locationData,
+          };
+        }
         const meta = await identifyLocationMeta(locationData, work.domain);
         specialty = meta.specialty;
         marketLocation = meta.marketLocation;
@@ -280,6 +299,9 @@ export async function processRankingWork(workItems: WorkItem[]): Promise<void> {
             work.domain,
             work.batchId,
             log,
+            undefined,
+            undefined,
+            { prefetchedClientGbpData },
           );
 
           success = true;
