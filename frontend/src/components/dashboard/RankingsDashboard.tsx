@@ -41,43 +41,6 @@ import {
  */
 const PRACTICE_HEALTH_METHODOLOGY_CHANGED_AT = "2026-04-12";
 
-/**
- * Date the Live Google Rank source switched from Google Places API
- * `searchText` to the Apify Google Maps actor. Position values observed
- * before this date measured a different surface (Places API ranking biased
- * to client coordinates) and are not directly comparable to Maps-panel
- * positions persisted after this cutover. Used to suppress the rank-position
- * trend arrow on the first post-cutover datapoint.
- *
- * Spec: plans/04282026-no-ticket-live-google-rank-apify-maps-swap/spec.md (T3)
- */
-const LIVE_GOOGLE_RANK_SOURCE_CHANGED_AT = "2026-04-28";
-
-/**
- * Maximum drift between consecutive runs' vantage points (in meters) before
- * the Search Position growth arrow is suppressed. Beyond this distance the
- * comparison isn't measuring the same thing — practice may have moved or the
- * Identifier Agent re-resolved to a different address.
- */
-const SEARCH_POSITION_VANTAGE_TOLERANCE_METERS = 500;
-
-/** Haversine distance in meters between two lat/lng points. */
-function haversineMeters(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number,
-): number {
-  const R = 6371000; // earth radius in meters
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(a));
-}
-
 // Type for client GBP data
 interface ClientGbpData {
   totalReviewCount?: number;
@@ -1316,64 +1279,6 @@ function HealthGauge({ value, prev }: { value: number; prev?: number | null }) {
   );
 }
 
-/**
- * Compute the live-rank trend pill state for the hero + search section.
- * Honors all stability guards (vantage drift, source mismatch, query change,
- * pre-cutover rows). Returns the data both the hero pill and the legacy
- * SearchPositionSection consumed inline before this redesign.
- */
-function computeSearchPositionTrend(result: RankingResult): {
-  showGrowthArrow: boolean;
-  positionDelta: number | null;
-  stabilityTooltip: string | null;
-} {
-  const hasPriorPosition = result.previousSearchPosition !== null;
-  const sameQuery =
-    result.previousSearchQuery !== null &&
-    result.previousSearchQuery === result.searchQuery;
-  const vantageStable =
-    result.searchLat !== null &&
-    result.searchLng !== null &&
-    result.previousSearchLat !== null &&
-    result.previousSearchLng !== null &&
-    haversineMeters(
-      result.previousSearchLat,
-      result.previousSearchLng,
-      result.searchLat,
-      result.searchLng,
-    ) <= SEARCH_POSITION_VANTAGE_TOLERANCE_METERS;
-
-  const sourceStable = (() => {
-    const curr = result.searchPositionSource;
-    const prev = result.previousSearchPositionSource;
-    if (curr !== null && prev !== null) return curr === prev;
-    if (curr !== null && prev === null && result.previousObservedAt) {
-      const prevDate = new Date(result.previousObservedAt);
-      const cutoff = new Date(LIVE_GOOGLE_RANK_SOURCE_CHANGED_AT);
-      return prevDate >= cutoff;
-    }
-    return true;
-  })();
-
-  const showGrowthArrow =
-    hasPriorPosition && sameQuery && vantageStable && sourceStable;
-
-  const positionDelta =
-    showGrowthArrow && result.searchPosition !== null
-      ? result.previousSearchPosition! - result.searchPosition
-      : null;
-
-  const stabilityTooltip = !hasPriorPosition
-    ? "First measurement — tracking starts now"
-    : !sourceStable
-      ? "Ranking source updated — tracking restarted"
-      : !sameQuery || !vantageStable
-        ? "Measurement updated — tracking restarted"
-        : null;
-
-  return { showGrowthArrow, positionDelta, stabilityTooltip };
-}
-
 function PracticeHealthComparisonCta({ onOpen }: { onOpen: () => void }) {
   return (
     <div className="mt-5 flex justify-center border-t border-line-soft pt-4">
@@ -1409,7 +1314,6 @@ function HeroPanel({
   onOpenComparison: () => void;
 }) {
   const status = result.searchStatus ?? "ok";
-  const trend = computeSearchPositionTrend(result);
   const rank = result.searchPosition;
   const accent = "#D66853";
   const rankColor =
@@ -1484,10 +1388,7 @@ function HeroPanel({
                 </div>
               </div>
 
-              <div className="pb-3 flex flex-col gap-3 min-w-0">
-                {trend.showGrowthArrow && trend.positionDelta !== null && (
-                  <Delta delta={trend.positionDelta} lowerIsBetter />
-                )}
+              <div className="pb-6 min-w-0">
                 <div className="text-[13px] font-medium text-alloro-navy/75 leading-relaxed max-w-[26ch]">
                   for{" "}
                   <span className="font-bold text-alloro-navy">

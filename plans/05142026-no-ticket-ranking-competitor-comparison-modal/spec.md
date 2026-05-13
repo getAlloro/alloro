@@ -83,3 +83,8 @@ Replace the Practice Health cohort sentence with a comparison CTA. The CTA opens
 **Change:** Add richer modal animation, clickable sortable table columns that sync with the dropdown, tie-aware leader copy, a smaller Practice Health gauge number, a centered comparison CTA, and animated gauge arc load.
 **Reason:** Pilot review showed the modal needed more interaction feedback and the gauge/CTA spacing looked visually heavy.
 **Updated Done criteria:** Verify table header sorting, dropdown sync, tie copy, centered CTA, and animated gauge arc.
+
+### Rev 2 — 2026-05-14
+**Change:** Remove the legacy red trend pill from the Google Maps estimate hero card and tighten the query label alignment while keeping the rank and metric sizes unchanged.
+**Reason:** The v1-style trend badge looked like an unrelated chart/trend element and made the hero card feel larger than needed.
+**Updated Done criteria:** Verify the Google Maps estimate card no longer renders the rank trend pill and keeps the same rank, rating, and review typography sizes.

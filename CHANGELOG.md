@@ -2,6 +2,23 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.77] - May 2026
+
+### Ranking Maps Estimate Cleanup
+
+Cleaned up the Local Rankings dashboard Maps estimate card and made recommended-radius competitor refresh trust the local Google Maps query order first.
+
+**Key Changes:**
+- Removed the legacy red trend pill from the Google Maps estimate hero card
+- Tightened the Maps query label alignment without changing the rank, rating, or review typography sizes
+- Updated local specialist competitor discovery to keep exact Google Places query order before lower-level specialty filtering
+- Added spec revisions for the dashboard card cleanup and competitor refresh ordering behavior
+
+**Commits:**
+- `frontend/src/components/dashboard/RankingsDashboard.tsx` - Maps estimate hero card trend-pill removal and layout cleanup
+- `src/controllers/practice-ranking/feature-services/service.location-competitor-onboarding.ts` - local specialist refresh now preserves exact Google Places order
+- `plans/05142026-no-ticket-ranking-competitor-comparison-modal/spec.md` and `plans/05102026-no-ticket-selected-competitor-maps-radius/spec.md` - Rev 2/Rev 5 verification notes
+
 ## [0.0.76] - May 2026
 
 ### Recommended Ranking Radius
