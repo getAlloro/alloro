@@ -29,6 +29,8 @@ interface Props {
   projectId: string;
   onRefresh: () => void;
   children?: ReactNode;
+  allowHarvestActions?: boolean;
+  harvestUnavailableMessage?: string;
 }
 
 const PAGE_SIZE = 10;
@@ -94,6 +96,8 @@ export default function IntegrationPanel({
   projectId,
   onRefresh,
   children,
+  allowHarvestActions = true,
+  harvestUnavailableMessage,
 }: Props) {
   const confirm = useConfirm();
   const [testing, setTesting] = useState(false);
@@ -289,32 +293,40 @@ export default function IntegrationPanel({
 
         {/* Actions */}
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={handleRunToday}
-            disabled={runningToday}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition disabled:opacity-50"
-          >
-            {runningToday ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <RotateCcw className="w-3.5 h-3.5" />
-            )}
-            Run Today
-          </button>
-          <button
-            type="button"
-            onClick={handleTest}
-            disabled={testing}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
-          >
-            {testing ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <RefreshCw className="w-3.5 h-3.5" />
-            )}
-            Test Connection
-          </button>
+          {allowHarvestActions ? (
+            <>
+              <button
+                type="button"
+                onClick={handleRunToday}
+                disabled={runningToday}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition disabled:opacity-50"
+              >
+                {runningToday ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <RotateCcw className="w-3.5 h-3.5" />
+                )}
+                Run Today
+              </button>
+              <button
+                type="button"
+                onClick={handleTest}
+                disabled={testing}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
+              >
+                {testing ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-3.5 h-3.5" />
+                )}
+                Test Connection
+              </button>
+            </>
+          ) : (
+            <span className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700">
+              {harvestUnavailableMessage || "Data export is not configured"}
+            </span>
+          )}
           <button
             type="button"
             onClick={handleDisconnect}

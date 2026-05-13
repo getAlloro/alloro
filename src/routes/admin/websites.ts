@@ -402,6 +402,23 @@ router.post("/:id/integrations", integrationsController.createIntegration);
 
 const adminGscAuth = [authenticateToken, rbacMiddleware, superAdminMiddleware];
 
+// Clarity-specific routes (must be before /:integrationId params)
+router.get(
+  "/:id/integrations/clarity/status",
+  ...adminGscAuth,
+  integrationsController.getClarityStatus,
+);
+router.post(
+  "/:id/integrations/clarity",
+  ...adminGscAuth,
+  integrationsController.createClarityIntegration,
+);
+router.post(
+  "/:id/integrations/clarity/legacy-snippets/disable",
+  ...adminGscAuth,
+  integrationsController.disableClarityLegacySnippets,
+);
+
 // Rybbit-specific routes (must be before /:integrationId params)
 router.get(
   "/:id/integrations/rybbit/status",

@@ -19,7 +19,7 @@ const LOG_PREFIX = "[DATA-HARVEST]";
 const MAX_RETRIES = 3;
 const GSC_FRESHNESS_DAYS = 4;
 const RYBBIT_FRESHNESS_DAYS = 3;
-const CLARITY_FRESHNESS_DAYS = 3;
+const CLARITY_FRESHNESS_DAYS = 1;
 
 const PROVIDER_FRESHNESS_DAYS: Partial<Record<IntegrationPlatform, number>> = {
   gsc: GSC_FRESHNESS_DAYS,
