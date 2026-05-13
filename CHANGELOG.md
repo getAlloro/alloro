@@ -2,6 +2,29 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.75] - May 2026
+
+### Ranking Competitor Comparison And Rybbit History
+
+Added a richer Practice Health competitor comparison modal, made selected competitor review velocity honest and measurable, and added an admin-triggered Rybbit historic data rebuild path.
+
+**Key Changes:**
+- Replaced the Practice Health cohort sentence with a competitor comparison action and modal
+- Added sortable competitor factor rows for review count, measured review velocity, rating, Maps estimate, and Practice Health
+- Highlighted the user's own practice inside the selected competitors Google Maps list
+- Added selected-competitor velocity measurement using Apify only for selected competitors, with recent measured velocity reuse and explicit `not_measured` fallback
+- Stopped showing fake competitor `+0 / 30d` when review velocity was not measured
+- Added per-project Rybbit Fetch History support that clears stored Rybbit rows/logs and queues newest-first daily harvest jobs
+- Added an admin all-active Rybbit historic backfill runner with skip reporting
+
+**Commits:**
+- `frontend/src/components/dashboard/RankingsDashboard.tsx` and `frontend/src/components/dashboard/rankings/*` - Practice Health comparison modal, selected Maps list self-highlight, sorting, and honest velocity display
+- `src/controllers/practice-ranking/feature-services/service.ranking-pipeline.ts` - selected-competitor velocity enrichment, measured source metadata, cache reuse, and timing telemetry
+- `src/controllers/admin-websites/feature-services/service.rybbit-history.ts`, `WebsiteIntegrationsController.ts`, and `src/routes/admin/websites.ts` - Rybbit historic backfill service and admin routes
+- `src/models/website-builder/*` and `frontend/src/api/integrations.ts` - Rybbit model helpers and typed backfill API clients
+- `frontend/src/components/Admin/integrations/RybbitTab.tsx` - Rybbit Fetch History admin action
+- `plans/05142026-no-ticket-ranking-competitor-comparison-modal/spec.md`, `plans/05142026-no-ticket-selected-competitor-review-velocity/spec.md`, and `plans/05142026-no-ticket-rybbit-historic-backfill/spec.md` - executed specs and verification checklists
+
 ## [0.0.74] - May 2026
 
 ### Clarity Install And Export Integration

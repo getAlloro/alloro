@@ -93,4 +93,11 @@ export class RybbitDataModel extends BaseModel {
       .first();
     return Number(row?.count ?? 0);
   }
+
+  static async deleteByProjectId(
+    projectId: string,
+    trx?: QueryContext,
+  ): Promise<number> {
+    return this.table(trx).where({ project_id: projectId }).del();
+  }
 }

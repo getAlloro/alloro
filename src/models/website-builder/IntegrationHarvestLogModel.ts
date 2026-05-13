@@ -133,4 +133,14 @@ export class IntegrationHarvestLogModel extends BaseModel {
   ): Promise<number> {
     return this.table(trx).where({ integration_id: integrationId }).del();
   }
+
+  static async deleteByIntegrationAndPlatform(
+    integrationId: string,
+    platform: string,
+    trx?: QueryContext,
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ integration_id: integrationId, platform })
+      .del();
+  }
 }

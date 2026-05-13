@@ -71,6 +71,16 @@ export class WebsiteIntegrationModel extends BaseModel {
       .first();
   }
 
+  static async findActiveByPlatform(
+    platform: IntegrationPlatform,
+    trx?: QueryContext,
+  ): Promise<IWebsiteIntegrationSafe[]> {
+    return this.table(trx)
+      .select(SAFE_COLUMNS)
+      .where({ platform, status: "active" })
+      .orderBy("created_at", "asc");
+  }
+
   /**
    * Create a new integration with the given plaintext credentials.
    * Credentials are encrypted before insert.

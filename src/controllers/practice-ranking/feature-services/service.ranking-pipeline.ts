@@ -38,6 +38,7 @@ import { createNotification } from "../../../utils/core/notificationHelper";
 import { listLocalPostsInRange } from "../../../routes/gbp";
 import { runRankingAnalysis, RankingLlmPayload } from "./service.ranking-llm";
 import { DEFAULT_COMPETITOR_DISCOVERY_RADIUS_METERS } from "../feature-utils/util.competitor-validator";
+import { parseJsonField } from "../feature-utils/util.json-parser";
 import {
   isRetryableExternalError,
   runWithRetry,
@@ -128,6 +129,17 @@ interface SelectedCompetitorMapsContext {
   review_count: number | null;
   primary_type: string | null;
 }
+
+type ReviewVelocitySource = "apify" | "cache" | "not_measured";
+
+interface ReviewVelocityMeasurement {
+  reviewsLast30d: number;
+  reviewsLast90d: number | null;
+  source: ReviewVelocitySource;
+  measuredAt: string;
+}
+
+const SELECTED_COMPETITOR_VELOCITY_CACHE_MS = 7 * 24 * 60 * 60 * 1000;
 
 function beginPipelineTiming(step: string): ActivePipelineTiming {
   return {
@@ -261,8 +273,10 @@ function buildCompetitorDetailFromDiscovery(
     primaryCategory,
     totalReviews: competitor.reviewsCount ?? 0,
     averageRating: competitor.totalScore ?? 0,
-    reviewsLast30d: 0,
-    reviewsLast90d: 0,
+    reviewsLast30d: null,
+    reviewsLast90d: null,
+    reviewVelocitySource: "not_measured" as ReviewVelocitySource,
+    reviewVelocityMeasuredAt: null,
     photosCount: competitor.photosCount ?? 0,
     postsLast90d: 0,
     hasWebsite: !!competitor.website,
@@ -274,6 +288,248 @@ function buildCompetitorDetailFromDiscovery(
     website: competitor.website,
     phone: competitor.phone,
   };
+}
+
+function finiteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function markVelocityMeasured(
+  detail: any,
+  source: ReviewVelocitySource,
+  measuredAt: string,
+): any {
+  return {
+    ...detail,
+    reviewsLast30d: finiteNumber(detail?.reviewsLast30d) ?? 0,
+    reviewsLast90d: finiteNumber(detail?.reviewsLast90d),
+    reviewVelocitySource: source,
+    reviewVelocityMeasuredAt: measuredAt,
+  };
+}
+
+function markVelocityNotMeasured(detail: any): any {
+  return {
+    ...detail,
+    reviewsLast30d: null,
+    reviewsLast90d: null,
+    reviewVelocitySource: "not_measured" as ReviewVelocitySource,
+    reviewVelocityMeasuredAt: null,
+  };
+}
+
+function hasMeasuredReviewVelocity(detail: any): boolean {
+  const source = detail?.reviewVelocitySource;
+  return (
+    (source === "apify" || source === "cache") &&
+    finiteNumber(detail?.reviewsLast30d) !== null
+  );
+}
+
+function parseVelocityMeasuredAt(
+  value: unknown,
+  fallback: Date,
+): Date | null {
+  const measuredAt =
+    typeof value === "string" && value.trim() ? new Date(value) : fallback;
+  return Number.isNaN(measuredAt.getTime()) ? null : measuredAt;
+}
+
+async function loadCachedSelectedCompetitorVelocity(
+  rankingId: number,
+  locationId: number,
+  placeIds: string[],
+): Promise<Map<string, ReviewVelocityMeasurement>> {
+  const remaining = new Set(placeIds);
+  const measurements = new Map<string, ReviewVelocityMeasurement>();
+  if (remaining.size === 0) return measurements;
+
+  const minObservedAt = new Date(
+    Date.now() - SELECTED_COMPETITOR_VELOCITY_CACHE_MS,
+  );
+  const rows = await db("practice_rankings")
+    .where("location_id", locationId)
+    .whereNot("id", rankingId)
+    .where("observed_at", ">=", minObservedAt)
+    .orderBy("observed_at", "desc")
+    .select("observed_at", "raw_data")
+    .limit(20);
+
+  for (const row of rows) {
+    const rawData = parseJsonField(row.raw_data);
+    const competitors = Array.isArray(rawData?.competitors)
+      ? rawData.competitors
+      : [];
+    const observedAt =
+      row.observed_at instanceof Date
+        ? row.observed_at
+        : new Date(row.observed_at);
+
+    for (const competitor of competitors) {
+      const placeId =
+        typeof competitor?.placeId === "string" ? competitor.placeId : null;
+      if (!placeId || !remaining.has(placeId)) continue;
+
+      const reviewsLast30d = finiteNumber(competitor.reviewsLast30d);
+      if (reviewsLast30d === null) continue;
+
+      const source = competitor.reviewVelocitySource;
+      const hasExplicitMeasuredSource =
+        source === "apify" || source === "cache";
+      if (!hasExplicitMeasuredSource && reviewsLast30d <= 0) continue;
+
+      const measuredAt = parseVelocityMeasuredAt(
+        competitor.reviewVelocityMeasuredAt,
+        observedAt,
+      );
+      if (
+        !measuredAt ||
+        Date.now() - measuredAt.getTime() >
+          SELECTED_COMPETITOR_VELOCITY_CACHE_MS
+      ) {
+        continue;
+      }
+
+      measurements.set(placeId, {
+        reviewsLast30d,
+        reviewsLast90d: finiteNumber(competitor.reviewsLast90d),
+        source: "cache",
+        measuredAt: measuredAt.toISOString(),
+      });
+      remaining.delete(placeId);
+    }
+
+    if (remaining.size === 0) break;
+  }
+
+  return measurements;
+}
+
+async function enrichSelectedCompetitorReviewVelocity({
+  rankingId,
+  locationId,
+  competitorDetails,
+  specialtyKeywords,
+  pipelineTimings,
+  log,
+}: {
+  rankingId: number;
+  locationId: number | null;
+  competitorDetails: any[];
+  specialtyKeywords: string[];
+  pipelineTimings: PipelineTimingRecord[];
+  log: (message: string) => void;
+}): Promise<any[]> {
+  const velocityTiming = beginPipelineTiming("selected_competitor_velocity");
+  if (!locationId || competitorDetails.length === 0) {
+    finishPipelineTiming(
+      pipelineTimings,
+      velocityTiming,
+      "skipped",
+      "no_selected_competitors",
+    );
+    return competitorDetails;
+  }
+
+  try {
+    const placeIds = competitorDetails
+      .map((detail) => detail?.placeId)
+      .filter((placeId): placeId is string => typeof placeId === "string");
+    const alreadyMeasured = competitorDetails.filter(
+      hasMeasuredReviewVelocity,
+    ).length;
+    const cache = await loadCachedSelectedCompetitorVelocity(
+      rankingId,
+      locationId,
+      placeIds,
+    );
+    let cachedCount = 0;
+
+    let enriched = competitorDetails.map((detail) => {
+      if (hasMeasuredReviewVelocity(detail)) return detail;
+      const cached = cache.get(detail?.placeId);
+      if (!cached) return markVelocityNotMeasured(detail);
+      cachedCount++;
+      return {
+        ...detail,
+        reviewsLast30d: cached.reviewsLast30d,
+        reviewsLast90d: cached.reviewsLast90d,
+        reviewVelocitySource: cached.source,
+        reviewVelocityMeasuredAt: cached.measuredAt,
+      };
+    });
+
+    const missingPlaceIds = enriched
+      .filter((detail) => !hasMeasuredReviewVelocity(detail))
+      .map((detail) => detail?.placeId)
+      .filter((placeId): placeId is string => typeof placeId === "string");
+    let scrapedCount = 0;
+    let scrapeError: string | null = null;
+
+    if (missingPlaceIds.length > 0) {
+      const measuredAt = new Date().toISOString();
+      try {
+        const scrapedDetails = await getCompetitorDetails(
+          missingPlaceIds,
+          specialtyKeywords,
+        );
+        scrapedCount = scrapedDetails.length;
+        const scrapedByPlaceId = new Map(
+          scrapedDetails.map((detail) => [detail.placeId, detail]),
+        );
+
+        enriched = enriched.map((detail) => {
+          const scraped = scrapedByPlaceId.get(detail?.placeId);
+          if (!scraped) return detail;
+          return {
+            ...detail,
+            reviewsLast30d: finiteNumber(scraped.reviewsLast30d) ?? 0,
+            reviewsLast90d: finiteNumber(scraped.reviewsLast90d),
+            reviewVelocitySource: "apify" as ReviewVelocitySource,
+            reviewVelocityMeasuredAt: measuredAt,
+          };
+        });
+      } catch (error: any) {
+        scrapeError = error.message;
+        log(
+          `[RANKING] [${rankingId}] Selected competitor velocity scrape failed: ${error.message}`,
+        );
+      }
+    }
+
+    const unknownCount = enriched.filter(
+      (detail) => !hasMeasuredReviewVelocity(detail),
+    ).length;
+    finishPipelineTiming(
+      pipelineTimings,
+      velocityTiming,
+      scrapeError
+        ? "failed"
+        : cachedCount > 0 || scrapedCount > 0
+          ? "success"
+          : "skipped",
+      `already_measured=${alreadyMeasured};cached=${cachedCount};scraped=${scrapedCount};unknown=${unknownCount}${
+        scrapeError ? `;scrape_error=${scrapeError}` : ""
+      }`,
+    );
+    log(
+      `[RANKING] [${rankingId}] Selected competitor velocity: already_measured=${alreadyMeasured}, cached=${cachedCount}, scraped=${scrapedCount}, unknown=${unknownCount}`,
+    );
+    return enriched;
+  } catch (error: any) {
+    finishPipelineTiming(
+      pipelineTimings,
+      velocityTiming,
+      "failed",
+      error.message,
+    );
+    log(
+      `[RANKING] [${rankingId}] Selected competitor velocity unavailable: ${error.message}`,
+    );
+    return competitorDetails.map((detail) =>
+      hasMeasuredReviewVelocity(detail) ? detail : markVelocityNotMeasured(detail),
+    );
+  }
 }
 
 function buildSelectedCompetitorMapsContext(
@@ -985,6 +1241,7 @@ export async function processLocationRanking(
         }
       }
 
+      const scrapedVelocityMeasuredAt = new Date().toISOString();
       const scrapedDetails =
         staleCompetitors.length > 0
           ? await getCompetitorDetails(
@@ -993,7 +1250,10 @@ export async function processLocationRanking(
             )
           : [];
       const scrapedByPlaceId = new Map(
-        scrapedDetails.map((detail) => [detail.placeId, detail]),
+        scrapedDetails.map((detail) => [
+          detail.placeId,
+          markVelocityMeasured(detail, "apify", scrapedVelocityMeasuredAt),
+        ]),
       );
 
       competitorDetails = discoveredCompetitors
@@ -1018,9 +1278,12 @@ export async function processLocationRanking(
       );
     } else {
       const competitorPlaceIds = discoveredCompetitors.map((c) => c.placeId);
-      competitorDetails = await getCompetitorDetails(
+      const scrapedVelocityMeasuredAt = new Date().toISOString();
+      competitorDetails = (await getCompetitorDetails(
         competitorPlaceIds,
         specialtyKeywords,
+      )).map((detail) =>
+        markVelocityMeasured(detail, "apify", scrapedVelocityMeasuredAt),
       );
       finishPipelineTiming(
         pipelineTimings,
@@ -1059,8 +1322,10 @@ export async function processLocationRanking(
         primaryCategory: comp.category,
         totalReviews: comp.reviewsCount,
         averageRating: comp.totalScore,
-        reviewsLast30d: 0,
-        reviewsLast90d: 0,
+        reviewsLast30d: null,
+        reviewsLast90d: null,
+        reviewVelocitySource: "not_measured",
+        reviewVelocityMeasuredAt: null,
         photosCount: 0,
         postsLast90d: 0,
         hasWebsite: !!comp.website,
@@ -1306,6 +1571,17 @@ export async function processLocationRanking(
   );
   const clientRankResult = rankedPractices.find((p) => p.id === "client");
 
+  if (resolved.source === "curated") {
+    competitorDetails = await enrichSelectedCompetitorReviewVelocity({
+      rankingId,
+      locationId: rankingRunContext?.location_id ?? null,
+      competitorDetails,
+      specialtyKeywords,
+      pipelineTimings,
+      log,
+    });
+  }
+
   const benchmarks = calculateBenchmarks(
     competitorDetails.map((c) => ({
       totalReviews: c.totalReviews,
@@ -1338,6 +1614,8 @@ export async function processLocationRanking(
       .slice(0, 20)
       .map((p) => {
         const details = competitorDetails.find((c) => c.placeId === p.id);
+        const reviewsLast30d = finiteNumber(details?.reviewsLast30d);
+        const reviewsLast90d = finiteNumber(details?.reviewsLast90d);
         return {
           name: details?.name || "Unknown",
           placeId: p.id,
@@ -1345,7 +1623,12 @@ export async function processLocationRanking(
           rankPosition: p.rankPosition,
           totalReviews: details?.totalReviews || 0,
           averageRating: details?.averageRating || 0,
-          reviewsLast30d: details?.reviewsLast30d || 0,
+          reviewsLast30d,
+          reviewsLast90d,
+          reviewVelocitySource:
+            details?.reviewVelocitySource || "not_measured",
+          reviewVelocityMeasuredAt:
+            details?.reviewVelocityMeasuredAt || null,
           primaryCategory: details?.primaryCategory || "Unknown",
           hasKeywordInName: details?.hasKeywordInName || false,
           photosCount: details?.photosCount || 0,
