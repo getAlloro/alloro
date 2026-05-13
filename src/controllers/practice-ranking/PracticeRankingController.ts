@@ -965,6 +965,38 @@ export async function retryBatch(
 // GET /latest
 // =====================================================================
 
+type CompetitorAddressLookup = Map<string, string | null>;
+
+function addCompetitorAddressesToSnapshot(
+  ranking: any,
+  addressesByPlaceId?: CompetitorAddressLookup,
+) {
+  if (!addressesByPlaceId || !ranking.competitor_snapshot) return ranking;
+
+  const snapshot = parseJsonField(ranking.competitor_snapshot);
+  if (!Array.isArray(snapshot?.competitors)) return ranking;
+
+  return {
+    ...ranking,
+    competitor_snapshot: {
+      ...snapshot,
+      competitors: snapshot.competitors.map((competitor: any) => {
+        const address =
+          competitor.address ??
+          (typeof competitor.placeId === "string"
+            ? addressesByPlaceId.get(competitor.placeId)
+            : null) ??
+          null;
+
+        return {
+          ...competitor,
+          address,
+        };
+      }),
+    },
+  };
+}
+
 export async function getLatestRankings(
   req: Request,
   res: Response,
@@ -1076,6 +1108,26 @@ export async function getLatestRankings(
       }
     }
 
+    const competitorAddressesByLocationId = new Map<
+      number,
+      CompetitorAddressLookup
+    >();
+    await Promise.all(
+      distinctLocationIds.map(async (id) => {
+        const competitors =
+          await LocationCompetitorModel.findActiveByLocationId(id);
+        competitorAddressesByLocationId.set(
+          id,
+          new Map(
+            competitors.map((competitor) => [
+              competitor.place_id,
+              competitor.address,
+            ]),
+          ),
+        );
+      }),
+    );
+
     // Step 3b: For each ranking in the batch, get the previous analysis for trend comparison
     const rankingsWithPrevious = await Promise.all(
       batchRankings.map(async (ranking) => {
@@ -1093,8 +1145,18 @@ export async function getLatestRankings(
         const onboarding = ranking.location_id
           ? onboardingByLocationId.get(ranking.location_id) || null
           : null;
+        const rankingWithAddresses = addCompetitorAddressesToSnapshot(
+          ranking,
+          ranking.location_id
+            ? competitorAddressesByLocationId.get(ranking.location_id)
+            : undefined,
+        );
 
-        return formatLatestRanking(ranking, previous || null, onboarding);
+        return formatLatestRanking(
+          rankingWithAddresses,
+          previous || null,
+          onboarding,
+        );
       }),
     );
 

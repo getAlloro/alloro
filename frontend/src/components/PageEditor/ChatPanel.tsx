@@ -1,5 +1,13 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Loader2, Paperclip, X, Image, Upload } from "lucide-react";
+import {
+  AlertCircle,
+  Send,
+  Loader2,
+  Paperclip,
+  X,
+  Image,
+  Upload,
+} from "lucide-react";
 import { AnimatePresence } from "framer-motion";
 import MediaBrowser from "./MediaBrowser";
 import ColorPicker from "./ColorPicker";
@@ -22,6 +30,52 @@ interface ChatPanelProps {
   accentColor?: string | null;
 }
 
+type MediaUploadResponse = {
+  success?: boolean;
+  data?: MediaItem[];
+  error?: string;
+  message?: string;
+  failed?: Array<{ filename: string; message: string }>;
+};
+
+const MAX_MEDIA_FILE_SIZE_MB = 500;
+const MAX_MEDIA_FILE_SIZE_BYTES = MAX_MEDIA_FILE_SIZE_MB * 1024 * 1024;
+const MAX_MEDIA_FILE_SIZE_LABEL = `${MAX_MEDIA_FILE_SIZE_MB} MB`;
+
+const parseMediaUploadResponse = async (
+  response: Response,
+): Promise<MediaUploadResponse | null> => {
+  const text = await response.text();
+  if (!text.trim()) return null;
+
+  try {
+    return JSON.parse(text) as MediaUploadResponse;
+  } catch {
+    return null;
+  }
+};
+
+const getMediaUploadErrorMessage = (
+  response: Response,
+  data: MediaUploadResponse | null,
+): string => {
+  if (data?.message) return data.message;
+  if (data?.failed?.length) {
+    return data.failed.map((failure) => failure.message).join(", ");
+  }
+  if (data?.error === "FILE_TOO_LARGE" || response.status === 413) {
+    return `Each media file must be ${MAX_MEDIA_FILE_SIZE_LABEL} or smaller.`;
+  }
+  if (data?.error === "QUOTA_EXCEEDED" || response.status === 507) {
+    return "Storage quota exceeded for this project.";
+  }
+  if (data?.error) return data.error;
+  if (response.status >= 500) {
+    return "Upload failed because the server returned an unexpected response.";
+  }
+  return "Upload failed";
+};
+
 export default function ChatPanel({
   messages,
   onSend,
@@ -37,6 +91,7 @@ export default function ChatPanel({
   const [attachedColor, setAttachedColor] = useState<string | null>(null);
   const [showMediaLibrary, setShowMediaLibrary] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -57,7 +112,10 @@ export default function ChatPanel({
     const finalInstruction = attachedColor
       ? `${trimmed}\n\nUse color: ${attachedColor}`
       : trimmed;
-    onSend(finalInstruction, attachedMedia.length > 0 ? attachedMedia : undefined);
+    onSend(
+      finalInstruction,
+      attachedMedia.length > 0 ? attachedMedia : undefined,
+    );
     setInput("");
     setAttachedMedia([]);
     setAttachedColor(null);
@@ -73,8 +131,16 @@ export default function ChatPanel({
   const uploadFile = async (file: File) => {
     if (!projectId) return;
 
+    if (file.size > MAX_MEDIA_FILE_SIZE_BYTES) {
+      setUploadError(
+        `${file.name}: file is larger than ${MAX_MEDIA_FILE_SIZE_LABEL}.`,
+      );
+      return;
+    }
+
     try {
       setUploading(true);
+      setUploadError(null);
 
       const formData = new FormData();
       formData.append("files", file);
@@ -85,10 +151,15 @@ export default function ChatPanel({
         credentials: "include",
       });
 
-      const data = await response.json();
+      const data = await parseMediaUploadResponse(response);
 
-      if (!data.success || !data.data || data.data.length === 0) {
-        throw new Error("Upload failed");
+      if (
+        !response.ok ||
+        !data?.success ||
+        !data.data ||
+        data.data.length === 0
+      ) {
+        throw new Error(getMediaUploadErrorMessage(response, data));
       }
 
       const uploadedMedia = data.data[0];
@@ -99,7 +170,7 @@ export default function ChatPanel({
       // Auto-focus input
       setTimeout(() => inputRef.current?.focus(), 100);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Upload failed");
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
     }
@@ -143,11 +214,11 @@ export default function ChatPanel({
         "image/webp",
         "video/mp4",
         "application/pdf",
-      ].includes(file.type)
+      ].includes(file.type),
     );
 
     if (validFiles.length === 0) {
-      alert("Please drop valid image, video, or PDF files");
+      setUploadError("Please drop a JPG, PNG, WebP, MP4, or PDF file.");
       return;
     }
 
@@ -182,8 +253,12 @@ export default function ChatPanel({
         <div className="absolute inset-0 bg-alloro-orange/10 border-2 border-dashed border-alloro-orange rounded-lg z-50 flex items-center justify-center pointer-events-none">
           <div className="bg-white rounded-xl shadow-lg px-6 py-4 flex flex-col items-center gap-2">
             <Upload className="w-8 h-8 text-alloro-orange" />
-            <p className="text-sm font-medium text-gray-900">Drop to attach image</p>
-            <p className="text-xs text-gray-500">Supports JPG, PNG, WebP, MP4, PDF</p>
+            <p className="text-sm font-medium text-gray-900">
+              Drop to attach media
+            </p>
+            <p className="text-xs text-gray-500">
+              Supports JPG, PNG, WebP, MP4, PDF
+            </p>
           </div>
         </div>
       )}
@@ -231,13 +306,14 @@ export default function ChatPanel({
       <div className="px-4 pb-4 pt-2 border-t border-gray-200">
         {/* Color Picker — shows when user types "color" */}
         <AnimatePresence>
-          {input.toLowerCase().includes("color") && (primaryColor || accentColor) && (
-            <ColorPicker
-              primaryColor={primaryColor || null}
-              accentColor={accentColor || null}
-              onSelect={(colorStr) => setAttachedColor(colorStr)}
-            />
-          )}
+          {input.toLowerCase().includes("color") &&
+            (primaryColor || accentColor) && (
+              <ColorPicker
+                primaryColor={primaryColor || null}
+                accentColor={accentColor || null}
+                onSelect={(colorStr) => setAttachedColor(colorStr)}
+              />
+            )}
         </AnimatePresence>
 
         {/* Media Library */}
@@ -248,6 +324,21 @@ export default function ChatPanel({
               onSelect={attachMediaFromLibrary}
               onClose={() => setShowMediaLibrary(false)}
             />
+          </div>
+        )}
+
+        {uploadError && (
+          <div className="mb-2 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            <span className="min-w-0 flex-1">{uploadError}</span>
+            <button
+              type="button"
+              onClick={() => setUploadError(null)}
+              aria-label="Dismiss upload error"
+              className="text-red-500 hover:text-red-700"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
         )}
 
@@ -300,7 +391,7 @@ export default function ChatPanel({
                 onClick={() => fileInputRef.current?.click()}
                 disabled={disabled || isLoading || uploading}
                 className="p-2 rounded-xl bg-gray-100 border border-gray-200 text-gray-600 hover:bg-gray-200 hover:text-alloro-orange transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
-                title="Upload new image"
+                title="Upload media"
               >
                 {uploading ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />

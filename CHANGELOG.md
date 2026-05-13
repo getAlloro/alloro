@@ -2,6 +2,26 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.72] - May 2026
+
+### Ranking Labels, Media Uploads, And Website Admin Signals
+
+Closed out remaining dashboard and website-admin polish by clarifying selected competitor labels, improving large media upload handling, and surfacing active integrations in the admin websites list.
+
+**Key Changes:**
+- Added selected competitor address metadata to latest ranking responses and rendered truncated address labels with full-address tooltips
+- Increased admin website media upload handling to 500 MB per file with readable client and server error messages
+- Replaced noisy page-editor media upload alerts with inline upload errors
+- Added active integration metadata to website project listing responses
+- Displayed active HubSpot, Rybbit, Clarity, and Search Console badges beside website names in the admin list
+- Added missing plan specs for selected competitor address labels, media upload handling, and GBP-less identity generation
+
+**Commits:**
+- `src/controllers/practice-ranking/*` and `frontend/src/components/dashboard/RankingsDashboard.tsx` — selected competitor address enrichment and display
+- `src/routes/admin/media.ts`, `frontend/src/components/Admin/MediaTab.tsx`, and `frontend/src/components/PageEditor/ChatPanel.tsx` — 500 MB upload limit and safer upload errors
+- `src/controllers/admin-websites/feature-services/service.project-manager.ts`, `frontend/src/api/websites.ts`, and `frontend/src/pages/admin/WebsitesList.tsx` — active integration metadata and badges
+- `plans/05122026-no-ticket-selected-competitor-address-labels/spec.md`, `plans/05132026-no-ticket-media-upload-limit-error-handling/spec.md`, and `plans/05132026-no-ticket-allow-gbp-less-identity-generation/spec.md` — finalized planning artifacts
+
 ## [0.0.71] - May 2026
 
 ### GSC Freshness Window And Date Display

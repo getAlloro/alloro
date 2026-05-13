@@ -133,6 +133,10 @@ export interface WebsiteProject {
     name: string;
     subscription_tier: string;
   } | null;
+  active_integrations?: Array<{
+    platform: "hubspot" | "rybbit" | "clarity" | "gsc";
+    status: string;
+  }>;
 }
 
 export interface ChatHistoryMessage {

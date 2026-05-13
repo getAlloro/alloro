@@ -148,6 +148,7 @@ export type SelectedCompetitorSearchStatus =
 export interface SelectedCompetitorSearchResult {
   placeId: string | null;
   name: string;
+  address: string | null;
   position: number | null;
   status: SelectedCompetitorSearchStatus;
   rating: number | null;

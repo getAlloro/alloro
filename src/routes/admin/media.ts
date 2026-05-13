@@ -14,20 +14,60 @@
  * - Pagination (50 items per page)
  */
 
-import express from "express";
+import express, { NextFunction, Request, Response } from "express";
 import multer from "multer";
 import * as controller from "../../controllers/admin-media/AdminMediaController";
 
 const router = express.Router({ mergeParams: true }); // Preserve :projectId param
 
-// Multer config: memory storage, 100 MB limit, accept all files
+const MAX_MEDIA_FILE_SIZE_MB = 500;
+const MAX_MEDIA_FILE_SIZE_BYTES = MAX_MEDIA_FILE_SIZE_MB * 1024 * 1024;
+const MAX_MEDIA_FILES_PER_REQUEST = 20;
+
+// Multer config: memory storage, 500 MB per file, accept all files
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB
+  limits: { fileSize: MAX_MEDIA_FILE_SIZE_BYTES },
 });
+const uploadMediaFiles = upload.array("files", MAX_MEDIA_FILES_PER_REQUEST);
+
+const handleMediaUpload = (req: Request, res: Response, next: NextFunction) => {
+  uploadMediaFiles(req, res, (error: unknown) => {
+    if (!error) {
+      void controller.uploadMedia(req, res).catch(next);
+      return;
+    }
+
+    if (error instanceof multer.MulterError) {
+      if (error.code === "LIMIT_FILE_SIZE") {
+        return res.status(413).json({
+          success: false,
+          error: "FILE_TOO_LARGE",
+          message: `Each media file must be ${MAX_MEDIA_FILE_SIZE_MB} MB or smaller.`,
+        });
+      }
+
+      if (error.code === "LIMIT_UNEXPECTED_FILE") {
+        return res.status(400).json({
+          success: false,
+          error: "TOO_MANY_FILES",
+          message: `Upload up to ${MAX_MEDIA_FILES_PER_REQUEST} files at a time.`,
+        });
+      }
+
+      return res.status(400).json({
+        success: false,
+        error: error.code,
+        message: error.message,
+      });
+    }
+
+    return next(error);
+  });
+};
 
 // POST /api/admin/websites/:projectId/media — Bulk media upload
-router.post("/", upload.array("files", 20), controller.uploadMedia);
+router.post("/", handleMediaUpload);
 
 // GET /api/admin/websites/:projectId/media — List media (paginated)
 router.get("/", controller.listMedia);

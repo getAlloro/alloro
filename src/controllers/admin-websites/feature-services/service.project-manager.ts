@@ -78,10 +78,33 @@ export async function listProjects(filters: {
     .limit(limit)
     .offset(offset);
 
+  const projectIds = projects.map((project: any) => project.id);
+  const activeIntegrations = projectIds.length > 0
+    ? await db("website_builder.website_integrations")
+        .select("project_id", "platform", "status")
+        .whereIn("project_id", projectIds)
+        .where("status", "active")
+    : [];
+  const integrationsByProject = activeIntegrations.reduce(
+    (map: Map<string, Array<{ platform: string; status: string }>>, integration: any) => {
+      const existing = map.get(integration.project_id) ?? [];
+      if (!existing.some((item) => item.platform === integration.platform)) {
+        existing.push({
+          platform: integration.platform,
+          status: integration.status,
+        });
+      }
+      map.set(integration.project_id, existing);
+      return map;
+    },
+    new Map<string, Array<{ platform: string; status: string }>>(),
+  );
+
   // Parse organization JSON (will be null if not linked)
   const projectsWithOrg = projects.map((p: any) => ({
     ...p,
     organization: p.organization && p.organization.id ? p.organization : null,
+    active_integrations: integrationsByProject.get(p.id) ?? [],
   }));
 
   console.log(
