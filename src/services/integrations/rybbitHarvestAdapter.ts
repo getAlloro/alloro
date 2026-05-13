@@ -34,7 +34,12 @@ export class RybbitHarvestAdapter implements IDataHarvestAdapter {
     }
 
     try {
-      const url = `${RYBBIT_API_URL}/api/sites/${siteId}/overview?startDate=${date}&endDate=${date}&timezone=America/New_York`;
+      const params = new URLSearchParams({
+        start_date: date,
+        end_date: date,
+        time_zone: "America/New_York",
+      });
+      const url = `${RYBBIT_API_URL}/api/sites/${siteId}/overview?${params.toString()}`;
       const resp = await fetch(url, {
         headers: { Authorization: `Bearer ${RYBBIT_API_KEY}` },
       });

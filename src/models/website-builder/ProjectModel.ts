@@ -10,11 +10,16 @@ export interface IProject {
   id: string;
   organization_id: number | null;
   name: string;
+  display_name?: string | null;
   hostname: string | null;
   generated_hostname: string | null;
   custom_domain: string | null;
+  custom_domain_alt?: string | null;
+  selected_website_url?: string | null;
   template_id: string | null;
   status: string;
+  rybbit_site_id?: string | null;
+  domain_verified_at?: Date | null;
   settings: Record<string, unknown> | null;
   primary_color: string | null;
   accent_color: string | null;
@@ -78,6 +83,19 @@ export class ProjectModel extends BaseModel {
     return this.table(trx)
       .where({ organization_id: orgId })
       .update({ is_read_only: true });
+  }
+
+  static async updateRybbitSiteId(
+    projectId: string,
+    siteId: string | null,
+    trx?: QueryContext,
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id: projectId })
+      .update({
+        rybbit_site_id: siteId,
+        updated_at: new Date(),
+      });
   }
 
   static async findAllVerifiedDomains(
