@@ -2,6 +2,27 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.69] - May 2026
+
+### Rybbit Integration Cleanup And Dashboard
+
+Moved Rybbit toward a single integration-owned tracking path with legacy script detection, safer connect management, renderer injection, and stored analytics visibility in the website Integrations screen.
+
+**Key Changes:**
+- Added Rybbit legacy header/footer script detection by script content and parsed `data-site-id`
+- Blocked Rybbit connect/reconnect while enabled legacy scripts would create duplicate tracking
+- Added Rybbit site ID management, stored analytics cards, daily trend, and latest-first raw rows
+- Stopped future Rybbit provisioning from creating header/footer snippets and synced `projects.rybbit_site_id` from integration state
+- Hardened renderer-side Rybbit script injection and deduplication
+- Added a dry-run inventory command for legacy Rybbit snippets and data coverage
+
+**Commits:**
+- `src/controllers/admin-websites/*`, `src/models/website-builder/*`, and `src/services/integrations/rybbitHarvestAdapter.ts` — Rybbit status, connect, analytics, and harvest plumbing
+- `frontend/src/components/Admin/integrations/*` and `frontend/src/api/integrations.ts` — Rybbit management UI and dashboard
+- `scripts/rybbit-legacy-inventory.ts` — dry-run inventory for legacy Rybbit scripts
+- `/Users/rustinedave/Desktop/website-builder-rebuild/src/routes/site.ts` — renderer injection defaults and duplicate-script checks
+- `plans/05132026-no-ticket-rybbit-integration-cleanup-dashboard/spec.md` — executed spec and safety revision
+
 ## [0.0.68] - May 2026
 
 ### Ranking Pipeline Optimization

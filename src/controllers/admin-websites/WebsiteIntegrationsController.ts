@@ -38,6 +38,8 @@ import { getHarvestQueue } from "../../workers/queues";
 import * as formDetection from "./feature-services/service.form-detection";
 import * as gscIntegration from "./feature-services/service.gsc-integration";
 import * as gscPerformance from "./feature-services/service.gsc-performance";
+import * as rybbitIntegration from "./feature-services/service.rybbit-integration";
+import * as rybbitPerformance from "./feature-services/service.rybbit-performance";
 
 const LOG_PREFIX = "[Website Integrations]";
 
@@ -653,6 +655,87 @@ function getAdminGscActor(req: Request): gscIntegration.GscActorContext {
     userId: authReq.userId,
     organizationId: authReq.organizationId,
   };
+}
+
+function failRybbitError(res: Response, error: unknown, fallbackMessage: string): Response {
+  if (error instanceof rybbitIntegration.RybbitIntegrationError) {
+    return fail(res, error.status, error.code, error.message);
+  }
+
+  console.error(`${LOG_PREFIX} ${fallbackMessage}:`, error);
+  return fail(res, 500, "RYBBIT_ERROR", fallbackMessage);
+}
+
+export async function getRybbitStatus(req: Request, res: Response): Promise<Response> {
+  try {
+    const projectId = String(req.params.id);
+    const status = await rybbitIntegration.getStatus(projectId);
+    return ok(res, status);
+  } catch (error) {
+    return failRybbitError(res, error, "Failed to fetch Rybbit status");
+  }
+}
+
+export async function createRybbitIntegration(req: Request, res: Response): Promise<Response> {
+  try {
+    const projectId = String(req.params.id);
+    const { siteId, disableSnippetIds } = req.body as {
+      siteId?: string;
+      disableSnippetIds?: string[];
+    };
+
+    const result = await rybbitIntegration.saveIntegration(projectId, siteId, {
+      connectedBy: "admin",
+      disableSnippetIds: Array.isArray(disableSnippetIds) ? disableSnippetIds : [],
+    });
+    return ok(res, result, 201);
+  } catch (error) {
+    return failRybbitError(res, error, "Failed to save Rybbit integration");
+  }
+}
+
+export async function disableRybbitLegacySnippets(req: Request, res: Response): Promise<Response> {
+  try {
+    const projectId = String(req.params.id);
+    const { snippetIds } = req.body as { snippetIds?: string[] };
+    if (!Array.isArray(snippetIds) || snippetIds.length === 0) {
+      return fail(res, 400, "INVALID_INPUT", "snippetIds must be a non-empty array");
+    }
+
+    const status = await rybbitIntegration.disableLegacySnippets(
+      projectId,
+      snippetIds,
+    );
+    return ok(res, status);
+  } catch (error) {
+    return failRybbitError(res, error, "Failed to disable legacy Rybbit snippets");
+  }
+}
+
+export async function getRybbitPerformance(req: Request, res: Response): Promise<Response> {
+  try {
+    const integration = await loadIntegrationForProject(req, res);
+    if (!integration) return res;
+
+    if (integration.platform !== "rybbit") {
+      return fail(
+        res,
+        400,
+        "UNSUPPORTED_PLATFORM",
+        "Rybbit performance is only available for Rybbit integrations",
+      );
+    }
+
+    const dashboard = await rybbitPerformance.getDashboard(
+      integration,
+      req.query.rangeDays,
+      req.query.limit,
+      req.query.offset,
+    );
+    return ok(res, dashboard);
+  } catch (error) {
+    return failRybbitError(res, error, "Failed to fetch Rybbit performance");
+  }
 }
 
 export async function listGscConnections(req: Request, res: Response): Promise<Response> {

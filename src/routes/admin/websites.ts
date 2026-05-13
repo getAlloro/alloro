@@ -402,6 +402,28 @@ router.post("/:id/integrations", integrationsController.createIntegration);
 
 const adminGscAuth = [authenticateToken, rbacMiddleware, superAdminMiddleware];
 
+// Rybbit-specific routes (must be before /:integrationId params)
+router.get(
+  "/:id/integrations/rybbit/status",
+  ...adminGscAuth,
+  integrationsController.getRybbitStatus,
+);
+router.post(
+  "/:id/integrations/rybbit",
+  ...adminGscAuth,
+  integrationsController.createRybbitIntegration,
+);
+router.post(
+  "/:id/integrations/rybbit/legacy-snippets/disable",
+  ...adminGscAuth,
+  integrationsController.disableRybbitLegacySnippets,
+);
+router.get(
+  "/:id/integrations/:integrationId/rybbit/performance",
+  ...adminGscAuth,
+  integrationsController.getRybbitPerformance,
+);
+
 // GSC-specific routes (must be before /:integrationId params)
 router.get(
   "/:id/integrations/gsc/connections",

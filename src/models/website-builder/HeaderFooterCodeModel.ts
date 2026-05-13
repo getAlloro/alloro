@@ -1,37 +1,77 @@
 import { BaseModel, QueryContext } from "../BaseModel";
 
+export type HeaderFooterLocation = "head_start" | "head_end" | "body_start" | "body_end";
+
 export interface IHeaderFooterCode {
   id: string;
   project_id: string | null;
   template_id: string | null;
   name: string;
   code: string;
-  location: "header" | "footer";
+  location: HeaderFooterLocation;
   is_enabled: boolean;
-  sort_order: number | null;
+  order_index: number;
+  page_ids: string[];
   created_at: Date;
   updated_at: Date;
 }
 
 export class HeaderFooterCodeModel extends BaseModel {
   protected static tableName = "website_builder.header_footer_code";
+  protected static jsonFields = ["page_ids"];
 
   static async findByProjectId(
     projectId: string,
     trx?: QueryContext
   ): Promise<IHeaderFooterCode[]> {
-    return this.table(trx)
+    const rows = await this.table(trx)
       .where({ project_id: projectId })
-      .orderBy("sort_order", "asc");
+      .orderBy("location", "asc")
+      .orderBy("order_index", "asc");
+    return rows.map((row: IHeaderFooterCode) => this.deserializeJsonFields(row));
   }
 
   static async findByTemplateId(
     templateId: string,
     trx?: QueryContext
   ): Promise<IHeaderFooterCode[]> {
-    return this.table(trx)
+    const rows = await this.table(trx)
       .where({ template_id: templateId })
-      .orderBy("sort_order", "asc");
+      .orderBy("location", "asc")
+      .orderBy("order_index", "asc");
+    return rows.map((row: IHeaderFooterCode) => this.deserializeJsonFields(row));
+  }
+
+  static async findByProjectAndSnippetIds(
+    projectId: string,
+    snippetIds: string[],
+    trx?: QueryContext,
+  ): Promise<IHeaderFooterCode[]> {
+    if (snippetIds.length === 0) return [];
+
+    const rows = await this.table(trx)
+      .where({ project_id: projectId })
+      .whereIn("id", snippetIds)
+      .orderBy("location", "asc")
+      .orderBy("order_index", "asc");
+    return rows.map((row: IHeaderFooterCode) => this.deserializeJsonFields(row));
+  }
+
+  static async setProjectSnippetsEnabled(
+    projectId: string,
+    snippetIds: string[],
+    isEnabled: boolean,
+    trx?: QueryContext,
+  ): Promise<number> {
+    if (snippetIds.length === 0) return 0;
+
+    return this.table(trx)
+      .where({ project_id: projectId })
+      .whereIn("id", snippetIds)
+      .update({
+        is_enabled: isEnabled,
+        updated_at: new Date(),
+      });
   }
 
   static async create(
@@ -61,10 +101,10 @@ export class HeaderFooterCodeModel extends BaseModel {
 
   static async updateSortOrder(
     id: string,
-    sortOrder: number,
+    orderIndex: number,
     trx?: QueryContext
   ): Promise<number> {
-    return super.updateById(id, { sort_order: sortOrder }, trx);
+    return super.updateById(id, { order_index: orderIndex }, trx);
   }
 
   static async toggleEnabled(

@@ -1,26 +1,21 @@
 /**
  * Rybbit Analytics Service
  *
- * Provisions a Rybbit site and injects the tracking script
- * into the project's header code when a custom domain is verified.
+ * Provisions a Rybbit site and stores the canonical integration row when a
+ * custom domain is verified. The renderer owns script injection.
  */
 
 import { db } from "../../../database/connection";
-import { createProjectSnippet } from "./service.hfcm-manager";
 import { WebsiteIntegrationModel } from "../../../models/website-builder/WebsiteIntegrationModel";
 
 const PROJECTS_TABLE = "website_builder.projects";
-const HFC_TABLE = "website_builder.header_footer_code";
 
 const RYBBIT_API_URL = process.env.RYBBIT_API_URL || "";
 const RYBBIT_API_KEY = process.env.RYBBIT_API_KEY || "";
 const RYBBIT_ORG_ID = process.env.RYBBIT_ORG_ID || "";
 
-const SNIPPET_NAME = "Rybbit Analytics";
-
 /**
- * Creates a Rybbit site for the given domain and injects the tracking
- * script into the project's header_footer_code.
+ * Creates a Rybbit site for the given domain and saves a hybrid integration.
  *
  * This is a non-blocking side effect — it logs errors but never throws.
  */
@@ -34,14 +29,45 @@ export async function provisionRybbitSite(
       return;
     }
 
-    // Check if project already has a Rybbit site
     const project = await db(PROJECTS_TABLE)
       .select("rybbit_site_id")
       .where("id", projectId)
       .first();
 
+    const existingIntegration = await WebsiteIntegrationModel.findByProjectAndPlatform(projectId, "rybbit");
+    const existingSiteId = existingIntegration?.metadata?.siteId;
+    if (typeof existingSiteId === "string" && existingSiteId.trim()) {
+      if (project && project.rybbit_site_id !== existingSiteId) {
+        await db(PROJECTS_TABLE).where("id", projectId).update({
+          rybbit_site_id: existingSiteId,
+          updated_at: db.fn.now(),
+        });
+      }
+      console.log(`[Rybbit] Integration already provisioned (${existingSiteId}) for project ${projectId}, skipping`);
+      return;
+    }
+
     if (project?.rybbit_site_id) {
-      console.log(`[Rybbit] Site already provisioned (${project.rybbit_site_id}) for project ${projectId}, skipping`);
+      const siteId = String(project.rybbit_site_id);
+      if (existingIntegration) {
+        await WebsiteIntegrationModel.update(existingIntegration.id, {
+          type: "hybrid",
+          metadata: { ...(existingIntegration.metadata ?? {}), siteId },
+          status: "active",
+          connected_by: existingIntegration.connected_by ?? "system",
+          last_error: null,
+        });
+      } else {
+        await WebsiteIntegrationModel.create({
+          project_id: projectId,
+          platform: "rybbit",
+          type: "hybrid",
+          metadata: { siteId },
+          status: "active",
+          connected_by: "system",
+        });
+      }
+      console.log(`[Rybbit] Existing project site ID registered (${siteId}) for project ${projectId}`);
       return;
     }
 
@@ -83,8 +109,6 @@ export async function provisionRybbitSite(
       updated_at: db.fn.now(),
     });
 
-    // Create integration row (idempotent)
-    const existingIntegration = await WebsiteIntegrationModel.findByProjectAndPlatform(projectId, "rybbit");
     if (!existingIntegration) {
       await WebsiteIntegrationModel.create({
         project_id: projectId,
@@ -95,28 +119,18 @@ export async function provisionRybbitSite(
         connected_by: "system",
       });
       console.log(`[Rybbit] Integration row created for project ${projectId}`);
+    } else {
+      await WebsiteIntegrationModel.update(existingIntegration.id, {
+        type: "hybrid",
+        metadata: { ...(existingIntegration.metadata ?? {}), siteId: String(siteId) },
+        status: "active",
+        connected_by: existingIntegration.connected_by ?? "system",
+        last_error: null,
+      });
+      console.log(`[Rybbit] Integration row updated for project ${projectId}`);
     }
 
-    // Check if tracking snippet already exists
-    const existingSnippet = await db(HFC_TABLE)
-      .where({ project_id: projectId, name: SNIPPET_NAME })
-      .first();
-
-    if (existingSnippet) {
-      console.log(`[Rybbit] Tracking snippet already exists for project ${projectId}, skipping injection`);
-      return;
-    }
-
-    // Inject tracking script
-    const scriptTag = `<script src="${RYBBIT_API_URL}/api/script.js" async data-site-id="${siteId}"></script>`;
-
-    await createProjectSnippet(projectId, {
-      name: SNIPPET_NAME,
-      location: "head_end",
-      code: scriptTag,
-    });
-
-    console.log(`[Rybbit] Tracking script injected for project ${projectId}`);
+    console.log(`[Rybbit] Renderer-managed tracking enabled for project ${projectId}`);
   } catch (err: any) {
     console.error(`[Rybbit] Error provisioning site for project ${projectId}:`, err?.message || err);
   }

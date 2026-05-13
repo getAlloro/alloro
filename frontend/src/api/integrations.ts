@@ -82,6 +82,60 @@ export interface GscPerformanceDashboard {
   limitations: string[];
 }
 
+export interface RybbitLegacySnippet {
+  id: string;
+  scope: "project" | "template";
+  name: string;
+  location: string;
+  isEnabled: boolean;
+  orderIndex: number;
+  siteId: string | null;
+  codePreview: string;
+  canDisable: boolean;
+}
+
+export interface RybbitStatus {
+  integration: Integration | null;
+  projectSiteId: string | null;
+  suggestedSiteId: string | null;
+  legacySnippets: RybbitLegacySnippet[];
+  blockingLegacySnippets: RybbitLegacySnippet[];
+  canConnect: boolean;
+}
+
+export interface RybbitMetricSummary {
+  sessions: number;
+  pageviews: number;
+  users: number;
+  bounceRate: number;
+  pagesPerSession: number;
+  sessionDuration: number;
+}
+
+export interface RybbitDailyPoint extends RybbitMetricSummary {
+  date: string;
+}
+
+export interface RybbitRawRow extends RybbitDailyPoint {
+  id: string;
+  raw: Record<string, unknown>;
+}
+
+export interface RybbitDashboard {
+  rangeDays: number;
+  fromDate: string | null;
+  toDate: string | null;
+  latestReportDate: string | null;
+  dataDays: number;
+  totals: RybbitMetricSummary;
+  daily: RybbitDailyPoint[];
+  rows: RybbitRawRow[];
+  rowsTotal: number;
+  rowsLimit: number;
+  rowsOffset: number;
+  limitations: string[];
+}
+
 export interface IntegrationFormMapping {
   id: string;
   integration_id: string;
@@ -392,6 +446,42 @@ export const fetchGscPerformance = (
   authedGet<Envelope<GscPerformanceDashboard>>(
     `/admin/websites/${projectId}/integrations/${integrationId}/gsc/performance?rangeDays=${rangeDays}`,
   );
+
+export const fetchRybbitStatus = (projectId: string) =>
+  authedGet<Envelope<RybbitStatus>>(
+    `/admin/websites/${projectId}/integrations/rybbit/status`,
+  );
+
+export const createRybbitIntegration = (
+  projectId: string,
+  payload: { siteId: string; disableSnippetIds?: string[] },
+) =>
+  authedPost<Envelope<{ integration: Integration; status: RybbitStatus }>>(
+    `/admin/websites/${projectId}/integrations/rybbit`,
+    payload,
+  );
+
+export const disableRybbitLegacySnippets = (
+  projectId: string,
+  snippetIds: string[],
+) =>
+  authedPost<Envelope<RybbitStatus>>(
+    `/admin/websites/${projectId}/integrations/rybbit/legacy-snippets/disable`,
+    { snippetIds },
+  );
+
+export const fetchRybbitPerformance = (
+  projectId: string,
+  integrationId: string,
+  opts: { rangeDays: number; limit?: number; offset?: number },
+) => {
+  const params = new URLSearchParams({ rangeDays: String(opts.rangeDays) });
+  if (opts.limit !== undefined) params.set("limit", String(opts.limit));
+  if (opts.offset !== undefined) params.set("offset", String(opts.offset));
+  return authedGet<Envelope<RybbitDashboard>>(
+    `/admin/websites/${projectId}/integrations/${integrationId}/rybbit/performance?${params.toString()}`,
+  );
+};
 
 // =====================================================================
 // GSC (Google Search Console) — admin connect flow
