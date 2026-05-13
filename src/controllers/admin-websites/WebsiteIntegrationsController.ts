@@ -36,6 +36,7 @@ import { getHarvestAdapter } from "../../services/integrations/harvest-registry"
 import { inferFieldMapping } from "../../services/integrations/fieldInference";
 import { getHarvestQueue } from "../../workers/queues";
 import * as formDetection from "./feature-services/service.form-detection";
+import * as clarityIntegration from "./feature-services/service.clarity-integration";
 import * as gscIntegration from "./feature-services/service.gsc-integration";
 import * as gscPerformance from "./feature-services/service.gsc-performance";
 import * as rybbitIntegration from "./feature-services/service.rybbit-integration";
@@ -664,6 +665,63 @@ function failRybbitError(res: Response, error: unknown, fallbackMessage: string)
 
   console.error(`${LOG_PREFIX} ${fallbackMessage}:`, error);
   return fail(res, 500, "RYBBIT_ERROR", fallbackMessage);
+}
+
+function failClarityError(res: Response, error: unknown, fallbackMessage: string): Response {
+  if (error instanceof clarityIntegration.ClarityIntegrationError) {
+    return fail(res, error.status, error.code, error.message);
+  }
+
+  console.error(`${LOG_PREFIX} ${fallbackMessage}:`, error);
+  return fail(res, 500, "CLARITY_ERROR", fallbackMessage);
+}
+
+export async function getClarityStatus(req: Request, res: Response): Promise<Response> {
+  try {
+    const projectId = String(req.params.id);
+    const status = await clarityIntegration.getStatus(projectId);
+    return ok(res, status);
+  } catch (error) {
+    return failClarityError(res, error, "Failed to fetch Clarity status");
+  }
+}
+
+export async function createClarityIntegration(req: Request, res: Response): Promise<Response> {
+  try {
+    const projectId = String(req.params.id);
+    const { projectId: clarityProjectId, apiToken, disableSnippetIds } = req.body as {
+      projectId?: string;
+      apiToken?: string;
+      disableSnippetIds?: string[];
+    };
+
+    const result = await clarityIntegration.saveIntegration(projectId, clarityProjectId, {
+      apiToken,
+      connectedBy: "admin",
+      disableSnippetIds: Array.isArray(disableSnippetIds) ? disableSnippetIds : [],
+    });
+    return ok(res, result, 201);
+  } catch (error) {
+    return failClarityError(res, error, "Failed to save Clarity integration");
+  }
+}
+
+export async function disableClarityLegacySnippets(req: Request, res: Response): Promise<Response> {
+  try {
+    const projectId = String(req.params.id);
+    const { snippetIds } = req.body as { snippetIds?: string[] };
+    if (!Array.isArray(snippetIds) || snippetIds.length === 0) {
+      return fail(res, 400, "INVALID_INPUT", "snippetIds must be a non-empty array");
+    }
+
+    const status = await clarityIntegration.disableLegacySnippets(
+      projectId,
+      snippetIds,
+    );
+    return ok(res, status);
+  } catch (error) {
+    return failClarityError(res, error, "Failed to disable legacy Clarity snippets");
+  }
 }
 
 export async function getRybbitStatus(req: Request, res: Response): Promise<Response> {

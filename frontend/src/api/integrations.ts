@@ -103,6 +103,27 @@ export interface RybbitStatus {
   canConnect: boolean;
 }
 
+export interface ClarityLegacySnippet {
+  id: string;
+  scope: "project" | "template";
+  name: string;
+  location: string;
+  isEnabled: boolean;
+  orderIndex: number;
+  projectId: string | null;
+  codePreview: string;
+  canDisable: boolean;
+}
+
+export interface ClarityStatus {
+  integration: Integration | null;
+  suggestedProjectId: string | null;
+  hasDataExportToken: boolean;
+  legacySnippets: ClarityLegacySnippet[];
+  blockingLegacySnippets: ClarityLegacySnippet[];
+  canConnect: boolean;
+}
+
 export interface RybbitMetricSummary {
   sessions: number;
   pageviews: number;
@@ -482,6 +503,33 @@ export const fetchRybbitPerformance = (
     `/admin/websites/${projectId}/integrations/${integrationId}/rybbit/performance?${params.toString()}`,
   );
 };
+
+export const fetchClarityStatus = (projectId: string) =>
+  authedGet<Envelope<ClarityStatus>>(
+    `/admin/websites/${projectId}/integrations/clarity/status`,
+  );
+
+export const saveClarityIntegration = (
+  projectId: string,
+  payload: {
+    projectId: string;
+    apiToken?: string;
+    disableSnippetIds?: string[];
+  },
+) =>
+  authedPost<Envelope<{ integration: Integration; status: ClarityStatus }>>(
+    `/admin/websites/${projectId}/integrations/clarity`,
+    payload,
+  );
+
+export const disableClarityLegacySnippets = (
+  projectId: string,
+  snippetIds: string[],
+) =>
+  authedPost<Envelope<ClarityStatus>>(
+    `/admin/websites/${projectId}/integrations/clarity/legacy-snippets/disable`,
+    { snippetIds },
+  );
 
 // =====================================================================
 // GSC (Google Search Console) — admin connect flow

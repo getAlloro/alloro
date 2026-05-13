@@ -2,6 +2,26 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.74] - May 2026
+
+### Clarity Install And Export Integration
+
+Separated Microsoft Clarity tracking installation from Data Export credentials so the Integrations screen can manage script ownership without requiring an API token.
+
+**Key Changes:**
+- Added Clarity-specific status, save, and legacy-snippet disable routes instead of routing Clarity through the HubSpot-shaped generic integration endpoint
+- Added Project ID-only Clarity installs as `script_injection` rows and API-token-backed installs as `hybrid` rows
+- Reworked the Clarity admin UI around tracking status, optional Data Export token state, and legacy script blockers
+- Added Clarity legacy header/footer snippet detection and project-level disable support
+- Narrowed scheduled Clarity harvests to one recent export window so the same API payload is not stored under multiple fake dates
+- Hardened renderer Clarity duplicate detection to avoid duplicate tracking scripts
+
+**Commits:**
+- `src/controllers/admin-websites/*`, `src/models/website-builder/WebsiteIntegrationModel.ts`, and `src/workers/processors/dataHarvest.processor.ts` - Clarity-specific integration service, routes, credentials checks, and harvest-window behavior
+- `frontend/src/components/Admin/integrations/*` and `frontend/src/api/integrations.ts` - Clarity install/export management UI and typed API helpers
+- `/Users/rustinedave/Desktop/website-builder-rebuild/src/routes/site.ts` - renderer Clarity script dedupe hardening
+- `plans/05142026-no-ticket-clarity-install-export-integration/spec.md` - executed spec and verification checklist
+
 ## [0.0.73] - May 2026
 
 ### Website Project Active And Inactive Tabs

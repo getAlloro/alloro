@@ -187,7 +187,18 @@ export class WebsiteIntegrationModel extends BaseModel {
       .select("encrypted_credentials")
       .where({ id })
       .first();
-    if (!row) return null;
+    if (!row?.encrypted_credentials) return null;
     return decrypt(row.encrypted_credentials);
+  }
+
+  static async hasCredentials(
+    id: string,
+    trx?: QueryContext,
+  ): Promise<boolean> {
+    const row = await this.table(trx)
+      .select("encrypted_credentials")
+      .where({ id })
+      .first();
+    return !!row?.encrypted_credentials;
   }
 }
