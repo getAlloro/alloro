@@ -37,6 +37,8 @@ import {
   type ProjectIdentityListEntry,
   type ProjectIdentityLocation,
   type IdentityListName,
+  type ManualBusinessInput,
+  type ManualLocationInput,
   type WarmupInputs,
   type WarmupStatus,
   resyncProjectIdentityList,
@@ -85,6 +87,74 @@ interface TextInput {
   text: string;
 }
 
+type WarmupSourceMode = "gbp" | "manual";
+
+const MANUAL_HOUR_DAYS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
+
+function createManualLocation(isPrimary = false): ManualLocationInput {
+  return {
+    id: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    name: "",
+    address: "",
+    city: "",
+    state: "",
+    zip: "",
+    phone: "",
+    websiteUrl: "",
+    hours: {},
+    isPrimary,
+  };
+}
+
+function emptyManualBusiness(): ManualBusinessInput {
+  return {
+    name: "",
+    category: "",
+    phone: "",
+    websiteUrl: "",
+  };
+}
+
+function hasText(value: unknown): boolean {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function hasManualHours(hours: ManualLocationInput["hours"]): boolean {
+  return Object.values(hours || {}).some((value) => hasText(value));
+}
+
+function isCompleteManualLocation(location: ManualLocationInput): boolean {
+  return (
+    hasText(location.name) &&
+    hasText(location.address) &&
+    hasText(location.city) &&
+    hasText(location.state) &&
+    hasText(location.zip) &&
+    hasText(location.phone) &&
+    hasManualHours(location.hours)
+  );
+}
+
+function isCompleteManualIdentity(
+  business: ManualBusinessInput,
+  locations: ManualLocationInput[],
+): boolean {
+  return (
+    hasText(business.name) &&
+    hasText(business.category) &&
+    hasText(business.phone) &&
+    locations.some(isCompleteManualLocation)
+  );
+}
+
 /**
  * `identity.locations[]` isn't declared on ProjectIdentity yet (it's a JSONB
  * extension shipped in the identity-enrichments plan) — this helper narrows
@@ -95,6 +165,38 @@ function readIdentityLocations(
 ): ProjectIdentityLocation[] {
   const raw = (identity as unknown as { locations?: unknown }).locations;
   return Array.isArray(raw) ? (raw as ProjectIdentityLocation[]) : [];
+}
+
+function isManualIdentityLocation(location: ProjectIdentityLocation): boolean {
+  return location.source === "manual" || !location.place_id;
+}
+
+function getIdentityLocationKey(location: ProjectIdentityLocation): string {
+  return (
+    location.place_id ||
+    location.id ||
+    `${location.source || "location"}-${location.name}-${location.address || ""}`
+  );
+}
+
+function buildBusinessFromLocation(
+  location: ProjectIdentityLocation,
+  fallback?: ProjectIdentity["business"],
+): ProjectIdentity["business"] {
+  return {
+    name: location.name || fallback?.name || null,
+    category: location.category || fallback?.category || null,
+    phone: location.phone || fallback?.phone || null,
+    address: location.address || fallback?.address || null,
+    city: location.city || fallback?.city || null,
+    state: location.state || fallback?.state || null,
+    zip: location.zip || fallback?.zip || null,
+    hours: location.hours ?? fallback?.hours ?? null,
+    rating: location.rating ?? null,
+    review_count: location.review_count ?? null,
+    website_url: location.website_url || fallback?.website_url || null,
+    place_id: location.place_id || null,
+  };
 }
 
 /**
@@ -130,6 +232,13 @@ export default function IdentityModal({
   const [selectedPlaces, setSelectedPlaces] = useState<
     Array<{ placeId: string; name: string; address: string }>
   >([]);
+  const [sourceMode, setSourceMode] = useState<WarmupSourceMode>("gbp");
+  const [manualBusiness, setManualBusiness] = useState<ManualBusinessInput>(
+    () => emptyManualBusiness(),
+  );
+  const [manualLocations, setManualLocations] = useState<ManualLocationInput[]>(
+    () => [createManualLocation(true)],
+  );
   const [urlInputs, setUrlInputs] = useState<UrlInput[]>([]);
   const [textInputs, setTextInputs] = useState<TextInput[]>([]);
   const [logoUrl, setLogoUrl] = useState("");
@@ -353,25 +462,72 @@ export default function IdentityModal({
     setTextInputs((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   };
 
+  const updateManualBusiness = (patch: Partial<ManualBusinessInput>) => {
+    setManualBusiness((prev) => ({ ...prev, ...patch }));
+  };
+
+  const addManualLocation = () => {
+    setManualLocations((prev) => [...prev, createManualLocation(prev.length === 0)]);
+  };
+
+  const updateManualLocation = (
+    id: string | undefined,
+    patch: Partial<ManualLocationInput>,
+  ) => {
+    if (!id) return;
+    setManualLocations((prev) =>
+      prev.map((location) =>
+        location.id === id ? { ...location, ...patch } : location,
+      ),
+    );
+  };
+
+  const removeManualLocation = (id: string | undefined) => {
+    if (!id) return;
+    setManualLocations((prev) => {
+      const next = prev.filter((location) => location.id !== id);
+      if (next.length === 0) return [createManualLocation(true)];
+      if (next.some((location) => location.isPrimary)) return next;
+      return next.map((location, index) => ({ ...location, isPrimary: index === 0 }));
+    });
+  };
+
+  const setPrimaryManualLocation = (id: string | undefined) => {
+    if (!id) return;
+    setManualLocations((prev) =>
+      prev.map((location) => ({ ...location, isPrimary: location.id === id })),
+    );
+  };
+
   const handleGenerate = async () => {
     if (submitting) return;
 
-    const hasAnyInput =
-      selectedPlaces.length > 0 ||
-      urlInputs.some((u) => u.url.trim()) ||
-      textInputs.some((t) => t.text.trim());
+    if (sourceMode === "gbp" && selectedPlaces.length === 0) {
+      setError("Select at least one Google Business Profile, or switch to No GBP yet.");
+      return;
+    }
 
-    if (!hasAnyInput) {
-      setError("Add at least one input: GBP profile, page URL, or text note.");
+    if (
+      sourceMode === "manual" &&
+      !isCompleteManualIdentity(manualBusiness, manualLocations)
+    ) {
+      setError(
+        "No GBP data requires business name, category, phone, and one complete location with hours.",
+      );
       return;
     }
 
     setError(null);
     try {
       setSubmitting(true);
+      const manualMode = sourceMode === "manual";
       const inputs: WarmupInputs = {
-        placeId: selectedPlaces[0]?.placeId,
-        placeIds: selectedPlaces.length > 0 ? selectedPlaces.map((p) => p.placeId) : undefined,
+        placeId: manualMode ? undefined : selectedPlaces[0]?.placeId,
+        placeIds:
+          !manualMode && selectedPlaces.length > 0
+            ? selectedPlaces.map((p) => p.placeId)
+            : undefined,
+        practiceSearchString: manualMode ? manualBusiness.name.trim() : undefined,
         urls: urlInputs
           .filter((u) => u.url.trim())
           .map((u): WarmupUrlInput | string => {
@@ -384,6 +540,28 @@ export default function IdentityModal({
         texts: textInputs
           .filter((t) => t.text.trim())
           .map((t) => ({ label: t.label.trim() || undefined, text: t.text.trim() })),
+        manualBusiness: manualMode
+          ? {
+              name: manualBusiness.name.trim(),
+              category: manualBusiness.category.trim(),
+              phone: manualBusiness.phone.trim(),
+              websiteUrl: manualBusiness.websiteUrl?.trim() || undefined,
+            }
+          : undefined,
+        manualLocations: manualMode
+          ? manualLocations
+              .filter(isCompleteManualLocation)
+              .map((location) => ({
+                ...location,
+                name: location.name.trim(),
+                address: location.address.trim(),
+                city: location.city.trim(),
+                state: location.state.trim(),
+                zip: location.zip.trim(),
+                phone: location.phone.trim(),
+                websiteUrl: location.websiteUrl?.trim() || undefined,
+              }))
+          : undefined,
         logoUrl: logoUrl.trim() || undefined,
         primaryColor,
         accentColor,
@@ -424,11 +602,29 @@ export default function IdentityModal({
       return 0;
     });
     const rehydratedPlaces = sortedLocations
-      .filter((loc) => !!loc.place_id)
+      .filter((loc) => !!loc.place_id && loc.source !== "manual")
       .map((loc) => ({
-        placeId: loc.place_id,
+        placeId: loc.place_id as string,
         name: loc.name || "",
         address: loc.address || "",
+      }));
+
+    const rehydratedManualLocations: ManualLocationInput[] = sortedLocations
+      .filter((loc) => loc.source === "manual" || !loc.place_id)
+      .map((loc, idx) => ({
+        id: loc.id || `manual-rehydrated-${Date.now()}-${idx}`,
+        name: loc.name || "",
+        address: loc.address || "",
+        city: loc.city || "",
+        state: loc.state || "",
+        zip: loc.zip || "",
+        phone: loc.phone || "",
+        websiteUrl: loc.website_url || "",
+        hours:
+          loc.hours && typeof loc.hours === "object"
+            ? (loc.hours as Record<string, string>)
+            : {},
+        isPrimary: !!loc.is_primary,
       }));
 
     // URLs → urlInputs. Historically `sources_used.urls[].url` was a plain
@@ -455,6 +651,22 @@ export default function IdentityModal({
       }));
 
     setSelectedPlaces(rehydratedPlaces);
+    setManualBusiness({
+      name: identity.business?.name || "",
+      category: identity.business?.category || "",
+      phone: identity.business?.phone || "",
+      websiteUrl: identity.business?.website_url || "",
+    });
+    setManualLocations(
+      rehydratedManualLocations.length > 0
+        ? rehydratedManualLocations
+        : [createManualLocation(true)],
+    );
+    setSourceMode(
+      rehydratedPlaces.length > 0 || rehydratedManualLocations.length === 0
+        ? "gbp"
+        : "manual",
+    );
     setUrlInputs(rehydratedUrls);
     setTextInputs(rehydratedTexts);
     // Preserve brand colors from the current identity so the replay uses the
@@ -467,6 +679,7 @@ export default function IdentityModal({
 
     return (
       rehydratedPlaces.length > 0 ||
+      rehydratedManualLocations.length > 0 ||
       rehydratedUrls.length > 0 ||
       rehydratedTexts.length > 0
     );
@@ -482,13 +695,16 @@ export default function IdentityModal({
     const hasLocations = readIdentityLocations(identity).some(
       (loc) => !!loc.place_id,
     );
+    const hasManualLocations = readIdentityLocations(identity).some(
+      (loc) => loc.source === "manual" || !loc.place_id,
+    );
     const hasUrls = (identity.sources_used?.urls || []).some(
       (u) => extractSourceUrlString(u).length > 0,
     );
     const hasTexts = (identity.raw_inputs?.user_text_inputs || []).some(
       (t) => typeof t?.text === "string" && t.text.trim().length > 0,
     );
-    return hasLocations || hasUrls || hasTexts;
+    return hasLocations || hasManualLocations || hasUrls || hasTexts;
   })();
 
   const handleRerunRequested = () => {
@@ -642,6 +858,8 @@ export default function IdentityModal({
               </div>
             ) : isEmpty ? (
               <EmptyWarmupForm
+                sourceMode={sourceMode}
+                setSourceMode={setSourceMode}
                 gbpQuery={gbpQuery}
                 setGbpQuery={setGbpQuery}
                 gbpSuggestions={gbpSuggestions}
@@ -658,6 +876,13 @@ export default function IdentityModal({
                   })
                 }
                 onSelectPlace={handleSelectPlace}
+                manualBusiness={manualBusiness}
+                updateManualBusiness={updateManualBusiness}
+                manualLocations={manualLocations}
+                addManualLocation={addManualLocation}
+                updateManualLocation={updateManualLocation}
+                removeManualLocation={removeManualLocation}
+                setPrimaryManualLocation={setPrimaryManualLocation}
                 urlInputs={urlInputs}
                 addUrlInput={addUrlInput}
                 removeUrlInput={removeUrlInput}
@@ -732,6 +957,8 @@ export default function IdentityModal({
 // ---------------------------------------------------------------------------
 
 interface EmptyFormProps {
+  sourceMode: WarmupSourceMode;
+  setSourceMode: (mode: WarmupSourceMode) => void;
   gbpQuery: string;
   setGbpQuery: (v: string) => void;
   gbpSuggestions: PlaceSuggestion[];
@@ -740,6 +967,16 @@ interface EmptyFormProps {
   removeSelectedPlace: (placeId: string) => void;
   setPrimaryPlace: (placeId: string) => void;
   onSelectPlace: (s: PlaceSuggestion) => void;
+  manualBusiness: ManualBusinessInput;
+  updateManualBusiness: (patch: Partial<ManualBusinessInput>) => void;
+  manualLocations: ManualLocationInput[];
+  addManualLocation: () => void;
+  updateManualLocation: (
+    id: string | undefined,
+    patch: Partial<ManualLocationInput>,
+  ) => void;
+  removeManualLocation: (id: string | undefined) => void;
+  setPrimaryManualLocation: (id: string | undefined) => void;
   urlInputs: UrlInput[];
   addUrlInput: () => void;
   removeUrlInput: (id: string) => void;
@@ -772,12 +1009,33 @@ function EmptyWarmupForm(props: EmptyFormProps) {
           Tell us about this practice
         </h3>
         <p className="text-xs text-gray-500">
-          Combine any of: a Google Business Profile, page URLs to scrape, and plain-text notes.
-          All inputs are optional but at least one is required.
+          Start with Google Business Profile when available. If not, use No GBP yet
+          and enter the required business/location basics.
         </p>
       </div>
 
+      <div className="grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1">
+        {([
+          ["gbp", "Google Business Profile"],
+          ["manual", "No GBP yet"],
+        ] as const).map(([mode, label]) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => props.setSourceMode(mode)}
+            className={`rounded-md px-3 py-2 text-xs font-semibold transition ${
+              props.sourceMode === mode
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-800"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {/* GBP — multi-select */}
+      {props.sourceMode === "gbp" && (
       <section>
         <div className="flex items-center justify-between mb-2">
           <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-700">
@@ -896,6 +1154,19 @@ function EmptyWarmupForm(props: EmptyFormProps) {
           )}
         </div>
       </section>
+      )}
+
+      {props.sourceMode === "manual" && (
+        <ManualNoGbpFields
+          business={props.manualBusiness}
+          onBusinessChange={props.updateManualBusiness}
+          locations={props.manualLocations}
+          onAddLocation={props.addManualLocation}
+          onLocationChange={props.updateManualLocation}
+          onRemoveLocation={props.removeManualLocation}
+          onSetPrimary={props.setPrimaryManualLocation}
+        />
+      )}
 
       {/* URLs */}
       <section>
@@ -1050,6 +1321,238 @@ function EmptyWarmupForm(props: EmptyFormProps) {
         </button>
       </div>
     </div>
+  );
+}
+
+type ManualNoGbpFieldsProps = {
+  business: ManualBusinessInput;
+  onBusinessChange: (patch: Partial<ManualBusinessInput>) => void;
+  locations: ManualLocationInput[];
+  onAddLocation: () => void;
+  onLocationChange: (
+    id: string | undefined,
+    patch: Partial<ManualLocationInput>,
+  ) => void;
+  onRemoveLocation: (id: string | undefined) => void;
+  onSetPrimary: (id: string | undefined) => void;
+};
+
+function ManualNoGbpFields({
+  business,
+  onBusinessChange,
+  locations,
+  onAddLocation,
+  onLocationChange,
+  onRemoveLocation,
+  onSetPrimary,
+}: ManualNoGbpFieldsProps) {
+  return (
+    <section className="space-y-4 rounded-lg border border-amber-200 bg-amber-50/50 p-4">
+      <div>
+        <h4 className="text-xs font-semibold text-gray-800">No GBP basics</h4>
+        <p className="mt-1 text-[11px] text-gray-500">
+          Required: business name, category, phone, and one complete location with hours.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <ManualTextField
+          label="Business name"
+          value={business.name}
+          onChange={(value) => onBusinessChange({ name: value })}
+          required
+        />
+        <ManualTextField
+          label="Category / specialty"
+          value={business.category}
+          onChange={(value) => onBusinessChange({ category: value })}
+          placeholder="Sleep dentistry"
+          required
+        />
+        <ManualTextField
+          label="Business phone"
+          value={business.phone}
+          onChange={(value) => onBusinessChange({ phone: value })}
+          required
+        />
+        <ManualTextField
+          label="Website URL"
+          value={business.websiteUrl || ""}
+          onChange={(value) => onBusinessChange({ websiteUrl: value })}
+          placeholder="https://example.com"
+        />
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-700">
+            <MapPin className="h-3.5 w-3.5" /> Manual locations
+          </label>
+          <button
+            type="button"
+            onClick={onAddLocation}
+            className="inline-flex items-center gap-1 text-xs font-medium text-alloro-orange hover:text-orange-600"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add location
+          </button>
+        </div>
+
+        {locations.map((location, index) => (
+          <ManualLocationEditor
+            key={location.id || index}
+            location={location}
+            canRemove={locations.length > 1}
+            onChange={(patch) => onLocationChange(location.id, patch)}
+            onRemove={() => onRemoveLocation(location.id)}
+            onSetPrimary={() => onSetPrimary(location.id)}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+type ManualLocationEditorProps = {
+  location: ManualLocationInput;
+  canRemove: boolean;
+  onChange: (patch: Partial<ManualLocationInput>) => void;
+  onRemove: () => void;
+  onSetPrimary: () => void;
+};
+
+function ManualLocationEditor({
+  location,
+  canRemove,
+  onChange,
+  onRemove,
+  onSetPrimary,
+}: ManualLocationEditorProps) {
+  return (
+    <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-gray-700">
+            {location.name || "New location"}
+          </span>
+          {location.isPrimary && (
+            <span className="rounded border border-green-200 bg-green-50 px-1.5 py-0.5 text-[10px] font-bold text-green-700">
+              Primary
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          {!location.isPrimary && (
+            <button
+              type="button"
+              onClick={onSetPrimary}
+              className="rounded px-2 py-1 text-[11px] font-medium text-gray-500 hover:bg-gray-50 hover:text-alloro-orange"
+            >
+              Set primary
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onRemove}
+            disabled={!canRemove}
+            className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400"
+            aria-label="Remove manual location"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <ManualTextField
+          label="Location name"
+          value={location.name}
+          onChange={(value) => onChange({ name: value })}
+          required
+        />
+        <ManualTextField
+          label="Phone"
+          value={location.phone}
+          onChange={(value) => onChange({ phone: value })}
+          required
+        />
+        <ManualTextField
+          label="Street address"
+          value={location.address}
+          onChange={(value) => onChange({ address: value })}
+          required
+        />
+        <ManualTextField
+          label="City"
+          value={location.city}
+          onChange={(value) => onChange({ city: value })}
+          required
+        />
+        <ManualTextField
+          label="State"
+          value={location.state}
+          onChange={(value) => onChange({ state: value })}
+          required
+        />
+        <ManualTextField
+          label="ZIP"
+          value={location.zip}
+          onChange={(value) => onChange({ zip: value })}
+          required
+        />
+        <ManualTextField
+          label="Location website"
+          value={location.websiteUrl || ""}
+          onChange={(value) => onChange({ websiteUrl: value })}
+          placeholder="Optional"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        {MANUAL_HOUR_DAYS.map((day) => (
+          <ManualTextField
+            key={day}
+            label={day}
+            value={location.hours?.[day] || ""}
+            onChange={(value) =>
+              onChange({ hours: { ...(location.hours || {}), [day]: value } })
+            }
+            placeholder="9:00 AM - 5:00 PM"
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+type ManualTextFieldProps = {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  required?: boolean;
+};
+
+function ManualTextField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  required,
+}: ManualTextFieldProps) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] font-semibold text-gray-600">
+        {label}
+        {required && <span className="text-alloro-orange"> *</span>}
+      </span>
+      <input
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-alloro-orange focus:outline-none focus:ring-2 focus:ring-alloro-orange/30"
+      />
+    </label>
   );
 }
 
@@ -1237,6 +1740,7 @@ function ReadyView(props: ReadyViewProps) {
         {props.activeTab === "locations" && (
           <IdentityLocationsTab
             projectId={props.projectId}
+            identity={props.identity}
             locations={locations}
             onIdentityChange={props.onIdentityRefresh}
           />
@@ -2603,12 +3107,14 @@ function IdentityListAddRow({
 
 interface IdentityLocationsTabProps {
   projectId: string;
+  identity: ProjectIdentity;
   locations: ProjectIdentityLocation[];
   onIdentityChange: (next: ProjectIdentity) => void;
 }
 
 function IdentityLocationsTab({
   projectId,
+  identity,
   locations,
   onIdentityChange,
 }: IdentityLocationsTabProps) {
@@ -2631,26 +3137,44 @@ function IdentityLocationsTab({
     }
   };
 
-  const handleSetPrimary = async (placeId: string, name: string) => {
+  const handleSetPrimary = async (location: ProjectIdentityLocation) => {
+    const locationKey = getIdentityLocationKey(location);
+    const name = location.name || location.place_id || location.id || "location";
     const ok = await confirm({
       title: "Switch primary location?",
-      message: `Setting "${name || placeId}" as primary changes the main business data the AI uses for every page. Regenerate affected pages after switching.`,
+      message: `Setting "${name}" as primary changes the main business data the AI uses for every page. Regenerate affected pages after switching.`,
       confirmLabel: "Set as primary",
       cancelLabel: "Cancel",
       variant: "default",
     });
     if (!ok) return;
     try {
-      setBusyPlaceId(placeId);
-      const res = await setPrimaryLocation(projectId, placeId);
-      onIdentityChange(res.data.identity);
-      const nextLocations: ProjectIdentityLocation[] = Array.isArray(
-        res.data.identity.locations,
-      )
-        ? res.data.identity.locations
-        : [];
-      setLocalLocations(nextLocations);
-      showSuccessToast("Primary location updated", `"${name || placeId}" is now primary.`);
+      setBusyPlaceId(locationKey);
+      if (isManualIdentityLocation(location)) {
+        const updatedLocations = localLocations.map((loc) => ({
+          ...loc,
+          is_primary: getIdentityLocationKey(loc) === locationKey,
+        }));
+        const nextIdentity: ProjectIdentity = {
+          ...identity,
+          business: buildBusinessFromLocation(location, identity.business),
+          locations: updatedLocations,
+          last_updated_at: new Date().toISOString(),
+        };
+        const res = await updateIdentity(projectId, nextIdentity);
+        onIdentityChange(res.data);
+        setLocalLocations(readIdentityLocations(res.data));
+      } else if (location.place_id) {
+        const res = await setPrimaryLocation(projectId, location.place_id);
+        onIdentityChange(res.data.identity);
+        const nextLocations: ProjectIdentityLocation[] = Array.isArray(
+          res.data.identity.locations,
+        )
+          ? res.data.identity.locations
+          : [];
+        setLocalLocations(nextLocations);
+      }
+      showSuccessToast("Primary location updated", `"${name}" is now primary.`);
     } catch (err: any) {
       showErrorToast("Set primary failed", err?.message || "Unknown error");
     } finally {
@@ -2658,14 +3182,16 @@ function IdentityLocationsTab({
     }
   };
 
-  const handleResync = async (placeId: string, name: string) => {
+  const handleResync = async (location: ProjectIdentityLocation) => {
+    if (!location.place_id || isManualIdentityLocation(location)) return;
+    const name = location.name || location.place_id;
     try {
-      setBusyPlaceId(placeId);
-      const res = await resyncProjectLocation(projectId, placeId);
+      setBusyPlaceId(location.place_id);
+      const res = await resyncProjectLocation(projectId, location.place_id);
       setLocalLocations(res.data.locations);
       await refreshIdentity();
       if (res.data.location.warmup_status === "ready") {
-        showSuccessToast("Location re-synced", `"${name || placeId}" updated.`);
+        showSuccessToast("Location re-synced", `"${name}" updated.`);
       } else {
         showErrorToast(
           "Location scrape failed",
@@ -2679,21 +3205,37 @@ function IdentityLocationsTab({
     }
   };
 
-  const handleRemove = async (placeId: string, name: string) => {
+  const handleRemove = async (location: ProjectIdentityLocation) => {
+    const locationKey = getIdentityLocationKey(location);
+    const name = location.name || location.place_id || location.id || "location";
     const ok = await confirm({
       title: "Remove this location?",
-      message: `"${name || placeId}" will be removed from this project's locations list. The Google Business Profile itself is not deleted.`,
+      message: `"${name}" will be removed from this project's locations list. The Google Business Profile itself is not deleted.`,
       confirmLabel: "Remove",
       cancelLabel: "Cancel",
       variant: "danger",
     });
     if (!ok) return;
     try {
-      setRemovingPlaceId(placeId);
-      const res = await removeProjectLocation(projectId, placeId);
-      setLocalLocations(res.data.locations);
-      await refreshIdentity();
-      showSuccessToast("Location removed", `"${name || placeId}" removed from project.`);
+      setRemovingPlaceId(locationKey);
+      if (isManualIdentityLocation(location)) {
+        const updatedLocations = localLocations.filter(
+          (loc) => getIdentityLocationKey(loc) !== locationKey,
+        );
+        const nextIdentity: ProjectIdentity = {
+          ...identity,
+          locations: updatedLocations,
+          last_updated_at: new Date().toISOString(),
+        };
+        const res = await updateIdentity(projectId, nextIdentity);
+        onIdentityChange(res.data);
+        setLocalLocations(readIdentityLocations(res.data));
+      } else if (location.place_id) {
+        const res = await removeProjectLocation(projectId, location.place_id);
+        setLocalLocations(res.data.locations);
+        await refreshIdentity();
+      }
+      showSuccessToast("Location removed", `"${name}" removed from project.`);
     } catch (err: any) {
       showErrorToast("Remove failed", err?.message || "Unknown error");
     } finally {
@@ -2710,7 +3252,7 @@ function IdentityLocationsTab({
             location{localLocations.length === 1 ? "" : "s"}
           </p>
           <p className="text-[11px] text-gray-400 mt-1">
-            Structured GBP data — re-sync per-row to refresh hours/rating/reviews.
+            Google-backed rows can be re-synced; manual rows stay editable identity data.
           </p>
         </div>
         <button
@@ -2724,20 +3266,20 @@ function IdentityLocationsTab({
       {localLocations.length === 0 ? (
         <div className="rounded-lg border border-dashed border-gray-200 p-6 text-center">
           <p className="text-sm text-gray-500">
-            No locations yet. Click <span className="font-semibold">Add Location</span> to import from Google Business Profile.
+            No locations yet. Use Add Location for a Google-backed row, or rerun identity with No GBP data.
           </p>
         </div>
       ) : (
         <div className="rounded-lg border border-gray-200 overflow-hidden divide-y divide-gray-100">
           {localLocations.map((loc) => (
             <LocationRow
-              key={loc.place_id}
+              key={getIdentityLocationKey(loc)}
               loc={loc}
-              busy={busyPlaceId === loc.place_id}
-              removing={removingPlaceId === loc.place_id}
-              onSetPrimary={() => handleSetPrimary(loc.place_id, loc.name)}
-              onResync={() => handleResync(loc.place_id, loc.name)}
-              onRemove={() => handleRemove(loc.place_id, loc.name)}
+              busy={busyPlaceId === getIdentityLocationKey(loc)}
+              removing={removingPlaceId === getIdentityLocationKey(loc)}
+              onSetPrimary={() => handleSetPrimary(loc)}
+              onResync={() => handleResync(loc)}
+              onRemove={() => handleRemove(loc)}
             />
           ))}
         </div>
@@ -2773,6 +3315,7 @@ function LocationRow({
   onRemove: () => void;
 }) {
   const isFailed = loc.warmup_status === "failed";
+  const isManual = isManualIdentityLocation(loc);
 
   return (
     <div className="p-3 flex items-start gap-3">
@@ -2784,6 +3327,11 @@ function LocationRow({
           {loc.is_primary && (
             <span className="inline-flex items-center gap-0.5 rounded border border-green-200 bg-green-50 px-1.5 py-0.5 text-[10px] font-bold text-green-700">
               <Star className="h-3 w-3" /> Primary
+            </span>
+          )}
+          {isManual && (
+            <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+              Manual
             </span>
           )}
           {isFailed && (
@@ -2805,7 +3353,11 @@ function LocationRow({
               {loc.rating}★ ({loc.review_count || 0})
             </span>
           )}
-          <span className="shrink-0 font-mono truncate">{loc.place_id}</span>
+          {loc.place_id ? (
+            <span className="shrink-0 font-mono truncate">{loc.place_id}</span>
+          ) : (
+            <span className="shrink-0 text-amber-600">No GBP yet</span>
+          )}
           <span className="shrink-0">
             Last synced {humanizeTimestamp(loc.last_synced_at)}
           </span>
@@ -2822,18 +3374,20 @@ function LocationRow({
             Set as primary
           </button>
         )}
-        <button
-          onClick={onResync}
-          disabled={busy || removing}
-          title="Re-scrape this location's GBP"
-          className="inline-flex items-center text-[11px] font-medium text-gray-600 hover:text-alloro-orange px-2 py-1 rounded hover:bg-gray-50 disabled:opacity-50"
-        >
-          {busy ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <RefreshCw className="h-3.5 w-3.5" />
-          )}
-        </button>
+        {!isManual && (
+          <button
+            onClick={onResync}
+            disabled={busy || removing}
+            title="Re-scrape this location's GBP"
+            className="inline-flex items-center text-[11px] font-medium text-gray-600 hover:text-alloro-orange px-2 py-1 rounded hover:bg-gray-50 disabled:opacity-50"
+          >
+            {busy ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
+          </button>
+        )}
         <button
           onClick={onRemove}
           disabled={loc.is_primary || busy || removing}

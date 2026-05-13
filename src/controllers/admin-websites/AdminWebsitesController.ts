@@ -654,6 +654,8 @@ export async function startIdentityWarmup(
       primaryColor,
       accentColor,
       gradient,
+      manualBusiness,
+      manualLocations,
     } = req.body;
 
     // Normalize multi-GBP selection. The frontend may send `placeIds` (full
@@ -673,6 +675,18 @@ export async function startIdentityWarmup(
           ? [resolvedPrimary]
           : [];
 
+    if (
+      fullIdList.length === 0 &&
+      !hasCompleteNoGbpWarmupData(manualBusiness, manualLocations)
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "IDENTITY_SOURCE_REQUIRED",
+        message:
+          "Select at least one Google Business Profile, or provide No GBP data with business name, category, phone, and one complete location including hours.",
+      });
+    }
+
     // Reset cancel flag + persist selected_place_ids / primary_place_id BEFORE
     // enqueueing the worker so F2's multi-location loop picks them up.
     const projectUpdates: Record<string, unknown> = {
@@ -684,6 +698,10 @@ export async function startIdentityWarmup(
       projectUpdates.primary_place_id = resolvedPrimary;
       // Back-compat mirror for legacy consumers of the singular column.
       projectUpdates.selected_place_id = resolvedPrimary;
+    } else {
+      projectUpdates.selected_place_ids = [];
+      projectUpdates.primary_place_id = null;
+      projectUpdates.selected_place_id = null;
     }
     await db("website_builder.projects").where("id", id).update(projectUpdates);
 
@@ -699,6 +717,8 @@ export async function startIdentityWarmup(
         primaryColor,
         accentColor,
         gradient,
+        manualBusiness,
+        manualLocations,
       },
     };
 
@@ -722,6 +742,50 @@ export async function startIdentityWarmup(
       message: error?.message || "Failed to start warmup",
     });
   }
+}
+
+function hasCompleteNoGbpWarmupData(
+  manualBusiness: unknown,
+  manualLocations: unknown,
+): boolean {
+  const business =
+    manualBusiness && typeof manualBusiness === "object"
+      ? (manualBusiness as Record<string, unknown>)
+      : null;
+  if (
+    !business ||
+    !hasText(business.name) ||
+    !hasText(business.category) ||
+    !hasText(business.phone)
+  ) {
+    return false;
+  }
+
+  return (
+    Array.isArray(manualLocations) &&
+    manualLocations.some((location) => {
+      if (!location || typeof location !== "object") return false;
+      const l = location as Record<string, unknown>;
+      return (
+        hasText(l.name) &&
+        hasText(l.address) &&
+        hasText(l.city) &&
+        hasText(l.state) &&
+        hasText(l.zip) &&
+        hasText(l.phone) &&
+        hasHours(l.hours)
+      );
+    })
+  );
+}
+
+function hasText(value: unknown): boolean {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function hasHours(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  return Object.values(value as Record<string, unknown>).some(hasText);
 }
 
 /** GET /:id/identity — Get full project identity JSON */
@@ -4675,9 +4739,14 @@ export async function getPostImportStatus(
 import { scrapeGbp as locationsScrapeGbp } from "./feature-utils/util.gbp-scraper";
 
 interface LocationsIdentityLocation {
-  place_id: string;
+  id?: string;
+  source?: "gbp" | "manual";
+  place_id: string | null;
   name: string;
   address: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
   phone: string | null;
   rating: number | null;
   review_count: number | null;
@@ -4698,9 +4767,14 @@ function buildLocationEntryFromGbpLocal(
 ): LocationsIdentityLocation {
   const g = gbpData || {};
   return {
+    id: placeId,
+    source: "gbp",
     place_id: placeId,
     name: g.title || g.name || "",
     address: g.address || null,
+    city: g.city || null,
+    state: g.state || null,
+    zip: g.postalCode || null,
     phone: g.phone || null,
     rating: (g.totalScore ?? g.rating ?? null) as number | null,
     review_count: (g.reviewsCount ?? g.reviewCount ?? null) as number | null,
@@ -4812,9 +4886,14 @@ export async function addProjectLocation(
     const newEntry: LocationsIdentityLocation = scraped
       ? buildLocationEntryFromGbpLocal(placeId, scraped, false)
       : {
+          id: placeId,
+          source: "gbp",
           place_id: placeId,
           name: "",
           address: null,
+          city: null,
+          state: null,
+          zip: null,
           phone: null,
           rating: null,
           review_count: null,
@@ -5108,9 +5187,14 @@ export async function resyncProjectLocation(
     const updatedEntry: LocationsIdentityLocation = scraped
       ? buildLocationEntryFromGbpLocal(placeId, scraped, wasPrimary)
       : {
+          id: placeId,
+          source: "gbp",
           place_id: placeId,
           name: "",
           address: null,
+          city: null,
+          state: null,
+          zip: null,
           phone: null,
           rating: null,
           review_count: null,
