@@ -151,6 +151,8 @@ function buildDiscoveredFromPlaceDetails(
         : cached.lat !== null && cached.lng !== null
           ? { lat: cached.lat, lng: cached.lng }
           : undefined,
+    discoverySource: "places_text",
+    discoveryCheckedAt: new Date(),
   };
 }
 

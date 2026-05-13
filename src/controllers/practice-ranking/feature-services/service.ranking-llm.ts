@@ -76,6 +76,13 @@ export interface RankingLlmPayload {
   };
 }
 
+export interface RankingAnalysisRunResult {
+  success: boolean;
+  inputTokens?: number;
+  outputTokens?: number;
+  error?: string;
+}
+
 // =====================================================================
 // PROMPT
 // =====================================================================
@@ -156,7 +163,114 @@ You MUST respond with valid JSON matching this exact structure:
 - Do NOT use markdown formatting
 - Do NOT use code blocks
 - Do NOT include conversational text, prose, or comments outside the JSON object
-- Respond with valid JSON only`;
+- Respond with valid JSON only
+- Keep \`gaps\` to the 4 most important items
+- Keep \`top_recommendations\` to exactly 3 items
+- Keep \`render_text\` focused: roughly 900-1,200 characters, not a long report
+- Keep \`client_summary\` under 500 characters
+- Keep \`one_line_summary\` under 220 characters
+- Keep each recommendation description and expected outcome under 180 characters`;
+
+function compactText(value: unknown, maxLength: number): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const compacted = value.replace(/\s+/g, " ").trim();
+  if (!compacted) return undefined;
+  return compacted.length > maxLength
+    ? `${compacted.slice(0, maxLength - 3)}...`
+    : compacted;
+}
+
+function compactWebsiteAudit(audit: any): Record<string, any> | null {
+  if (!audit) return null;
+  return {
+    url: audit.url,
+    scores: {
+      performance: audit.performanceScore,
+      accessibility: audit.accessibilityScore,
+      best_practices: audit.bestPracticesScore,
+      seo: audit.seoScore,
+    },
+    core_web_vitals: {
+      lcp: audit.lcp,
+      fid: audit.fid,
+      cls: audit.cls,
+    },
+    schema: {
+      local_business: audit.hasLocalSchema,
+      organization: audit.hasOrganizationSchema,
+      review: audit.hasReviewSchema,
+      faq: audit.hasFaqSchema,
+    },
+    mobile_friendly: audit.mobileFriendly,
+    https: audit.https,
+  };
+}
+
+function compactFactors(factors: Record<string, any>): Record<string, any> {
+  return Object.fromEntries(
+    Object.entries(factors || {}).map(([key, factor]) => [
+      key,
+      {
+        score: factor?.score,
+        weighted: factor?.weighted,
+        weight: factor?.weight,
+        value: factor?.value,
+        details: compactText(factor?.details, 220),
+      },
+    ]),
+  );
+}
+
+function compactCompetitor(competitor: any): Record<string, any> {
+  return {
+    name: competitor.name,
+    rank_score: competitor.rankScore,
+    rank_position: competitor.rankPosition,
+    total_reviews: competitor.totalReviews,
+    average_rating: competitor.averageRating,
+    reviews_last_30d: competitor.reviewsLast30d,
+    primary_category: competitor.primaryCategory,
+    has_keyword_in_name: competitor.hasKeywordInName,
+    photos_count: competitor.photosCount,
+    posts_last_90d: competitor.postsLast90d,
+  };
+}
+
+function buildLeanRankingInput(
+  data: RankingLlmPayload["additional_data"],
+): Record<string, any> {
+  return {
+    practice_ranking_id: data.practice_ranking_id,
+    batch_id: data.batch_id,
+    client: {
+      ...data.client,
+      factors: compactFactors(data.client.factors),
+      website_audit: compactWebsiteAudit(data.client.website_audit),
+    },
+    competitors: data.competitors.slice(0, 8).map(compactCompetitor),
+    benchmarks: data.benchmarks,
+    search_position: data.search_position
+      ? {
+          query: data.search_position.query,
+          position: data.search_position.position,
+          status: data.search_position.status,
+          not_in_top_20: data.search_position.not_in_top_20,
+          top_5: data.search_position.top_5,
+          selected_competitors:
+            data.search_position.selected_competitors?.map((competitor) => ({
+              selected_order: competitor.selected_order,
+              name: competitor.name,
+              maps_position: competitor.maps_position,
+              maps_status: competitor.maps_status,
+              rating: competitor.rating,
+              review_count: competitor.review_count,
+              primary_type: competitor.primary_type,
+            })) ?? [],
+          discovery_radius_meters: data.search_position.discovery_radius_meters,
+        }
+      : undefined,
+  };
+}
 
 // =====================================================================
 // CORE
@@ -176,15 +290,21 @@ export async function runRankingAnalysis(
   ranking: any,
   statusDetail: StatusDetail,
   logger?: (msg: string) => void,
-): Promise<void> {
+): Promise<RankingAnalysisRunResult> {
   const _log = logger || log;
 
   try {
     _log(`[RANKING] [${rankingId}] Calling Claude for gap analysis...`);
 
+    const leanInput = buildLeanRankingInput(payload.additional_data);
+    const userMessage = JSON.stringify(leanInput);
+    _log(
+      `[RANKING] [${rankingId}] LLM input compacted (${JSON.stringify(payload.additional_data).length}ch -> ${userMessage.length}ch)`,
+    );
+
     const result = await runAgent({
       systemPrompt: SYSTEM_PROMPT,
-      userMessage: JSON.stringify(payload.additional_data),
+      userMessage,
       maxTokens: 16384,
       temperature: 0,
     });
@@ -209,6 +329,11 @@ export async function runRankingAnalysis(
     await llmWebhookHandler.saveLlmAnalysis(rankingId, llmAnalysis);
 
     _log(`[RANKING] [${rankingId}] LLM analysis saved successfully`);
+    return {
+      success: true,
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
+    };
   } catch (error: any) {
     _log(
       `[RANKING] [${rankingId}] LLM analysis failed: ${error.message}`,
@@ -222,5 +347,9 @@ export async function runRankingAnalysis(
       statusDetail,
       _log,
     );
+    return {
+      success: false,
+      error: error.message,
+    };
   }
 }
