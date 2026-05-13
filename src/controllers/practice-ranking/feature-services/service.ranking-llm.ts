@@ -12,6 +12,12 @@ import * as llmWebhookHandler from "./service.llm-webhook-handler";
 import { log, logError } from "../feature-utils/util.ranking-logger";
 import { db } from "../../../database/connection";
 import { updateStatus, StatusDetail } from "./service.ranking-pipeline";
+import {
+  getExternalErrorMessage,
+  isRetryableExternalError,
+  RetryAttemptRecord,
+  runWithRetry,
+} from "./service.ranking-resilience";
 
 // =====================================================================
 // TYPES
@@ -81,6 +87,7 @@ export interface RankingAnalysisRunResult {
   inputTokens?: number;
   outputTokens?: number;
   error?: string;
+  retryAttempts?: RetryAttemptRecord[];
 }
 
 // =====================================================================
@@ -110,6 +117,7 @@ const SYSTEM_PROMPT = `You are an expert SEO and local search analyst specializi
 - Reference actual competitor data
 - Prioritize by impact and effort
 - The title and recommendations should use less technical terms and should be easily understood by a doctor or someone who does not have a technical background
+- If \`website_audit\` is missing, failed, skipped, or marked unmeasured, do not recommend website fixes from that absence alone. A website basics check is not a Lighthouse score or Core Web Vitals test.
 
 ## Output Schema
 
@@ -182,8 +190,60 @@ function compactText(value: unknown, maxLength: number): string | undefined {
 
 function compactWebsiteAudit(audit: any): Record<string, any> | null {
   if (!audit) return null;
+  if (audit.auditType === "website_basics") {
+    if (audit.status === "failed" || audit.status === "skipped") {
+      return {
+        audit_type: "website_basics",
+        measured: false,
+        status: audit.status,
+        url: audit.url,
+        error: compactText(audit.error, 180),
+      };
+    }
+
+    return {
+      audit_type: "website_basics",
+      measured: true,
+      status: audit.status,
+      url: audit.url,
+      final_url: audit.finalUrl,
+      http_status: audit.httpStatus,
+      response_time_ms: audit.responseTimeMs,
+      redirect_count: audit.redirectCount,
+      title_present: !!audit.title,
+      meta_description_present: !!audit.metaDescription,
+      schema_types: Array.isArray(audit.schemaTypes)
+        ? audit.schemaTypes.slice(0, 8)
+        : [],
+      checks: Array.isArray(audit.checks)
+        ? audit.checks.map((check: any) => ({
+            key: check.key,
+            status: check.status,
+            detail: compactText(check.detail, 120),
+          }))
+        : [],
+    };
+  }
+
+  const scoreValues = [
+    audit.performanceScore,
+    audit.accessibilityScore,
+    audit.bestPracticesScore,
+    audit.seoScore,
+  ].filter((score) => typeof score === "number");
+  const hasMeasuredScore = scoreValues.some((score) => score > 0);
+  if (!hasMeasuredScore && scoreValues.length > 0) {
+    return {
+      measured: false,
+      status: "unknown",
+      url: audit.url,
+      reason: "Legacy audit scores were all zero, so they are treated as unknown.",
+    };
+  }
+
   return {
     url: audit.url,
+    measured: true,
     scores: {
       performance: audit.performanceScore,
       accessibility: audit.accessibilityScore,
@@ -302,20 +362,36 @@ export async function runRankingAnalysis(
       `[RANKING] [${rankingId}] LLM input compacted (${JSON.stringify(payload.additional_data).length}ch -> ${userMessage.length}ch)`,
     );
 
-    const result = await runAgent({
-      systemPrompt: SYSTEM_PROMPT,
-      userMessage,
-      maxTokens: 16384,
-      temperature: 0,
-    });
+    const { value: result, attempts } = await runWithRetry(
+      async () => {
+        const agentResult = await runAgent({
+          systemPrompt: SYSTEM_PROMPT,
+          userMessage,
+          maxTokens: 16384,
+          temperature: 0,
+        });
 
-    _log(
-      `[RANKING] [${rankingId}] Claude responded (${result.inputTokens} in / ${result.outputTokens} out)`,
+        if (!agentResult.parsed) {
+          throw new Error("Claude returned non-parseable response");
+        }
+
+        return agentResult;
+      },
+      {
+        label: `Ranking LLM analysis ${rankingId}`,
+        maxAttempts: 3,
+        logger: _log,
+        shouldRetry: (error) =>
+          isRetryableExternalError(error) ||
+          getExternalErrorMessage(error)
+            .toLowerCase()
+            .includes("non-parseable"),
+      },
     );
 
-    if (!result.parsed) {
-      throw new Error("Claude returned non-parseable response");
-    }
+    _log(
+      `[RANKING] [${rankingId}] Claude responded (${result.inputTokens} in / ${result.outputTokens} out, attempts=${attempts.length})`,
+    );
 
     const llmAnalysis = result.parsed;
 
@@ -333,6 +409,7 @@ export async function runRankingAnalysis(
       success: true,
       inputTokens: result.inputTokens,
       outputTokens: result.outputTokens,
+      retryAttempts: attempts,
     };
   } catch (error: any) {
     _log(
@@ -350,6 +427,9 @@ export async function runRankingAnalysis(
     return {
       success: false,
       error: error.message,
+      retryAttempts: Array.isArray(error.retryAttempts)
+        ? error.retryAttempts
+        : [],
     };
   }
 }

@@ -2,6 +2,26 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.70] - May 2026
+
+### Ranking Resilience And Website Basics Audit
+
+Hardened the local ranking pipeline so transient failures retry safely, permanent failures fail clearly, and website audit outages no longer create fake zero-score recommendations.
+
+**Key Changes:**
+- Added classified max-3 retry handling for ranking LLM, Identifier, GBP fetches, Apify Maps, and competitor detail scrape boundaries
+- Replaced the broken Apify Lighthouse dependency with an internal website basics check that records reachability, HTTPS, metadata, schema, robots, sitemap, and NAP hints
+- Changed website audit failure semantics from fake zero scores to `failed`, `skipped`, `unknown`, or nullable measured fields
+- Updated ranking LLM context so failed or skipped website checks cannot produce false critical website recommendations
+- Added retry evidence to ranking pipeline timing details for observability
+
+**Commits:**
+- `src/controllers/practice-ranking/feature-services/service.ranking-resilience.ts` — shared classified retry helper and attempt summaries
+- `src/controllers/practice-ranking/feature-services/service.website-audit.ts` and `service.website-audit-parser.ts` — custom single-URL website basics audit
+- `src/controllers/practice-ranking/feature-services/service.ranking-pipeline.ts`, `service.apify.ts`, and `service.ranking-llm.ts` — retry telemetry, Apify retry boundaries, and safe LLM audit compaction
+- `src/controllers/agents/feature-services/service.ranking-executor.ts`, `service.webhook-orchestrator.ts`, and `src/controllers/practice-ranking/feature-services/service.location-competitor-onboarding.ts` — resilient GBP/Identifier paths and safer specialty fallback
+- `plans/05142026-no-ticket-ranking-resilience-custom-auditor/spec.md` — executed spec and verification checklist
+
 ## [0.0.69] - May 2026
 
 ### Rybbit Integration Cleanup And Dashboard

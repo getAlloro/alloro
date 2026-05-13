@@ -10,6 +10,11 @@ import axios from "axios";
 import { log } from "../feature-utils/agentLogger";
 import { loadPrompt } from "../../../agents/service.prompt-loader";
 import { runAgent } from "../../../agents/service.llm-runner";
+import {
+  getExternalErrorMessage,
+  isRetryableExternalError,
+  runWithRetry,
+} from "../../practice-ranking/feature-services/service.ranking-resilience";
 
 // =====================================================================
 // WEBHOOK URL CONSTANTS
@@ -99,25 +104,39 @@ export async function identifyLocationMeta(
     const systemPrompt = loadPrompt("rankingAgents/Identifier");
     const userMessage = JSON.stringify(payload, null, 2);
 
-    const result = await runAgent({
-      systemPrompt,
-      userMessage,
-      maxTokens: 1024,
-    });
+    const { value: result, attempts } = await runWithRetry(
+      async () => {
+        const agentResult = await runAgent({
+          systemPrompt,
+          userMessage,
+          maxTokens: 1024,
+        });
+
+        if (!agentResult.parsed || typeof agentResult.parsed !== "object") {
+          throw new Error("Identifier returned non-parseable response");
+        }
+
+        return agentResult;
+      },
+      {
+        label: `Identifier Agent (${domain})`,
+        maxAttempts: 3,
+        logger: log,
+        shouldRetry: (error) =>
+          isRetryableExternalError(error) ||
+          getExternalErrorMessage(error)
+            .toLowerCase()
+            .includes("non-parseable"),
+      },
+    );
 
     const data = result.parsed;
-    if (!data || typeof data !== "object") {
-      log(
-        `  [IDENTIFIER] \u2717 Could not parse Identifier output. Using fallbacks.`,
-      );
-      return getFallbackMeta(gbpData);
-    }
-
-    const specialty = data.specialty || "orthodontist";
+    const fallback = getFallbackMeta(gbpData);
+    const specialty = data.specialty || fallback.specialty;
     const marketLocation = data.marketLocation || getFallbackMarket(gbpData);
 
     log(
-      `  [IDENTIFIER] \u2713 Identified: ${specialty} in ${marketLocation} (${result.inputTokens} in / ${result.outputTokens} out)`,
+      `  [IDENTIFIER] \u2713 Identified: ${specialty} in ${marketLocation} (${result.inputTokens} in / ${result.outputTokens} out, attempts=${attempts.length})`,
     );
 
     return { specialty, marketLocation };
@@ -137,9 +156,41 @@ export function getFallbackMeta(gbpData: any): {
   marketLocation: string;
 } {
   return {
-    specialty: "orthodontist",
+    specialty: getFallbackSpecialty(gbpData),
     marketLocation: getFallbackMarket(gbpData),
   };
+}
+
+function getFallbackSpecialty(gbpData: any): string {
+  const profile = gbpData?.profile || {};
+  const categoryValues = [
+    profile.primaryCategory?.displayName,
+    profile.primaryCategory?.name,
+    profile.primaryCategory,
+    ...(Array.isArray(profile.additionalCategories)
+      ? profile.additionalCategories.map(
+          (category: any) => category?.displayName || category?.name || category,
+        )
+      : []),
+    profile.title,
+    profile.businessName,
+    profile.name,
+  ];
+  const haystack = categoryValues
+    .filter((value) => typeof value === "string")
+    .join(" ")
+    .toLowerCase();
+
+  if (haystack.includes("endodont")) return "endodontist";
+  if (haystack.includes("orthodont")) return "orthodontist";
+  if (haystack.includes("periodont")) return "periodontist";
+  if (haystack.includes("oral surgeon") || haystack.includes("oral surgery")) {
+    return "oral surgeon";
+  }
+  if (haystack.includes("pediatric")) return "pediatric dentist";
+  if (haystack.includes("prosthodont")) return "prosthodontist";
+
+  return "dentist";
 }
 
 /**

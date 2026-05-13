@@ -37,6 +37,11 @@ import {
 } from "./service.places-competitor-discovery";
 import { getPlaceDetails } from "../../places/feature-services/GooglePlacesApiService";
 import { processLocationRanking } from "./service.ranking-pipeline";
+import {
+  isRetryableExternalError,
+  runWithRetry,
+  summarizeRetryAttempts,
+} from "./service.ranking-resilience";
 import { log, logError } from "../feature-utils/util.ranking-logger";
 import {
   DEFAULT_COMPETITOR_DISCOVERY_RADIUS_METERS,
@@ -752,28 +757,43 @@ async function resolveSpecialtyAndMarket(
     ctx.selectedGbp.google_connection_id
   );
   const today = new Date().toISOString().split("T")[0];
-  const gbpProfile = await fetchGBPDataForRange(
-    oauth2Client,
-    [
-      {
-        accountId: ctx.selectedGbp.account_id || "",
-        locationId: ctx.selectedGbp.external_id,
-        displayName: ctx.selectedGbp.display_name || ctx.locationName,
-      },
-    ],
-    today,
-    today,
+  const gbpFetchResult = await runWithRetry(
+    () =>
+      fetchGBPDataForRange(
+        oauth2Client,
+        [
+          {
+            accountId: ctx.selectedGbp.account_id || "",
+            locationId: ctx.selectedGbp.external_id,
+            displayName: ctx.selectedGbp.display_name || ctx.locationName,
+          },
+        ],
+        today,
+        today,
+        {
+          refreshOAuth2Client: async () => {
+            oauth2Client = await getValidOAuth2Client(
+              ctx.selectedGbp.google_connection_id,
+              { forceRefresh: true }
+            );
+            return oauth2Client;
+          },
+          throwOnLocationError: true,
+        }
+      ),
     {
-      refreshOAuth2Client: async () => {
-        oauth2Client = await getValidOAuth2Client(
-          ctx.selectedGbp.google_connection_id,
-          { forceRefresh: true }
-        );
-        return oauth2Client;
-      },
-      throwOnLocationError: true,
+      label: `competitor onboarding GBP ${ctx.selectedGbp.external_id}`,
+      maxAttempts: 3,
+      logger: log,
+      shouldRetry: isRetryableExternalError,
     }
   );
+  log(
+    `[ONBOARDING] [${ctx.locationId}] GBP fetch ${summarizeRetryAttempts(
+      gbpFetchResult.attempts
+    )}`
+  );
+  const gbpProfile = gbpFetchResult.value;
   const locationData = gbpProfile?.locations?.[0]?.data || {};
   const meta = await identifyLocationMeta(locationData, ctx.organizationDomain);
   return { specialty: meta.specialty, marketLocation: meta.marketLocation };

@@ -4,6 +4,12 @@
  */
 
 import axios from "axios";
+import {
+  isRetryableExternalError,
+  RetryAttemptRecord,
+  runWithRetry,
+  summarizeRetryAttempts,
+} from "./service.ranking-resilience";
 
 const APIFY_API_TOKEN = process.env.APIFY_TOKEN;
 const APIFY_API_BASE = "https://api.apify.com/v2";
@@ -11,10 +17,6 @@ const APIFY_API_BASE = "https://api.apify.com/v2";
 // Google Maps Scraper Actor ID (using compass crawler)
 // Note: Use tilde (~) instead of slash (/) for Apify API URL format
 const GOOGLE_MAPS_ACTOR = "compass~crawler-google-places";
-
-// Lighthouse/SEO Audit Actor ID
-// Note: Use tilde (~) instead of slash (/) for Apify API URL format
-const LIGHTHOUSE_ACTOR = "apify~lighthouse";
 
 interface ApifyRunResult {
   id: string;
@@ -80,23 +82,6 @@ interface CompetitorDetailedData {
     text: string;
     publishedAtDate: string;
   }>;
-}
-
-interface WebsiteAuditResult {
-  url: string;
-  lcp: number;
-  fid: number;
-  cls: number;
-  performanceScore: number;
-  accessibilityScore: number;
-  bestPracticesScore: number;
-  seoScore: number;
-  hasLocalSchema: boolean;
-  hasOrganizationSchema: boolean;
-  hasReviewSchema: boolean;
-  hasFaqSchema: boolean;
-  mobileFriendly: boolean;
-  https: boolean;
 }
 
 /**
@@ -192,6 +177,7 @@ export interface ApifyMapsSearchPositionResult {
   status: "ok" | "not_in_top_20" | "api_error";
   resultCount: number;
   orderedPlaceIds: string[];
+  retryAttempts?: RetryAttemptRecord[];
   orderedResults: Array<{
     placeId: string;
     name: string;
@@ -254,27 +240,37 @@ export async function getSearchPositionViaApifyMaps(
       inputPayload.postalCode = locationParams.postalCode;
     if (locationParams?.city) inputPayload.city = locationParams.city;
 
-    const runResponse = await axios.post(
-      `${APIFY_API_BASE}/acts/${GOOGLE_MAPS_ACTOR}/runs`,
-      inputPayload,
+    const { value: items, attempts } = await runWithRetry(
+      async () => {
+        const runResponse = await axios.post(
+          `${APIFY_API_BASE}/acts/${GOOGLE_MAPS_ACTOR}/runs`,
+          inputPayload,
+          {
+            headers: {
+              Authorization: `Bearer ${APIFY_API_TOKEN}`,
+              "Content-Type": "application/json",
+            },
+          },
+        );
+
+        const runId = runResponse.data.data.id;
+        log(`Search-position actor run started: ${runId}`);
+
+        const runResult = await waitForActorRun(runId);
+
+        if (!runResult.datasetId) {
+          throw new Error("No dataset ID returned from actor run");
+        }
+
+        return fetchDatasetItems(runResult.datasetId);
+      },
       {
-        headers: {
-          Authorization: `Bearer ${APIFY_API_TOKEN}`,
-          "Content-Type": "application/json",
-        },
+        label: `Apify Maps search-position "${searchQuery}"`,
+        maxAttempts: 3,
+        logger: log,
+        shouldRetry: isRetryableExternalError,
       },
     );
-
-    const runId = runResponse.data.data.id;
-    log(`Search-position actor run started: ${runId}`);
-
-    const runResult = await waitForActorRun(runId);
-
-    if (!runResult.datasetId) {
-      throw new Error("No dataset ID returned from actor run");
-    }
-
-    const items = await fetchDatasetItems(runResult.datasetId);
     log(`Search-position fetched ${items.length} ordered Maps results`);
 
     const validItems = items.filter(
@@ -307,6 +303,7 @@ export async function getSearchPositionViaApifyMaps(
         status: "ok",
         resultCount: orderedPlaceIds.length,
         orderedPlaceIds,
+        retryAttempts: attempts,
         orderedResults,
       };
     }
@@ -319,6 +316,7 @@ export async function getSearchPositionViaApifyMaps(
       status: "not_in_top_20",
       resultCount: orderedPlaceIds.length,
       orderedPlaceIds,
+      retryAttempts: attempts,
       orderedResults,
     };
   } catch (error: any) {
@@ -328,6 +326,9 @@ export async function getSearchPositionViaApifyMaps(
       status: "api_error",
       resultCount: 0,
       orderedPlaceIds: [],
+      retryAttempts: Array.isArray(error.retryAttempts)
+        ? error.retryAttempts
+        : [],
       orderedResults: [],
     };
   }
@@ -457,38 +458,45 @@ export async function getCompetitorDetails(
   log(`Getting detailed data for ${placeIds.length} competitors`);
 
   try {
-    // Start the Google Maps scraper actor with place IDs (using startUrls)
-    // Note: Removed maxImages to reduce costs - we don't need photo count data
-    const runResponse = await axios.post(
-      `${APIFY_API_BASE}/acts/${GOOGLE_MAPS_ACTOR}/runs`,
-      {
-        startUrls: placeIds.map((id) => ({
-          url: `https://www.google.com/maps/place/?q=place_id:${id}`,
-        })),
-        language: "en",
-        maxReviews: 10,
+    const { value: items, attempts } = await runWithRetry(
+      async () => {
+        const runResponse = await axios.post(
+          `${APIFY_API_BASE}/acts/${GOOGLE_MAPS_ACTOR}/runs`,
+          {
+            startUrls: placeIds.map((id) => ({
+              url: `https://www.google.com/maps/place/?q=place_id:${id}`,
+            })),
+            language: "en",
+            maxReviews: 10,
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${APIFY_API_TOKEN}`,
+              "Content-Type": "application/json",
+            },
+          },
+        );
+
+        const runId = runResponse.data.data.id;
+        log(`Started detail scrape actor run: ${runId}`);
+
+        const runResult = await waitForActorRun(runId);
+
+        if (!runResult.datasetId) {
+          throw new Error("No dataset ID returned from actor run");
+        }
+
+        return fetchDatasetItems(runResult.datasetId);
       },
       {
-        headers: {
-          Authorization: `Bearer ${APIFY_API_TOKEN}`,
-          "Content-Type": "application/json",
-        },
+        label: `Apify competitor details (${placeIds.length})`,
+        maxAttempts: 3,
+        logger: log,
+        shouldRetry: isRetryableExternalError,
       },
     );
-
-    const runId = runResponse.data.data.id;
-    log(`Started detail scrape actor run: ${runId}`);
-
-    // Wait for completion
-    const runResult = await waitForActorRun(runId);
-
-    if (!runResult.datasetId) {
-      throw new Error("No dataset ID returned from actor run");
-    }
-
-    // Fetch results
-    const items = await fetchDatasetItems(runResult.datasetId);
     log(`Fetched detailed data for ${items.length} competitors`);
+    log(`Detail scrape retry summary: ${summarizeRetryAttempts(attempts)}`);
 
     // Transform to our format
     const competitors: CompetitorDetailedData[] = items.map((item) => {
@@ -563,6 +571,7 @@ export async function getCompetitorDetails(
       };
     });
 
+    (competitors as any).retryAttempts = attempts;
     return competitors;
   } catch (error: any) {
     log(`Error getting competitor details: ${error.message}`);
@@ -660,114 +669,6 @@ export async function enrichCompetitorReviewCounts(
 }
 
 /**
- * Run Lighthouse audit on a website
- * @param url - Website URL to audit
- */
-export async function auditWebsite(url: string): Promise<WebsiteAuditResult> {
-  if (!APIFY_API_TOKEN) {
-    throw new Error("APIFY_TOKEN environment variable is not set");
-  }
-
-  log(`Running Lighthouse audit for: ${url}`);
-
-  try {
-    // Start the Lighthouse actor
-    const runResponse = await axios.post(
-      `${APIFY_API_BASE}/acts/${LIGHTHOUSE_ACTOR}/runs`,
-      {
-        url: url,
-        device: "mobile",
-        throttling: "applied",
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${APIFY_API_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-      },
-    );
-
-    const runId = runResponse.data.data.id;
-    log(`Started Lighthouse actor run: ${runId}`);
-
-    // Wait for completion
-    const runResult = await waitForActorRun(runId);
-
-    if (!runResult.datasetId) {
-      throw new Error("No dataset ID returned from actor run");
-    }
-
-    // Fetch results
-    const items = await fetchDatasetItems(runResult.datasetId);
-
-    if (items.length === 0) {
-      throw new Error("No audit results returned");
-    }
-
-    const audit = items[0];
-    const categories = audit.categories || {};
-    const audits = audit.audits || {};
-
-    // Extract Core Web Vitals
-    const lcp = audits["largest-contentful-paint"]?.numericValue / 1000 || 0;
-    const fid = audits["max-potential-fid"]?.numericValue || 0;
-    const cls = audits["cumulative-layout-shift"]?.numericValue || 0;
-
-    // Check for schema types
-    const structuredData = audits["structured-data"]?.details?.items || [];
-    const schemaTypes = structuredData.map(
-      (item: any) => item.type?.toLowerCase() || "",
-    );
-
-    return {
-      url: url,
-      lcp: Math.round(lcp * 100) / 100,
-      fid: Math.round(fid),
-      cls: Math.round(cls * 1000) / 1000,
-      performanceScore: Math.round((categories.performance?.score || 0) * 100),
-      accessibilityScore: Math.round(
-        (categories.accessibility?.score || 0) * 100,
-      ),
-      bestPracticesScore: Math.round(
-        (categories["best-practices"]?.score || 0) * 100,
-      ),
-      seoScore: Math.round((categories.seo?.score || 0) * 100),
-      hasLocalSchema: schemaTypes.some((t: string) =>
-        t.includes("localbusiness"),
-      ),
-      hasOrganizationSchema: schemaTypes.some((t: string) =>
-        t.includes("organization"),
-      ),
-      hasReviewSchema: schemaTypes.some(
-        (t: string) => t.includes("review") || t.includes("aggregaterating"),
-      ),
-      hasFaqSchema: schemaTypes.some((t: string) => t.includes("faq")),
-      mobileFriendly: (categories.performance?.score || 0) > 0.5,
-      https: url.startsWith("https://"),
-    };
-  } catch (error: any) {
-    log(`Error auditing website: ${error.message}`);
-    // Return default values on error
-    return {
-      url: url,
-      lcp: 0,
-      fid: 0,
-      cls: 0,
-      performanceScore: 0,
-      accessibilityScore: 0,
-      bestPracticesScore: 0,
-      seoScore: 0,
-      hasLocalSchema: false,
-      hasOrganizationSchema: false,
-      hasReviewSchema: false,
-      hasFaqSchema: false,
-      mobileFriendly: false,
-      https: url.startsWith("https://"),
-    };
-  }
-}
-
-/**
  * Get specialty-specific keywords for name matching
  */
 export function getSpecialtyKeywords(specialty: string): string[] {
@@ -804,6 +705,5 @@ export function getSpecialtyKeywords(specialty: string): string[] {
 export default {
   discoverCompetitors,
   getCompetitorDetails,
-  auditWebsite,
   getSpecialtyKeywords,
 };

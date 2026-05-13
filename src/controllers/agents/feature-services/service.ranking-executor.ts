@@ -20,7 +20,15 @@ import {
   RETRY_DELAY_MS,
   type PrefetchedClientGbpData,
 } from "../../practice-ranking/feature-services/service.ranking-pipeline";
-import { identifyLocationMeta } from "./service.webhook-orchestrator";
+import {
+  getFallbackMeta,
+  identifyLocationMeta,
+} from "./service.webhook-orchestrator";
+import {
+  isRetryableExternalError,
+  runWithRetry,
+  summarizeRetryAttempts,
+} from "../../practice-ranking/feature-services/service.ranking-resilience";
 import { log, logError, delay } from "../feature-utils/agentLogger";
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -210,6 +218,7 @@ export async function processRankingWork(workItems: WorkItem[]): Promise<void> {
       let specialty = "";
       let marketLocation = "";
       let prefetchedClientGbpData: PrefetchedClientGbpData | undefined;
+      let identificationGbpData: any = {};
       try {
         let oauth2Client = await getValidOAuth2Client(loc.connectionId);
         const prefetchEndDate = new Date();
@@ -219,26 +228,42 @@ export async function processRankingWork(workItems: WorkItem[]): Promise<void> {
           .toISOString()
           .split("T")[0];
         const prefetchEndDateStr = prefetchEndDate.toISOString().split("T")[0];
-        const gbpProfile = await fetchGBPDataForRange(
-          oauth2Client,
-          [{
-            accountId: loc.gbpAccountId,
-            locationId: loc.gbpLocationId,
-            displayName: loc.gbpLocationName,
-          }],
-          prefetchStartDateStr,
-          prefetchEndDateStr,
+        const gbpFetchResult = await runWithRetry(
+          () =>
+            fetchGBPDataForRange(
+              oauth2Client,
+              [{
+                accountId: loc.gbpAccountId,
+                locationId: loc.gbpLocationId,
+                displayName: loc.gbpLocationName,
+              }],
+              prefetchStartDateStr,
+              prefetchEndDateStr,
+              {
+                refreshOAuth2Client: async () => {
+                  oauth2Client = await getValidOAuth2Client(loc.connectionId, {
+                    forceRefresh: true,
+                  });
+                  return oauth2Client;
+                },
+                throwOnLocationError: true,
+              },
+            ),
           {
-            refreshOAuth2Client: async () => {
-              oauth2Client = await getValidOAuth2Client(loc.connectionId, {
-                forceRefresh: true,
-              });
-              return oauth2Client;
-            },
-            throwOnLocationError: true,
+            label: `ranking prefetch GBP ${loc.gbpAccountId}/${loc.gbpLocationId}`,
+            maxAttempts: 3,
+            logger: log,
+            shouldRetry: isRetryableExternalError,
           },
         );
+        const gbpProfile = gbpFetchResult.value;
+        log(
+          `  [LOCATION] GBP prefetch ${summarizeRetryAttempts(
+            gbpFetchResult.attempts,
+          )}`,
+        );
         const locationData = gbpProfile?.locations?.[0]?.data || {};
+        identificationGbpData = locationData;
         if (locationData && Object.keys(locationData).length > 0) {
           prefetchedClientGbpData = {
             accountId: loc.gbpAccountId,
@@ -260,8 +285,9 @@ export async function processRankingWork(workItems: WorkItem[]): Promise<void> {
         log(`  [LOCATION] Identified: ${specialty} in ${marketLocation}`);
       } catch (identErr: any) {
         log(`  [LOCATION] Identification failed for ${loc.gbpLocationName}: ${identErr.message}, using fallback`);
-        specialty = "orthodontist";
-        marketLocation = "Unknown, US";
+        const fallback = getFallbackMeta(identificationGbpData);
+        specialty = fallback.specialty;
+        marketLocation = fallback.marketLocation;
         await db("practice_rankings")
           .where({ id: loc.rankingId })
           .update({ specialty, location: marketLocation, updated_at: new Date() });
