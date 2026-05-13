@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Globe,
@@ -10,10 +10,19 @@ import {
   ChevronDown,
   CheckCircle2,
   AlertTriangle,
+  ExternalLink,
+  Loader2,
 } from "lucide-react";
+import { toast } from "react-hot-toast";
 import { useAuth } from "../../hooks/useAuth";
 import { useSettingsScopes, usePmsStatus } from "../../hooks/queries/useSettingsQueries";
-import { useGoogleReconnect } from "../../hooks/queries/useWebsiteIntegrations";
+import {
+  useGoogleReconnect,
+  useSaveUserGscIntegration,
+  useUserGscConnections,
+  useUserGscIntegration,
+  useUserGscSites,
+} from "../../hooks/queries/useWebsiteIntegrations";
 import { useOnboardingWizard } from "../../contexts/OnboardingWizardContext";
 import { PropertiesTab } from "../../components/settings/PropertiesTab";
 import { MissingScopeBanner } from "../../components/settings/MissingScopeBanner";
@@ -51,9 +60,56 @@ function GscSettingsSection({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [oauthPending, setOauthPending] = useState(false);
+  const [selectedConnectionId, setSelectedConnectionId] = useState<number | null>(null);
+  const [selectedSiteUrl, setSelectedSiteUrl] = useState<string | null>(null);
   const reconnectMutation = useGoogleReconnect();
-  const granting = reconnectMutation.isPending || oauthPending;
   const hasGscScope = !missingScopes.includes("gsc");
+  const integrationQuery = useUserGscIntegration(expanded && hasGscScope);
+  const connectionsQuery = useUserGscConnections(expanded && hasGscScope);
+  const sitesQuery = useUserGscSites(
+    selectedConnectionId,
+    expanded && hasGscScope,
+  );
+  const saveMutation = useSaveUserGscIntegration();
+  const granting = reconnectMutation.isPending || oauthPending;
+  const currentIntegration = integrationQuery.data?.data ?? null;
+  const currentMetadata = currentIntegration?.metadata ?? {};
+  const currentSiteUrl =
+    typeof currentMetadata.siteUrl === "string" ? currentMetadata.siteUrl : null;
+  const currentEmail =
+    typeof currentMetadata.googleEmail === "string"
+      ? currentMetadata.googleEmail
+      : null;
+  const currentOwner =
+    typeof currentMetadata.connectionOwner === "string"
+      ? currentMetadata.connectionOwner
+      : null;
+  const currentSource =
+    currentOwner === "admin"
+      ? "Admin account"
+      : currentOwner === "organization"
+        ? "Client organization"
+        : null;
+  const connections = connectionsQuery.data?.data ?? [];
+  const selectedConnection = connections.find(
+    (connection) => connection.id === selectedConnectionId,
+  );
+  const sites = sitesQuery.isPlaceholderData ? [] : sitesQuery.data?.data ?? [];
+  const sitesLoading =
+    !!selectedConnectionId &&
+    (sitesQuery.isLoading || sitesQuery.isFetching || sitesQuery.isPlaceholderData);
+
+  useEffect(() => {
+    if (!currentIntegration || currentOwner !== "organization") return;
+
+    const currentConnectionId = Number(currentMetadata.googleConnectionId);
+    if (Number.isInteger(currentConnectionId) && currentConnectionId > 0) {
+      setSelectedConnectionId(currentConnectionId);
+    }
+    if (currentSiteUrl) {
+      setSelectedSiteUrl(currentSiteUrl);
+    }
+  }, [currentIntegration, currentMetadata.googleConnectionId, currentOwner, currentSiteUrl]);
 
   const handleGrantAccess = async () => {
     setOauthPending(true);
@@ -89,7 +145,13 @@ function GscSettingsSection({
           try { popup.close(); } catch { /* COOP */ }
           setOauthPending(false);
           window.removeEventListener("message", handleMessage);
-          if (event.data.type === "GOOGLE_OAUTH_SUCCESS") onGrantAccess();
+          if (event.data.type === "GOOGLE_OAUTH_SUCCESS") {
+            toast.success("Google Search Console access updated");
+            onGrantAccess();
+            connectionsQuery.refetch();
+          } else {
+            toast.error("Google authorization failed");
+          }
         }
       };
 
@@ -107,7 +169,30 @@ function GscSettingsSection({
       };
       checkClosed();
     } catch {
+      toast.error("Failed to start Google authorization");
       setOauthPending(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!selectedConnectionId || !selectedSiteUrl) return;
+
+    try {
+      const result = await saveMutation.mutateAsync({
+        connectionId: selectedConnectionId,
+        siteUrl: selectedSiteUrl,
+      });
+      toast.success("Search Console source updated");
+
+      if (result.data.initialHarvest.warning) {
+        toast.error(result.data.initialHarvest.warning);
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to update Search Console source",
+      );
     }
   };
 
@@ -163,10 +248,189 @@ function GscSettingsSection({
           >
             <div className="px-6 pb-5 pt-1 border-t border-slate-100">
               {hasGscScope ? (
-                <p className="text-sm text-slate-500">
-                  Search Console access is active. Your admin can connect
-                  specific sites from the website integrations panel.
-                </p>
+                <div className="space-y-4">
+                  {integrationQuery.isLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-slate-400">
+                      <Loader2 size={16} className="animate-spin" />
+                      Loading Search Console source...
+                    </div>
+                  ) : currentIntegration ? (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.18em] mb-2">
+                        Active source
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                        <div className="min-w-0">
+                          <div className="text-slate-400 font-bold uppercase mb-0.5">
+                            Site
+                          </div>
+                          <div className="font-semibold text-alloro-navy truncate">
+                            {currentSiteUrl || "--"}
+                          </div>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-slate-400 font-bold uppercase mb-0.5">
+                            Account
+                          </div>
+                          <div className="font-semibold text-alloro-navy truncate">
+                            {currentEmail || "--"}
+                          </div>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-slate-400 font-bold uppercase mb-0.5">
+                            Owner
+                          </div>
+                          <div className="font-semibold text-alloro-navy truncate">
+                            {currentSource || "--"}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {connectionsQuery.isLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-slate-400">
+                      <Loader2 size={16} className="animate-spin" />
+                      Loading Google accounts...
+                    </div>
+                  ) : connectionsQuery.isError ? (
+                    <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      Failed to load Search Console accounts.
+                    </div>
+                  ) : connections.length === 0 ? (
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <p className="text-sm text-slate-500">
+                        No Search Console account is available for this
+                        organization yet.
+                      </p>
+                      <button
+                        onClick={handleGrantAccess}
+                        disabled={granting}
+                        className="shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-alloro-orange text-white text-sm font-bold rounded-xl hover:bg-alloro-orange/90 transition-colors disabled:opacity-50"
+                      >
+                        {granting ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <ExternalLink size={14} />
+                        )}
+                        Connect Google
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.18em] mb-1.5">
+                          Google Account
+                        </label>
+                        <div className="relative">
+                          <select
+                            value={selectedConnectionId ?? ""}
+                            onChange={(event) => {
+                              const nextConnectionId = Number(event.target.value);
+                              setSelectedConnectionId(
+                                nextConnectionId > 0 ? nextConnectionId : null,
+                              );
+                              setSelectedSiteUrl(null);
+                            }}
+                            className="w-full appearance-none bg-white border border-slate-200 rounded-xl px-4 py-2.5 pr-10 text-sm font-bold text-alloro-navy focus:outline-none focus:ring-2 focus:ring-alloro-orange/20 focus:border-alloro-orange"
+                          >
+                            <option value="">Select an account...</option>
+                            {connections.map((connection) => (
+                              <option key={connection.id} value={connection.id}>
+                                {connection.email} — {connection.sourceLabel}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown
+                            size={16}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none"
+                          />
+                        </div>
+                        {selectedConnection && (
+                          <p className="mt-1.5 text-xs text-slate-400">
+                            This website will fetch Search Console data from the{" "}
+                            {selectedConnection.sourceLabel.toLowerCase()}.
+                          </p>
+                        )}
+                      </div>
+
+                      {selectedConnectionId && (
+                        <div>
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.18em] mb-1.5">
+                            Search Console Property
+                          </label>
+                          {sitesLoading ? (
+                            <div className="flex items-center gap-2 text-sm text-slate-400 py-2">
+                              <Loader2 size={16} className="animate-spin" />
+                              Loading properties...
+                            </div>
+                          ) : sitesQuery.isError ? (
+                            <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+                              Failed to load Search Console properties.
+                            </div>
+                          ) : sites.length > 0 ? (
+                            <div className="relative">
+                              <select
+                                value={selectedSiteUrl ?? ""}
+                                onChange={(event) =>
+                                  setSelectedSiteUrl(event.target.value || null)
+                                }
+                                className="w-full appearance-none bg-white border border-slate-200 rounded-xl px-4 py-2.5 pr-10 text-sm font-bold text-alloro-navy focus:outline-none focus:ring-2 focus:ring-alloro-orange/20 focus:border-alloro-orange"
+                              >
+                                <option value="">Select a property...</option>
+                                {sites.map((site) => (
+                                  <option key={site.siteUrl} value={site.siteUrl}>
+                                    {site.permissionLevel
+                                      ? `${site.siteUrl} (${site.permissionLevel})`
+                                      : site.siteUrl}
+                                  </option>
+                                ))}
+                              </select>
+                              <ChevronDown
+                                size={16}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none"
+                              />
+                            </div>
+                          ) : (
+                            <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                              No Search Console properties were found for this
+                              account.
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-1">
+                        <button
+                          onClick={handleGrantAccess}
+                          disabled={granting}
+                          className="inline-flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-alloro-orange transition-colors disabled:opacity-50"
+                        >
+                          {granting ? (
+                            <Loader2 size={13} className="animate-spin" />
+                          ) : (
+                            <ExternalLink size={13} />
+                          )}
+                          Connect a different Google account
+                        </button>
+                        <button
+                          onClick={handleSave}
+                          disabled={
+                            !selectedConnectionId ||
+                            !selectedSiteUrl ||
+                            saveMutation.isPending
+                          }
+                          className="shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-alloro-orange text-white text-sm font-bold rounded-xl hover:bg-alloro-orange/90 transition-colors disabled:opacity-50"
+                        >
+                          {saveMutation.isPending && (
+                            <Loader2 size={14} className="animate-spin" />
+                          )}
+                          Save Source
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <p className="text-sm text-slate-500">

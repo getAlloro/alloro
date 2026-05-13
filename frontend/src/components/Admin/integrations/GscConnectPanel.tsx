@@ -30,6 +30,9 @@ export default function GscConnectPanel({ projectId, onConnected }: Props) {
   const reconnectMutation = useGoogleReconnect();
 
   const connections = connectionsQuery.data?.data ?? [];
+  const selectedConnection = connections.find(
+    (connection) => connection.id === selectedConnectionId,
+  );
   const sites = sitesQuery.isPlaceholderData ? [] : sitesQuery.data?.data ?? [];
   const loading = connectionsQuery.isLoading && !connectionsQuery.data;
   const sitesLoading =
@@ -178,7 +181,8 @@ export default function GscConnectPanel({ projectId, onConnected }: Props) {
         <>
           <p className="text-sm text-gray-500 mb-5 leading-relaxed">
             No Google accounts with Search Console access found. Connect a Google
-            account that has Search Console access to get started.
+            account from the admin org or the client org that has Search Console
+            access to get started.
           </p>
           <ActionButton
             label={oauthLoading ? "Connecting..." : "Connect Google Account"}
@@ -206,12 +210,18 @@ export default function GscConnectPanel({ projectId, onConnected }: Props) {
                 <option value="">Select an account...</option>
                 {connections.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.email}
+                    {c.email} — {c.sourceLabel}
                   </option>
                 ))}
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
+            {selectedConnection && (
+              <p className="mt-2 text-xs text-gray-500">
+                Future Search Console fetches for this website will use this{" "}
+                {selectedConnection.sourceLabel.toLowerCase()}.
+              </p>
+            )}
           </div>
 
           {selectedConnectionId && (

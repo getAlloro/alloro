@@ -13,6 +13,9 @@ import * as controller from "../../controllers/admin-websites/AdminWebsitesContr
 import * as backupController from "../../controllers/admin-websites/BackupController";
 import * as formsController from "../../controllers/admin-websites/WebsiteFormsController";
 import * as integrationsController from "../../controllers/admin-websites/WebsiteIntegrationsController";
+import { authenticateToken } from "../../middleware/auth";
+import { rbacMiddleware } from "../../middleware/rbac";
+import { superAdminMiddleware } from "../../middleware/superAdmin";
 import importsRouter from "./imports";
 
 const router = express.Router();
@@ -397,10 +400,34 @@ router.get("/:id/integrations", integrationsController.listIntegrations);
 // POST   /:id/integrations — Create + validate a new integration
 router.post("/:id/integrations", integrationsController.createIntegration);
 
+const adminGscAuth = [authenticateToken, rbacMiddleware, superAdminMiddleware];
+
 // GSC-specific routes (must be before /:integrationId params)
-router.get("/:id/integrations/gsc/connections", integrationsController.listGscConnections);
-router.get("/:id/integrations/gsc/sites", integrationsController.listGscSites);
-router.post("/:id/integrations/gsc", integrationsController.createGscIntegration);
+router.get(
+  "/:id/integrations/gsc/connections",
+  ...adminGscAuth,
+  integrationsController.listGscConnections,
+);
+router.get(
+  "/:id/integrations/gsc/sites",
+  ...adminGscAuth,
+  integrationsController.listGscSites,
+);
+router.post(
+  "/:id/integrations/gsc",
+  ...adminGscAuth,
+  integrationsController.createGscIntegration,
+);
+router.post(
+  "/:id/integrations/:integrationId/gsc/backfill",
+  ...adminGscAuth,
+  integrationsController.backfillGscHistory,
+);
+router.get(
+  "/:id/integrations/:integrationId/gsc/performance",
+  ...adminGscAuth,
+  integrationsController.getGscPerformance,
+);
 
 // GET    /:id/detected-forms — List website forms derived from submissions
 router.get("/:id/detected-forms", integrationsController.listDetectedForms);

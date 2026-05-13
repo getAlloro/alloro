@@ -48,4 +48,24 @@ export class GscDataModel extends BaseModel {
       .orderBy("report_date", "desc");
     return rows.map((row: IGscData) => this.deserializeJsonFields(row));
   }
+
+  static async findLatestReportDate(
+    projectId: string,
+    trx?: QueryContext,
+  ): Promise<string | null> {
+    const row = await this.table(trx)
+      .where({ project_id: projectId })
+      .max<{ latest_report_date: string | null }>(
+        "report_date as latest_report_date",
+      )
+      .first();
+    return row?.latest_report_date ?? null;
+  }
+
+  static async deleteByProjectId(
+    projectId: string,
+    trx?: QueryContext,
+  ): Promise<number> {
+    return this.table(trx).where({ project_id: projectId }).del();
+  }
 }

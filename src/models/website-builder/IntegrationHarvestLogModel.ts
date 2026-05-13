@@ -102,4 +102,11 @@ export class IntegrationHarvestLogModel extends BaseModel {
     const successful = rows.filter((r: { outcome: string }) => r.outcome === "success").length;
     return { total, successful, failed: total - successful };
   }
+
+  static async deleteByIntegrationId(
+    integrationId: string,
+    trx?: QueryContext,
+  ): Promise<number> {
+    return this.table(trx).where({ integration_id: integrationId }).del();
+  }
 }

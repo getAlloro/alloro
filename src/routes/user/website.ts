@@ -21,6 +21,38 @@ userWebsiteRoutes.get(
   controller.getUserWebsite
 );
 
+userWebsiteRoutes.get(
+  "/gsc/connections",
+  authenticateToken,
+  rbacMiddleware,
+  requireRole("admin", "manager"),
+  controller.listGscConnections
+);
+
+userWebsiteRoutes.get(
+  "/gsc/sites",
+  authenticateToken,
+  rbacMiddleware,
+  requireRole("admin", "manager"),
+  controller.listGscSites
+);
+
+userWebsiteRoutes.get(
+  "/gsc",
+  authenticateToken,
+  rbacMiddleware,
+  requireRole("admin", "manager"),
+  controller.getGscIntegration
+);
+
+userWebsiteRoutes.post(
+  "/gsc",
+  authenticateToken,
+  rbacMiddleware,
+  requireRole("admin"),
+  controller.saveGscIntegration
+);
+
 userWebsiteRoutes.post(
   "/pages/:pageId/edit",
   authenticateToken,

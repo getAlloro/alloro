@@ -1,4 +1,4 @@
-import { apiGet } from "./index";
+import { apiGet, apiPost } from "./index";
 
 /**
  * Website Integrations API — admin portal client for per-website connectors.
@@ -49,6 +49,37 @@ export interface SuccessRate {
   total: number;
   successful: number;
   failed: number;
+}
+
+export interface GscMetricSummary {
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+}
+
+export interface GscDailyPoint extends GscMetricSummary {
+  date: string;
+  sourceRows: number;
+}
+
+export interface GscDimensionRow extends GscMetricSummary {
+  key: string;
+}
+
+export interface GscPerformanceDashboard {
+  rangeDays: number;
+  fromDate: string | null;
+  toDate: string | null;
+  latestReportDate: string | null;
+  dataDays: number;
+  totals: GscMetricSummary;
+  daily: GscDailyPoint[];
+  topQueries: GscDimensionRow[];
+  topPages: GscDimensionRow[];
+  topCountries: GscDimensionRow[];
+  topDevices: GscDimensionRow[];
+  limitations: string[];
 }
 
 export interface IntegrationFormMapping {
@@ -116,6 +147,14 @@ interface Envelope<T> {
   pagination?: { limit: number; offset: number; total: number };
 }
 
+interface ApiFailure {
+  success?: boolean;
+  successful?: boolean;
+  message?: string;
+  error?: string;
+  errorMessage?: string;
+}
+
 const BASE = "/api/admin/websites";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -135,6 +174,34 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(msg);
   }
   return res.json();
+}
+
+function assertApiSuccess<T extends ApiFailure>(response: T): T {
+  const hasFailureFlag =
+    response.success === false || response.successful === false;
+  const hasErrorPayload =
+    response.success !== true && !!(response.error || response.errorMessage);
+
+  if (hasFailureFlag || hasErrorPayload) {
+    throw new Error(
+      response.message ||
+        response.error ||
+        response.errorMessage ||
+        "Request failed",
+    );
+  }
+  return response;
+}
+
+async function authedGet<T extends ApiFailure>(path: string): Promise<T> {
+  return assertApiSuccess((await apiGet({ path })) as T);
+}
+
+async function authedPost<T extends ApiFailure>(
+  path: string,
+  payload: object,
+): Promise<T> {
+  return assertApiSuccess((await apiPost({ path, passedData: payload })) as T);
 }
 
 // =====================================================================
@@ -312,9 +379,18 @@ export const rerunHarvest = (
   integrationId: string,
   harvestDate: string,
 ) =>
-  request<Envelope<{ queued: boolean; harvestDate: string; retryCount: number }>>(
-    `/${projectId}/integrations/${integrationId}/rerun`,
-    { method: "POST", body: JSON.stringify({ harvestDate }) },
+  authedPost<Envelope<{ queued: boolean; harvestDate: string; retryCount: number }>>(
+    `/admin/websites/${projectId}/integrations/${integrationId}/rerun`,
+    { harvestDate },
+  );
+
+export const fetchGscPerformance = (
+  projectId: string,
+  integrationId: string,
+  rangeDays: number,
+) =>
+  authedGet<Envelope<GscPerformanceDashboard>>(
+    `/admin/websites/${projectId}/integrations/${integrationId}/gsc/performance?rangeDays=${rangeDays}`,
   );
 
 // =====================================================================
@@ -325,6 +401,8 @@ export interface GscConnection {
   id: number;
   email: string;
   organization_id?: number;
+  connectionOwner: "admin" | "organization";
+  sourceLabel: string;
 }
 
 export interface GscSite {
@@ -336,6 +414,15 @@ export interface InitialHarvestResult {
   queued: boolean;
   harvestDate: string;
   warning?: string;
+}
+
+export interface GscHistoricBackfillResponse {
+  queued: boolean;
+  fromDate: string;
+  toDate: string;
+  queuedDays: number;
+  clearedDataRows: number;
+  clearedLogRows: number;
 }
 
 export interface GscIntegrationCreateResponse {
@@ -353,19 +440,48 @@ export interface GoogleReconnectResponse {
 }
 
 export const fetchGscConnections = (projectId: string) =>
-  request<Envelope<GscConnection[]>>(`/${projectId}/integrations/gsc/connections`);
+  authedGet<Envelope<GscConnection[]>>(
+    `/admin/websites/${projectId}/integrations/gsc/connections`,
+  );
 
 export const fetchGscSites = (projectId: string, connectionId: number) =>
-  request<Envelope<GscSite[]>>(`/${projectId}/integrations/gsc/sites?connectionId=${connectionId}`);
+  authedGet<Envelope<GscSite[]>>(
+    `/admin/websites/${projectId}/integrations/gsc/sites?connectionId=${connectionId}`,
+  );
 
 export const createGscIntegration = (
   projectId: string,
   payload: { connectionId: number; siteUrl: string },
 ) =>
-  request<Envelope<GscIntegrationCreateResponse>>(`/${projectId}/integrations/gsc`, {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  authedPost<Envelope<GscIntegrationCreateResponse>>(
+    `/admin/websites/${projectId}/integrations/gsc`,
+    payload,
+  );
+
+export const backfillGscHistory = (
+  projectId: string,
+  integrationId: string,
+) =>
+  authedPost<Envelope<GscHistoricBackfillResponse>>(
+    `/admin/websites/${projectId}/integrations/${integrationId}/gsc/backfill`,
+    {},
+  );
+
+export const fetchUserGscIntegration = () =>
+  authedGet<Envelope<Integration | null>>("/user/website/gsc");
+
+export const fetchUserGscConnections = () =>
+  authedGet<Envelope<GscConnection[]>>("/user/website/gsc/connections");
+
+export const fetchUserGscSites = (connectionId: number) =>
+  authedGet<Envelope<GscSite[]>>(
+    `/user/website/gsc/sites?connectionId=${connectionId}`,
+  );
+
+export const saveUserGscIntegration = (payload: {
+  connectionId: number;
+  siteUrl: string;
+}) => authedPost<Envelope<GscIntegrationCreateResponse>>("/user/website/gsc", payload);
 
 export const getReconnectUrl = (scopes: string) =>
   apiGet({

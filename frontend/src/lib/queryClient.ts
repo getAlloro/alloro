@@ -153,6 +153,10 @@ export const QUERY_KEYS = {
   settings: {
     users: ["settings", "users"] as const,
     scopes: ["settings", "scopes"] as const,
+    gscIntegration: ["settings", "gsc", "integration"] as const,
+    gscConnections: ["settings", "gsc", "connections"] as const,
+    gscSites: (connectionId: number | null) =>
+      ["settings", "gsc", "sites", connectionId] as const,
     pmsStatus: (orgId: number) => ["settings", "pms", orgId] as const,
   },
 

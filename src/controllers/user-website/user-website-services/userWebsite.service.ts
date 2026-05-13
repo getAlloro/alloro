@@ -19,6 +19,7 @@ import { ProjectModel } from "../../../models/website-builder/ProjectModel";
 import { PageModel } from "../../../models/website-builder/PageModel";
 import { MediaModel } from "../../../models/website-builder/MediaModel";
 import { UserEditModel } from "../../../models/website-builder/UserEditModel";
+import * as gscIntegration from "../../admin-websites/feature-services/service.gsc-integration";
 
 // =====================================================================
 // Constants
@@ -137,6 +138,34 @@ export async function fetchUserWebsiteData(orgId: number) {
       edits_limit: DAILY_EDIT_LIMIT,
     },
   };
+}
+
+// =====================================================================
+// GSC integration override helpers
+// =====================================================================
+
+export async function getGscIntegration(orgId: number) {
+  await getOrgAndValidateTier(orgId);
+  return gscIntegration.getIntegrationForOrganization(orgId);
+}
+
+export async function listGscConnections(orgId: number) {
+  await getOrgAndValidateTier(orgId);
+  return gscIntegration.listConnectionsForOrganization(orgId);
+}
+
+export async function listGscSites(orgId: number, connectionId: number) {
+  await getOrgAndValidateTier(orgId);
+  return gscIntegration.listSitesForOrganization(orgId, connectionId);
+}
+
+export async function saveGscIntegration(
+  orgId: number,
+  connectionId: number,
+  siteUrl: string,
+) {
+  await getOrgAndValidateTier(orgId);
+  return gscIntegration.saveIntegrationForOrganization(orgId, connectionId, siteUrl);
 }
 
 // =====================================================================

@@ -55,10 +55,10 @@ export async function getGoogleAuthUrl(req: Request, res: Response): Promise<voi
         .where({ user_id: authCtx.userId })
         .first();
 
-      if (orgUser) {
-        state = encodeAuthState(authCtx.userId, orgUser.organization_id);
-        console.log(`[AUTH] Encoded auth context in state for user ${authCtx.userId}, org ${orgUser.organization_id}`);
-      }
+      state = encodeAuthState(authCtx.userId, orgUser?.organization_id ?? null);
+      console.log(
+        `[AUTH] Encoded auth context in state for user ${authCtx.userId}, org ${orgUser?.organization_id || "none"}`,
+      );
     }
 
     const authUrl = oauth2Client.generateAuthUrl({
@@ -290,10 +290,10 @@ export async function getReconnectUrl(req: Request, res: Response): Promise<Resp
       const orgUser = await db("organization_users")
         .where({ user_id: authCtx.userId })
         .first();
-      if (orgUser) {
-        state = encodeAuthState(authCtx.userId, orgUser.organization_id);
-        console.log(`[AUTH] Encoded auth context in reconnect state for user ${authCtx.userId}, org ${orgUser.organization_id}`);
-      }
+      state = encodeAuthState(authCtx.userId, orgUser?.organization_id ?? null);
+      console.log(
+        `[AUTH] Encoded auth context in reconnect state for user ${authCtx.userId}, org ${orgUser?.organization_id || "none"}`,
+      );
     }
 
     const authUrl = oauth2Client.generateAuthUrl({

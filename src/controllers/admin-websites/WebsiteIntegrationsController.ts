@@ -23,6 +23,7 @@
  */
 
 import { Request, Response } from "express";
+import type { RBACRequest } from "../../middleware/rbac";
 import {
   WebsiteIntegrationModel,
   type IntegrationStatus,
@@ -36,6 +37,7 @@ import { inferFieldMapping } from "../../services/integrations/fieldInference";
 import { getHarvestQueue } from "../../workers/queues";
 import * as formDetection from "./feature-services/service.form-detection";
 import * as gscIntegration from "./feature-services/service.gsc-integration";
+import * as gscPerformance from "./feature-services/service.gsc-performance";
 
 const LOG_PREFIX = "[Website Integrations]";
 
@@ -636,10 +638,28 @@ function failGscError(res: Response, error: unknown, fallbackMessage: string): R
   return fail(res, 500, "GSC_ERROR", fallbackMessage);
 }
 
+function getAdminGscActor(req: Request): gscIntegration.GscActorContext {
+  const authReq = req as RBACRequest;
+  if (!authReq.userId) {
+    throw new gscIntegration.GscIntegrationError(
+      401,
+      "AUTH_REQUIRED",
+      "Authentication is required to manage Search Console integrations",
+    );
+  }
+
+  return {
+    mode: "admin",
+    userId: authReq.userId,
+    organizationId: authReq.organizationId,
+  };
+}
+
 export async function listGscConnections(req: Request, res: Response): Promise<Response> {
   try {
     const projectId = String(req.params.id);
-    const connections = await gscIntegration.listConnections(projectId);
+    const actor = getAdminGscActor(req);
+    const connections = await gscIntegration.listConnections(projectId, actor);
     return ok(res, connections);
   } catch (error) {
     return failGscError(res, error, "Failed to list GSC connections");
@@ -654,7 +674,8 @@ export async function listGscSites(req: Request, res: Response): Promise<Respons
     }
 
     const projectId = String(req.params.id);
-    const sites = await gscIntegration.listSites(projectId, connectionId);
+    const actor = getAdminGscActor(req);
+    const sites = await gscIntegration.listSites(projectId, connectionId, actor);
     return ok(res, sites);
   } catch (error) {
     return failGscError(res, error, "Failed to list Search Console sites");
@@ -677,10 +698,48 @@ export async function createGscIntegration(req: Request, res: Response): Promise
       projectId,
       connectionId,
       siteUrl,
+      getAdminGscActor(req),
     );
 
     return ok(res, result, 201);
   } catch (error) {
     return failGscError(res, error, "Failed to create GSC integration");
+  }
+}
+
+export async function backfillGscHistory(req: Request, res: Response): Promise<Response> {
+  try {
+    const integration = await loadIntegrationForProject(req, res);
+    if (!integration) return res;
+
+    const result = await gscIntegration.queueHistoricBackfill(integration);
+    return ok(res, result, 202);
+  } catch (error) {
+    return failGscError(res, error, "Failed to queue GSC historic refresh");
+  }
+}
+
+export async function getGscPerformance(req: Request, res: Response): Promise<Response> {
+  try {
+    const integration = await loadIntegrationForProject(req, res);
+    if (!integration) return res;
+
+    if (integration.platform !== "gsc") {
+      return fail(
+        res,
+        400,
+        "UNSUPPORTED_PLATFORM",
+        "GSC performance is only available for Search Console integrations",
+      );
+    }
+
+    const result = await gscPerformance.getDashboard(
+      integration,
+      req.query.rangeDays,
+    );
+    return ok(res, result);
+  } catch (error) {
+    console.error(`${LOG_PREFIX} getGscPerformance failed:`, error);
+    return fail(res, 500, "FETCH_ERROR", "Failed to fetch GSC performance");
   }
 }

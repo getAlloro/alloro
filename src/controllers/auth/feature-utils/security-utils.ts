@@ -20,17 +20,17 @@ const STATE_TTL_MS = 10 * 60 * 1000;
 
 export interface AuthenticatedContext {
   userId: number;
-  orgId: number;
+  orgId?: number;
 }
 
 /**
  * Encodes userId and orgId into a signed state string for OAuth.
  * Format: base64(payload).hmac
  */
-export function encodeAuthState(userId: number, orgId: number): string {
+export function encodeAuthState(userId: number, orgId?: number | null): string {
   const payload = JSON.stringify({
     userId,
-    orgId,
+    ...(orgId ? { orgId } : {}),
     nonce: crypto.randomBytes(8).toString("hex"),
     exp: Date.now() + STATE_TTL_MS,
   });
@@ -67,9 +67,12 @@ export function decodeAuthState(state: string): AuthenticatedContext | null {
       return null;
     }
 
-    if (!payload.userId || !payload.orgId) return null;
+    if (!payload.userId) return null;
 
-    return { userId: payload.userId, orgId: payload.orgId };
+    return {
+      userId: payload.userId,
+      orgId: payload.orgId || undefined,
+    };
   } catch {
     return null;
   }
