@@ -2,6 +2,26 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.71] - May 2026
+
+### GSC Freshness Window And Date Display
+
+Refreshed recent analytics windows for scheduled harvests and normalized GSC date-only fields so admin tables and charts stop drifting a day early.
+
+**Key Changes:**
+- Added provider-specific daily harvest freshness windows: four recent UTC dates for GSC and three for Rybbit and Clarity
+- Preserved explicit manual and historic harvest jobs as one-date jobs
+- Returned GSC harvest and report dates as plain `YYYY-MM-DD` strings from the model/API boundary
+- Added a GSC refresh action for successful zero-row harvest logs
+- Verified stored GSC log and dashboard payloads keep dates such as `2026-05-12` unchanged
+
+**Commits:**
+- `src/workers/processors/dataHarvest.processor.ts` — provider-specific rolling harvest windows
+- `src/models/website-builder/IntegrationHarvestLogModel.ts` and `GscDataModel.ts` — date-only API serialization
+- `src/controllers/admin-websites/feature-services/service.gsc-performance.ts` — dashboard date normalization fallback
+- `frontend/src/components/Admin/integrations/IntegrationPanel.tsx` — zero-row GSC refresh action
+- `plans/05142026-no-ticket-gsc-freshness-window-date-display/spec.md` — executed spec and verification checklist
+
 ## [0.0.70] - May 2026
 
 ### Ranking Resilience And Website Basics Audit

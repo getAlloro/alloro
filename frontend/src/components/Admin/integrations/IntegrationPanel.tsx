@@ -413,8 +413,14 @@ export default function IntegrationPanel({
                     };
                     const isExpanded = expandedLogId === log.id;
                     const hasError = !!log.error || !!log.error_details;
-                    const canRerun =
+                    const canRerunFailed =
                       log.outcome === "failed" && log.retry_count < 3;
+                    const canRefreshZeroRowGsc =
+                      integration.platform === "gsc" &&
+                      log.outcome === "success" &&
+                      (log.rows_fetched ?? 0) === 0;
+                    const canRerun = canRerunFailed || canRefreshZeroRowGsc;
+                    const rerunLabel = canRefreshZeroRowGsc ? "Refresh" : "Rerun";
 
                     return (
                       <tr key={log.id} className="hover:bg-gray-50/50 group">
@@ -457,7 +463,7 @@ export default function IntegrationPanel({
                           )}
                         </td>
                         <td className="px-5 py-2 text-right">
-                          {log.outcome === "failed" && (
+                          {(log.outcome === "failed" || canRefreshZeroRowGsc) && (
                             <button
                               type="button"
                               onClick={() => handleRerun(log)}
@@ -465,7 +471,7 @@ export default function IntegrationPanel({
                               title={
                                 !canRerun
                                   ? "Max retries reached"
-                                  : "Rerun harvest"
+                                  : `${rerunLabel} harvest`
                               }
                               className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
                             >
@@ -474,7 +480,7 @@ export default function IntegrationPanel({
                               ) : (
                                 <RotateCcw className="w-3 h-3" />
                               )}
-                              Rerun
+                              {rerunLabel}
                             </button>
                           )}
                         </td>
