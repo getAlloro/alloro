@@ -22,7 +22,11 @@ import {
   createWebsite,
   updateWebsite,
 } from "../../api/websites";
-import type { WebsiteProject, FetchWebsitesRequest } from "../../api/websites";
+import type {
+  WebsiteProject,
+  FetchWebsitesRequest,
+  WebsiteOrganizationStatus,
+} from "../../api/websites";
 import { useAdminWebsites, useAdminStatuses, useInvalidateAdminWebsites } from "../../hooks/queries/useAdminQueries";
 import {
   AdminPageHeader,
@@ -31,6 +35,7 @@ import {
   EmptyState,
   Badge,
   ActionButton,
+  TabBar,
 } from "../../components/ui/DesignSystem";
 import { useConfirm } from "../../components/ui/ConfirmModal";
 
@@ -44,6 +49,45 @@ const INTEGRATION_LABELS: Record<IntegrationPlatform, string> = {
   clarity: "Clarity",
   gsc: "Search Console",
 };
+
+const INITIAL_ORGANIZATION_STATUS: WebsiteOrganizationStatus = "active";
+
+const WEBSITE_ORGANIZATION_TABS: Array<{
+  id: WebsiteOrganizationStatus;
+  label: string;
+  description: string;
+  icon: ReactNode;
+}> = [
+  {
+    id: "active",
+    label: "Active",
+    description: "Attached to an org",
+    icon: <Building2 className="h-4 w-4" />,
+  },
+  {
+    id: "inactive",
+    label: "Inactive",
+    description: "No org yet",
+    icon: <Circle className="h-4 w-4" />,
+  },
+];
+
+function buildWebsiteFilters(
+  organizationStatus: WebsiteOrganizationStatus,
+  selectedStatus: string,
+): FetchWebsitesRequest {
+  const nextFilters: FetchWebsitesRequest = {
+    page: 1,
+    limit: 50,
+    organizationStatus,
+  };
+
+  if (selectedStatus !== "all") {
+    nextFilters.status = selectedStatus;
+  }
+
+  return nextFilters;
+}
 
 const HubSpotLogo = () => (
   <svg viewBox="0 0 24 24" fill="#FF7A59" className="h-3.5 w-3.5" aria-hidden="true">
@@ -132,9 +176,12 @@ export default function WebsitesList() {
   const [editingNameValue, setEditingNameValue] = useState("");
 
   // Filter states
+  const [activeOrganizationStatus, setActiveOrganizationStatus] =
+    useState<WebsiteOrganizationStatus>(INITIAL_ORGANIZATION_STATUS);
   const [filters, setFilters] = useState<FetchWebsitesRequest>({
     page: 1,
     limit: 50,
+    organizationStatus: INITIAL_ORGANIZATION_STATUS,
   });
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
 
@@ -148,23 +195,32 @@ export default function WebsitesList() {
   const total = websitesResponse?.pagination?.total ?? 0;
   const statuses = statusesResponse?.statuses ?? [];
   const error = queryError?.message ?? null;
+  const activeOrganizationLabel =
+    activeOrganizationStatus === "active" ? "active" : "inactive";
+  const emptyStateTitle =
+    activeOrganizationStatus === "active"
+      ? "No active websites found"
+      : "No inactive websites found";
+  const emptyStateDescription =
+    activeOrganizationStatus === "active"
+      ? "No organization-linked websites match the selected filters. Try adjusting your filters or create a new website."
+      : "No unassigned websites match the selected filters. Try adjusting your filters or create a new website.";
 
   const applyFilters = () => {
-    const newFilters: FetchWebsitesRequest = {
-      page: 1,
-      limit: 50,
-    };
-
-    if (selectedStatus !== "all") {
-      newFilters.status = selectedStatus;
-    }
-
-    setFilters(newFilters);
+    setFilters(buildWebsiteFilters(activeOrganizationStatus, selectedStatus));
   };
 
   const resetFilters = () => {
     setSelectedStatus("all");
-    setFilters({ page: 1, limit: 50 });
+    setFilters(buildWebsiteFilters(activeOrganizationStatus, "all"));
+  };
+
+  const handleOrganizationTabChange = (tabId: string) => {
+    if (tabId !== "active" && tabId !== "inactive") return;
+
+    setActiveOrganizationStatus(tabId);
+    setSelectedIds(new Set());
+    setFilters(buildWebsiteFilters(tabId, selectedStatus));
   };
 
   const handleDelete = async (id: string, e?: React.MouseEvent) => {
@@ -371,7 +427,7 @@ export default function WebsitesList() {
         description="Manage website builder projects"
         actionButtons={
           <div className="flex items-center gap-2">
-            <Badge label={`${total} total`} color="blue" />
+            <Badge label={`${total} ${activeOrganizationLabel}`} color="blue" />
             <ActionButton
               label={creating ? "Creating..." : "New Website"}
               icon={
@@ -400,6 +456,14 @@ export default function WebsitesList() {
           </div>
         }
       />
+
+      <div className="flex">
+        <TabBar
+          tabs={WEBSITE_ORGANIZATION_TABS}
+          activeTab={activeOrganizationStatus}
+          onTabChange={handleOrganizationTabChange}
+        />
+      </div>
 
       {/* Bulk Actions Bar */}
       <BulkActionBar
@@ -510,8 +574,8 @@ export default function WebsitesList() {
       {loading && websites.length === 0 ? null : websites.length === 0 ? (
         <EmptyState
           icon={<Globe className="w-12 h-12" />}
-          title="No websites found"
-          description="No websites match the selected filters. Try adjusting your filters or create a new website."
+          title={emptyStateTitle}
+          description={emptyStateDescription}
           action={{ label: "Create Website", onClick: handleCreate }}
         />
       ) : (
@@ -771,7 +835,7 @@ export default function WebsitesList() {
           transition={{ duration: 0.3 }}
         >
           <span className="text-sm text-gray-600">
-            Showing {websites.length} of {total} website
+            Showing {websites.length} of {total} {activeOrganizationLabel} website
             {total !== 1 ? "s" : ""}
           </span>
           <div className="flex items-center gap-6 text-sm">

@@ -2,6 +2,24 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.73] - May 2026
+
+### Website Project Active And Inactive Tabs
+
+Separated website projects by organization attachment so admins can focus on assigned client sites while still keeping unassigned drafts accessible.
+
+**Key Changes:**
+- Added Active and Inactive tabs to the admin website projects list
+- Defined Active as projects attached to an organization and Inactive as projects with no organization yet
+- Added a server-backed `organizationStatus` list filter so pagination totals match the selected tab
+- Kept the existing website status dropdown independent from the new organization attachment tabs
+
+**Commits:**
+- `src/controllers/admin-websites/AdminWebsitesController.ts` and `service.project-manager.ts` — parse and apply the organization attachment filter
+- `frontend/src/api/websites.ts` and `frontend/src/lib/queryClient.ts` — type and cache the new list filter
+- `frontend/src/pages/admin/WebsitesList.tsx` — Active/Inactive tab state, default Active view, scoped empty copy, and tab-aware counts
+- `plans/05142026-no-ticket-website-project-active-inactive-tabs/spec.md` — executed spec and verification checklist
+
 ## [0.0.72] - May 2026
 
 ### Ranking Labels, Media Uploads, And Website Admin Signals

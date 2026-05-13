@@ -185,8 +185,11 @@ export interface WebsiteProjectWithPages extends WebsiteProject {
   pages: WebsitePage[];
 }
 
+export type WebsiteOrganizationStatus = "active" | "inactive";
+
 export interface FetchWebsitesRequest {
   status?: string;
+  organizationStatus?: WebsiteOrganizationStatus;
   page?: number;
   limit?: number;
 }

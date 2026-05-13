@@ -53,6 +53,7 @@ export const QUERY_KEYS = {
     page?: number;
     limit?: number;
     status?: string;
+    organizationStatus?: "active" | "inactive";
   }) => ["admin", "websites", params] as const,
   adminWebsitesAll: ["admin", "websites"] as const,
   adminStatuses: ["admin", "website-statuses"] as const,

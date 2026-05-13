@@ -75,9 +75,19 @@ export async function listProjects(
   res: Response
 ): Promise<Response> {
   try {
-    const { status, page = "1", limit = "50" } = req.query;
+    const {
+      status,
+      organizationStatus,
+      page = "1",
+      limit = "50",
+    } = req.query;
+    const normalizedOrganizationStatus =
+      organizationStatus === "active" || organizationStatus === "inactive"
+        ? organizationStatus
+        : undefined;
     const result = await projectManager.listProjects({
       status: status as string | undefined,
+      organizationStatus: normalizedOrganizationStatus,
       page: parseInt(page as string, 10),
       limit: parseInt(limit as string, 10),
     });

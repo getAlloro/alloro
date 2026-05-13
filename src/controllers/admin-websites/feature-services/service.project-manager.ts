@@ -11,12 +11,15 @@ import { generateHostname } from "../feature-utils/util.hostname-generator";
 const PROJECTS_TABLE = "website_builder.projects";
 const PAGES_TABLE = "website_builder.pages";
 
+type OrganizationStatusFilter = "active" | "inactive";
+
 // ---------------------------------------------------------------------------
 // List projects with pagination + org join
 // ---------------------------------------------------------------------------
 
 export async function listProjects(filters: {
   status?: string;
+  organizationStatus?: OrganizationStatusFilter;
   page: number;
   limit: number;
 }): Promise<{
@@ -28,7 +31,7 @@ export async function listProjects(filters: {
     totalPages: number;
   };
 }> {
-  const { status, page, limit } = filters;
+  const { status, organizationStatus, page, limit } = filters;
   const offset = (page - 1) * limit;
 
   console.log("[Admin Websites] Fetching projects with filters:", filters);
@@ -37,6 +40,12 @@ export async function listProjects(filters: {
   let countQuery = db(PROJECTS_TABLE);
   if (status) {
     countQuery = countQuery.where("status", status);
+  }
+  if (organizationStatus === "active") {
+    countQuery = countQuery.whereNotNull("organization_id");
+  }
+  if (organizationStatus === "inactive") {
+    countQuery = countQuery.whereNull("organization_id");
   }
   const [{ count }] = await countQuery.count("* as count");
   const total = parseInt(count as string, 10);
@@ -71,6 +80,12 @@ export async function listProjects(filters: {
 
   if (status) {
     dataQuery = dataQuery.where(`${PROJECTS_TABLE}.status`, status);
+  }
+  if (organizationStatus === "active") {
+    dataQuery = dataQuery.whereNotNull(`${PROJECTS_TABLE}.organization_id`);
+  }
+  if (organizationStatus === "inactive") {
+    dataQuery = dataQuery.whereNull(`${PROJECTS_TABLE}.organization_id`);
   }
 
   const projects = await dataQuery
