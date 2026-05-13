@@ -183,6 +183,9 @@ const ALL_KNOWN_TYPES = [
 // HELPERS
 // =====================================================================
 
+const METERS_PER_MILE = 1609.344;
+const RADIUS_FILTER_TOLERANCE = 1.05;
+
 function log(message: string): void {
   console.log(`[PLACES-DISCOVERY] ${message}`);
 }
@@ -271,7 +274,7 @@ function sortBestWithinRadius(
   competitors: DiscoveredCompetitor[],
   locationBias: { lat: number; lng: number; radiusMeters?: number },
 ): DiscoveredCompetitor[] {
-  const radiusMiles = (locationBias.radiusMeters ?? 40234) / 1609.344;
+  const radiusMiles = (locationBias.radiusMeters ?? 40234) / METERS_PER_MILE;
   const center = { lat: locationBias.lat, lng: locationBias.lng };
   return competitors
     .map((competitor) => ({
@@ -302,7 +305,7 @@ function selectDistributedBestWithinRadius(
   competitors: DiscoveredCompetitor[],
   locationBias: { lat: number; lng: number; radiusMeters?: number },
 ): DiscoveredCompetitor[] {
-  const radiusMiles = (locationBias.radiusMeters ?? 40234) / 1609.344;
+  const radiusMiles = (locationBias.radiusMeters ?? 40234) / METERS_PER_MILE;
   const center = { lat: locationBias.lat, lng: locationBias.lng };
   const scored = competitors
     .map((competitor) => {
@@ -370,6 +373,23 @@ function compareByMapsEstimateThenProfile(
   if (b.reviewsCount !== a.reviewsCount) return b.reviewsCount - a.reviewsCount;
   if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
   return a.placeId.localeCompare(b.placeId);
+}
+
+function filterWithinLocationBiasRadius(
+  competitors: DiscoveredCompetitor[],
+  locationBias?: { lat: number; lng: number; radiusMeters?: number },
+): DiscoveredCompetitor[] {
+  if (!locationBias?.radiusMeters) return competitors;
+
+  const radiusMiles = locationBias.radiusMeters / METERS_PER_MILE;
+  const center = { lat: locationBias.lat, lng: locationBias.lng };
+  return competitors.filter((competitor) => {
+    if (!competitor.location) return false;
+    return (
+      distanceMiles(center, competitor.location) <=
+      radiusMiles * RADIUS_FILTER_TOLERANCE
+    );
+  });
 }
 
 /**
@@ -651,12 +671,22 @@ export async function discoverCompetitorsViaPlaces(
   log(`Found ${places.length} raw results`);
 
   const competitors = placesToCompetitors(places, searchQuery, checkedAt);
+  const radiusFilteredCompetitors = filterWithinLocationBiasRadius(
+    competitors,
+    locationBias,
+  );
+
+  if (radiusFilteredCompetitors.length !== competitors.length) {
+    log(
+      `Radius filter (${locationBias?.radiusMeters ?? "none"}m): ${competitors.length} → ${radiusFilteredCompetitors.length} competitors`,
+    );
+  }
 
   // Keep the list aligned with the displayed Maps estimate. Profile strength is
   // only a tie-breaker, not the primary ordering signal.
-  competitors.sort(compareByMapsEstimateThenProfile);
+  radiusFilteredCompetitors.sort(compareByMapsEstimateThenProfile);
 
-  return competitors;
+  return radiusFilteredCompetitors;
 }
 
 /**

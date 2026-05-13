@@ -236,3 +236,8 @@ For execution, this is large enough to split by ownership if sub-agents are expl
 **Change:** Resolve manually added Google Maps competitors through a measured backend preview before adding them to the reselection draft list, and pan the selector map to the selected competitor pin when a row is clicked.
 **Reason:** The autocomplete-only placeholder row has no profile details or coordinates, so manually added competitors show as unmeasured and cannot appear on the map.
 **Updated Done criteria:** Manual add blocks on Places profile resolution; the added row includes rating/reviews/category/contact/coordinates when available; manually added rows render map pins; clicking a list row scrolls the map into view and pans to that pin; removing a row removes its pin from the map.
+
+### Rev 4 — 2026-05-14
+**Change:** Make 25 mi the recommended default radius in the selector/reselector UI, add a visible recommended badge/tooltip, and preserve local Google Places result order while filtering automated suggestions to the selected radius.
+**Reason:** The default selector should favor competitors that appear in the local Maps query (for example, `endodontist in Falls Church, VA`) so the selected comparison set better matches the numbered Maps list. Wider 50/100 mi searches can remain broader exploratory modes where more competitors may be outside the top local snapshot.
+**Updated Done criteria:** Verify the 25 mi control shows a recommended badge/tooltip, reselection opens on 25 mi, default discovery still resolves to 25 mi, and local-radius suggestions are ordered by sampled Maps position rather than profile strength.

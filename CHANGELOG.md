@@ -2,6 +2,23 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.76] - May 2026
+
+### Recommended Ranking Radius
+
+Made the competitor reselector default to a tighter, explainable 25-mile market radius so the default comparison set better matches the sampled Google Maps top results.
+
+**Key Changes:**
+- Marked `25 mi` as the recommended competitor suggestion radius with a hover/focus tooltip
+- Opened competitor reselection on the 25-mile default instead of inheriting prior wide-radius test selections
+- Filtered Google Places discovery results to the selected radius while preserving sampled Maps result order
+- Updated the selected competitor radius spec with the recommendation and verification contract
+
+**Commits:**
+- `frontend/src/pages/competitor-onboarding/LocationCompetitorOnboarding.tsx` - 25-mile recommended badge, tooltip, and reselection default
+- `src/controllers/practice-ranking/feature-services/service.places-competitor-discovery.ts` - radius-bounded Places discovery while keeping Maps estimate ordering
+- `plans/05102026-no-ticket-selected-competitor-maps-radius/spec.md` - Rev 4 recommendation and done criteria
+
 ## [0.0.75] - May 2026
 
 ### Ranking Competitor Comparison And Rybbit History

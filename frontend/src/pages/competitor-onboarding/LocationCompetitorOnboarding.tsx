@@ -50,11 +50,18 @@ import { haversineMiles, formatDistance } from "./util.distance";
 
 const PULSE_DURATION_MS = 2000;
 const DEFAULT_DISCOVERY_RADIUS_METERS = 40234;
+const RECOMMENDED_DISCOVERY_RADIUS_METERS = DEFAULT_DISCOVERY_RADIUS_METERS;
+const RECOMMENDED_RADIUS_TOOLTIP =
+  "Recommended default: prioritizes competitors from the local Google Maps query for your specialty and market before broader radius exploration.";
 const DISCOVERY_RADIUS_OPTIONS = [
   { label: "5 mi", value: 8047 },
   { label: "10 mi", value: 16093 },
   { label: "15 mi", value: 24140 },
-  { label: "25 mi", value: DEFAULT_DISCOVERY_RADIUS_METERS },
+  {
+    label: "25 mi",
+    value: RECOMMENDED_DISCOVERY_RADIUS_METERS,
+    recommended: true,
+  },
   { label: "50 mi", value: 80467 },
   { label: "100 mi", value: 160934 },
 ];
@@ -217,9 +224,11 @@ export default function LocationCompetitorOnboarding() {
         setCap(res.cap);
         setPracticeLocation(res.practiceLocation);
         setSelfFilterStatus(res.selfFilterStatus);
-        setSelectedRadiusMeters(
-          res.competitorDiscoveryRadiusMeters || DEFAULT_DISCOVERY_RADIUS_METERS
-        );
+        const initialRadiusMeters = isReselectMode
+          ? DEFAULT_DISCOVERY_RADIUS_METERS
+          : res.competitorDiscoveryRadiusMeters ||
+            DEFAULT_DISCOVERY_RADIUS_METERS;
+        setSelectedRadiusMeters(initialRadiusMeters);
         setSelectedComparisonSpecialty(res.comparisonSpecialty?.value ?? null);
         setComparisonSpecialtyOptions(res.comparisonSpecialtyOptions ?? []);
 
@@ -232,10 +241,7 @@ export default function LocationCompetitorOnboarding() {
         if (res.competitors.length === 0 && !isReselectMode) {
           // No discovery yet — kick it off
           setStage("discovering");
-          await runDiscovery(
-            res.competitorDiscoveryRadiusMeters ||
-              DEFAULT_DISCOVERY_RADIUS_METERS
-          );
+          await runDiscovery(initialRadiusMeters);
         } else {
           // Existing list — straight to curating
           setCompetitors(res.competitors);
@@ -900,7 +906,7 @@ function RadiusControl({
               ))}
             </select>
           </label>
-          <div className="inline-flex shrink-0 rounded-xl border border-black/5 bg-slate-50 p-1">
+          <div className="inline-flex shrink-0 overflow-visible rounded-xl border border-black/5 bg-slate-50 p-1">
             {DISCOVERY_RADIUS_OPTIONS.map((option) => {
               const active = option.value === value;
               return (
@@ -908,13 +914,30 @@ function RadiusControl({
                   key={option.value}
                   type="button"
                   onClick={() => onChange(option.value)}
-                  className={`min-w-12 rounded-lg px-2.5 py-2 text-xs font-black transition lg:min-w-14 lg:px-3 ${
+                  className={`group relative min-w-12 rounded-lg px-2.5 py-2 text-xs font-black transition lg:min-w-14 lg:px-3 ${
                     active
                       ? "bg-alloro-navy text-white shadow-sm"
                       : "text-slate-500 hover:bg-white"
                   }`}
+                  aria-describedby={
+                    option.recommended ? "recommended-radius-tooltip" : undefined
+                  }
                 >
                   {option.label}
+                  {option.recommended && (
+                    <>
+                      <span className="absolute -right-1.5 -top-2 rounded-full border border-white bg-alloro-orange px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wider text-white shadow-sm">
+                        Rec
+                      </span>
+                      <span
+                        id="recommended-radius-tooltip"
+                        role="tooltip"
+                        className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-64 -translate-x-1/2 rounded-xl border border-black/5 bg-alloro-navy px-3 py-2 text-left text-[10px] font-semibold leading-relaxed text-white shadow-xl group-hover:block group-focus-visible:block"
+                      >
+                        {RECOMMENDED_RADIUS_TOOLTIP}
+                      </span>
+                    </>
+                  )}
                 </button>
               );
             })}
