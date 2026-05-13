@@ -39,6 +39,7 @@ import * as formDetection from "./feature-services/service.form-detection";
 import * as clarityIntegration from "./feature-services/service.clarity-integration";
 import * as gscIntegration from "./feature-services/service.gsc-integration";
 import * as gscPerformance from "./feature-services/service.gsc-performance";
+import * as rybbitHistory from "./feature-services/service.rybbit-history";
 import * as rybbitIntegration from "./feature-services/service.rybbit-integration";
 import * as rybbitPerformance from "./feature-services/service.rybbit-performance";
 
@@ -667,6 +668,19 @@ function failRybbitError(res: Response, error: unknown, fallbackMessage: string)
   return fail(res, 500, "RYBBIT_ERROR", fallbackMessage);
 }
 
+function failRybbitHistoryError(
+  res: Response,
+  error: unknown,
+  fallbackMessage: string,
+): Response {
+  if (error instanceof rybbitHistory.RybbitHistoryError) {
+    return fail(res, error.status, error.code, error.message);
+  }
+
+  console.error(`${LOG_PREFIX} ${fallbackMessage}:`, error);
+  return fail(res, 500, "RYBBIT_HISTORY_ERROR", fallbackMessage);
+}
+
 function failClarityError(res: Response, error: unknown, fallbackMessage: string): Response {
   if (error instanceof clarityIntegration.ClarityIntegrationError) {
     return fail(res, error.status, error.code, error.message);
@@ -793,6 +807,27 @@ export async function getRybbitPerformance(req: Request, res: Response): Promise
     return ok(res, dashboard);
   } catch (error) {
     return failRybbitError(res, error, "Failed to fetch Rybbit performance");
+  }
+}
+
+export async function backfillRybbitHistory(req: Request, res: Response): Promise<Response> {
+  try {
+    const integration = await loadIntegrationForProject(req, res);
+    if (!integration) return res;
+
+    const result = await rybbitHistory.queueHistoricBackfill(integration);
+    return ok(res, result, 202);
+  } catch (error) {
+    return failRybbitHistoryError(res, error, "Failed to queue Rybbit historic refresh");
+  }
+}
+
+export async function backfillAllRybbitHistory(_req: Request, res: Response): Promise<Response> {
+  try {
+    const result = await rybbitHistory.queueAllHistoricBackfills();
+    return ok(res, result, 202);
+  } catch (error) {
+    return failRybbitHistoryError(res, error, "Failed to queue all Rybbit historic refreshes");
   }
 }
 

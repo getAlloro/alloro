@@ -157,6 +157,38 @@ export interface RybbitDashboard {
   limitations: string[];
 }
 
+export interface RybbitBackfillSkip {
+  integrationId: string;
+  projectId: string;
+  siteId: string | null;
+  code: string;
+  reason: string;
+}
+
+export interface RybbitHistoricBackfillResult {
+  queued: boolean;
+  integrationId: string;
+  projectId: string;
+  siteId: string;
+  fromDate: string;
+  toDate: string;
+  queuedDays: number;
+  clearedDataRows: number;
+  clearedLogRows: number;
+  message?: string;
+}
+
+export interface RybbitAllHistoricBackfillResult {
+  queued: boolean;
+  projectsTotal: number;
+  projectsQueued: number;
+  queuedDays: number;
+  clearedDataRows: number;
+  clearedLogRows: number;
+  results: RybbitHistoricBackfillResult[];
+  skipped: RybbitBackfillSkip[];
+}
+
 export interface IntegrationFormMapping {
   id: string;
   integration_id: string;
@@ -503,6 +535,21 @@ export const fetchRybbitPerformance = (
     `/admin/websites/${projectId}/integrations/${integrationId}/rybbit/performance?${params.toString()}`,
   );
 };
+
+export const backfillRybbitHistory = (
+  projectId: string,
+  integrationId: string,
+) =>
+  authedPost<Envelope<RybbitHistoricBackfillResult>>(
+    `/admin/websites/${projectId}/integrations/${integrationId}/rybbit/backfill`,
+    {},
+  );
+
+export const backfillAllRybbitHistory = () =>
+  authedPost<Envelope<RybbitAllHistoricBackfillResult>>(
+    "/admin/websites/integrations/rybbit/backfill-all",
+    {},
+  );
 
 export const fetchClarityStatus = (projectId: string) =>
   authedGet<Envelope<ClarityStatus>>(

@@ -2,6 +2,46 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.76] - May 2026
+
+### Recommended Ranking Radius
+
+Made the competitor reselector default to a tighter, explainable 25-mile market radius so the default comparison set better matches the sampled Google Maps top results.
+
+**Key Changes:**
+- Marked `25 mi` as the recommended competitor suggestion radius with a hover/focus tooltip
+- Opened competitor reselection on the 25-mile default instead of inheriting prior wide-radius test selections
+- Filtered Google Places discovery results to the selected radius while preserving sampled Maps result order
+- Updated the selected competitor radius spec with the recommendation and verification contract
+
+**Commits:**
+- `frontend/src/pages/competitor-onboarding/LocationCompetitorOnboarding.tsx` - 25-mile recommended badge, tooltip, and reselection default
+- `src/controllers/practice-ranking/feature-services/service.places-competitor-discovery.ts` - radius-bounded Places discovery while keeping Maps estimate ordering
+- `plans/05102026-no-ticket-selected-competitor-maps-radius/spec.md` - Rev 4 recommendation and done criteria
+
+## [0.0.75] - May 2026
+
+### Ranking Competitor Comparison And Rybbit History
+
+Added a richer Practice Health competitor comparison modal, made selected competitor review velocity honest and measurable, and added an admin-triggered Rybbit historic data rebuild path.
+
+**Key Changes:**
+- Replaced the Practice Health cohort sentence with a competitor comparison action and modal
+- Added sortable competitor factor rows for review count, measured review velocity, rating, Maps estimate, and Practice Health
+- Highlighted the user's own practice inside the selected competitors Google Maps list
+- Added selected-competitor velocity measurement using Apify only for selected competitors, with recent measured velocity reuse and explicit `not_measured` fallback
+- Stopped showing fake competitor `+0 / 30d` when review velocity was not measured
+- Added per-project Rybbit Fetch History support that clears stored Rybbit rows/logs and queues newest-first daily harvest jobs
+- Added an admin all-active Rybbit historic backfill runner with skip reporting
+
+**Commits:**
+- `frontend/src/components/dashboard/RankingsDashboard.tsx` and `frontend/src/components/dashboard/rankings/*` - Practice Health comparison modal, selected Maps list self-highlight, sorting, and honest velocity display
+- `src/controllers/practice-ranking/feature-services/service.ranking-pipeline.ts` - selected-competitor velocity enrichment, measured source metadata, cache reuse, and timing telemetry
+- `src/controllers/admin-websites/feature-services/service.rybbit-history.ts`, `WebsiteIntegrationsController.ts`, and `src/routes/admin/websites.ts` - Rybbit historic backfill service and admin routes
+- `src/models/website-builder/*` and `frontend/src/api/integrations.ts` - Rybbit model helpers and typed backfill API clients
+- `frontend/src/components/Admin/integrations/RybbitTab.tsx` - Rybbit Fetch History admin action
+- `plans/05142026-no-ticket-ranking-competitor-comparison-modal/spec.md`, `plans/05142026-no-ticket-selected-competitor-review-velocity/spec.md`, and `plans/05142026-no-ticket-rybbit-historic-backfill/spec.md` - executed specs and verification checklists
+
 ## [0.0.74] - May 2026
 
 ### Clarity Install And Export Integration

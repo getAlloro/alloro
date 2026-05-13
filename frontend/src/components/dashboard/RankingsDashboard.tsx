@@ -1,5 +1,6 @@
 import { useCallback, useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { motion } from "framer-motion";
 import {
   Trophy,
   AlertCircle,
@@ -22,7 +23,13 @@ import {
   getInFlightRanking,
   type SelectedCompetitorSearchResult,
 } from "../../api/practiceRanking";
+import { CompetitorComparisonModal } from "./rankings/CompetitorComparisonModal";
 import { RankingsLoadingState } from "./rankings/RankingsLoadingState";
+import {
+  buildCompetitorComparisonRows,
+  formatMapsEstimate,
+  sortRowsForMapsList,
+} from "./rankings/competitorComparison";
 
 /**
  * Date when the Practice Health scoring methodology changed (Practice Health +
@@ -158,7 +165,10 @@ interface RankingResult {
       rankPosition: number;
       totalReviews: number;
       averageRating: number;
-      reviewsLast30d?: number;
+      reviewsLast30d?: number | null;
+      reviewsLast90d?: number | null;
+      reviewVelocitySource?: "apify" | "cache" | "not_measured" | null;
+      reviewVelocityMeasuredAt?: string | null;
       primaryCategory?: string;
       // Persisted by service.ranking-pipeline.ts but only typed here once needed
       // by the cohort delta sub-lines in FactorBreakdown.
@@ -880,6 +890,13 @@ function SearchPositionSection({ result }: { result: RankingResult }) {
   const status = result.searchStatus ?? "ok";
   const selectedResults = result.selectedCompetitorSearchResults ?? [];
   const hasSelectedProjection = selectedResults.length > 0;
+  const selectedProjectionRows = hasSelectedProjection
+    ? sortRowsForMapsList(
+        buildCompetitorComparisonRows(result).filter(
+          (row) => row.isYou || row.source === "selected",
+        ),
+      )
+    : [];
   const topResults = hasSelectedProjection
     ? []
     : (result.searchResults ?? []).slice(0, 5);
@@ -935,23 +952,21 @@ function SearchPositionSection({ result }: { result: RankingResult }) {
         )}
       </header>
       <div>
-        {hasSelectedProjection && selectedResults.map((row) => {
-          const hasPosition =
-            row.status === "measured" && typeof row.position === "number";
-          const statusLabel = hasPosition
-            ? `Est. #${row.position}`
-            : row.status === "not_in_top_20"
-              ? "Not in top 20"
-              : "Not measured yet";
+        {hasSelectedProjection && selectedProjectionRows.map((row) => {
+          const hasPosition = row.mapsStatus === "measured";
+          const statusLabel = formatMapsEstimate(row);
           const distanceLabel =
             typeof row.distanceMiles === "number" &&
             Number.isFinite(row.distanceMiles)
               ? `${row.distanceMiles < 10 ? row.distanceMiles.toFixed(1) : Math.round(row.distanceMiles)} mi`
               : null;
+          const subline = row.address || (row.isYou ? row.category : null);
           return (
             <div
-              key={row.placeId || `${row.name}-${row.selectedOrder}`}
-              className="grid grid-cols-[150px_minmax(0,1fr)_auto] items-center gap-4 px-6 lg:px-7 py-3.5 border-b last:border-b-0 border-line-soft transition-colors hover:bg-[rgba(17,21,28,0.025)]"
+              key={row.id}
+              className={`grid grid-cols-[150px_minmax(0,1fr)_auto] items-center gap-4 px-6 lg:px-7 py-3.5 border-b last:border-b-0 border-line-soft transition-colors hover:bg-[rgba(17,21,28,0.025)] ${
+                row.isYou ? "bg-alloro-orange/[0.055]" : ""
+              }`}
             >
               <div className="flex items-baseline gap-2">
                 <span
@@ -970,22 +985,29 @@ function SearchPositionSection({ result }: { result: RankingResult }) {
                 )}
               </div>
               <div className="min-w-0">
-                <span className="block truncate font-bold text-[15px] text-alloro-navy">
-                  {row.name}
-                </span>
-                {row.address && (
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="block truncate font-bold text-[15px] text-alloro-navy">
+                    {row.name}
+                  </span>
+                  {row.isYou && (
+                    <span className="rounded bg-alloro-orange px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-white">
+                      You
+                    </span>
+                  )}
+                </div>
+                {subline && (
                   <span
                     className="mt-0.5 block max-w-full truncate text-[11px] font-semibold leading-snug text-alloro-navy/40"
-                    title={row.address}
+                    title={subline}
                   >
-                    {row.address}
+                    {subline}
                   </span>
                 )}
               </div>
               <div className="flex items-center gap-5 shrink-0">
-                {typeof row.rating === "number" && (
+                {typeof row.starRating === "number" && (
                   <div className="flex items-center gap-1.5 tabular-nums text-[13px] font-bold text-alloro-navy/80">
-                    <StarIcon size={12} /> {row.rating.toFixed(1)}
+                    <StarIcon size={12} /> {row.starRating.toFixed(1)}
                   </div>
                 )}
                 {typeof row.reviewCount === "number" && (
@@ -1236,9 +1258,7 @@ function Delta({
  */
 function HealthGauge({ value, prev }: { value: number; prev?: number | null }) {
   const v = Math.max(0, Math.min(100, value));
-  const r = 64;
-  const c = Math.PI * r;
-  const dash = (v / 100) * c;
+  const pathProgress = v / 100;
   const tone = v >= 80 ? "#22c55e" : v >= 60 ? "#D66853" : "#ef4444";
   const delta =
     prev !== null && prev !== undefined ? Math.round(value - prev) : null;
@@ -1253,21 +1273,23 @@ function HealthGauge({ value, prev }: { value: number; prev?: number | null }) {
           strokeWidth="14"
           strokeLinecap="round"
         />
-        <path
+        <motion.path
           d="M 26 90 A 64 64 0 0 1 154 90"
           fill="none"
           stroke={tone}
           strokeWidth="14"
           strokeLinecap="round"
-          strokeDasharray={`${dash} ${c}`}
+          initial={{ pathLength: 0 }}
+          animate={{ pathLength: pathProgress }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
         />
         <text
           x="90"
-          y="78"
+          y="76"
           textAnchor="middle"
           fontFamily="Fraunces, Literata, Georgia, serif"
           fontWeight="500"
-          fontSize="42"
+          fontSize="34"
           fill="#11151C"
           className="tabular-nums"
         >
@@ -1352,93 +1374,21 @@ function computeSearchPositionTrend(result: RankingResult): {
   return { showGrowthArrow, positionDelta, stabilityTooltip };
 }
 
-/**
- * CohortRankNote — sentence-style "where you stand among competitors" line
- * that lives inside the Practice Health card. Deliberately prose, not a giant
- * #N — surfacing a second raw rank number next to the Live Google rank confused
- * users in the previous iteration. Branches on competitorSource so curated
- * locations get confident copy and non-finalized ones get a CTA toward
- * curation. Returns null when inputs are missing so legacy snapshots don't
- * render anything misleading.
- */
-function CohortRankNote({ result }: { result: RankingResult }) {
-  const source = result.competitorSource;
-  const totalCompetitors =
-    typeof result.totalCompetitors === "number" ? result.totalCompetitors : 0;
-  const rankPosition =
-    typeof result.rankPosition === "number" ? result.rankPosition : 0;
-  const M = totalCompetitors - 1;
-
-  if (M < 1 || rankPosition < 1) return null;
-
-  const aheadOf = Math.max(0, totalCompetitors - rankPosition);
-  const isCurated = source === "curated";
-  const cohortLabel = isCurated
-    ? "your tracked competitors"
-    : "competitors Google surfaced for your area";
-
-  let body: React.ReactNode;
-  if (isCurated) {
-    if (aheadOf === M) {
-      body = (
-        <>
-          You rank ahead of <span className="font-bold text-alloro-navy">all {M}</span>{" "}
-          of {cohortLabel}.
-        </>
-      );
-    } else if (aheadOf === 0) {
-      body = (
-        <>
-          All <span className="font-bold text-alloro-navy">{M}</span> of {cohortLabel}{" "}
-          currently outrank you on Practice Health.
-        </>
-      );
-    } else {
-      body = (
-        <>
-          You rank ahead of{" "}
-          <span className="font-bold text-alloro-navy">
-            {aheadOf} of {M}
-          </span>{" "}
-          of {cohortLabel}.
-        </>
-      );
-    }
-  } else {
-    body = (
-      <>
-        Compared against <span className="font-bold text-alloro-navy">{cohortLabel}</span>.
-        {result.locationId && (
-          <>
-            {" "}
-            <a
-              href={`/dashboard/competitors/${result.locationId}/onboarding`}
-              className="font-bold underline underline-offset-4 text-alloro-navy hover:text-alloro-orange transition-colors"
-            >
-              Curate your competitor list →
-            </a>{" "}
-            to compare against the practices that matter to you.
-          </>
-        )}
-      </>
-    );
-  }
-
-  const tooltip = isCurated
-    ? "Your Practice Health score ranked against the competitor list you curated. Independent of your sampled Maps estimate."
-    : "Your Practice Health score is currently being compared against competitors Google surfaced for your area. Curate the list for a comparison against practices you actually compete with.";
-
+function PracticeHealthComparisonCta({ onOpen }: { onOpen: () => void }) {
   return (
-    <div className="mt-5 pt-4 border-t border-line-soft">
-      <div className="flex items-center justify-center gap-1.5 mb-1.5">
-        <span className="font-mono-display text-[10px] font-bold uppercase tracking-[0.18em] text-alloro-navy/45">
-          vs competitor cohort
-        </span>
-        <InfoTip content={tooltip} />
-      </div>
-      <p className="text-[12px] font-medium text-alloro-navy/65 max-w-[34ch] mx-auto text-center leading-relaxed">
-        {body}
-      </p>
+    <div className="mt-5 flex justify-center border-t border-line-soft pt-4">
+      <motion.button
+        type="button"
+        onClick={onOpen}
+        className="mx-auto inline-flex items-center justify-center gap-2 rounded-[10px] border border-alloro-orange/20 bg-alloro-orange/10 px-4 py-2.5 text-[11px] font-black uppercase tracking-[0.12em] text-alloro-orange transition-colors hover:border-alloro-orange/35 hover:bg-alloro-orange/15 focus:outline-none focus:ring-2 focus:ring-alloro-orange/30"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        whileHover={{ y: -1 }}
+        transition={{ duration: 0.22, ease: "easeOut" }}
+      >
+        See how I perform against competitors
+        <ChevronRight size={14} />
+      </motion.button>
     </div>
   );
 }
@@ -1452,9 +1402,11 @@ function CohortRankNote({ result }: { result: RankingResult }) {
 function HeroPanel({
   result,
   marketAvgRating,
+  onOpenComparison,
 }: {
   result: RankingResult;
   marketAvgRating: number;
+  onOpenComparison: () => void;
 }) {
   const status = result.searchStatus ?? "ok";
   const trend = computeSearchPositionTrend(result);
@@ -1631,7 +1583,7 @@ function HeroPanel({
           </p>
         </div>
 
-        <CohortRankNote result={result} />
+        <PracticeHealthComparisonCta onOpen={onOpenComparison} />
       </div>
     </section>
   );
@@ -1865,7 +1817,13 @@ function computeCohortDelta(
 /* ─────────────────────────────────────────────────────────────
    FactorBreakdown — horizontal weighted bar list (T6)
    ───────────────────────────────────────────────────────────── */
-function FactorBreakdown({ result }: { result: RankingResult }) {
+function FactorBreakdown({
+  result,
+  embedded = false,
+}: {
+  result: RankingResult;
+  embedded?: boolean;
+}) {
   const f = result.rankingFactors;
   if (!f) return null;
   const accent = "#D66853";
@@ -1874,7 +1832,11 @@ function FactorBreakdown({ result }: { result: RankingResult }) {
     .sort((a, b) => b.weighted - a.weighted);
 
   return (
-    <section className="bg-white border border-line-soft rounded-[14px] shadow-premium overflow-hidden">
+    <section
+      className={`bg-white border border-line-soft rounded-[14px] overflow-hidden ${
+        embedded ? "" : "shadow-premium"
+      }`}
+    >
       <header className="px-6 lg:px-7 py-4 flex items-center justify-between border-b border-line-soft gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <span
@@ -2103,6 +2065,7 @@ function PerformanceDashboard({
 }: {
   result: RankingResult;
 }) {
+  const [comparisonOpen, setComparisonOpen] = useState(false);
   const competitors = result.rawData?.competitors || [];
 
   // Market average rating (from curated competitors) — surfaced on the hero
@@ -2121,7 +2084,11 @@ function PerformanceDashboard({
     >
       {/* HERO — Live Google Rank composite + Practice Health gauge.
           Spec: plans/04282026-no-ticket-rankings-page-redesign/spec.md (T3) */}
-      <HeroPanel result={result} marketAvgRating={marketAvgRating} />
+      <HeroPanel
+        result={result}
+        marketAvgRating={marketAvgRating}
+        onOpenComparison={() => setComparisonOpen(true)}
+      />
 
       {/* BODY — 2-col grid (1.35fr / 1fr) at lg, single col below.
           Spec: plans/04282026-no-ticket-rankings-page-redesign/spec.md (T8) */}
@@ -2129,13 +2096,19 @@ function PerformanceDashboard({
         <div className="space-y-5 lg:space-y-6 min-w-0">
           <SearchPositionSection result={result} />
           <DriversPanel result={result} />
-          <FactorBreakdown result={result} />
         </div>
         <div className="space-y-5 lg:space-y-6 min-w-0">
           <NextMoves result={result} />
           <GapsPanel result={result} />
         </div>
       </div>
+
+      <CompetitorComparisonModal
+        open={comparisonOpen}
+        onClose={() => setComparisonOpen(false)}
+        result={result}
+        factorBreakdown={<FactorBreakdown result={result} embedded />}
+      />
     </div>
   );
 }
