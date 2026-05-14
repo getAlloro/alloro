@@ -88,3 +88,8 @@ Replace the Practice Health cohort sentence with a comparison CTA. The CTA opens
 **Change:** Remove the legacy red trend pill from the Google Maps estimate hero card and tighten the query label alignment while keeping the rank and metric sizes unchanged.
 **Reason:** The v1-style trend badge looked like an unrelated chart/trend element and made the hero card feel larger than needed.
 **Updated Done criteria:** Verify the Google Maps estimate card no longer renders the rank trend pill and keeps the same rank, rating, and review typography sizes.
+
+### Rev 3 — 2026-05-14
+**Change:** Remove the user's own practice from the selected competitors Google Maps card, replace top-10 measured competitor labels with `EST IN TOP 10`, and move selected competitors outside the sampled top 10 into a collapsible gray disclosure.
+**Reason:** Showing exact orange estimate numbers in a selected-only list made skipped Google Maps positions feel broken. The card should keep the selected competitor set visible without implying missing Google ranks are dashboard errors.
+**Updated Done criteria:** Verify the card shows selected competitors only, excludes self, labels only sampled top-10 competitors as `EST IN TOP 10`, and keeps outside-top-10/not-in-top-20 competitors represented behind the disclosure.
