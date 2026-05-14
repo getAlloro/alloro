@@ -563,6 +563,12 @@ router.get(
   integrationsController.getHarvestLogs,
 );
 
+// GET /:id/integrations/:integrationId/harvest-logs/:logId/payload — Inspect one stored harvest payload
+router.get(
+  "/:id/integrations/:integrationId/harvest-logs/:logId/payload",
+  integrationsController.getHarvestLogPayload,
+);
+
 // POST /:id/integrations/:integrationId/rerun — Re-enqueue a failed harvest
 router.post(
   "/:id/integrations/:integrationId/rerun",

@@ -39,6 +39,7 @@ import * as formDetection from "./feature-services/service.form-detection";
 import * as clarityIntegration from "./feature-services/service.clarity-integration";
 import * as gscIntegration from "./feature-services/service.gsc-integration";
 import * as gscPerformance from "./feature-services/service.gsc-performance";
+import * as harvestLogInspector from "./feature-services/service.harvest-log-inspector";
 import * as rybbitHistory from "./feature-services/service.rybbit-history";
 import * as rybbitIntegration from "./feature-services/service.rybbit-integration";
 import * as rybbitPerformance from "./feature-services/service.rybbit-performance";
@@ -585,6 +586,28 @@ export async function getHarvestLogs(req: Request, res: Response): Promise<Respo
   } catch (error) {
     console.error(`${LOG_PREFIX} getHarvestLogs failed:`, error);
     return fail(res, 500, "FETCH_ERROR", "Failed to fetch harvest logs");
+  }
+}
+
+export async function getHarvestLogPayload(req: Request, res: Response): Promise<Response> {
+  try {
+    const integration = await loadIntegrationForProject(req, res);
+    if (!integration) return res;
+
+    const logId = String(req.params.logId);
+    const log = await IntegrationHarvestLogModel.findByIdForIntegration(
+      logId,
+      integration.id,
+    );
+    if (!log) {
+      return fail(res, 404, "NOT_FOUND", "Harvest log not found for this integration");
+    }
+
+    const payload = await harvestLogInspector.getPayload(integration, log);
+    return ok(res, payload);
+  } catch (error) {
+    console.error(`${LOG_PREFIX} getHarvestLogPayload failed:`, error);
+    return fail(res, 500, "FETCH_ERROR", "Failed to fetch harvest payload");
   }
 }
 

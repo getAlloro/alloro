@@ -59,6 +59,19 @@ export class GscDataModel extends BaseModel {
     return rows.map((row: IGscData) => this.deserializeJsonFields(row));
   }
 
+  static async findByProjectAndDate(
+    projectId: string,
+    reportDate: string,
+    trx?: QueryContext,
+  ): Promise<IGscData | undefined> {
+    const row = await this.table(trx)
+      .select(this.selectColumns)
+      .select(db.raw("report_date::text as report_date"))
+      .where({ project_id: projectId, report_date: reportDate })
+      .first();
+    return row ? this.deserializeJsonFields(row) : undefined;
+  }
+
   static async findLatestReportDate(
     projectId: string,
     trx?: QueryContext,
