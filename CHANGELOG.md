@@ -2,6 +2,21 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.81] - May 2026
+
+### Integration Revocation Repair
+
+Stopped the CRM mapping validation worker from applying HubSpot-style credential validation to analytics integrations, preventing Rybbit and GSC rows from being incorrectly marked revoked.
+
+**Key Changes:**
+- Scoped daily CRM mapping validation to active `crm_push` integrations only
+- Reused the existing integration model helper instead of maintaining a broad inline query
+- Verified the erroneous Rybbit/GSC revocation condition is cleared in live data
+
+**Commits:**
+- `src/workers/processors/crmMappingValidation.processor.ts` - CRM validation now selects only CRM push integrations
+- `plans/05142026-no-ticket-integration-revocation-repair/spec.md` - executed spec and verification checklist
+
 ## [0.0.80] - May 2026
 
 ### Website Project Archive Tab

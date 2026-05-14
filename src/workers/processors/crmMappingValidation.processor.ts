@@ -16,36 +16,15 @@
  */
 
 import { Job } from "bullmq";
-import { db } from "../../database/connection";
-import {
-  WebsiteIntegrationModel,
-  type IWebsiteIntegrationSafe,
-} from "../../models/website-builder/WebsiteIntegrationModel";
+import { WebsiteIntegrationModel } from "../../models/website-builder/WebsiteIntegrationModel";
 import { IntegrationFormMappingModel } from "../../models/website-builder/IntegrationFormMappingModel";
 import { getAdapter } from "../../services/integrations";
 
 const LOG_PREFIX = "[CRM-MAPPING-VALIDATION]";
 
-async function listActiveIntegrations(): Promise<IWebsiteIntegrationSafe[]> {
-  return db("website_builder.website_integrations")
-    .select([
-      "id",
-      "project_id",
-      "platform",
-      "label",
-      "metadata",
-      "status",
-      "last_validated_at",
-      "last_error",
-      "created_at",
-      "updated_at",
-    ])
-    .where({ status: "active" });
-}
-
 export async function processCrmMappingValidation(_job: Job): Promise<void> {
   const start = Date.now();
-  const integrations = await listActiveIntegrations();
+  const integrations = await WebsiteIntegrationModel.findActiveByTypes(["crm_push"]);
   console.log(`${LOG_PREFIX} Validating ${integrations.length} active integration(s)`);
 
   let okCount = 0;
