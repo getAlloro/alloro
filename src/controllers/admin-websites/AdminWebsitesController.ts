@@ -77,17 +77,21 @@ export async function listProjects(
   try {
     const {
       status,
+      projectListView,
       organizationStatus,
       page = "1",
       limit = "50",
     } = req.query;
-    const normalizedOrganizationStatus =
-      organizationStatus === "active" || organizationStatus === "inactive"
-        ? organizationStatus
+    const requestedListView = projectListView ?? organizationStatus;
+    const normalizedProjectListView =
+      requestedListView === "active" ||
+      requestedListView === "inactive" ||
+      requestedListView === "archive"
+        ? requestedListView
         : undefined;
     const result = await projectManager.listProjects({
       status: status as string | undefined,
-      organizationStatus: normalizedOrganizationStatus,
+      projectListView: normalizedProjectListView,
       page: parseInt(page as string, 10),
       limit: parseInt(limit as string, 10),
     });

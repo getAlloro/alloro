@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import toast from "react-hot-toast";
 import {
   RefreshCw,
   AlertCircle,
@@ -16,6 +17,7 @@ import {
   Pencil,
   Check,
   X,
+  Archive,
 } from "lucide-react";
 import {
   deleteWebsite,
@@ -25,7 +27,7 @@ import {
 import type {
   WebsiteProject,
   FetchWebsitesRequest,
-  WebsiteOrganizationStatus,
+  WebsiteProjectListView,
 } from "../../api/websites";
 import { useAdminWebsites, useAdminStatuses, useInvalidateAdminWebsites } from "../../hooks/queries/useAdminQueries";
 import {
@@ -50,10 +52,10 @@ const INTEGRATION_LABELS: Record<IntegrationPlatform, string> = {
   gsc: "Search Console",
 };
 
-const INITIAL_ORGANIZATION_STATUS: WebsiteOrganizationStatus = "active";
+const INITIAL_PROJECT_LIST_VIEW: WebsiteProjectListView = "active";
 
-const WEBSITE_ORGANIZATION_TABS: Array<{
-  id: WebsiteOrganizationStatus;
+const WEBSITE_PROJECT_LIST_TABS: Array<{
+  id: WebsiteProjectListView;
   label: string;
   description: string;
   icon: ReactNode;
@@ -70,16 +72,22 @@ const WEBSITE_ORGANIZATION_TABS: Array<{
     description: "No org yet",
     icon: <Circle className="h-4 w-4" />,
   },
+  {
+    id: "archive",
+    label: "Archive",
+    description: "Admin hidden",
+    icon: <Archive className="h-4 w-4" />,
+  },
 ];
 
 function buildWebsiteFilters(
-  organizationStatus: WebsiteOrganizationStatus,
+  projectListView: WebsiteProjectListView,
   selectedStatus: string,
 ): FetchWebsitesRequest {
   const nextFilters: FetchWebsitesRequest = {
     page: 1,
     limit: 50,
-    organizationStatus,
+    projectListView,
   };
 
   if (selectedStatus !== "all") {
@@ -166,6 +174,7 @@ export default function WebsitesList() {
 
   // Action loading states
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [archivingId, setArchivingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
   // Favicon load failure tracking
@@ -176,12 +185,12 @@ export default function WebsitesList() {
   const [editingNameValue, setEditingNameValue] = useState("");
 
   // Filter states
-  const [activeOrganizationStatus, setActiveOrganizationStatus] =
-    useState<WebsiteOrganizationStatus>(INITIAL_ORGANIZATION_STATUS);
+  const [activeProjectListView, setActiveProjectListView] =
+    useState<WebsiteProjectListView>(INITIAL_PROJECT_LIST_VIEW);
   const [filters, setFilters] = useState<FetchWebsitesRequest>({
     page: 1,
     limit: 50,
-    organizationStatus: INITIAL_ORGANIZATION_STATUS,
+    projectListView: INITIAL_PROJECT_LIST_VIEW,
   });
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
 
@@ -195,30 +204,34 @@ export default function WebsitesList() {
   const total = websitesResponse?.pagination?.total ?? 0;
   const statuses = statusesResponse?.statuses ?? [];
   const error = queryError?.message ?? null;
-  const activeOrganizationLabel =
-    activeOrganizationStatus === "active" ? "active" : "inactive";
+  const activeViewLabel =
+    activeProjectListView === "archive" ? "archived" : activeProjectListView;
   const emptyStateTitle =
-    activeOrganizationStatus === "active"
+    activeProjectListView === "archive"
+      ? "No archived websites found"
+      : activeProjectListView === "active"
       ? "No active websites found"
       : "No inactive websites found";
   const emptyStateDescription =
-    activeOrganizationStatus === "active"
+    activeProjectListView === "archive"
+      ? "No archived website projects match the selected filters."
+      : activeProjectListView === "active"
       ? "No organization-linked websites match the selected filters. Try adjusting your filters or create a new website."
       : "No unassigned websites match the selected filters. Try adjusting your filters or create a new website.";
 
   const applyFilters = () => {
-    setFilters(buildWebsiteFilters(activeOrganizationStatus, selectedStatus));
+    setFilters(buildWebsiteFilters(activeProjectListView, selectedStatus));
   };
 
   const resetFilters = () => {
     setSelectedStatus("all");
-    setFilters(buildWebsiteFilters(activeOrganizationStatus, "all"));
+    setFilters(buildWebsiteFilters(activeProjectListView, "all"));
   };
 
-  const handleOrganizationTabChange = (tabId: string) => {
-    if (tabId !== "active" && tabId !== "inactive") return;
+  const handleProjectListViewChange = (tabId: string) => {
+    if (tabId !== "active" && tabId !== "inactive" && tabId !== "archive") return;
 
-    setActiveOrganizationStatus(tabId);
+    setActiveProjectListView(tabId);
     setSelectedIds(new Set());
     setFilters(buildWebsiteFilters(tabId, selectedStatus));
   };
@@ -242,6 +255,35 @@ export default function WebsitesList() {
       alert(err instanceof Error ? err.message : "Failed to delete website");
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleArchive = async (website: WebsiteProject, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (archivingId) return;
+
+    const ok = await confirm({
+      title: "Archive website project?",
+      message: "This only changes the admin list label. Organization links, custom domains, and live status stay intact.",
+      confirmLabel: "Archive",
+    });
+    if (!ok) return;
+
+    try {
+      setArchivingId(website.id);
+      await updateWebsite(website.id, {
+        archived_at: new Date().toISOString(),
+      } as Partial<WebsiteProject>);
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(website.id);
+        return next;
+      });
+      await refetchWebsites();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to archive website");
+    } finally {
+      setArchivingId(null);
     }
   };
 
@@ -427,7 +469,7 @@ export default function WebsitesList() {
         description="Manage website builder projects"
         actionButtons={
           <div className="flex items-center gap-2">
-            <Badge label={`${total} ${activeOrganizationLabel}`} color="blue" />
+            <Badge label={`${total} ${activeViewLabel}`} color="blue" />
             <ActionButton
               label={creating ? "Creating..." : "New Website"}
               icon={
@@ -459,9 +501,9 @@ export default function WebsitesList() {
 
       <div className="flex">
         <TabBar
-          tabs={WEBSITE_ORGANIZATION_TABS}
-          activeTab={activeOrganizationStatus}
-          onTabChange={handleOrganizationTabChange}
+          tabs={WEBSITE_PROJECT_LIST_TABS}
+          activeTab={activeProjectListView}
+          onTabChange={handleProjectListViewChange}
         />
       </div>
 
@@ -769,6 +811,26 @@ export default function WebsitesList() {
                         </a>
                       ) : null}
 
+                      {!website.archived_at && (
+                        archivingId === website.id ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-700">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Archiving...
+                          </span>
+                        ) : (
+                          <motion.button
+                            onClick={(e) => handleArchive(website, e)}
+                            disabled={archivingId !== null}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                          >
+                            <Archive className="h-3.5 w-3.5" />
+                            Archive
+                          </motion.button>
+                        )
+                      )}
+
                       {/* Delete */}
                       {deletingId === website.id ? (
                         <span className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700">
@@ -835,7 +897,7 @@ export default function WebsitesList() {
           transition={{ duration: 0.3 }}
         >
           <span className="text-sm text-gray-600">
-            Showing {websites.length} of {total} {activeOrganizationLabel} website
+            Showing {websites.length} of {total} {activeViewLabel} website
             {total !== 1 ? "s" : ""}
           </span>
           <div className="flex items-center gap-6 text-sm">

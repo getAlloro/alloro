@@ -11,7 +11,18 @@ import { generateHostname } from "../feature-utils/util.hostname-generator";
 const PROJECTS_TABLE = "website_builder.projects";
 const PAGES_TABLE = "website_builder.pages";
 
-type OrganizationStatusFilter = "active" | "inactive";
+type ProjectListViewFilter = "active" | "inactive" | "archive";
+
+function normalizeArchivedAt(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== "string") return undefined;
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+
+  return parsed.toISOString();
+}
 
 // ---------------------------------------------------------------------------
 // List projects with pagination + org join
@@ -19,7 +30,7 @@ type OrganizationStatusFilter = "active" | "inactive";
 
 export async function listProjects(filters: {
   status?: string;
-  organizationStatus?: OrganizationStatusFilter;
+  projectListView?: ProjectListViewFilter;
   page: number;
   limit: number;
 }): Promise<{
@@ -31,7 +42,7 @@ export async function listProjects(filters: {
     totalPages: number;
   };
 }> {
-  const { status, organizationStatus, page, limit } = filters;
+  const { status, projectListView, page, limit } = filters;
   const offset = (page - 1) * limit;
 
   console.log("[Admin Websites] Fetching projects with filters:", filters);
@@ -41,11 +52,17 @@ export async function listProjects(filters: {
   if (status) {
     countQuery = countQuery.where("status", status);
   }
-  if (organizationStatus === "active") {
+  if (projectListView === "active") {
     countQuery = countQuery.whereNotNull("organization_id");
   }
-  if (organizationStatus === "inactive") {
+  if (projectListView === "inactive") {
     countQuery = countQuery.whereNull("organization_id");
+  }
+  if (projectListView === "active" || projectListView === "inactive") {
+    countQuery = countQuery.whereNull("archived_at");
+  }
+  if (projectListView === "archive") {
+    countQuery = countQuery.whereNotNull("archived_at");
   }
   const [{ count }] = await countQuery.count("* as count");
   const total = parseInt(count as string, 10);
@@ -71,6 +88,7 @@ export async function listProjects(filters: {
       `${PROJECTS_TABLE}.custom_domain`,
       `${PROJECTS_TABLE}.primary_color`,
       `${PROJECTS_TABLE}.accent_color`,
+      `${PROJECTS_TABLE}.archived_at`,
       `${PROJECTS_TABLE}.created_at`,
       `${PROJECTS_TABLE}.updated_at`,
       db.raw(
@@ -81,11 +99,17 @@ export async function listProjects(filters: {
   if (status) {
     dataQuery = dataQuery.where(`${PROJECTS_TABLE}.status`, status);
   }
-  if (organizationStatus === "active") {
+  if (projectListView === "active") {
     dataQuery = dataQuery.whereNotNull(`${PROJECTS_TABLE}.organization_id`);
   }
-  if (organizationStatus === "inactive") {
+  if (projectListView === "inactive") {
     dataQuery = dataQuery.whereNull(`${PROJECTS_TABLE}.organization_id`);
+  }
+  if (projectListView === "active" || projectListView === "inactive") {
+    dataQuery = dataQuery.whereNull(`${PROJECTS_TABLE}.archived_at`);
+  }
+  if (projectListView === "archive") {
+    dataQuery = dataQuery.whereNotNull(`${PROJECTS_TABLE}.archived_at`);
   }
 
   const projects = await dataQuery
@@ -373,6 +397,7 @@ export async function updateProject(
   error?: { status: number; code: string; message: string };
 }> {
   console.log(`[Admin Websites] Updating project ID: ${id}`, updates);
+  const sanitizedUpdates = { ...updates };
 
   const existing = await db(PROJECTS_TABLE).where("id", id).first();
   if (!existing) {
@@ -383,11 +408,26 @@ export async function updateProject(
   }
 
   // Remove fields that shouldn't be updated directly
-  delete updates.id;
-  delete updates.created_at;
+  delete sanitizedUpdates.id;
+  delete sanitizedUpdates.created_at;
+
+  if (Object.prototype.hasOwnProperty.call(sanitizedUpdates, "archived_at")) {
+    const normalizedArchivedAt = normalizeArchivedAt(sanitizedUpdates.archived_at);
+    if (normalizedArchivedAt === undefined) {
+      return {
+        project: null,
+        error: {
+          status: 400,
+          code: "INVALID_ARCHIVED_AT",
+          message: "archived_at must be an ISO timestamp or null.",
+        },
+      };
+    }
+    sanitizedUpdates.archived_at = normalizedArchivedAt;
+  }
 
   // Validate wrapper contains {{slot}} if being updated
-  if (updates.wrapper && !updates.wrapper.includes("{{slot}}")) {
+  if (sanitizedUpdates.wrapper && !sanitizedUpdates.wrapper.includes("{{slot}}")) {
     return {
       project: null,
       error: {
@@ -402,7 +442,7 @@ export async function updateProject(
   const [project] = await db(PROJECTS_TABLE)
     .where("id", id)
     .update({
-      ...updates,
+      ...sanitizedUpdates,
       updated_at: db.fn.now(),
     })
     .returning("*");
