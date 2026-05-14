@@ -126,6 +126,7 @@ export interface WebsiteProject {
   accent_color: string | null;
   step_gbp_scrape: Record<string, unknown> | null;
   project_identity?: ProjectIdentity | null;
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
   organization?: {
@@ -185,11 +186,11 @@ export interface WebsiteProjectWithPages extends WebsiteProject {
   pages: WebsitePage[];
 }
 
-export type WebsiteOrganizationStatus = "active" | "inactive";
+export type WebsiteProjectListView = "active" | "inactive" | "archive";
 
 export interface FetchWebsitesRequest {
   status?: string;
-  organizationStatus?: WebsiteOrganizationStatus;
+  projectListView?: WebsiteProjectListView;
   page?: number;
   limit?: number;
 }

@@ -2,6 +2,40 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.81] - May 2026
+
+### Integration Revocation Repair
+
+Stopped the CRM mapping validation worker from applying HubSpot-style credential validation to analytics integrations, preventing Rybbit and GSC rows from being incorrectly marked revoked.
+
+**Key Changes:**
+- Scoped daily CRM mapping validation to active `crm_push` integrations only
+- Reused the existing integration model helper instead of maintaining a broad inline query
+- Verified the erroneous Rybbit/GSC revocation condition is cleared in live data
+
+**Commits:**
+- `src/workers/processors/crmMappingValidation.processor.ts` - CRM validation now selects only CRM push integrations
+- `plans/05142026-no-ticket-integration-revocation-repair/spec.md` - executed spec and verification checklist
+
+## [0.0.80] - May 2026
+
+### Website Project Archive Tab
+
+Added an admin-only Archive view for website projects so staff can move projects out of the normal Active and Inactive lists without changing live status, organization links, or custom domains.
+
+**Key Changes:**
+- Added `archived_at` metadata to website projects instead of overloading the lifecycle `status` enum
+- Added server-backed Active, Inactive, and Archive filters for the admin website projects list
+- Kept archived projects visible in Archive regardless of organization attachment or custom domain state
+- Added a row-level Archive action with confirmation copy that clarifies it is admin labelling only
+- Preserved lifecycle status, organization links, generated hostnames, and custom domains when archiving
+
+**Commits:**
+- `src/database/migrations/20260514000000_add_website_project_archived_at.ts` - archive metadata column and lookup index
+- `src/controllers/admin-websites/AdminWebsitesController.ts` and `service.project-manager.ts` - project list view filtering and safe `archived_at` update handling
+- `frontend/src/api/websites.ts`, `frontend/src/lib/queryClient.ts`, and `frontend/src/pages/admin/WebsitesList.tsx` - typed Archive tab, cache key, and Archive row action
+- `plans/05142026-no-ticket-website-project-archive-tab/*` - executed spec and migration scaffolds
+
 ## [0.0.79] - May 2026
 
 ### Harvest Row JSON Inspector
