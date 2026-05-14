@@ -27,8 +27,8 @@ import { CompetitorComparisonModal } from "./rankings/CompetitorComparisonModal"
 import { RankingsLoadingState } from "./rankings/RankingsLoadingState";
 import {
   buildCompetitorComparisonRows,
-  formatMapsEstimate,
   sortRowsForMapsList,
+  type ComparisonRow,
 } from "./rankings/competitorComparison";
 
 /**
@@ -849,17 +849,47 @@ export function RankingsDashboard({
  * Spec: plans/04282026-no-ticket-rankings-page-redesign/spec.md (T4).
  * Original section spec: plans/04122026-no-ticket-practice-health-search-position-split/spec.md
  */
+function isSelectedMapsTopTen(row: ComparisonRow): boolean {
+  return (
+    row.mapsStatus === "measured" &&
+    row.mapsPosition !== null &&
+    row.mapsPosition <= 10
+  );
+}
+
+function getSelectedMapsLabel(row: ComparisonRow): string {
+  if (isSelectedMapsTopTen(row)) return "EST IN TOP 10";
+  if (row.mapsStatus === "measured") return "Outside top 10";
+  return row.mapsStatus === "not_in_top_20" ? "Not in top 20" : "Not measured";
+}
+
+function getMapsDistanceLabel(row: ComparisonRow): string | null {
+  if (
+    typeof row.distanceMiles !== "number" ||
+    !Number.isFinite(row.distanceMiles)
+  ) {
+    return null;
+  }
+
+  return `${row.distanceMiles < 10 ? row.distanceMiles.toFixed(1) : Math.round(row.distanceMiles)} mi`;
+}
+
 function SearchPositionSection({ result }: { result: RankingResult }) {
+  const [showOutsideTopTen, setShowOutsideTopTen] = useState(false);
   const status = result.searchStatus ?? "ok";
   const selectedResults = result.selectedCompetitorSearchResults ?? [];
   const hasSelectedProjection = selectedResults.length > 0;
   const selectedProjectionRows = hasSelectedProjection
     ? sortRowsForMapsList(
         buildCompetitorComparisonRows(result).filter(
-          (row) => row.isYou || row.source === "selected",
+          (row) => row.source === "selected",
         ),
       )
     : [];
+  const selectedTopTenRows = selectedProjectionRows.filter(isSelectedMapsTopTen);
+  const selectedOutsideTopTenRows = selectedProjectionRows.filter(
+    (row) => !isSelectedMapsTopTen(row),
+  );
   const topResults = hasSelectedProjection
     ? []
     : (result.searchResults ?? []).slice(0, 5);
@@ -874,6 +904,68 @@ function SearchPositionSection({ result }: { result: RankingResult }) {
         day: "numeric",
       })
     : null;
+
+  const renderSelectedProjectionRow = (
+    row: ComparisonRow,
+    variant: "top-ten" | "outside",
+  ) => {
+    const statusLabel = getSelectedMapsLabel(row);
+    const distanceLabel = getMapsDistanceLabel(row);
+    const subline = row.address;
+    const isTopTen = variant === "top-ten";
+
+    return (
+      <div
+        key={row.id}
+        className={`grid grid-cols-[150px_minmax(0,1fr)_auto] items-center gap-4 px-6 lg:px-7 py-3.5 border-b last:border-b-0 border-line-soft transition-colors hover:bg-[rgba(17,21,28,0.025)] ${
+          isTopTen ? "" : "bg-slate-50/40"
+        }`}
+      >
+        <div className="flex items-baseline gap-2">
+          <span
+            className={`whitespace-nowrap text-[10px] font-black uppercase tracking-[0.12em] ${
+              isTopTen ? "text-alloro-orange" : "text-slate-500"
+            }`}
+          >
+            {statusLabel}
+          </span>
+          {distanceLabel && (
+            <span className="whitespace-nowrap text-[10px] font-semibold text-alloro-navy/35">
+              {distanceLabel}
+            </span>
+          )}
+        </div>
+        <div className="min-w-0">
+          <span className="block truncate font-bold text-[15px] text-alloro-navy">
+            {row.name}
+          </span>
+          {subline && (
+            <span
+              className="mt-0.5 block max-w-full truncate text-[11px] font-semibold leading-snug text-alloro-navy/40"
+              title={subline}
+            >
+              {subline}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-5 shrink-0">
+          {typeof row.starRating === "number" && (
+            <div className="flex items-center gap-1.5 tabular-nums text-[13px] font-bold text-alloro-navy/80">
+              <StarIcon size={12} /> {row.starRating.toFixed(1)}
+            </div>
+          )}
+          {typeof row.reviewCount === "number" && (
+            <div className="text-[13px] font-bold tabular-nums text-alloro-navy min-w-[52px] text-right">
+              {row.reviewCount.toLocaleString()}
+              <span className="ml-1 text-[10px] font-semibold text-alloro-navy/35 uppercase tracking-wider">
+                rev
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <section
@@ -915,76 +1007,48 @@ function SearchPositionSection({ result }: { result: RankingResult }) {
         )}
       </header>
       <div>
-        {hasSelectedProjection && selectedProjectionRows.map((row) => {
-          const hasPosition = row.mapsStatus === "measured";
-          const statusLabel = formatMapsEstimate(row);
-          const distanceLabel =
-            typeof row.distanceMiles === "number" &&
-            Number.isFinite(row.distanceMiles)
-              ? `${row.distanceMiles < 10 ? row.distanceMiles.toFixed(1) : Math.round(row.distanceMiles)} mi`
-              : null;
-          const subline = row.address || (row.isYou ? row.category : null);
-          return (
-            <div
-              key={row.id}
-              className={`grid grid-cols-[150px_minmax(0,1fr)_auto] items-center gap-4 px-6 lg:px-7 py-3.5 border-b last:border-b-0 border-line-soft transition-colors hover:bg-[rgba(17,21,28,0.025)] ${
-                row.isYou ? "bg-alloro-orange/[0.055]" : ""
-              }`}
+        {hasSelectedProjection &&
+          selectedTopTenRows.map((row) =>
+            renderSelectedProjectionRow(row, "top-ten"),
+          )}
+        {hasSelectedProjection && selectedOutsideTopTenRows.length > 0 && (
+          <div className="border-b last:border-b-0 border-line-soft bg-slate-50/70">
+            <button
+              type="button"
+              aria-expanded={showOutsideTopTen}
+              onClick={() => setShowOutsideTopTen((current) => !current)}
+              className="flex w-full items-center justify-between gap-4 px-6 lg:px-7 py-4 text-left transition-colors hover:bg-slate-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-alloro-orange/35"
             >
-              <div className="flex items-baseline gap-2">
-                <span
-                  className={`whitespace-nowrap text-[10px] font-black uppercase tracking-[0.12em] ${
-                    hasPosition
-                      ? "text-alloro-orange"
-                      : "text-slate-500"
-                  }`}
-                >
-                  {statusLabel}
+              <span className="min-w-0">
+                <span className="block text-[11px] font-black uppercase tracking-[0.14em] text-slate-600">
+                  {showOutsideTopTen ? "Hide" : "Show"} competitors outside top 10
                 </span>
-                {distanceLabel && (
-                  <span className="whitespace-nowrap text-[10px] font-semibold text-alloro-navy/35">
-                    {distanceLabel}
-                  </span>
+                <span className="mt-0.5 block truncate text-[10.5px] font-semibold text-alloro-navy/40">
+                  {result.searchQuery
+                    ? `Not currently in the sampled top 10 for ${result.searchQuery}`
+                    : "Not currently in the sampled top 10 for this query"}
+                </span>
+              </span>
+              <span className="flex shrink-0 items-center gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+                {selectedOutsideTopTenRows.length} selected
+                <ChevronRight
+                  size={14}
+                  className={`transition-transform ${
+                    showOutsideTopTen ? "rotate-90" : ""
+                  }`}
+                  aria-hidden="true"
+                />
+              </span>
+            </button>
+            {showOutsideTopTen && (
+              <div className="border-t border-line-soft">
+                {selectedOutsideTopTenRows.map((row) =>
+                  renderSelectedProjectionRow(row, "outside"),
                 )}
               </div>
-              <div className="min-w-0">
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="block truncate font-bold text-[15px] text-alloro-navy">
-                    {row.name}
-                  </span>
-                  {row.isYou && (
-                    <span className="rounded bg-alloro-orange px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-white">
-                      You
-                    </span>
-                  )}
-                </div>
-                {subline && (
-                  <span
-                    className="mt-0.5 block max-w-full truncate text-[11px] font-semibold leading-snug text-alloro-navy/40"
-                    title={subline}
-                  >
-                    {subline}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-5 shrink-0">
-                {typeof row.starRating === "number" && (
-                  <div className="flex items-center gap-1.5 tabular-nums text-[13px] font-bold text-alloro-navy/80">
-                    <StarIcon size={12} /> {row.starRating.toFixed(1)}
-                  </div>
-                )}
-                {typeof row.reviewCount === "number" && (
-                  <div className="text-[13px] font-bold tabular-nums text-alloro-navy min-w-[52px] text-right">
-                    {row.reviewCount.toLocaleString()}
-                    <span className="ml-1 text-[10px] font-semibold text-alloro-navy/35 uppercase tracking-wider">
-                      rev
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
+            )}
+          </div>
+        )}
         {!hasSelectedProjection && topResults.map((row) => {
           const isYou = row.isClient;
           return (

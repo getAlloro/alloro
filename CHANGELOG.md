@@ -2,6 +2,22 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.78] - May 2026
+
+### Selected Competitor Maps List Clarity
+
+Made the Local Rankings selected competitors card easier to read by removing the user's own practice from the comparison list and grouping lower-visibility selected competitors behind a clear disclosure.
+
+**Key Changes:**
+- Replaced exact orange `Est. #n` labels with `EST IN TOP 10` for selected competitors that are in the sampled Google Maps top 10
+- Removed the user's own practice from the selected competitor list so the card always focuses on competitors
+- Moved selected competitors outside the sampled top 10, not in the top 20, or not measured into a collapsible gray section with query context
+- Preserved selected competitor ordering and kept review/rating/address rows unchanged
+
+**Commits:**
+- `frontend/src/components/dashboard/RankingsDashboard.tsx` - selected competitors card top-10 label and outside-top-10 disclosure
+- `plans/05142026-no-ticket-ranking-competitor-comparison-modal/spec.md` - Rev 3 selected competitor card contract
+
 ## [0.0.77] - May 2026
 
 ### Ranking Maps Estimate Cleanup
