@@ -208,11 +208,10 @@ interface RankingResult {
   // Practice Health aliases (same data as rankScore/rankPosition).
   practiceHealth: number | null;
   practiceHealthRank: number | null;
-  // Source of the persisted searchPosition — used to suppress the trend arrow
-  // when the previous row was computed against a different surface (e.g. the
-  // Places API legacy source vs the new Apify Maps source).
-  // Spec: plans/04282026-no-ticket-live-google-rank-apify-maps-swap/spec.md (T3)
-  searchPositionSource: "apify_maps" | "places_text" | null;
+  // Source of the persisted searchPosition — used to avoid comparing samples
+  // computed against different provider surfaces.
+  // Spec: plans/05142026-no-ticket-serpapi-maps-rank-source/spec.md (T3)
+  searchPositionSource: "serpapi_maps" | "apify_maps" | "places_text" | null;
   competitorSetRevision: number | null;
   competitorSnapshot: unknown | null;
   runReason:
@@ -228,7 +227,11 @@ interface RankingResult {
   previousSearchQuery: string | null;
   previousSearchLat: number | null;
   previousSearchLng: number | null;
-  previousSearchPositionSource: "apify_maps" | "places_text" | null;
+  previousSearchPositionSource:
+    | "serpapi_maps"
+    | "apify_maps"
+    | "places_text"
+    | null;
   previousObservedAt: string | null;
   // v2 curated competitor list metadata (Practice Ranking v2).
   // Spec: plans/04282026-no-ticket-practice-ranking-v2-user-curated-competitors/spec.md
@@ -705,7 +708,7 @@ export function RankingsDashboard({
           searchRadiusMeters: 40234,
           searchCheckedAt: new Date().toISOString(),
           competitorDiscoveryRadiusMeters: 40234,
-          searchPositionSource: "apify_maps",
+          searchPositionSource: "serpapi_maps",
           competitorSetRevision: 1,
           competitorSnapshot: null,
           runReason: "manual",

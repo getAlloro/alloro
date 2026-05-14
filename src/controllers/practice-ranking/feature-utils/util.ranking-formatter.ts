@@ -315,7 +315,7 @@ export function formatFullResults(ranking: any) {
       llmAnalysis: parseJsonField(ranking.llm_analysis),
       statusDetail: parseJsonField(ranking.status_detail),
       errorMessage: ranking.error_message,
-      // Location params used for Apify search (for debugging)
+      // Location params used for local ranking lookups (for debugging)
       searchParams: {
         city: ranking.search_city,
         state: ranking.search_state,
@@ -431,9 +431,9 @@ export function formatLatestRanking(
     competitorDiscoveryRadiusMeters:
       ranking.competitor_discovery_radius_meters ?? null,
     searchCheckedAt: ranking.search_checked_at,
-    // Source of `searchPosition` (apify_maps | places_text | null). Used by the
-    // frontend to suppress the position trend arrow across the cutover.
-    // Spec: plans/04282026-no-ticket-live-google-rank-apify-maps-swap/spec.md (T3)
+    // Source of `searchPosition` (serpapi_maps | apify_maps | places_text | null).
+    // Used by the frontend to avoid comparing different provider surfaces.
+    // Spec: plans/05142026-no-ticket-serpapi-maps-rank-source/spec.md (T3)
     searchPositionSource: ranking.search_position_source ?? null,
     competitorSetRevision: ranking.competitor_set_revision ?? null,
     competitorSnapshot: parseJsonField(ranking.competitor_snapshot),

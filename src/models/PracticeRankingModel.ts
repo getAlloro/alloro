@@ -10,13 +10,14 @@ export type SearchPositionStatus =
 /**
  * Source of the persisted `search_position` value.
  *
- * - `apify_maps` : Apify Google Maps actor (matches the Maps panel ordering)
- * - `places_text`: legacy Places API `searchText` (soft fallback when Apify fails)
- * - null         : pre-cutover row, before the Apify swap shipped
+ * - `serpapi_maps`: SerpApi Google Maps search, centered on client coordinates
+ * - `apify_maps`  : legacy Apify Google Maps actor
+ * - `places_text`: legacy Places API `searchText` (soft fallback when live Maps lookup fails)
+ * - null         : pre-cutover row, before source tracking shipped
  *
- * Spec: plans/04282026-no-ticket-live-google-rank-apify-maps-swap/spec.md (T3)
+ * Spec: plans/05142026-no-ticket-serpapi-maps-rank-source/spec.md (T3)
  */
-export type SearchPositionSource = "apify_maps" | "places_text";
+export type SearchPositionSource = "serpapi_maps" | "apify_maps" | "places_text";
 export type RankingRunReason =
   | "scheduled"
   | "manual"
