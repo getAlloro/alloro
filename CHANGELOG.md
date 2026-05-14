@@ -2,6 +2,26 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.82] - May 2026
+
+### SerpApi Maps Estimate Source
+
+Moved the Local Rankings headline Google Maps estimate from the legacy Apify Maps actor to SerpApi Google Maps search centered on the client's saved GBP coordinates, making the sampled rank closer to the visible Maps result set for cases like One Endodontics-Fredericksburg.
+
+**Key Changes:**
+- Added a SerpApi Maps search-position wrapper with retry handling, place-id matching, and ordered result normalization
+- Wired ranking Step 0 to persist `serpapi_maps` results and avoid silently falling back to Apify for the headline estimate
+- Added a reversible migration allowing `serpapi_maps` in `practice_rankings.search_position_source`
+- Updated backend and dashboard source typing/comments so historical Apify rows remain readable while new snapshots use SerpApi
+- Verified SerpApi returns One Endodontics-Fredericksburg as `#1` for `endodontist in Fredericksburg, VA` at `ll=@38.2238985,-77.5053993,15z`
+
+**Commits:**
+- `src/controllers/practice-ranking/feature-services/service.serpapi-maps.ts` - SerpApi Maps lookup wrapper and ordered result normalization
+- `src/controllers/practice-ranking/feature-services/service.ranking-pipeline.ts` - Step 0 SerpApi integration, Places-only fallback, and timing/source metadata
+- `src/database/migrations/20260514000001_allow_serpapi_search_position_source.ts` and `src/models/PracticeRankingModel.ts` - persisted source support for `serpapi_maps`
+- `frontend/src/components/dashboard/RankingsDashboard.tsx` and `src/controllers/practice-ranking/feature-utils/util.ranking-formatter.ts` - source typing and source-neutral ranking copy
+- `plans/05142026-no-ticket-serpapi-maps-rank-source/spec.md` - executed spec, migration scaffolds, and post-deploy verification checklist
+
 ## [0.0.81] - May 2026
 
 ### Integration Revocation Repair

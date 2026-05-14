@@ -14,8 +14,8 @@ import {
   getCompetitorDetails,
   enrichCompetitorReviewCounts,
   getSpecialtyKeywords,
-  getSearchPositionViaApifyMaps,
 } from "./service.apify";
+import { getSearchPositionViaSerpApiMaps } from "./service.serpapi-maps";
 import { auditWebsite } from "./service.website-audit";
 import {
   discoverCompetitorsViaPlaces,
@@ -892,15 +892,15 @@ export async function processLocationRanking(
     }
   }
 
-  // Sub-step 3: Live Google Maps position lookup via Apify.
+  // Sub-step 3: Live Google Maps position lookup via SerpApi.
   // The Maps panel ordering for "{specialty} in {marketLocation}" — what a real
   // searcher in the area sees — is what users perceive as "Live Google Rank".
   // This is a different surface from the Places API `searchText` ranking used
   // above for competitor discovery; the two coexist intentionally.
-  // Spec: plans/04282026-no-ticket-live-google-rank-apify-maps-swap/spec.md (T2)
-  let searchPositionSource: "apify_maps" | "places_text" | null = null;
-  let apifyMapsRetrySummary = "apify_attempts=0";
-  let apifyOrderedResults: Array<{
+  // Spec: plans/05142026-no-ticket-serpapi-maps-rank-source/spec.md (T2)
+  let searchPositionSource: "serpapi_maps" | "apify_maps" | "places_text" | null = null;
+  let serpApiMapsRetrySummary = "serpapi_attempts=0";
+  let mapsOrderedResults: Array<{
     placeId: string;
     name: string;
     position: number;
@@ -910,42 +910,39 @@ export async function processLocationRanking(
     isClient: boolean;
   }> | null = null;
 
-  if (clientPlaceId) {
-    // Pass the Identifier Agent's resolved city/state/county/postalCode straight
-    // through to Apify so the Maps query is scoped correctly even when the
-    // composite marketLocation string is a placeholder like "Unknown, XX".
-    const apifyResult = await getSearchPositionViaApifyMaps(
+  if (clientPlaceId && clientVantage) {
+    const serpApiResult = await getSearchPositionViaSerpApiMaps(
       searchQuery,
       clientPlaceId,
-      locationParams,
+      clientVantage,
     );
-    apifyMapsRetrySummary = summarizeRetryAttempts(
-      apifyResult.retryAttempts || [],
-    );
+    serpApiMapsRetrySummary = summarizeRetryAttempts(
+      serpApiResult.retryAttempts || [],
+    ).replace(/^attempts=/, "serpapi_attempts=");
 
-    if (apifyResult.status === "ok") {
-      searchPosition = apifyResult.position;
+    if (serpApiResult.status === "ok") {
+      searchPosition = serpApiResult.position;
       searchStatus = "ok";
-      searchPositionSource = "apify_maps";
-      apifyOrderedResults = apifyResult.orderedResults;
+      searchPositionSource = "serpapi_maps";
+      mapsOrderedResults = serpApiResult.orderedResults;
       log(
-        `[RANKING] [${rankingId}] Step 0: Apify Maps position = ${searchPosition} of ${apifyResult.resultCount}`,
+        `[RANKING] [${rankingId}] Step 0: SerpApi Maps position = ${searchPosition} of ${serpApiResult.resultCount}`,
       );
-    } else if (apifyResult.status === "not_in_top_20") {
+    } else if (serpApiResult.status === "not_in_top_20") {
       searchPosition = null;
       searchStatus = "not_in_top_20";
-      searchPositionSource = "apify_maps";
-      apifyOrderedResults = apifyResult.orderedResults;
+      searchPositionSource = "serpapi_maps";
+      mapsOrderedResults = serpApiResult.orderedResults;
       log(
-        `[RANKING] [${rankingId}] Step 0: Apify Maps returned ${apifyResult.resultCount} results, client not in top set`,
+        `[RANKING] [${rankingId}] Step 0: SerpApi Maps returned ${serpApiResult.resultCount} results, client not in top set`,
       );
     } else {
-      // Apify failed — leave searchStatus as it was set by Sub-step 1/2 (which
-      // may already be "bias_unavailable" or "api_error"). If Sub-step 2 still
-      // succeeded with a placeId match in the Places API result set, fall back
-      // to that for continuity.
+      // SerpApi failed — leave searchStatus as it was set by Sub-step 1/2
+      // where possible. If Sub-step 2 still succeeded with a placeId match in
+      // the Places API result set, fall back to that for continuity. Do not
+      // silently fall back to Apify for this headline estimate.
       log(
-        `[RANKING] [${rankingId}] Step 0: Apify Maps failed — falling back to Places API position if available`,
+        `[RANKING] [${rankingId}] Step 0: SerpApi Maps failed — falling back to Places API position if available`,
       );
       const clientIndex = discoveredCompetitors.findIndex(
         (c: any) => c.placeId === clientPlaceId,
@@ -962,19 +959,34 @@ export async function processLocationRanking(
         searchPositionSource = null;
       }
     }
+  } else if (clientPlaceId) {
+    log(
+      `[RANKING] [${rankingId}] Step 0: skipping SerpApi Maps lookup (no client coordinates)`,
+    );
+    const clientIndex = discoveredCompetitors.findIndex(
+      (c: any) => c.placeId === clientPlaceId,
+    );
+    if (clientIndex >= 0) {
+      searchPosition = clientIndex + 1;
+      searchStatus = "ok";
+      searchPositionSource = "places_text";
+      log(
+        `[RANKING] [${rankingId}] Step 0: Places API fallback position = ${searchPosition}`,
+      );
+    }
   } else {
     log(
-      `[RANKING] [${rankingId}] Step 0: skipping Apify Maps lookup (no clientPlaceId)`,
+      `[RANKING] [${rankingId}] Step 0: skipping SerpApi Maps lookup (no clientPlaceId)`,
     );
   }
 
-  // Sub-step 4: Build search_results jsonb. Prefer the Apify ordered list so
+  // Sub-step 4: Build search_results jsonb. Prefer the SerpApi ordered list so
   // the rankings UI table reflects the Maps panel that the Live Google Rank
-  // number measures. Fall back to Places API discoveries when Apify did not
+  // number measures. Fall back to Places API discoveries when SerpApi did not
   // produce results, so the table still has *something* to render.
   const searchResultsPayload: SearchResultPayloadEntry[] =
-    apifyOrderedResults !== null && apifyOrderedResults.length > 0
-      ? apifyOrderedResults.map((r) => ({
+    mapsOrderedResults !== null && mapsOrderedResults.length > 0
+      ? mapsOrderedResults.map((r) => ({
           placeId: r.placeId,
           name: r.name,
           position: r.position,
@@ -1021,7 +1033,7 @@ export async function processLocationRanking(
     pipelineTimings,
     searchPositionTiming,
     "success",
-    `status=${searchStatus};position=${searchPosition ?? "n/a"};${apifyMapsRetrySummary}`,
+    `status=${searchStatus};position=${searchPosition ?? "n/a"};source=${searchPositionSource ?? "n/a"};${serpApiMapsRetrySummary}`,
   );
 
   // ========== STEP 0.5: Competitor Source Resolution (v2) ==========
