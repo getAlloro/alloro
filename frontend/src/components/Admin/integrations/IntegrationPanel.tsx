@@ -11,18 +11,22 @@ import {
   Inbox,
   ChevronDown,
   RotateCcw,
+  Eye,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import {
   deleteIntegration,
   validateHarvestIntegration,
   fetchHarvestLogs,
+  fetchHarvestLogPayload,
   rerunHarvest,
   type Integration,
   type HarvestLog,
+  type HarvestLogPayload,
   type SuccessRate,
 } from "../../../api/integrations";
 import { useConfirm } from "../../ui/ConfirmModal";
+import HarvestPayloadDrawer from "./HarvestPayloadDrawer";
 
 interface Props {
   integration: Integration;
@@ -112,6 +116,10 @@ export default function IntegrationPanel({
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [rerunningId, setRerunningId] = useState<string | null>(null);
   const [runningToday, setRunningToday] = useState(false);
+  const [payloadLog, setPayloadLog] = useState<HarvestLog | null>(null);
+  const [payload, setPayload] = useState<HarvestLogPayload | null>(null);
+  const [payloadLoading, setPayloadLoading] = useState(false);
+  const [payloadError, setPayloadError] = useState<string | null>(null);
 
   const sv = STATUS_VISUALS[integration.status] ?? {
     label: integration.status,
@@ -208,6 +216,30 @@ export default function IntegrationPanel({
     } finally {
       setRerunningId(null);
     }
+  };
+
+  const handleInspectPayload = async (log: HarvestLog) => {
+    setPayloadLog(log);
+    setPayload(null);
+    setPayloadError(null);
+    setPayloadLoading(true);
+    try {
+      const res = await fetchHarvestLogPayload(projectId, integration.id, log.id);
+      setPayload(res.data);
+    } catch (err) {
+      setPayloadError(
+        err instanceof Error ? err.message : "Failed to load payload",
+      );
+    } finally {
+      setPayloadLoading(false);
+    }
+  };
+
+  const handleClosePayload = () => {
+    setPayloadLog(null);
+    setPayload(null);
+    setPayloadError(null);
+    setPayloadLoading(false);
   };
 
   const handleRunToday = async () => {
@@ -474,27 +506,38 @@ export default function IntegrationPanel({
                             <span className="text-gray-400">--</span>
                           )}
                         </td>
-                        <td className="px-5 py-2 text-right">
-                          {(log.outcome === "failed" || canRefreshZeroRowGsc) && (
+                        <td className="px-5 py-2">
+                          <div className="flex justify-end gap-1">
                             <button
                               type="button"
-                              onClick={() => handleRerun(log)}
-                              disabled={!canRerun || rerunningId === log.id}
-                              title={
-                                !canRerun
-                                  ? "Max retries reached"
-                                  : `${rerunLabel} harvest`
-                              }
-                              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                              onClick={() => handleInspectPayload(log)}
+                              title="Inspect stored JSON"
+                              className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-gray-50"
                             >
-                              {rerunningId === log.id ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : (
-                                <RotateCcw className="w-3 h-3" />
-                              )}
-                              {rerunLabel}
+                              <Eye className="h-3 w-3" />
+                              Inspect
                             </button>
-                          )}
+                            {(log.outcome === "failed" || canRefreshZeroRowGsc) && (
+                              <button
+                                type="button"
+                                onClick={() => handleRerun(log)}
+                                disabled={!canRerun || rerunningId === log.id}
+                                title={
+                                  !canRerun
+                                    ? "Max retries reached"
+                                    : `${rerunLabel} harvest`
+                                }
+                                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                {rerunningId === log.id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <RotateCcw className="w-3 h-3" />
+                                )}
+                                {rerunLabel}
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -576,6 +619,14 @@ export default function IntegrationPanel({
           </>
         )}
       </motion.div>
+      <HarvestPayloadDrawer
+        open={!!payloadLog}
+        log={payloadLog}
+        payload={payload}
+        loading={payloadLoading}
+        error={payloadError}
+        onClose={handleClosePayload}
+      />
     </div>
   );
 }

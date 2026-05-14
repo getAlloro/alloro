@@ -2,6 +2,25 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.79] - May 2026
+
+### Harvest Row JSON Inspector
+
+Added a lazy JSON inspector for integration harvest rows so admins can inspect the stored raw analytics payload for one GSC, Rybbit, or Clarity run without loading heavy JSON into the Harvest Activity table.
+
+**Key Changes:**
+- Added a project-scoped harvest payload endpoint guarded by integration id and log id
+- Added stored payload lookup helpers for GSC, Rybbit, and Clarity daily data rows
+- Added log/error JSON fallback for failed harvest rows without stored analytics data
+- Added an Inspect action and read-only Monaco side drawer in the Harvest Activity table
+- Kept the harvest log list response lightweight by fetching raw JSON only on demand
+
+**Commits:**
+- `src/controllers/admin-websites/WebsiteIntegrationsController.ts`, `src/routes/admin/websites.ts`, and `src/controllers/admin-websites/feature-services/service.harvest-log-inspector.ts` - project-scoped harvest payload endpoint and platform payload resolver
+- `src/models/website-builder/*DataModel.ts` and `IntegrationHarvestLogModel.ts` - single-date stored payload and log lookup helpers
+- `frontend/src/api/integrations.ts` and `frontend/src/components/Admin/integrations/*` - typed payload API client, Inspect action, and read-only JSON drawer
+- `plans/05142026-no-ticket-harvest-row-json-inspector/spec.md` - executed spec and verification checklist
+
 ## [0.0.78] - May 2026
 
 ### Selected Competitor Maps List Clarity

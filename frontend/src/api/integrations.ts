@@ -45,6 +45,22 @@ export interface HarvestLog {
   attempted_at: string;
 }
 
+export interface HarvestLogPayload {
+  platform: IntegrationPlatform;
+  harvestDate: string;
+  payloadKind: "stored_data" | "harvest_log";
+  payloadSizeBytes: number;
+  log: {
+    id: string;
+    outcome: HarvestOutcome;
+    rowsFetched: number | null;
+    error: string | null;
+    errorDetails: string | null;
+    attemptedAt: string;
+  };
+  data: unknown;
+}
+
 export interface SuccessRate {
   total: number;
   successful: number;
@@ -480,6 +496,15 @@ export const fetchHarvestLogs = (
     `/${projectId}/integrations/${integrationId}/harvest-logs${suffix}`,
   );
 };
+
+export const fetchHarvestLogPayload = (
+  projectId: string,
+  integrationId: string,
+  logId: string,
+) =>
+  request<Envelope<HarvestLogPayload>>(
+    `/${projectId}/integrations/${integrationId}/harvest-logs/${logId}/payload`,
+  );
 
 export const rerunHarvest = (
   projectId: string,

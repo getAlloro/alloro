@@ -1,4 +1,5 @@
 import { BaseModel, QueryContext } from "../BaseModel";
+import { db } from "../../database/connection";
 
 export interface IRybbitData {
   id: string;
@@ -47,6 +48,19 @@ export class RybbitDataModel extends BaseModel {
       .whereBetween("report_date", [startDate, endDate])
       .orderBy("report_date", "desc");
     return rows.map((row: IRybbitData) => this.deserializeJsonFields(row));
+  }
+
+  static async findByProjectAndDate(
+    projectId: string,
+    reportDate: string,
+    trx?: QueryContext,
+  ): Promise<IRybbitData | undefined> {
+    const row = await this.table(trx)
+      .select("*")
+      .select(db.raw("report_date::text as report_date"))
+      .where({ project_id: projectId, report_date: reportDate })
+      .first();
+    return row ? this.deserializeJsonFields(row) : undefined;
   }
 
   static async findLatestReportDate(

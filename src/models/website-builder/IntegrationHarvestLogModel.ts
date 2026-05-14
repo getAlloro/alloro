@@ -86,6 +86,18 @@ export class IntegrationHarvestLogModel extends BaseModel {
     return { data: rows as IIntegrationHarvestLog[], total };
   }
 
+  static async findByIdForIntegration(
+    id: string,
+    integrationId: string,
+    trx?: QueryContext,
+  ): Promise<IIntegrationHarvestLog | undefined> {
+    return this.table(trx)
+      .select(HARVEST_LOG_COLUMNS)
+      .select(db.raw("harvest_date::text as harvest_date"))
+      .where({ id, integration_id: integrationId })
+      .first();
+  }
+
   static async findFailedByIntegrationId(
     integrationId: string,
     trx?: QueryContext,

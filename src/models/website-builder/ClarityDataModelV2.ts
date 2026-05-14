@@ -1,4 +1,5 @@
 import { BaseModel, QueryContext } from "../BaseModel";
+import { db } from "../../database/connection";
 
 export interface IClarityDataV2 {
   id: string;
@@ -47,5 +48,18 @@ export class ClarityDataModelV2 extends BaseModel {
       .andWhereBetween("report_date", [startDate, endDate])
       .orderBy("report_date", "desc");
     return rows.map((row: IClarityDataV2) => this.deserializeJsonFields(row));
+  }
+
+  static async findByProjectAndDate(
+    projectId: string,
+    reportDate: string,
+    trx?: QueryContext,
+  ): Promise<IClarityDataV2 | undefined> {
+    const row = await this.table(trx)
+      .select("*")
+      .select(db.raw("report_date::text as report_date"))
+      .where({ project_id: projectId, report_date: reportDate })
+      .first();
+    return row ? this.deserializeJsonFields(row) : undefined;
   }
 }
