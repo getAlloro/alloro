@@ -27,6 +27,7 @@ Update prod deploys and add dev deploys so runtime config comes from `/etc/allor
 - Missing server env/key files would break deploys -> **Mitigation:** explicit preflight checks before clean/upload and before migration.
 - Bad migrations now block deployment -> **Mitigation:** run migrations before PM2 reload so the old process remains up if migration fails.
 - Frontend Sentry DSN is a build-time value, not server-runtime env -> **Mitigation:** use optional GitHub repository variable `VITE_SENTRY_DSN`; empty is allowed.
+- Compiled deploy migrations are `.js` while existing `knex_migrations` rows are `.ts` -> **Mitigation:** generated deploy knexfile uses a custom migration source that loads `.js` files but reports original `.ts` names.
 
 **Blast radius:** `.github/workflows/main.yml`, new `.github/workflows/dev.yml`
 
@@ -50,3 +51,10 @@ Update prod deploys and add dev deploys so runtime config comes from `/etc/allor
 - [x] Both prod/dev workflows run `npm run db:migrate`.
 - [x] Sandbox workflow unchanged.
 - [x] YAML parses.
+
+## Revision Log
+
+### Rev 1 — 2026-05-16
+**Change:** Generated deploy knexfiles now map compiled migration files back to their source `.ts` names.
+**Reason:** First dev deploy reached migration execution but Knex rejected the compiled migration directory because the database records existing migrations with `.ts` filenames.
+**Updated Done criteria:** Dev deploy migration step must pass against the cloned dev database.

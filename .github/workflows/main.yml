@@ -70,6 +70,28 @@ jobs:
           cp package*.json bundle/
           cat > bundle/knexfile.js <<'EOF'
           require("dotenv").config();
+          const fs = require("fs");
+          const path = require("path");
+
+          const migrationsDir = path.resolve(__dirname, "dist/database/migrations");
+          const migrationSource = {
+            getMigrations() {
+              return fs
+                .readdirSync(migrationsDir)
+                .filter((file) => file.endsWith(".js"))
+                .sort()
+                .map((file) => ({
+                  file,
+                  name: file.replace(/\.js$/, ".ts"),
+                }));
+            },
+            getMigrationName(migration) {
+              return migration.name;
+            },
+            getMigration(migration) {
+              return require(path.join(migrationsDir, migration.file));
+            },
+          };
 
           const connection = process.env.DATABASE_URL
             ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } }
@@ -86,8 +108,7 @@ jobs:
             client: "pg",
             connection,
             migrations: {
-              directory: "./dist/database/migrations",
-              extension: "js",
+              migrationSource,
             },
             pool: { min: 2, max: 50 },
           };
