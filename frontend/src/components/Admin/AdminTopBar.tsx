@@ -117,7 +117,7 @@ export function AdminTopBar() {
                   />
                 </motion.div>
                 <span className="font-bold text-xl text-white">
-                  <span className="text-alloro-orange">Alloro</span> Admin
+                  <span className="text-alloro-orange">Alloro</span> Admin Hub
                 </span>
               </Link>
             </div>
