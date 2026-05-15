@@ -58,3 +58,8 @@ Update prod deploys and add dev deploys so runtime config comes from `/etc/allor
 **Change:** Generated deploy knexfiles now map compiled migration files back to their source `.ts` names.
 **Reason:** First dev deploy reached migration execution but Knex rejected the compiled migration directory because the database records existing migrations with `.ts` filenames.
 **Updated Done criteria:** Dev deploy migration step must pass against the cloned dev database.
+
+### Rev 2 — 2026-05-16
+**Change:** Post-deploy health checks now retry the local DB health endpoint instead of failing on the first refused connection.
+**Reason:** The dev deploy succeeded and PM2 came online, but the GitHub Actions job failed because `curl` hit the app before it finished accepting connections.
+**Updated Done criteria:** Health check step must tolerate normal PM2 startup latency and only fail after repeated unsuccessful attempts.
