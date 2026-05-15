@@ -118,7 +118,6 @@ export function AdminTopBar() {
                 </motion.div>
                 <span className="font-bold text-xl text-white">
                   <span className="text-alloro-orange">Alloro</span> Admin
-                  Dashboard
                 </span>
               </Link>
             </div>
