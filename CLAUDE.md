@@ -121,3 +121,4 @@ UI/typography: minimum font `text-xs` (12px); maximum weight `font-semibold`. Do
 @.claude/rules/task-routing.md
 @.claude/rules/build-safety.md
 @.claude/rules/information-architecture.md
+@.claude/lattices/alloro-context.md
