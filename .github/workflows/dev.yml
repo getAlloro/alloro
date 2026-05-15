@@ -1,16 +1,16 @@
-name: Build Frontend + Backend and Deploy to Production
+name: Build Frontend + Backend and Deploy to Dev
 
 on:
   push:
-    branches: [main]
+    branches: [dev/dave]
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     env:
       TARGET_DIR: /var/www/signals
-      SERVER_ENV_FILE: /etc/alloro/app.env
-      SERVER_GOOGLE_KEY_FILE: /etc/alloro/signals-google-key.json
+      SERVER_ENV_FILE: /etc/alloro/dev.env
+      SERVER_GOOGLE_KEY_FILE: /etc/alloro/dev-google-key.json
 
     steps:
       - name: Checkout repo
@@ -24,23 +24,21 @@ jobs:
       - name: Verify server-managed config
         uses: appleboy/ssh-action@v1.2.1
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          port: ${{ secrets.EC2_PORT }}
-          key: ${{ secrets.EC2_KEY }}
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ${{ secrets.DEV_EC2_USER }}
+          port: ${{ secrets.DEV_EC2_PORT }}
+          key: ${{ secrets.DEV_EC2_KEY }}
           script: |
             set -euo pipefail
             test -f "${{ env.SERVER_ENV_FILE }}"
             test -f "${{ env.SERVER_GOOGLE_KEY_FILE }}"
 
-      # 📦 Build backend
       - name: Install backend dependencies
         run: npm ci
 
       - name: Build backend
         run: npm run build
 
-      # 📦 Build frontend (monorepo — frontend/ is in this repo)
       - name: Build frontend
         run: |
           cd frontend
@@ -49,7 +47,6 @@ jobs:
           npm run build
           cd ..
 
-      # 🧩 Move frontend build into backend/public
       - name: Move frontend build into backend
         run: |
           rm -rf public || true
@@ -59,7 +56,6 @@ jobs:
       - name: Prune dev dependencies
         run: npm prune --omit=dev
 
-      # 📦 Prepare deployment bundle
       - name: Prepare deploy bundle
         run: |
           mkdir -p bundle
@@ -95,27 +91,25 @@ jobs:
           module.exports = { production: base, development: base, test: base };
           EOF
 
-      # 🧹 Clean EC2 target directory
       - name: Clean remote target dir
         uses: appleboy/ssh-action@v1.2.1
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          port: ${{ secrets.EC2_PORT }}
-          key: ${{ secrets.EC2_KEY }}
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ${{ secrets.DEV_EC2_USER }}
+          port: ${{ secrets.DEV_EC2_PORT }}
+          key: ${{ secrets.DEV_EC2_KEY }}
           script: |
             set -euo pipefail
             rm -rf "${{ env.TARGET_DIR }}"/*
             mkdir -p "${{ env.TARGET_DIR }}"
 
-      # 🚀 Upload backend with frontend included
       - name: Upload bundle to EC2
         uses: appleboy/scp-action@v0.1.5
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          port: ${{ secrets.EC2_PORT }}
-          key: ${{ secrets.EC2_KEY }}
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ${{ secrets.DEV_EC2_USER }}
+          port: ${{ secrets.DEV_EC2_PORT }}
+          key: ${{ secrets.DEV_EC2_KEY }}
           source: "bundle/**"
           target: ${{ env.TARGET_DIR }}
           strip_components: 1
@@ -123,10 +117,10 @@ jobs:
       - name: Link server config and run migrations
         uses: appleboy/ssh-action@v1.2.1
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          port: ${{ secrets.EC2_PORT }}
-          key: ${{ secrets.EC2_KEY }}
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ${{ secrets.DEV_EC2_USER }}
+          port: ${{ secrets.DEV_EC2_PORT }}
+          key: ${{ secrets.DEV_EC2_KEY }}
           script: |
             set -euo pipefail
             export NVM_DIR="$HOME/.nvm"
@@ -140,14 +134,13 @@ jobs:
             test -f signals-google-key.json
             npm run db:migrate
 
-      # 🔁 Restart Node app with PM2
       - name: Reload PM2
         uses: appleboy/ssh-action@v1.2.1
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          port: ${{ secrets.EC2_PORT }}
-          key: ${{ secrets.EC2_KEY }}
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ${{ secrets.DEV_EC2_USER }}
+          port: ${{ secrets.DEV_EC2_PORT }}
+          key: ${{ secrets.DEV_EC2_KEY }}
           script: |
             set -euo pipefail
             export NVM_DIR="$HOME/.nvm"
@@ -161,16 +154,16 @@ jobs:
       - name: Post-deploy health check
         uses: appleboy/ssh-action@v1.2.1
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          port: ${{ secrets.EC2_PORT }}
-          key: ${{ secrets.EC2_KEY }}
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ${{ secrets.DEV_EC2_USER }}
+          port: ${{ secrets.DEV_EC2_PORT }}
+          key: ${{ secrets.DEV_EC2_KEY }}
           script: |
             set -euo pipefail
             sleep 5
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/health/db)
             if [ "$STATUS" != "200" ]; then
-              echo "❌ Health check failed (HTTP $STATUS)"
+              echo "Health check failed (HTTP $STATUS)"
               exit 1
             fi
-            echo "✅ Health check passed (HTTP $STATUS)"
+            echo "Health check passed (HTTP $STATUS)"
