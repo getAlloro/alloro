@@ -51,6 +51,7 @@ import { ProjectReviewModel } from "../../models/website-builder/ProjectReviewMo
 import { ReviewModel } from "../../models/website-builder/ReviewModel";
 import { generatePresignedUrl } from "../../utils/core/s3";
 import { buildEmailBody } from "../websiteContact/websiteContact-services/emailBodyBuilder";
+import { resolveFormSubmissionEmailContextForProjectId } from "../websiteContact/websiteContact-services/formSubmissionEmailContextService";
 import { sendEmailWebhook, WebhookError } from "../websiteContact/websiteContact-services/emailWebhookService";
 import {
   getConfiguredRecipients,
@@ -2966,7 +2967,13 @@ export async function sendFormSubmissionEmail(
       return res.status(400).json({ success: false, error: "NO_RECIPIENTS", message: "No recipients on file for this submission" });
     }
 
-    const emailBody = buildEmailBody(submission.form_name, submission.contents);
+    const emailContext = await resolveFormSubmissionEmailContextForProjectId(
+      req.params.id,
+    );
+    const emailBody = buildEmailBody(submission.form_name, submission.contents, {
+      headerColor: emailContext.headerColor,
+      logoUrl: emailContext.logoUrl,
+    });
 
     await sendEmailWebhook({
       cc: [],
@@ -2974,7 +2981,7 @@ export async function sendFormSubmissionEmail(
       body: emailBody,
       from: FROM_EMAIL,
       subject: `New Entry From ${submission.form_name}`,
-      fromName: "Alloro Sites",
+      fromName: emailContext.fromName,
       recipients: submission.recipients_sent_to,
     });
 
@@ -3005,6 +3012,9 @@ export async function bulkSendFormSubmissionsEmail(
 
     let sent = 0;
     let skipped = 0;
+    const emailContext = await resolveFormSubmissionEmailContextForProjectId(
+      req.params.id,
+    );
 
     for (const id of submissionIds) {
       const submission = await FormSubmissionModel.findById(String(id));
@@ -3014,14 +3024,21 @@ export async function bulkSendFormSubmissionsEmail(
       }
 
       try {
-        const emailBody = buildEmailBody(submission.form_name, submission.contents);
+        const emailBody = buildEmailBody(
+          submission.form_name,
+          submission.contents,
+          {
+            headerColor: emailContext.headerColor,
+            logoUrl: emailContext.logoUrl,
+          },
+        );
         await sendEmailWebhook({
           cc: [],
           bcc: [],
           body: emailBody,
           from: FROM_EMAIL,
           subject: `New Entry From ${submission.form_name}`,
-          fromName: "Alloro Sites",
+          fromName: emailContext.fromName,
           recipients: submission.recipients_sent_to,
         });
         sent++;
