@@ -2957,10 +2957,13 @@ export async function sendFormSubmissionEmail(
   res: Response
 ): Promise<Response> {
   try {
-    const { submissionId } = req.params;
+    const { id: projectId, submissionId } = req.params;
     const submission = await FormSubmissionModel.findById(submissionId);
 
     if (!submission) {
+      return res.status(404).json({ success: false, error: "NOT_FOUND", message: "Submission not found" });
+    }
+    if (submission.project_id !== projectId) {
       return res.status(404).json({ success: false, error: "NOT_FOUND", message: "Submission not found" });
     }
     if (!submission.recipients_sent_to?.length) {
@@ -2968,7 +2971,7 @@ export async function sendFormSubmissionEmail(
     }
 
     const emailContext = await resolveFormSubmissionEmailContextForProjectId(
-      req.params.id,
+      submission.project_id,
     );
     const emailBody = buildEmailBody(submission.form_name, submission.contents, {
       headerColor: emailContext.headerColor,
@@ -3001,6 +3004,7 @@ export async function bulkSendFormSubmissionsEmail(
   res: Response
 ): Promise<Response> {
   try {
+    const { id: projectId } = req.params;
     const { submissionIds } = req.body;
 
     if (!Array.isArray(submissionIds) || submissionIds.length === 0) {
@@ -3013,12 +3017,16 @@ export async function bulkSendFormSubmissionsEmail(
     let sent = 0;
     let skipped = 0;
     const emailContext = await resolveFormSubmissionEmailContextForProjectId(
-      req.params.id,
+      projectId,
     );
 
     for (const id of submissionIds) {
       const submission = await FormSubmissionModel.findById(String(id));
-      if (!submission || !submission.recipients_sent_to?.length) {
+      if (
+        !submission ||
+        submission.project_id !== projectId ||
+        !submission.recipients_sent_to?.length
+      ) {
         skipped++;
         continue;
       }
