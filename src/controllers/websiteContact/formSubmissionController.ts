@@ -28,6 +28,7 @@ import { analyzePatterns, SPAM_THRESHOLD } from "./websiteContact-services/conte
 import { analyzeContent } from "./websiteContact-services/aiContentAnalysisService";
 import { getSiteUrl, sendConfirmationEmail } from "./websiteContact-services/newsletterConfirmationService";
 import { buildEmailBody } from "./websiteContact-services/emailBodyBuilder";
+import { resolveFormSubmissionEmailContext } from "./websiteContact-services/formSubmissionEmailContextService";
 import { ProjectModel } from "../../models/website-builder/ProjectModel";
 import { FormSubmissionModel, type FileValue, type FormSection, type FormContents } from "../../models/website-builder/FormSubmissionModel";
 import { WebsiteIntegrationModel } from "../../models/website-builder/WebsiteIntegrationModel";
@@ -522,7 +523,11 @@ export async function handleFormSubmission(req: Request, res: Response): Promise
 
     // ── 15. Email (only if not flagged by AI) ──
     if (!flagged && recipients.length > 0) {
-      const emailBody = buildEmailBody(sanitizedFormName, finalContents);
+      const emailContext = await resolveFormSubmissionEmailContext(project);
+      const emailBody = buildEmailBody(sanitizedFormName, finalContents, {
+        headerColor: emailContext.headerColor,
+        logoUrl: emailContext.logoUrl,
+      });
       const fromEmail = process.env.CONTACT_FORM_FROM || "info@getalloro.com";
 
       await sendEmailWebhook({
@@ -531,7 +536,7 @@ export async function handleFormSubmission(req: Request, res: Response): Promise
         body: emailBody,
         from: fromEmail,
         subject: `New Entry From ${sanitizedFormName}`,
-        fromName: "Alloro Sites",
+        fromName: emailContext.fromName,
         recipients,
       });
     } else if (!flagged) {

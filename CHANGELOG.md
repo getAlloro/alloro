@@ -2,6 +2,25 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.83] - May 2026
+
+### Form Submission Email Branding
+
+Updated website form-submission emails so recipient inboxes show the client organization context and use the project's brand accent color in the email header.
+
+**Key Changes:**
+- Changed form-submission sender names to use `[{organization name}] Alloro Forms` when organization context is available
+- Added a shared email context resolver for inbound sends and admin manual resends
+- Updated the form-submission email header to use project accent color with contrast-safe header text
+- Added the Alloro logo mark inside the colored header and applied serif typography to the header and field labels
+- Kept recipient routing, saved recipients, and subject text unchanged
+
+**Commits:**
+- `src/controllers/websiteContact/websiteContact-services/emailBodyBuilder.ts` - branded header rendering, logo mark, contrast logic, and serif field labels
+- `src/controllers/websiteContact/websiteContact-services/formSubmissionEmailContextService.ts` - organization sender name and project color context resolution
+- `src/controllers/websiteContact/formSubmissionController.ts` and `src/controllers/admin-websites/AdminWebsitesController.ts` - shared context wiring for inbound sends and manual resends
+- `plans/05162026-no-ticket-form-submission-email-branding/spec.md` - executed spec and verification checklist
+
 ## [0.0.82] - May 2026
 
 ### SerpApi Maps Estimate Source
