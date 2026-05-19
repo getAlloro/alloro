@@ -9,8 +9,22 @@
  * Two layers:
  * 1. knowledge_heuristics table in PostgreSQL (populated by seedKnowledgeHeuristics)
  * 2. getRelevantHeuristics() queries by tags matching agent name + topic keywords
+ *
+ * WAVE 2 NOTE (May 18, 2026):
+ * The per-tag heuristic-retrieval API below remains the same. In addition,
+ * agents now receive the full lattice substrate (Product Outline + Journey +
+ * Sentiment + Knowledge) prepended to their system prompt via
+ * src/services/prompt/alloroSubstrate.ts. The SEED_HEURISTICS array below is
+ * kept as the canonical DB seed (existing rows + per-tag retrieval still work);
+ * loadLatticeHeuristics() supplements the DB with rows parsed from
+ * .claude/lattices/knowledge-lattice.md so the May-14 substrate additions
+ * (Rangan, Bilyeu AI dept, Flanagan Claude Code, Hormozi Leverage Stack,
+ * Pieter Levels, Anthropic enterprise, Atlan failure, multi-agent cascading
+ * errors) reach getRelevantHeuristics callers without a code change.
  */
 
+import * as fs from "fs";
+import * as path from "path";
 import { db } from "../database/connection";
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -609,16 +623,116 @@ const SEED_HEURISTICS = [
   },
 ];
 
+// ── Wave 2: lattice-derived heuristics (May 18, 2026) ──────────────
+//
+// Parse .claude/lattices/knowledge-lattice.md into the same row shape as
+// SEED_HEURISTICS so the May-14 substrate additions reach getRelevantHeuristics
+// without a code change. The parse handles the format:
+//
+//   ## {pillar}
+//   - **{leader} (date marker?).** {principle}. {heuristic}. Avoid: {anti-pattern}.
+//
+// where {pillar} ∈ {Hospitality, Autopilot, Clarity, Proof, Anti-Patterns…}.
+// Failure rows are routed into anti_pattern. Parse errors degrade silently —
+// the canonical SEED_HEURISTICS array is the safety net.
+
+const LATTICE_FILE = path.resolve(
+  __dirname,
+  "../../.claude/lattices/knowledge-lattice.md"
+);
+
+function tagsForPillarAndLeader(pillar: string, leader: string): string[] {
+  const pillarTag = pillar.toLowerCase().replace(/\s+/g, "_");
+  const leaderTag = leader.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 40);
+  return [pillarTag, leaderTag, "all"];
+}
+
+function parseLatticeFile(content: string): Array<{
+  source: string;
+  leader_name: string;
+  category: string;
+  core_principle: string;
+  agent_heuristic: string;
+  anti_pattern: string;
+  tags: string;
+}> {
+  const rows: Array<{
+    source: string;
+    leader_name: string;
+    category: string;
+    core_principle: string;
+    agent_heuristic: string;
+    anti_pattern: string;
+    tags: string;
+  }> = [];
+  const lines = content.split("\n");
+  let pillar = "";
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (line.startsWith("## ")) {
+      pillar = line.replace(/^##\s+/, "").trim();
+      continue;
+    }
+    if (!line.startsWith("- ")) continue;
+    const m = line.match(/^- \*\*(.+?)\.\*\*\s+(.+)$/);
+    if (!m) continue;
+    const leader = m[1].replace(/\s*\(May\s+14\)\s*$/i, "").trim();
+    const body = m[2];
+    const avoidIdx = body.toLowerCase().lastIndexOf(" avoid:");
+    let principleAndHeuristic = body;
+    let antiPattern = "";
+    if (avoidIdx >= 0) {
+      principleAndHeuristic = body.slice(0, avoidIdx).trim();
+      antiPattern = body.slice(avoidIdx + " avoid:".length).trim();
+    }
+    const isFailure = pillar.toLowerCase().includes("anti-pattern");
+    rows.push({
+      source: isFailure ? "knowledge_lattice" : "knowledge_lattice",
+      leader_name: leader,
+      category: isFailure ? "failure" : pillar,
+      core_principle: principleAndHeuristic.split(/(?<=[.!?])\s+/)[0] || principleAndHeuristic,
+      agent_heuristic: principleAndHeuristic,
+      anti_pattern: antiPattern,
+      tags: JSON.stringify(tagsForPillarAndLeader(pillar, leader)),
+    });
+  }
+  return rows;
+}
+
+let cachedLatticeRows: ReturnType<typeof parseLatticeFile> | null = null;
+function loadLatticeHeuristics(): ReturnType<typeof parseLatticeFile> {
+  if (cachedLatticeRows) return cachedLatticeRows;
+  try {
+    const content = fs.readFileSync(LATTICE_FILE, "utf-8");
+    cachedLatticeRows = parseLatticeFile(content);
+    console.log(
+      `[KnowledgeBridge] Parsed ${cachedLatticeRows.length} lattice rows from knowledge-lattice.md`
+    );
+  } catch (err: any) {
+    console.warn(
+      `[KnowledgeBridge] failed to read lattice file (${err.message}); falling back to SEED_HEURISTICS only`
+    );
+    cachedLatticeRows = [];
+  }
+  return cachedLatticeRows;
+}
+
 // ── Seed Function ───────────────────────────────────────────────────
 
 /**
  * Seed the knowledge_heuristics table with the top 20 heuristics.
  * Uses upsert logic: skips rows that already exist (matched by leader_name + category + source).
+ *
+ * Wave 2: now also seeds rows parsed from .claude/lattices/knowledge-lattice.md
+ * so the May-14 substrate additions land in the same table without a code
+ * change. Parsed rows are upserted alongside the SEED_HEURISTICS canonical set.
  */
 export async function seedKnowledgeHeuristics(): Promise<number> {
   let inserted = 0;
 
-  for (const h of SEED_HEURISTICS) {
+  const allRows = [...SEED_HEURISTICS, ...loadLatticeHeuristics()];
+
+  for (const h of allRows) {
     const exists = await db("knowledge_heuristics")
       .where({
         source: h.source,
@@ -639,7 +753,7 @@ export async function seedKnowledgeHeuristics(): Promise<number> {
   }
 
   console.log(
-    `[KnowledgeBridge] Seeded ${inserted} heuristics (${SEED_HEURISTICS.length - inserted} already existed)`,
+    `[KnowledgeBridge] Seeded ${inserted} heuristics (${allRows.length - inserted} already existed)`,
   );
   return inserted;
 }

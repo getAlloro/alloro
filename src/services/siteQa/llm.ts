@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { prependSubstrate } from "../prompt/alloroSubstrate";
 
 let client: Anthropic | null = null;
 function getClient(): Anthropic {
@@ -40,8 +41,9 @@ No preamble, no trailing commentary.`;
     const response = await getClient().messages.create({
       model: SITE_QA_LLM_MODEL,
       max_tokens: 300,
-      system:
-        "You are a terse QA reviewer. You answer with strict JSON. No preamble. No trailing commentary.",
+      system: prependSubstrate(
+        "You are a terse QA reviewer. You answer with strict JSON. No preamble. No trailing commentary."
+      ),
       messages: [{ role: "user", content: prompt }],
     });
 

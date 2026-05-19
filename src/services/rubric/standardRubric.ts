@@ -20,6 +20,7 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import { prependSubstrate } from "../prompt/alloroSubstrate";
 import { buildFallbackConfig } from "./localFallback";
 import { loadRubricFromNotion } from "./notionLoader";
 import type {
@@ -240,7 +241,7 @@ async function callJudge(
       model: RUBRIC_JUDGE_MODEL,
       max_tokens: JUDGE_MAX_TOKENS,
       temperature: JUDGE_TEMPERATURE,
-      system,
+      system: prependSubstrate(system),
       messages: [{ role: "user", content: user }],
     });
     const text = response.content[0]?.type === "text" ? response.content[0].text : "";
