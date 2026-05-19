@@ -8,7 +8,7 @@ import HighlightedText from "./HighlightedText";
 import { ProoflineModal } from "./ProoflineModal";
 
 // =====================================================================
-// Types — proofline payload from agents.proofline.results[0]
+// Types — proofline payload from agents.proofline.results
 // =====================================================================
 
 interface ProoflineResult {
@@ -23,7 +23,7 @@ interface ProoflineResult {
 }
 
 interface ProoflineSection {
-  results?: ProoflineResult[];
+  results?: ProoflineResult | ProoflineResult[];
   lastUpdated?: string;
   [key: string]: unknown;
 }
@@ -94,6 +94,15 @@ function formatTrendPct(change: number | null | undefined): {
     text: `${sign}${Math.round(change)}%`,
     up: change >= 0,
   };
+}
+
+function resolveProoflineResult(
+  section: ProoflineSection | null | undefined,
+): ProoflineResult | null {
+  const results = section?.results;
+  if (Array.isArray(results)) return results[0] ?? null;
+  if (results && typeof results === "object") return results;
+  return null;
 }
 
 // =====================================================================
@@ -203,8 +212,7 @@ export const Trajectory: React.FC<TrajectoryProps> = ({ organizationId }) => {
 
   const proofline: ProoflineResult | null = useMemo(() => {
     const bundle = agentData as AgentBundle | null;
-    const result = bundle?.agents?.proofline?.results?.[0];
-    return result ?? null;
+    return resolveProoflineResult(bundle?.agents?.proofline);
   }, [agentData]);
 
   const lastUpdated = useMemo(() => {
