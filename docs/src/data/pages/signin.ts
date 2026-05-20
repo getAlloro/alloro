@@ -1,0 +1,108 @@
+import type { DocPage } from "../../types/docs";
+import { SignInReplica } from "../../components/replicas/SignInReplica";
+
+export const signinPage: DocPage = {
+  slug: "signin",
+  route: "/signin",
+  title: "Sign In",
+  description:
+    "The sign-in page is your entry point to the Alloro dashboard. Enter your email and password to access your practice insights, rankings, and tasks.",
+  category: "auth",
+  replica: SignInReplica,
+  hotspots: [
+    {
+      id: "email-field",
+      x: 35,
+      y: 42,
+      width: 24,
+      height: 5,
+      label: "Email Address",
+      description: "Enter the email address associated with your Alloro account.",
+      action: "Type",
+      step: 1,
+    },
+    {
+      id: "password-field",
+      x: 35,
+      y: 52,
+      width: 24,
+      height: 5,
+      label: "Password",
+      description: "Enter your password. Click the eye icon to toggle visibility.",
+      action: "Type",
+      step: 2,
+    },
+    {
+      id: "submit-btn",
+      x: 35,
+      y: 59,
+      width: 24,
+      height: 5,
+      label: "Sign In",
+      description: "Click to log in. You'll be redirected to your Practice Hub dashboard.",
+      action: "Click",
+      step: 3,
+    },
+    {
+      id: "forgot-link",
+      x: 42,
+      y: 67,
+      width: 12,
+      height: 3,
+      label: "Forgot Password?",
+      description: "Click here if you've forgotten your password. You'll receive a reset email.",
+      action: "Click",
+      step: 4,
+    },
+    {
+      id: "signup-link",
+      x: 40,
+      y: 71,
+      width: 14,
+      height: 3,
+      label: "Create Account",
+      description: "Don't have an account yet? Click here to sign up for Alloro.",
+      action: "Click",
+      step: 5,
+    },
+  ],
+  steps: [
+    {
+      number: 1,
+      title: "Enter your email",
+      description: "Type the email address you used when creating your Alloro account.",
+      hotspotId: "email-field",
+    },
+    {
+      number: 2,
+      title: "Enter your password",
+      description: "Type your password. Use the eye icon on the right to reveal it if needed.",
+      hotspotId: "password-field",
+    },
+    {
+      number: 3,
+      title: "Click Sign In",
+      description: "Press the Sign In button to access your dashboard. You'll be redirected to the Practice Hub.",
+      hotspotId: "submit-btn",
+    },
+    {
+      number: 4,
+      title: "Forgot your password?",
+      description: "If you can't remember your password, click this link to receive a reset email.",
+      hotspotId: "forgot-link",
+    },
+    {
+      number: 5,
+      title: "Need an account?",
+      description: "If you don't have an Alloro account yet, click here to create one.",
+      hotspotId: "signup-link",
+    },
+  ],
+  changelog: [
+    {
+      version: "0.0.82",
+      date: "May 2026",
+      summary: "Initial documentation baseline — no changes to the sign-in page in this release.",
+    },
+  ],
+};

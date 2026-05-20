@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+@theme {
+  --color-alloro-cream: #F7F5F3;
+  --color-alloro-navy: #1A1F36;
+  --color-alloro-orange: #E8792B;
+  --color-alloro-orange-light: #FFF3EB;
+  --color-alloro-slate: #6B7280;
+  --color-alloro-border: #E5E7EB;
+  /* Sidebar-specific (matches frontend/src/index.css @theme inline) */
+  --color-alloro-sidebg: #212D40;
+  --color-alloro-sidehover: #11151C;
+  /* Dashboard UI */
+  --color-alloro-bg: #F3F4F6;
+  --color-alloro-textDark: #11151C;
+  --font-sans: 'Plus Jakarta Sans', sans-serif;
+  --font-body: 'Plus Jakarta Sans', sans-serif;
+  --font-display: 'Fraunces', 'Literata', serif;
+  --font-inter: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--color-alloro-cream);
+  color: var(--color-alloro-navy);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Utility class used by replica components (matches frontend/src/index.css).
+   Only targets the explicit class — NOT all headings, so font-display
+   (Fraunces/Literata) on doc headings and replica `font-display` elements
+   is preserved. */
+.font-heading {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+/* Replica utilities (copied from frontend/src/index.css) */
+@layer components {
+  .shadow-soft-glow {
+    box-shadow: 0 0 20px rgba(214, 104, 83, 0.2);
+  }
+  .shadow-premium {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  }
+  .glass-header {
+    background: rgba(243, 244, 246, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+}
+
+/* Inline highlight — used by HighlightedText in replica Hero / Trajectory.
+   Brand orange, light-card and dark-card variants.
+   Ported from frontend/src/index.css */
+mark.hl {
+  background: rgba(214, 104, 83, 0.14);
+  color: #D66853;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+.focus-card-dark mark.hl {
+  background: rgba(214, 104, 83, 0.22);
+  color: #F0A98E;
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #4a5568 rgba(17, 21, 28, 0.3);
+}
+.scrollbar-thin::-webkit-scrollbar { width: 8px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: rgba(17, 21, 28, 0.3); border-radius: 4px; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 4px; }
+.scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #D66853; }
