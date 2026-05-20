@@ -122,7 +122,7 @@ export function PmsVitalsRow({
   ];
 
   return (
-    <div data-wizard-target="pms-attribution" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div data-wizard-target="pms-vitals" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {metrics.map((metric) => (
         <PmsVitalCard key={metric.label} metric={metric} isLoading={isLoading} />
       ))}

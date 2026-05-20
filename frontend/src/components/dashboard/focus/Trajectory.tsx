@@ -6,6 +6,7 @@ import { useAgentData } from "../../../hooks/useAgentData";
 import { useDashboardMetrics } from "../../../hooks/queries/useDashboardMetrics";
 import HighlightedText from "./HighlightedText";
 import { ProoflineModal } from "./ProoflineModal";
+import { useIsWizardActive, useWizardDemoData } from "../../../contexts/OnboardingWizardContext";
 
 // =====================================================================
 // Types — proofline payload from agents.proofline.results
@@ -190,6 +191,8 @@ export interface TrajectoryProps {
 }
 
 export const Trajectory: React.FC<TrajectoryProps> = ({ organizationId }) => {
+  const isWizardActive = useIsWizardActive();
+  const wizardDemoData = useWizardDemoData();
   const { userProfile } = useAuth();
   const { selectedLocation } = useLocationContext();
 
@@ -197,16 +200,23 @@ export const Trajectory: React.FC<TrajectoryProps> = ({ organizationId }) => {
   const locationId = selectedLocation?.id ?? null;
 
   const {
-    data: agentData,
-    loading: agentLoading,
+    data: realAgentData,
+    loading: realAgentLoading,
     error: agentError,
     refetch: refetchAgent,
   } = useAgentData(orgId, locationId);
 
   const {
-    data: dashboardMetrics,
-    isLoading: metricsLoading,
+    data: realDashboardMetrics,
+    isLoading: realMetricsLoading,
   } = useDashboardMetrics(orgId, locationId);
+
+  const agentData = isWizardActive
+    ? { agents: { proofline: { results: [wizardDemoData?.trajectoryData] } } }
+    : realAgentData;
+  const agentLoading = isWizardActive ? false : realAgentLoading;
+  const dashboardMetrics = isWizardActive ? wizardDemoData?.dashboardMetrics : realDashboardMetrics;
+  const metricsLoading = isWizardActive ? false : realMetricsLoading;
 
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -231,13 +241,13 @@ export const Trajectory: React.FC<TrajectoryProps> = ({ organizationId }) => {
 
   // Loading state
   if (agentLoading) {
-    return <TrajectorySkeleton />;
+    return <div data-wizard-target="dashboard-trajectory"><TrajectorySkeleton /></div>;
   }
 
   // Error state
-  if (agentError) {
+  if (!isWizardActive && agentError) {
     return (
-      <section className="rounded-[14px] bg-white p-8 shadow-sm ring-1 ring-slate-100">
+      <section data-wizard-target="dashboard-trajectory" className="rounded-[14px] bg-white p-8 shadow-sm ring-1 ring-slate-100">
         <div className="flex flex-wrap items-center gap-3">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
             <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
@@ -262,7 +272,7 @@ export const Trajectory: React.FC<TrajectoryProps> = ({ organizationId }) => {
   // Empty state — no proofline yet
   if (!proofline || !proofline.trajectory) {
     return (
-      <section className="rounded-[14px] bg-white p-8 shadow-sm ring-1 ring-slate-100">
+      <section data-wizard-target="dashboard-trajectory" className="rounded-[14px] bg-white p-8 shadow-sm ring-1 ring-slate-100">
         <div className="flex flex-wrap gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
             <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
@@ -310,7 +320,7 @@ export const Trajectory: React.FC<TrajectoryProps> = ({ organizationId }) => {
   const showStatsSkeleton = metricsLoading && !dashboardMetrics;
 
   return (
-    <>
+    <div data-wizard-target="dashboard-trajectory">
       <section className="rounded-[14px] bg-white p-8 shadow-sm ring-1 ring-slate-100">
         {/* Pills row */}
         <div className="flex flex-wrap gap-2">
@@ -393,7 +403,7 @@ export const Trajectory: React.FC<TrajectoryProps> = ({ organizationId }) => {
         onClose={() => setModalOpen(false)}
         proofline={proofline}
       />
-    </>
+    </div>
   );
 };
 

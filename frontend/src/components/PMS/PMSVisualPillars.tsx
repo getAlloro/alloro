@@ -877,7 +877,9 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
   // const monthCount = keyData?.stats?.distinctMonths ?? 0;
 
   // Calculate total production from sources
-  const topSources = keyData?.sources ?? [];
+  // Use wizard demo data for topSources when wizard is active and no real source data
+  const topSources = (keyData?.sources?.length ? keyData.sources : null)
+    ?? (isWizardActive ? wizardDemoData?.pmsTopSources ?? [] : []);
 
   const focusPeriod = useMemo(
     () => derivePmsFocusPeriod(keyData?.months, new Date()),

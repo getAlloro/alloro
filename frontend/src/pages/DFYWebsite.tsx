@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from "../api";
+import { userWebsiteMediaApi } from "../api/websiteMedia";
 import ConnectDomainModal from "../components/Admin/ConnectDomainModal";
 import FormSubmissionsTab from "../components/Admin/FormSubmissionsTab";
 import PostsTab from "../components/Admin/PostsTab";
@@ -49,6 +50,7 @@ import type { ChatMessage } from "../components/PageEditor/ChatPanel";
 import type { PageVersion } from "../components/PageEditor/VersionHistoryTab";
 import type { Section } from "../api/templates";
 import { useSidebar } from "../components/Admin/SidebarContext";
+import { useIsWizardActive, useWizardDemoData } from "../contexts/OnboardingWizardContext";
 
 interface Page {
   id: string;
@@ -125,6 +127,9 @@ export function DFYWebsite() {
     useState<QuickActionType | null>(null);
 
   const { setCollapsed } = useSidebar();
+  const mediaApi = useMemo(() => userWebsiteMediaApi, []);
+  const isWizardActive = useIsWizardActive();
+  const wizardDemoData = useWizardDemoData();
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const sectionsRef = useRef(sections);
@@ -465,10 +470,20 @@ export function DFYWebsite() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // --- Load website data ---
+  // --- Load website data (skip API when wizard is active) ---
   useEffect(() => {
+    if (isWizardActive && wizardDemoData) {
+      setProject(wizardDemoData.demoProject as unknown as Project);
+      setPages(wizardDemoData.demoPages as unknown as Page[]);
+      setStatus("READY");
+      setLoading(false);
+      if (wizardDemoData.demoPages?.length > 0) {
+        setSelectedPage(wizardDemoData.demoPages[0] as unknown as Page);
+      }
+      return;
+    }
     fetchWebsite();
-  }, []);
+  }, [isWizardActive, wizardDemoData]);
 
   // --- Assemble preview when page or project changes ---
   useEffect(() => {
@@ -1215,7 +1230,7 @@ export function DFYWebsite() {
 
       {/* Main Content */}
       {activeView === "submissions" ? (
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-6 space-y-6" data-wizard-target="website-submissions">
           {project && (
             <>
               <FormSubmissionsTab
@@ -1291,7 +1306,7 @@ export function DFYWebsite() {
           )}
         </div>
       ) : (
-        <div className="flex flex-1 min-h-0 overflow-hidden">
+        <div className="flex flex-1 min-h-0 overflow-hidden" data-wizard-target="website-editor">
           {/* Preview */}
           <div className="flex-1 flex flex-col relative">
             <div className="flex-1 overflow-hidden bg-gray-100 relative">
@@ -1390,6 +1405,7 @@ export function DFYWebsite() {
             isEditing={isEditing}
             debugInfo={null}
             systemPrompt={null}
+            mediaApi={mediaApi}
             showDebug={false}
             showHistory={true}
             historyPageId={selectedPage?.id || null}

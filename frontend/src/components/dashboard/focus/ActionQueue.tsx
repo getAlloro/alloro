@@ -8,6 +8,7 @@ import {
   type ActionQueueUrgency,
 } from "../../../hooks/queries/useActionQueue";
 import { getDomainIcon } from "./icons";
+import { useIsWizardActive, useWizardDemoData } from "../../../contexts/OnboardingWizardContext";
 
 /**
  * ActionQueue — the right-column card on the Focus dashboard. Surfaces the
@@ -109,6 +110,8 @@ function SkeletonRow({ isLast }: { isLast: boolean }) {
 }
 
 export function ActionQueue() {
+  const isWizardActive = useIsWizardActive();
+  const wizardDemoData = useWizardDemoData();
   const { userProfile } = useAuth();
   const { selectedLocation } = useLocationContext();
   const navigate = useNavigate();
@@ -116,10 +119,13 @@ export function ActionQueue() {
   const orgId = userProfile?.organizationId ?? null;
   const locationId = selectedLocation?.id ?? null;
 
-  const { rows, isLoading, error, refetch } = useActionQueue(orgId, locationId);
+  const { rows: realRows, isLoading: realLoading, error, refetch } = useActionQueue(orgId, locationId);
+
+  const rows = isWizardActive ? (wizardDemoData?.actionQueueItems ?? []) as ActionQueueRow[] : realRows;
+  const isLoading = isWizardActive ? false : realLoading;
 
   return (
-    <section className="flex flex-col rounded-[14px] border border-[#EDE8DE] bg-white p-[22px_22px_18px] shadow-[0_1px_2px_rgba(20,18,12,0.04)]">
+    <section data-wizard-target="dashboard-queue" className="flex flex-col rounded-[14px] border border-[#EDE8DE] bg-white p-[22px_22px_18px] shadow-[0_1px_2px_rgba(20,18,12,0.04)]">
       <div className="mb-4 flex items-center justify-between">
         <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#6B7280]">
           Queue · {rows.length} more

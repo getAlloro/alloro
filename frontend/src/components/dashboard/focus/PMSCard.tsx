@@ -9,6 +9,7 @@ import {
   type PmsKeyDataResponse,
 } from "../../../api/pms";
 import Sparkline from "./Sparkline";
+import { useIsWizardActive, useWizardDemoData } from "../../../contexts/OnboardingWizardContext";
 
 /**
  * PMSCard — PMS production / referral mix card for the Focus dashboard.
@@ -84,6 +85,7 @@ const MONO =
 function CardShell({ children }: { children: React.ReactNode }) {
   return (
     <section
+      data-wizard-target="dashboard-pms"
       className="flex flex-col"
       style={{
         background: CARD_BG,
@@ -256,6 +258,8 @@ function currentMonthName(): string {
 }
 
 const PMSCard: React.FC = () => {
+  const isWizardActive = useIsWizardActive();
+  const wizardDemoData = useWizardDemoData();
   const { userProfile } = useAuth();
   const { selectedLocation } = useLocationContext();
   const orgId = userProfile?.organizationId ?? null;
@@ -271,9 +275,9 @@ const PMSCard: React.FC = () => {
     keyData.refetch();
   };
 
-  if (metrics.isLoading) return <SkeletonShell monthName={monthName} />;
+  if (!isWizardActive && metrics.isLoading) return <SkeletonShell monthName={monthName} />;
 
-  if (metrics.isError) {
+  if (!isWizardActive && metrics.isError) {
     const msg =
       (metrics.error as Error)?.message || "Could not load PMS data.";
     return (
@@ -281,10 +285,13 @@ const PMSCard: React.FC = () => {
     );
   }
 
-  const pms = metrics.data?.pms;
-  const data = keyData.data;
-  const months = data?.months ?? [];
-  const sources = (data?.sources ?? []) as PmsKeyDataSourceWithTrend[];
+  const pms = isWizardActive ? wizardDemoData?.dashboardMetrics?.pms : metrics.data?.pms;
+  const data = isWizardActive ? null : keyData.data;
+  const wizardPmsCard = wizardDemoData?.pmsCardData as { months?: PmsKeyData["months"]; sources?: PmsKeyDataSourceWithTrend[] } | undefined;
+  const months = isWizardActive ? (wizardPmsCard?.months ?? []) : (data?.months ?? []);
+  const sources = isWizardActive
+    ? ((wizardPmsCard?.sources ?? []) as PmsKeyDataSourceWithTrend[])
+    : ((data?.sources ?? []) as PmsKeyDataSourceWithTrend[]);
 
   const productionThisMonth = pms?.production_this_month ?? null;
 
@@ -343,7 +350,7 @@ const PMSCard: React.FC = () => {
         self
       </div>
 
-      {keyData.isLoading ? (
+      {!isWizardActive && keyData.isLoading ? (
         <div className="mt-4 space-y-3">
           <div className="h-16 w-full animate-pulse rounded-md bg-neutral-100" />
           <div className="h-2 w-full animate-pulse rounded-full bg-neutral-100" />

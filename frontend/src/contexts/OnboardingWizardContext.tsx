@@ -7,6 +7,8 @@ import {
   type ReactNode,
 } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
+import { getPriorityItem } from "../hooks/useLocalStorage";
 import onboarding from "../api/onboarding";
 import {
   WIZARD_STEPS,
@@ -62,6 +64,7 @@ const OnboardingWizardContext = createContext<
 export function OnboardingWizardProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { onboardingCompleted } = useAuth();
 
   const [isWizardActive, setIsWizardActive] = useState(false);
   const [isLoadingWizardStatus, setIsLoadingWizardStatus] = useState(true);
@@ -77,48 +80,40 @@ export function OnboardingWizardProvider({ children }: { children: ReactNode }) 
   const totalSteps = WIZARD_STEPS.length;
   const progress = totalSteps > 0 ? ((currentStepIndex + 1) / totalSteps) * 100 : 0;
 
-  // TODO: RESTORE — Onboarding wizard temporarily disabled while new components are being finalized.
-  // Once the new dashboard/settings components are complete, remove this early-return and uncomment
-  // the original status-check logic below to re-enable the guided wizard tour.
-  useEffect(() => {
-    setIsLoadingWizardStatus(false);
-  }, []);
-
-  // --- ORIGINAL (disabled) ---
   // Check wizard status — only when main onboarding is confirmed complete.
   // Without this guard, the wizard would auto-start while the user is still
   // in the onboarding flow (org exists but onboarding_completed is false).
-  // useEffect(() => {
-  //   if (onboardingCompleted !== true) {
-  //     setIsLoadingWizardStatus(false);
-  //     return;
-  //   }
-  //
-  //   const checkWizardStatus = async () => {
-  //     const authToken = getPriorityItem("auth_token") || getPriorityItem("token");
-  //     if (!authToken) {
-  //       setIsLoadingWizardStatus(false);
-  //       return;
-  //     }
-  //
-  //     try {
-  //       const response = await onboarding.getWizardStatus();
-  //       if (response && typeof response.onboarding_wizard_completed === "boolean") {
-  //         setWizardCompleted(response.onboarding_wizard_completed);
-  //         if (!response.onboarding_wizard_completed) {
-  //           setShowWelcomeModal(true);
-  //           setIsWizardActive(true);
-  //         }
-  //       }
-  //     } catch (error) {
-  //       console.error("Failed to check wizard status:", error);
-  //     } finally {
-  //       setIsLoadingWizardStatus(false);
-  //     }
-  //   };
-  //
-  //   checkWizardStatus();
-  // }, [onboardingCompleted]);
+  useEffect(() => {
+    if (onboardingCompleted !== true) {
+      setIsLoadingWizardStatus(false);
+      return;
+    }
+
+    const checkWizardStatus = async () => {
+      const authToken = getPriorityItem("auth_token") || getPriorityItem("token");
+      if (!authToken) {
+        setIsLoadingWizardStatus(false);
+        return;
+      }
+
+      try {
+        const response = await onboarding.getWizardStatus();
+        if (response && typeof response.onboarding_wizard_completed === "boolean") {
+          setWizardCompleted(response.onboarding_wizard_completed);
+          if (!response.onboarding_wizard_completed) {
+            setShowWelcomeModal(true);
+            setIsWizardActive(true);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to check wizard status:", error);
+      } finally {
+        setIsLoadingWizardStatus(false);
+      }
+    };
+
+    checkWizardStatus();
+  }, [onboardingCompleted]);
 
   // Navigate to correct page when step changes.
   // Accept sub-routes as matches (e.g. /settings/integrations satisfies /settings)
@@ -203,64 +198,47 @@ export function OnboardingWizardProvider({ children }: { children: ReactNode }) 
     }
   }, [navigate]);
 
-  // TODO: RESTORE — Onboarding wizard temporarily disabled while new components are being finalized.
-  // Once restored, remove this no-op and uncomment the original recheckWizardStatus below.
-  const recheckWizardStatus = useCallback(async () => {
-    setIsLoadingWizardStatus(false);
-  }, []);
-
-  // --- ORIGINAL (disabled) ---
   // Re-check wizard status from API and auto-start if not completed.
   // Guarded: only runs when main onboarding is confirmed complete.
-  // const recheckWizardStatus = useCallback(async () => {
-  //   console.log("[WizardContext] recheckWizardStatus called, onboardingCompleted:", onboardingCompleted);
-  //
-  //   if (onboardingCompleted !== true) {
-  //     console.log("[WizardContext] Main onboarding not complete, skipping wizard check");
-  //     setIsLoadingWizardStatus(false);
-  //     return;
-  //   }
-  //
-  //   const authToken = getPriorityItem("auth_token") || getPriorityItem("token");
-  //   if (!authToken) {
-  //     console.log("[WizardContext] No auth token found, skipping wizard check");
-  //     setIsLoadingWizardStatus(false);
-  //     return;
-  //   }
-  //
-  //   setIsLoadingWizardStatus(true);
-  //   try {
-  //     const response = await onboarding.getWizardStatus();
-  //     console.log("[WizardContext] API response:", response);
-  //
-  //     if (!response || response.error) {
-  //       console.error("[WizardContext] API error:", response?.error);
-  //       return;
-  //     }
-  //
-  //     if (typeof response.onboarding_wizard_completed === "boolean") {
-  //       setWizardCompleted(response.onboarding_wizard_completed);
-  //       if (!response.onboarding_wizard_completed) {
-  //         console.log("[WizardContext] Starting wizard - completed flag was:", response.onboarding_wizard_completed);
-  //         setCurrentStepIndex(0);
-  //         setShowWelcomeModal(true);
-  //         setIsWizardActive(true);
-  //         const firstStep = WIZARD_STEPS[0];
-  //         if (firstStep) {
-  //           navigate(getPageRoute(firstStep.page));
-  //         }
-  //       } else {
-  //         console.log("[WizardContext] Wizard already completed, not starting");
-  //       }
-  //     } else {
-  //       console.log("[WizardContext] Unexpected response format - onboarding_wizard_completed not a boolean");
-  //     }
-  //   } catch (error) {
-  //     console.error("Failed to recheck wizard status:", error);
-  //   } finally {
-  //     setIsLoadingWizardStatus(false);
-  //   }
-  // }, [navigate, onboardingCompleted]);
+  const recheckWizardStatus = useCallback(async () => {
+    if (onboardingCompleted !== true) {
+      setIsLoadingWizardStatus(false);
+      return;
+    }
+
+    const authToken = getPriorityItem("auth_token") || getPriorityItem("token");
+    if (!authToken) {
+      setIsLoadingWizardStatus(false);
+      return;
+    }
+
+    setIsLoadingWizardStatus(true);
+    try {
+      const response = await onboarding.getWizardStatus();
+
+      if (!response || response.error) {
+        console.error("[WizardContext] API error:", response?.error);
+        return;
+      }
+
+      if (typeof response.onboarding_wizard_completed === "boolean") {
+        setWizardCompleted(response.onboarding_wizard_completed);
+        if (!response.onboarding_wizard_completed) {
+          setCurrentStepIndex(0);
+          setShowWelcomeModal(true);
+          setIsWizardActive(true);
+          const firstStep = WIZARD_STEPS[0];
+          if (firstStep) {
+            navigate(getPageRoute(firstStep.page));
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Failed to recheck wizard status:", error);
+    } finally {
+      setIsLoadingWizardStatus(false);
+    }
+  }, [navigate, onboardingCompleted]);
 
   const shouldBlockNavigation = useCallback(
     (_targetPath: string): boolean => {

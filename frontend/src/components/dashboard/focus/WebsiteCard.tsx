@@ -6,6 +6,7 @@ import { apiGet } from "../../../api";
 import { useFormSubmissionsTimeseries } from "../../../hooks/queries/useFormSubmissionsTimeseries";
 import type { TimeseriesPoint } from "../../../api/formSubmissionsTimeseries";
 import Sparkline from "./Sparkline";
+import { useIsWizardActive, useWizardDemoData } from "../../../contexts/OnboardingWizardContext";
 
 /**
  * WebsiteCard — Form submissions card for the Focus dashboard.
@@ -74,6 +75,7 @@ const FRAUNCES =
 function CardShell({ children }: { children: React.ReactNode }) {
   return (
     <section
+      data-wizard-target="dashboard-website"
       className="flex flex-col"
       style={{
         background: CARD_BG,
@@ -285,12 +287,14 @@ function TrendPill({ delta }: { delta: number | null }) {
 }
 
 const WebsiteCard: React.FC = () => {
+  const isWizardActive = useIsWizardActive();
+  const wizardDemoData = useWizardDemoData();
   const navigate = useNavigate();
   const stats = useFormSubmissionsStats();
   const series = useFormSubmissionsTimeseries("12m");
 
-  const isLoading = stats.isLoading || series.isLoading;
-  const isError = stats.isError || series.isError;
+  const isLoading = isWizardActive ? false : stats.isLoading || series.isLoading;
+  const isError = isWizardActive ? false : stats.isError || series.isError;
 
   if (isLoading) return <SkeletonShell />;
 
@@ -305,10 +309,13 @@ const WebsiteCard: React.FC = () => {
     return <ErrorShell />;
   }
 
-  const points = series.data ?? [];
-  const verifiedCount = stats.data?.verifiedCount ?? 0;
-  const unread = stats.data?.unreadCount ?? 0;
-  const flagged = stats.data?.flaggedCount ?? 0;
+  const wizardStats = wizardDemoData?.websiteCardData?.stats as FormSubmissionsStats | undefined;
+  const wizardTimeseries = wizardDemoData?.websiteCardData?.timeseries as TimeseriesPoint[] | undefined;
+
+  const points = isWizardActive ? (wizardTimeseries ?? []) : (series.data ?? []);
+  const verifiedCount = isWizardActive ? (wizardStats?.verifiedCount ?? 0) : (stats.data?.verifiedCount ?? 0);
+  const unread = isWizardActive ? (wizardStats?.unreadCount ?? 0) : (stats.data?.unreadCount ?? 0);
+  const flagged = isWizardActive ? (wizardStats?.flaggedCount ?? 0) : (stats.data?.flaggedCount ?? 0);
 
   if (points.length === 0 && verifiedCount === 0) {
     return <EmptyShell />;

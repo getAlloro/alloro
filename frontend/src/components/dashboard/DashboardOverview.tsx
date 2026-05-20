@@ -36,6 +36,7 @@ import WebsiteCard from "./focus/WebsiteCard";
 import LocalRankingCard from "./focus/LocalRankingCard";
 import PMSCard from "./focus/PMSCard";
 import { SetupProgressBanner } from "./focus/SetupProgressBanner";
+import { useIsWizardActive } from "../../contexts/OnboardingWizardContext";
 
 interface DashboardOverviewProps {
   // Legacy props — kept for backward compatibility with Dashboard.tsx tab
@@ -102,6 +103,7 @@ function PmsUploadNudge({ period }: { period: PmsFocusPeriod }) {
 }
 
 export function DashboardOverview(props: DashboardOverviewProps) {
+  const isWizardActive = useIsWizardActive();
   const { userProfile } = useAuth();
   const { selectedLocation } = useLocationContext();
   const organizationId =
@@ -111,13 +113,16 @@ export function DashboardOverview(props: DashboardOverviewProps) {
     organizationId,
     locationId,
   );
-  const hasPmsData =
-    isLoading || !organizationId ? true : period.hasPmsData;
+  const hasPmsData = isWizardActive
+    ? true
+    : isLoading || !organizationId
+      ? true
+      : period.hasPmsData;
 
   return (
     <div className="max-w-[1320px] mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-16 space-y-6">
       <SetupProgressBanner />
-      <PmsUploadNudge period={period} />
+      {!isWizardActive && <PmsUploadNudge period={period} />}
       <FocusHeader period={period} />
 
       <Hero hasPmsData={hasPmsData} />

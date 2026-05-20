@@ -5,6 +5,7 @@ import { useAuth } from "../../../hooks/useAuth";
 import { useLocationContext } from "../../../contexts/locationContext";
 import { useDashboardMetrics } from "../../../hooks/queries/useDashboardMetrics";
 import FactorBar from "./FactorBar";
+import { useIsWizardActive, useWizardDemoData } from "../../../contexts/OnboardingWizardContext";
 
 /**
  * LocalRankingCard — Local-search ranking card for the Focus dashboard.
@@ -103,6 +104,7 @@ const HEALTH_KEYS: Array<{ key: string; label: string }> = [
 function CardShell({ children }: { children: React.ReactNode }) {
   return (
     <section
+      data-wizard-target="dashboard-visibility"
       className="flex flex-col"
       style={{
         background: CARD_BG,
@@ -266,6 +268,8 @@ function lowestFactorHint(factorName: string | undefined | null): string {
 }
 
 const LocalRankingCard: React.FC = () => {
+  const isWizardActive = useIsWizardActive();
+  const wizardDemoData = useWizardDemoData();
   const { userProfile } = useAuth();
   const { selectedLocation } = useLocationContext();
   const orgId = userProfile?.organizationId ?? null;
@@ -274,8 +278,8 @@ const LocalRankingCard: React.FC = () => {
   const metrics = useDashboardMetrics(orgId, locationId);
   const latest = useLatestRanking(orgId, locationId);
 
-  const isLoading = metrics.isLoading || latest.isLoading;
-  const isError = metrics.isError || latest.isError;
+  const isLoading = isWizardActive ? false : metrics.isLoading || latest.isLoading;
+  const isError = isWizardActive ? false : metrics.isError || latest.isError;
 
   const retry = () => {
     metrics.refetch();
@@ -292,8 +296,8 @@ const LocalRankingCard: React.FC = () => {
     return <ErrorShell onRetry={retry} message={msg} />;
   }
 
-  const ranking = metrics.data?.ranking;
-  const latestRow = latest.data;
+  const ranking = isWizardActive ? wizardDemoData?.dashboardMetrics?.ranking : metrics.data?.ranking;
+  const latestRow = isWizardActive ? (wizardDemoData?.localRankingCardData as RankingResultLite | null | undefined) : latest.data;
 
   if (!latestRow) {
     return <EmptyShell />;
