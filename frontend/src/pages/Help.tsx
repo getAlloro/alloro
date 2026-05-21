@@ -140,7 +140,7 @@ export default function Help() {
           <SupportTicketDetail
             ticket={
               isWizardActive && wizardDemoData?.demoTickets
-                ? wizardDemoData.demoTickets.find((t: any) => t.id === selectedTicketId) ?? wizardDemoData.demoTickets[0]
+                ? wizardDemoData.demoTickets.find((ticket) => ticket.id === selectedTicketId) ?? wizardDemoData.demoTickets[0]
                 : detailQuery.data?.ticket
             }
             messages={

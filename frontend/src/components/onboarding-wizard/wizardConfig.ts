@@ -3,6 +3,8 @@
  * Defines all steps, pages, and demo data for the product tour
  */
 
+import type { SupportTicket, SupportTicketMessage } from "../../api/support";
+
 export type WizardPage =
   | "dashboard"
   | "pmsStatistics"
@@ -513,7 +515,7 @@ export const WIZARD_DEMO_DATA = {
       position: 3,
       total_competitors: 15,
       score: 78,
-      lowest_factor: "review_velocity",
+      lowest_factor: { name: "review_velocity", score: 62 },
     },
     reviews: {
       total: 127,
@@ -856,6 +858,7 @@ export const WIZARD_DEMO_DATA = {
     {
       id: "demo-ticket-1",
       publicId: "TK-001",
+      locationId: null,
       type: "feature_request" as const,
       status: "in_progress" as const,
       severity: "medium" as const,
@@ -873,6 +876,7 @@ export const WIZARD_DEMO_DATA = {
     {
       id: "demo-ticket-2",
       publicId: "TK-002",
+      locationId: null,
       type: "bug_report" as const,
       status: "resolved" as const,
       severity: "low" as const,
@@ -890,6 +894,7 @@ export const WIZARD_DEMO_DATA = {
     {
       id: "demo-ticket-3",
       publicId: "TK-003",
+      locationId: null,
       type: "website_edit" as const,
       status: "new" as const,
       severity: "low" as const,
@@ -904,7 +909,7 @@ export const WIZARD_DEMO_DATA = {
       createdAt: new Date(Date.now() - 4 * 86_400_000).toISOString(),
       updatedAt: new Date(Date.now() - 4 * 86_400_000).toISOString(),
     },
-  ],
+  ] as SupportTicket[],
 
   // ───────────────────────── Support — Messages (keyed by ticket ID) ─────────────────────────
   // Shape: Record<string, SupportTicketMessage[]>
@@ -944,7 +949,7 @@ export const WIZARD_DEMO_DATA = {
         updatedAt: new Date(Date.now() - 1 * 86_400_000).toISOString(),
       },
     ],
-  },
+  } as Record<string, SupportTicketMessage[]>,
 
   // ───────────────────────── Settings — Team Members ─────────────────────────
   // Shape: User[] (from useSettingsUsers)
