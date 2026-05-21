@@ -5,6 +5,7 @@ import type { QuickActionType } from "../../hooks/useIframeSelector";
 import type { EditDebugInfo } from "../../api/websites";
 import {
   getDirectOperationAvailability,
+  getSelectedTextValue,
   type DirectEditorOperation,
 } from "../../utils/editorDirectOperations";
 import ChatPanel from "./ChatPanel";
@@ -78,12 +79,6 @@ export default function EditorSidebar({
   const [actionInput, setActionInput] = useState("");
   const actionInputRef = useRef<HTMLInputElement>(null);
 
-  // Reset active action when selection changes
-  useEffect(() => {
-    setActiveAction(null);
-    setActionInput("");
-  }, [selectedInfo?.alloroClass]);
-
   // Handle external action triggered from iframe label icons
   useEffect(() => {
     if (!externalAction) return;
@@ -100,13 +95,15 @@ export default function EditorSidebar({
     } else {
       if (externalAction === "link") {
         setActionInput(selectedInfo?.href || "");
+      } else if (externalAction === "text") {
+        setActionInput(getSelectedTextValue(selectedInfo));
       } else {
         setActionInput("");
       }
       setActiveAction(externalAction);
     }
     onExternalActionHandled?.();
-  }, [externalAction, onApplyDirectEdit, onExternalActionHandled, selectedInfo?.href]);
+  }, [externalAction, onApplyDirectEdit, onExternalActionHandled, selectedInfo, selectedInfo?.href]);
 
   // Focus input when action opens
   useEffect(() => {
@@ -121,6 +118,18 @@ export default function EditorSidebar({
     canChangeLink,
     canAdjustTextSize,
   } = getDirectOperationAvailability(selectedInfo, Boolean(mediaApi));
+
+  // Put the direct text control in front of people instead of burying it behind chat.
+  useEffect(() => {
+    if (canEditText) {
+      setActiveAction("text");
+      setActionInput(getSelectedTextValue(selectedInfo));
+      return;
+    }
+
+    setActiveAction(null);
+    setActionInput("");
+  }, [canEditText, selectedInfo, selectedInfo?.alloroClass, selectedInfo?.outerHtml]);
 
   const handleTextSubmit = () => {
     const trimmed = actionInput.trim();
@@ -157,7 +166,7 @@ export default function EditorSidebar({
 
   const openTextAction = () => {
     setActiveAction("text");
-    setActionInput("");
+    setActionInput(getSelectedTextValue(selectedInfo));
   };
 
   const openLinkAction = () => {

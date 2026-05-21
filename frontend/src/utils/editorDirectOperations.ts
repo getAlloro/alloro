@@ -70,6 +70,15 @@ export function getDirectOperationAvailability(
   };
 }
 
+export function getSelectedTextValue(selectedInfo: SelectedInfo | null): string {
+  if (!selectedInfo || !EDITOR_TEXT_TAGS.has(selectedInfo.tagName)) return "";
+
+  const template = document.createElement("template");
+  template.innerHTML = selectedInfo.outerHtml;
+  const text = template.content.firstElementChild?.textContent || "";
+  return text.replace(/\s+/g, " ").trim();
+}
+
 export function normalizeEditorHref(rawHref: string): string {
   const href = rawHref.trim();
   if (!href) {
