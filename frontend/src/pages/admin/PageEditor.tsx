@@ -434,7 +434,14 @@ function PageEditorInner() {
   }, []);
 
   // Selector hook
-  const { selectedInfo, setSelectedInfo, clearSelection, setupListeners } =
+  const {
+    selectedInfo,
+    setSelectedInfo,
+    clearSelection,
+    setupListeners,
+    beginCanvasTextEditing,
+    isCanvasTextEditing,
+  } =
     useIframeSelector(iframeRef, handleIframeQuickAction);
 
   // Regenerate component modal (Plan B T14)
@@ -976,6 +983,10 @@ function PageEditorInner() {
         const previousSections = structuredClone(sectionsRef.current);
 
         const result = applyDirectEditorOperation(doc, selectedInfo, operation);
+        if (!result.changed) {
+          setSelectedInfo(result.selectedInfo);
+          return;
+        }
         const updatedSections = extractSectionsFromDom(doc, sectionsRef.current);
 
         setEditHistory((prev) => [...prev, previousSections]);
@@ -1387,6 +1398,8 @@ function PageEditorInner() {
                       selectedInfo={selectedInfo}
                       mediaApi={mediaApi}
                       isEditing={isEditing}
+                      isCanvasTextEditing={isCanvasTextEditing}
+                      onStartCanvasTextEdit={beginCanvasTextEditing}
                       onApplyDirectEdit={handleApplyDirectEdit}
                     />
                   </div>

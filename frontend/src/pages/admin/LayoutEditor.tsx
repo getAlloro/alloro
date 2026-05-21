@@ -97,7 +97,13 @@ function LayoutEditorInner() {
   }, []);
 
   // Selector hook (only active for header/footer)
-  const { selectedInfo, setSelectedInfo, setupListeners } =
+  const {
+    selectedInfo,
+    setSelectedInfo,
+    setupListeners,
+    beginCanvasTextEditing,
+    isCanvasTextEditing,
+  } =
     useIframeSelector(iframeRef, handleIframeQuickAction);
 
   // --- Load project data ---
@@ -334,6 +340,10 @@ function LayoutEditorInner() {
         const scrollY = iframe.contentWindow?.scrollY || 0;
         const scrollX = iframe.contentWindow?.scrollX || 0;
         const result = applyDirectEditorOperation(doc, selectedInfo, operation);
+        if (!result.changed) {
+          setSelectedInfo(result.selectedInfo);
+          return;
+        }
         const marker = doc.querySelector("[data-layout-content]");
 
         if (marker) {
@@ -623,6 +633,8 @@ function LayoutEditorInner() {
                       selectedInfo={selectedInfo}
                       mediaApi={mediaApi}
                       isEditing={isEditing}
+                      isCanvasTextEditing={isCanvasTextEditing}
+                      onStartCanvasTextEdit={beginCanvasTextEditing}
                       onApplyDirectEdit={handleApplyDirectEdit}
                     />
                   </div>

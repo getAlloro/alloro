@@ -1,6 +1,7 @@
 import type { MediaItem } from "../api/websiteMedia";
 import { getFriendlyName } from "../hooks/useIframeSelector";
 import type { SelectedInfo } from "../hooks/useIframeSelector";
+import { getCanvasTextEditEligibility } from "./canvasTextEditing";
 
 export const EDITOR_TEXT_TAGS = new Set([
   "p",
@@ -61,6 +62,7 @@ export type DirectEditorOperation =
 
 export type DirectOperationAvailability = {
   canEditText: boolean;
+  canEditCanvasText: boolean;
   canChangeMedia: boolean;
   canChangeLink: boolean;
   canAdjustTextSize: boolean;
@@ -71,6 +73,7 @@ export type DirectOperationAvailability = {
 export type DirectEditorOperationResult = {
   element: Element;
   selectedInfo: SelectedInfo;
+  changed: boolean;
 };
 
 export function getDirectOperationAvailability(
@@ -82,6 +85,7 @@ export function getDirectOperationAvailability(
 
   return {
     canEditText,
+    canEditCanvasText: Boolean(selectedInfo?.canCanvasEditText),
     canChangeMedia: EDITOR_MEDIA_TAGS.has(tag) && hasMediaApi,
     canChangeLink: EDITOR_LINK_TAGS.has(tag),
     canAdjustTextSize: canEditText,
@@ -141,6 +145,7 @@ export function applyDirectEditorOperation(
 ): DirectEditorOperationResult {
   const element = findSelectedElement(doc, selectedInfo);
   const tagName = element.tagName.toLowerCase();
+  const previousOuterHtml = element.outerHTML;
 
   switch (operation.type) {
     case "replace-text":
@@ -191,6 +196,7 @@ export function applyDirectEditorOperation(
   return {
     element,
     selectedInfo: buildSelectedInfo(selectedInfo, element),
+    changed: element.outerHTML !== previousOuterHtml,
   };
 }
 
@@ -358,6 +364,7 @@ function buildSelectedInfo(
   const tagName = element.tagName.toLowerCase();
   const rect = element.getBoundingClientRect();
   const style = (element as HTMLElement).style;
+  const canvasEligibility = getCanvasTextEditEligibility(element);
   const href =
     tagName === "a" ? element.getAttribute("href") || undefined : undefined;
 
@@ -378,5 +385,7 @@ function buildSelectedInfo(
     backgroundImage: style.backgroundImage || "",
     backgroundSize: style.backgroundSize || "",
     backgroundPosition: style.backgroundPosition || "",
+    canCanvasEditText: canvasEligibility.canEdit,
+    textEditFallbackReason: canvasEligibility.reason,
   };
 }

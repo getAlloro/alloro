@@ -2,6 +2,28 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.85] - May 2026
+
+### Canvas Inline Website Editing
+
+Made routine website text edits feel more like a real page editor by allowing safe direct typing on selected canvas text while keeping structure-changing operations out of scope.
+
+**Key Changes:**
+- Added plain-text canvas editing for safe selected headings, paragraphs, links, list items, captions, and button labels
+- Added paste/keyboard guards so canvas edits stay plain text and can be committed or cancelled without injecting rich markup
+- Kept complex nested content on the existing fallback text input instead of risking wrapper or icon damage
+- Routed committed canvas text edits through the existing direct operation, undo/history, section extraction, autosave, dirty-state, save, and layout persistence paths
+- Kept link href, media replacement, font-size, hide/show, and section background edits in the compact property toolbar
+- Preserved the no-reorder, no-delete, no-drag/drop, no-arbitrary-HTML, and no-new-storage-path boundaries
+
+**Commits:**
+- `frontend/src/utils/canvasTextEditing.ts` - safe canvas text edit session lifecycle, paste sanitization, commit, and cancel behavior
+- `frontend/src/hooks/useIframeSelector.ts` - selected-element editability metadata, double-click canvas editing, and iframe editing-state handling
+- `frontend/src/utils/editorDirectOperations.ts` - no-op detection and canvas edit availability in direct operation results
+- `frontend/src/components/PageEditor/InlineEditorPopover.tsx` - compact text toolbar behavior with fallback input for unsafe nested content
+- `frontend/src/pages/admin/PageEditor.tsx`, `LayoutEditor.tsx`, and `DFYWebsite.tsx` - shared canvas edit wiring through existing save/persistence flows
+- `plans/05222026-no-ticket-canvas-inline-content-editing/spec.md` - executed spec and verification checklist
+
 ## [0.0.84] - May 2026
 
 ### Website Editor Direct Controls

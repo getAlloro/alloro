@@ -275,6 +275,8 @@ export function DFYWebsite() {
     setSelectedInfo,
     clearSelection,
     setupListeners,
+    beginCanvasTextEditing,
+    isCanvasTextEditing,
   } = useIframeSelector(iframeRef, handleIframeQuickAction);
 
   // User-facing API wrappers (routes don't need projectId — inferred from auth)
@@ -730,6 +732,10 @@ export function DFYWebsite() {
         const previousSections = structuredClone(sectionsRef.current);
 
         const result = applyDirectEditorOperation(doc, selectedInfo, operation);
+        if (!result.changed) {
+          setSelectedInfo(result.selectedInfo);
+          return;
+        }
         const updatedSections = extractSectionsFromDom(
           doc,
           sectionsRef.current,
@@ -1379,6 +1385,8 @@ export function DFYWebsite() {
                       selectedInfo={previewVersion ? null : selectedInfo}
                       mediaApi={mediaApi}
                       isEditing={isEditing}
+                      isCanvasTextEditing={isCanvasTextEditing}
+                      onStartCanvasTextEdit={beginCanvasTextEditing}
                       onApplyDirectEdit={handleApplyDirectEdit}
                     />
                   </div>
@@ -1401,6 +1409,8 @@ export function DFYWebsite() {
                         selectedInfo={previewVersion ? null : selectedInfo}
                         mediaApi={mediaApi}
                         isEditing={isEditing}
+                        isCanvasTextEditing={isCanvasTextEditing}
+                        onStartCanvasTextEdit={beginCanvasTextEditing}
                         onApplyDirectEdit={handleApplyDirectEdit}
                       />
                     </div>

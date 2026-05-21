@@ -9,6 +9,11 @@
  */
 
 import { useCallback, useRef, useState } from "react";
+import {
+  getCanvasTextEditEligibility,
+  startCanvasTextEdit,
+  type CanvasTextEditSession,
+} from "../utils/canvasTextEditing";
 
 const ALLORO_PREFIX = "alloro-tpl-";
 
@@ -31,6 +36,8 @@ export interface SelectedInfo {
   backgroundImage?: string;
   backgroundSize?: string;
   backgroundPosition?: string;
+  canCanvasEditText?: boolean;
+  textEditFallbackReason?: string;
 }
 
 /** Map HTML tag names to friendly display names. */
@@ -114,6 +121,28 @@ function getElementBackground(el: Element) {
   };
 }
 
+function buildSelectedInfo(el: Element): SelectedInfo | null {
+  const cls = getAlloroClass(el);
+  if (!cls) return null;
+
+  const tagName = el.tagName.toLowerCase();
+  const eligibility = getCanvasTextEditEligibility(el);
+  return {
+    alloroClass: cls,
+    label: getReadableLabel(cls),
+    friendlyName: getFriendlyName(tagName),
+    tagName,
+    type: isComponent(cls) ? "component" : "section",
+    outerHtml: (el as HTMLElement).outerHTML,
+    isHidden: el.getAttribute("data-alloro-hidden") === "true",
+    href: tagName === "a" ? (el as HTMLAnchorElement).getAttribute("href") || undefined : undefined,
+    rect: getElementRect(el),
+    ...getElementBackground(el),
+    canCanvasEditText: eligibility.canEdit,
+    textEditFallbackReason: eligibility.reason,
+  };
+}
+
 /** Strip CSP meta tags so external resources (fonts, CSS, images) load in the iframe. */
 export function prepareHtmlForPreview(html: string): string {
   return html.replace(
@@ -171,6 +200,19 @@ const SELECTOR_CSS = `
   [class*="${ALLORO_PREFIX}"] {
     pointer-events: auto !important;
     cursor: pointer !important;
+  }
+
+  [data-alloro-editing="true"] {
+    cursor: text !important;
+    caret-color: #d66853 !important;
+    outline: 2px solid #d66853 !important;
+    outline-offset: 6px !important;
+    user-select: text !important;
+    -webkit-user-select: text !important;
+  }
+
+  [data-alloro-editing="true"]:focus {
+    box-shadow: 0 0 0 4px rgba(214, 104, 83, 0.2) !important;
   }
 
   /* Keep hidden/invisible overlays from intercepting events */
@@ -332,14 +374,20 @@ export function useIframeSelector(
   onQuickAction?: (payload: QuickActionPayload) => void
 ) {
   const [selectedInfo, setSelectedInfo] = useState<SelectedInfo | null>(null);
+  const [isCanvasTextEditing, setIsCanvasTextEditing] = useState(false);
   const currentHoveredComponentRef = useRef<Element | null>(null);
+  const canvasTextSessionRef = useRef<CanvasTextEditSession | null>(null);
   const quickActionRef = useRef(onQuickAction);
   quickActionRef.current = onQuickAction;
 
   const clearSelection = useCallback(() => {
+    canvasTextSessionRef.current?.cancel();
+    canvasTextSessionRef.current = null;
+    setIsCanvasTextEditing(false);
     setSelectedInfo(null);
     const doc = iframeRef.current?.contentDocument;
     if (!doc) return;
+    delete doc.body.dataset.alloroCanvasEditing;
     doc
       .querySelectorAll("[data-alloro-selected]")
       .forEach((el) => el.removeAttribute("data-alloro-selected"));
@@ -349,16 +397,70 @@ export function useIframeSelector(
     if (actionPanel) actionPanel.remove();
   }, [iframeRef]);
 
+  const beginCanvasTextEditing = useCallback(
+    (element?: Element | null) => {
+      const doc = iframeRef.current?.contentDocument;
+      const target = element || (selectedInfo
+        ? doc?.querySelector(`.${CSS.escape(selectedInfo.alloroClass)}`)
+        : null);
+      if (!doc || !target) return false;
+
+      const eligibility = getCanvasTextEditEligibility(target);
+      if (!eligibility.canEdit) return false;
+
+      canvasTextSessionRef.current?.cancel();
+      doc.getElementById("alloro-hover-label")?.remove();
+      doc.getElementById("alloro-action-panel")?.remove();
+      doc.body.dataset.alloroCanvasEditing = "true";
+      setIsCanvasTextEditing(true);
+
+      const info = buildSelectedInfo(target);
+      if (info) setSelectedInfo(info);
+
+      const session = startCanvasTextEdit({
+        element: target,
+        onCommit: (value) => {
+          delete doc.body.dataset.alloroCanvasEditing;
+          setIsCanvasTextEditing(false);
+          canvasTextSessionRef.current = null;
+          quickActionRef.current?.({ action: "text", value });
+        },
+        onCancel: () => {
+          const freshInfo = buildSelectedInfo(target);
+          if (freshInfo) setSelectedInfo(freshInfo);
+        },
+        onFinish: () => {
+          delete doc.body.dataset.alloroCanvasEditing;
+          setIsCanvasTextEditing(false);
+          canvasTextSessionRef.current = null;
+        },
+      });
+
+      canvasTextSessionRef.current = session;
+      if (!session) {
+        delete doc.body.dataset.alloroCanvasEditing;
+        setIsCanvasTextEditing(false);
+      }
+      return Boolean(session);
+    },
+    [iframeRef, selectedInfo],
+  );
+
   const setupListeners = useCallback(() => {
     const iframe = iframeRef.current;
     if (!iframe?.contentDocument) return;
     const doc = iframe.contentDocument;
 
-    // Inject selector CSS
-    const style = doc.createElement("style");
-    style.id = "alloro-selector-styles";
-    style.textContent = SELECTOR_CSS;
-    doc.head.appendChild(style);
+    // Inject selector CSS once per iframe document.
+    if (!doc.getElementById("alloro-selector-styles")) {
+      const style = doc.createElement("style");
+      style.id = "alloro-selector-styles";
+      style.textContent = SELECTOR_CSS;
+      doc.head.appendChild(style);
+    }
+
+    if (doc.body.dataset.alloroSelectorReady === "true") return;
+    doc.body.dataset.alloroSelectorReady = "true";
 
     // Remove any existing action input panel
     function hideActionPanel() {
@@ -471,7 +573,11 @@ export function useIframeSelector(
               ev.preventDefault();
               if (action === "text-up" || action === "text-down") {
                 quickActionRef.current?.({ action });
-              } else if (action === "text" || action === "link") {
+              } else if (action === "text") {
+                if (!beginCanvasTextEditing(el)) {
+                  showActionPanel(action, currentLabel);
+                }
+              } else if (action === "link") {
                 // Show inline input below the label
                 const hrefVal = action === "link"
                   ? (el.tagName.toLowerCase() === "a" ? (el as HTMLAnchorElement).getAttribute("href") || "" : "")
@@ -504,8 +610,13 @@ export function useIframeSelector(
       if (label) label.remove();
     }
 
+    function isCanvasTextEditingActive() {
+      return doc.body.dataset.alloroCanvasEditing === "true";
+    }
+
     // Event delegation on the body — survives DOM mutations
     doc.body.addEventListener("mouseover", (e) => {
+      if (isCanvasTextEditingActive()) return;
       const target = findAlloroElement(e.target as Element);
       if (!target) return;
       const cls = getAlloroClass(target)!;
@@ -530,6 +641,7 @@ export function useIframeSelector(
     });
 
     doc.body.addEventListener("mouseout", (e) => {
+      if (isCanvasTextEditingActive()) return;
       const target = findAlloroElement(e.target as Element);
       if (!target) return;
       const cls = getAlloroClass(target)!;
@@ -546,6 +658,7 @@ export function useIframeSelector(
     });
 
     doc.body.addEventListener("click", (e) => {
+      if (isCanvasTextEditingActive()) return;
       const clickTarget = e.target as Element;
 
       // Ignore clicks on action buttons or the action input panel
@@ -575,23 +688,29 @@ export function useIframeSelector(
       target.setAttribute("data-alloro-selected", "true");
       showLabel(target, cls, "selected");
 
-      const tagName = target.tagName.toLowerCase();
-      const href = tagName === "a" ? (target as HTMLAnchorElement).getAttribute("href") || undefined : undefined;
-
-      setSelectedInfo({
-        alloroClass: cls,
-        label: getReadableLabel(cls),
-        friendlyName: getFriendlyName(tagName),
-        tagName,
-        type: elIsComponent ? "component" : "section",
-        outerHtml: (target as HTMLElement).outerHTML,
-        isHidden: target.getAttribute("data-alloro-hidden") === "true",
-        href,
-        rect: getElementRect(target),
-        ...getElementBackground(target),
-      });
+      const info = buildSelectedInfo(target);
+      if (info) setSelectedInfo(info);
     });
-  }, [iframeRef]);
+
+    doc.body.addEventListener("dblclick", (e) => {
+      if (isCanvasTextEditingActive()) return;
+      const target = findAlloroElement(e.target as Element);
+      if (!target) return;
+
+      const info = buildSelectedInfo(target);
+      if (!info?.canCanvasEditText) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      doc
+        .querySelectorAll("[data-alloro-selected]")
+        .forEach((el) => el.removeAttribute("data-alloro-selected"));
+      target.setAttribute("data-alloro-selected", "true");
+      showLabel(target, info.alloroClass, "selected");
+      setSelectedInfo(info);
+      beginCanvasTextEditing(target);
+    });
+  }, [beginCanvasTextEditing, iframeRef]);
 
   const toggleHidden = useCallback(() => {
     if (!selectedInfo) return;
@@ -609,12 +728,21 @@ export function useIframeSelector(
       el.setAttribute("data-alloro-hidden", "true");
     }
 
-    setSelectedInfo({
+    const info = buildSelectedInfo(el);
+    setSelectedInfo(info ? { ...info, isHidden: !isCurrentlyHidden } : {
       ...selectedInfo,
       isHidden: !isCurrentlyHidden,
       outerHtml: (el as HTMLElement).outerHTML,
     });
   }, [iframeRef, selectedInfo]);
 
-  return { selectedInfo, setSelectedInfo, clearSelection, setupListeners, toggleHidden };
+  return {
+    selectedInfo,
+    setSelectedInfo,
+    clearSelection,
+    setupListeners,
+    toggleHidden,
+    beginCanvasTextEditing,
+    isCanvasTextEditing,
+  };
 }
