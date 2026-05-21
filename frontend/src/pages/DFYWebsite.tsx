@@ -50,6 +50,7 @@ import {
   type DirectEditorOperation,
 } from "../utils/editorDirectOperations";
 import EditorSidebar from "../components/PageEditor/EditorSidebar";
+import InlineEditorPopover from "../components/PageEditor/InlineEditorPopover";
 import type { ChatMessage } from "../components/PageEditor/ChatPanel";
 import type { PageVersion } from "../components/PageEditor/VersionHistoryTab";
 import type { Section } from "../api/templates";
@@ -1348,25 +1349,43 @@ export function DFYWebsite() {
                 </div>
               )}
               {viewportMode === "desktop" ? (
-                <iframe
-                  ref={iframeRef}
-                  srcDoc={prepareHtmlForPreview(
-                    previewVersion ? previewHtmlContent : resolvedHtmlContent,
-                  )}
-                  style={{
-                    width: `${Math.round(100 / DESKTOP_SCALE)}%`,
-                    height: `${Math.round(100 / DESKTOP_SCALE)}%`,
-                    transform: `scale(${DESKTOP_SCALE})`,
-                    transformOrigin: "top left",
-                  }}
-                  className="border-0"
-                  title="Page Preview"
-                  sandbox="allow-same-origin allow-scripts"
-                  onLoad={handleIframeLoad}
-                />
+                <>
+                  <iframe
+                    ref={iframeRef}
+                    srcDoc={prepareHtmlForPreview(
+                      previewVersion ? previewHtmlContent : resolvedHtmlContent,
+                    )}
+                    style={{
+                      width: `${Math.round(100 / DESKTOP_SCALE)}%`,
+                      height: `${Math.round(100 / DESKTOP_SCALE)}%`,
+                      transform: `scale(${DESKTOP_SCALE})`,
+                      transformOrigin: "top left",
+                    }}
+                    className="border-0"
+                    title="Page Preview"
+                    sandbox="allow-same-origin allow-scripts"
+                    onLoad={handleIframeLoad}
+                  />
+                  <div
+                    className="absolute left-0 top-0 pointer-events-none"
+                    style={{
+                      width: `${Math.round(100 / DESKTOP_SCALE)}%`,
+                      height: `${Math.round(100 / DESKTOP_SCALE)}%`,
+                      transform: `scale(${DESKTOP_SCALE})`,
+                      transformOrigin: "top left",
+                    }}
+                  >
+                    <InlineEditorPopover
+                      selectedInfo={previewVersion ? null : selectedInfo}
+                      mediaApi={mediaApi}
+                      isEditing={isEditing}
+                      onApplyDirectEdit={handleApplyDirectEdit}
+                    />
+                  </div>
+                </>
               ) : (
                 <div className="flex justify-center h-full py-4">
-                  <div className="w-[375px] h-full bg-white rounded-2xl shadow-xl border border-gray-300 overflow-hidden">
+                  <div className="relative w-[375px] h-full bg-white rounded-2xl shadow-xl border border-gray-300 overflow-hidden">
                     <iframe
                       ref={iframeRef}
                       srcDoc={prepareHtmlForPreview(
@@ -1377,6 +1396,14 @@ export function DFYWebsite() {
                       sandbox="allow-same-origin allow-scripts"
                       onLoad={handleIframeLoad}
                     />
+                    <div className="absolute inset-0 pointer-events-none">
+                      <InlineEditorPopover
+                        selectedInfo={previewVersion ? null : selectedInfo}
+                        mediaApi={mediaApi}
+                        isEditing={isEditing}
+                        onApplyDirectEdit={handleApplyDirectEdit}
+                      />
+                    </div>
                   </div>
                 </div>
               )}

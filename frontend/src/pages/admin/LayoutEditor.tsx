@@ -25,6 +25,7 @@ import { AdminSidebar } from "../../components/Admin/AdminSidebar";
 import { LoadingIndicator } from "../../components/Admin/LoadingIndicator";
 import { SidebarProvider } from "../../components/Admin/SidebarContext";
 import EditorSidebar from "../../components/PageEditor/EditorSidebar";
+import InlineEditorPopover from "../../components/PageEditor/InlineEditorPopover";
 import type { ChatMessage } from "../../components/PageEditor/ChatPanel";
 
 type LayoutField = "wrapper" | "header" | "footer";
@@ -575,7 +576,7 @@ function LayoutEditorInner() {
               </div>
               <div className="flex-1 bg-gray-100 p-4 overflow-hidden flex items-start justify-center">
                 <div
-                  className="h-full rounded-xl overflow-hidden shadow-lg border border-gray-200 transition-all duration-300 mx-auto bg-white"
+                  className="relative h-full rounded-xl overflow-hidden shadow-lg border border-gray-200 transition-all duration-300 mx-auto bg-white"
                   style={{
                     width:
                       device === "desktop"
@@ -617,6 +618,14 @@ function LayoutEditorInner() {
                     onLoad={handleIframeLoad}
                     className="w-full h-full border-0 bg-white"
                   />
+                  <div className="absolute inset-0 pointer-events-none">
+                    <InlineEditorPopover
+                      selectedInfo={selectedInfo}
+                      mediaApi={mediaApi}
+                      isEditing={isEditing}
+                      onApplyDirectEdit={handleApplyDirectEdit}
+                    />
+                  </div>
                 </div>
               </div>
 

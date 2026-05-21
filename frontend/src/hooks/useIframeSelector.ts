@@ -21,6 +21,16 @@ export interface SelectedInfo {
   outerHtml: string;
   isHidden: boolean;
   href?: string;
+  rect?: {
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+  };
+  backgroundColor?: string;
+  backgroundImage?: string;
+  backgroundSize?: string;
+  backgroundPosition?: string;
 }
 
 /** Map HTML tag names to friendly display names. */
@@ -82,6 +92,26 @@ export function isComponent(alloroClass: string): boolean {
 
 export function getReadableLabel(alloroClass: string): string {
   return alloroClass.replace(/^alloro-tpl-[a-f0-9]+-/, "");
+}
+
+function getElementRect(el: Element) {
+  const rect = el.getBoundingClientRect();
+  return {
+    top: rect.top,
+    left: rect.left,
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
+function getElementBackground(el: Element) {
+  const style = (el as HTMLElement).style;
+  return {
+    backgroundColor: style.backgroundColor || "",
+    backgroundImage: style.backgroundImage || "",
+    backgroundSize: style.backgroundSize || "",
+    backgroundPosition: style.backgroundPosition || "",
+  };
 }
 
 /** Strip CSP meta tags so external resources (fonts, CSS, images) load in the iframe. */
@@ -557,6 +587,8 @@ export function useIframeSelector(
         outerHtml: (target as HTMLElement).outerHTML,
         isHidden: target.getAttribute("data-alloro-hidden") === "true",
         href,
+        rect: getElementRect(target),
+        ...getElementBackground(target),
       });
     });
   }, [iframeRef]);

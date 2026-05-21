@@ -21,6 +21,18 @@ export const EDITOR_TEXT_TAGS = new Set([
 export const EDITOR_MEDIA_TAGS = new Set(["img", "video"]);
 export const EDITOR_LINK_TAGS = new Set(["a"]);
 
+export const BACKGROUND_SIZE_PRESETS = ["cover", "contain", "auto"] as const;
+export const BACKGROUND_POSITION_PRESETS = [
+  "center center",
+  "top center",
+  "bottom center",
+  "center left",
+  "center right",
+] as const;
+
+export type BackgroundSizePreset = (typeof BACKGROUND_SIZE_PRESETS)[number];
+export type BackgroundPositionPreset = (typeof BACKGROUND_POSITION_PRESETS)[number];
+
 const TEXT_SIZE_SCALE = [
   "text-xs",
   "text-sm",
@@ -39,7 +51,13 @@ export type DirectEditorOperation =
   | { type: "update-link"; href: string }
   | { type: "replace-media"; media: MediaItem }
   | { type: "step-font-size"; direction: "up" | "down" }
-  | { type: "toggle-hidden" };
+  | { type: "toggle-hidden" }
+  | { type: "set-background-color"; color: string }
+  | { type: "clear-background-color" }
+  | { type: "set-background-image"; media: MediaItem }
+  | { type: "clear-background-image" }
+  | { type: "set-background-size"; size: BackgroundSizePreset }
+  | { type: "set-background-position"; position: BackgroundPositionPreset };
 
 export type DirectOperationAvailability = {
   canEditText: boolean;
@@ -47,6 +65,7 @@ export type DirectOperationAvailability = {
   canChangeLink: boolean;
   canAdjustTextSize: boolean;
   canToggleHidden: boolean;
+  canEditBackground: boolean;
 };
 
 export type DirectEditorOperationResult = {
@@ -67,6 +86,7 @@ export function getDirectOperationAvailability(
     canChangeLink: EDITOR_LINK_TAGS.has(tag),
     canAdjustTextSize: canEditText,
     canToggleHidden: Boolean(selectedInfo),
+    canEditBackground: selectedInfo?.type === "section",
   };
 }
 
@@ -108,6 +128,12 @@ export function normalizeEditorHref(rawHref: string): string {
   return href;
 }
 
+export function getSelectedBackgroundColorValue(
+  selectedInfo: SelectedInfo | null,
+): string {
+  return normalizeColorForInput(selectedInfo?.backgroundColor || "") || "#ffffff";
+}
+
 export function applyDirectEditorOperation(
   doc: Document,
   selectedInfo: SelectedInfo,
@@ -136,6 +162,30 @@ export function applyDirectEditorOperation(
     case "toggle-hidden":
       toggleHiddenAttribute(element);
       break;
+    case "set-background-color":
+      assertSection(selectedInfo, "Background color is only available for sections.");
+      setBackgroundColor(element, operation.color);
+      break;
+    case "clear-background-color":
+      assertSection(selectedInfo, "Background color is only available for sections.");
+      (element as HTMLElement).style.removeProperty("background-color");
+      break;
+    case "set-background-image":
+      assertSection(selectedInfo, "Background image is only available for sections.");
+      setBackgroundImage(element, operation.media);
+      break;
+    case "clear-background-image":
+      assertSection(selectedInfo, "Background image is only available for sections.");
+      clearBackgroundImage(element);
+      break;
+    case "set-background-size":
+      assertSection(selectedInfo, "Background image controls are only available for sections.");
+      setBackgroundSize(element, operation.size);
+      break;
+    case "set-background-position":
+      assertSection(selectedInfo, "Background image controls are only available for sections.");
+      setBackgroundPosition(element, operation.position);
+      break;
   }
 
   return {
@@ -154,6 +204,12 @@ function findSelectedElement(doc: Document, selectedInfo: SelectedInfo): Element
 
 function assertTag(allowedTags: Set<string>, tagName: string, message: string) {
   if (!allowedTags.has(tagName)) {
+    throw new Error(message);
+  }
+}
+
+function assertSection(selectedInfo: SelectedInfo, message: string) {
+  if (selectedInfo.type !== "section") {
     throw new Error(message);
   }
 }
@@ -207,6 +263,71 @@ function replaceMediaElement(element: Element, media: MediaItem) {
   throw new Error("Selected element is not a replaceable media element.");
 }
 
+function setBackgroundColor(element: Element, color: string) {
+  const normalized = normalizeBackgroundColor(color);
+  (element as HTMLElement).style.backgroundColor = normalized;
+}
+
+function setBackgroundImage(element: Element, media: MediaItem) {
+  if (!media.s3_url || !media.mime_type.startsWith("image/")) {
+    throw new Error("Choose an image file for the section background.");
+  }
+
+  const style = (element as HTMLElement).style;
+  style.backgroundImage = `url("${media.s3_url.replace(/"/g, "%22")}")`;
+  if (!style.backgroundSize) style.backgroundSize = "cover";
+  if (!style.backgroundPosition) style.backgroundPosition = "center center";
+}
+
+function clearBackgroundImage(element: Element) {
+  const style = (element as HTMLElement).style;
+  style.removeProperty("background-image");
+  style.removeProperty("background-size");
+  style.removeProperty("background-position");
+}
+
+function setBackgroundSize(element: Element, size: BackgroundSizePreset) {
+  if (!BACKGROUND_SIZE_PRESETS.includes(size)) {
+    throw new Error("That background size is not allowed.");
+  }
+  (element as HTMLElement).style.backgroundSize = size;
+}
+
+function setBackgroundPosition(element: Element, position: BackgroundPositionPreset) {
+  if (!BACKGROUND_POSITION_PRESETS.includes(position)) {
+    throw new Error("That background position is not allowed.");
+  }
+  (element as HTMLElement).style.backgroundPosition = position;
+}
+
+function normalizeBackgroundColor(color: string): string {
+  const trimmed = color.trim();
+  if (trimmed === "transparent") return trimmed;
+  if (/^#[0-9a-f]{6}$/i.test(trimmed)) return trimmed;
+  if (/^#[0-9a-f]{3}$/i.test(trimmed)) {
+    return `#${trimmed[1]}${trimmed[1]}${trimmed[2]}${trimmed[2]}${trimmed[3]}${trimmed[3]}`;
+  }
+  throw new Error("Use a hex color or clear the background.");
+}
+
+function normalizeColorForInput(color: string): string | null {
+  const trimmed = color.trim();
+  if (/^#[0-9a-f]{6}$/i.test(trimmed)) return trimmed;
+  if (/^#[0-9a-f]{3}$/i.test(trimmed)) {
+    return `#${trimmed[1]}${trimmed[1]}${trimmed[2]}${trimmed[2]}${trimmed[3]}${trimmed[3]}`;
+  }
+
+  const rgbMatch = trimmed.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+  if (!rgbMatch) return null;
+
+  const [, red, green, blue] = rgbMatch;
+  return `#${toHex(Number(red))}${toHex(Number(green))}${toHex(Number(blue))}`;
+}
+
+function toHex(value: number): string {
+  return Math.max(0, Math.min(255, value)).toString(16).padStart(2, "0");
+}
+
 function stepFontSize(element: Element, direction: "up" | "down") {
   const currentSizeClass = TEXT_SIZE_SCALE.find((cls) =>
     element.classList.contains(cls),
@@ -235,6 +356,8 @@ function buildSelectedInfo(
   element: Element,
 ): SelectedInfo {
   const tagName = element.tagName.toLowerCase();
+  const rect = element.getBoundingClientRect();
+  const style = (element as HTMLElement).style;
   const href =
     tagName === "a" ? element.getAttribute("href") || undefined : undefined;
 
@@ -245,5 +368,15 @@ function buildSelectedInfo(
     outerHtml: element.outerHTML,
     isHidden: element.getAttribute("data-alloro-hidden") === "true",
     href,
+    rect: {
+      top: rect.top,
+      left: rect.left,
+      width: rect.width,
+      height: rect.height,
+    },
+    backgroundColor: style.backgroundColor || "",
+    backgroundImage: style.backgroundImage || "",
+    backgroundSize: style.backgroundSize || "",
+    backgroundPosition: style.backgroundPosition || "",
   };
 }
