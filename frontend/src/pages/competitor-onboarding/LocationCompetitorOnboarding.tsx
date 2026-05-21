@@ -18,6 +18,7 @@ import {
   X,
   Search,
   Sparkles,
+  ArrowLeft,
   ArrowRight,
   CheckCircle2,
   Star,
@@ -1033,9 +1034,20 @@ function CuratingStage({
   return (
     <section className="space-y-8">
       <div className="text-left">
-        <div className="px-2 py-0.5 inline-flex items-center gap-2 bg-alloro-navy/10 rounded-md text-alloro-navy text-[10px] font-black uppercase tracking-widest mb-3">
-          {isReselectMode ? "Comparison set" : "Step 2 of 3"}
-        </div>
+        {isReselectMode ? (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="mb-3 inline-flex items-center gap-2 rounded-md bg-transparent text-[11px] font-black uppercase tracking-widest text-alloro-orange transition-colors hover:text-alloro-orange/80"
+          >
+            <ArrowLeft size={14} />
+            Go back to Rankings Dashboard
+          </button>
+        ) : (
+          <div className="mb-3 inline-flex items-center gap-2 rounded-md bg-alloro-navy/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-alloro-navy">
+            Step 2 of 3
+          </div>
+        )}
         <h2 className="font-display text-2xl md:text-3xl font-medium text-alloro-navy tracking-tight mb-2">
           {isReselectMode ? "Manage comparison set" : "Your competitor list"}
         </h2>
