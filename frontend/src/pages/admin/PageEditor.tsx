@@ -10,6 +10,7 @@ import {
   fetchEditorSystemPrompt,
   replaceArtifactBuild,
 } from "../../api/websites";
+import { createAdminWebsiteMediaApi } from "../../api/websiteMedia";
 import type { WebsitePage, WebsiteProject, EditChatHistory, EditDebugInfo } from "../../api/websites";
 import type { Section } from "../../api/templates";
 import { renderPage, normalizeSections } from "../../utils/templateRenderer";
@@ -19,6 +20,10 @@ import {
 } from "../../hooks/useIframeSelector";
 import type { QuickActionPayload, QuickActionType } from "../../hooks/useIframeSelector";
 import { replaceComponentInDom, validateHtml, extractSectionsFromDom } from "../../utils/htmlReplacer";
+import {
+  applyDirectEditorOperation,
+  type DirectEditorOperation,
+} from "../../utils/editorDirectOperations";
 import { AdminTopBar } from "../../components/Admin/AdminTopBar";
 import { AdminSidebar } from "../../components/Admin/AdminSidebar";
 import { LoadingIndicator } from "../../components/Admin/LoadingIndicator";
@@ -356,6 +361,10 @@ function PageEditorInner() {
   const navigate = useNavigate();
   const { setCollapsed } = useSidebar();
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const mediaApi = useMemo(
+    () => (projectId ? createAdminWebsiteMediaApi(projectId) : undefined),
+    [projectId],
+  );
 
   // Force collapse sidebar when editor loads (needs more space)
   useEffect(() => {
@@ -402,23 +411,29 @@ function PageEditorInner() {
 
   // Quick action triggered from iframe label icons
   const [pendingSidebarAction, setPendingSidebarAction] = useState<QuickActionType | null>(null);
-  const deferredEditRef = useRef<string | null>(null);
+  const deferredEditRef = useRef<DirectEditorOperation | null>(null);
   const handleIframeQuickAction = useCallback((payload: QuickActionPayload) => {
     if ((payload.action === "text" || payload.action === "link") && payload.value) {
-      // Text/link submitted from iframe input — queue for deferred handleSendEdit
       deferredEditRef.current = payload.action === "text"
-        ? `Change the text content to "${payload.value}"`
-        : `Change the link href to "${payload.value}"`;
-      // Force a re-render so the effect picks it up
+        ? { type: "replace-text", value: payload.value }
+        : { type: "update-link", href: payload.value };
+      setPendingSidebarAction("__deferred__" as QuickActionType);
+    } else if (payload.action === "text-up" || payload.action === "text-down") {
+      deferredEditRef.current = {
+        type: "step-font-size",
+        direction: payload.action === "text-up" ? "up" : "down",
+      };
+      setPendingSidebarAction("__deferred__" as QuickActionType);
+    } else if (payload.action === "hide") {
+      deferredEditRef.current = { type: "toggle-hidden" };
       setPendingSidebarAction("__deferred__" as QuickActionType);
     } else {
-      // Media and hide — dispatch to sidebar
       setPendingSidebarAction(payload.action);
     }
   }, []);
 
   // Selector hook
-  const { selectedInfo, setSelectedInfo, clearSelection, setupListeners, toggleHidden } =
+  const { selectedInfo, setSelectedInfo, clearSelection, setupListeners } =
     useIframeSelector(iframeRef, handleIframeQuickAction);
 
   // Regenerate component modal (Plan B T14)
@@ -937,15 +952,54 @@ function PageEditorInner() {
     ]
   );
 
+  const handleApplyDirectEdit = useCallback(
+    (operation: DirectEditorOperation) => {
+      if (!selectedInfo) return;
+
+      const iframe = iframeRef.current;
+      const doc = iframe?.contentDocument;
+      if (!doc) return;
+
+      const selectedElement = doc.querySelector(
+        `.${CSS.escape(selectedInfo.alloroClass)}`,
+      );
+      if (selectedElement && !selectedElement.closest("[data-alloro-section]")) {
+        setEditError("Header/footer components can't be edited here. Use the Layout Editor from the project page.");
+        return;
+      }
+
+      try {
+        setEditError(null);
+        const scrollY = iframe.contentWindow?.scrollY || 0;
+        const scrollX = iframe.contentWindow?.scrollX || 0;
+        const previousSections = structuredClone(sectionsRef.current);
+
+        const result = applyDirectEditorOperation(doc, selectedInfo, operation);
+        const updatedSections = extractSectionsFromDom(doc, sectionsRef.current);
+
+        setEditHistory((prev) => [...prev, previousSections]);
+        setSections(updatedSections);
+        setIsDirty(true);
+        scheduleSave("");
+        setupListeners();
+        iframe.contentWindow?.scrollTo(scrollX, scrollY);
+        setSelectedInfo(result.selectedInfo);
+      } catch (err) {
+        setEditError(err instanceof Error ? err.message : "Direct edit failed");
+      }
+    },
+    [selectedInfo, scheduleSave, setupListeners, setSelectedInfo],
+  );
+
   // Process deferred quick-action edits from iframe input panel
   useEffect(() => {
     if (deferredEditRef.current && pendingSidebarAction === ("__deferred__" as QuickActionType)) {
-      const instruction = deferredEditRef.current;
+      const operation = deferredEditRef.current;
       deferredEditRef.current = null;
       setPendingSidebarAction(null);
-      handleSendEdit(instruction);
+      handleApplyDirectEdit(operation);
     }
-  }, [pendingSidebarAction, handleSendEdit]);
+  }, [pendingSidebarAction, handleApplyDirectEdit]);
 
   // --- Undo ---
   const handleUndo = useCallback(() => {
@@ -974,16 +1028,8 @@ function PageEditorInner() {
 
   // --- Toggle hidden ---
   const handleToggleHidden = useCallback(() => {
-    toggleHidden();
-
-    const iframe = iframeRef.current;
-    if (iframe?.contentDocument) {
-      const updatedSections = extractSectionsFromDom(iframe.contentDocument, sectionsRef.current);
-      setSections(updatedSections);
-      setIsDirty(true);
-      scheduleSave("");
-    }
-  }, [toggleHidden, scheduleSave]);
+    handleApplyDirectEdit({ type: "toggle-hidden" });
+  }, [handleApplyDirectEdit]);
 
   // --- Manual save ---
   const handleSave = useCallback(async () => {
@@ -1345,11 +1391,12 @@ function PageEditorInner() {
             selectedInfo={selectedInfo}
             chatMessages={currentChatMessages}
             onSendEdit={handleSendEdit}
+            onApplyDirectEdit={handleApplyDirectEdit}
             onToggleHidden={handleToggleHidden}
             isEditing={isEditing}
             debugInfo={lastDebugInfo}
             systemPrompt={systemPrompt}
-            projectId={projectId}
+            mediaApi={mediaApi}
             externalAction={pendingSidebarAction !== ("__deferred__" as QuickActionType) ? pendingSidebarAction : null}
             onExternalActionHandled={() => setPendingSidebarAction(null)}
           />

@@ -1,29 +1,30 @@
 import { useState, useRef, useEffect } from "react";
-import { Pencil, ImagePlus, Link, Eye, EyeOff } from "lucide-react";
+import { Pencil, ImagePlus, Link, Eye, EyeOff, Minus, Plus } from "lucide-react";
 import type { SelectedInfo } from "../../hooks/useIframeSelector";
 import type { QuickActionType } from "../../hooks/useIframeSelector";
 import type { EditDebugInfo } from "../../api/websites";
+import {
+  getDirectOperationAvailability,
+  type DirectEditorOperation,
+} from "../../utils/editorDirectOperations";
 import ChatPanel from "./ChatPanel";
 import DebugPanel from "./DebugPanel";
 import MediaBrowser from "./MediaBrowser";
 import VersionHistoryTab from "./VersionHistoryTab";
 import type { PageVersion } from "./VersionHistoryTab";
-import type { MediaItem } from "./MediaBrowser";
+import type { MediaApi, MediaItem } from "./MediaBrowser";
 import type { ChatMessage } from "./ChatPanel";
 
-const TEXT_TAGS = new Set(["p", "span", "h1", "h2", "h3", "h4", "h5", "h6", "a", "button", "li", "blockquote", "figcaption"]);
-const IMAGE_TAGS = new Set(["img", "video"]);
-const LINK_TAGS = new Set(["a"]);
-
-interface EditorSidebarProps {
+export type EditorSidebarProps = {
   selectedInfo: SelectedInfo | null;
   chatMessages: ChatMessage[];
   onSendEdit: (instruction: string, attachedMedia?: MediaItem[]) => void;
-  onToggleHidden: () => void;
+  onApplyDirectEdit: (operation: DirectEditorOperation) => void;
+  onToggleHidden?: () => void;
   isEditing: boolean;
   debugInfo: EditDebugInfo | null;
   systemPrompt: string | null;
-  projectId?: string;
+  mediaApi?: MediaApi;
   /** Triggered from iframe label action icons — opens the corresponding sidebar quick action. */
   externalAction?: QuickActionType | null;
   onExternalActionHandled?: () => void;
@@ -47,17 +48,18 @@ interface EditorSidebarProps {
   primaryColor?: string | null;
   /** Project accent color for color picker. */
   accentColor?: string | null;
-}
+};
 
 export default function EditorSidebar({
   selectedInfo,
   chatMessages,
   onSendEdit,
+  onApplyDirectEdit,
   onToggleHidden,
   isEditing,
   debugInfo,
   systemPrompt,
-  projectId,
+  mediaApi,
   externalAction,
   onExternalActionHandled,
   showDebug = true,
@@ -87,7 +89,14 @@ export default function EditorSidebar({
     if (!externalAction) return;
 
     if (externalAction === "hide" || externalAction === "text-up" || externalAction === "text-down") {
-      if (externalAction === "hide") onToggleHidden();
+      if (externalAction === "hide") {
+        onApplyDirectEdit({ type: "toggle-hidden" });
+      } else {
+        onApplyDirectEdit({
+          type: "step-font-size",
+          direction: externalAction === "text-up" ? "up" : "down",
+        });
+      }
     } else {
       if (externalAction === "link") {
         setActionInput(selectedInfo?.href || "");
@@ -97,7 +106,7 @@ export default function EditorSidebar({
       setActiveAction(externalAction);
     }
     onExternalActionHandled?.();
-  }, [externalAction]);
+  }, [externalAction, onApplyDirectEdit, onExternalActionHandled, selectedInfo?.href]);
 
   // Focus input when action opens
   useEffect(() => {
@@ -106,15 +115,17 @@ export default function EditorSidebar({
     }
   }, [activeAction]);
 
-  const tag = selectedInfo?.tagName || "";
-  const canEditText = TEXT_TAGS.has(tag);
-  const canChangeImage = IMAGE_TAGS.has(tag);
-  const canChangeLink = LINK_TAGS.has(tag);
+  const {
+    canEditText,
+    canChangeMedia,
+    canChangeLink,
+    canAdjustTextSize,
+  } = getDirectOperationAvailability(selectedInfo, Boolean(mediaApi));
 
   const handleTextSubmit = () => {
     const trimmed = actionInput.trim();
     if (!trimmed) return;
-    onSendEdit(`Change the text content to "${trimmed}"`);
+    onApplyDirectEdit({ type: "replace-text", value: trimmed });
     setActiveAction(null);
     setActionInput("");
   };
@@ -122,13 +133,13 @@ export default function EditorSidebar({
   const handleLinkSubmit = () => {
     const trimmed = actionInput.trim();
     if (!trimmed) return;
-    onSendEdit(`Change the link href to "${trimmed}"`);
+    onApplyDirectEdit({ type: "update-link", href: trimmed });
     setActiveAction(null);
     setActionInput("");
   };
 
   const handleMediaSelect = (media: MediaItem) => {
-    onSendEdit(`Replace this image with the one at ${media.s3_url}`, [media]);
+    onApplyDirectEdit({ type: "replace-media", media });
     setActiveAction(null);
   };
 
@@ -156,6 +167,14 @@ export default function EditorSidebar({
 
   const openMediaAction = () => {
     setActiveAction(activeAction === "media" ? null : "media");
+  };
+
+  const handleToggleVisibility = () => {
+    if (onToggleHidden) {
+      onToggleHidden();
+      return;
+    }
+    onApplyDirectEdit({ type: "toggle-hidden" });
   };
 
   return (
@@ -232,11 +251,38 @@ export default function EditorSidebar({
                       ? "text-alloro-orange bg-orange-50"
                       : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
                   }`}
+                  aria-label="Edit text"
                 >
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
               )}
-              {canChangeImage && projectId && (
+              {canAdjustTextSize && (
+                <>
+                  <button
+                    onClick={() =>
+                      onApplyDirectEdit({ type: "step-font-size", direction: "down" })
+                    }
+                    disabled={isEditing}
+                    title="Decrease text size"
+                    aria-label="Decrease text size"
+                    className="p-1.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-30"
+                  >
+                    <Minus className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() =>
+                      onApplyDirectEdit({ type: "step-font-size", direction: "up" })
+                    }
+                    disabled={isEditing}
+                    title="Increase text size"
+                    aria-label="Increase text size"
+                    className="p-1.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-30"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              )}
+              {canChangeMedia && (
                 <button
                   onClick={openMediaAction}
                   disabled={isEditing}
@@ -246,6 +292,7 @@ export default function EditorSidebar({
                       ? "text-alloro-orange bg-orange-50"
                       : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
                   }`}
+                  aria-label="Change media"
                 >
                   <ImagePlus className="w-3.5 h-3.5" />
                 </button>
@@ -260,13 +307,15 @@ export default function EditorSidebar({
                       ? "text-alloro-orange bg-orange-50"
                       : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
                   }`}
+                  aria-label="Change link"
                 >
                   <Link className="w-3.5 h-3.5" />
                 </button>
               )}
               <button
-                onClick={onToggleHidden}
+                onClick={handleToggleVisibility}
                 title={selectedInfo.isHidden ? "Unhide element" : "Hide element"}
+                aria-label={selectedInfo.isHidden ? "Unhide element" : "Hide element"}
                 className={`p-1.5 rounded transition-colors ${
                   selectedInfo.isHidden
                     ? "text-amber-600 bg-amber-50 hover:bg-amber-100"
@@ -331,10 +380,10 @@ export default function EditorSidebar({
           )}
 
           {/* Floating media browser */}
-          {activeAction === "media" && projectId && (
+          {activeAction === "media" && mediaApi && (
             <div className="px-4 pb-2">
               <MediaBrowser
-                projectId={projectId}
+                mediaApi={mediaApi}
                 onSelect={handleMediaSelect}
                 onClose={() => setActiveAction(null)}
               />
@@ -350,7 +399,7 @@ export default function EditorSidebar({
             onSend={onSendEdit}
             isLoading={isEditing}
             disabled={isPreviewingVersion}
-            projectId={projectId}
+            mediaApi={mediaApi}
             primaryColor={primaryColor}
             accentColor={accentColor}
           />

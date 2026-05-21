@@ -19,6 +19,7 @@ import { superAdminMiddleware } from "../../middleware/superAdmin";
 import importsRouter from "./imports";
 
 const router = express.Router();
+const adminWebsiteAuth = [authenticateToken, superAdminMiddleware];
 
 // Multer for artifact page zip uploads (memory storage, 200 MB limit)
 const artifactUpload = multer({
@@ -231,7 +232,7 @@ router.post("/templates/:templateId/activate", controller.activateTemplate);
 // =====================================================================
 
 // GET /editor/system-prompt — Get page editor system prompt
-router.get("/editor/system-prompt", controller.getEditorSystemPrompt);
+router.get("/editor/system-prompt", ...adminWebsiteAuth, controller.getEditorSystemPrompt);
 
 // =====================================================================
 // WEBSITE SCRAPE
@@ -324,6 +325,7 @@ router.get("/:id/layouts-status", controller.getLayoutsStatus);
 // POST /:id/pages/:pageId/regenerate-component — Regenerate a single section
 router.post(
   "/:id/pages/:pageId/regenerate-component",
+  ...adminWebsiteAuth,
   controller.regeneratePageComponent,
 );
 
@@ -698,47 +700,47 @@ router.post("/:id/posts/:postId/seo/analyze", controller.analyzePostSeo);
 // =====================================================================
 
 // PATCH /:id/pages/display-name — Update page display name (before :pageId)
-router.patch("/:id/pages/display-name", controller.updatePageDisplayName);
+router.patch("/:id/pages/display-name", ...adminWebsiteAuth, controller.updatePageDisplayName);
 
 // DELETE /:id/pages/by-path — Delete all versions at path (before :pageId)
-router.delete("/:id/pages/by-path", controller.deletePagesByPath);
+router.delete("/:id/pages/by-path", ...adminWebsiteAuth, controller.deletePagesByPath);
 
 // GET  /:id/pages — List project pages
-router.get("/:id/pages", controller.listPages);
+router.get("/:id/pages", ...adminWebsiteAuth, controller.listPages);
 
 // POST /:id/pages — Create page version
-router.post("/:id/pages", controller.createPage);
+router.post("/:id/pages", ...adminWebsiteAuth, controller.createPage);
 
 // POST /:id/pages/artifact — Upload artifact page (React app zip) — before :pageId
-router.post("/:id/pages/artifact", artifactUpload.single("file"), controller.uploadArtifactPage);
+router.post("/:id/pages/artifact", ...adminWebsiteAuth, artifactUpload.single("file"), controller.uploadArtifactPage);
 
 // PUT /:id/pages/:pageId/artifact — Replace artifact page build
-router.put("/:id/pages/:pageId/artifact", artifactUpload.single("file"), controller.replaceArtifactBuild);
+router.put("/:id/pages/:pageId/artifact", ...adminWebsiteAuth, artifactUpload.single("file"), controller.replaceArtifactBuild);
 
 // POST /:id/pages/:pageId/publish — Publish a page
-router.post("/:id/pages/:pageId/publish", controller.publishPage);
+router.post("/:id/pages/:pageId/publish", ...adminWebsiteAuth, controller.publishPage);
 
 // POST /:id/pages/:pageId/create-draft — Clone published to draft
-router.post("/:id/pages/:pageId/create-draft", controller.createDraft);
+router.post("/:id/pages/:pageId/create-draft", ...adminWebsiteAuth, controller.createDraft);
 
 // POST /:id/pages/:pageId/edit — AI edit page component
-router.post("/:id/pages/:pageId/edit", controller.editPageComponent);
+router.post("/:id/pages/:pageId/edit", ...adminWebsiteAuth, controller.editPageComponent);
 
 // GET  /:id/pages/:pageId — Get single page
-router.get("/:id/pages/:pageId", controller.getPage);
+router.get("/:id/pages/:pageId", ...adminWebsiteAuth, controller.getPage);
 
 // PATCH /:id/pages/:pageId — Update draft page
-router.patch("/:id/pages/:pageId", controller.updatePage);
+router.patch("/:id/pages/:pageId", ...adminWebsiteAuth, controller.updatePage);
 
 // DELETE /:id/pages/:pageId — Delete page version
-router.delete("/:id/pages/:pageId", controller.deletePage);
+router.delete("/:id/pages/:pageId", ...adminWebsiteAuth, controller.deletePage);
 
 // =====================================================================
 // LAYOUT EDITOR — AI EDIT
 // =====================================================================
 
 // POST /:id/edit-layout — AI edit layout component
-router.post("/:id/edit-layout", controller.editLayoutComponent);
+router.post("/:id/edit-layout", ...adminWebsiteAuth, controller.editLayoutComponent);
 
 // =====================================================================
 // PROJECT HFCM
@@ -824,7 +826,7 @@ router.get("/:projectId/costs", controller.getProjectCosts);
 // =====================================================================
 
 // GET  /:id — Get single project with pages
-router.get("/:id", controller.getProject);
+router.get("/:id", ...adminWebsiteAuth, controller.getProject);
 
 // PATCH /:id — Update project
 router.patch("/:id", controller.updateProject);

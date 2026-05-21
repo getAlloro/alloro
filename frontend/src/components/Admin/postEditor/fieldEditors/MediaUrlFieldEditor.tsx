@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ImageIcon, Upload, Loader2, X, Plus, Link as LinkIcon } from "lucide-react";
 import MediaBrowser from "../../../PageEditor/MediaBrowser";
 import type { MediaItem } from "../../../PageEditor/MediaBrowser";
+import { createAdminWebsiteMediaApi } from "../../../../api/websiteMedia";
 import InlineEditRow from "../primitives/InlineEditRow";
 import type { FieldEditorProps } from "../types";
 
@@ -27,6 +28,10 @@ export default function MediaUrlFieldEditor({
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [uploading, setUploading] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const mediaApi = useMemo(
+    () => createAdminWebsiteMediaApi(projectId),
+    [projectId],
+  );
 
   // Collapse transient UI (browser / URL input) when value changes externally.
   useEffect(() => {
@@ -39,14 +44,7 @@ export default function MediaUrlFieldEditor({
     async (file: File) => {
       setUploading(true);
       try {
-        const formData = new FormData();
-        formData.append("files", file);
-        const res = await fetch(`/api/admin/websites/${projectId}/media`, {
-          method: "POST",
-          body: formData,
-          credentials: "include",
-        });
-        const data = await res.json();
+        const data = await mediaApi.upload(file);
         if (data.success && data.data?.[0]?.s3_url) {
           onChange(data.data[0].s3_url);
         }
@@ -56,7 +54,7 @@ export default function MediaUrlFieldEditor({
         setUploading(false);
       }
     },
-    [projectId, onChange]
+    [mediaApi, onChange]
   );
 
   const openBrowser = () => {
@@ -174,7 +172,7 @@ export default function MediaUrlFieldEditor({
         {showBrowser && (
           <div>
             <MediaBrowser
-              projectId={projectId}
+              mediaApi={mediaApi}
               onSelect={(media: MediaItem) => {
                 onChange(media.s3_url);
                 setShowBrowser(false);

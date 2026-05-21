@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus,
@@ -24,6 +24,7 @@ import { toast } from "react-hot-toast";
 import AnimatedSelect from "../ui/AnimatedSelect";
 import SeoPanel from "../PageEditor/SeoPanel";
 import type { SeoData, ProjectIdentity, ImportPostType } from "../../api/websites";
+import { createAdminWebsiteMediaApi } from "../../api/websiteMedia";
 import {
   updatePostSeo as defaultUpdatePostSeo,
   aiGeneratePostContent,
@@ -128,18 +129,15 @@ function MediaPickerField({
   const [showBrowser, setShowBrowser] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
+  const mediaApi = useMemo(
+    () => createAdminWebsiteMediaApi(projectId),
+    [projectId],
+  );
 
   const handleUpload = async (file: File) => {
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("files", file);
-      const res = await fetch(`/api/admin/websites/${projectId}/media`, {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      });
-      const data = await res.json();
+      const data = await mediaApi.upload(file);
       if (data.success && data.data?.[0]?.s3_url) {
         onChange(data.data[0].s3_url);
       }
@@ -213,7 +211,7 @@ function MediaPickerField({
       {showBrowser && (
         <div className="mb-2">
           <MediaBrowser
-            projectId={projectId}
+            mediaApi={mediaApi}
             onSelect={(media: MediaItem) => {
               onChange(media.s3_url);
               setShowBrowser(false);

@@ -6,6 +6,7 @@
  *
  * Handles:
  * - Website data aggregation (GET endpoint)
+ * - User-scoped media list/upload
  * - Page component editing with AI (POST endpoint)
  * - DFY tier enforcement
  * - Rate limiting (50 edits/day per org)
@@ -20,6 +21,8 @@ import { PageModel } from "../../../models/website-builder/PageModel";
 import { MediaModel } from "../../../models/website-builder/MediaModel";
 import { UserEditModel } from "../../../models/website-builder/UserEditModel";
 import * as gscIntegration from "../../admin-websites/feature-services/service.gsc-integration";
+import * as mediaListService from "../../admin-media/feature-services/service.media-list";
+import * as mediaUploadService from "../../admin-media/feature-services/service.media-upload";
 
 // =====================================================================
 // Constants
@@ -51,6 +54,13 @@ export interface EditPageResult {
   edits_remaining: number;
 }
 
+export interface ListMediaParams {
+  type?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
 // =====================================================================
 // Shared: DFY tier check
 // =====================================================================
@@ -75,6 +85,29 @@ async function getOrgAndValidateTier(orgId: number) {
 
 async function getProjectForOrg(orgId: number) {
   return ProjectModel.findByOrganizationId(orgId);
+}
+
+async function getUserWebsiteProject(orgId: number) {
+  await getOrgAndValidateTier(orgId);
+
+  const project = await getProjectForOrg(orgId);
+  if (!project) {
+    const err: any = new Error("Website not found");
+    err.statusCode = 404;
+    err.errorCode = "WEBSITE_NOT_FOUND";
+    throw err;
+  }
+
+  return project;
+}
+
+function clampPositiveInteger(
+  value: number | undefined,
+  fallback: number,
+  max: number,
+): number {
+  if (!Number.isFinite(value) || !value || value < 1) return fallback;
+  return Math.min(Math.floor(value), max);
 }
 
 // =====================================================================
@@ -138,6 +171,42 @@ export async function fetchUserWebsiteData(orgId: number) {
       edits_limit: DAILY_EDIT_LIMIT,
     },
   };
+}
+
+// =====================================================================
+// MEDIA — User-scoped list/upload
+// =====================================================================
+
+export async function listMediaForOrg(
+  orgId: number,
+  params: ListMediaParams,
+) {
+  const project = await getUserWebsiteProject(orgId);
+
+  return mediaListService.list(project.id, {
+    type: params.type,
+    search: params.search,
+    page: clampPositiveInteger(params.page, 1, 1000),
+    limit: clampPositiveInteger(params.limit, 50, 100),
+  });
+}
+
+export async function uploadMediaForOrg(
+  orgId: number,
+  files: Express.Multer.File[],
+) {
+  const project = await getUserWebsiteProject(orgId);
+
+  if ((project as any).is_read_only) {
+    const err: any = new Error(
+      "Your website is in read-only mode. Please upgrade to continue editing.",
+    );
+    err.statusCode = 403;
+    err.errorCode = "READ_ONLY";
+    throw err;
+  }
+
+  return mediaUploadService.uploadBulk(project.id, files);
 }
 
 // =====================================================================

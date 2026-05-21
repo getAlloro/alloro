@@ -111,12 +111,6 @@ const ACTION_ICONS: Record<string, string> = {
   "text-down": `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><text x="2" y="16" font-size="14" font-weight="bold" fill="currentColor" stroke="none" font-family="sans-serif">A</text><line x1="14" y1="12" x2="22" y2="12"/></svg>`,
 };
 
-/** Tailwind text size classes in ascending order. */
-const TEXT_SIZE_SCALE = [
-  "text-xs", "text-sm", "text-base", "text-lg", "text-xl",
-  "text-2xl", "text-3xl", "text-4xl", "text-5xl", "text-6xl",
-];
-
 /** Arrow-right SVG for the submit button inside the inline input. */
 const SUBMIT_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>`;
 
@@ -439,19 +433,13 @@ export function useIframeSelector(
             btn.title = action === "text" ? "Edit text"
               : action === "media" ? "Change image"
               : action === "link" ? "Change link"
+              : action === "text-up" ? "Increase text size"
+              : action === "text-down" ? "Decrease text size"
               : "Toggle visibility";
             btn.addEventListener("click", (ev) => {
               ev.stopPropagation();
               ev.preventDefault();
               if (action === "text-up" || action === "text-down") {
-                // Direct DOM mutation for text size cycling
-                const currentSizeClass = TEXT_SIZE_SCALE.find((cls) => el.classList.contains(cls));
-                const currentIndex = currentSizeClass ? TEXT_SIZE_SCALE.indexOf(currentSizeClass) : 2; // default text-base
-                const newIndex = action === "text-up"
-                  ? Math.min(currentIndex + 1, TEXT_SIZE_SCALE.length - 1)
-                  : Math.max(currentIndex - 1, 0);
-                if (currentSizeClass) el.classList.remove(currentSizeClass);
-                el.classList.add(TEXT_SIZE_SCALE[newIndex]);
                 quickActionRef.current?.({ action });
               } else if (action === "text" || action === "link") {
                 // Show inline input below the label

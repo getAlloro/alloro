@@ -11,7 +11,7 @@ import {
 import { AnimatePresence } from "framer-motion";
 import MediaBrowser from "./MediaBrowser";
 import ColorPicker from "./ColorPicker";
-import type { MediaItem } from "./MediaBrowser";
+import type { MediaApi, MediaItem } from "./MediaBrowser";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -25,7 +25,7 @@ interface ChatPanelProps {
   onSend: (instruction: string, attachedMedia?: MediaItem[]) => void;
   isLoading: boolean;
   disabled: boolean;
-  projectId?: string;
+  mediaApi?: MediaApi;
   primaryColor?: string | null;
   accentColor?: string | null;
 }
@@ -42,37 +42,20 @@ const MAX_MEDIA_FILE_SIZE_MB = 500;
 const MAX_MEDIA_FILE_SIZE_BYTES = MAX_MEDIA_FILE_SIZE_MB * 1024 * 1024;
 const MAX_MEDIA_FILE_SIZE_LABEL = `${MAX_MEDIA_FILE_SIZE_MB} MB`;
 
-const parseMediaUploadResponse = async (
-  response: Response,
-): Promise<MediaUploadResponse | null> => {
-  const text = await response.text();
-  if (!text.trim()) return null;
-
-  try {
-    return JSON.parse(text) as MediaUploadResponse;
-  } catch {
-    return null;
-  }
-};
-
 const getMediaUploadErrorMessage = (
-  response: Response,
   data: MediaUploadResponse | null,
 ): string => {
   if (data?.message) return data.message;
   if (data?.failed?.length) {
     return data.failed.map((failure) => failure.message).join(", ");
   }
-  if (data?.error === "FILE_TOO_LARGE" || response.status === 413) {
+  if (data?.error === "FILE_TOO_LARGE") {
     return `Each media file must be ${MAX_MEDIA_FILE_SIZE_LABEL} or smaller.`;
   }
-  if (data?.error === "QUOTA_EXCEEDED" || response.status === 507) {
+  if (data?.error === "QUOTA_EXCEEDED") {
     return "Storage quota exceeded for this project.";
   }
   if (data?.error) return data.error;
-  if (response.status >= 500) {
-    return "Upload failed because the server returned an unexpected response.";
-  }
   return "Upload failed";
 };
 
@@ -81,7 +64,7 @@ export default function ChatPanel({
   onSend,
   isLoading,
   disabled,
-  projectId,
+  mediaApi,
   primaryColor,
   accentColor,
 }: ChatPanelProps) {
@@ -129,7 +112,7 @@ export default function ChatPanel({
   };
 
   const uploadFile = async (file: File) => {
-    if (!projectId) return;
+    if (!mediaApi) return;
 
     if (file.size > MAX_MEDIA_FILE_SIZE_BYTES) {
       setUploadError(
@@ -142,24 +125,14 @@ export default function ChatPanel({
       setUploading(true);
       setUploadError(null);
 
-      const formData = new FormData();
-      formData.append("files", file);
-
-      const response = await fetch(`/api/admin/websites/${projectId}/media`, {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      });
-
-      const data = await parseMediaUploadResponse(response);
+      const data = await mediaApi.upload(file);
 
       if (
-        !response.ok ||
         !data?.success ||
         !data.data ||
         data.data.length === 0
       ) {
-        throw new Error(getMediaUploadErrorMessage(response, data));
+        throw new Error(getMediaUploadErrorMessage(data));
       }
 
       const uploadedMedia = data.data[0];
@@ -188,7 +161,7 @@ export default function ChatPanel({
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (disabled || isLoading || !projectId) return;
+    if (disabled || isLoading || !mediaApi) return;
     setIsDragging(true);
   };
 
@@ -203,7 +176,7 @@ export default function ChatPanel({
     e.stopPropagation();
     setIsDragging(false);
 
-    if (disabled || isLoading || !projectId) return;
+    if (disabled || isLoading || !mediaApi) return;
 
     const files = Array.from(e.dataTransfer.files);
     const validFiles = files.filter((file) =>
@@ -317,10 +290,10 @@ export default function ChatPanel({
         </AnimatePresence>
 
         {/* Media Library */}
-        {showMediaLibrary && projectId && (
+        {showMediaLibrary && mediaApi && (
           <div className="mb-2">
             <MediaBrowser
-              projectId={projectId}
+              mediaApi={mediaApi}
               onSelect={attachMediaFromLibrary}
               onClose={() => setShowMediaLibrary(false)}
             />
@@ -385,7 +358,7 @@ export default function ChatPanel({
 
         <div className="flex items-end gap-2">
           {/* Upload & Browse buttons */}
-          {projectId && (
+          {mediaApi && (
             <>
               <button
                 onClick={() => fileInputRef.current?.click()}

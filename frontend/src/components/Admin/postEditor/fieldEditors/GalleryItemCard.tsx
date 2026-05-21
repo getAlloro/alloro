@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import MediaBrowser from "../../../PageEditor/MediaBrowser";
 import type { MediaItem } from "../../../PageEditor/MediaBrowser";
+import { createAdminWebsiteMediaApi } from "../../../../api/websiteMedia";
 import { useInlineEdit } from "../hooks/useInlineEdit";
 import type { GalleryItem } from "../types";
 
@@ -58,6 +59,10 @@ export default function GalleryItemCard({
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [uploading, setUploading] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const mediaApi = useMemo(
+    () => createAdminWebsiteMediaApi(projectId),
+    [projectId],
+  );
 
   // Close the overflow menu on outside-click.
   useEffect(() => {
@@ -81,14 +86,7 @@ export default function GalleryItemCard({
     async (file: File) => {
       setUploading(true);
       try {
-        const formData = new FormData();
-        formData.append("files", file);
-        const res = await fetch(`/api/admin/websites/${projectId}/media`, {
-          method: "POST",
-          body: formData,
-          credentials: "include",
-        });
-        const data = await res.json();
+        const data = await mediaApi.upload(file);
         if (data.success && data.data?.[0]?.s3_url) {
           onChange({ ...item, url: data.data[0].s3_url });
         }
@@ -98,7 +96,7 @@ export default function GalleryItemCard({
         setUploading(false);
       }
     },
-    [projectId, item, onChange]
+    [mediaApi, item, onChange]
   );
 
   const handleDelete = () => {
@@ -327,7 +325,7 @@ export default function GalleryItemCard({
                 )}
                 {showBrowser && (
                   <MediaBrowser
-                    projectId={projectId}
+                    mediaApi={mediaApi}
                     onSelect={(media: MediaItem) => {
                       onChange({ ...item, url: media.s3_url });
                       setShowBrowser(false);

@@ -2,6 +2,26 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.84] - May 2026
+
+### Website Editor Direct Controls
+
+Hardened the website editor media boundary and moved routine page-editor operations off AI prompts into deterministic editor controls across admin and client-facing surfaces.
+
+**Key Changes:**
+- Added authenticated, user-scoped DFY media list/upload endpoints and guarded admin media/editor routes
+- Routed shared media browser/upload UI through explicit admin or user media adapters
+- Added direct editor operations for text replacement, link updates, media replacement, font-size stepping, and hide/show
+- Wired direct operations into admin Page Editor, admin Layout Editor, and the client DFY Website editor while preserving existing section extraction and save/publish flows
+- Kept freeform AI editing available for non-basic edits
+
+**Commits:**
+- `src/routes/admin/media.ts`, `src/routes/admin/websites.ts`, and `src/routes/user/website.ts` - media/editor route protection and user media routes
+- `src/controllers/user-website/*` - org-scoped DFY media list/upload handling
+- `frontend/src/api/websiteMedia.ts`, `frontend/src/api/websites.ts`, and shared media components - admin/user media adapter wiring
+- `frontend/src/utils/editorDirectOperations.ts`, `frontend/src/components/PageEditor/EditorSidebar.tsx`, `frontend/src/hooks/useIframeSelector.ts`, and editor pages - deterministic selected-element edit operations
+- `plans/05212026-no-ticket-website-editor-*` - executed media-boundary and traditional-controls specs
+
 ## [0.0.83] - May 2026
 
 ### Form Submission Email Branding

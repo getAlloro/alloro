@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Loader2, Save, Monitor, Tablet, Smartphone, Code } from "lucide-react";
 import Editor from "@monaco-editor/react";
@@ -8,6 +8,7 @@ import {
   editLayoutComponent,
   fetchEditorSystemPrompt,
 } from "../../api/websites";
+import { createAdminWebsiteMediaApi } from "../../api/websiteMedia";
 import type { WebsiteProject, EditDebugInfo } from "../../api/websites";
 import {
   useIframeSelector,
@@ -15,6 +16,10 @@ import {
 } from "../../hooks/useIframeSelector";
 import type { QuickActionPayload, QuickActionType } from "../../hooks/useIframeSelector";
 import { replaceComponentInDom, validateHtml } from "../../utils/htmlReplacer";
+import {
+  applyDirectEditorOperation,
+  type DirectEditorOperation,
+} from "../../utils/editorDirectOperations";
 import { AdminTopBar } from "../../components/Admin/AdminTopBar";
 import { AdminSidebar } from "../../components/Admin/AdminSidebar";
 import { LoadingIndicator } from "../../components/Admin/LoadingIndicator";
@@ -38,6 +43,10 @@ function LayoutEditorInner() {
   const isVisualMode = field === "header" || field === "footer";
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const mediaApi = useMemo(
+    () => (projectId ? createAdminWebsiteMediaApi(projectId) : undefined),
+    [projectId],
+  );
 
   // Project state
   const [project, setProject] = useState<WebsiteProject | null>(null);
@@ -65,12 +74,21 @@ function LayoutEditorInner() {
 
   // Quick action triggered from iframe label icons
   const [pendingSidebarAction, setPendingSidebarAction] = useState<QuickActionType | null>(null);
-  const deferredEditRef = useRef<string | null>(null);
+  const deferredEditRef = useRef<DirectEditorOperation | null>(null);
   const handleIframeQuickAction = useCallback((payload: QuickActionPayload) => {
     if ((payload.action === "text" || payload.action === "link") && payload.value) {
       deferredEditRef.current = payload.action === "text"
-        ? `Change the text content to "${payload.value}"`
-        : `Change the link href to "${payload.value}"`;
+        ? { type: "replace-text", value: payload.value }
+        : { type: "update-link", href: payload.value };
+      setPendingSidebarAction("__deferred__" as QuickActionType);
+    } else if (payload.action === "text-up" || payload.action === "text-down") {
+      deferredEditRef.current = {
+        type: "step-font-size",
+        direction: payload.action === "text-up" ? "up" : "down",
+      };
+      setPendingSidebarAction("__deferred__" as QuickActionType);
+    } else if (payload.action === "hide") {
+      deferredEditRef.current = { type: "toggle-hidden" };
       setPendingSidebarAction("__deferred__" as QuickActionType);
     } else {
       setPendingSidebarAction(payload.action);
@@ -78,7 +96,7 @@ function LayoutEditorInner() {
   }, []);
 
   // Selector hook (only active for header/footer)
-  const { selectedInfo, setSelectedInfo, setupListeners, toggleHidden } =
+  const { selectedInfo, setSelectedInfo, setupListeners } =
     useIframeSelector(iframeRef, handleIframeQuickAction);
 
   // --- Load project data ---
@@ -294,29 +312,58 @@ function LayoutEditorInner() {
     [projectId, field, selectedInfo, setSelectedInfo, chatMap, isVisualMode, setupListeners]
   );
 
+  const handleApplyDirectEdit = useCallback(
+    (operation: DirectEditorOperation) => {
+      if (!selectedInfo || !isVisualMode) return;
+
+      const iframe = iframeRef.current;
+      const doc = iframe?.contentDocument;
+      if (!doc) return;
+
+      const selectedElement = doc.querySelector(
+        `.${CSS.escape(selectedInfo.alloroClass)}`,
+      );
+      if (selectedElement && !selectedElement.closest("[data-layout-content]")) {
+        setEditError("Only header/footer content can be edited here. Wrapper edits stay in code view.");
+        return;
+      }
+
+      try {
+        setEditError(null);
+        const scrollY = iframe.contentWindow?.scrollY || 0;
+        const scrollX = iframe.contentWindow?.scrollX || 0;
+        const result = applyDirectEditorOperation(doc, selectedInfo, operation);
+        const marker = doc.querySelector("[data-layout-content]");
+
+        if (marker) {
+          setContent(marker.innerHTML);
+          setIsDirty(true);
+        }
+
+        setupListeners();
+        iframe.contentWindow?.scrollTo(scrollX, scrollY);
+        setSelectedInfo(result.selectedInfo);
+      } catch (err) {
+        setEditError(err instanceof Error ? err.message : "Direct edit failed");
+      }
+    },
+    [selectedInfo, isVisualMode, setupListeners, setSelectedInfo],
+  );
+
   // Process deferred quick-action edits from iframe input panel
   useEffect(() => {
     if (deferredEditRef.current && pendingSidebarAction === ("__deferred__" as QuickActionType)) {
-      const instruction = deferredEditRef.current;
+      const operation = deferredEditRef.current;
       deferredEditRef.current = null;
       setPendingSidebarAction(null);
-      handleSendEdit(instruction);
+      handleApplyDirectEdit(operation);
     }
-  }, [pendingSidebarAction, handleSendEdit]);
+  }, [pendingSidebarAction, handleApplyDirectEdit]);
 
   // Toggle hidden handler
   const handleToggleHidden = useCallback(() => {
-    toggleHidden();
-
-    const iframe = iframeRef.current;
-    if (iframe?.contentDocument) {
-      const marker = iframe.contentDocument.querySelector("[data-layout-content]");
-      if (marker) {
-        setContent(marker.innerHTML);
-        setIsDirty(true);
-      }
-    }
-  }, [toggleHidden]);
+    handleApplyDirectEdit({ type: "toggle-hidden" });
+  }, [handleApplyDirectEdit]);
 
   // --- Code view toggle for header/footer ---
   const handleCodeViewChange = useCallback(
@@ -578,11 +625,12 @@ function LayoutEditorInner() {
                 selectedInfo={selectedInfo}
                 chatMessages={currentChatMessages}
                 onSendEdit={handleSendEdit}
+                onApplyDirectEdit={handleApplyDirectEdit}
                 onToggleHidden={handleToggleHidden}
                 isEditing={isEditing}
                 debugInfo={lastDebugInfo}
                 systemPrompt={systemPrompt}
-                projectId={projectId}
+                mediaApi={mediaApi}
                 externalAction={pendingSidebarAction !== ("__deferred__" as QuickActionType) ? pendingSidebarAction : null}
                 onExternalActionHandled={() => setPendingSidebarAction(null)}
               />

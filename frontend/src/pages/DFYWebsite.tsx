@@ -45,6 +45,10 @@ import {
   validateHtml,
   extractSectionsFromDom,
 } from "../utils/htmlReplacer";
+import {
+  applyDirectEditorOperation,
+  type DirectEditorOperation,
+} from "../utils/editorDirectOperations";
 import EditorSidebar from "../components/PageEditor/EditorSidebar";
 import type { ChatMessage } from "../components/PageEditor/ChatPanel";
 import type { PageVersion } from "../components/PageEditor/VersionHistoryTab";
@@ -134,7 +138,7 @@ export function DFYWebsite() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const sectionsRef = useRef(sections);
   sectionsRef.current = sections;
-  const deferredEditRef = useRef<string | null>(null);
+  const deferredEditRef = useRef<DirectEditorOperation | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Auto-collapse sidebar when entering website editor (like admin PageEditor)
@@ -239,28 +243,23 @@ export function DFYWebsite() {
   // Quick action handler from iframe label icons
   const handleIframeQuickAction = useCallback(
     (payload: QuickActionPayload) => {
-      if (payload.action === "text-up" || payload.action === "text-down") {
-        // Text size was mutated in the iframe DOM — extract updated sections
-        const iframe = iframeRef.current;
-        if (iframe?.contentDocument) {
-          setUndoStack((prev) => [...prev, structuredClone(sectionsRef.current)]);
-          setRedoStack([]);
-          const updatedSections = extractSectionsFromDom(
-            iframe.contentDocument,
-            sectionsRef.current,
-          );
-          setSections(updatedSections);
-          rebuildHtml(updatedSections);
-          setIsDirty(true);
-        }
-      } else if (
+      if (
         (payload.action === "text" || payload.action === "link") &&
         payload.value
       ) {
         deferredEditRef.current =
           payload.action === "text"
-            ? `Change the text content to "${payload.value}"`
-            : `Change the link href to "${payload.value}"`;
+            ? { type: "replace-text", value: payload.value }
+            : { type: "update-link", href: payload.value };
+        setPendingSidebarAction("__deferred__" as QuickActionType);
+      } else if (payload.action === "text-up" || payload.action === "text-down") {
+        deferredEditRef.current = {
+          type: "step-font-size",
+          direction: payload.action === "text-up" ? "up" : "down",
+        };
+        setPendingSidebarAction("__deferred__" as QuickActionType);
+      } else if (payload.action === "hide") {
+        deferredEditRef.current = { type: "toggle-hidden" };
         setPendingSidebarAction("__deferred__" as QuickActionType);
       } else {
         setPendingSidebarAction(payload.action);
@@ -275,7 +274,6 @@ export function DFYWebsite() {
     setSelectedInfo,
     clearSelection,
     setupListeners,
-    toggleHidden,
   } = useIframeSelector(iframeRef, handleIframeQuickAction);
 
   // User-facing API wrappers (routes don't need projectId — inferred from auth)
@@ -708,36 +706,66 @@ export function DFYWebsite() {
     [selectedPage, selectedInfo, chatMap, setupListeners, setSelectedInfo],
   );
 
+  const handleApplyDirectEdit = useCallback(
+    (operation: DirectEditorOperation) => {
+      if (!selectedInfo) return;
+
+      const iframe = iframeRef.current;
+      const doc = iframe?.contentDocument;
+      if (!doc) return;
+
+      const selectedElement = doc.querySelector(
+        `.${CSS.escape(selectedInfo.alloroClass)}`,
+      );
+      if (selectedElement && !selectedElement.closest("[data-alloro-section]")) {
+        setEditError("Header/footer components can't be edited from the page editor.");
+        return;
+      }
+
+      try {
+        setEditError(null);
+        const scrollY = iframe.contentWindow?.scrollY || 0;
+        const scrollX = iframe.contentWindow?.scrollX || 0;
+        const previousSections = structuredClone(sectionsRef.current);
+
+        const result = applyDirectEditorOperation(doc, selectedInfo, operation);
+        const updatedSections = extractSectionsFromDom(
+          doc,
+          sectionsRef.current,
+        );
+
+        setUndoStack((prev) => [...prev, previousSections]);
+        setRedoStack([]);
+        setSections(updatedSections);
+        rebuildHtml(updatedSections);
+        setIsDirty(true);
+        setupListeners();
+        iframe.contentWindow?.scrollTo(scrollX, scrollY);
+        setSelectedInfo(result.selectedInfo);
+      } catch (err) {
+        setEditError(err instanceof Error ? err.message : "Direct edit failed");
+      }
+    },
+    [selectedInfo, rebuildHtml, setupListeners, setSelectedInfo],
+  );
+
   // Process deferred quick-action edits from iframe input panel
   useEffect(() => {
     if (
       deferredEditRef.current &&
       pendingSidebarAction === ("__deferred__" as QuickActionType)
     ) {
-      const instruction = deferredEditRef.current;
+      const operation = deferredEditRef.current;
       deferredEditRef.current = null;
       setPendingSidebarAction(null);
-      handleSendEdit(instruction);
+      handleApplyDirectEdit(operation);
     }
-  }, [pendingSidebarAction, handleSendEdit]);
+  }, [pendingSidebarAction, handleApplyDirectEdit]);
 
   // --- Toggle hidden ---
   const handleToggleHidden = useCallback(() => {
-    setUndoStack((prev) => [...prev, structuredClone(sections)]);
-    setRedoStack([]);
-    toggleHidden();
-
-    const iframe = iframeRef.current;
-    if (iframe?.contentDocument) {
-      const updatedSections = extractSectionsFromDom(
-        iframe.contentDocument,
-        sectionsRef.current,
-      );
-      setSections(updatedSections);
-      rebuildHtml(updatedSections);
-      setIsDirty(true);
-    }
-  }, [toggleHidden, sections, rebuildHtml]);
+    handleApplyDirectEdit({ type: "toggle-hidden" });
+  }, [handleApplyDirectEdit]);
 
   // --- Undo ---
   const handleUndo = useCallback(() => {
@@ -1401,6 +1429,7 @@ export function DFYWebsite() {
             selectedInfo={previewVersion ? null : selectedInfo}
             chatMessages={currentChatMessages}
             onSendEdit={handleSendEdit}
+            onApplyDirectEdit={handleApplyDirectEdit}
             onToggleHidden={handleToggleHidden}
             isEditing={isEditing}
             debugInfo={null}
