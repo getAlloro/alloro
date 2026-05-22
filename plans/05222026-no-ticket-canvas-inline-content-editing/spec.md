@@ -137,3 +137,10 @@ Add a bounded canvas-editing mode for text, headings, paragraphs, links, and but
 - [ ] Unsupported/complex selections fall back cleanly to toolbar text input.
 - [ ] `npx tsc --noEmit` passes or only pre-existing errors are documented.
 - [ ] `cd frontend && npm run build` passes.
+
+## Revision Log
+
+### Rev 1 — 2026-05-22
+**Change:** Direct canvas text editing should start from the selected text itself instead of showing the large fallback textarea. Safe inline nested text wrappers are eligible for canvas editing; unsafe nested media/icon/form content remains blocked.
+**Reason:** A real template heading with inline nesting still triggered the old textarea popover, so the editor did not feel or behave like direct page editing.
+**Updated Done criteria:** Text selections must enter canvas typing on click or explicit edit action without showing the large fallback textarea.

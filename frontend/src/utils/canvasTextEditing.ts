@@ -14,6 +14,21 @@ const CANVAS_TEXT_TAGS = new Set([
   "figcaption",
 ]);
 
+const SAFE_INLINE_TEXT_CHILD_TAGS = new Set([
+  "span",
+  "br",
+  "strong",
+  "em",
+  "b",
+  "i",
+  "u",
+  "small",
+  "sup",
+  "sub",
+  "mark",
+  "wbr",
+]);
+
 type CanvasTextEditEligibility = {
   canEdit: boolean;
   reason?: string;
@@ -41,14 +56,18 @@ export function getCanvasTextEditEligibility(element: Element | null): CanvasTex
     return { canEdit: false, reason: "This element does not support canvas text editing." };
   }
 
-  const structuralChildren = Array.from(element.children).filter(
-    (child) => child.tagName.toLowerCase() !== "br",
-  );
-  if (structuralChildren.length > 0) {
+  if (hasUnsafeNestedContent(element)) {
     return { canEdit: false, reason: "Use fallback text editing for nested content." };
   }
 
   return { canEdit: true };
+}
+
+function hasUnsafeNestedContent(element: HTMLElement): boolean {
+  return Array.from(element.querySelectorAll("*")).some((child) => {
+    const tagName = child.tagName.toLowerCase();
+    return !SAFE_INLINE_TEXT_CHILD_TAGS.has(tagName);
+  });
 }
 
 export function startCanvasTextEdit({

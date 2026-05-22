@@ -10,8 +10,9 @@ Made routine website text edits feel more like a real page editor by allowing sa
 
 **Key Changes:**
 - Added plain-text canvas editing for safe selected headings, paragraphs, links, list items, captions, and button labels
+- Made selected text enter canvas typing directly instead of showing the large fallback textarea
 - Added paste/keyboard guards so canvas edits stay plain text and can be committed or cancelled without injecting rich markup
-- Kept complex nested content on the existing fallback text input instead of risking wrapper or icon damage
+- Blocked unsafe nested media, icon, and form content from direct canvas editing instead of risking wrapper damage
 - Routed committed canvas text edits through the existing direct operation, undo/history, section extraction, autosave, dirty-state, save, and layout persistence paths
 - Kept link href, media replacement, font-size, hide/show, and section background edits in the compact property toolbar
 - Preserved the no-reorder, no-delete, no-drag/drop, no-arbitrary-HTML, and no-new-storage-path boundaries

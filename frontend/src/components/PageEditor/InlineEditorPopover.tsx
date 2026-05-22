@@ -4,7 +4,6 @@ import type { SelectedInfo } from "../../hooks/useIframeSelector";
 import {
   getDirectOperationAvailability,
   getSelectedBackgroundColorValue,
-  getSelectedTextValue,
   type DirectEditorOperation,
 } from "../../utils/editorDirectOperations";
 import InlineEditorBackgroundControls from "./InlineEditorBackgroundControls";
@@ -24,7 +23,6 @@ type InlineEditorPopoverProps = {
 export default function InlineEditorPopover({
   selectedInfo, mediaApi, isEditing, isCanvasTextEditing, onStartCanvasTextEdit, onApplyDirectEdit,
 }: InlineEditorPopoverProps) {
-  const [textValue, setTextValue] = useState("");
   const [hrefValue, setHrefValue] = useState("");
   const [colorValue, setColorValue] = useState("#ffffff");
   const [mediaMode, setMediaMode] = useState<"media" | "background" | null>(null);
@@ -32,12 +30,10 @@ export default function InlineEditorPopover({
   const availability = getDirectOperationAvailability(selectedInfo, Boolean(mediaApi));
   const rect = selectedInfo?.rect;
   const hasBackgroundImage = Boolean(selectedInfo?.backgroundImage && selectedInfo.backgroundImage !== "none");
-  const showTextFallback = availability.canEditText && !availability.canEditCanvasText;
-  const hasPropertyPanel = showTextFallback || availability.canChangeLink || availability.canEditBackground || Boolean(mediaMode);
+  const hasPropertyPanel = availability.canChangeLink || availability.canEditBackground || Boolean(mediaMode);
 
   useEffect(() => {
     setMediaMode(null);
-    setTextValue(getSelectedTextValue(selectedInfo));
     setHrefValue(selectedInfo?.href || "");
     setColorValue(getSelectedBackgroundColorValue(selectedInfo));
   }, [selectedInfo]);
@@ -55,12 +51,6 @@ export default function InlineEditorPopover({
 
   if (!selectedInfo || !rect) return null;
 
-  const applyText = () => {
-    const trimmed = textValue.trim();
-    if (!trimmed) return;
-    onApplyDirectEdit({ type: "replace-text", value: trimmed });
-  };
-
   const applyHref = () => {
     const trimmed = hrefValue.trim();
     if (!trimmed) return;
@@ -74,15 +64,6 @@ export default function InlineEditorPopover({
         : { type: "replace-media", media },
     );
     setMediaMode(null);
-  };
-
-  const handleTextKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    event.stopPropagation();
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      applyText();
-    }
-    if (event.key === "Escape") setTextValue(getSelectedTextValue(selectedInfo));
   };
 
   const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -124,22 +105,6 @@ export default function InlineEditorPopover({
           </InlineIconButton>
         </div>
       </div>
-
-      {showTextFallback && (
-        <div className="mb-2 flex items-start gap-2">
-          <textarea
-            value={textValue}
-            onChange={(event) => setTextValue(event.target.value)}
-            onKeyDown={handleTextKeyDown}
-            disabled={isEditing}
-            rows={Math.min(3, Math.max(1, textValue.length > 52 ? 2 : 1))}
-            className="min-h-[36px] flex-1 resize-none rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 outline-none transition focus:border-alloro-orange focus:ring-2 focus:ring-alloro-orange/20 disabled:opacity-50"
-          />
-          <InlineIconButton label="Apply text" disabled={isEditing || !textValue.trim()} onClick={applyText} emphasis>
-            <Check className="h-4 w-4" />
-          </InlineIconButton>
-        </div>
-      )}
 
       {availability.canChangeLink && (
         <div className="mb-2 flex items-center gap-2">

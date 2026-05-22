@@ -690,6 +690,9 @@ export function useIframeSelector(
 
       const info = buildSelectedInfo(target);
       if (info) setSelectedInfo(info);
+      if (info?.canCanvasEditText) {
+        window.setTimeout(() => beginCanvasTextEditing(target), 0);
+      }
     });
 
     doc.body.addEventListener("dblclick", (e) => {
