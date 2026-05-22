@@ -271,26 +271,33 @@ function PresencePageInner() {
         )}
 
         {/* Built to Convert -- form submissions */}
-        {hasWebsite && formSubmissions.length > 0 && (
+        {hasWebsite && (
           <Section title="Built to Convert" icon={MousePointerClick} defaultOpen={true}>
-            <div className="space-y-3">
-              <div className="rounded-xl bg-[#F0EDE8] p-4">
-                <p className="text-sm font-semibold text-[#1A1D23]">
-                  {formSubmissions.length} form submission{formSubmissions.length !== 1 ? "s" : ""} received
-                </p>
-                {formSubmissions[0]?.created_at && (
-                  <p className="text-xs text-gray-400 mt-1">
-                    Most recent: {new Date(formSubmissions[0].created_at).toLocaleDateString()}
+            {formSubmissions.length > 0 ? (
+              <div className="space-y-3">
+                <div className="rounded-xl bg-[#F0EDE8] p-4">
+                  <p className="text-sm font-semibold text-[#1A1D23]">
+                    {formSubmissions.length} form submission{formSubmissions.length !== 1 ? "s" : ""} received
                   </p>
-                )}
+                  {formSubmissions[0]?.created_at && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      Most recent: {new Date(formSubmissions[0].created_at).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
+            ) : (
+              <p className="text-sm text-gray-500">
+                Coming with CRO Engine, summer 2026. Once your site is tracking form submissions, you'll see how many leads it captured and when.
+              </p>
+            )}
           </Section>
         )}
 
         {/* Website Optimizations -- CRO insights */}
-        {hasWebsite && croInsights.length > 0 && (
+        {hasWebsite && (
           <Section title="Website Optimizations" icon={Sparkles} defaultOpen={true}>
+            {croInsights.length > 0 ? (
             <div className="space-y-3">
               {croInsights.slice(0, 8).map((insight: any, i: number) => {
                 const changeLabels: Record<string, string> = {
@@ -327,6 +334,11 @@ function PresencePageInner() {
                 );
               })}
             </div>
+            ) : (
+              <p className="text-sm text-gray-500">
+                Coming with CRO Engine, summer 2026. This is where you'll see the specific changes Alloro recommends to turn more site visitors into customers.
+              </p>
+            )}
           </Section>
         )}
 
