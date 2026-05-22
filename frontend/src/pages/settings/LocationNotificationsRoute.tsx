@@ -81,7 +81,7 @@ export default function LocationNotificationsRoute() {
           review_alert: "",
         };
         for (const row of r.config) {
-          next[row.notification_type] = row.email_addresses.join(", ");
+          next[row.notification_type as NotificationType] = row.email_addresses.join(", ");
         }
         setEdits(next);
       })
@@ -124,7 +124,7 @@ export default function LocationNotificationsRoute() {
           review_alert: "",
         };
         for (const row of r.config) {
-          next[row.notification_type] = row.email_addresses.join(", ");
+          next[row.notification_type as NotificationType] = row.email_addresses.join(", ");
         }
         setEdits(next);
       }
