@@ -1,5 +1,6 @@
 import { Target } from "lucide-react";
 import type { ReferralEngineData, TopFix } from "../ReferralMatrices";
+import { fixHasNamedEntity } from "../../../lib/growthOpportunityFilter";
 
 export type PmsGrowthOpportunitiesProps = {
   referralData: ReferralEngineData | null;
@@ -19,7 +20,16 @@ const normalizeFix = (fix: TopFix | string, index: number): TopFix => {
 export function PmsGrowthOpportunities({
   referralData,
 }: PmsGrowthOpportunitiesProps) {
-  const fixes = referralData?.growth_opportunity_summary?.top_three_fixes ?? [];
+  // Hero Arc Substrate doctrine: only render fixes that name a specific
+  // entity (referrer, dollar, count). Generic LLM-generated copy gets
+  // filtered out so the consumer falls through to honest empty state.
+  // See frontend/src/lib/growthOpportunityFilter.ts for the predicate.
+  const rawFixes =
+    referralData?.growth_opportunity_summary?.top_three_fixes ?? [];
+  const fixes = rawFixes.filter((fix) =>
+    fixHasNamedEntity(fix, referralData),
+  );
+  const hadGenericFiltered = rawFixes.length > 0 && fixes.length === 0;
 
   return (
     <section className="relative overflow-hidden rounded-2xl border border-alloro-navy bg-alloro-navy p-6 text-white shadow-premium sm:p-8">
@@ -61,6 +71,11 @@ export function PmsGrowthOpportunities({
               </div>
             );
           })}
+        </div>
+      ) : hadGenericFiltered ? (
+        <div className="relative z-10 rounded-xl border border-white/10 bg-white/[0.04] p-5 text-sm font-medium text-white/65">
+          No named referrer opportunities this period. Your referral mix is
+          steady. We'll surface the next move when named activity emerges.
         </div>
       ) : (
         <div className="relative z-10 rounded-xl border border-white/10 bg-white/[0.04] p-5 text-sm font-medium text-white/65">
