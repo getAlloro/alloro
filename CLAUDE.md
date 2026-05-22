@@ -16,7 +16,15 @@ Source of Truth: `docs/PRODUCT-OPERATIONS.md` (Product Constitution). If code co
 
 **AR-008 calculation transparency:** Every user-facing deterministic calculation ships with a runtime LLM translator that renders plain-English methodology against the user's actual data. Calculation code is the source of truth; the LLM is the translator.
 
-**Repo:** ~/code/alloro. Branch: sandbox (never push to main). Frontend: `frontend/` (React 18+, TypeScript, Vite, Tailwind, shadcn/ui). Backend: `src/` (Node.js, Express, Knex, PostgreSQL, BullMQ, Redis). Agents: `.claude/agents/`. Never create a new branch; if sandbox is the wrong branch for a task, stop and ask Corey.
+**Repo:** `~/code/alloro`. Working branch: `sandbox` (never push to main; the merge is Dave's).
+
+**Structure map:**
+- `src/` -- backend (Node.js, Express, Knex, PostgreSQL, BullMQ, Redis). `src/routes/` API routes (mounted in `src/index.ts`), `src/controllers/` request handlers, `src/services/` business logic, `src/workers/` BullMQ workers + `processors/`, `src/jobs/` cron jobs, `src/agents/` agent runtime, `src/database/migrations/` schema.
+- `frontend/` -- React 18+, TypeScript, Vite, Tailwind, shadcn/ui. `frontend/src/pages/` routed pages (routes in `App.tsx`), `frontend/src/components/`, `frontend/src/api/` typed API client, `frontend/src/contexts/` + `hooks/`.
+- `.claude/agents/` -- Dream Team agent definitions. `.claude/rules/` -- rule files loaded by this doc. `.claude/lattices/` -- static product/voice/journey/knowledge context.
+- `docs/` -- Product Constitution + specs. `scripts/` -- quality gates + tooling. `tests/` -- vitest suites.
+
+**Branch convention:** CC does not create branches on its own. If `sandbox` is the wrong branch for a task, stop and ask Corey first. When Corey approves a branch, name bug-fix branches `bug-XX-name` (e.g. `bug-01-billing`) and other branches a short kebab-case feature name.
 
 ## Team
 
@@ -26,13 +34,37 @@ Source of Truth: `docs/PRODUCT-OPERATIONS.md` (Product Constitution). If code co
 
 ## Build Patterns
 
-**Engineer Handoff Format (LOCKED -- April 11, 2026):** every spec for Dave uses the V2 card format: Card N, Blast Radius, Complexity, Dependencies, What Changes (file:change), Touches (DB/Auth/Billing/API), Verification Tests (runnable), Done Gate. Full spec in `.claude/rules/build-safety.md`.
+**Engineer Handoff Format (LOCKED -- April 11, 2026):** every spec for Dave uses the V2 card format: Card N, Blast Radius, Complexity, Dependencies, What Changes (file:change), Touches (DB/Auth/Billing/API), Verification Tests (runnable), Done Gate. Full spec in `.claude/rules/build-safety.md`. Canonical worked example: https://www.notion.so/349fdaf120c4810aa045dfa4124ffa68 (Dave Handoff Format -- April 10, 2026). Match its shape; it is canonical until superseded.
 
 **Session types:** THINKING (explore, lock decisions, no production code), BUILD (start with locked decisions, ship Dave-ready cards), BUG TRIAGE (find root cause, fix, commit). AI infers type from Corey's opening. False clarity test: if AI cannot write a Work Order in 60 seconds, it is THINKING.
 
 **One feature = one commit = one verifiable step.** Single discrete commits with proof files at `/tmp/`. CC ships TSC clean, build clean, tests green, then Dave reviews and merges. Last successful pace: foundation reconciliation commit `5ef1e472` shipped in 4 minutes.
 
 **Pre-commit hard gates** (block on failure): `data-flow-audit.sh`, `content-quality-lint.sh`, TypeScript check (`tsc -b --force`). Advisory gates: `constitution-check.sh`, `vertical-sweep.sh`. Manual gate: `npm run build` in `frontend/`.
+
+## CC Operating Preamble
+
+Operate autonomously. Complete the full task end-to-end before asking for review. Make reasonable decisions without checking in. Fill adjacent gaps.
+
+When a Work Order finishes:
+1. Post PASS or FAIL with the result (commit hash, files changed, verification output).
+2. Pull the next item and execute it without asking for direction.
+3. Repeat until the queue is empty or a genuine blocker is hit.
+
+Only stop and report when: (a) the queue is empty and all items PASS; (b) a genuine blocker needs a credential, file, or decision CC does not have; (c) something changes the scope of the current task; (d) the task is Red blast radius and needs Corey's approval before any code.
+
+When found state contradicts how a task described it, surface that before proceeding -- do not build on the wrong premise.
+
+## Verification Gate
+
+No work is reported complete until it passes the gate. Before any PASS:
+1. **Builds clean** -- `tsc -b --force` clean; `npm run build` in `frontend/` clean when frontend changed.
+2. **Tests green** -- `npx vitest run`; new behavior has a covering test.
+3. **Wired** -- the change is referenced by a route mount, worker registration, import, or cron. Unwired code is not done (see Anti-Pattern Log AP-2).
+4. **Walked** -- for customer-facing surfaces, confirm what the customer actually sees, not just that it compiles.
+5. **Proof** -- a proof file at `/tmp/` or pasted verification output.
+
+Claude builds and verifies. Claude does not approve merges -- Dave reviews and merges. Full protocol: `.claude/rules/build-safety.md`.
 
 ## Deployment Pathway (LOCKED)
 
@@ -109,6 +141,7 @@ UI/typography: minimum font `text-xs` (12px); maximum weight `font-semibold`. Do
 - Universal language in core docs and code; vertical-specific only in vocabulary configs (L-001)
 - Dave receives finished specs only, never rough ideas
 - Every external-facing string passes Reviewer Claude before publish (AR-002)
+- Before building, check the Anti-Pattern Log (`.claude/rules/anti-patterns.md`); do not repeat a logged failure. Add an entry when a session uncovers a new repeatable failure.
 
 ## Open Loops
 
@@ -121,4 +154,5 @@ UI/typography: minimum font `text-xs` (12px); maximum weight `font-semibold`. Do
 @.claude/rules/task-routing.md
 @.claude/rules/build-safety.md
 @.claude/rules/information-architecture.md
+@.claude/rules/anti-patterns.md
 @.claude/lattices/alloro-context.md
