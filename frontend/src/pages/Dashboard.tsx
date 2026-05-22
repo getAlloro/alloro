@@ -12,6 +12,7 @@ import { DashboardOverview } from "../components/dashboard/DashboardOverview";
 import { ReferralEngineDashboard } from "../components/ReferralEngineDashboard";
 import { PMSVisualPillars } from "../components/PMS/PMSVisualPillars";
 import { RankingsDashboard } from "../components/dashboard/RankingsDashboard";
+import { PracticeHubHero } from "../components/PracticeHubHero";
 
 // Integration Modal Components
 import { GBPIntegrationModal } from "../components/GBPIntegrationModal";
@@ -396,10 +397,15 @@ export default function Dashboard() {
                   transition={{ duration: 0.22, ease: "easeOut" }}
                 >
                   {activeTab === "Dashboard" && (
-                    <DashboardOverview
-                      organizationId={userProfile?.organizationId ?? null}
-                      locationId={locationId}
-                    />
+                    <div className="space-y-8">
+                      <PracticeHubHero
+                        organizationId={userProfile?.organizationId ?? null}
+                      />
+                      <DashboardOverview
+                        organizationId={userProfile?.organizationId ?? null}
+                        locationId={locationId}
+                      />
+                    </div>
                   )}
 
                   {activeTab === "Patient Journey Insights" && (
