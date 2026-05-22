@@ -196,6 +196,13 @@ const SELECTOR_CSS = `
     cursor: default !important;
   }
 
+  textarea[data-alloro-canvas-editor="true"] {
+    pointer-events: auto !important;
+    cursor: text !important;
+    user-select: text !important;
+    -webkit-user-select: text !important;
+  }
+
   /* Allow alloro-labeled elements to receive pointer events */
   [class*="${ALLORO_PREFIX}"] {
     pointer-events: auto !important;
@@ -247,6 +254,10 @@ const SELECTOR_CSS = `
   /* Both hover and selected — selected wins */
   [data-alloro-selected="true"][data-alloro-hover="true"] {
     outline: 2px solid #2563eb !important;
+  }
+
+  [data-alloro-selected="true"][data-alloro-editing="true"] {
+    outline-color: #d66853 !important;
   }
 
   /* Label injected into the DOM */

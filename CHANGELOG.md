@@ -10,7 +10,8 @@ Made routine website text edits feel more like a real page editor by allowing sa
 
 **Key Changes:**
 - Added plain-text canvas editing for safe selected headings, paragraphs, links, list items, captions, and button labels
-- Made selected text enter canvas typing directly instead of showing the large fallback textarea
+- Made selected text open a focused on-canvas textarea at the selected element so typing happens in place with a real caret
+- Replaced the right-sidebar single-line text input with a multi-line textarea and visible font-size controls
 - Added paste/keyboard guards so canvas edits stay plain text and can be committed or cancelled without injecting rich markup
 - Blocked unsafe nested media, icon, and form content from direct canvas editing instead of risking wrapper damage
 - Routed committed canvas text edits through the existing direct operation, undo/history, section extraction, autosave, dirty-state, save, and layout persistence paths
@@ -18,10 +19,11 @@ Made routine website text edits feel more like a real page editor by allowing sa
 - Preserved the no-reorder, no-delete, no-drag/drop, no-arbitrary-HTML, and no-new-storage-path boundaries
 
 **Commits:**
-- `frontend/src/utils/canvasTextEditing.ts` - safe canvas text edit session lifecycle, paste sanitization, commit, and cancel behavior
-- `frontend/src/hooks/useIframeSelector.ts` - selected-element editability metadata, double-click canvas editing, and iframe editing-state handling
+- `frontend/src/utils/canvasTextEditing.ts` - safe on-canvas textarea edit session lifecycle, paste sanitization, commit, and cancel behavior
+- `frontend/src/hooks/useIframeSelector.ts` - selected-element editability metadata, canvas textarea pointer handling, and iframe editing-state handling
 - `frontend/src/utils/editorDirectOperations.ts` - no-op detection and canvas edit availability in direct operation results
 - `frontend/src/components/PageEditor/InlineEditorPopover.tsx` - compact text toolbar behavior with fallback input for unsafe nested content
+- `frontend/src/components/PageEditor/SelectedElementEditorPanel.tsx` - sidebar selected-element textarea editor, font-size controls, link controls, media controls, and visibility controls
 - `frontend/src/pages/admin/PageEditor.tsx`, `LayoutEditor.tsx`, and `DFYWebsite.tsx` - shared canvas edit wiring through existing save/persistence flows
 - `plans/05222026-no-ticket-canvas-inline-content-editing/spec.md` - executed spec and verification checklist
 

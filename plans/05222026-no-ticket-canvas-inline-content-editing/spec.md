@@ -144,3 +144,8 @@ Add a bounded canvas-editing mode for text, headings, paragraphs, links, and but
 **Change:** Direct canvas text editing should start from the selected text itself instead of showing the large fallback textarea. Safe inline nested text wrappers are eligible for canvas editing; unsafe nested media/icon/form content remains blocked.
 **Reason:** A real template heading with inline nesting still triggered the old textarea popover, so the editor did not feel or behave like direct page editing.
 **Updated Done criteria:** Text selections must enter canvas typing on click or explicit edit action without showing the large fallback textarea.
+
+### Rev 2 — 2026-05-22
+**Change:** Canvas text editing must use a real focused text surface at the selected element position when native contenteditable is unreliable, and the right sidebar text control must be a textarea with prominent font-size controls.
+**Reason:** The canvas selection could highlight text without reliably accepting typing, which is worse than no direct editing because it looks editable and then lies. The sidebar input also truncates real paragraph text and hides the practical controls.
+**Updated Done criteria:** Selected canvas text shows an editable caret/text surface in place, accepts typed text, commits through the existing save pipeline, and the sidebar text editor supports multi-line edits with size controls visible beside the selected element tools.
