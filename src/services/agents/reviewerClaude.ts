@@ -944,15 +944,22 @@ async function callReviewerClaudeAPI(
   const fullSystemPrompt = REVIEWER_CLAUDE_SYSTEM_PROMPT_VERBATIM + CHECK_2_EXTENSION;
   const dateContext = `\n\nCurrent date: ${new Date().toISOString().split("T")[0]}.`;
 
-  // The installed Anthropic SDK (0.20.9) accepts only a plain `string` for
-  // the system field. Prompt caching via array form requires a newer SDK;
-  // a future bump can switch this back to TextBlockParam[] with cache_control
-  // ephemeral. For now the system prompt is sent every call -- the framework
-  // is small enough that the cost is acceptable.
+  // Prompt caching: the Reviewer Claude system prompt is verbatim and large
+  // (thousands of tokens) and is reused across many artifacts in the same
+  // 5-minute window. Send it as a TextBlockParam[] with cache_control
+  // ephemeral; cache reads cost 10 percent of normal input tokens. The
+  // date context is concatenated into the same cached block intentionally:
+  // the date only changes daily, so same-day calls hit the same cache key.
   const response = await client.messages.create({
     model,
     max_tokens: 4096,
-    system: fullSystemPrompt + dateContext,
+    system: [
+      {
+        type: "text",
+        text: fullSystemPrompt + dateContext,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
     messages: [
       {
         role: "user",

@@ -31,6 +31,23 @@ export interface LlmRunnerOptions {
   temperature?: number;
   /** Optional assistant prefill to steer output format (e.g. "{" for JSON) */
   prefill?: string;
+  /**
+   * Opt-in: wrap the system prompt with ephemeral cache_control so repeated
+   * calls with the same systemPrompt within the cache TTL (5 minutes default)
+   * read from cache at 10 percent of the normal input-token cost.
+   *
+   * Use when the same agent fires multiple times in a short window with the
+   * same system prompt (Reviewer Claude per artifact, NARRATOR per customer,
+   * SUMMARY per org). Do NOT use when the system prompt varies per call.
+   *
+   * Minimum cacheable size: 1024 tokens (Sonnet/Haiku/Opus). Short prompts
+   * silently skip caching server-side.
+   *
+   * Anthropic SDK 0.92.0 (installed) supports the TextBlockParam[] form with
+   * cache_control. Default false to preserve byte-identical behavior for
+   * call sites that have not opted in.
+   */
+  cacheSystem?: boolean;
 }
 
 export interface LlmRunnerResult {
@@ -63,6 +80,7 @@ export async function runAgent(
     maxTokens = 16384,
     temperature = 0,
     prefill,
+    cacheSystem = false,
   } = options;
 
   const messages: Anthropic.MessageParam[] = [
@@ -73,11 +91,24 @@ export async function runAgent(
     messages.push({ role: "assistant", content: prefill });
   }
 
+  // System prompt shape: plain string by default; opt into cache_control by
+  // passing cacheSystem: true. Anthropic API tolerates short prompts in the
+  // array form (caching silently skips below the per-model minimum size).
+  const systemField: Anthropic.MessageCreateParams["system"] = cacheSystem
+    ? [
+        {
+          type: "text",
+          text: systemPrompt,
+          cache_control: { type: "ephemeral" },
+        },
+      ]
+    : systemPrompt;
+
   const response = await getClient().messages.create({
     model,
     max_tokens: maxTokens,
     temperature,
-    system: systemPrompt,
+    system: systemField,
     messages,
   });
 
