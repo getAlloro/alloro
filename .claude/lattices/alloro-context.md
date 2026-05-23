@@ -1,4 +1,4 @@
-# Alloro Context — Lattice Load Surface
+# Alloro Context, Lattice Load Surface
 
 The substrate every Alloro Claude session loads. Four lattices plus standing rules and audit findings.
 
@@ -9,7 +9,7 @@ The substrate every Alloro Claude session loads. Four lattices plus standing rul
 @.claude/lattices/sentiment-lattice.md
 @.claude/lattices/knowledge-lattice.md
 
-**Product Outline** = the May 18, 2026 canon — what Alloro is, the two surfaces (Connect, Reflect), the three Beliefs, the ICP (local service business owner), pricing (P-004: $2,000 per location flat), the two North Stars with decision filter, vocabulary. Read first when the question is *what does Alloro do*. **Journey Lattice** = customer-journey vocabulary and five stages; read when the question is *what to say to the owner*. **Sentiment Lattice** = voice and posture; read when the question is *how the surface should feel*. **Knowledge Lattice** = operating heuristics from leaders, companies, and failures; read when the question is *how to act*.
+**Product Outline** = the May 18, 2026 canon, what Alloro is, the two surfaces (Connect, Reflect), the three Beliefs, the ICP (local service business owner), pricing (P-004: $2,000 per location flat), the two North Stars with decision filter, vocabulary. Read first when the question is *what does Alloro do*. **Journey Lattice** = customer-journey vocabulary and five stages; read when the question is *what to say to the owner*. **Sentiment Lattice** = voice and posture; read when the question is *how the surface should feel*. **Knowledge Lattice** = operating heuristics from leaders, companies, and failures; read when the question is *how to act*.
 
 ## Four Standing Rules (from CLAUDE.md)
 

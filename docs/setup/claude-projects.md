@@ -1,19 +1,19 @@
-# Claude.ai Projects — Alloro Lattice Setup
+# Claude.ai Projects, Alloro Lattice Setup
 
 Manual setup for the **human** load surface (Wave 2, Surface 4). Each operator (Corey, Jo, Dave) creates an Alloro Project in Claude.ai and attaches the four lattice files so every chat in that project starts with the substrate loaded.
 
-The four other load surfaces are wired in code (CLAUDE.md @import, sub-agent inline injection via `scripts/inject-lattice.ts`, product AI services via `src/services/prompt/alloroSubstrate.ts`, knowledgeBridge.ts via lattice parse). This surface is the one we cannot automate — Claude.ai Projects are per-user.
+The four other load surfaces are wired in code (CLAUDE.md @import, sub-agent inline injection via `scripts/inject-lattice.ts`, product AI services via `src/services/prompt/alloroSubstrate.ts`, knowledgeBridge.ts via lattice parse). This surface is the one we cannot automate, Claude.ai Projects are per-user.
 
 ## What you're attaching
 
 All four live in the repo at `.claude/lattices/`. Pull the latest from `sandbox` before attaching.
 
-- `product-outline.md` — May 18 canon: what Alloro is, Connect/Reflect, three Beliefs, ICP, pricing, vocabulary
-- `journey-lattice.md` — five-stage customer journey, Be Findable / Choosable / Bookable / Memorable
-- `sentiment-lattice.md` — voice and posture; Watchline, Narrator Principle, Score Rings Removed, No Tasks
-- `knowledge-lattice.md` — operating heuristics from leaders, companies, failures
+- `product-outline.md`, May 18 canon: what Alloro is, Connect/Reflect, three Beliefs, ICP, pricing, vocabulary
+- `journey-lattice.md`, five-stage customer journey, Be Findable / Choosable / Bookable / Memorable
+- `sentiment-lattice.md`, voice and posture; Watchline, Narrator Principle, Score Rings Removed, No Tasks
+- `knowledge-lattice.md`, operating heuristics from leaders, companies, failures
 
-## Setup — per operator
+## Setup, per operator
 
 ### Corey
 
@@ -23,11 +23,11 @@ All four live in the repo at `.claude/lattices/`. Pull the latest from `sandbox`
 4. **Project knowledge** → **Add knowledge** → upload all four files from `.claude/lattices/`
 5. **Custom instructions** (paste):
    ```
-   You are operating inside Corey's Alloro Project. The four attached lattice files are canonical — read them before any answer that touches product, voice, or strategy.
-   Two beliefs are confirmed (Belief 1 sourced, Belief 2 confirmed). Belief 3 is the unproven bet — never treat it as settled.
+   You are operating inside Corey's Alloro Project. The four attached lattice files are canonical, read them before any answer that touches product, voice, or strategy.
+   Two beliefs are confirmed (Belief 1 sourced, Belief 2 confirmed). Belief 3 is the unproven bet, never treat it as settled.
    Vocabulary: Alloro Connect (Presence Layer), Alloro Reflect (Intelligence Layer), local service business owner, NS1 / NS2. Never say PatientPath; the rename is canonical.
    ```
-6. Verify by asking: **"What does Alloro Connect do?"** Correct answer references the Presence Layer, the Website Engine, AEO, and making the practice findable. If the answer says PatientPath or describes a different surface, the attachment is stale — re-upload.
+6. Verify by asking: **"What does Alloro Connect do?"** Correct answer references the Presence Layer, the Website Engine, AEO, and making the practice findable. If the answer says PatientPath or describes a different surface, the attachment is stale, re-upload.
 
 ### Jo
 
@@ -46,8 +46,8 @@ All four live in the repo at `.claude/lattices/`. Pull the latest from `sandbox`
 2. Description: `CTO lane. Build sequencing, architectural review, sandbox-to-main merge owner. Loads the lattice substrate before any architectural decision.`
 3. Custom instructions (paste):
    ```
-   You are operating inside Dave's Alloro Project. The four attached lattice files are canonical. Dave receives finished specs only — if a request feels like a rough idea, push it back to Corey or Jo.
-   Pricing canon: $2,000 per location flat (P-004). The $10K–$20K retail value figure in the Product Outline is anchored on the full stack — verify which components are live before quoting.
+   You are operating inside Dave's Alloro Project. The four attached lattice files are canonical. Dave receives finished specs only, if a request feels like a rough idea, push it back to Corey or Jo.
+   Pricing canon: $2,000 per location flat (P-004). The $10K–$20K retail value figure in the Product Outline is anchored on the full stack, verify which components are live before quoting.
    Vocabulary: Alloro Connect (Presence Layer), Alloro Reflect (Intelligence Layer), local service business owner. Never say PatientPath.
    ```
 4. Same verification question.

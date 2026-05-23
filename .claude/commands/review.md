@@ -26,7 +26,7 @@ Launch each as a separate Agent with subagent_type "general-purpose":
 
 8. **Architecture Reviewer** -- Check for scope creep: did the session introduce patterns inconsistent with existing architecture? Are new files in the correct directories? Do new API routes follow existing naming conventions?
 
-9. **CLAUDE.md Compliance Reviewer** -- Grep all changed files for: em-dashes (—), the word "practice" in pre-login surfaces, "accidental business owner", dental-specific terms in core docs, any `model:` field hardcoded in agent frontmatter (should use global default).
+9. **CLAUDE.md Compliance Reviewer** -- Grep all changed files for: em-dashes (Unicode U+2014), the word "practice" in pre-login surfaces, "accidental business owner", dental-specific terms in core docs, any `model:` field hardcoded in agent frontmatter (should use global default).
 
 ## Output Format
 

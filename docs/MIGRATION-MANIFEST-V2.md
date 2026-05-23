@@ -25,7 +25,7 @@ All new route files on sandbox match Dave's main branch conventions:
 
 **What WASN'T touched:** Dave's PM system (37 files), notification system, form submissions, E2E test framework, infrastructure configs. All intact.
 
-**What was touched cosmetically only:** 10 PageEditor files received em-dash replacements and font-weight fixes (standing rule enforcement). Zero logic changes. Verify: `git diff main..sandbox -- frontend/src/components/PageEditor/ | grep '^[+-]' | grep -v '^\(+++\|---\)' | head -20` -- all changes are `—` to `--` or `font-bold` to `font-semibold`.
+**What was touched cosmetically only:** 10 PageEditor files received em-dash replacements and font-weight fixes (standing rule enforcement). Zero logic changes. Verify: `git diff main..sandbox -- frontend/src/components/PageEditor/ | grep '^[+-]' | grep -v '^\(+++\|---\)' | head -20` -- all changes are `, ` to `--` or `font-bold` to `font-semibold`.
 
 ---
 

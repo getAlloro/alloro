@@ -1,6 +1,6 @@
 # State of Now Fetch Protocol
 
-The "Alloro — State of Now" Notion page is the shared substrate every Claude (CC, CW, Cowork, Jo's Claude, Dave's Claude) reads at session start. Locked 2026-05-23 per the Five-Claude Shared Substrate proposal at `notion.so/Proposal-Five-Claude-Shared-Substrate-MVP-369fdaf120c4816f82c2c0c93aa9e202`.
+The "Alloro, State of Now" Notion page is the shared substrate every Claude (CC, CW, Cowork, Jo's Claude, Dave's Claude) reads at session start. Locked 2026-05-23 per the Five-Claude Shared Substrate proposal at `notion.so/Proposal-Five-Claude-Shared-Substrate-MVP-369fdaf120c4816f82c2c0c93aa9e202`.
 
 ## Page URL
 
@@ -10,11 +10,11 @@ Notion page ID (for the MCP): `369fdaf1-20c4-81c6-98bf-df4c0b32c556`.
 
 ## Five sections
 
-1. **Current state of Alloro** — MRR, customer count, ICP, beachhead, pricing. Owner: Corey.
-2. **Active customer state** — one line per active customer. Owner: Jo. CC and CW append product-side events.
-3. **Active priorities and next moves** — what's shipping, who owns, what's blocking. Owner: Corey. CC and Dave append shipped work.
-4. **Doctrine refs** — NS-001, AP-8, lane discipline, no-business-hours, no-em-dashes, plain-language, no-fancy-named-principles, no-relay-postman, pricing canon, N8N retired, hardcoded ownership rule, etc. Owner: Corey locks new doctrine; CC and CW append references.
-5. **Pending decisions and blockers** — one line per open item. Owner: anyone observes; only Corey or Jo clears.
+1. **Current state of Alloro**, MRR, customer count, ICP, beachhead, pricing. Owner: Corey.
+2. **Active customer state**, one line per active customer. Owner: Jo. CC and CW append product-side events.
+3. **Active priorities and next moves**, what's shipping, who owns, what's blocking. Owner: Corey. CC and Dave append shipped work.
+4. **Doctrine refs**, NS-001, AP-8, lane discipline, no-business-hours, no-em-dashes, plain-language, no-fancy-named-principles, no-relay-postman, pricing canon, N8N retired, hardcoded ownership rule, etc. Owner: Corey locks new doctrine; CC and CW append references.
+5. **Pending decisions and blockers**, one line per open item. Owner: anyone observes; only Corey or Jo clears.
 
 ## Read protocol (every session, first action)
 

@@ -1,4 +1,4 @@
-# Journey Lattice — Master Framework for Business Clarity
+# Journey Lattice, Master Framework for Business Clarity
 
 Master vocabulary for how local service businesses actually work, and how Alloro delivers Business Clarity against that reality. Locked at framework level; open at example level.
 
@@ -7,14 +7,14 @@ Master vocabulary for how local service businesses actually work, and how Alloro
 The category Alloro creates is **Business Clarity**: an owner knowing in 30 seconds whether their business is healthy, where it's leaking, and what to do this week. Not analytics. Not marketing. Not reputation management.
 
 Two North Stars, locked:
-1. **Undeniable value** for every customer — real and felt.
+1. **Undeniable value** for every customer, real and felt.
 2. Alloro maintains a path to becoming an **inevitable unicorn**.
 
 Above both: *Does it make a human feel understood before it makes them feel informed?*
 
 ## The Owner We Serve
 
-Local service business owners — endodontists, orthodontists, chiropractors, PTs, optometrists, attorneys, CPAs, vets, financial advisors — share five universal problems:
+Local service business owners, endodontists, orthodontists, chiropractors, PTs, optometrists, attorneys, CPAs, vets, financial advisors, share five universal problems:
 
 1. They can't see what's happening in their business.
 2. They're doing jobs they never trained for.
@@ -25,27 +25,27 @@ Local service business owners — endodontists, orthodontists, chiropractors, PT
 **What they think they need:** better marketing, higher rankings, more leads.
 **What they actually need:** a way to know the business is healthy without learning marketing, SEO, or analytics; a signal when something drifts; a single recommendation this week; permission to stop watching metrics that don't matter.
 
-Owners decide by feel, calibrated against three signals — schedule, bank, most recent agency report. When they agree, the owner relaxes. When they disagree, the owner panics. **Alloro is the fourth signal that resolves the disagreement.**
+Owners decide by feel, calibrated against three signals, schedule, bank, most recent agency report. When they agree, the owner relaxes. When they disagree, the owner panics. **Alloro is the fourth signal that resolves the disagreement.**
 
 ## The Five Stages (customer's voice)
 
-### Stage 1 — Awareness · *"I have a problem."*
+### Stage 1, Awareness · *"I have a problem."*
 
 **Not Alloro's job.** Demand exists outside our control. The right question is: of those who already have the problem, how many find us, choose us, book, and come back?
 
-### Stage 2 — Research · *"Who can help me?"* → **Be Findable**
+### Stage 2, Research · *"Who can help me?"* → **Be Findable**
 
-Show up when the search happens. Mechanisms: GBP completeness, local SEO, reviews, photos, citations. Leaks: stale photos, review count below local median, mis-set categories, a competitor's review surge. **The real question isn't #1 vs #2 — it's being in the top set vs not.**
+Show up when the search happens. Mechanisms: GBP completeness, local SEO, reviews, photos, citations. Leaks: stale photos, review count below local median, mis-set categories, a competitor's review surge. **The real question isn't #1 vs #2, it's being in the top set vs not.**
 
-### Stage 3 — Consideration · *"Which one should I go with?"* → **Be Choosable**
+### Stage 3, Consideration · *"Which one should I go with?"* → **Be Choosable**
 
-Win the comparison. Mechanisms: review quality, photo quality, website first impression, credibility, specialty signal. **Most local service businesses lose more revenue here than anywhere else** — the customer found them but chose someone else. Most expensive stage to lose because findability dollars were already spent.
+Win the comparison. Mechanisms: review quality, photo quality, website first impression, credibility, specialty signal. **Most local service businesses lose more revenue here than anywhere else**, the customer found them but chose someone else. Most expensive stage to lose because findability dollars were already spent.
 
-### Stage 4 — Decision · *"Let me book this."* → **Be Bookable**
+### Stage 4, Decision · *"Let me book this."* → **Be Bookable**
 
-Convert intent into appointment. Mechanisms: phone answering, online scheduling, form response time, CTA clarity. Leaks: voicemail in business hours, 24+ hour form response, broken booking links, generic "learn more" instead of "book now." **Most fixable stage.** Owners rarely notice — symptom is "fewer patients," not "broken booking link."
+Convert intent into appointment. Mechanisms: phone answering, online scheduling, form response time, CTA clarity. Leaks: voicemail in business hours, 24+ hour form response, broken booking links, generic "learn more" instead of "book now." **Most fixable stage.** Owners rarely notice, symptom is "fewer patients," not "broken booking link."
 
-### Stage 5 — Loyalty · *"I'll come back. I'll tell a friend."* → **Be Memorable**
+### Stage 5, Loyalty · *"I'll come back. I'll tell a friend."* → **Be Memorable**
 
 The customer decides whether to return, refer, review. Mechanisms: service quality, follow-up, review requests, referral programs, in-office experience. This stage compounds back into 1–4: a happy patient adds demand, findability, credibility, and warm referrals that convert at 2-3x cold.
 
@@ -105,4 +105,4 @@ If a proposed change matches any of these, reject it:
 
 ## How This Document Is Used
 
-Master vocabulary for every customer-facing surface — marketing copy, sales conversations, onboarding, Intelligence Agent recommendations, dashboard structure, Checkup. Every customer-facing word should trace to a line here. When something needs to be said, this document is checked first; if the language doesn't exist, it gets written here first, then applied.
+Master vocabulary for every customer-facing surface, marketing copy, sales conversations, onboarding, Intelligence Agent recommendations, dashboard structure, Checkup. Every customer-facing word should trace to a line here. When something needs to be said, this document is checked first; if the language doesn't exist, it gets written here first, then applied.
