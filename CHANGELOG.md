@@ -2,6 +2,23 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.86] - May 2026
+
+### Caswell Organization Data Consolidation
+
+Consolidated Caswell Orthodontics operational ownership onto the canonical org `43` while preserving the live website project and stable location IDs.
+
+**Key Changes:**
+- Kept org `43` as the canonical Caswell organization and left org `25` undeleted for a separate cleanup decision
+- Moved the three real Caswell locations, Google connection, and user membership from org `25` to org `43`
+- Rehomed Caswell ranking, task, agent result, PMS, notification, and Google data history to org `43`
+- Removed the empty placeholder location on org `43` after preflight confirmed it had no dependent rows
+- Verified org `43` owns one primary location, both Caswell user memberships, and the live website project after the transfer
+
+**Commits:**
+- `plans/05232026-no-ticket-migrate-caswell-org-data/spec.md` - executed data-migration spec, risk notes, and verified checklist
+- Live database rows - transactional org ownership transfer for Caswell locations, Google connection, users, and operational history
+
 ## [0.0.85] - May 2026
 
 ### Canvas Inline Website Editing
