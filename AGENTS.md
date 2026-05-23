@@ -123,3 +123,28 @@ Before saying a change is live, distinguish:
 - browser/API behavior verified
 
 Do not collapse these into one vague "done."
+
+## Dashboard Docs Parity
+
+When work changes dashboard pages or admin/client dashboard UI, documentation parity is required before finalization.
+
+Check `/Users/rustinedave/Desktop/alloro-docs` for matching documentation, replicas, screenshots, tooltip text, walkthrough copy, and page information.
+
+During planning or instant execution:
+
+- Include docs impact in the spec when dashboard UI changes.
+- List the relevant Alloro Docs files if known.
+- If no docs update is needed, state why.
+
+During `--done`:
+
+- Update `CHANGELOG.md` in this repo as usual.
+- Update `/Users/rustinedave/Desktop/alloro-docs` when the completed work changes dashboard behavior, visible controls, labels, tooltips, page copy, UI guidance, permissions, empty states, or navigation.
+- If docs are unchanged, explicitly state why no docs update was required.
+- Do not claim finalization is complete until docs parity has been checked.
+
+Cross-repo rule:
+
+- Treat Alloro app changes and Alloro Docs changes as separate working trees.
+- Check git status in both repos before committing.
+- Keep docs commits focused on documentation parity for the app change.
