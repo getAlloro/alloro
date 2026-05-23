@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from "../api";
+import { userWebsiteMediaApi } from "../api/websiteMedia";
 import ConnectDomainModal from "../components/Admin/ConnectDomainModal";
 import FormSubmissionsTab from "../components/Admin/FormSubmissionsTab";
 import PostsTab from "../components/Admin/PostsTab";
@@ -44,11 +45,17 @@ import {
   validateHtml,
   extractSectionsFromDom,
 } from "../utils/htmlReplacer";
+import {
+  applyDirectEditorOperation,
+  type DirectEditorOperation,
+} from "../utils/editorDirectOperations";
 import EditorSidebar from "../components/PageEditor/EditorSidebar";
+import InlineEditorPopover from "../components/PageEditor/InlineEditorPopover";
 import type { ChatMessage } from "../components/PageEditor/ChatPanel";
 import type { PageVersion } from "../components/PageEditor/VersionHistoryTab";
 import type { Section } from "../api/templates";
 import { useSidebar } from "../components/Admin/SidebarContext";
+import { useIsWizardActive, useWizardDemoData } from "../contexts/OnboardingWizardContext";
 
 interface Page {
   id: string;
@@ -84,6 +91,22 @@ interface Usage {
 }
 
 const DESKTOP_SCALE = 0.7;
+const WEBSITE_TABS = ["editor", "submissions", "posts", "menus"] as const;
+type WebsiteTab = typeof WEBSITE_TABS[number];
+
+function parseWebsiteTab(value: string | null): WebsiteTab | null {
+  return WEBSITE_TABS.includes(value as WebsiteTab)
+    ? (value as WebsiteTab)
+    : null;
+}
+
+function getWebsiteTabFromParams(searchParams: URLSearchParams): WebsiteTab {
+  return (
+    parseWebsiteTab(searchParams.get("tab")) ||
+    parseWebsiteTab(searchParams.get("view")) ||
+    "editor"
+  );
+}
 
 export function DFYWebsite() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -96,10 +119,7 @@ export function DFYWebsite() {
   const [selectedPage, setSelectedPage] = useState<Page | null>(null);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [showDomainModal, setShowDomainModal] = useState(false);
-  const [activeView, setActiveView] = useState<"editor" | "submissions" | "posts" | "menus">(() => {
-    const view = searchParams.get("view");
-    return view === "submissions" || view === "posts" || view === "menus" ? view : "editor";
-  });
+  const activeView = getWebsiteTabFromParams(searchParams);
   const [viewportMode, setViewportMode] = useState<"desktop" | "mobile">(
     "desktop",
   );
@@ -125,11 +145,30 @@ export function DFYWebsite() {
     useState<QuickActionType | null>(null);
 
   const { setCollapsed } = useSidebar();
+  const mediaApi = useMemo(() => userWebsiteMediaApi, []);
+  const isWizardActive = useIsWizardActive();
+  const wizardDemoData = useWizardDemoData();
+
+  const setWebsiteTab = useCallback(
+    (tab: WebsiteTab) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("view");
+        if (tab === "editor") {
+          next.delete("tab");
+        } else {
+          next.set("tab", tab);
+        }
+        return next;
+      }, { replace: true });
+    },
+    [setSearchParams],
+  );
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const sectionsRef = useRef(sections);
   sectionsRef.current = sections;
-  const deferredEditRef = useRef<string | null>(null);
+  const deferredEditRef = useRef<DirectEditorOperation | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Auto-collapse sidebar when entering website editor (like admin PageEditor)
@@ -137,14 +176,26 @@ export function DFYWebsite() {
     setCollapsed(true);
   }, [setCollapsed]);
 
+  // Normalize legacy links like ?view=submissions to the new ?tab= permalink.
+  useEffect(() => {
+    if (!searchParams.has("view")) return;
+
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      const legacyTab = parseWebsiteTab(next.get("view"));
+      next.delete("view");
+
+      if (legacyTab && legacyTab !== "editor" && !next.has("tab")) {
+        next.set("tab", legacyTab);
+      }
+
+      return next;
+    }, { replace: true });
+  }, [searchParams, setSearchParams]);
+
   // Mark all submissions as read when switching to submissions view
   useEffect(() => {
     if (activeView !== "submissions") return;
-
-    // Clean up the ?view= param from URL
-    if (searchParams.has("view")) {
-      setSearchParams({}, { replace: true });
-    }
 
     const markAllRead = async () => {
       try {
@@ -234,28 +285,23 @@ export function DFYWebsite() {
   // Quick action handler from iframe label icons
   const handleIframeQuickAction = useCallback(
     (payload: QuickActionPayload) => {
-      if (payload.action === "text-up" || payload.action === "text-down") {
-        // Text size was mutated in the iframe DOM — extract updated sections
-        const iframe = iframeRef.current;
-        if (iframe?.contentDocument) {
-          setUndoStack((prev) => [...prev, structuredClone(sectionsRef.current)]);
-          setRedoStack([]);
-          const updatedSections = extractSectionsFromDom(
-            iframe.contentDocument,
-            sectionsRef.current,
-          );
-          setSections(updatedSections);
-          rebuildHtml(updatedSections);
-          setIsDirty(true);
-        }
-      } else if (
+      if (
         (payload.action === "text" || payload.action === "link") &&
         payload.value
       ) {
         deferredEditRef.current =
           payload.action === "text"
-            ? `Change the text content to "${payload.value}"`
-            : `Change the link href to "${payload.value}"`;
+            ? { type: "replace-text", value: payload.value }
+            : { type: "update-link", href: payload.value };
+        setPendingSidebarAction("__deferred__" as QuickActionType);
+      } else if (payload.action === "text-up" || payload.action === "text-down") {
+        deferredEditRef.current = {
+          type: "step-font-size",
+          direction: payload.action === "text-up" ? "up" : "down",
+        };
+        setPendingSidebarAction("__deferred__" as QuickActionType);
+      } else if (payload.action === "hide") {
+        deferredEditRef.current = { type: "toggle-hidden" };
         setPendingSidebarAction("__deferred__" as QuickActionType);
       } else {
         setPendingSidebarAction(payload.action);
@@ -270,7 +316,8 @@ export function DFYWebsite() {
     setSelectedInfo,
     clearSelection,
     setupListeners,
-    toggleHidden,
+    beginCanvasTextEditing,
+    isCanvasTextEditing,
   } = useIframeSelector(iframeRef, handleIframeQuickAction);
 
   // User-facing API wrappers (routes don't need projectId — inferred from auth)
@@ -465,10 +512,20 @@ export function DFYWebsite() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // --- Load website data ---
+  // --- Load website data (skip API when wizard is active) ---
   useEffect(() => {
+    if (isWizardActive && wizardDemoData) {
+      setProject(wizardDemoData.demoProject as unknown as Project);
+      setPages(wizardDemoData.demoPages as unknown as Page[]);
+      setStatus("READY");
+      setLoading(false);
+      if (wizardDemoData.demoPages?.length > 0) {
+        setSelectedPage(wizardDemoData.demoPages[0] as unknown as Page);
+      }
+      return;
+    }
     fetchWebsite();
-  }, []);
+  }, [isWizardActive, wizardDemoData]);
 
   // --- Assemble preview when page or project changes ---
   useEffect(() => {
@@ -693,36 +750,70 @@ export function DFYWebsite() {
     [selectedPage, selectedInfo, chatMap, setupListeners, setSelectedInfo],
   );
 
+  const handleApplyDirectEdit = useCallback(
+    (operation: DirectEditorOperation) => {
+      if (!selectedInfo) return;
+
+      const iframe = iframeRef.current;
+      const doc = iframe?.contentDocument;
+      if (!doc) return;
+
+      const selectedElement = doc.querySelector(
+        `.${CSS.escape(selectedInfo.alloroClass)}`,
+      );
+      if (selectedElement && !selectedElement.closest("[data-alloro-section]")) {
+        setEditError("Header/footer components can't be edited from the page editor.");
+        return;
+      }
+
+      try {
+        setEditError(null);
+        const scrollY = iframe.contentWindow?.scrollY || 0;
+        const scrollX = iframe.contentWindow?.scrollX || 0;
+        const previousSections = structuredClone(sectionsRef.current);
+
+        const result = applyDirectEditorOperation(doc, selectedInfo, operation);
+        if (!result.changed) {
+          setSelectedInfo(result.selectedInfo);
+          return;
+        }
+        const updatedSections = extractSectionsFromDom(
+          doc,
+          sectionsRef.current,
+        );
+
+        setUndoStack((prev) => [...prev, previousSections]);
+        setRedoStack([]);
+        setSections(updatedSections);
+        rebuildHtml(updatedSections);
+        setIsDirty(true);
+        setupListeners();
+        iframe.contentWindow?.scrollTo(scrollX, scrollY);
+        setSelectedInfo(result.selectedInfo);
+      } catch (err) {
+        setEditError(err instanceof Error ? err.message : "Direct edit failed");
+      }
+    },
+    [selectedInfo, rebuildHtml, setupListeners, setSelectedInfo],
+  );
+
   // Process deferred quick-action edits from iframe input panel
   useEffect(() => {
     if (
       deferredEditRef.current &&
       pendingSidebarAction === ("__deferred__" as QuickActionType)
     ) {
-      const instruction = deferredEditRef.current;
+      const operation = deferredEditRef.current;
       deferredEditRef.current = null;
       setPendingSidebarAction(null);
-      handleSendEdit(instruction);
+      handleApplyDirectEdit(operation);
     }
-  }, [pendingSidebarAction, handleSendEdit]);
+  }, [pendingSidebarAction, handleApplyDirectEdit]);
 
   // --- Toggle hidden ---
   const handleToggleHidden = useCallback(() => {
-    setUndoStack((prev) => [...prev, structuredClone(sections)]);
-    setRedoStack([]);
-    toggleHidden();
-
-    const iframe = iframeRef.current;
-    if (iframe?.contentDocument) {
-      const updatedSections = extractSectionsFromDom(
-        iframe.contentDocument,
-        sectionsRef.current,
-      );
-      setSections(updatedSections);
-      rebuildHtml(updatedSections);
-      setIsDirty(true);
-    }
-  }, [toggleHidden, sections, rebuildHtml]);
+    handleApplyDirectEdit({ type: "toggle-hidden" });
+  }, [handleApplyDirectEdit]);
 
   // --- Undo ---
   const handleUndo = useCallback(() => {
@@ -1017,7 +1108,7 @@ export function DFYWebsite() {
                         key={page.id}
                         onClick={() => {
                           setSelectedPage(page);
-                          setActiveView("editor");
+                          setWebsiteTab("editor");
                           setIsPageDropdownOpen(false);
                           setPreviewVersion(null);
                           setPreviewHtmlContent("");
@@ -1048,7 +1139,7 @@ export function DFYWebsite() {
               { key: "editor", icon: Pencil, label: "Editor" },
               { key: "submissions", icon: Inbox, label: "Submissions" },
               ...(project?.template_id
-                ? [{ key: "posts", icon: FileText, label: "Posts" }]
+                ? [{ key: "posts" as const, icon: FileText, label: "Posts" }]
                 : []),
               { key: "menus", icon: MenuIcon, label: "Menus" },
             ] as const
@@ -1058,7 +1149,7 @@ export function DFYWebsite() {
             return (
               <button
                 key={tab.key}
-                onClick={() => setActiveView(tab.key as typeof activeView)}
+                onClick={() => setWebsiteTab(tab.key)}
                 className={`relative px-3 py-2.5 text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${
                   isActive ? "text-alloro-orange" : "text-gray-500 hover:text-gray-700"
                 }`}
@@ -1215,7 +1306,7 @@ export function DFYWebsite() {
 
       {/* Main Content */}
       {activeView === "submissions" ? (
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-6 space-y-6" data-wizard-target="website-submissions">
           {project && (
             <>
               <FormSubmissionsTab
@@ -1291,7 +1382,7 @@ export function DFYWebsite() {
           )}
         </div>
       ) : (
-        <div className="flex flex-1 min-h-0 overflow-hidden">
+        <div className="flex flex-1 min-h-0 overflow-hidden" data-wizard-target="website-editor">
           {/* Preview */}
           <div className="flex-1 flex flex-col relative">
             <div className="flex-1 overflow-hidden bg-gray-100 relative">
@@ -1305,25 +1396,45 @@ export function DFYWebsite() {
                 </div>
               )}
               {viewportMode === "desktop" ? (
-                <iframe
-                  ref={iframeRef}
-                  srcDoc={prepareHtmlForPreview(
-                    previewVersion ? previewHtmlContent : resolvedHtmlContent,
-                  )}
-                  style={{
-                    width: `${Math.round(100 / DESKTOP_SCALE)}%`,
-                    height: `${Math.round(100 / DESKTOP_SCALE)}%`,
-                    transform: `scale(${DESKTOP_SCALE})`,
-                    transformOrigin: "top left",
-                  }}
-                  className="border-0"
-                  title="Page Preview"
-                  sandbox="allow-same-origin allow-scripts"
-                  onLoad={handleIframeLoad}
-                />
+                <>
+                  <iframe
+                    ref={iframeRef}
+                    srcDoc={prepareHtmlForPreview(
+                      previewVersion ? previewHtmlContent : resolvedHtmlContent,
+                    )}
+                    style={{
+                      width: `${Math.round(100 / DESKTOP_SCALE)}%`,
+                      height: `${Math.round(100 / DESKTOP_SCALE)}%`,
+                      transform: `scale(${DESKTOP_SCALE})`,
+                      transformOrigin: "top left",
+                    }}
+                    className="border-0"
+                    title="Page Preview"
+                    sandbox="allow-same-origin allow-scripts"
+                    onLoad={handleIframeLoad}
+                  />
+                  <div
+                    className="absolute left-0 top-0 pointer-events-none"
+                    style={{
+                      width: `${Math.round(100 / DESKTOP_SCALE)}%`,
+                      height: `${Math.round(100 / DESKTOP_SCALE)}%`,
+                      transform: `scale(${DESKTOP_SCALE})`,
+                      transformOrigin: "top left",
+                    }}
+                  >
+                    <InlineEditorPopover
+                      selectedInfo={previewVersion ? null : selectedInfo}
+                      mediaApi={mediaApi}
+                      isEditing={isEditing}
+                      isCanvasTextEditing={isCanvasTextEditing}
+                      onStartCanvasTextEdit={beginCanvasTextEditing}
+                      onApplyDirectEdit={handleApplyDirectEdit}
+                    />
+                  </div>
+                </>
               ) : (
                 <div className="flex justify-center h-full py-4">
-                  <div className="w-[375px] h-full bg-white rounded-2xl shadow-xl border border-gray-300 overflow-hidden">
+                  <div className="relative w-[375px] h-full bg-white rounded-2xl shadow-xl border border-gray-300 overflow-hidden">
                     <iframe
                       ref={iframeRef}
                       srcDoc={prepareHtmlForPreview(
@@ -1334,6 +1445,16 @@ export function DFYWebsite() {
                       sandbox="allow-same-origin allow-scripts"
                       onLoad={handleIframeLoad}
                     />
+                    <div className="absolute inset-0 pointer-events-none">
+                      <InlineEditorPopover
+                        selectedInfo={previewVersion ? null : selectedInfo}
+                        mediaApi={mediaApi}
+                        isEditing={isEditing}
+                        isCanvasTextEditing={isCanvasTextEditing}
+                        onStartCanvasTextEdit={beginCanvasTextEditing}
+                        onApplyDirectEdit={handleApplyDirectEdit}
+                      />
+                    </div>
                   </div>
                 </div>
               )}
@@ -1386,10 +1507,12 @@ export function DFYWebsite() {
             selectedInfo={previewVersion ? null : selectedInfo}
             chatMessages={currentChatMessages}
             onSendEdit={handleSendEdit}
+            onApplyDirectEdit={handleApplyDirectEdit}
             onToggleHidden={handleToggleHidden}
             isEditing={isEditing}
             debugInfo={null}
             systemPrompt={null}
+            mediaApi={mediaApi}
             showDebug={false}
             showHistory={true}
             historyPageId={selectedPage?.id || null}

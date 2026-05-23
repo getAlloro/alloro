@@ -3,6 +3,7 @@
  */
 
 import type { Section } from "./templates";
+import { getCommonHeaders } from "./index";
 
 // ---------------------------------------------------------------------------
 // Project Identity (new consolidated source of truth)
@@ -218,6 +219,14 @@ export interface StatusesResponse {
 
 const API_BASE = "/api/admin/websites";
 
+const adminFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
+  const headers = new Headers(init.headers);
+  Object.entries(getCommonHeaders()).forEach(([key, value]) => {
+    if (!headers.has(key)) headers.set(key, value);
+  });
+  return fetch(input, { ...init, headers });
+};
+
 /**
  * Fetch all website projects with pagination
  */
@@ -249,7 +258,7 @@ export const fetchWebsites = async (
 export const fetchWebsiteDetail = async (
   id: string,
 ): Promise<WebsiteDetailResponse> => {
-  const response = await fetch(`${API_BASE}/${id}`);
+  const response = await adminFetch(`${API_BASE}/${id}`);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch website: ${response.statusText}`);
@@ -371,7 +380,7 @@ export const regenerateComponent = async (
   componentName: string,
   instruction?: string,
 ): Promise<{ success: boolean }> => {
-  const response = await fetch(
+  const response = await adminFetch(
     `${API_BASE}/${projectId}/pages/${pageId}/regenerate-component`,
     {
       method: "POST",
@@ -871,7 +880,7 @@ export const fetchPage = async (
   projectId: string,
   pageId: string,
 ): Promise<{ success: boolean; data: WebsitePage }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/pages/${pageId}`);
+  const response = await adminFetch(`${API_BASE}/${projectId}/pages/${pageId}`);
 
   if (!response.ok) {
     const error = await response.json();
@@ -888,7 +897,7 @@ export const createDraftFromPage = async (
   projectId: string,
   pageId: string,
 ): Promise<{ success: boolean; data: WebsitePage }> => {
-  const response = await fetch(
+  const response = await adminFetch(
     `${API_BASE}/${projectId}/pages/${pageId}/create-draft`,
     { method: "POST" },
   );
@@ -915,7 +924,7 @@ export const updatePageSections = async (
     body.edit_chat_history = editChatHistory;
   }
 
-  const response = await fetch(`${API_BASE}/${projectId}/pages/${pageId}`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/pages/${pageId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -936,7 +945,7 @@ export const publishPage = async (
   projectId: string,
   pageId: string,
 ): Promise<{ success: boolean; data: WebsitePage }> => {
-  const response = await fetch(
+  const response = await adminFetch(
     `${API_BASE}/${projectId}/pages/${pageId}/publish`,
     { method: "POST" },
   );
@@ -956,7 +965,7 @@ export const createBlankPage = async (
   projectId: string,
   data: { path: string; display_name?: string; sections?: Section[] },
 ): Promise<{ success: boolean; data: WebsitePage }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/pages`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/pages`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -988,7 +997,7 @@ export const uploadArtifactPage = async (
     formData.append("display_name", data.display_name);
   }
 
-  const response = await fetch(`${API_BASE}/${projectId}/pages/artifact`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/pages/artifact`, {
     method: "POST",
     body: formData,
   });
@@ -1012,7 +1021,7 @@ export const replaceArtifactBuild = async (
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(
+  const response = await adminFetch(
     `${API_BASE}/${projectId}/pages/${pageId}/artifact`,
     {
       method: "PUT",
@@ -1035,7 +1044,7 @@ export const deletePageVersion = async (
   projectId: string,
   pageId: string,
 ): Promise<{ success: boolean; message: string }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/pages/${pageId}`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/pages/${pageId}`, {
     method: "DELETE",
   });
 
@@ -1054,7 +1063,7 @@ export const deletePageByPath = async (
   projectId: string,
   path: string,
 ): Promise<{ success: boolean; message: string }> => {
-  const response = await fetch(
+  const response = await adminFetch(
     `${API_BASE}/${projectId}/pages/by-path?path=${encodeURIComponent(path)}`,
     { method: "DELETE" },
   );
@@ -1098,7 +1107,7 @@ export const editPageComponent = async (
   pageId: string,
   payload: EditComponentRequest,
 ): Promise<EditComponentResponse> => {
-  const response = await fetch(
+  const response = await adminFetch(
     `${API_BASE}/${projectId}/pages/${pageId}/edit`,
     {
       method: "POST",
@@ -1122,7 +1131,7 @@ export const editLayoutComponent = async (
   projectId: string,
   payload: EditComponentRequest,
 ): Promise<EditComponentResponse> => {
-  const response = await fetch(`${API_BASE}/${projectId}/edit-layout`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/edit-layout`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -1140,7 +1149,7 @@ export const editLayoutComponent = async (
  * Fetch the page editor system prompt from admin settings
  */
 export const fetchEditorSystemPrompt = async (): Promise<string> => {
-  const response = await fetch(`${API_BASE}/editor/system-prompt`);
+  const response = await adminFetch(`${API_BASE}/editor/system-prompt`);
 
   if (!response.ok) {
     const error = await response.json();
@@ -1704,7 +1713,7 @@ export const updatePageDisplayName = async (
   path: string,
   displayName: string | null,
 ): Promise<{ success: boolean }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/pages/display-name`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/pages/display-name`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path, display_name: displayName }),

@@ -20,6 +20,10 @@ import {
 import { uploadPMSData } from "../api/pms";
 import { showUploadToast } from "../lib/toast";
 import { useLocationContext } from "../contexts/locationContext";
+import {
+  useIsWizardActive,
+  useWizardDemoData,
+} from "../contexts/OnboardingWizardContext";
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -199,10 +203,12 @@ const CompactTag = ({ status }: { status: string }) => {
 
 export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
   const { signalContentReady } = useLocationContext();
+  const isWizardActive = useIsWizardActive();
+  const wizardDemoData = useWizardDemoData();
   const [fetchedData, setFetchedData] = useState<ReferralEngineData | null>(
     null
   );
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isWizardActive);
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState("All");
   const [isExporting, setIsExporting] = useState(false);
@@ -216,9 +222,14 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
   const [uploadMessage, setUploadMessage] = useState<string>("");
   const [isDragOver, setIsDragOver] = useState(false);
 
-  // Fetch data from API when organizationId is provided
+  // Fetch data from API when organizationId is provided (skip in wizard mode)
   useEffect(() => {
     const fetchReferralEngineData = async () => {
+      if (isWizardActive) {
+        setLoading(false);
+        return;
+      }
+
       if (!props.organizationId) {
         setLoading(false);
         return;
@@ -266,9 +277,12 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
     };
 
     fetchReferralEngineData();
-  }, [props.organizationId, props.locationId]);
+  }, [props.organizationId, props.locationId, isWizardActive]);
 
-  const data = props.data ?? fetchedData;
+  // Effective data: wizard demo data takes priority when active
+  const data = isWizardActive
+    ? (wizardDemoData?.referralEngineData as ReferralEngineData | undefined) ?? props.data ?? fetchedData
+    : props.data ?? fetchedData;
 
   // File upload handlers
   const handleFileSelect = async (file: File) => {
@@ -746,7 +760,7 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
           </section>
 
           {/* Attribution Master Matrix - matches newdesign */}
-          <section className="bg-white rounded-3xl border border-black/5 shadow-premium overflow-hidden">
+          <section data-wizard-target="re-matrix" className="bg-white rounded-3xl border border-black/5 shadow-premium overflow-hidden">
             <div className="px-10 py-8 border-b border-black/5 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
               <div className="text-left">
                 <h2 className="text-xl font-black font-heading text-alloro-navy tracking-tight">

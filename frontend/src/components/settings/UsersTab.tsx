@@ -6,6 +6,7 @@ import { getPriorityItem } from "../../hooks/useLocalStorage";
 import { ConfirmModal } from "@/components/settings/ConfirmModal";
 import { AlertModal } from "@/components/ui/AlertModal";
 import { useSettingsUsers, useInvalidateSettingsUsers } from "../../hooks/queries/useSettingsQueries";
+import { useIsWizardActive, useWizardDemoData } from "../../contexts/OnboardingWizardContext";
 
 interface User {
   id: number;
@@ -26,10 +27,17 @@ interface Invitation {
 type UserRole = "admin" | "manager" | "viewer";
 
 export const UsersTab: React.FC = () => {
-  const { data: usersData, isLoading } = useSettingsUsers();
+  const isWizardActive = useIsWizardActive();
+  const wizardDemoData = useWizardDemoData();
+  const { data: usersData, isLoading: _isLoading } = useSettingsUsers();
   const { invalidateAll: refetchUsers } = useInvalidateSettingsUsers();
-  const users = (usersData?.users ?? []) as User[];
-  const invitations = (usersData?.invitations ?? []) as Invitation[];
+  const isLoading = isWizardActive ? false : _isLoading;
+  const users = (isWizardActive && wizardDemoData?.demoUsers
+    ? wizardDemoData.demoUsers
+    : usersData?.users ?? []) as User[];
+  const invitations = (isWizardActive && wizardDemoData?.demoInvitations
+    ? wizardDemoData.demoInvitations
+    : usersData?.invitations ?? []) as Invitation[];
   const currentUserRole = getPriorityItem("user_role") as UserRole | null;
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -205,7 +213,7 @@ export const UsersTab: React.FC = () => {
     );
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" data-wizard-target="settings-users">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}

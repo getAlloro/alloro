@@ -17,7 +17,7 @@ export function PmsVelocityCard({
   );
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-premium">
+    <section data-wizard-target="pms-velocity" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-premium">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">

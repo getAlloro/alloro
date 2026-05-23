@@ -18,6 +18,10 @@ import { motion } from "framer-motion";
 import { useGBP } from "../../hooks/useGBP";
 import { useClarity } from "../../hooks/useClarity";
 import { useLocationContext } from "../../contexts/locationContext";
+import {
+  useIsWizardActive,
+  useWizardDemoData,
+} from "../../contexts/OnboardingWizardContext";
 
 interface VitalSignsCardsProps {
   className?: string;
@@ -83,18 +87,28 @@ export const VitalSignsCards: React.FC<VitalSignsCardsProps> = ({
 
   // Hooks for data
   const {
-    gbpData,
-    isLoading: gbpLoading,
-    error: gbpError,
+    gbpData: rawGbpData,
+    isLoading: rawGbpLoading,
+    error: rawGbpError,
     fetchAIReadyData: fetchGBPAIData,
   } = useGBP();
   const {
-    clarityData,
-    isLoading: clarityLoading,
-    error: clarityError,
+    clarityData: rawClarityData,
+    isLoading: rawClarityLoading,
+    error: rawClarityError,
     fetchAIReadyClarityData: fetchClarityAIData,
   } = useClarity();
   const { selectedLocation } = useLocationContext();
+  const isWizardActive = useIsWizardActive();
+  const wizardDemoData = useWizardDemoData();
+
+  // When wizard is active, override live data with demo data
+  const gbpData = isWizardActive && wizardDemoData?.gbpDemoData ? wizardDemoData.gbpDemoData : rawGbpData;
+  const clarityData = isWizardActive && wizardDemoData?.clarityDemoData ? wizardDemoData.clarityDemoData : rawClarityData;
+  const gbpLoading = isWizardActive ? false : rawGbpLoading;
+  const clarityLoading = isWizardActive ? false : rawClarityLoading;
+  const gbpError = isWizardActive ? null : rawGbpError;
+  const clarityError = isWizardActive ? null : rawClarityError;
 
   const activeIndex = STAGES.findIndex((s) => s.id === activeTabId);
   const activeStage = STAGES[activeIndex];
@@ -277,6 +291,7 @@ export const VitalSignsCards: React.FC<VitalSignsCardsProps> = ({
 
   return (
     <div
+      data-wizard-target="pji-stages"
       className={`min-h-screen bg-alloro-bg flex flex-col pb-24 ${className}`}
     >
       <div className="max-w-[1600px] w-full mx-auto relative flex flex-col">

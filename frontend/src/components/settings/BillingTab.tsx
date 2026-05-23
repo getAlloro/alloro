@@ -166,7 +166,7 @@ export const BillingTab: React.FC = () => {
     hasStripe && (billing?.cancelAtPeriodEnd || details?.cancelAtPeriodEnd);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" data-wizard-target="settings-billing">
       {/* Locked Out Banner */}
       {isLockedOut && (
         <motion.div

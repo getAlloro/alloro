@@ -13,7 +13,7 @@ const api = (import.meta as any)?.env?.VITE_API_URL ?? "/api";
  * localStorage is shared across same-origin windows, so without this
  * guard the admin's auth_token bleeds into the pilot window.
  */
-const getCommonHeaders = (): Record<string, string> => {
+export const getCommonHeaders = (): Record<string, string> => {
   const headers: Record<string, string> = {};
 
   const isPilot =

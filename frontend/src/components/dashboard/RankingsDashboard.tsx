@@ -21,6 +21,7 @@ import { CompetitorOnboardingBanner } from "./CompetitorOnboardingBanner";
 import { RankingInFlightBanner } from "./RankingInFlightBanner";
 import {
   getInFlightRanking,
+  reselectAndRun,
   type SelectedCompetitorSearchResult,
 } from "../../api/practiceRanking";
 import { CompetitorComparisonModal } from "./rankings/CompetitorComparisonModal";
@@ -40,6 +41,13 @@ import {
  * Spec: plans/04122026-no-ticket-practice-health-search-position-split/spec.md
  */
 const PRACTICE_HEALTH_METHODOLOGY_CHANGED_AT = "2026-04-12";
+
+type CompetitorSnapshot = {
+  competitors?: Array<{
+    place_id?: string | null;
+    placeId?: string | null;
+  }>;
+};
 
 // Type for client GBP data
 interface ClientGbpData {
@@ -252,6 +260,23 @@ interface RankingsDashboardProps {
   locationId?: number | null;
 }
 
+function getSelectedCompetitorPlaceIds(
+  ranking: RankingResult | null,
+): string[] {
+  const fromSelectedResults = (ranking?.selectedCompetitorSearchResults ?? [])
+    .slice()
+    .sort((a, b) => a.selectedOrder - b.selectedOrder)
+    .map((competitor) => competitor.placeId)
+    .filter((placeId): placeId is string => Boolean(placeId));
+
+  if (fromSelectedResults.length > 0) return fromSelectedResults;
+
+  const snapshot = ranking?.competitorSnapshot as CompetitorSnapshot | null;
+  return (snapshot?.competitors ?? [])
+    .map((competitor) => competitor.place_id ?? competitor.placeId ?? null)
+    .filter((placeId): placeId is string => Boolean(placeId));
+}
+
 export function RankingsDashboard({
   organizationId,
   locationId,
@@ -263,6 +288,8 @@ export function RankingsDashboard({
   const [loading, setLoading] = useState(true);
   const [rankings, setRankings] = useState<RankingResult[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [refreshingRankings, setRefreshingRankings] = useState(false);
+  const [rerankError, setRerankError] = useState<string | null>(null);
 
   // In-flight ranking banner — shown when EITHER the URL carries
   // ?batchId=... (post-finalize redirect fast-path) OR the dashboard
@@ -739,6 +766,43 @@ export function RankingsDashboard({
     selectedRanking?.llmAnalysis?.one_line_summary ||
     selectedRanking?.llmAnalysis?.client_summary ||
     null;
+  const selectedCompetitorPlaceIds = getSelectedCompetitorPlaceIds(
+    selectedRanking,
+  );
+  const canRefreshRankings =
+    Boolean(selectedRanking?.locationId) && selectedCompetitorPlaceIds.length > 0;
+
+  async function handleRefreshRankings() {
+    if (!selectedRanking?.locationId || selectedCompetitorPlaceIds.length === 0) {
+      setRerankError("No selected competitors are available for this snapshot.");
+      return;
+    }
+
+    setRefreshingRankings(true);
+    setRerankError(null);
+    try {
+      const res = await reselectAndRun(
+        selectedRanking.locationId,
+        selectedCompetitorPlaceIds,
+        selectedRanking.competitorDiscoveryRadiusMeters ?? undefined,
+      );
+      if (!res?.success) {
+        setRerankError("Could not refresh rankings. Please try again.");
+        return;
+      }
+      setAutoDetectedBatchId(null);
+      setBannerHidden(false);
+      setSearchParams((p) => {
+        const next = new URLSearchParams(p);
+        next.set("batchId", res.batchId);
+        return next;
+      });
+    } catch {
+      setRerankError("Could not refresh rankings. Please try again.");
+    } finally {
+      setRefreshingRankings(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-alloro-bg font-body text-alloro-textDark pb-32 selection:bg-alloro-orange selection:text-white">
@@ -756,34 +820,55 @@ export function RankingsDashboard({
             </p>
           </div>
 
-          <div className="flex flex-col gap-3 rounded-[14px] border border-line-soft bg-white px-5 py-4 shadow-premium sm:flex-row sm:items-center">
-            <div className="flex items-center gap-3">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                Latest snapshot:
-              </span>
-              <span className="text-[12px] font-black text-alloro-navy">
-                {selectedRanking?.gbpLocationName || "Location"} •{" "}
-                {new Date(
-                  selectedRanking?.observedAt || new Date()
-                ).toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                })}
-              </span>
+          <div className="flex flex-col gap-3 rounded-[14px] border border-line-soft bg-white px-5 py-4 shadow-premium lg:min-w-[560px]">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  Latest snapshot:
+                </span>
+                <span className="text-[12px] font-black text-alloro-navy">
+                  {new Date(
+                    selectedRanking?.observedAt || new Date()
+                  ).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </span>
+              </div>
+              {selectedRanking?.locationId && (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <button
+                    type="button"
+                    onClick={handleRefreshRankings}
+                    disabled={!canRefreshRankings || refreshingRankings}
+                    className="inline-flex items-center justify-center gap-2 rounded-[10px] bg-alloro-orange px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white transition-colors hover:bg-alloro-orange/90 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <RefreshCw
+                      size={13}
+                      className={refreshingRankings ? "animate-spin" : ""}
+                    />
+                    {refreshingRankings ? "Refreshing" : "Refresh Rankings"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigate(
+                        `/dashboard/competitors/${selectedRanking.locationId}/onboarding?mode=reselect`
+                      )
+                    }
+                    className="inline-flex items-center justify-center gap-2 rounded-[10px] bg-alloro-navy px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white transition-colors hover:bg-alloro-navy/90"
+                  >
+                    <Settings size={13} />
+                    Manage competitors
+                  </button>
+                </div>
+              )}
             </div>
-            {selectedRanking?.locationId && (
-              <button
-                type="button"
-                onClick={() =>
-                  navigate(
-                    `/dashboard/competitors/${selectedRanking.locationId}/onboarding?mode=reselect`
-                  )
-                }
-                className="inline-flex items-center justify-center gap-2 rounded-[10px] bg-alloro-navy px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white transition-colors hover:bg-alloro-navy/90"
-              >
-                <Settings size={13} />
-                Manage competitors
-              </button>
+            {rerankError && (
+              <p className="flex items-center gap-2 text-[11px] font-bold text-red-600">
+                <AlertCircle size={13} />
+                {rerankError}
+              </p>
             )}
           </div>
         </div>

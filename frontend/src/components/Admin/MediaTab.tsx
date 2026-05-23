@@ -26,6 +26,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useConfirm } from "../ui/ConfirmModal";
+import { getCommonHeaders } from "../../api";
 
 // =====================================================================
 // Types
@@ -152,7 +153,7 @@ export default function MediaTab({ projectId }: { projectId: string }) {
 
       const response = await fetch(
         `/api/admin/websites/${projectId}/media?${params}`,
-        { credentials: "include" }
+        { headers: getCommonHeaders() }
       );
 
       if (!response.ok) throw new Error("Failed to fetch media");
@@ -241,7 +242,9 @@ export default function MediaTab({ projectId }: { projectId: string }) {
     });
 
     xhr.open("POST", `/api/admin/websites/${projectId}/media`);
-    xhr.withCredentials = true;
+    Object.entries(getCommonHeaders()).forEach(([key, value]) => {
+      xhr.setRequestHeader(key, value);
+    });
     xhr.send(formData);
   };
 
@@ -251,9 +254,11 @@ export default function MediaTab({ projectId }: { projectId: string }) {
         `/api/admin/websites/${projectId}/media/${mediaId}`,
         {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            ...getCommonHeaders(),
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify(editForm),
-          credentials: "include",
         }
       );
 
@@ -278,7 +283,7 @@ export default function MediaTab({ projectId }: { projectId: string }) {
         `/api/admin/websites/${projectId}/media/${mediaId}?force=true`,
         {
           method: "DELETE",
-          credentials: "include",
+          headers: getCommonHeaders(),
         }
       );
 

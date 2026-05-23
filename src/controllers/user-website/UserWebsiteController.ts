@@ -6,6 +6,8 @@
  *
  * Endpoints:
  * - GET  / → getUserWebsite (DFY tier website data)
+ * - GET  /media → listMedia (DFY tier website media)
+ * - POST /media → uploadMedia (DFY tier website media upload)
  * - POST /pages/:pageId/edit → editPageComponent (AI page edit)
  */
 
@@ -110,6 +112,79 @@ export async function getUserWebsite(
     });
   } catch (error) {
     return handleError(res, error, "Fetch user website");
+  }
+}
+
+// =====================================================================
+// GET /api/user/website/media — List user's website media
+// =====================================================================
+
+export async function listMedia(
+  req: RBACRequest,
+  res: Response
+): Promise<Response> {
+  try {
+    const orgId = req.organizationId;
+    if (!orgId) {
+      return res.status(400).json({ error: "No organization found" });
+    }
+
+    const { type, search, page = "1", limit = "50" } = req.query;
+    const result = await userWebsiteService.listMediaForOrg(orgId, {
+      type: type as string | undefined,
+      search: search as string | undefined,
+      page: parseInt(page as string, 10),
+      limit: parseInt(limit as string, 10),
+    });
+
+    return res.json({
+      success: true,
+      data: result.data,
+      pagination: result.pagination,
+      quota: result.quota,
+    });
+  } catch (error) {
+    return handleError(res, error, "List website media");
+  }
+}
+
+// =====================================================================
+// POST /api/user/website/media — Upload media for user's website
+// =====================================================================
+
+export async function uploadMedia(
+  req: RBACRequest,
+  res: Response
+): Promise<Response> {
+  try {
+    const orgId = req.organizationId;
+    if (!orgId) {
+      return res.status(400).json({ error: "No organization found" });
+    }
+
+    const files = req.files as Express.Multer.File[];
+    const result = await userWebsiteService.uploadMediaForOrg(orgId, files);
+
+    return res.status(201).json({
+      success: true,
+      data: result.succeeded,
+      failed: result.failed.length > 0 ? result.failed : undefined,
+      quota: result.quota,
+    });
+  } catch (error: any) {
+    if (error.statusCode && error.errorCode) {
+      const body: Record<string, unknown> = {
+        success: false,
+        error: error.errorCode,
+        message: error.message,
+      };
+      if (error.quota) {
+        body.quota = error.quota;
+      }
+      return res.status(error.statusCode).json(body);
+    }
+
+    return handleError(res, error, "Upload website media");
   }
 }
 

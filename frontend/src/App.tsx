@@ -159,6 +159,7 @@ function App() {
                 <Route path="/pmsStatistics" element={<Dashboard />} />
                 <Route path="/tasks" element={<Dashboard />} />
                 <Route path="/rankings" element={<Dashboard />} />
+                <Route path="/referralEngine" element={<Dashboard />} />
                 <Route
                   path="/dashboard/competitors/:locationId/onboarding"
                   element={<LocationCompetitorOnboarding />}

@@ -1,22 +1,17 @@
 import { useState, useEffect } from "react";
 import { X, Loader2, Image } from "lucide-react";
+import type { MediaApi, MediaItem } from "../../api/websiteMedia";
 
-export interface MediaItem {
-  id: string;
-  display_name: string;
-  s3_url: string;
-  thumbnail_s3_url: string | null;
-  mime_type: string;
-}
+export type { MediaApi, MediaItem } from "../../api/websiteMedia";
 
 interface MediaBrowserProps {
-  projectId: string;
+  mediaApi: MediaApi;
   onSelect: (media: MediaItem) => void;
   onClose: () => void;
   compact?: boolean;
 }
 
-export default function MediaBrowser({ projectId, onSelect, onClose, compact }: MediaBrowserProps) {
+export default function MediaBrowser({ mediaApi, onSelect, onClose, compact }: MediaBrowserProps) {
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -24,11 +19,7 @@ export default function MediaBrowser({ projectId, onSelect, onClose, compact }: 
     const fetchMedia = async () => {
       try {
         setLoading(true);
-        const response = await fetch(
-          `/api/admin/websites/${projectId}/media?type=all&limit=50`,
-          { credentials: "include" }
-        );
-        const data = await response.json();
+        const data = await mediaApi.list({ type: "all", limit: 50 });
         if (data.success) {
           setMediaItems(data.data || []);
         }
@@ -40,7 +31,7 @@ export default function MediaBrowser({ projectId, onSelect, onClose, compact }: 
     };
 
     fetchMedia();
-  }, [projectId]);
+  }, [mediaApi]);
 
   return (
     <div className={`border border-gray-200 rounded-lg bg-white shadow-lg overflow-y-auto ${compact ? "max-h-[180px]" : "max-h-[300px]"}`}>

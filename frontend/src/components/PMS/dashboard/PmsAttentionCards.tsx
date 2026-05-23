@@ -50,7 +50,7 @@ export function PmsAttentionCards({
   const selfPercentage = Math.max(100 - doctorPercentage, 0);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
+    <div data-wizard-target="pms-insights" className="grid gap-4 lg:grid-cols-3">
       <AttentionCard
         icon={Layers3}
         label="Top source"

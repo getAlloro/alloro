@@ -17,8 +17,12 @@
 import express, { NextFunction, Request, Response } from "express";
 import multer from "multer";
 import * as controller from "../../controllers/admin-media/AdminMediaController";
+import { authenticateToken } from "../../middleware/auth";
+import { superAdminMiddleware } from "../../middleware/superAdmin";
 
 const router = express.Router({ mergeParams: true }); // Preserve :projectId param
+
+router.use(authenticateToken, superAdminMiddleware);
 
 const MAX_MEDIA_FILE_SIZE_MB = 500;
 const MAX_MEDIA_FILE_SIZE_BYTES = MAX_MEDIA_FILE_SIZE_MB * 1024 * 1024;

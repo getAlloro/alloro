@@ -11,6 +11,7 @@ import {
 } from "../../../hooks/queries/useTopAction";
 import HighlightedText from "./HighlightedText";
 import { getDomainIcon } from "./icons";
+import { useIsWizardActive, useWizardDemoData } from "../../../contexts/OnboardingWizardContext";
 
 /**
  * Hero — top-of-dashboard card surfacing the single highest-priority
@@ -85,6 +86,7 @@ function splitDeliverables(deliverables: string): {
 
 const HeroShell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <section
+    data-wizard-target="dashboard-hero"
     className="focus-card-dark relative overflow-hidden rounded-[14px] border border-[#2A2722] text-[#F5F1EA]"
     style={{
       background:
@@ -414,19 +416,24 @@ export type HeroProps = {
 };
 
 export function Hero({ hasPmsData = true }: HeroProps) {
+  const isWizardActive = useIsWizardActive();
+  const wizardDemoData = useWizardDemoData();
   const { userProfile } = useAuth();
   const organizationId = userProfile?.organizationId ?? null;
   const { selectedLocation } = useLocationContext();
   const locationId = selectedLocation?.id ?? null;
 
-  const { topAction, isLoading, error, refetch } = useTopAction(
+  const { topAction: realTopAction, isLoading: realLoading, error, refetch } = useTopAction(
     organizationId,
     locationId
   );
 
+  const topAction = isWizardActive ? (wizardDemoData?.heroAction as ResolvedTopAction | undefined) ?? realTopAction : realTopAction;
+  const isLoading = isWizardActive ? false : realLoading;
+
   if (!hasPmsData) return <HeroPmsEmpty />;
   if (isLoading) return <HeroLoading />;
-  if (error) {
+  if (!isWizardActive && error) {
     return <HeroError message={error.message} onRetry={refetch} />;
   }
   if (!topAction) return <HeroEmpty />;

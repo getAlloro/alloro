@@ -2,6 +2,86 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.87] - May 2026
+
+### Form Email Submission Links
+
+Made website form emails send recipients directly to the Website submissions tab when uploaded files or photos are present, without exposing patient images in the email itself.
+
+**Key Changes:**
+- Updated uploaded-file email copy to point to the Alloro submissions dashboard for clearer previews and full-size downloads
+- Added `?tab=` permalink support to the DFY Website page for Editor, Submissions, Posts, and Menus
+- Preserved legacy `?view=` website tab links by normalizing them to the new `?tab=` parameter
+- Updated Alloro Docs Website guidance to mention direct tab links
+
+**Commits:**
+- `src/controllers/websiteContact/websiteContact-services/emailBodyBuilder.ts` - uploaded-file email note now links to `/dfy/website?tab=submissions`
+- `frontend/src/pages/DFYWebsite.tsx` - URL-backed Website tab selection and legacy `?view=` compatibility
+- `/Users/rustinedave/Desktop/alloro-docs/src/data/pages/website.ts` - Website docs walkthrough copy for `?tab=` links
+- `plans/05232026-no-ticket-email-submissions-tab-link/spec.md` - executed spec and verification checklist
+
+## [0.0.86] - May 2026
+
+### Caswell Organization Data Consolidation
+
+Consolidated Caswell Orthodontics operational ownership onto the canonical org `43` while preserving the live website project and stable location IDs.
+
+**Key Changes:**
+- Kept org `43` as the canonical Caswell organization and left org `25` undeleted for a separate cleanup decision
+- Moved the three real Caswell locations, Google connection, and user membership from org `25` to org `43`
+- Rehomed Caswell ranking, task, agent result, PMS, notification, and Google data history to org `43`
+- Removed the empty placeholder location on org `43` after preflight confirmed it had no dependent rows
+- Verified org `43` owns one primary location, both Caswell user memberships, and the live website project after the transfer
+
+**Commits:**
+- `plans/05232026-no-ticket-migrate-caswell-org-data/spec.md` - executed data-migration spec, risk notes, and verified checklist
+- Live database rows - transactional org ownership transfer for Caswell locations, Google connection, users, and operational history
+
+## [0.0.85] - May 2026
+
+### Canvas Inline Website Editing
+
+Made routine website text edits feel more like a real page editor by allowing safe direct typing on selected canvas text while keeping structure-changing operations out of scope.
+
+**Key Changes:**
+- Added plain-text canvas editing for safe selected headings, paragraphs, links, list items, captions, and button labels
+- Made selected text open a focused on-canvas textarea at the selected element so typing happens in place with a real caret
+- Replaced the right-sidebar single-line text input with a multi-line textarea and visible font-size controls
+- Added paste/keyboard guards so canvas edits stay plain text and can be committed or cancelled without injecting rich markup
+- Blocked unsafe nested media, icon, and form content from direct canvas editing instead of risking wrapper damage
+- Routed committed canvas text edits through the existing direct operation, undo/history, section extraction, autosave, dirty-state, save, and layout persistence paths
+- Kept link href, media replacement, font-size, hide/show, and section background edits in the compact property toolbar
+- Preserved the no-reorder, no-delete, no-drag/drop, no-arbitrary-HTML, and no-new-storage-path boundaries
+
+**Commits:**
+- `frontend/src/utils/canvasTextEditing.ts` - safe on-canvas textarea edit session lifecycle, paste sanitization, commit, and cancel behavior
+- `frontend/src/hooks/useIframeSelector.ts` - selected-element editability metadata, canvas textarea pointer handling, and iframe editing-state handling
+- `frontend/src/utils/editorDirectOperations.ts` - no-op detection and canvas edit availability in direct operation results
+- `frontend/src/components/PageEditor/InlineEditorPopover.tsx` - compact text toolbar behavior with fallback input for unsafe nested content
+- `frontend/src/components/PageEditor/SelectedElementEditorPanel.tsx` - sidebar selected-element textarea editor, font-size controls, link controls, media controls, and visibility controls
+- `frontend/src/pages/admin/PageEditor.tsx`, `LayoutEditor.tsx`, and `DFYWebsite.tsx` - shared canvas edit wiring through existing save/persistence flows
+- `plans/05222026-no-ticket-canvas-inline-content-editing/spec.md` - executed spec and verification checklist
+
+## [0.0.84] - May 2026
+
+### Website Editor Direct Controls
+
+Hardened the website editor media boundary and moved routine page-editor operations off AI prompts into deterministic editor controls across admin and client-facing surfaces.
+
+**Key Changes:**
+- Added authenticated, user-scoped DFY media list/upload endpoints and guarded admin media/editor routes
+- Routed shared media browser/upload UI through explicit admin or user media adapters
+- Added direct editor operations for text replacement, link updates, media replacement, font-size stepping, and hide/show
+- Wired direct operations into admin Page Editor, admin Layout Editor, and the client DFY Website editor while preserving existing section extraction and save/publish flows
+- Kept freeform AI editing available for non-basic edits
+
+**Commits:**
+- `src/routes/admin/media.ts`, `src/routes/admin/websites.ts`, and `src/routes/user/website.ts` - media/editor route protection and user media routes
+- `src/controllers/user-website/*` - org-scoped DFY media list/upload handling
+- `frontend/src/api/websiteMedia.ts`, `frontend/src/api/websites.ts`, and shared media components - admin/user media adapter wiring
+- `frontend/src/utils/editorDirectOperations.ts`, `frontend/src/components/PageEditor/EditorSidebar.tsx`, `frontend/src/hooks/useIframeSelector.ts`, and editor pages - deterministic selected-element edit operations
+- `plans/05212026-no-ticket-website-editor-*` - executed media-boundary and traditional-controls specs
+
 ## [0.0.83] - May 2026
 
 ### Form Submission Email Branding

@@ -530,7 +530,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
 
           {/* Websites */}
-          {!isLockedOut && onboardingCompleted && hasWebsite && (
+          {!isLockedOut && onboardingCompleted && (hasWebsite || isWizardActive) && (
             <div className="space-y-1.5">
               <NavItem
                 icon={<Globe size={18} />}

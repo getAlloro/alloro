@@ -3,15 +3,68 @@
  *
  * DFY-tier user-facing website endpoints:
  * - GET  / — Fetch organization website data
+ * - GET  /media — List organization website media
+ * - POST /media — Upload organization website media
  * - POST /pages/:pageId/edit — AI-powered page component edit
  */
 
-import express from "express";
+import express, { NextFunction, Response } from "express";
+import multer from "multer";
 import { authenticateToken } from "../../middleware/auth";
 import { rbacMiddleware, requireRole } from "../../middleware/rbac";
+import type { RBACRequest } from "../../middleware/rbac";
 import * as controller from "../../controllers/user-website/UserWebsiteController";
 
 const userWebsiteRoutes = express.Router();
+
+const MAX_MEDIA_FILE_SIZE_MB = 500;
+const MAX_MEDIA_FILE_SIZE_BYTES = MAX_MEDIA_FILE_SIZE_MB * 1024 * 1024;
+const MAX_MEDIA_FILES_PER_REQUEST = 20;
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_MEDIA_FILE_SIZE_BYTES },
+});
+const uploadMediaFiles = upload.array("files", MAX_MEDIA_FILES_PER_REQUEST);
+
+const handleMediaUpload = (
+  req: RBACRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  uploadMediaFiles(req, res, (error: unknown) => {
+    if (!error) {
+      void controller.uploadMedia(req, res).catch(next);
+      return;
+    }
+
+    if (error instanceof multer.MulterError) {
+      if (error.code === "LIMIT_FILE_SIZE") {
+        return res.status(413).json({
+          success: false,
+          error: "FILE_TOO_LARGE",
+          message: `Each media file must be ${MAX_MEDIA_FILE_SIZE_MB} MB or smaller.`,
+        });
+      }
+
+      if (error.code === "LIMIT_UNEXPECTED_FILE") {
+        return res.status(400).json({
+          success: false,
+          error: "TOO_MANY_FILES",
+          message: `Upload up to ${MAX_MEDIA_FILES_PER_REQUEST} files at a time.`,
+        });
+      }
+
+      return res.status(400).json({
+        success: false,
+        error: error.code,
+        message: error.message,
+      });
+    }
+
+    return next(error);
+  });
+};
 
 userWebsiteRoutes.get(
   "/",
@@ -19,6 +72,22 @@ userWebsiteRoutes.get(
   rbacMiddleware,
   requireRole("admin", "manager"),
   controller.getUserWebsite
+);
+
+userWebsiteRoutes.get(
+  "/media",
+  authenticateToken,
+  rbacMiddleware,
+  requireRole("admin", "manager"),
+  controller.listMedia
+);
+
+userWebsiteRoutes.post(
+  "/media",
+  authenticateToken,
+  rbacMiddleware,
+  requireRole("admin", "manager"),
+  handleMediaUpload
 );
 
 userWebsiteRoutes.get(

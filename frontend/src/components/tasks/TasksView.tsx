@@ -21,7 +21,7 @@ import {
 import { fetchClientTasks, completeTask } from "../../api/tasks";
 import type { GroupedActionItems, ActionItem } from "../../types/tasks";
 import { parseHighlightTags } from "../../utils/textFormatting";
-import { useIsWizardActive } from "../../contexts/OnboardingWizardContext";
+import { useIsWizardActive, useWizardDemoData } from "../../contexts/OnboardingWizardContext";
 import { useLocationContext } from "../../contexts/locationContext";
 import { getPriorityItem } from "../../hooks/useLocalStorage";
 
@@ -283,6 +283,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
 export function TasksView({ organizationId, locationId }: TasksViewProps) {
   const location = useLocation();
   const isWizardActive = useIsWizardActive();
+  const wizardDemoData = useWizardDemoData();
   const { signalContentReady } = useLocationContext();
   const [tasks, setTasks] = useState<GroupedActionItems | null>(null);
   const [loading, setLoading] = useState(true);
@@ -447,6 +448,9 @@ export function TasksView({ organizationId, locationId }: TasksViewProps) {
   // Skip during wizard mode - use demo data instead
   useEffect(() => {
     if (isWizardActive) {
+      if (wizardDemoData?.tasks) {
+        setTasks(wizardDemoData.tasks);
+      }
       setLoading(false);
       return;
     }
@@ -457,7 +461,7 @@ export function TasksView({ organizationId, locationId }: TasksViewProps) {
     }
 
     loadTasks();
-  }, [organizationId, locationId, isWizardActive]);
+  }, [organizationId, locationId, isWizardActive, wizardDemoData]);
 
   const loadTasks = async () => {
     if (!organizationId) return;

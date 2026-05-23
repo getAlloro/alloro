@@ -14,6 +14,7 @@ import {
   useSupportTicket,
   useSupportTickets,
 } from "../hooks/queries/useSupportQueries";
+import { useIsWizardActive, useWizardDemoData } from "../contexts/OnboardingWizardContext";
 
 export default function Help() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -23,14 +24,19 @@ export default function Help() {
   );
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const { selectedLocation } = useLocationContext();
+  const isWizardActive = useIsWizardActive();
+  const wizardDemoData = useWizardDemoData();
   const ticketsQuery = useSupportTickets({ limit: 50 });
   const detailQuery = useSupportTicket(selectedTicketId);
   const createTicket = useCreateSupportTicket();
   const createMessage = useCreateSupportTicketMessage(selectedTicketId);
 
   const tickets = useMemo(
-    () => ticketsQuery.data?.tickets || [],
-    [ticketsQuery.data?.tickets],
+    () =>
+      isWizardActive && wizardDemoData?.demoTickets
+        ? wizardDemoData.demoTickets
+        : ticketsQuery.data?.tickets || [],
+    [isWizardActive, wizardDemoData?.demoTickets, ticketsQuery.data?.tickets],
   );
 
   useEffect(() => {
@@ -87,7 +93,7 @@ export default function Help() {
   };
 
   return (
-    <div className="pm-light min-h-screen bg-[var(--color-pm-bg-primary)] font-body text-alloro-navy">
+    <div className="pm-light min-h-screen bg-[var(--color-pm-bg-primary)] font-body text-alloro-navy" data-wizard-target="support-overview">
       <div className="mx-auto w-full max-w-[1320px] space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
         <motion.header
           initial={{ opacity: 0, y: 16 }}
@@ -127,15 +133,25 @@ export default function Help() {
           <SupportTicketList
             tickets={tickets}
             selectedTicketId={selectedTicketId}
-            isLoading={ticketsQuery.isLoading}
+            isLoading={isWizardActive ? false : ticketsQuery.isLoading}
             onCreateTicket={handleOpenComposer}
             onSelectTicket={handleSelectTicket}
           />
           <SupportTicketDetail
-            ticket={detailQuery.data?.ticket}
-            messages={detailQuery.data?.messages}
-            attachments={detailQuery.data?.attachments}
-            isLoading={detailQuery.isLoading}
+            ticket={
+              isWizardActive && wizardDemoData?.demoTickets
+                ? wizardDemoData.demoTickets.find((ticket) => ticket.id === selectedTicketId) ?? wizardDemoData.demoTickets[0]
+                : detailQuery.data?.ticket
+            }
+            messages={
+              isWizardActive && wizardDemoData?.demoMessages && selectedTicketId
+                ? wizardDemoData.demoMessages[selectedTicketId] ?? []
+                : detailQuery.data?.messages
+            }
+            attachments={
+              isWizardActive ? [] : detailQuery.data?.attachments
+            }
+            isLoading={isWizardActive ? false : detailQuery.isLoading}
             isReplying={createMessage.isPending}
             onReply={handleReply}
           />
