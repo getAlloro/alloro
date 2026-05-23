@@ -112,6 +112,7 @@ No regeneration ships to a doctor-facing surface without passing the gate.
 ## Session Cycle
 
 Session start:
+0. **Fetch the Alloro — State of Now page first, before any other action.** URL: https://www.notion.so/Alloro-State-of-Now-369fdaf120c481c698bfdf4c0b32c556. Read all five sections (current state, customer state, active priorities, doctrine refs, pending decisions). Note each section's last-updated timestamp. Sign the Last-Read Log on the page with `[CC] YYYY-MM-DD`. If the page can't be fetched, name that fact in the response before answering anything else. This is the shared substrate read by every Claude (CC, CW, Cowork, Jo's Claude, Dave's Claude) at session start — locked 2026-05-23 per the Five-Claude Shared Substrate proposal.
 1. Infer session type from Corey's opening (THINKING / BUILD / BUG TRIAGE).
 2. `git branch --show-current && git status --short`.
 3. `export SESSION_ANCHOR_COMMIT=$(git rev-parse HEAD)`. Bridge Translator session-mode reads this at session end.
