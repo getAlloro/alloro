@@ -91,6 +91,22 @@ interface Usage {
 }
 
 const DESKTOP_SCALE = 0.7;
+const WEBSITE_TABS = ["editor", "submissions", "posts", "menus"] as const;
+type WebsiteTab = typeof WEBSITE_TABS[number];
+
+function parseWebsiteTab(value: string | null): WebsiteTab | null {
+  return WEBSITE_TABS.includes(value as WebsiteTab)
+    ? (value as WebsiteTab)
+    : null;
+}
+
+function getWebsiteTabFromParams(searchParams: URLSearchParams): WebsiteTab {
+  return (
+    parseWebsiteTab(searchParams.get("tab")) ||
+    parseWebsiteTab(searchParams.get("view")) ||
+    "editor"
+  );
+}
 
 export function DFYWebsite() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -103,10 +119,7 @@ export function DFYWebsite() {
   const [selectedPage, setSelectedPage] = useState<Page | null>(null);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [showDomainModal, setShowDomainModal] = useState(false);
-  const [activeView, setActiveView] = useState<"editor" | "submissions" | "posts" | "menus">(() => {
-    const view = searchParams.get("view");
-    return view === "submissions" || view === "posts" || view === "menus" ? view : "editor";
-  });
+  const activeView = getWebsiteTabFromParams(searchParams);
   const [viewportMode, setViewportMode] = useState<"desktop" | "mobile">(
     "desktop",
   );
@@ -136,6 +149,22 @@ export function DFYWebsite() {
   const isWizardActive = useIsWizardActive();
   const wizardDemoData = useWizardDemoData();
 
+  const setWebsiteTab = useCallback(
+    (tab: WebsiteTab) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("view");
+        if (tab === "editor") {
+          next.delete("tab");
+        } else {
+          next.set("tab", tab);
+        }
+        return next;
+      }, { replace: true });
+    },
+    [setSearchParams],
+  );
+
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const sectionsRef = useRef(sections);
   sectionsRef.current = sections;
@@ -147,14 +176,26 @@ export function DFYWebsite() {
     setCollapsed(true);
   }, [setCollapsed]);
 
+  // Normalize legacy links like ?view=submissions to the new ?tab= permalink.
+  useEffect(() => {
+    if (!searchParams.has("view")) return;
+
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      const legacyTab = parseWebsiteTab(next.get("view"));
+      next.delete("view");
+
+      if (legacyTab && legacyTab !== "editor" && !next.has("tab")) {
+        next.set("tab", legacyTab);
+      }
+
+      return next;
+    }, { replace: true });
+  }, [searchParams, setSearchParams]);
+
   // Mark all submissions as read when switching to submissions view
   useEffect(() => {
     if (activeView !== "submissions") return;
-
-    // Clean up the ?view= param from URL
-    if (searchParams.has("view")) {
-      setSearchParams({}, { replace: true });
-    }
 
     const markAllRead = async () => {
       try {
@@ -1067,7 +1108,7 @@ export function DFYWebsite() {
                         key={page.id}
                         onClick={() => {
                           setSelectedPage(page);
-                          setActiveView("editor");
+                          setWebsiteTab("editor");
                           setIsPageDropdownOpen(false);
                           setPreviewVersion(null);
                           setPreviewHtmlContent("");
@@ -1098,7 +1139,7 @@ export function DFYWebsite() {
               { key: "editor", icon: Pencil, label: "Editor" },
               { key: "submissions", icon: Inbox, label: "Submissions" },
               ...(project?.template_id
-                ? [{ key: "posts", icon: FileText, label: "Posts" }]
+                ? [{ key: "posts" as const, icon: FileText, label: "Posts" }]
                 : []),
               { key: "menus", icon: MenuIcon, label: "Menus" },
             ] as const
@@ -1108,7 +1149,7 @@ export function DFYWebsite() {
             return (
               <button
                 key={tab.key}
-                onClick={() => setActiveView(tab.key as typeof activeView)}
+                onClick={() => setWebsiteTab(tab.key)}
                 className={`relative px-3 py-2.5 text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${
                   isActive ? "text-alloro-orange" : "text-gray-500 hover:text-gray-700"
                 }`}

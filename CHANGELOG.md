@@ -2,6 +2,24 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.87] - May 2026
+
+### Form Email Submission Links
+
+Made website form emails send recipients directly to the Website submissions tab when uploaded files or photos are present, without exposing patient images in the email itself.
+
+**Key Changes:**
+- Updated uploaded-file email copy to point to the Alloro submissions dashboard for clearer previews and full-size downloads
+- Added `?tab=` permalink support to the DFY Website page for Editor, Submissions, Posts, and Menus
+- Preserved legacy `?view=` website tab links by normalizing them to the new `?tab=` parameter
+- Updated Alloro Docs Website guidance to mention direct tab links
+
+**Commits:**
+- `src/controllers/websiteContact/websiteContact-services/emailBodyBuilder.ts` - uploaded-file email note now links to `/dfy/website?tab=submissions`
+- `frontend/src/pages/DFYWebsite.tsx` - URL-backed Website tab selection and legacy `?view=` compatibility
+- `/Users/rustinedave/Desktop/alloro-docs/src/data/pages/website.ts` - Website docs walkthrough copy for `?tab=` links
+- `plans/05232026-no-ticket-email-submissions-tab-link/spec.md` - executed spec and verification checklist
+
 ## [0.0.86] - May 2026
 
 ### Caswell Organization Data Consolidation

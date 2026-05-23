@@ -32,7 +32,7 @@ export function buildEmailBody(
     : buildFlatHtml(contents as Record<string, string | FileValue>);
 
   const filesNote = hasFiles(contents)
-    ? `<p style="margin-top:16px;font-size:12px;color:#9ca3af;text-align:center;">The attached files are accessible via your <a href="https://app.getalloro.com/dfy/website?view=submissions" style="color:#0e8988;text-decoration:underline;">Alloro dashboard</a>.</p>`
+    ? `<p style="margin-top:16px;font-size:12px;color:#9ca3af;text-align:center;">Photos and uploaded files are available in the <a href="https://app.getalloro.com/dfy/website?tab=submissions" style="color:#0e8988;text-decoration:underline;">Alloro submissions dashboard</a> for clearer previews and full-size downloads.</p>`
     : "";
 
   return `<div style="font-family:${SANS_FONT};max-width:600px;margin:0 auto;padding:24px;">
