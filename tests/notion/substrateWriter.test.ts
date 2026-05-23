@@ -27,6 +27,7 @@ import {
   updateBlock,
   patchPage,
   SubstrateWriteError,
+  conflictBackoffMs,
 } from "../../src/services/notion/substrateWriter";
 
 vi.mock("axios");
@@ -292,6 +293,35 @@ describe("substrateWriter", () => {
         expect((err as SubstrateWriteError).code).toBe("UNKNOWN");
       }
       expect(mockedAxios.patch).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("conflict backoff jitter (R1 refinement)", () => {
+    it("returns a value within [250, 750] across many calls", () => {
+      const samples: number[] = [];
+      for (let i = 0; i < 200; i++) samples.push(conflictBackoffMs());
+      const min = Math.min(...samples);
+      const max = Math.max(...samples);
+      expect(min).toBeGreaterThanOrEqual(250);
+      expect(max).toBeLessThanOrEqual(750);
+    });
+
+    it("produces varied values (not all identical)", () => {
+      const samples = new Set<number>();
+      for (let i = 0; i < 50; i++) samples.add(conflictBackoffMs());
+      // With Math.random, 50 calls should produce many distinct floats.
+      expect(samples.size).toBeGreaterThan(40);
+    });
+
+    it("respects mocked Math.random for boundary cases", () => {
+      const spy = vi.spyOn(Math, "random");
+      spy.mockReturnValueOnce(0);
+      expect(conflictBackoffMs()).toBe(250);
+      spy.mockReturnValueOnce(1);
+      expect(conflictBackoffMs()).toBe(750);
+      spy.mockReturnValueOnce(0.5);
+      expect(conflictBackoffMs()).toBe(500);
+      spy.mockRestore();
     });
   });
 

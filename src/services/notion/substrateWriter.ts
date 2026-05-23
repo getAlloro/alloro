@@ -43,8 +43,24 @@ import axios, { AxiosError, AxiosResponse } from "axios";
 const NOTION_API_BASE = "https://api.notion.com/v1";
 const NOTION_VERSION = "2022-06-28";
 
-const CONFLICT_BACKOFF_MS = 500;
+const CONFLICT_BACKOFF_MIN_MS = 250;
+const CONFLICT_BACKOFF_MAX_MS = 750;
 const RATE_LIMIT_DEFAULT_BACKOFF_MS = 1000;
+
+/**
+ * Jittered backoff for 409 conflict retry. Returns a random value in
+ * [CONFLICT_BACKOFF_MIN_MS, CONFLICT_BACKOFF_MAX_MS]. Jitter prevents
+ * retry storms at five-Claude scale: if two Claudes hit a 409 at the
+ * same instant on the same block, fixed 500ms backoff makes them retry
+ * at the same instant again. A 250-750ms range desynchronizes the retry
+ * window. Exported for test access only.
+ */
+export function conflictBackoffMs(): number {
+  return (
+    CONFLICT_BACKOFF_MIN_MS +
+    Math.random() * (CONFLICT_BACKOFF_MAX_MS - CONFLICT_BACKOFF_MIN_MS)
+  );
+}
 
 // -- Types --------------------------------------------------------------
 
@@ -255,7 +271,7 @@ async function runWithRetry(
     }
     logConflict(operation, context, err, attempt);
     const backoff =
-      mode === "conflict" ? CONFLICT_BACKOFF_MS : parseRetryAfter(err);
+      mode === "conflict" ? conflictBackoffMs() : parseRetryAfter(err);
     await sleep(backoff);
     attempt = 2;
     try {

@@ -947,17 +947,27 @@ async function callReviewerClaudeAPI(
   // Prompt caching: the Reviewer Claude system prompt is verbatim and large
   // (thousands of tokens) and is reused across many artifacts in the same
   // 5-minute window. Send it as a TextBlockParam[] with cache_control
-  // ephemeral; cache reads cost 10 percent of normal input tokens. The
-  // date context is concatenated into the same cached block intentionally:
-  // the date only changes daily, so same-day calls hit the same cache key.
+  // ephemeral on the large stable block; cache reads cost 10 percent of
+  // normal input tokens.
+  //
+  // The date is in a separate (uncached) block intentionally. The reviewer
+  // prompt uses the date for staleness checks (see Light Mode notes in the
+  // verbatim prompt above), so the date IS load-bearing, but it changes
+  // daily. Keeping it out of the cached block means same-prompt calls hit
+  // the cache across days, not only same-day. Day boundary no longer
+  // invalidates the cache; only meaningful prompt edits do.
   const response = await client.messages.create({
     model,
     max_tokens: 4096,
     system: [
       {
         type: "text",
-        text: fullSystemPrompt + dateContext,
+        text: fullSystemPrompt,
         cache_control: { type: "ephemeral" },
+      },
+      {
+        type: "text",
+        text: dateContext,
       },
     ],
     messages: [

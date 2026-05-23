@@ -151,10 +151,16 @@ export async function processDailyAgent(
     const systemPrompt = loadPrompt("dailyAgents/Proofline");
     const userMessage = JSON.stringify(payload, null, 2);
 
+    // Proofline runs once per organization per day. Within a single batch
+    // run (one cron tick processing many orgs), the system prompt is byte
+    // identical across calls; opt in to ephemeral prompt caching so each
+    // org after the first reads the cached system block at 10 percent of
+    // the normal input-token cost.
     const result = await runAgent({
       systemPrompt,
       userMessage,
       maxTokens: 4096,
+      cacheSystem: true,
     });
 
     log(
@@ -236,10 +242,16 @@ async function runMonthlyAgent(opts: {
 
   log(`  → Running ${opts.agentName} via Claude directly`);
 
+  // Monthly agents (Summary, CRO, Opportunity, ReferralEngineAnalysis)
+  // run once per organization per cycle. Within a single batch run, the
+  // same agent's system prompt is byte identical across orgs; opt in to
+  // ephemeral prompt caching so each org after the first reads the
+  // cached system block at 10 percent of the normal input-token cost.
   const result = await runAgent({
     systemPrompt,
     userMessage,
     maxTokens: 16384,
+    cacheSystem: true,
   });
 
   log(
