@@ -101,3 +101,14 @@ Update the Focus dashboard cards so Proofline `<hl>` text renders as thin orange
 - `cd frontend && npx eslint src/components/dashboard/focus/FocusTrendChart.tsx src/components/dashboard/focus/SubmissionsTrendChart.tsx src/components/dashboard/focus/WebsiteCard.tsx src/components/dashboard/focus/PMSCard.tsx src/components/dashboard/focus/LocalRankingCard.tsx` — passed.
 - `npm run build` — passed.
 - Local browser smoke on `http://127.0.0.1:5174/dashboard` — served app and redirected to `/signin` as expected without auth.
+
+### Rev 2 — 2026-05-25
+**Change:** Change the submissions headline from total submissions to verified submissions.
+**Reason:** The primary count should exclude spam and blocked attempts instead of repeating the raw total.
+**Updated Done criteria:** The card headline and month-over-month trend use verified submissions, while the supporting line can still show total submissions and Alloro Protect spam handling.
+
+## Revision 2 Verification
+- `cd frontend && npm run build` — passed.
+- `npx tsc --noEmit` — passed.
+- `cd frontend && npx eslint src/components/dashboard/focus/WebsiteCard.tsx` — passed.
+- `npm run build` — passed.

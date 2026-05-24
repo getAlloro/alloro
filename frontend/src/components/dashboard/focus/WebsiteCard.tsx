@@ -29,6 +29,7 @@ interface FormSubmissionsStats {
   unreadCount: number;
   flaggedCount: number;
   verifiedCount: number;
+  blockedCount: number;
 }
 
 interface FormSubmissionsStatsResponse {
@@ -37,6 +38,7 @@ interface FormSubmissionsStatsResponse {
   unreadCount?: number;
   flaggedCount?: number;
   verifiedCount?: number;
+  blockedCount?: number;
   errorMessage?: string;
 }
 
@@ -55,6 +57,7 @@ async function fetchFormSubmissionsStats(): Promise<FormSubmissionsStats> {
     unreadCount: result.unreadCount ?? 0,
     flaggedCount: result.flaggedCount ?? 0,
     verifiedCount: result.verifiedCount ?? 0,
+    blockedCount: result.blockedCount ?? 0,
   };
 }
 
@@ -246,14 +249,28 @@ function lastVsPrior(points: TimeseriesPoint[]): {
   prior: number;
 } {
   if (points.length === 0) return { current: 0, prior: 0 };
-  if (points.length === 1) return { current: pointTotal(points[0]), prior: 0 };
-  const current = pointTotal(points[points.length - 1]);
-  const prior = pointTotal(points[points.length - 2]);
+  if (points.length === 1) return { current: pointVerified(points[0]), prior: 0 };
+  const current = pointVerified(points[points.length - 1]);
+  const prior = pointVerified(points[points.length - 2]);
   return { current, prior };
 }
 
 function pointTotal(point: TimeseriesPoint): number {
-  return point.total ?? point.verified + point.flagged;
+  return point.total ?? point.verified + point.flagged + (point.blocked ?? 0);
+}
+
+function pointVerified(point: TimeseriesPoint): number {
+  return Math.max(0, pointTotal(point) - point.flagged - (point.blocked ?? 0));
+}
+
+function statsVerified(statsData: FormSubmissionsStats | undefined): number {
+  if (!statsData) return 0;
+  return Math.max(
+    0,
+    (statsData.allCount ?? statsData.verifiedCount) -
+      statsData.flaggedCount -
+      statsData.blockedCount,
+  );
 }
 
 function TrendPill({ delta }: { delta: number | null }) {
@@ -304,11 +321,12 @@ const WebsiteCard: React.FC = () => {
   const wizardTimeseries = wizardDemoData?.websiteCardData?.timeseries as TimeseriesPoint[] | undefined;
 
   const points = isWizardActive ? (wizardTimeseries ?? []) : (series.data ?? []);
-  const fallbackTotal = isWizardActive
-    ? (wizardStats?.allCount ?? wizardStats?.verifiedCount ?? 0)
-    : (stats.data?.allCount ?? stats.data?.verifiedCount ?? 0);
+  const fallbackStats = isWizardActive ? wizardStats : stats.data;
+  const fallbackTotal = fallbackStats?.allCount ?? fallbackStats?.verifiedCount ?? 0;
+  const fallbackVerified = statsVerified(fallbackStats);
   const currentPoint = points[points.length - 1] ?? null;
   const currentTotal = currentPoint ? pointTotal(currentPoint) : fallbackTotal;
+  const currentVerified = currentPoint ? pointVerified(currentPoint) : fallbackVerified;
   const currentSpam = currentPoint
     ? currentPoint.flagged
     : isWizardActive
@@ -316,7 +334,7 @@ const WebsiteCard: React.FC = () => {
       : (stats.data?.flaggedCount ?? 0);
   const spamLabel = currentSpam === 1 ? "Spam" : "Spams";
 
-  if (points.length === 0 && currentTotal === 0) {
+  if (points.length === 0 && currentVerified === 0 && currentTotal === 0) {
     return <EmptyShell />;
   }
 
@@ -338,10 +356,10 @@ const WebsiteCard: React.FC = () => {
             color: INK,
           }}
         >
-          {currentTotal}
+          {currentVerified}
         </span>
         <span className="font-medium" style={{ fontSize: 12, color: MUTED }}>
-          submissions this month
+          verified {currentVerified === 1 ? "submission" : "submissions"}
         </span>
         <TrendPill delta={delta} />
       </div>
