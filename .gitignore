@@ -61,3 +61,6 @@ screenshots/
 .claude/worktrees/
 .claude/worktrees/
 .claude/cache/
+
+# Fireflies pipeline local working directory (transcript JSON inputs + prior-bullet snapshots)
+tmp/
