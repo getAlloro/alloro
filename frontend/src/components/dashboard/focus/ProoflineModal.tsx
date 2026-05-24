@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
+import HighlightedText from "./HighlightedText";
 
 export interface ProoflineModalProps {
   open: boolean;
@@ -58,11 +59,6 @@ export function ProoflineModal({
             <div className="p-8 lg:p-10 space-y-6">
               <div className="flex items-start justify-between">
                 <div className="space-y-2">
-                  {proofline.trajectory && (
-                    <span className="text-[10px] font-bold text-alloro-orange uppercase tracking-widest">
-                      {proofline.trajectory}
-                    </span>
-                  )}
                   <h3 className="text-2xl lg:text-3xl font-black font-heading text-alloro-navy tracking-tight">
                     {proofline.title || "Practice Trajectory Update"}
                   </h3>
@@ -96,7 +92,7 @@ export function ProoflineModal({
               {proofline.explanation && (
                 <div className="pt-6 border-t border-slate-100">
                   <p className="text-lg text-slate-600 font-medium leading-relaxed">
-                    {proofline.explanation}
+                    <HighlightedText text={proofline.explanation} />
                   </p>
                 </div>
               )}

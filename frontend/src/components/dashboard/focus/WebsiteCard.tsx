@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { apiGet } from "../../../api";
 import { useFormSubmissionsTimeseries } from "../../../hooks/queries/useFormSubmissionsTimeseries";
 import type { TimeseriesPoint } from "../../../api/formSubmissionsTimeseries";
-import Sparkline from "./Sparkline";
+import SubmissionsTrendChart from "./SubmissionsTrendChart";
 import { useIsWizardActive, useWizardDemoData } from "../../../contexts/OnboardingWizardContext";
 
 /**
@@ -25,16 +25,20 @@ import { useIsWizardActive, useWizardDemoData } from "../../../contexts/Onboardi
  */
 
 interface FormSubmissionsStats {
+  allCount: number;
   unreadCount: number;
   flaggedCount: number;
   verifiedCount: number;
+  blockedCount: number;
 }
 
 interface FormSubmissionsStatsResponse {
   success: boolean;
+  allCount?: number;
   unreadCount?: number;
   flaggedCount?: number;
   verifiedCount?: number;
+  blockedCount?: number;
   errorMessage?: string;
 }
 
@@ -49,9 +53,11 @@ async function fetchFormSubmissionsStats(): Promise<FormSubmissionsStats> {
     );
   }
   return {
+    allCount: result.allCount ?? result.verifiedCount ?? 0,
     unreadCount: result.unreadCount ?? 0,
     flaggedCount: result.flaggedCount ?? 0,
     verifiedCount: result.verifiedCount ?? 0,
+    blockedCount: result.blockedCount ?? 0,
   };
 }
 
@@ -243,33 +249,18 @@ function lastVsPrior(points: TimeseriesPoint[]): {
   prior: number;
 } {
   if (points.length === 0) return { current: 0, prior: 0 };
-  if (points.length === 1) return { current: points[0].verified, prior: 0 };
-  const current = points[points.length - 1].verified;
-  const prior = points[points.length - 2].verified;
+  if (points.length === 1) return { current: pointTotal(points[0]), prior: 0 };
+  const current = pointTotal(points[points.length - 1]);
+  const prior = pointTotal(points[points.length - 2]);
   return { current, prior };
 }
 
-function monthLabel(month: string | undefined): string {
-  if (!month) return "";
-  const m = /^(\d{4})-(\d{2})/.exec(month);
-  if (!m) return month;
-  const monthIndex = parseInt(m[2], 10) - 1;
-  if (monthIndex < 0 || monthIndex > 11) return month;
-  const names = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ];
-  return names[monthIndex];
+function pointTotal(point: TimeseriesPoint): number {
+  return point.total ?? point.verified + point.flagged;
+}
+
+function pointBlocked(point: TimeseriesPoint): number {
+  return point.blocked ?? 0;
 }
 
 function TrendPill({ delta }: { delta: number | null }) {
@@ -277,11 +268,16 @@ function TrendPill({ delta }: { delta: number | null }) {
   const up = delta >= 0;
   return (
     <span
-      className="ml-auto font-bold"
+      className="ml-auto flex flex-wrap items-baseline justify-end gap-x-1 font-bold"
       style={{ fontSize: 11, color: up ? "#4F8A5B" : "#B3503E" }}
     >
-      {up ? "▲" : "▼"} {up ? "+" : ""}
-      {delta}%
+      <span>
+        {up ? "▲" : "▼"} {up ? "+" : ""}
+        {delta}%
+      </span>
+      <span className="font-medium" style={{ color: MUTED }}>
+        compared to last month
+      </span>
     </span>
   );
 }
@@ -313,23 +309,28 @@ const WebsiteCard: React.FC = () => {
   const wizardTimeseries = wizardDemoData?.websiteCardData?.timeseries as TimeseriesPoint[] | undefined;
 
   const points = isWizardActive ? (wizardTimeseries ?? []) : (series.data ?? []);
-  const verifiedCount = isWizardActive ? (wizardStats?.verifiedCount ?? 0) : (stats.data?.verifiedCount ?? 0);
-  const unread = isWizardActive ? (wizardStats?.unreadCount ?? 0) : (stats.data?.unreadCount ?? 0);
-  const flagged = isWizardActive ? (wizardStats?.flaggedCount ?? 0) : (stats.data?.flaggedCount ?? 0);
+  const fallbackTotal = isWizardActive
+    ? (wizardStats?.allCount ?? wizardStats?.verifiedCount ?? 0)
+    : (stats.data?.allCount ?? stats.data?.verifiedCount ?? 0);
+  const currentPoint = points[points.length - 1] ?? null;
+  const currentTotal = currentPoint ? pointTotal(currentPoint) : fallbackTotal;
+  const currentSpam = currentPoint
+    ? currentPoint.flagged
+    : isWizardActive
+      ? (wizardStats?.flaggedCount ?? 0)
+      : (stats.data?.flaggedCount ?? 0);
+  const currentBlocked = currentPoint
+    ? pointBlocked(currentPoint)
+    : isWizardActive
+      ? (wizardStats?.blockedCount ?? 0)
+      : (stats.data?.blockedCount ?? 0);
 
-  if (points.length === 0 && verifiedCount === 0) {
+  if (points.length === 0 && currentTotal === 0) {
     return <EmptyShell />;
   }
 
   const { current, prior } = lastVsPrior(points);
   const delta = pctDelta(current, prior);
-
-  const sparkData = points.map((p) => p.verified);
-  const firstLabel = monthLabel(points[0]?.month);
-  const middleLabel = monthLabel(
-    points[Math.floor(points.length / 2)]?.month,
-  );
-  const lastLabel = monthLabel(points[points.length - 1]?.month);
 
   return (
     <CardShell>
@@ -346,10 +347,10 @@ const WebsiteCard: React.FC = () => {
             color: INK,
           }}
         >
-          {verifiedCount}
+          {currentTotal}
         </span>
         <span className="font-medium" style={{ fontSize: 12, color: MUTED }}>
-          verified leads
+          submissions this month
         </span>
         <TrendPill delta={delta} />
       </div>
@@ -358,39 +359,11 @@ const WebsiteCard: React.FC = () => {
         className="mt-1.5 leading-relaxed"
         style={{ fontSize: 12, color: MUTED }}
       >
-        {unread} unread · {flagged} flagged · vs last 30 days
+        {currentTotal} total submissions · {currentSpam} spam · {currentBlocked} blocked
       </div>
 
       <div className="mt-4">
-        <Sparkline data={sparkData} color={BRAND_ORANGE} fillId="ws-grad" />
-        <div
-          className="mt-1 grid font-semibold uppercase"
-          style={{
-            gridTemplateColumns: "1fr 1fr 1fr",
-            fontSize: 9.5,
-            letterSpacing: "0.1em",
-            color: MUTED,
-          }}
-        >
-          <span>{firstLabel}</span>
-          <span style={{ textAlign: "center" }}>{middleLabel}</span>
-          <span style={{ textAlign: "right" }}>{lastLabel}</span>
-        </div>
-      </div>
-
-      <div
-        className="mt-3.5 rounded-[10px] border px-3 py-2.5 leading-relaxed"
-        style={{
-          background: "#FFF7F2",
-          borderColor: "#F3D6C4",
-          color: "#8A4A36",
-          fontSize: 12,
-        }}
-      >
-        <strong style={{ color: BRAND_ORANGE, fontWeight: 700 }}>
-          Coming soon:
-        </strong>{" "}
-        sessions, bounce rate, avg session duration via Rybbit.
+        <SubmissionsTrendChart points={points} />
       </div>
 
       <div className="mt-4 flex items-center justify-between">

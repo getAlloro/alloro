@@ -1123,14 +1123,16 @@ body.minds-page-active .glass-header {
    array deterministically (no raw HTML from agent output). Brand orange,
    light-card and dark-card variants. */
 mark.hl {
-  background: rgba(214, 104, 83, 0.14);
+  background: transparent;
   color: #D66853;
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-weight: 600;
+  padding: 0 1px;
+  border-radius: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0;
 }
 .focus-card-dark mark.hl {
-  background: rgba(214, 104, 83, 0.22);
+  background: transparent;
   color: #F0A98E;
 }
 
@@ -1173,4 +1175,3 @@ mark.hl {
   -webkit-text-fill-color: #D66853;
   animation: cogitating-dot 1s ease-in-out infinite;
 }
-

@@ -613,13 +613,25 @@ export async function getFormSubmissionStats(
     const project = await ProjectModel.findByOrganizationId(orgId);
     if (!project) return res.status(404).json({ error: "No website found" });
 
-    const [unreadCount, flaggedCount, verifiedCount] = await Promise.all([
+    const [allCount, unreadCount, flaggedCount, verifiedCount] = await Promise.all([
+      FormSubmissionModel.countByProjectId(project.id, {
+        form_name_not: "Newsletter Signup",
+      }),
       FormSubmissionModel.countUnreadByProjectId(project.id),
       FormSubmissionModel.countFlaggedByProjectId(project.id),
       FormSubmissionModel.countVerifiedByProjectId(project.id),
     ]);
 
-    return res.json({ success: true, unreadCount, flaggedCount, verifiedCount });
+    return res.json({
+      success: true,
+      allCount,
+      unreadCount,
+      flaggedCount,
+      verifiedCount,
+      // Blocked attempts are not persisted today; keep the response
+      // backward-compatible for the dashboard without implying telemetry exists.
+      blockedCount: 0,
+    });
   } catch (error) {
     return handleError(res, error, "Fetch submission stats");
   }
@@ -656,10 +668,15 @@ export async function getFormSubmissionsTimeseries(
           "to_char(date_trunc('month', submitted_at), 'YYYY-MM') AS month"
         ),
         db.raw(
+          `COUNT(*) FILTER (WHERE form_name <> 'Newsletter Signup')::int AS total`
+        ),
+        db.raw(
           `COUNT(*) FILTER (WHERE is_flagged = false AND form_name <> 'Newsletter Signup')::int AS verified`
         ),
         db.raw(`COUNT(*) FILTER (WHERE is_read = false)::int AS unread`),
-        db.raw(`COUNT(*) FILTER (WHERE is_flagged = true)::int AS flagged`)
+        db.raw(`COUNT(*) FILTER (WHERE is_flagged = true)::int AS flagged`),
+        // Blocked attempts are currently rejected before persistence.
+        db.raw(`0::int AS blocked`)
       )
       .where("project_id", project.id)
       .andWhere("submitted_at", ">=", rangeStart.toISOString())
@@ -669,28 +686,41 @@ export async function getFormSubmissionsTimeseries(
     // Build a map of month → counts from query results
     const byMonth = new Map<
       string,
-      { month: string; verified: number; unread: number; flagged: number }
+      {
+        month: string;
+        total: number;
+        verified: number;
+        unread: number;
+        flagged: number;
+        blocked: number;
+      }
     >();
     for (const r of rows as Array<{
       month: string;
+      total: number | string;
       verified: number | string;
       unread: number | string;
       flagged: number | string;
+      blocked: number | string;
     }>) {
       byMonth.set(r.month, {
         month: r.month,
+        total: Number(r.total) || 0,
         verified: Number(r.verified) || 0,
         unread: Number(r.unread) || 0,
         flagged: Number(r.flagged) || 0,
+        blocked: Number(r.blocked) || 0,
       });
     }
 
     // Zero-fill every month in the range, oldest-first
     const data: Array<{
       month: string;
+      total: number;
       verified: number;
       unread: number;
       flagged: number;
+      blocked: number;
     }> = [];
     for (let i = 0; i < monthCount; i++) {
       const d = new Date(
@@ -703,9 +733,11 @@ export async function getFormSubmissionsTimeseries(
       data.push(
         byMonth.get(key) || {
           month: key,
+          total: 0,
           verified: 0,
           unread: 0,
           flagged: 0,
+          blocked: 0,
         }
       );
     }
