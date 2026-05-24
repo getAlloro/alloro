@@ -29,7 +29,6 @@ interface FormSubmissionsStats {
   unreadCount: number;
   flaggedCount: number;
   verifiedCount: number;
-  blockedCount: number;
 }
 
 interface FormSubmissionsStatsResponse {
@@ -38,7 +37,6 @@ interface FormSubmissionsStatsResponse {
   unreadCount?: number;
   flaggedCount?: number;
   verifiedCount?: number;
-  blockedCount?: number;
   errorMessage?: string;
 }
 
@@ -57,7 +55,6 @@ async function fetchFormSubmissionsStats(): Promise<FormSubmissionsStats> {
     unreadCount: result.unreadCount ?? 0,
     flaggedCount: result.flaggedCount ?? 0,
     verifiedCount: result.verifiedCount ?? 0,
-    blockedCount: result.blockedCount ?? 0,
   };
 }
 
@@ -259,24 +256,22 @@ function pointTotal(point: TimeseriesPoint): number {
   return point.total ?? point.verified + point.flagged;
 }
 
-function pointBlocked(point: TimeseriesPoint): number {
-  return point.blocked ?? 0;
-}
-
 function TrendPill({ delta }: { delta: number | null }) {
   if (delta === null) return null;
   const up = delta >= 0;
+  const sign = `${up ? "+" : ""}${delta}%`;
   return (
     <span
-      className="ml-auto flex flex-wrap items-baseline justify-end gap-x-1 font-bold"
+      tabIndex={0}
+      aria-label={`${sign} compared to last month`}
+      className="group relative ml-auto inline-flex cursor-help items-center font-bold outline-none"
       style={{ fontSize: 11, color: up ? "#4F8A5B" : "#B3503E" }}
     >
-      <span>
-        {up ? "▲" : "▼"} {up ? "+" : ""}
-        {delta}%
+      <span aria-hidden="true">
+        {up ? "▲" : "▼"} {sign}
       </span>
-      <span className="font-medium" style={{ color: MUTED }}>
-        compared to last month
+      <span className="pointer-events-none absolute right-0 top-full z-10 mt-2 translate-y-1 whitespace-nowrap rounded-[8px] border border-[#E8E4DD] bg-white px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8E8579] opacity-0 shadow-lg transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-focus:translate-y-0 group-focus:opacity-100">
+        Compared to last month
       </span>
     </span>
   );
@@ -319,11 +314,7 @@ const WebsiteCard: React.FC = () => {
     : isWizardActive
       ? (wizardStats?.flaggedCount ?? 0)
       : (stats.data?.flaggedCount ?? 0);
-  const currentBlocked = currentPoint
-    ? pointBlocked(currentPoint)
-    : isWizardActive
-      ? (wizardStats?.blockedCount ?? 0)
-      : (stats.data?.blockedCount ?? 0);
+  const spamLabel = currentSpam === 1 ? "Spam" : "Spams";
 
   if (points.length === 0 && currentTotal === 0) {
     return <EmptyShell />;
@@ -359,7 +350,8 @@ const WebsiteCard: React.FC = () => {
         className="mt-1.5 leading-relaxed"
         style={{ fontSize: 12, color: MUTED }}
       >
-        {currentTotal} total submissions · {currentSpam} spam · {currentBlocked} blocked
+        {currentTotal} total submissions · Alloro Protect Blocked{" "}
+        {currentSpam} {spamLabel}
       </div>
 
       <div className="mt-4">

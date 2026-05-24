@@ -87,3 +87,17 @@ Update the Focus dashboard cards so Proofline `<hl>` text renders as thin orange
 - `cd frontend && npm run lint` — blocked by pre-existing repo-wide lint errors outside this plan.
 - `cd frontend && npx eslint src/api/formSubmissionsTimeseries.ts src/components/dashboard/focus/HighlightedText.tsx src/components/dashboard/focus/LocalRankingCard.tsx src/components/dashboard/focus/ProoflineModal.tsx src/components/dashboard/focus/WebsiteCard.tsx src/components/dashboard/focus/SubmissionsTrendChart.tsx` — passed.
 - Browser smoke check redirected `/dashboard` to `/signin`, so local visual QA was auth-blocked.
+
+## Revision Log
+
+### Rev 1 — 2026-05-25
+**Change:** Add the same dynamic interactive chart treatment to the PMS card in green, tighten submissions protection/trend copy, and align compact Practice Health with the dashboard ranking score.
+**Reason:** Follow-up screenshot review found the PMS sparkline still static, submissions copy too long, and a visible Practice Health mismatch between the score line and executive summary.
+**Updated Done criteria:** PMS uses a dynamic hoverable chart; submissions no longer shows a separate blocked count and keeps short spam labeling in the chart; the visible Practice Health score agrees with the executive summary source.
+
+## Revision Verification
+- `cd frontend && npm run build` — passed.
+- `npx tsc --noEmit` — passed.
+- `cd frontend && npx eslint src/components/dashboard/focus/FocusTrendChart.tsx src/components/dashboard/focus/SubmissionsTrendChart.tsx src/components/dashboard/focus/WebsiteCard.tsx src/components/dashboard/focus/PMSCard.tsx src/components/dashboard/focus/LocalRankingCard.tsx` — passed.
+- `npm run build` — passed.
+- Local browser smoke on `http://127.0.0.1:5174/dashboard` — served app and redirected to `/signin` as expected without auth.

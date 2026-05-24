@@ -240,7 +240,7 @@ const LocalRankingCard: React.FC = () => {
   const mapsEstimate = latestRow.searchPosition;
   const searchStatus = latestRow.searchStatus ?? "ok";
   const rankScore =
-    latestRow.practiceHealth ?? latestRow.rankScore ?? ranking?.score ?? 0;
+    ranking?.score ?? latestRow.practiceHealth ?? latestRow.rankScore ?? 0;
   const summary =
     latestRow.llmAnalysis?.one_line_summary ||
     latestRow.llmAnalysis?.client_summary ||
