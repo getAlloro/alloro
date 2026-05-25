@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Users,
   ChevronRight,
   Building,
   Edit2,
-  X,
   RefreshCw,
   Plus,
+  X,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import {
@@ -22,20 +22,13 @@ import {
 } from "../../lib/animations";
 import {
   adminUpdateOrganizationName,
-  adminCreateOrganization,
   type AdminOrganization,
-  type AdminCreateOrgInput,
 } from "../../api/admin-organizations";
 import {
   useAdminOrganizations,
   useInvalidateOrganizations,
 } from "../../hooks/queries/useAdminQueries";
-
-const EMPTY_CREATE_FORM: AdminCreateOrgInput = {
-  organization: { name: "", domain: "", address: "" },
-  user: { email: "", password: "", firstName: "", lastName: "" },
-  location: { name: "", address: "" },
-};
+import { CreateOrganizationModal } from "../../components/Admin/CreateOrganizationModal";
 
 export function OrganizationManagement() {
   const { data: organizations = [], isLoading: loading } = useAdminOrganizations();
@@ -46,9 +39,6 @@ export function OrganizationManagement() {
 
   // Create Organization modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createForm, setCreateForm] =
-    useState<AdminCreateOrgInput>(EMPTY_CREATE_FORM);
-  const [isCreating, setIsCreating] = useState(false);
 
   const startEditing = (e: React.MouseEvent, org: AdminOrganization) => {
     e.preventDefault();
@@ -80,42 +70,6 @@ export function OrganizationManagement() {
       }
     } catch {
       toast.error("Failed to update organization");
-    }
-  };
-
-  const handleCreateOrganization = async () => {
-    if (!createForm.organization.name.trim()) {
-      toast.error("Organization name is required");
-      return;
-    }
-    if (!createForm.user.email.trim()) {
-      toast.error("User email is required");
-      return;
-    }
-    if (!createForm.user.password) {
-      toast.error("Password is required");
-      return;
-    }
-
-    setIsCreating(true);
-    try {
-      const response = await adminCreateOrganization(createForm);
-      if (response.success) {
-        toast.success(response.message || "Organization created");
-        setShowCreateModal(false);
-        setCreateForm(EMPTY_CREATE_FORM);
-        refetchOrganizations();
-      } else {
-        toast.error("Failed to create organization");
-      }
-    } catch (error: any) {
-      const message =
-        error?.response?.data?.error ||
-        error?.message ||
-        "Failed to create organization";
-      toast.error(message);
-    } finally {
-      setIsCreating(false);
     }
   };
 
@@ -281,264 +235,11 @@ export function OrganizationManagement() {
         </motion.div>
       )}
 
-      {/* ── Create Organization Modal ── */}
-      <AnimatePresence>
-        {showCreateModal && (
-          <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setShowCreateModal(false)}
-          >
-            <motion.div
-              className="w-full max-w-lg rounded-2xl bg-white p-8 shadow-2xl mx-4 max-h-[90vh] overflow-y-auto"
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-black text-alloro-navy tracking-tight">
-                  Create Organization
-                </h2>
-                <button
-                  onClick={() => setShowCreateModal(false)}
-                  className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              <div className="space-y-6">
-                {/* Organization Section */}
-                <div>
-                  <h3 className="text-sm font-bold text-alloro-navy uppercase tracking-wider mb-3">
-                    Organization
-                  </h3>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={createForm.organization.name}
-                        onChange={(e) =>
-                          setCreateForm((prev) => ({
-                            ...prev,
-                            organization: {
-                              ...prev.organization,
-                              name: e.target.value,
-                            },
-                          }))
-                        }
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-alloro-orange focus:ring-2 focus:ring-alloro-orange/20 focus:outline-none"
-                        placeholder="e.g. Dr. Smith Dental Practice"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Domain
-                      </label>
-                      <input
-                        type="text"
-                        value={createForm.organization.domain || ""}
-                        onChange={(e) =>
-                          setCreateForm((prev) => ({
-                            ...prev,
-                            organization: {
-                              ...prev.organization,
-                              domain: e.target.value,
-                            },
-                          }))
-                        }
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-alloro-orange focus:ring-2 focus:ring-alloro-orange/20 focus:outline-none"
-                        placeholder="e.g. smithdental.com"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Address
-                      </label>
-                      <input
-                        type="text"
-                        value={createForm.organization.address || ""}
-                        onChange={(e) =>
-                          setCreateForm((prev) => ({
-                            ...prev,
-                            organization: {
-                              ...prev.organization,
-                              address: e.target.value,
-                            },
-                          }))
-                        }
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-alloro-orange focus:ring-2 focus:ring-alloro-orange/20 focus:outline-none"
-                        placeholder="e.g. 123 Main St, City, State"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* User Section */}
-                <div>
-                  <h3 className="text-sm font-bold text-alloro-navy uppercase tracking-wider mb-3">
-                    Admin User
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          First Name
-                        </label>
-                        <input
-                          type="text"
-                          value={createForm.user.firstName || ""}
-                          onChange={(e) =>
-                            setCreateForm((prev) => ({
-                              ...prev,
-                              user: {
-                                ...prev.user,
-                                firstName: e.target.value,
-                              },
-                            }))
-                          }
-                          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-alloro-orange focus:ring-2 focus:ring-alloro-orange/20 focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Last Name
-                        </label>
-                        <input
-                          type="text"
-                          value={createForm.user.lastName || ""}
-                          onChange={(e) =>
-                            setCreateForm((prev) => ({
-                              ...prev,
-                              user: {
-                                ...prev.user,
-                                lastName: e.target.value,
-                              },
-                            }))
-                          }
-                          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-alloro-orange focus:ring-2 focus:ring-alloro-orange/20 focus:outline-none"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Email <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="email"
-                        value={createForm.user.email}
-                        onChange={(e) =>
-                          setCreateForm((prev) => ({
-                            ...prev,
-                            user: { ...prev.user, email: e.target.value },
-                          }))
-                        }
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-alloro-orange focus:ring-2 focus:ring-alloro-orange/20 focus:outline-none"
-                        placeholder="user@example.com"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Password <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="password"
-                        value={createForm.user.password}
-                        onChange={(e) =>
-                          setCreateForm((prev) => ({
-                            ...prev,
-                            user: { ...prev.user, password: e.target.value },
-                          }))
-                        }
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-alloro-orange focus:ring-2 focus:ring-alloro-orange/20 focus:outline-none"
-                        placeholder="Min 8 chars, 1 uppercase, 1 number"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Location Section */}
-                <div>
-                  <h3 className="text-sm font-bold text-alloro-navy uppercase tracking-wider mb-3">
-                    Primary Location
-                  </h3>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Location Name
-                      </label>
-                      <input
-                        type="text"
-                        value={createForm.location.name}
-                        onChange={(e) =>
-                          setCreateForm((prev) => ({
-                            ...prev,
-                            location: {
-                              ...prev.location,
-                              name: e.target.value,
-                            },
-                          }))
-                        }
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-alloro-orange focus:ring-2 focus:ring-alloro-orange/20 focus:outline-none"
-                        placeholder="Defaults to organization name if empty"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Location Address
-                      </label>
-                      <input
-                        type="text"
-                        value={createForm.location.address || ""}
-                        onChange={(e) =>
-                          setCreateForm((prev) => ({
-                            ...prev,
-                            location: {
-                              ...prev.location,
-                              address: e.target.value,
-                            },
-                          }))
-                        }
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-alloro-orange focus:ring-2 focus:ring-alloro-orange/20 focus:outline-none"
-                        placeholder="e.g. 123 Main St, City, State"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="mt-8 flex items-center justify-end gap-3">
-                <button
-                  onClick={() => {
-                    setShowCreateModal(false);
-                    setCreateForm(EMPTY_CREATE_FORM);
-                  }}
-                  className="px-4 py-2.5 text-sm font-bold text-gray-600 hover:text-gray-800 transition-colors"
-                >
-                  Cancel
-                </button>
-                <motion.button
-                  onClick={handleCreateOrganization}
-                  disabled={isCreating}
-                  className="flex items-center gap-2 rounded-xl bg-alloro-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-alloro-navy transition-colors disabled:opacity-50"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <Plus className="h-4 w-4" />
-                  {isCreating ? "Creating..." : "Create Organization"}
-                </motion.button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <CreateOrganizationModal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreated={refetchOrganizations}
+      />
     </div>
   );
 }

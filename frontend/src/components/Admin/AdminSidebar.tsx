@@ -21,11 +21,13 @@ import {
   Settings,
   Clock,
   Inbox,
+  Radar,
   UserCheck,
 } from "lucide-react";
 import { useSidebar } from "./SidebarContext";
 
 export type AdminNavKey =
+  | "mission-control"
   | "action-items"
   | "agent-outputs"
   | "ai-pms-automation"
@@ -64,6 +66,7 @@ const DONE_FOR_YOU_ITEMS: NavItem[] = [
 ];
 
 const TOP_ITEMS: NavItem[] = [
+  { key: "mission-control", label: "Mission Control", icon: Radar },
   { key: "action-items", label: "Action Items Hub", icon: CheckSquare },
 ];
 

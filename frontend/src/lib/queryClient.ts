@@ -100,6 +100,8 @@ export const QUERY_KEYS = {
     ["admin", "action-items", params] as const,
   adminActionItemsAll: ["admin", "action-items"] as const,
   adminActionItemOrgs: ["admin", "action-item-orgs"] as const,
+  adminMissionControl: ["admin", "mission-control"] as const,
+  adminMissionControlInsight: ["admin", "mission-control", "insight"] as const,
   adminInsightsSummary: (page: number, month: string) =>
     ["admin", "insights-summary", page, month] as const,
   adminInsightsSummaryAll: ["admin", "insights-summary"] as const,

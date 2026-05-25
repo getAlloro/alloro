@@ -107,7 +107,7 @@ export interface AdminOrganizationDetailResponse {
 export interface PilotSessionResponse {
   success: boolean;
   token: string;
-  googleAccountId: number;
+  googleAccountId: number | null;
   user: { id: number; email: string };
 }
 

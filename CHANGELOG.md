@@ -2,6 +2,26 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.88] - May 2026
+
+### Admin Mission Control Dashboard
+
+Added a super-admin Mission Control dashboard for revenue visibility, organization health, payment watchlists, and concise movement insight.
+
+**Key Changes:**
+- Added a Mission Control admin route with Stripe-backed expected MRR, paid revenue, lifetime revenue, and payment-risk summaries
+- Added organization grid cards with Recharts paid-invoice movement charts, billing flags, admin-role pilot shortcuts, and click-through to existing organization detail pages
+- Added a 12-month recurring revenue trend, Payment Watch lifetime/billing flag views, and on-demand sanitized movement insight
+- Filtered internal sandbox organizations out of client counts and sorted the client grid by highest lifetime paid first
+- Kept the legacy Organizations management route available and extracted create-organization behavior for reuse
+
+**Commits:**
+- `src/controllers/admin-mission-control/*`, `src/models/MissionControlModel.ts`, and `src/routes/admin/missionControl.ts` - aggregate Mission Control API, Stripe revenue reads, sanitized insight generation, and admin route protection
+- `frontend/src/pages/admin/MissionControl.tsx` and `frontend/src/components/Admin/mission-control/*` - Mission Control dashboard UI, revenue charts, organization cards, Payment Watch, pilot menu, and insight panel
+- `frontend/src/api/admin-mission-control.ts`, `frontend/src/hooks/queries/useAdminMissionControlQueries.ts`, and `frontend/src/lib/queryClient.ts` - typed frontend API, React Query hooks, and cache keys
+- `frontend/src/components/Admin/CreateOrganizationModal.tsx`, `frontend/src/pages/admin/OrganizationManagement.tsx`, `frontend/src/pages/Admin.tsx`, and `frontend/src/components/Admin/AdminSidebar.tsx` - shared create-org modal and admin navigation/routing
+- `plans/05252026-no-ticket-admin-mission-control-dashboard/spec.md` - executed spec, revisions, risk notes, and verification checklist
+
 ## [0.0.87] - May 2026
 
 ### Form Email Submission Links

@@ -6,6 +6,7 @@ export { UserModel, IUser } from "./UserModel";
 export { GoogleAccountModel, IGoogleAccount } from "./GoogleAccountModel";
 export { GoogleConnectionModel, IGoogleConnection } from "./GoogleConnectionModel";
 export { OrganizationModel, IOrganization } from "./OrganizationModel";
+export { MissionControlModel } from "./MissionControlModel";
 export { OrganizationUserModel, IOrganizationUser, IOrganizationUserWithUser } from "./OrganizationUserModel";
 export { InvitationModel, IInvitation } from "./InvitationModel";
 export { OtpCodeModel, IOtpCode } from "./OtpCodeModel";
