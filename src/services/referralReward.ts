@@ -135,24 +135,24 @@ export async function applyReferralReward(referredOrgId: number): Promise<void> 
       },
     });
 
-    // Apply coupon to referrer's subscription
+    // Wave 3 C1: attach the 100%-off one-month coupon to the referrer's
+    // subscription. The coupon (percent_off:100, duration:once) IS the credit
+    // mechanism, so there is no hardcoded invoice item and no plan-dependent
+    // dollar amount. Stripe applies the discount on the referrer's next invoice.
     if (referrerOrg?.stripe_subscription_id) {
       try {
-        await stripe.invoiceItems.create({
-          customer: referrerOrg.stripe_customer_id,
-          amount: -200000,
-          currency: "usd",
-          description: `Referral reward: ${referredOrg?.name || "a colleague"} joined Alloro`,
+        await stripe.subscriptions.update(referrerOrg.stripe_subscription_id, {
+          discounts: [{ coupon: coupon.id }],
         });
       } catch (err: any) {
-        console.error("[Referral] Failed to apply coupon to referrer:", err.message);
+        console.error("[Referral] Failed to attach referral coupon to referrer:", err.message);
       }
     }
 
-    // Apply coupon to referred org's subscription
+    // Wave 3 C1: a second 100%-off one-month coupon for the referred org's own
+    // welcome month, attached to their subscription as a discount. No invoice item.
     if (referredOrg?.stripe_subscription_id) {
       try {
-        // Need a second coupon for the referred org
         const referredCoupon = await stripe.coupons.create({
           percent_off: 100,
           duration: "once",
@@ -164,14 +164,11 @@ export async function applyReferralReward(referredOrgId: number): Promise<void> 
             direction: "referred",
           },
         });
-        await stripe.invoiceItems.create({
-          customer: referredOrg.stripe_customer_id,
-          amount: -200000,
-          currency: "usd",
-          description: `Welcome to Alloro. Your first month is on us.`,
+        await stripe.subscriptions.update(referredOrg.stripe_subscription_id, {
+          discounts: [{ coupon: referredCoupon.id }],
         });
       } catch (err: any) {
-        console.error("[Referral] Failed to apply coupon to referred org:", err.message);
+        console.error("[Referral] Failed to attach welcome coupon to referred org:", err.message);
       }
     }
 

@@ -12,6 +12,7 @@
  */
 
 import { db } from "../../database/connection";
+import { getAlloroSubstrate } from "../prompt/alloroSubstrate";
 import {
   prepareAgentContext,
   recordAgentAction,
@@ -407,6 +408,7 @@ Return ONLY the JSON array, no markdown fences.`;
   const response = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 1024,
+    system: getAlloroSubstrate(),
     messages: [{ role: "user", content: prompt }],
   });
 
