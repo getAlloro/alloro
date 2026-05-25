@@ -11,6 +11,7 @@ import express from "express";
 import { authenticateToken } from "../middleware/auth";
 import { rbacMiddleware, requireRole, type RBACRequest } from "../middleware/rbac";
 import * as BillingController from "../controllers/billing/BillingController";
+import * as BillingService from "../controllers/billing/BillingService";
 import { db } from "../database/connection";
 import { createSetupIntent, confirmCardOnFile } from "../services/trialCardCapture";
 
@@ -201,6 +202,50 @@ billingRoutes.post(
   rbacMiddleware,
   requireRole("admin"),
   BillingController.createPortal
+);
+
+// POST /api/billing/admin/checkout — Admin creates a Stripe Checkout Session for any org
+// Fixes BUG-01: admin "Add Payment" button in OrgSubscriptionSection had no backing route.
+// Reuses BillingService.createCheckoutSession (already accepts arbitrary orgId).
+billingRoutes.post(
+  "/admin/checkout",
+  authenticateToken,
+  rbacMiddleware,
+  requireRole("admin"),
+  async (req: RBACRequest, res) => {
+    try {
+      const { orgId, tier, isOnboarding } = req.body || {};
+
+      const numericOrgId =
+        typeof orgId === "number" ? orgId : parseInt(orgId, 10);
+      if (!numericOrgId || Number.isNaN(numericOrgId)) {
+        return res.status(400).json({
+          success: false,
+          error: "orgId required (numeric)",
+        });
+      }
+
+      const validTiers = ["DWY", "DFY", "growth", "full"] as const;
+      type ValidTier = (typeof validTiers)[number];
+      const resolvedTier: ValidTier =
+        tier && (validTiers as readonly string[]).includes(tier)
+          ? (tier as ValidTier)
+          : "DFY";
+
+      const result = await BillingService.createCheckoutSession(
+        numericOrgId,
+        resolvedTier,
+        Boolean(isOnboarding),
+      );
+
+      return res.json({ success: true, url: result.url });
+    } catch (err: any) {
+      const status = err?.statusCode || 500;
+      const message = err?.message || "Failed to create checkout session";
+      console.error("[Billing] Admin checkout error:", message);
+      return res.status(status).json({ success: false, error: message });
+    }
+  },
 );
 
 // ─── Public Webhook Endpoint ───
