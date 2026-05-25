@@ -26,6 +26,12 @@ import {
 } from "../../api/practiceRanking";
 import { CompetitorComparisonModal } from "./rankings/CompetitorComparisonModal";
 import { RankingsLoadingState } from "./rankings/RankingsLoadingState";
+import { GbpAutomationPanel } from "./gbp-automation/GbpAutomationPanel";
+import { GbpEngagementSummaryCard } from "./gbp-automation/GbpEngagementSummaryCard";
+import {
+  RankingsDashboardViewTabs,
+  type RankingsDashboardView,
+} from "./rankings/RankingsDashboardViewTabs";
 import {
   buildCompetitorComparisonRows,
   sortRowsForMapsList,
@@ -290,6 +296,8 @@ export function RankingsDashboard({
   const [error, setError] = useState<string | null>(null);
   const [refreshingRankings, setRefreshingRankings] = useState(false);
   const [rerankError, setRerankError] = useState<string | null>(null);
+  const [dashboardView, setDashboardView] =
+    useState<RankingsDashboardView>("overview");
 
   // In-flight ranking banner — shown when EITHER the URL carries
   // ?batchId=... (post-finalize redirect fast-path) OR the dashboard
@@ -766,6 +774,8 @@ export function RankingsDashboard({
     selectedRanking?.llmAnalysis?.one_line_summary ||
     selectedRanking?.llmAnalysis?.client_summary ||
     null;
+  const selectedGbpAutomationLocationId =
+    selectedRanking?.locationId || locationId || null;
   const selectedCompetitorPlaceIds = getSelectedCompetitorPlaceIds(
     selectedRanking,
   );
@@ -873,53 +883,78 @@ export function RankingsDashboard({
           </div>
         </div>
 
-        {/* In-flight ranking progress banner — auto-detected on mount or
-            seeded from ?batchId= in the URL. Sticks to the viewport top so it
-            stays visible while the user scrolls the dashboard. */}
-        {activeBatchId && !bannerHidden && (
-          <div className="sticky top-4 z-30 -mx-2 px-2">
-            <RankingInFlightBanner
-              batchId={activeBatchId}
-              onComplete={handleBatchComplete}
-              onDismiss={handleBatchDismiss}
+        <RankingsDashboardViewTabs
+          activeView={dashboardView}
+          onViewChange={setDashboardView}
+        />
+
+        {dashboardView === "overview" ? (
+          <>
+            {/* In-flight ranking progress banner — auto-detected on mount or
+                seeded from ?batchId= in the URL. Sticks to the viewport top so it
+                stays visible while the user scrolls the dashboard. */}
+            {activeBatchId && !bannerHidden && (
+              <div className="sticky top-4 z-30 -mx-2 px-2">
+                <RankingInFlightBanner
+                  batchId={activeBatchId}
+                  onComplete={handleBatchComplete}
+                  onDismiss={handleBatchDismiss}
+                />
+              </div>
+            )}
+
+            {/* v2 Competitor onboarding banner — slim row, shown for pending/curating
+                locations. Sits above the client summary so the action prompt is the
+                first thing visible. Final-state locations render normally. */}
+            {selectedRanking?.locationId &&
+              selectedRanking.locationOnboarding &&
+              (selectedRanking.locationOnboarding.status === "pending" ||
+                selectedRanking.locationOnboarding.status === "curating") && (
+                <CompetitorOnboardingBanner
+                  locationId={selectedRanking.locationId}
+                  locationName={selectedRanking.gbpLocationName}
+                  status={selectedRanking.locationOnboarding.status}
+                />
+              )}
+
+            {/* CLIENT SUMMARY CARD — soft cream callout, concise by default */}
+            {selectedInsight && (
+              <section className="animate-in fade-in slide-in-from-bottom-2 duration-700 delay-150">
+                <div className="bg-[#FCFAED] border border-[#EDE5C0] rounded-[14px] px-5 py-4 lg:px-6 lg:py-5">
+                  <div className="flex items-center gap-1.5 mb-2 text-[#8A7A4A]">
+                    <Info size={12} />
+                    <span className="text-[10px] font-bold uppercase tracking-[0.14em]">
+                      Practice insight
+                    </span>
+                  </div>
+                  <p className="font-display text-[14px] leading-[1.65] text-[#2C2A26]">
+                    {selectedInsight}
+                  </p>
+                </div>
+              </section>
+            )}
+
+            {/* Selected Location Detail */}
+            {selectedRanking && (
+              <PerformanceDashboard
+                result={selectedRanking}
+                engagementSummary={
+                  <GbpEngagementSummaryCard
+                    organizationId={organizationId}
+                    locationId={selectedGbpAutomationLocationId}
+                    onOpenEngage={() => setDashboardView("engage")}
+                  />
+                }
+              />
+            )}
+          </>
+        ) : (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <GbpAutomationPanel
+              organizationId={organizationId}
+              locationId={selectedGbpAutomationLocationId}
             />
           </div>
-        )}
-
-        {/* v2 Competitor onboarding banner — slim row, shown for pending/curating
-            locations. Sits above the client summary so the action prompt is the
-            first thing visible. Final-state locations render normally. */}
-        {selectedRanking?.locationId &&
-          selectedRanking.locationOnboarding &&
-          (selectedRanking.locationOnboarding.status === "pending" ||
-            selectedRanking.locationOnboarding.status === "curating") && (
-            <CompetitorOnboardingBanner
-              locationId={selectedRanking.locationId}
-              locationName={selectedRanking.gbpLocationName}
-              status={selectedRanking.locationOnboarding.status}
-            />
-          )}
-
-        {/* CLIENT SUMMARY CARD — soft cream callout, concise by default */}
-        {selectedInsight && (
-          <section className="animate-in fade-in slide-in-from-bottom-2 duration-700 delay-150">
-            <div className="bg-[#FCFAED] border border-[#EDE5C0] rounded-[14px] px-5 py-4 lg:px-6 lg:py-5">
-              <div className="flex items-center gap-1.5 mb-2 text-[#8A7A4A]">
-                <Info size={12} />
-                <span className="text-[10px] font-bold uppercase tracking-[0.14em]">
-                  Practice insight
-                </span>
-              </div>
-              <p className="font-display text-[14px] leading-[1.65] text-[#2C2A26]">
-                {selectedInsight}
-              </p>
-            </div>
-          </section>
-        )}
-
-        {/* Selected Location Detail */}
-        {selectedRanking && (
-          <PerformanceDashboard result={selectedRanking} />
         )}
       </main>
     </div>
@@ -2115,8 +2150,10 @@ function GapsPanel({ result }: { result: RankingResult }) {
 // Performance Dashboard View Component
 function PerformanceDashboard({
   result,
+  engagementSummary,
 }: {
   result: RankingResult;
+  engagementSummary?: React.ReactNode;
 }) {
   const [comparisonOpen, setComparisonOpen] = useState(false);
   const competitors = result.rawData?.competitors || [];
@@ -2142,6 +2179,8 @@ function PerformanceDashboard({
         marketAvgRating={marketAvgRating}
         onOpenComparison={() => setComparisonOpen(true)}
       />
+
+      {engagementSummary}
 
       {/* BODY — 2-col grid (1.35fr / 1fr) at lg, single col below.
           Spec: plans/04282026-no-ticket-rankings-page-redesign/spec.md (T8) */}

@@ -16,6 +16,7 @@ import { Router } from "express";
 
 import googleAuthRoutes from "./routes/googleauth";
 import gbpRoutes from "./routes/gbp";
+import gbpAutomationRoutes from "./routes/gbpAutomation";
 import {
   testConnection,
   healthCheck,
@@ -47,6 +48,7 @@ import adminSchedulesRoutes from "./routes/admin/schedules";
 import adminLeadgenRoutes from "./routes/admin/leadgenSubmissions";
 import adminPmsPipelineRoutes from "./routes/admin/pmsPipeline";
 import adminSupportRoutes from "./routes/admin/support";
+import adminGbpAutomationRoutes from "./routes/admin/gbpAutomation";
 import adminMissionControlRoutes from "./routes/admin/missionControl";
 import leadgenTrackingRoutes from "./routes/leadgenTracking";
 import practiceRankingRoutes from "./routes/practiceRanking";
@@ -155,6 +157,7 @@ app.use(billingGateMiddleware);
 
 app.use(router);
 app.use("/api/gbp", gbpRoutes);
+app.use("/api/gbp-automation", gbpAutomationRoutes);
 app.use("/api/clarity", clarityRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/auth", authRoutes);
@@ -180,6 +183,7 @@ app.use("/api/admin/schedules", adminSchedulesRoutes);
 app.use("/api/admin/leadgen-submissions", adminLeadgenRoutes);
 app.use("/api/admin/pms-jobs", adminPmsPipelineRoutes);
 app.use("/api/admin/support", adminSupportRoutes);
+app.use("/api/admin/gbp-automation", adminGbpAutomationRoutes);
 app.use("/api/admin/mission-control", adminMissionControlRoutes);
 app.use("/api/leadgen", leadgenTrackingRoutes);
 app.use("/api/admin/practice-ranking", practiceRankingRoutes);

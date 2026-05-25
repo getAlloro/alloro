@@ -43,6 +43,17 @@ export class GooglePropertyModel extends BaseModel {
     return rows.map((row: IGoogleProperty) => this.deserializeJsonFields(row));
   }
 
+  static async findSelectedGbpByLocationId(
+    locationId: number,
+    trx?: QueryContext
+  ): Promise<IGoogleProperty | undefined> {
+    const row = await this.table(trx)
+      .where({ location_id: locationId, type: "gbp", selected: true })
+      .orderBy("updated_at", "desc")
+      .first();
+    return row ? this.deserializeJsonFields(row) : undefined;
+  }
+
   static async findByExternalId(
     externalId: string,
     trx?: QueryContext

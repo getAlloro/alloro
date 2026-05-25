@@ -76,6 +76,13 @@ export const QUERY_KEYS = {
     ["admin", "org-notifications", orgId] as const,
   adminOrgRankings: (orgId: number, locationId?: number | null) =>
     ["admin", "org-rankings", orgId, locationId] as const,
+  adminOrgGbpAutomation: (
+    orgId: number,
+    locationId?: number | null,
+    params?: Record<string, unknown>,
+  ) => ["admin", "org-gbp-automation", orgId, locationId, params] as const,
+  adminOrgGbpAutomationAll: (orgId: number) =>
+    ["admin", "org-gbp-automation", orgId] as const,
   adminOrgPmsJobs: (orgId: number, params?: Record<string, unknown>) =>
     ["admin", "org-pms-jobs", orgId, params] as const,
   adminOrgPmsJobsAll: (orgId: number) =>
@@ -170,6 +177,13 @@ export const QUERY_KEYS = {
     ["tasks", orgId, locationId] as const,
   pmsFocusPeriod: (orgId: number | null, locationId?: number | null) =>
     ["pms-focus-period", orgId, locationId] as const,
+  gbpAutomation: (
+    orgId: number | null,
+    locationId?: number | null,
+    params?: Record<string, unknown>,
+  ) => ["gbp-automation", orgId, locationId, params] as const,
+  gbpAutomationAll: (orgId: number | null) =>
+    ["gbp-automation", orgId] as const,
 
   // Client — DFY website
   userWebsite: ["user", "website"] as const,

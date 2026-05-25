@@ -151,7 +151,11 @@ export const locationScopeMiddleware = async (
       (req.params.locationId as string) ||
       req.body?.locationId;
 
-    if (requestedLocationId) {
+    if (
+      requestedLocationId !== undefined &&
+      requestedLocationId !== null &&
+      requestedLocationId !== ""
+    ) {
       const locId = parseInt(requestedLocationId, 10);
       if (!isNaN(locId) && !req.accessibleLocationIds.includes(locId)) {
         return res.status(403).json({ error: "No access to this location" });
@@ -162,6 +166,6 @@ export const locationScopeMiddleware = async (
     next();
   } catch (error) {
     console.error("[RBAC] Error resolving location scope:", error);
-    return next(); // Don't block on location resolution failure
+    return res.status(500).json({ error: "Unable to resolve location access" });
   }
 };

@@ -2,6 +2,7 @@ import { mybusinessaccountmanagement_v1 } from "@googleapis/mybusinessaccountman
 import { mybusinessbusinessinformation_v1 } from "@googleapis/mybusinessbusinessinformation";
 import { businessprofileperformance_v1 } from "@googleapis/businessprofileperformance";
 import { AuthenticatedRequest } from "../../../middleware/tokenRefresh";
+import { GbpAutomationError } from "../../gbp-automation/feature-utils/GbpAutomationError";
 
 /** API clients (no legacy google.mybusiness calls) */
 export function createClients(req: AuthenticatedRequest) {
@@ -33,5 +34,12 @@ export async function buildAuthHeaders(auth: any): Promise<Record<string, string
   const tokenResp = await auth.getAccessToken();
   const token =
     typeof tokenResp === "string" ? tokenResp : (tokenResp?.token ?? "");
+  if (!token) {
+    throw new GbpAutomationError(
+      "GBP_GOOGLE_RECONNECT_REQUIRED",
+      "Google rejected the connection. Reconnect Google and try again.",
+      { operation: "build_auth_headers", transient: false }
+    );
+  }
   return { Authorization: `Bearer ${token}` };
 }

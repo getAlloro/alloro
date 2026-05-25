@@ -101,7 +101,7 @@ export function AdminTopBar() {
             {/* Logo and Brand */}
             <div className="flex items-center">
               <Link
-                to="/admin/action-items"
+                to="/admin/mission-control"
                 className="flex items-center gap-3"
               >
                 <motion.div
@@ -187,7 +187,7 @@ export function AdminTopBar() {
       <div className="bg-[#1a2535] border-b border-gray-700/50 sticky top-16 z-40">
         <div className="px-4 sm:px-6 lg:px-8 flex gap-0">
           <Link
-            to="/admin/action-items"
+            to="/admin/mission-control"
             className={`relative flex items-center gap-2 px-5 py-2.5 text-[13px] transition-colors duration-150 ${
               isProcess ? "text-[#D66853]" : "text-gray-400 hover:text-gray-200"
             }`}

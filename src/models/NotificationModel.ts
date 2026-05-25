@@ -7,7 +7,6 @@ export interface INotification {
   title: string;
   message: string | null;
   type: "task" | "pms" | "agent" | "system" | "ranking";
-  priority: string | null;
   read: boolean;
   read_timestamp: Date | null;
   metadata: Record<string, unknown> | null;

@@ -2,6 +2,32 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.89] - May 2026
+
+### GBP Automation And Alloro Engage
+
+Added the GBP review-reply automation foundation, client-facing Alloro Engage experience, admin controls, review intelligence metrics, and production hardening for Google write actions.
+
+**Key Changes:**
+- Added GBP Automation admin and client surfaces for review queues, reply drafts, replied reviews, settings, diagnostics, and draft deletion
+- Added Alloro Engage to Local Rankings with an Overview card, engagement metrics, monthly review map, and a dedicated reply workflow tab
+- Added review-reply work items, audit events, deployment attempts, automation settings, review insights, escalation tracking, and sync-health persistence
+- Added AI review reply draft generation with organization/location customizations, safety checks, deploy previews, and manual save/deploy flows
+- Added Google Business Profile reply write/delete support with scoped OAuth usage, retryable worker deployment, and review sync support
+- Hardened authorization, location scoping, attempt visibility, status transitions, Google error classification, LLM input sanitization, and autosave/deploy race handling
+- Updated Alloro Docs replicas and page copy for the new Local Rankings / Alloro Engage workflow
+
+**Commits:**
+- `src/controllers/gbp-automation/*`, `src/routes/gbpAutomation.ts`, and `src/routes/admin/gbpAutomation.ts` - GBP automation controllers, services, client/admin routes, deploy previews, draft generation, settings, published-reply management, and hardening utilities
+- `src/models/Gbp*Model.ts`, `src/database/migrations/20260524*.ts`, and `src/database/migrations/20260525*.ts` - GBP work item, event, attempt, settings, insight, escalation, and sync-health schema/model support
+- `src/controllers/gbp/gbp-services/gbp-write.service.ts`, `src/workers/processors/gbpAutomation.processor.ts`, and worker queue wiring - Google write helpers and queued deployment processing
+- `frontend/src/components/dashboard/gbp-automation/*`, `frontend/src/api/gbpAutomation.ts`, and `frontend/src/hooks/queries/useGbpAutomationQueries.ts` - client Alloro Engage UI, review queues, draft slots, settings, metrics, and React Query wiring
+- `frontend/src/components/Admin/gbp-automation/*`, `frontend/src/api/admin-gbp-automation.ts`, and `frontend/src/hooks/queries/useAdminGbpAutomationQueries.ts` - admin GBP Automation tab, settings, diagnostics, review queues, drafts, and replied-review controls
+- `frontend/src/components/dashboard/RankingsDashboard.tsx`, `frontend/src/components/dashboard/rankings/RankingsDashboardViewTabs.tsx`, and `frontend/src/pages/admin/OrganizationDetail.tsx` - Local Rankings tab split, overview integration, and admin navigation
+- `src/agents/gbpAgents/*` - GBP review reply, local post, and review insight prompts with healthcare safety guidance
+- `plans/05242026-no-ticket-gbp-review-reply-draft-deploy-foundation/*` and `plans/05252026-no-ticket-gbp-*/*` - executed specs, migrations scaffolds, phased add-on plans, and hardening verification notes
+- `/Users/rustinedave/Desktop/alloro-docs/src/data/pages/local-rankings.ts` and `/Users/rustinedave/Desktop/alloro-docs/src/components/replicas/LocalRankingsReplica.tsx` - docs parity for Local Rankings and Alloro Engage
+
 ## [0.0.88] - May 2026
 
 ### Admin Mission Control Dashboard

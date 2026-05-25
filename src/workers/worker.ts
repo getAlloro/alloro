@@ -28,6 +28,7 @@ import { processPostImport } from "./processors/postImporter.processor";
 import { processCrmPush } from "./processors/crmPush.processor";
 import { processCrmMappingValidation } from "./processors/crmMappingValidation.processor";
 import { processDataHarvest } from "./processors/dataHarvest.processor";
+import { processGbpAutomationJob } from "./processors/gbpAutomation.processor";
 import { getMindsQueue, getCrmQueue, getHarvestQueue } from "./queues";
 import { closeWbQueues } from "./wb-queues";
 
@@ -380,8 +381,23 @@ const dataHarvestWorker = new Worker(
   }
 );
 
+const gbpAutomationWorker = new Worker(
+  "gbp-automation-deployment",
+  async (job) => {
+    await processGbpAutomationJob(job);
+  },
+  {
+    connection,
+    concurrency: 1,
+    lockDuration: 120000,
+    prefix: '{gbp}',
+    removeOnComplete: { count: 100 },
+    removeOnFail: { count: 50 },
+  }
+);
+
 // Event handlers
-for (const worker of [scrapeCompareWorker, compilePublishWorker, discoveryWorker, skillTriggerWorker, worksDigestWorker, seoBulkGenerateWorker, reviewSyncWorker, schedulerWorker, wbBackupWorker, wbRestoreWorker, wbIdentityWarmupWorker, wbLayoutsWorker, wbProjectScrapeWorker, wbPageGenerateWorker, wbPostImportWorker, auditLeadgenWorker, crmHubspotPushWorker, crmMappingValidationWorker, dataHarvestWorker]) {
+for (const worker of [scrapeCompareWorker, compilePublishWorker, discoveryWorker, skillTriggerWorker, worksDigestWorker, seoBulkGenerateWorker, reviewSyncWorker, schedulerWorker, wbBackupWorker, wbRestoreWorker, wbIdentityWarmupWorker, wbLayoutsWorker, wbProjectScrapeWorker, wbPageGenerateWorker, wbPostImportWorker, auditLeadgenWorker, crmHubspotPushWorker, crmMappingValidationWorker, dataHarvestWorker, gbpAutomationWorker]) {
   worker.on("completed", (job) => {
     console.log(`[MINDS-WORKER] Job ${job?.id} completed on queue ${worker.name}`);
   });
@@ -417,6 +433,7 @@ async function shutdown(): Promise<void> {
   await crmHubspotPushWorker.close();
   await crmMappingValidationWorker.close();
   await closeWbQueues();
+  await gbpAutomationWorker.close();
   await connection.quit();
   console.log("[MINDS-WORKER] Workers shut down");
   process.exit(0);

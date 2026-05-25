@@ -1,0 +1,64 @@
+-- GBP Engagement Add-ons PostgreSQL migration scaffold
+-- Plan: plans/05252026-no-ticket-gbp-engagement-addons/spec.md
+
+-- Tables/columns expected:
+-- 1. gbp_review_insights
+--    - id uuid primary key default gen_random_uuid()
+--    - organization_id integer not null references organizations(id) on delete cascade
+--    - location_id integer not null references locations(id) on delete cascade
+--    - review_id uuid not null references website_builder.reviews(id) on delete cascade
+--    - sentiment varchar(50)
+--    - urgency varchar(50)
+--    - themes jsonb not null default '[]'
+--    - suggested_handling varchar(120)
+--    - confidence numeric or integer
+--    - metadata jsonb not null default '{}'
+--    - created_at timestamptz, updated_at timestamptz
+--    - unique(review_id)
+--    - indexes on organization/location, urgency, themes as needed
+
+-- 2. gbp_review_escalations
+--    - id uuid primary key default gen_random_uuid()
+--    - organization_id integer not null references organizations(id) on delete cascade
+--    - location_id integer not null references locations(id) on delete cascade
+--    - review_id uuid not null references website_builder.reviews(id) on delete cascade
+--    - status varchar(50) not null default 'open'
+--    - reason varchar(120)
+--    - note text
+--    - created_by_user_id integer references users(id) on delete set null
+--    - resolved_by_user_id integer references users(id) on delete set null
+--    - resolved_at timestamptz
+--    - created_at timestamptz, updated_at timestamptz
+--    - partial unique active escalation index by review_id where status = 'open'
+
+-- 3. gbp_sync_health
+--    - id uuid primary key default gen_random_uuid()
+--    - organization_id integer not null references organizations(id) on delete cascade
+--    - location_id integer not null references locations(id) on delete cascade
+--    - google_property_id integer references google_properties(id) on delete set null
+--    - sync_source varchar(50) not null default 'oauth'
+--    - status varchar(50) not null default 'unknown'
+--    - last_started_at timestamptz
+--    - last_completed_at timestamptz
+--    - last_successful_at timestamptz
+--    - last_failed_at timestamptz
+--    - next_sync_at timestamptz
+--    - last_error_code varchar(120)
+--    - last_error_message text
+--    - metadata jsonb not null default '{}'
+--    - created_at timestamptz, updated_at timestamptz
+--    - unique(organization_id, location_id, google_property_id, sync_source)
+
+-- 4. gbp_automation_settings additive columns
+--    - review_reply_voice_examples jsonb
+--    - local_post_voice_examples jsonb
+--    - reply_rules jsonb
+--    - post_rules jsonb
+
+-- 5. gbp_work_items additive columns if needed
+--    - safety_status varchar(50)
+--    - safety_reasons jsonb
+--    - safety_confidence integer
+--    - deploy_preview_payload jsonb
+
+-- TODO: fill exact PostgreSQL DDL during execution.

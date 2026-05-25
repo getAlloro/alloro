@@ -34,6 +34,7 @@ import { OrgPmsTab } from "../../components/Admin/OrgPmsTab";
 import { OrgAgentOutputsTab } from "../../components/Admin/OrgAgentOutputsTab";
 import { OrgRankingsTab } from "../../components/Admin/OrgRankingsTab";
 import { OrgNotificationsTab } from "../../components/Admin/OrgNotificationsTab";
+import { OrgGbpAutomationTab } from "../../components/Admin/OrgGbpAutomationTab";
 import { OrgSubscriptionSection } from "../../components/Admin/OrgSubscriptionSection";
 import { OrgUsersSection } from "../../components/Admin/OrgUsersSection";
 import { OrgConnectionsSection } from "../../components/Admin/OrgConnectionsSection";
@@ -45,7 +46,13 @@ import type { AdminLocation } from "../../api/admin-organizations";
 // Sidebar section definitions
 // ---------------------------------------------------------------------------
 
-type SectionKey = "subscription" | "users" | "connections" | "agent" | "settings";
+type SectionKey =
+  | "subscription"
+  | "users"
+  | "connections"
+  | "gbpAutomation"
+  | "agent"
+  | "settings";
 
 const SECTION_CONFIG: Record<
   SectionKey,
@@ -63,6 +70,10 @@ const SECTION_CONFIG: Record<
     label: "Connections",
     icon: <Globe className="h-4 w-4" />,
   },
+  gbpAutomation: {
+    label: "GBP Automation",
+    icon: <MessageSquare className="h-4 w-4" />,
+  },
   agent: {
     label: "Agent Results",
     icon: <BarChart3 className="h-4 w-4" />,
@@ -77,6 +88,7 @@ const SECTION_KEYS: SectionKey[] = [
   "subscription",
   "users",
   "connections",
+  "gbpAutomation",
   "agent",
   "settings",
 ];
@@ -137,10 +149,17 @@ export default function OrganizationDetail() {
     useAdminOrganizationLocations(orgId);
   const { invalidateOne: invalidateOrg } = useInvalidateOrganizations();
   const loading = orgLoading || locLoading;
+  const hasMultipleLocations = locations.length > 1;
 
   // URL-driven state
-  const activeSection = (searchParams.get("section") || "subscription") as SectionKey;
-  const activeAgentTab = (searchParams.get("tab") || "tasks") as AgentTabKey;
+  const rawSection = searchParams.get("section");
+  const rawTab = searchParams.get("tab");
+  const activeSection = (
+    SECTION_KEYS.includes(rawSection as SectionKey) ? rawSection : "subscription"
+  ) as SectionKey;
+  const activeAgentTab = (
+    AGENT_TAB_KEYS.includes(rawTab as AgentTabKey) ? rawTab : "tasks"
+  ) as AgentTabKey;
   const [agentExpanded, setAgentExpanded] = useState(activeSection === "agent");
 
   const [selectedLocation, setSelectedLocation] =
@@ -155,18 +174,24 @@ export default function OrganizationDetail() {
       toast.error("Invalid organization ID");
       navigate("/admin/organization-management");
     }
-  }, [orgId]);
+  }, [navigate, orgId]);
 
   useEffect(() => {
     if (locations.length > 0 && !selectedLocation) {
       setSelectedLocation(locations[0]);
     }
-  }, [locations]);
+  }, [locations, selectedLocation]);
 
   // Keep agent expanded state in sync with URL
   useEffect(() => {
     if (activeSection === "agent") setAgentExpanded(true);
   }, [activeSection]);
+
+  useEffect(() => {
+    if (rawSection === "agent" && rawTab === "gbpAutomation") {
+      setSearchParams({ section: "gbpAutomation" });
+    }
+  }, [rawSection, rawTab, setSearchParams]);
 
   const setSection = (section: SectionKey, tab?: string) => {
     const params: Record<string, string> = { section };
@@ -303,7 +328,7 @@ export default function OrganizationDetail() {
                   </div>
                 )}
 
-                {/* Divider after connections (before agent results) */}
+                {/* Divider after connections (before automation and agent results) */}
                 {key === "connections" && (
                   <div className="border-t border-gray-100 my-1.5 mx-2" />
                 )}
@@ -337,19 +362,43 @@ export default function OrganizationDetail() {
             <OrgConnectionsSection org={org} />
           )}
 
+          {activeSection === "gbpAutomation" && (
+            <div className="space-y-4">
+              {hasMultipleLocations && (
+                <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">
+                    Location context
+                  </span>
+                  <OrgLocationSelector
+                    locations={locations}
+                    selectedLocation={selectedLocation}
+                    onSelect={setSelectedLocation}
+                  />
+                </div>
+              )}
+
+              <OrgGbpAutomationTab
+                organizationId={orgId}
+                locationId={selectedLocation?.id ?? null}
+              />
+            </div>
+          )}
+
           {activeSection === "agent" && (
             <div className="space-y-4">
               {/* Location Selector — only in Agent Results */}
-              <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-700">
-                  Location context
-                </span>
-                <OrgLocationSelector
-                  locations={locations}
-                  selectedLocation={selectedLocation}
-                  onSelect={setSelectedLocation}
-                />
-              </div>
+              {hasMultipleLocations && (
+                <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">
+                    Location context
+                  </span>
+                  <OrgLocationSelector
+                    locations={locations}
+                    selectedLocation={selectedLocation}
+                    onSelect={setSelectedLocation}
+                  />
+                </div>
+              )}
 
               {/* Agent Tab Content */}
               <div className="rounded-2xl border border-gray-200 bg-white p-6">
