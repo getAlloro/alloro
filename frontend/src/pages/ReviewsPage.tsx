@@ -35,6 +35,12 @@ import { useLocationContext } from "@/contexts/locationContext";
 import { getPriorityItem } from "@/hooks/useLocalStorage";
 import WarmEmptyState, { WARM_STATES } from "@/components/dashboard/WarmEmptyState";
 
+// Wave 1 Patch 1 (Card 6 safety): the "Approve and Post" button posts a response
+// to Google. Posting is deferred to Wave 5. This constant forces the button
+// disabled in every backend state, regardless of the per-review `postable` field.
+// Wave 5 flips this to true when review-response posting is ready to ship.
+const POSTING_ENABLED = false;
+
 // ─── Types ─────────────────────────────────────────────────────────
 
 interface ReviewNotification {
@@ -184,7 +190,7 @@ function NotificationReviewCard({
             <div className="pt-1 space-y-1.5">
               <button
                 onClick={() => onApprove(review.id)}
-                disabled={isApproving}
+                disabled={isApproving || !POSTING_ENABLED}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D56753] text-white text-xs font-medium hover:bg-[#C05A48] transition-colors disabled:opacity-50"
               >
                 <Check className="w-3 h-3" />

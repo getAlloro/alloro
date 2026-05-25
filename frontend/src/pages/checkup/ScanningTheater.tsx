@@ -674,18 +674,31 @@ export default function ScanningTheater() {
 
         if (cancelled) return;
 
-        // Use real result if available, otherwise fall back to personalized conference data
-        const finalResult = (result && result.success) ? result : fallback;
-
-        analysisRef.current = finalResult;
-        setApiDone(true);
-
-        trackEvent("checkup.scan_completed", {
-          score: finalResult.score.composite,
-          competitor_count: finalResult.competitors.length,
-          top_competitor_name: finalResult.topCompetitor?.name || null,
-          conference_fallback: result === null || !result?.success,
-        });
+        // Card 8-A: use the real result when the scan succeeded. The seeded
+        // conference fallback (Valley Endodontics and fictional competitors) is
+        // for conference mode ONLY. A non-conference prospect whose scan resolves
+        // without success is routed to the honest error, never to fabricated data.
+        if (result && result.success) {
+          analysisRef.current = result;
+          setApiDone(true);
+          trackEvent("checkup.scan_completed", {
+            score: result.score.composite,
+            competitor_count: result.competitors.length,
+            top_competitor_name: result.topCompetitor?.name || null,
+            conference_fallback: false,
+          });
+        } else if (conferenceActive) {
+          analysisRef.current = fallback;
+          setApiDone(true);
+          trackEvent("checkup.scan_completed", {
+            score: fallback.score.composite,
+            competitor_count: fallback.competitors.length,
+            top_competitor_name: fallback.topCompetitor?.name || null,
+            conference_fallback: true,
+          });
+        } else {
+          setError("We couldn't reach our analysis servers. Check your connection and try again.");
+        }
       } catch {
         if (cancelled) return;
 

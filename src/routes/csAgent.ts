@@ -12,6 +12,7 @@ import rateLimit from "express-rate-limit";
 import { db } from "../database/connection";
 import { authenticateToken } from "../middleware/auth";
 import { rbacMiddleware } from "../middleware/rbac";
+import { prependSubstrate } from "../services/prompt/alloroSubstrate";
 
 const csAgentRoutes = express.Router();
 
@@ -206,7 +207,7 @@ csAgentRoutes.post("/chat", authenticateToken, rbacMiddleware, chatLimiter, asyn
     }
 
     const locationId = req.body.locationId || null;
-    const systemPrompt = await buildSystemPrompt(orgId, locationId);
+    const systemPrompt = prependSubstrate(await buildSystemPrompt(orgId, locationId));
 
     // Build conversation — last 10 messages max for context window efficiency
     const messages: { role: "user" | "assistant"; content: string }[] = [];

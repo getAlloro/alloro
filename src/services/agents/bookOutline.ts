@@ -8,6 +8,7 @@
 
 import { db } from "../../database/connection";
 import Anthropic from "@anthropic-ai/sdk";
+import { prependSubstrate } from "../prompt/alloroSubstrate";
 
 // -- Types ------------------------------------------------------------------
 
@@ -193,7 +194,7 @@ async function synthesizeOutline(
   const response = await client.messages.create({
     model: LLM_MODEL,
     max_tokens: 6000,
-    system: `You are the Book Outline Generator for Alloro. You structure Corey's ideas, Ghost Writer extracts, and Knowledge Lattice heuristics into a compelling 12-chapter book outline.
+    system: prependSubstrate(`You are the Book Outline Generator for Alloro. You structure Corey's ideas, Ghost Writer extracts, and Knowledge Lattice heuristics into a compelling 12-chapter book outline.
 
 Rules:
 - No em-dashes. Use commas or periods instead.
@@ -218,7 +219,7 @@ Return valid JSON:
       "estimatedWordCount": number
     }
   ]
-}`,
+}`),
     messages: [
       {
         role: "user",
