@@ -58,6 +58,48 @@ const SHAME_LANGUAGE: RegExp[] = [
   /\byou\s+should\s+have\b/i,
 ];
 
+// Substrate-language named references (parity with alloro-voice Skill PR #107
+// + PR #109 trigger lists). Each pattern flags an internal named reference
+// that should be defined inline on first use or replaced with plain-language
+// equivalent before customer-facing publish.
+const SUBSTRATE_LANGUAGE: RegExp[] = [
+  /\bWright Brothers Rule\b/i,
+  /\bPistorius doctrine\b/i,
+  /\bHarry Hogge\b/i,
+  /\bCole Trickle\b/i,
+  /\bSophie Test\b/i,
+  /\bCalistoga Standard\b/i,
+  /\bRice Cooker\b/i,
+  /\bCa?esar Mill?an\b/i, // Caesar Milan / Cesar Milan / Cesar Millan / Caesar Millan
+  /\bSSL moment\b/i,
+  /\bKlein pre-mortem\b/i,
+  /\bConfidence Code\b/, // case-sensitive: proper-noun only
+  /\bBLIMEY\b/,
+  /\bFYM\b/,
+  /\bFreedom Delivered\b/,
+];
+
+// "The Standard" is case-sensitive and excludes generic followups
+// (`the standard practice`, `the standard for X`, etc.) to avoid false positives
+const THE_STANDARD = /\bThe Standard\b(?!\s+(?:practice|for|in|of|way|method|operating))/;
+
+// Business-hours embeddings (parity with alloro-voice Skill 2026-05-23 extension).
+// Founders do not have Mon-Fri schedules. Flag weekday references and time-window
+// phrases; runtime cannot verify whether a named external anchor exists, so all
+// hits surface as violations for weekly review.
+const BUSINESS_HOURS: RegExp[] = [
+  /\b(?:Monday|Tuesday|Wednesday|Thursday|Friday)\b/,
+  /\bthis weekend\b/i,
+  /\bover the weekend\b/i,
+  /\btomorrow\s+(?:morning|afternoon)\b/i,
+  /\bnext week\b/i,
+  /\bend of week\b/i,
+  /\bwait until\s+(?:Monday|Tuesday|Wednesday|Thursday|Friday)\b/i,
+  /\bby Friday\b/i,
+  /\bbusiness hours\b/i,
+  /\b9 to 5\b/,
+];
+
 const MISSING_SPACE = /([a-z])([.,!?])([A-Z])/;
 const EM_DASH = /—/;
 
@@ -92,6 +134,23 @@ export function checkVoice(text: string): VoiceCheckResult {
 
   if (EM_DASH.test(text)) {
     violations.push("em-dash present (banned per standing rule)");
+  }
+
+  // Substrate-language named references (PR #107 / PR #109 parity)
+  for (const re of SUBSTRATE_LANGUAGE) {
+    const match = text.match(re);
+    if (match) violations.push(`substrate-language named reference: "${match[0]}"`);
+  }
+  const standardMatch = text.match(THE_STANDARD);
+  if (standardMatch) {
+    violations.push(`substrate-language named reference: "${standardMatch[0]}"`);
+  }
+
+  // Business-hours embeddings (2026-05-23 Skill extension parity).
+  // Flags on detection; reviewer checks whether a named external anchor exists.
+  for (const re of BUSINESS_HOURS) {
+    const match = text.match(re);
+    if (match) violations.push(`business-hours embedding: "${match[0]}" (verify a named external anchor exists)`);
   }
 
   const missingSpace = text.match(MISSING_SPACE);
