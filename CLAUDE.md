@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Mission: give every business owner the life they set out to build. Alloro is a universal business intelligence platform; beachhead is licensed specialists (endodontics first). Architecture is universal; vocabulary configs handle vertical-specific UI labels. North Stars: NS1 Undeniable Value, NS2 Inevitable Unicorn, NS3 Calistoga Standard.
+Mission: give every business owner the life they set out to build. Alloro is a universal business intelligence platform; beachhead is licensed specialists (endodontics first). Architecture is universal; vocabulary configs handle vertical-specific UI labels. North Stars (two only, locked per Decision NS-001, May 14 2026, confirmed May 18): NS1 Undeniable Value, NS2 Inevitable Unicorn. Subordinate Tests/Outcomes (not decision filters): Calistoga Standard, Sophie Test, Freedom Delivered.
 
 Source of Truth: `docs/PRODUCT-OPERATIONS.md` (Product Constitution). If code contradicts that doc, the code is wrong.
 
