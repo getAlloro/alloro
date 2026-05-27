@@ -83,6 +83,13 @@ export const QUERY_KEYS = {
   ) => ["admin", "org-gbp-automation", orgId, locationId, params] as const,
   adminOrgGbpAutomationAll: (orgId: number) =>
     ["admin", "org-gbp-automation", orgId] as const,
+  adminOrgGbpPublishedLocalPosts: (
+    orgId: number,
+    locationId?: number | null,
+    params?: Record<string, unknown>,
+  ) => ["admin", "org-gbp-published-local-posts", orgId, locationId, params] as const,
+  adminOrgGbpPublishedLocalPostsAll: (orgId: number) =>
+    ["admin", "org-gbp-published-local-posts", orgId] as const,
   adminOrgPmsJobs: (orgId: number, params?: Record<string, unknown>) =>
     ["admin", "org-pms-jobs", orgId, params] as const,
   adminOrgPmsJobsAll: (orgId: number) =>
@@ -184,6 +191,13 @@ export const QUERY_KEYS = {
   ) => ["gbp-automation", orgId, locationId, params] as const,
   gbpAutomationAll: (orgId: number | null) =>
     ["gbp-automation", orgId] as const,
+  gbpPublishedLocalPosts: (
+    orgId: number | null,
+    locationId?: number | null,
+    params?: Record<string, unknown>,
+  ) => ["gbp-published-local-posts", orgId, locationId, params] as const,
+  gbpPublishedLocalPostsAll: (orgId: number | null) =>
+    ["gbp-published-local-posts", orgId] as const,
 
   // Client — DFY website
   userWebsite: ["user", "website"] as const,

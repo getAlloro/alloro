@@ -14,7 +14,12 @@ export function nextPostLabel(value: string | null | undefined): string {
 
 export function areGbpReplyPrerequisitesReady(readiness: GbpReadiness): boolean {
   return Object.entries(readiness.checks)
-    .filter(([key]) => key !== "featureEnabled")
+    .filter(
+      ([key]) =>
+        key !== "featureEnabled" &&
+        key !== "reviewRepliesEnabled" &&
+        key !== "postDraftsEnabled"
+    )
     .every(([, value]) => Boolean(value));
 }
 

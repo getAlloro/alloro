@@ -107,6 +107,62 @@ export class GbpWorkItemModel extends BaseModel {
     return row ? this.deserializeJsonFields(row) : undefined;
   }
 
+  static async findLocalPostForGenerationWindow(
+    organizationId: number,
+    locationId: number,
+    generationWindow: string,
+    trx?: QueryContext
+  ): Promise<IGbpWorkItem | undefined> {
+    const row = await this.table(trx)
+      .where({
+        organization_id: organizationId,
+        location_id: locationId,
+        content_type: "local_post",
+      })
+      .whereRaw("metadata ->> 'generationWindow' = ?", [generationWindow])
+      .whereIn("status", ["draft", "awaiting_approval", "approved", "deploying", "published"])
+      .orderBy("created_at", "desc")
+      .first();
+    return row ? this.deserializeJsonFields(row) : undefined;
+  }
+
+  static async findRunningLocalPostGeneration(
+    organizationId: number,
+    locationId: number,
+    trx?: QueryContext
+  ): Promise<IGbpWorkItem | undefined> {
+    const row = await this.table(trx)
+      .where({
+        organization_id: organizationId,
+        location_id: locationId,
+        content_type: "local_post",
+      })
+      .whereRaw("metadata ->> 'generationStatus' = ?", ["running"])
+      .whereIn("status", ["draft", "awaiting_approval"])
+      .orderBy("created_at", "desc")
+      .first();
+    return row ? this.deserializeJsonFields(row) : undefined;
+  }
+
+  static async findPublishedLocalPostByGoogleResourceName(
+    organizationId: number,
+    locationId: number,
+    googleResourceName: string,
+    trx?: QueryContext
+  ): Promise<IGbpWorkItem | undefined> {
+    const row = await this.table(trx)
+      .where({
+        organization_id: organizationId,
+        location_id: locationId,
+        content_type: "local_post",
+        status: "published",
+        google_resource_name: googleResourceName,
+      })
+      .orderBy("updated_at", "desc")
+      .first();
+    return row ? this.deserializeJsonFields(row) : undefined;
+  }
+
   static async list(
     filters: GbpWorkItemFilters,
     trx?: QueryContext
@@ -174,6 +230,44 @@ export class GbpWorkItemModel extends BaseModel {
     }, trx);
   }
 
+  static async updateLocalPostDraft(
+    id: string,
+    data: {
+      draftContent: string;
+      localPostPayload: Record<string, unknown>;
+      featuredImageUrl: string | null;
+      safety?: {
+        status: GbpSafetyStatus;
+        reasonCodes: string[];
+        reasons: string[];
+        confidence: number;
+      };
+    },
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.updateById(id, {
+      draft_content: data.draftContent,
+      local_post_payload: data.localPostPayload,
+      featured_image_url: data.featuredImageUrl,
+      status: "draft",
+      approved_content: null,
+      approved_by_user_id: null,
+      approved_at: null,
+      rejected_by_user_id: null,
+      rejected_at: null,
+      last_error_code: null,
+      last_error_message: null,
+      ...(data.safety
+        ? {
+            safety_status: data.safety.status,
+            safety_reason_codes: data.safety.reasonCodes,
+            safety_reasons: data.safety.reasons,
+            safety_confidence: data.safety.confidence,
+          }
+        : {}),
+    }, trx);
+  }
+
   static async replaceGeneratedDraft(
     id: string,
     data: {
@@ -193,6 +287,56 @@ export class GbpWorkItemModel extends BaseModel {
   ): Promise<number> {
     return this.updateById(id, {
       draft_content: data.draftContent,
+      status: "draft",
+      approved_content: null,
+      approved_by_user_id: null,
+      approved_at: null,
+      rejected_by_user_id: null,
+      rejected_at: null,
+      generation_prompt_key: data.promptKey,
+      generation_input: data.generationInput,
+      generation_customizations: data.customizations,
+      last_error_code: null,
+      last_error_message: null,
+      metadata: data.metadata,
+      ...(data.safety
+        ? {
+            safety_status: data.safety.status,
+            safety_reason_codes: data.safety.reasonCodes,
+            safety_reasons: data.safety.reasons,
+            safety_confidence: data.safety.confidence,
+          }
+        : {}),
+    }, trx);
+  }
+
+  static async replaceGeneratedLocalPostDraft(
+    id: string,
+    data: {
+      draftContent: string;
+      localPostPayload: Record<string, unknown>;
+      featuredImageUrl: string | null;
+      sourceReviewId?: string | null;
+      promptKey: string;
+      generationInput: Record<string, unknown>;
+      customizations: string | null;
+      metadata: Record<string, unknown>;
+      safety?: {
+        status: GbpSafetyStatus;
+        reasonCodes: string[];
+        reasons: string[];
+        confidence: number;
+      };
+    },
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.updateById(id, {
+      draft_content: data.draftContent,
+      local_post_payload: data.localPostPayload,
+      featured_image_url: data.featuredImageUrl,
+      ...(data.sourceReviewId !== undefined
+        ? { source_review_id: data.sourceReviewId }
+        : {}),
       status: "draft",
       approved_content: null,
       approved_by_user_id: null,
@@ -301,6 +445,52 @@ export class GbpWorkItemModel extends BaseModel {
       next_retry_at: null,
       updated_at: new Date(),
     }));
+  }
+
+  static async syncPublishedLocalPost(
+    id: string,
+    data: {
+      publishedContent: string;
+      localPostPayload: Record<string, unknown>;
+      featuredImageUrl: string | null;
+      googleResponse: Record<string, unknown>;
+      metadata: Record<string, unknown>;
+    },
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id, status: "published", content_type: "local_post" })
+      .update(this.serializeJsonFields({
+        draft_content: data.publishedContent,
+        approved_content: data.publishedContent,
+        published_content: data.publishedContent,
+        local_post_payload: data.localPostPayload,
+        featured_image_url: data.featuredImageUrl,
+        google_response: data.googleResponse,
+        metadata: data.metadata,
+        last_error_code: null,
+        last_error_message: null,
+        updated_at: new Date(),
+      }));
+  }
+
+  static async markPublishedLocalPostDeleted(
+    id: string,
+    userId: number | null,
+    metadata: Record<string, unknown>,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id, status: "published", content_type: "local_post" })
+      .update(this.serializeJsonFields({
+        status: "rejected",
+        rejected_by_user_id: userId,
+        rejected_at: new Date(),
+        last_error_code: null,
+        last_error_message: null,
+        metadata,
+        updated_at: new Date(),
+      }));
   }
 
   static async markFailedToDraft(

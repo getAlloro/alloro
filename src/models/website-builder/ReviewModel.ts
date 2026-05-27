@@ -229,6 +229,23 @@ export class ReviewModel extends BaseModel {
     return query;
   }
 
+  static async findLocalPostCandidatesForLocation(
+    locationId: number,
+    filters?: { limit?: number },
+    trx?: QueryContext
+  ): Promise<IReview[]> {
+    return this.table(trx)
+      .where({
+        location_id: locationId,
+        hidden: false,
+      })
+      .where("stars", ">=", 5)
+      .whereNotNull("text")
+      .whereRaw("length(trim(text)) >= 20")
+      .orderBy("review_created_at", "desc")
+      .limit(Math.min(Math.max(filters?.limit || 25, 1), 100));
+  }
+
   static async listReplyReviewMonths(
     locationId: number,
     hasReply: boolean,

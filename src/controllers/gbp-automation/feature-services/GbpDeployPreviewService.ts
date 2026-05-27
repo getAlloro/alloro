@@ -2,12 +2,14 @@ import { GbpWorkItemModel, IGbpWorkItem } from "../../../models/GbpWorkItemModel
 import { ReviewModel, IReview } from "../../../models/website-builder/ReviewModel";
 import { GbpAutomationError } from "../feature-utils/GbpAutomationError";
 import { GbpContentSafetyResult, GbpContentSafetyService } from "./GbpContentSafetyService";
+import { GbpLocalPostSafetyService } from "./GbpLocalPostSafetyService";
 import { GbpReadinessResult, GbpReadinessService } from "./GbpReadinessService";
 
 export interface GbpDeployPreview {
   workItem: Pick<IGbpWorkItem, "id" | "status" | "content_type" | "google_property_id">;
   review: Pick<IReview, "id" | "google_review_name" | "reviewer_name" | "stars" | "review_created_at"> | null;
   content: string;
+  featuredImageUrl: string | null;
   safety: GbpContentSafetyResult;
   googleProperty: GbpReadinessResult["googleProperty"];
   canDeploy: boolean;
@@ -40,12 +42,30 @@ export class GbpDeployPreviewService {
       ? await ReviewModel.findById(item.source_review_id)
       : null;
     const content = (item.approved_content || item.draft_content || "").trim();
-    const safety = GbpContentSafetyService.validateReviewReply(content);
+    const safety =
+      item.content_type === "local_post"
+        ? GbpLocalPostSafetyService.validateLocalPost(content, item.featured_image_url)
+        : GbpContentSafetyService.validateReviewReply(content);
     const warnings: string[] = [];
+    const isGoogleReady =
+      readiness.googleProperty &&
+      readiness.checks.hasGoogleConnection &&
+      readiness.checks.hasRefreshToken &&
+      readiness.checks.hasBusinessManageScope &&
+      readiness.checks.hasAccountId &&
+      readiness.checks.hasExternalId;
 
     if (item.status !== "approved") warnings.push("Draft must be saved and approved before deploy.");
-    if (!readiness.ready || !readiness.googleProperty) warnings.push("GBP readiness is not complete.");
-    if (!safety.isSafe) warnings.push("Reply content is blocked by safety checks.");
+    if (item.content_type === "local_post" && !item.featured_image_url) {
+      warnings.push("Upload a post image before deploying a GBP post.");
+    }
+    if (item.content_type === "local_post" && !isGoogleReady) {
+      warnings.push("GBP posting readiness is not complete.");
+    }
+    if (item.content_type !== "local_post" && (!readiness.ready || !readiness.googleProperty)) {
+      warnings.push("GBP readiness is not complete.");
+    }
+    if (!safety.isSafe) warnings.push("Content is blocked by safety checks.");
     if (safety.status === "needs_review") warnings.push("Safety review required before deploy.");
 
     const preview: GbpDeployPreview = {
@@ -65,6 +85,7 @@ export class GbpDeployPreviewService {
           }
         : null,
       content,
+      featuredImageUrl: item.featured_image_url,
       safety,
       googleProperty: readiness.googleProperty,
       canDeploy: warnings.every((warning) => warning === "Safety review required before deploy."),

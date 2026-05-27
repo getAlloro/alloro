@@ -12,6 +12,7 @@ export class GbpReviewManagementController {
       const job = await queue.add("manual-review-sync", {
         organizationId: ctx.organizationId,
         locationId: ctx.locationId,
+        syncSource: "manual",
       });
       return ok(
         res,

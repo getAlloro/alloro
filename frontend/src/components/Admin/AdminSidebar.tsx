@@ -8,7 +8,6 @@ import {
   Cpu,
   LineChart,
   FileText,
-  Building,
   Database,
   Bot,
   Brain,
@@ -72,7 +71,6 @@ const TOP_ITEMS: NavItem[] = [
 
 const BOTTOM_ITEMS: NavItem[] = [
   { key: "app-logs", label: "App Logs", icon: FileText },
-  { key: "organization-management", label: "Organizations", icon: Building },
   { key: "schedules", label: "Schedules", icon: Clock },
   { key: "settings", label: "Settings", icon: Settings },
 ];

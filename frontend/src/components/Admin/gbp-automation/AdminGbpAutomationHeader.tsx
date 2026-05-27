@@ -2,13 +2,13 @@ import type { ReactNode } from "react";
 import {
   AlertCircle,
   CheckCircle2,
-  ClipboardList,
+  Newspaper,
   Loader2,
   Settings2,
   Sparkles,
 } from "lucide-react";
 
-export type AdminGbpView = "settings" | "drafts" | "reviews";
+export type AdminGbpView = "settings" | "posts" | "reviews";
 
 export type AdminGbpAutomationHeaderProps = {
   activeView: AdminGbpView;
@@ -24,7 +24,7 @@ const VIEW_OPTIONS: Array<{
   icon: ReactNode;
 }> = [
   { key: "reviews", label: "Reviews", icon: <Sparkles className="h-3.5 w-3.5" /> },
-  { key: "drafts", label: "Drafts", icon: <ClipboardList className="h-3.5 w-3.5" /> },
+  { key: "posts", label: "GBP Posts", icon: <Newspaper className="h-3.5 w-3.5" /> },
   { key: "settings", label: "Settings", icon: <Settings2 className="h-3.5 w-3.5" /> },
 ];
 

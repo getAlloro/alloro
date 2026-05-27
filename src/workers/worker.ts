@@ -29,7 +29,7 @@ import { processCrmPush } from "./processors/crmPush.processor";
 import { processCrmMappingValidation } from "./processors/crmMappingValidation.processor";
 import { processDataHarvest } from "./processors/dataHarvest.processor";
 import { processGbpAutomationJob } from "./processors/gbpAutomation.processor";
-import { getMindsQueue, getCrmQueue, getHarvestQueue } from "./queues";
+import { getMindsQueue, getCrmQueue, getHarvestQueue, getGbpAutomationQueue } from "./queues";
 import { closeWbQueues } from "./wb-queues";
 
 const REDIS_HOST = process.env.REDIS_HOST || "127.0.0.1";
@@ -389,7 +389,7 @@ const gbpAutomationWorker = new Worker(
   {
     connection,
     concurrency: 1,
-    lockDuration: 120000,
+    lockDuration: 300000,
     prefix: '{gbp}',
     removeOnComplete: { count: 100 },
     removeOnFail: { count: 50 },
@@ -469,7 +469,7 @@ async function setupReviewSyncSchedule(): Promise<void> {
     const queue = getMindsQueue("review-sync");
     await queue.add(
       "daily-review-sync",
-      {},
+      { syncSource: "auto" },
       {
         repeat: {
           pattern: "0 4 * * *", // 4 AM UTC daily
@@ -481,6 +481,27 @@ async function setupReviewSyncSchedule(): Promise<void> {
     console.log("[MINDS-WORKER] Daily review sync job scheduled (4 AM UTC)");
   } catch (err: any) {
     console.error("[MINDS-WORKER] Failed to set up review sync schedule:", err);
+  }
+}
+
+// Set up GBP published local posts sync schedule (daily — 4:45 AM UTC)
+async function setupGbpLocalPostSyncSchedule(): Promise<void> {
+  try {
+    const queue = getGbpAutomationQueue("deployment");
+    await queue.add(
+      "sync-local-posts",
+      { syncSource: "auto" },
+      {
+        repeat: {
+          pattern: "45 4 * * *", // 4:45 AM UTC daily
+          tz: "UTC",
+        },
+        jobId: "daily-local-post-sync",
+      }
+    );
+    console.log("[MINDS-WORKER] Daily GBP local post sync scheduled (4:45 AM UTC)");
+  } catch (err: any) {
+    console.error("[MINDS-WORKER] Failed to set up GBP local post sync schedule:", err);
   }
 }
 
@@ -547,6 +568,27 @@ async function setupDataHarvestSchedule(): Promise<void> {
   }
 }
 
+// Set up GBP local post draft schedule scan (hourly)
+async function setupGbpLocalPostGenerationSchedule(): Promise<void> {
+  try {
+    const queue = getGbpAutomationQueue("deployment");
+    await queue.add(
+      "scan-local-post-generation",
+      { limit: 25 },
+      {
+        repeat: {
+          pattern: "15 * * * *", // Hourly at :15 UTC
+          tz: "UTC",
+        },
+        jobId: "scan-local-post-generation",
+      }
+    );
+    console.log("[MINDS-WORKER] GBP local post generation scan scheduled (hourly)");
+  } catch (err: any) {
+    console.error("[MINDS-WORKER] Failed to set up GBP local post generation schedule:", err);
+  }
+}
+
 setupDiscoverySchedule();
 setupSkillTriggerSchedule();
 setupWorksDigestSchedule();
@@ -554,5 +596,7 @@ setupReviewSyncSchedule();
 setupSchedulerTick();
 setupCrmMappingValidationSchedule();
 setupDataHarvestSchedule();
+setupGbpLocalPostGenerationSchedule();
+setupGbpLocalPostSyncSchedule();
 
 console.log("[MINDS-WORKER] All workers running. Waiting for jobs...");

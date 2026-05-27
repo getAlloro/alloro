@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
-import type { GbpAutomationSettings, GbpWorkItemStatus } from "../../api/gbpAutomation";
+import type { GbpAutomationSettings } from "../../api/gbpAutomation";
 import {
   useAdminGbpAutomation,
   useAdminGbpAutomationActions,
+  useAdminGbpPublishedLocalPosts,
 } from "../../hooks/queries/useAdminGbpAutomationQueries";
 import {
   AdminGbpAutomationHeader,
@@ -16,22 +17,19 @@ import { AdminGbpWorkItemsPanel } from "./gbp-automation/AdminGbpWorkItemsPanel"
 export type OrgGbpAutomationTabProps = {
   organizationId: number;
   locationId: number | null;
+  activeView?: AdminGbpView;
+  hideHeader?: boolean;
+  onViewChange?: (view: AdminGbpView) => void;
 };
-
-const STATUS_OPTIONS: Array<GbpWorkItemStatus | "all"> = [
-  "all",
-  "draft",
-  "approved",
-  "deploying",
-  "published",
-  "rejected",
-];
 
 const EMPTY_REVIEW_MONTHS = { needsReply: [], replied: [] };
 
 export function OrgGbpAutomationTab({
   organizationId,
   locationId,
+  activeView: controlledActiveView,
+  hideHeader = false,
+  onViewChange,
 }: OrgGbpAutomationTabProps) {
   const [needsReplyMonth, setNeedsReplyMonth] = useState<string | null>(null);
   const [repliedMonth, setRepliedMonth] = useState<string | null>(null);
@@ -44,25 +42,46 @@ export function OrgGbpAutomationTab({
   const previousLocationIdRef = useRef(locationId);
   const [settingsDraft, setSettingsDraft] =
     useState<Partial<GbpAutomationSettings>>({});
-  const [statusFilter, setStatusFilter] = useState<GbpWorkItemStatus | "all">("all");
-  const [activeView, setActiveView] = useState<AdminGbpView>("reviews");
+  const [localActiveView, setLocalActiveView] = useState<AdminGbpView>("reviews");
+  const activeView = controlledActiveView ?? localActiveView;
+  const setActiveView = (view: AdminGbpView) => {
+    if (onViewChange) onViewChange(view);
+    else setLocalActiveView(view);
+  };
+  const [publishedPostPage, setPublishedPostPage] = useState(1);
+  const {
+    data: publishedPostsData,
+    isLoading: isLoadingPublishedPosts,
+  } = useAdminGbpPublishedLocalPosts(
+    organizationId,
+    locationId,
+    activeView === "posts",
+    { page: publishedPostPage, limit: 10 }
+  );
   const [isSwitchingLocation, setIsSwitchingLocation] = useState(false);
   const [isSavingReviewReplies, setIsSavingReviewReplies] = useState(false);
+  const [isSavingPostDrafts, setIsSavingPostDrafts] = useState(false);
   const [diagnosticsConfirmedLocationId, setDiagnosticsConfirmedLocationId] =
     useState<number | null>(null);
   const isBusy =
     actions.updateSettings.isPending ||
     actions.generateDraft.isPending ||
     actions.createPostDraft.isPending ||
+    actions.generatePostDraftNow.isPending ||
+    actions.uploadPostImage.isPending ||
     actions.syncReviews.isPending ||
+    actions.syncPosts.isPending ||
     actions.saveReviewSlotDraft.isPending ||
     actions.updateDraft.isPending ||
+    actions.regeneratePostDraft.isPending ||
     actions.approve.isPending ||
     actions.deleteDraft.isPending ||
     actions.deployPreview.isPending ||
     actions.deploy.isPending ||
     actions.retry.isPending ||
-    actions.updateEscalation.isPending;
+    actions.updateEscalation.isPending ||
+    actions.updatePublishedLocalPost.isPending ||
+    actions.deletePublishedLocalPost.isPending;
   const isGoogleBusy =
     isBusy ||
     actions.updatePublishedReply.isPending ||
@@ -84,6 +103,7 @@ export function OrgGbpAutomationTab({
       setDiagnosticsConfirmedLocationId(null);
       setNeedsReplyMonth(null);
       setRepliedMonth(null);
+      setPublishedPostPage(1);
     }
     previousLocationIdRef.current = locationId;
   }, [locationId]);
@@ -107,13 +127,10 @@ export function OrgGbpAutomationTab({
     if (!isFetching) setIsSwitchingLocation(false);
   }, [isFetching]);
 
-  const workItems = useMemo(() => {
-    const items = data?.workItems || [];
-    if (statusFilter === "all") {
-      return items.filter((item) => item.status !== "published" && item.status !== "rejected");
-    }
-    return items.filter((item) => item.status === statusFilter);
-  }, [data?.workItems, statusFilter]);
+  useEffect(() => {
+    const totalPages = publishedPostsData?.pagination.totalPages || 1;
+    if (publishedPostPage > totalPages) setPublishedPostPage(totalPages);
+  }, [publishedPostPage, publishedPostsData?.pagination.totalPages]);
 
   const run = async (action: () => Promise<unknown>, message: string) => {
     try {
@@ -129,16 +146,17 @@ export function OrgGbpAutomationTab({
   const confirmDeployPreview = async (workItemId: string) => {
     const preview = await actions.deployPreview.mutateAsync(workItemId);
     if (!preview.canDeploy && preview.safety.status !== "needs_review") {
-      throw new Error(preview.warnings[0] || "This reply is not ready to deploy.");
+      throw new Error(preview.warnings[0] || "This item is not ready to deploy.");
     }
+    const noun = preview.workItem.content_type === "local_post" ? "post" : "reply";
     if (preview.safety.status === "needs_review" || preview.warnings.length > 0) {
       const confirmed = window.confirm(
         [
-          "Deploy this reply to Google Business Profile?",
+          `Deploy this ${noun} to Google Business Profile?`,
           preview.googleProperty?.display_name
             ? `Profile: ${preview.googleProperty.display_name}`
             : null,
-          `Safety: ${preview.safety.status.replace("_", " ")}`,
+          `Safety: ${preview.safety.status.replaceAll("_", " ")}`,
           ...preview.warnings,
         ]
           .filter(Boolean)
@@ -176,6 +194,26 @@ export function OrgGbpAutomationTab({
       }
     }, enabled ? "Review replies enabled." : "Review replies disabled.");
 
+  const updatePostGenerationEnabled = (enabled: boolean) =>
+    run(async () => {
+      const previousSettings = settingsDraft;
+      const nextSettings = { ...settingsDraft, local_post_generation_enabled: enabled };
+      let didSave = false;
+      setIsSavingPostDrafts(true);
+      setSettingsDraft(nextSettings);
+      try {
+        await actions.updateSettings.mutateAsync(nextSettings);
+        didSave = true;
+        const result = await refetch();
+        if (result.error) throw result.error;
+      } catch (err) {
+        if (!didSave) setSettingsDraft(previousSettings);
+        throw err;
+      } finally {
+        setIsSavingPostDrafts(false);
+      }
+    }, enabled ? "GBP post drafts enabled." : "GBP post drafts disabled.");
+
   if (!locationId) {
     return (
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">
@@ -198,13 +236,15 @@ export function OrgGbpAutomationTab({
 
   return (
     <div className="space-y-4">
-      <AdminGbpAutomationHeader
-        activeView={activeView}
-        isLoadingLocation={isLoadingLocation}
-        isReady={data.readiness.ready}
-        status={data.readiness.status}
-        onViewChange={setActiveView}
-      />
+      {!hideHeader && (
+        <AdminGbpAutomationHeader
+          activeView={activeView}
+          isLoadingLocation={isLoadingLocation}
+          isReady={data.readiness.ready}
+          status={data.readiness.status}
+          onViewChange={setActiveView}
+        />
+      )}
 
       {activeView === "settings" && (
         <AdminGbpSettingsPanel
@@ -214,7 +254,9 @@ export function OrgGbpAutomationTab({
           isBusy={isBusy}
           isRefreshingDiagnostics={isFetching}
           isSyncingReviews={actions.syncReviews.isPending}
+          isSyncingPosts={actions.syncPosts.isPending}
           isSavingReviewReplies={isSavingReviewReplies}
+          isSavingPostDrafts={isSavingPostDrafts}
           onRerunDiagnostics={rerunDiagnostics}
           onSyncReviews={() =>
             run(
@@ -222,42 +264,90 @@ export function OrgGbpAutomationTab({
               "Manual reviews sync queued."
             )
           }
+          onSyncPosts={() =>
+            run(
+              () => actions.syncPosts.mutateAsync(),
+              "Manual posts sync complete."
+            )
+          }
           onReviewReplyEnabledChange={updateReviewReplyEnabled}
+          onPostGenerationEnabledChange={updatePostGenerationEnabled}
         />
       )}
 
-      {activeView === "drafts" && (
+      {activeView === "posts" && (
         <AdminGbpWorkItemsPanel
-          workItems={workItems}
+          workItems={data.workItems}
           reviews={[...data.eligibleReviews, ...data.repliedReviews]}
-          statusFilter={statusFilter}
-          statusOptions={STATUS_OPTIONS}
+          publishedPosts={publishedPostsData?.posts || []}
+          publishedPostsPagination={publishedPostsData?.pagination}
+          nextPostGenerationAt={data.settings.next_post_generation_at}
           isBusy={isBusy}
-          onStatusFilterChange={setStatusFilter}
-          onSave={(workItemId, draftContent) =>
-            run(() => actions.updateDraft.mutateAsync({ workItemId, draftContent }), "Draft saved.")
-          }
-          onApprove={(workItemId, approvedContent) =>
-            run(
-              () => actions.approve.mutateAsync({ workItemId, approvedContent }),
-              "Draft approved."
-            )
-          }
-          onDeploy={(workItemId) =>
-            run(
-              async () => {
-                const confirmNeedsReview = await confirmDeployPreview(workItemId);
-                return actions.deploy.mutateAsync({ workItemId, confirmNeedsReview });
-              },
-              "Deployment queued."
-            )
-          }
-          onRetry={(workItemId) =>
-            run(() => actions.retry.mutateAsync(workItemId), "Retry queued.")
-          }
+          isLoadingPublishedPosts={isLoadingPublishedPosts}
+          onPublishedPostsPageChange={setPublishedPostPage}
           onDelete={(workItemId) =>
             run(() => actions.deleteDraft.mutateAsync(workItemId), "Draft deleted.")
           }
+          onSavePost={(input) =>
+            run(
+              () =>
+                actions.updateDraft.mutateAsync({
+                  workItemId: input.workItemId,
+                  draftContent: input.draftContent,
+                  featuredImageUrl: input.featuredImageUrl,
+                }),
+              "Post draft saved."
+            )
+          }
+          onRegeneratePost={(workItemId) =>
+            run(
+              () => actions.regeneratePostDraft.mutateAsync(workItemId),
+              "Post draft generated."
+            )
+          }
+          onDeployPost={(input) =>
+            run(
+              async () => {
+                await actions.updateDraft.mutateAsync({
+                  workItemId: input.workItemId,
+                  draftContent: input.draftContent,
+                  featuredImageUrl: input.featuredImageUrl,
+                });
+                await actions.approve.mutateAsync({
+                  workItemId: input.workItemId,
+                  approvedContent: input.draftContent,
+                });
+                const confirmNeedsReview = await confirmDeployPreview(input.workItemId);
+                return actions.deploy.mutateAsync({
+                  workItemId: input.workItemId,
+                  confirmNeedsReview,
+                });
+              },
+              "Post deployment queued."
+            )
+          }
+          onGeneratePostDraft={(featuredImageUrl) =>
+            run(
+              () => actions.generatePostDraftNow.mutateAsync(featuredImageUrl),
+              "GBP post draft generation queued."
+            )
+          }
+          onUploadPostImage={(file) =>
+            actions.uploadPostImage.mutateAsync(file).then((result) => result.imageUrl)
+          }
+          onSavePublishedPost={(input) =>
+            run(
+              () => actions.updatePublishedLocalPost.mutateAsync(input),
+              "GBP post updated."
+            )
+          }
+          onDeletePublishedPost={(name) =>
+            run(
+              () => actions.deletePublishedLocalPost.mutateAsync(name),
+              "GBP post deleted."
+            )
+          }
+          isGeneratingPostDraft={actions.generatePostDraftNow.isPending}
         />
       )}
 
@@ -276,9 +366,6 @@ export function OrgGbpAutomationTab({
           replyOps={data.readiness.replyOps}
           onGenerate={(reviewId) =>
             run(() => actions.generateDraft.mutateAsync(reviewId), "Reply draft generated.")
-          }
-          onCreatePostDraft={(reviewId) =>
-            run(() => actions.createPostDraft.mutateAsync(reviewId), "GBP post draft created.")
           }
           onEscalationChange={(reviewId, status, reason) =>
             run(
@@ -308,6 +395,33 @@ export function OrgGbpAutomationTab({
               },
               "Deployment queued."
             )
+          }
+          onSaveWorkItemDraft={(workItemId, draftContent) =>
+            run(
+              () => actions.updateDraft.mutateAsync({ workItemId, draftContent }),
+              "Draft saved."
+            )
+          }
+          onApproveWorkItemDraft={(workItemId, approvedContent) =>
+            run(
+              () => actions.approve.mutateAsync({ workItemId, approvedContent }),
+              "Draft approved."
+            )
+          }
+          onDeployWorkItemDraft={(workItemId) =>
+            run(
+              async () => {
+                const confirmNeedsReview = await confirmDeployPreview(workItemId);
+                return actions.deploy.mutateAsync({ workItemId, confirmNeedsReview });
+              },
+              "Deployment queued."
+            )
+          }
+          onRetryWorkItemDraft={(workItemId) =>
+            run(() => actions.retry.mutateAsync(workItemId), "Retry queued.")
+          }
+          onDeleteWorkItemDraft={(workItemId) =>
+            run(() => actions.deleteDraft.mutateAsync(workItemId), "Draft deleted.")
           }
           onUpdatePublishedReply={({ reviewId, replyContent }) =>
             run(

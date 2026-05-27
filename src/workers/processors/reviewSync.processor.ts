@@ -9,7 +9,7 @@
 import { Job } from "bullmq";
 import axios from "axios";
 import { db } from "../../database/connection";
-import { GbpSyncHealthModel } from "../../models/GbpSyncHealthModel";
+import { GbpSyncHealthModel, GbpSyncSource } from "../../models/GbpSyncHealthModel";
 import { ReviewModel } from "../../models/website-builder/ReviewModel";
 import { createOAuth2ClientForConnection } from "../../auth/oauth2Helper";
 import { buildAuthHeaders } from "../../controllers/gbp/gbp-services/gbp-api.service";
@@ -26,10 +26,13 @@ const STAR_TO_NUM: Record<string, number> = {
 export interface ReviewSyncData {
   organizationId?: number; // if provided, only sync this org's locations
   locationId?: number; // if provided, only sync this location
+  syncSource?: GbpSyncSource;
 }
 
 export async function processReviewSync(job: Job<ReviewSyncData>): Promise<void> {
   const { organizationId, locationId } = job.data || {};
+  const syncSource: GbpSyncSource =
+    job.data?.syncSource || (job.name === "daily-review-sync" ? "auto" : "manual");
   const start = Date.now();
 
   console.log(
@@ -102,12 +105,14 @@ export async function processReviewSync(job: Job<ReviewSyncData>): Promise<void>
             organizationId: prop.organization_id,
             locationId: prop.location_id,
             googlePropertyId: prop.google_property_id,
-            metadata: { jobId: job.id || null },
+            metadata: { jobId: job.id || null, jobName: job.name, syncSource },
           });
           try {
             const count = await syncLocationReviews(auth, prop);
             await GbpSyncHealthModel.markSucceeded(health.id, count, {
               jobId: job.id || null,
+              jobName: job.name,
+              syncSource,
             });
             totalSynced += count;
             totalLocations++;
@@ -117,7 +122,7 @@ export async function processReviewSync(job: Job<ReviewSyncData>): Promise<void>
               health.id,
               err?.code || "REVIEW_SYNC_FAILED",
               err?.message || "Review sync failed.",
-              { jobId: job.id || null }
+              { jobId: job.id || null, jobName: job.name, syncSource }
             );
             console.error(`[REVIEW-SYNC] ✗ Location ${prop.location_id} failed:`, err.message);
           }

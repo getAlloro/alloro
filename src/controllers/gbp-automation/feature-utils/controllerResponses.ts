@@ -37,7 +37,7 @@ export function parseOptionalMonth(value: unknown): string | null {
 }
 
 export function settingsPayload(body: Record<string, unknown>) {
-  return {
+  const payload = {
     review_reply_enabled:
       typeof body.review_reply_enabled === "boolean"
         ? body.review_reply_enabled
@@ -83,6 +83,10 @@ export function settingsPayload(body: Record<string, unknown>) {
         ? sanitizeGbpUrl(body.default_featured_image_url)
         : undefined,
   };
+
+  return Object.fromEntries(
+    Object.entries(payload).filter(([, value]) => value !== undefined)
+  );
 }
 
 export function handleGbpError(res: Response, error: unknown): Response {

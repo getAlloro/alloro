@@ -4,9 +4,14 @@ import type {
   GbpAutomationQueryOptions,
   GbpAutomationSettings,
   GbpDeployPreview,
+  GbpPostMediaUpload,
+  GbpPublishedLocalPost,
+  GbpPublishedLocalPostInput,
+  GbpPublishedLocalPostsResponse,
   GbpReviewEscalation,
   GbpReviewSyncJob,
   GbpReview,
+  GbpSyncHealth,
   GbpWorkItem,
 } from "./gbpAutomation";
 
@@ -84,13 +89,100 @@ export async function generateAdminGbpDraft(
 export async function createAdminGbpPostDraftFromReview(
   organizationId: number,
   locationId: number,
-  reviewId: string
+  reviewId: string,
+  featuredImageUrl: string
 ) {
   return unwrap<GbpWorkItem>(
     await apiPost({
       path: `${base(organizationId)}/reviews/${reviewId}/post-draft`,
+      passedData: { locationId, featuredImageUrl },
+    })
+  );
+}
+
+export async function generateAdminGbpPostDraftNow(
+  organizationId: number,
+  locationId: number,
+  featuredImageUrl: string
+) {
+  return unwrap<GbpWorkItem>(
+    await apiPost({
+      path: `${base(organizationId)}/posts/generate`,
+      passedData: { locationId, featuredImageUrl },
+    })
+  );
+}
+
+export async function uploadAdminGbpPostImage(
+  organizationId: number,
+  locationId: number,
+  file: File
+) {
+  const formData = new FormData();
+  formData.append("locationId", String(locationId));
+  formData.append("file", file);
+  return unwrap<GbpPostMediaUpload>(
+    await apiPost({
+      path: `${base(organizationId)}/posts/media`,
+      passedData: formData,
+    })
+  );
+}
+
+export async function getAdminGbpPublishedLocalPosts(
+  organizationId: number,
+  locationId: number,
+  params?: { page?: number; limit?: number }
+) {
+  const search = new URLSearchParams();
+  search.set("page", String(params?.page || 1));
+  search.set("limit", String(params?.limit || 10));
+  return unwrap<GbpPublishedLocalPostsResponse>(
+    await apiGet({
+      path: withLocation(
+        `${base(organizationId)}/posts/published?${search.toString()}`,
+        locationId
+      ),
+    })
+  );
+}
+
+export async function triggerAdminGbpPostsSync(
+  organizationId: number,
+  locationId: number
+) {
+  return unwrap<{ syncedCount: number; syncHealth: GbpSyncHealth }>(
+    await apiPost({
+      path: `${base(organizationId)}/posts/published/sync`,
       passedData: { locationId },
     })
+  );
+}
+
+export async function updateAdminGbpPublishedLocalPost(
+  organizationId: number,
+  locationId: number,
+  input: GbpPublishedLocalPostInput
+) {
+  return unwrap<GbpPublishedLocalPost>(
+    await apiPatch({
+      path: `${base(organizationId)}/posts/published`,
+      passedData: { locationId, ...input },
+    })
+  );
+}
+
+export async function deleteAdminGbpPublishedLocalPost(
+  organizationId: number,
+  locationId: number,
+  name: string
+) {
+  const path = withLocation(
+    `${base(organizationId)}/posts/published?name=${encodeURIComponent(name)}`,
+    locationId
+  );
+  return unwrap<{ deleted: true; postName: string }>(
+    await apiDelete({ path })
   );
 }
 
@@ -150,12 +242,26 @@ export async function updateAdminGbpDraft(
   organizationId: number,
   locationId: number,
   workItemId: string,
-  draftContent: string
+  draftContent: string,
+  featuredImageUrl?: string | null
 ) {
   return unwrap<GbpWorkItem>(
     await apiPatch({
       path: `${base(organizationId)}/work-items/${workItemId}`,
-      passedData: { locationId, draftContent },
+      passedData: { locationId, draftContent, featuredImageUrl },
+    })
+  );
+}
+
+export async function regenerateAdminGbpPostDraft(
+  organizationId: number,
+  locationId: number,
+  workItemId: string
+) {
+  return unwrap<GbpWorkItem>(
+    await apiPost({
+      path: `${base(organizationId)}/work-items/${workItemId}/regenerate-post`,
+      passedData: { locationId },
     })
   );
 }

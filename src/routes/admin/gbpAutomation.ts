@@ -1,9 +1,54 @@
-import express from "express";
+import express, { NextFunction, Request, Response } from "express";
+import multer from "multer";
 import { AdminGbpAutomationController } from "../../controllers/gbp-automation/AdminGbpAutomationController";
 import { authenticateToken } from "../../middleware/auth";
 import { superAdminMiddleware } from "../../middleware/superAdmin";
 
 const router = express.Router();
+const MAX_GBP_POST_IMAGE_SIZE_MB = 25;
+const MAX_GBP_POST_IMAGE_SIZE_BYTES = MAX_GBP_POST_IMAGE_SIZE_MB * 1024 * 1024;
+
+const postImageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_GBP_POST_IMAGE_SIZE_BYTES, files: 1 },
+});
+
+function uploadError(
+  res: Response,
+  status: number,
+  code: string,
+  message: string
+): Response {
+  return res.status(status).json({
+    success: false,
+    data: null,
+    error: { code, message, details: null },
+  });
+}
+
+const handlePostImageUpload = (req: Request, res: Response, next: NextFunction) => {
+  postImageUpload.single("file")(req, res, (error: unknown) => {
+    if (!error) {
+      void AdminGbpAutomationController.uploadPostMedia(req, res).catch(next);
+      return;
+    }
+
+    if (error instanceof multer.MulterError) {
+      if (error.code === "LIMIT_FILE_SIZE") {
+        return uploadError(
+          res,
+          413,
+          "GBP_POST_IMAGE_TOO_LARGE",
+          `Post image must be ${MAX_GBP_POST_IMAGE_SIZE_MB} MB or smaller.`
+        );
+      }
+
+      return uploadError(res, 400, error.code, error.message);
+    }
+
+    return next(error);
+  });
+};
 
 router.use(authenticateToken, superAdminMiddleware);
 
@@ -14,6 +59,30 @@ router.put("/organizations/:organizationId/settings", AdminGbpAutomationControll
 router.post(
   "/organizations/:organizationId/reviews/sync",
   AdminGbpAutomationController.syncReviews
+);
+router.get(
+  "/organizations/:organizationId/posts/published",
+  AdminGbpAutomationController.listPublishedPosts
+);
+router.post(
+  "/organizations/:organizationId/posts/published/sync",
+  AdminGbpAutomationController.syncPublishedPosts
+);
+router.patch(
+  "/organizations/:organizationId/posts/published",
+  AdminGbpAutomationController.updatePublishedPost
+);
+router.delete(
+  "/organizations/:organizationId/posts/published",
+  AdminGbpAutomationController.deletePublishedPost
+);
+router.post(
+  "/organizations/:organizationId/posts/media",
+  handlePostImageUpload
+);
+router.post(
+  "/organizations/:organizationId/posts/generate",
+  AdminGbpAutomationController.generatePostDraftNow
 );
 router.post(
   "/organizations/:organizationId/reviews/:reviewId/draft",
@@ -42,6 +111,10 @@ router.delete(
 router.patch(
   "/organizations/:organizationId/work-items/:id",
   AdminGbpAutomationController.updateDraft
+);
+router.post(
+  "/organizations/:organizationId/work-items/:id/regenerate-post",
+  AdminGbpAutomationController.regeneratePostDraft
 );
 router.post(
   "/organizations/:organizationId/work-items/:id/approve",

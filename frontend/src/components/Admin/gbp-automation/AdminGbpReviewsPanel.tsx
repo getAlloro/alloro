@@ -5,6 +5,7 @@ import type {
   GbpReplyOpsMetrics,
   GbpWorkItem,
 } from "../../../api/gbpAutomation";
+import { GbpReplyDraftsPanel } from "../../dashboard/gbp-automation/GbpReplyDraftsPanel";
 import { AdminGbpNeedsReplyPanel } from "./AdminGbpNeedsReplyPanel";
 import { AdminGbpRepliedReviewsPanel } from "./AdminGbpRepliedReviewsPanel";
 
@@ -43,6 +44,17 @@ export type AdminGbpReviewsPanelProps = {
   ) => Promise<unknown>;
   onSaveDraft: (input: DraftSaveInput) => Promise<unknown>;
   onDeployDraft: (input: DraftDeployInput) => Promise<unknown>;
+  onSaveWorkItemDraft: (
+    workItemId: string,
+    draftContent: string
+  ) => void | Promise<unknown>;
+  onApproveWorkItemDraft: (
+    workItemId: string,
+    approvedContent: string
+  ) => void | Promise<unknown>;
+  onDeployWorkItemDraft: (workItemId: string) => void | Promise<unknown>;
+  onRetryWorkItemDraft: (workItemId: string) => void | Promise<unknown>;
+  onDeleteWorkItemDraft: (workItemId: string) => void | Promise<unknown>;
   onUpdatePublishedReply: (input: {
     reviewId: string;
     replyContent: string;
@@ -52,10 +64,11 @@ export type AdminGbpReviewsPanelProps = {
   onRepliedMonthChange: (month: string | null) => void;
 };
 
-type ReviewTab = "needsReply" | "replied";
+type ReviewTab = "needsReply" | "drafts" | "replied";
 
 const REVIEW_TABS: Array<{ key: ReviewTab; label: string }> = [
   { key: "needsReply", label: "Needs Reply" },
+  { key: "drafts", label: "Reply Drafts" },
   { key: "replied", label: "Replied" },
 ];
 
@@ -90,12 +103,18 @@ export function AdminGbpReviewsPanel({
   onEscalationChange,
   onSaveDraft,
   onDeployDraft,
+  onSaveWorkItemDraft,
+  onApproveWorkItemDraft,
+  onDeployWorkItemDraft,
+  onRetryWorkItemDraft,
+  onDeleteWorkItemDraft,
   onUpdatePublishedReply,
   onDeletePublishedReply,
   onNeedsReplyMonthChange,
   onRepliedMonthChange,
 }: AdminGbpReviewsPanelProps) {
   const [activeTab, setActiveTab] = useState<ReviewTab>("needsReply");
+  const sourceReviews = [...reviews, ...repliedReviews];
 
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-5">
@@ -142,6 +161,18 @@ export function AdminGbpReviewsPanel({
           onSaveDraft={onSaveDraft}
           onDeployDraft={onDeployDraft}
           onSelectedMonthChange={onNeedsReplyMonthChange}
+        />
+      ) : activeTab === "drafts" ? (
+        <GbpReplyDraftsPanel
+          reviews={sourceReviews}
+          workItems={workItems}
+          isBusy={isBusy}
+          showAttempts
+          onSave={onSaveWorkItemDraft}
+          onApprove={onApproveWorkItemDraft}
+          onDeploy={onDeployWorkItemDraft}
+          onRetry={onRetryWorkItemDraft}
+          onDelete={onDeleteWorkItemDraft}
         />
       ) : (
         <AdminGbpRepliedReviewsPanel

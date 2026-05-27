@@ -104,12 +104,15 @@ export type GbpWorkItem = {
   published_content: string | null;
   content_type?: "review_reply" | "local_post";
   source_review_id: string | null;
+  local_post_payload?: Record<string, unknown> | null;
+  featured_image_url?: string | null;
   google_resource_name: string | null;
   safety_status?: GbpSafetyStatus | null;
   safety_reason_codes?: string[];
   safety_reasons?: string[];
   safety_confidence?: number | null;
   deploy_preview_payload?: GbpDeployPreview | null;
+  metadata?: Record<string, unknown> | null;
   last_error_code: string | null;
   last_error_message: string | null;
   retry_count: number;
@@ -117,6 +120,54 @@ export type GbpWorkItem = {
   approved_at: string | null;
   published_at: string | null;
   attempts?: GbpDeploymentAttempt[];
+};
+
+export type GbpPublishedLocalPost = {
+  name: string;
+  postId: string;
+  summary: string;
+  topicType: string;
+  state: string;
+  createTime: string | null;
+  updateTime: string | null;
+  searchUrl: string | null;
+  featuredImageUrl: string | null;
+  media: Array<Record<string, unknown>>;
+  callToAction: Record<string, unknown> | null;
+  lastSyncedAt: string | null;
+};
+
+export type GbpPublishedLocalPostsResponse = {
+  posts: GbpPublishedLocalPost[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+  syncHealth: GbpSyncHealth | null;
+};
+
+export type GbpPublishedLocalPostInput = {
+  name: string;
+  summary: string;
+  featuredImageUrl: string;
+};
+
+export type GbpPostMediaUpload = {
+  projectId: string;
+  imageUrl: string;
+  thumbnailUrl: string | null;
+  media: {
+    id: string;
+    project_id: string;
+    display_name: string;
+    s3_url: string;
+    thumbnail_s3_url: string | null;
+    mime_type: string;
+    width?: number | null;
+    height?: number | null;
+  };
 };
 
 export type GbpReplyOpsMetrics = {
@@ -140,6 +191,7 @@ export type GbpSyncHealth = {
   synced_count: number;
   error_code: string | null;
   error_message: string | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 export type GbpDeployPreview = {
@@ -157,6 +209,7 @@ export type GbpDeployPreview = {
     review_created_at: string | null;
   } | null;
   content: string;
+  featuredImageUrl?: string | null;
   safety: GbpContentSafety;
   googleProperty: {
     id: number;
@@ -184,6 +237,7 @@ export type GbpReadiness = {
   replyOps: GbpReplyOpsMetrics;
   nextPostGenerationAt: string | null;
   syncHealth: GbpSyncHealth | null;
+  postSyncHealth: GbpSyncHealth | null;
 };
 
 export type GbpAutomationResponse = {
@@ -254,12 +308,85 @@ export async function generateGbpReplyDraft(reviewId: string, locationId: number
   );
 }
 
-export async function createGbpPostDraftFromReview(reviewId: string, locationId: number) {
+export async function createGbpPostDraftFromReview(
+  reviewId: string,
+  locationId: number,
+  featuredImageUrl: string
+) {
   return unwrap<GbpWorkItem>(
     await apiPost({
       path: `/gbp-automation/reviews/${reviewId}/post-draft`,
+      passedData: { locationId, featuredImageUrl },
+    })
+  );
+}
+
+export async function generateGbpPostDraftNow(
+  locationId: number,
+  featuredImageUrl: string
+) {
+  return unwrap<GbpWorkItem>(
+    await apiPost({
+      path: "/gbp-automation/posts/generate",
+      passedData: { locationId, featuredImageUrl },
+    })
+  );
+}
+
+export async function uploadGbpPostImage(locationId: number, file: File) {
+  const formData = new FormData();
+  formData.append("locationId", String(locationId));
+  formData.append("file", file);
+  return unwrap<GbpPostMediaUpload>(
+    await apiPost({
+      path: "/gbp-automation/posts/media",
+      passedData: formData,
+    })
+  );
+}
+
+export async function getGbpPublishedLocalPosts(
+  locationId: number,
+  params?: { page?: number; limit?: number }
+) {
+  const search = new URLSearchParams();
+  search.set("page", String(params?.page || 1));
+  search.set("limit", String(params?.limit || 10));
+  return unwrap<GbpPublishedLocalPostsResponse>(
+    await apiGet({
+      path: withLocation(`/gbp-automation/posts/published?${search.toString()}`, locationId),
+    })
+  );
+}
+
+export async function triggerGbpPostsSync(locationId: number) {
+  return unwrap<{ syncedCount: number; syncHealth: GbpSyncHealth }>(
+    await apiPost({
+      path: "/gbp-automation/posts/published/sync",
       passedData: { locationId },
     })
+  );
+}
+
+export async function updateGbpPublishedLocalPost(
+  locationId: number,
+  input: GbpPublishedLocalPostInput
+) {
+  return unwrap<GbpPublishedLocalPost>(
+    await apiPatch({
+      path: "/gbp-automation/posts/published",
+      passedData: { locationId, ...input },
+    })
+  );
+}
+
+export async function deleteGbpPublishedLocalPost(locationId: number, name: string) {
+  const path = withLocation(
+    `/gbp-automation/posts/published?name=${encodeURIComponent(name)}`,
+    locationId
+  );
+  return unwrap<{ deleted: true; postName: string }>(
+    await apiDelete({ path })
   );
 }
 
@@ -288,12 +415,22 @@ export async function saveGbpReviewDraftSlot(
 export async function updateGbpReplyDraft(
   workItemId: string,
   locationId: number,
-  draftContent: string
+  draftContent: string,
+  featuredImageUrl?: string | null
 ) {
   return unwrap<GbpWorkItem>(
     await apiPatch({
       path: `/gbp-automation/work-items/${workItemId}`,
-      passedData: { locationId, draftContent },
+      passedData: { locationId, draftContent, featuredImageUrl },
+    })
+  );
+}
+
+export async function regenerateGbpPostDraft(workItemId: string, locationId: number) {
+  return unwrap<GbpWorkItem>(
+    await apiPost({
+      path: `/gbp-automation/work-items/${workItemId}/regenerate-post`,
+      passedData: { locationId },
     })
   );
 }

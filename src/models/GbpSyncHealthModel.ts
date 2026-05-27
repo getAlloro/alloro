@@ -1,13 +1,15 @@
 import { BaseModel, QueryContext } from "./BaseModel";
 
 export type GbpSyncHealthStatus = "pending" | "running" | "succeeded" | "failed";
+export type GbpSyncType = "reviews" | "local_posts";
+export type GbpSyncSource = "manual" | "auto";
 
 export interface IGbpSyncHealth {
   id: string;
   organization_id: number;
   location_id: number;
   google_property_id: number | null;
-  sync_type: "reviews";
+  sync_type: GbpSyncType;
   status: GbpSyncHealthStatus;
   started_at: Date | null;
   completed_at: Date | null;
@@ -25,10 +27,11 @@ export class GbpSyncHealthModel extends BaseModel {
 
   static async latestForLocation(
     locationId: number,
+    syncType: GbpSyncType = "reviews",
     trx?: QueryContext
   ): Promise<IGbpSyncHealth | undefined> {
     const row = await this.table(trx)
-      .where({ location_id: locationId, sync_type: "reviews" })
+      .where({ location_id: locationId, sync_type: syncType })
       .orderBy("created_at", "desc")
       .first();
     return row ? this.deserializeJsonFields(row) : undefined;
@@ -38,13 +41,14 @@ export class GbpSyncHealthModel extends BaseModel {
     organizationId: number;
     locationId: number;
     googlePropertyId: number | null;
+    syncType?: GbpSyncType;
     metadata?: Record<string, unknown>;
   }): Promise<IGbpSyncHealth> {
     return this.create({
       organization_id: data.organizationId,
       location_id: data.locationId,
       google_property_id: data.googlePropertyId,
-      sync_type: "reviews",
+      sync_type: data.syncType || "reviews",
       status: "running",
       started_at: new Date(),
       synced_count: 0,

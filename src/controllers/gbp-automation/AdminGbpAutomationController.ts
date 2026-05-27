@@ -7,8 +7,12 @@ import { GbpReviewDraftSlotService } from "./feature-services/GbpReviewDraftSlot
 import { GbpPublishedReplyService } from "./feature-services/GbpPublishedReplyService";
 import { GbpDeployPreviewService } from "./feature-services/GbpDeployPreviewService";
 import { GbpLocalPostDraftService } from "./feature-services/GbpLocalPostDraftService";
+import { GbpLocalPostScheduleService } from "./feature-services/GbpLocalPostScheduleService";
+import { GbpPostMediaService } from "./feature-services/GbpPostMediaService";
+import { GbpPublishedLocalPostService } from "./feature-services/GbpPublishedLocalPostService";
 import { GbpReviewEscalationService } from "./feature-services/GbpReviewEscalationService";
 import { GbpReviewReplyService } from "./feature-services/GbpReviewReplyService";
+import { GbpWorkItemActionService } from "./feature-services/GbpWorkItemActionService";
 import { GbpWorkItemService } from "./feature-services/GbpWorkItemService";
 import { GbpAutomationError } from "./feature-utils/GbpAutomationError";
 import {
@@ -101,6 +105,7 @@ export class AdminGbpAutomationController {
       const job = await queue.add("manual-review-sync", {
         organizationId: ctx.organizationId,
         locationId: ctx.locationId,
+        syncSource: "manual",
       });
       return ok(
         res,
@@ -168,8 +173,124 @@ export class AdminGbpAutomationController {
       const item = await GbpLocalPostDraftService.createFromReview({
         ...ctx,
         reviewId: req.params.reviewId,
+        featuredImageUrl: String(req.body?.featuredImageUrl || ""),
       });
       return ok(res, item, 201);
+    } catch (error) {
+      return handleGbpError(res, error);
+    }
+  }
+
+  static async generatePostDraftNow(req: Request, res: Response): Promise<Response> {
+    try {
+      const ctx = await adminActionContext(req);
+      const item = await GbpLocalPostScheduleService.generateNow({
+        organizationId: ctx.organizationId,
+        locationId: ctx.locationId,
+        userId: ctx.userId,
+        actorEmail: ctx.actorEmail,
+        accessibleLocationIds: [ctx.locationId],
+        featuredImageUrl: String(req.body?.featuredImageUrl || ""),
+      });
+      return ok(res, item, 201);
+    } catch (error) {
+      return handleGbpError(res, error);
+    }
+  }
+
+  static async uploadPostMedia(req: Request, res: Response): Promise<Response> {
+    try {
+      const ctx = adminContext(req);
+      const result = await GbpPostMediaService.upload({
+        organizationId: ctx.organizationId,
+        locationId: ctx.locationId,
+        accessibleLocationIds: [ctx.locationId],
+        file: req.file,
+      });
+      return ok(res, result, 201);
+    } catch (error) {
+      return handleGbpError(res, error);
+    }
+  }
+
+  static async listPublishedPosts(req: Request, res: Response): Promise<Response> {
+    try {
+      const ctx = adminContext(req);
+      const result = await GbpPublishedLocalPostService.list({
+        organizationId: ctx.organizationId,
+        locationId: ctx.locationId,
+        accessibleLocationIds: [ctx.locationId],
+        page: parseOptionalNumber(req.query.page) || 1,
+        limit: parseOptionalNumber(req.query.limit) || 10,
+      });
+      return ok(res, result);
+    } catch (error) {
+      return handleGbpError(res, error);
+    }
+  }
+
+  static async syncPublishedPosts(req: Request, res: Response): Promise<Response> {
+    try {
+      const ctx = adminContext(req);
+      const result = await GbpPublishedLocalPostService.sync({
+        organizationId: ctx.organizationId,
+        locationId: ctx.locationId,
+        accessibleLocationIds: [ctx.locationId],
+        syncSource: "manual",
+      });
+      return ok(res, result, 202);
+    } catch (error) {
+      return handleGbpError(res, error);
+    }
+  }
+
+  static async updatePublishedPost(req: Request, res: Response): Promise<Response> {
+    try {
+      const ctx = await adminActionContext(req);
+      const post = await GbpPublishedLocalPostService.update({
+        organizationId: ctx.organizationId,
+        locationId: ctx.locationId,
+        accessibleLocationIds: [ctx.locationId],
+        actorUserId: ctx.userId,
+        actorEmail: ctx.actorEmail,
+        postName: String(req.body?.name || ""),
+        summary: String(req.body?.summary || ""),
+        featuredImageUrl: String(req.body?.featuredImageUrl || ""),
+      });
+      return ok(res, post);
+    } catch (error) {
+      return handleGbpError(res, error);
+    }
+  }
+
+  static async deletePublishedPost(req: Request, res: Response): Promise<Response> {
+    try {
+      const ctx = await adminActionContext(req);
+      const result = await GbpPublishedLocalPostService.delete({
+        organizationId: ctx.organizationId,
+        locationId: ctx.locationId,
+        accessibleLocationIds: [ctx.locationId],
+        actorUserId: ctx.userId,
+        actorEmail: ctx.actorEmail,
+        postName: String(req.query.name || ""),
+      });
+      return ok(res, result);
+    } catch (error) {
+      return handleGbpError(res, error);
+    }
+  }
+
+  static async regeneratePostDraft(req: Request, res: Response): Promise<Response> {
+    try {
+      const ctx = await adminActionContext(req);
+      const item = await GbpLocalPostDraftService.regenerateDraft({
+        organizationId: ctx.organizationId,
+        userId: ctx.userId,
+        actorEmail: ctx.actorEmail,
+        accessibleLocationIds: [ctx.locationId],
+        workItemId: req.params.id,
+      });
+      return ok(res, item);
     } catch (error) {
       return handleGbpError(res, error);
     }
@@ -207,13 +328,15 @@ export class AdminGbpAutomationController {
   static async updateDraft(req: Request, res: Response): Promise<Response> {
     try {
       const ctx = await adminActionContext(req);
-      const item = await GbpReviewReplyService.updateDraft({
+      const item = await GbpWorkItemActionService.updateDraft({
         organizationId: ctx.organizationId,
         userId: ctx.userId,
         actorEmail: ctx.actorEmail,
         accessibleLocationIds: [ctx.locationId],
         workItemId: req.params.id,
         draftContent: String(req.body?.draftContent || ""),
+        featuredImageUrl:
+          typeof req.body?.featuredImageUrl === "string" ? req.body.featuredImageUrl : undefined,
       });
       return ok(res, item);
     } catch (error) {
@@ -224,7 +347,7 @@ export class AdminGbpAutomationController {
   static async approve(req: Request, res: Response): Promise<Response> {
     try {
       const ctx = await adminActionContext(req);
-      const item = await GbpReviewReplyService.approve({
+      const item = await GbpWorkItemActionService.approve({
         organizationId: ctx.organizationId,
         userId: ctx.userId,
         actorEmail: ctx.actorEmail,
@@ -241,7 +364,7 @@ export class AdminGbpAutomationController {
   static async reject(req: Request, res: Response): Promise<Response> {
     try {
       const ctx = await adminActionContext(req);
-      const item = await GbpReviewReplyService.reject({
+      const item = await GbpWorkItemActionService.reject({
         organizationId: ctx.organizationId,
         userId: ctx.userId,
         actorEmail: ctx.actorEmail,
@@ -258,7 +381,7 @@ export class AdminGbpAutomationController {
   static async deploy(req: Request, res: Response): Promise<Response> {
     try {
       const ctx = await adminActionContext(req);
-      const item = await GbpReviewReplyService.enqueueDeployment({
+      const item = await GbpWorkItemActionService.enqueueDeployment({
         organizationId: ctx.organizationId,
         userId: ctx.userId,
         actorEmail: ctx.actorEmail,
@@ -276,7 +399,7 @@ export class AdminGbpAutomationController {
   static async retry(req: Request, res: Response): Promise<Response> {
     try {
       const ctx = await adminActionContext(req);
-      const item = await GbpReviewReplyService.retryDeployment({
+      const item = await GbpWorkItemActionService.retryDeployment({
         organizationId: ctx.organizationId,
         userId: ctx.userId,
         actorEmail: ctx.actorEmail,

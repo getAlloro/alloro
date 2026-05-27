@@ -3,24 +3,43 @@ import {
   approveGbpReply,
   createGbpPostDraftFromReview,
   deleteGbpPublishedReply,
+  deleteGbpPublishedLocalPost,
   deployGbpReply,
+  generateGbpPostDraftNow,
   generateGbpReplyDraft,
   getGbpAutomation,
   getGbpDeployPreview,
+  getGbpPublishedLocalPosts,
+  regenerateGbpPostDraft,
   rejectGbpReplyDraft,
   retryGbpReply,
   saveGbpReviewDraftSlot,
+  triggerGbpPostsSync,
   triggerGbpReviewsSync,
   updateGbpAutomationSettings,
+  updateGbpPublishedLocalPost,
   updateGbpPublishedReply,
   updateGbpReviewEscalation,
   updateGbpReplyDraft,
+  uploadGbpPostImage,
 } from "../../api/gbpAutomation";
 import type {
+  GbpAutomationResponse,
   GbpAutomationQueryOptions,
   GbpAutomationSettings,
+  GbpPublishedLocalPostInput,
 } from "../../api/gbpAutomation";
 import { QUERY_KEYS } from "../../lib/queryClient";
+
+function hasRunningPostGeneration(data?: GbpAutomationResponse): boolean {
+  return Boolean(
+    data?.workItems.some(
+      (item) =>
+        item.content_type === "local_post" &&
+        item.metadata?.generationStatus === "running"
+    )
+  );
+}
 
 export function useGbpAutomation(
   organizationId: number | null,
@@ -36,6 +55,24 @@ export function useGbpAutomation(
     queryFn: () => getGbpAutomation(locationId!, queryParams),
     enabled: Boolean(organizationId && locationId),
     placeholderData: (previousData) => previousData,
+    refetchInterval: (query) =>
+      hasRunningPostGeneration(query.state.data as GbpAutomationResponse | undefined)
+        ? 2500
+        : false,
+  });
+}
+
+export function useGbpPublishedLocalPosts(
+  organizationId: number | null,
+  locationId?: number | null,
+  enabled = true,
+  params?: { page?: number; limit?: number }
+) {
+  return useQuery({
+    queryKey: QUERY_KEYS.gbpPublishedLocalPosts(organizationId, locationId, params),
+    queryFn: () => getGbpPublishedLocalPosts(locationId!, params),
+    enabled: Boolean(enabled && organizationId && locationId),
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -48,6 +85,14 @@ export function useGbpAutomationActions(
     queryClient.invalidateQueries({
       queryKey: QUERY_KEYS.gbpAutomationAll(organizationId),
     });
+  const invalidatePublishedPosts = () =>
+    queryClient.invalidateQueries({
+      queryKey: QUERY_KEYS.gbpPublishedLocalPostsAll(organizationId),
+    });
+  const invalidateAll = () => {
+    void invalidate();
+    void invalidatePublishedPosts();
+  };
 
   return {
     generateDraft: useMutation({
@@ -55,12 +100,38 @@ export function useGbpAutomationActions(
       onSuccess: invalidate,
     }),
     createPostDraft: useMutation({
-      mutationFn: (reviewId: string) => createGbpPostDraftFromReview(reviewId, locationId!),
+      mutationFn: (input: { reviewId: string; featuredImageUrl: string }) =>
+        createGbpPostDraftFromReview(
+          input.reviewId,
+          locationId!,
+          input.featuredImageUrl
+        ),
       onSuccess: invalidate,
+    }),
+    generatePostDraftNow: useMutation({
+      mutationFn: (featuredImageUrl: string) =>
+        generateGbpPostDraftNow(locationId!, featuredImageUrl),
+      onSuccess: invalidate,
+    }),
+    uploadPostImage: useMutation({
+      mutationFn: (file: File) => uploadGbpPostImage(locationId!, file),
+    }),
+    updatePublishedLocalPost: useMutation({
+      mutationFn: (input: GbpPublishedLocalPostInput) =>
+        updateGbpPublishedLocalPost(locationId!, input),
+      onSuccess: invalidateAll,
+    }),
+    deletePublishedLocalPost: useMutation({
+      mutationFn: (name: string) => deleteGbpPublishedLocalPost(locationId!, name),
+      onSuccess: invalidateAll,
     }),
     syncReviews: useMutation({
       mutationFn: () => triggerGbpReviewsSync(locationId!),
       onSuccess: invalidate,
+    }),
+    syncPosts: useMutation({
+      mutationFn: () => triggerGbpPostsSync(locationId!),
+      onSuccess: invalidateAll,
     }),
     saveReviewSlotDraft: useMutation({
       mutationFn: (input: { reviewId: string; draftContent: string }) =>
@@ -68,8 +139,21 @@ export function useGbpAutomationActions(
       onSuccess: invalidate,
     }),
     updateDraft: useMutation({
-      mutationFn: (input: { workItemId: string; draftContent: string }) =>
-        updateGbpReplyDraft(input.workItemId, locationId!, input.draftContent),
+      mutationFn: (input: {
+        workItemId: string;
+        draftContent: string;
+        featuredImageUrl?: string | null;
+      }) =>
+        updateGbpReplyDraft(
+          input.workItemId,
+          locationId!,
+          input.draftContent,
+          input.featuredImageUrl
+        ),
+      onSuccess: invalidate,
+    }),
+    regeneratePostDraft: useMutation({
+      mutationFn: (workItemId: string) => regenerateGbpPostDraft(workItemId, locationId!),
       onSuccess: invalidate,
     }),
     approve: useMutation({

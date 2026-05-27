@@ -776,6 +776,12 @@ export function RankingsDashboard({
     null;
   const selectedGbpAutomationLocationId =
     selectedRanking?.locationId || locationId || null;
+  const selectedSnapshotLabel = new Date(
+    selectedRanking?.observedAt || new Date()
+  ).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
   const selectedCompetitorPlaceIds = getSelectedCompetitorPlaceIds(
     selectedRanking,
   );
@@ -837,12 +843,7 @@ export function RankingsDashboard({
                   Latest snapshot:
                 </span>
                 <span className="text-[12px] font-black text-alloro-navy">
-                  {new Date(
-                    selectedRanking?.observedAt || new Date()
-                  ).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })}
+                  {selectedSnapshotLabel}
                 </span>
               </div>
               {selectedRanking?.locationId && (

@@ -6,10 +6,10 @@ export type GbpReplyWorkItemCardProps = {
   item: GbpWorkItem;
   sourceReview?: GbpReview;
   isBusy: boolean;
-  onSave: (workItemId: string, draftContent: string) => void;
+  onSave: (workItemId: string, draftContent: string) => void | Promise<unknown>;
   onApprove: (workItemId: string, approvedContent: string) => void | Promise<unknown>;
   onDeploy: (workItemId: string) => void | Promise<unknown>;
-  onRetry: (workItemId: string) => void;
+  onRetry: (workItemId: string) => void | Promise<unknown>;
   onDelete: (workItemId: string) => void | Promise<unknown>;
 };
 function reviewDateLabel(value: string | null): string | null {

@@ -2,6 +2,32 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.90] - May 2026
+
+### GBP Posts Manager And Admin Navigation
+
+Expanded GBP Automation into a fuller posts manager while tightening the admin and client workflows around Local Rankings, organization detail, and Mission Control.
+
+**Key Changes:**
+- Added draft-first GBP local post generation with required per-post image upload, background generation jobs, safety checks, editable drafts, explicit deploy, and delete flows
+- Added published GBP post sync, pagination, image previews, edit/delete actions, Google open links, and manual/automatic sync health labels
+- Added client and admin GBP Posts tabs with Published/Drafts separation and a create-post modal instead of an always-visible generation form
+- Simplified client Local Rankings Alloro Engage by removing the extra workspace heading card and Next Post tile, keeping users directly in the action panel
+- Moved Reply Drafts into the Reviews workflow and improved GBP Automation settings/diagnostics copy and feature separation
+- Added shared organization-detail submenus for Website, Agent Results, and GBP Automation, plus a Mission Control-friendly organization title block
+- Added Mission Control card actions for Pilot/Website and collapsed lower-priority organization signals into Quick details
+- Updated Local Rankings docs replica and walkthrough copy for the simplified Alloro Engage client flow
+
+**Commits:**
+- `src/controllers/gbp-automation/*`, `src/models/GbpLocalPostModel.ts`, `src/models/GbpWorkItemModel.ts`, `src/routes/gbpAutomation.ts`, and `src/routes/admin/gbpAutomation.ts` - local post draft generation, media upload, published post sync, deployment, and API surfaces
+- `src/controllers/gbp/gbp-services/gbp-write.service.ts`, `src/workers/processors/gbpAutomation.processor.ts`, and `src/workers/worker.ts` - Google local post write/update/delete/sync helpers and scheduled worker wiring
+- `frontend/src/components/dashboard/gbp-automation/*`, `frontend/src/api/gbpAutomation.ts`, and `frontend/src/hooks/queries/useGbpAutomationQueries.ts` - client Alloro Engage reviews, reply drafts, GBP posts manager, image upload, and settings flow
+- `frontend/src/components/Admin/OrgGbpAutomationTab.tsx`, `frontend/src/api/admin-gbp-automation.ts`, and `frontend/src/hooks/queries/useAdminGbpAutomationQueries.ts` - admin GBP Automation parity for reviews, posts, sync, and settings
+- `frontend/src/pages/admin/OrganizationDetail.tsx`, `frontend/src/pages/admin/WebsiteDetail.tsx`, and `frontend/src/components/Admin/OrganizationDetailNavigation.tsx` - shared organization-detail navigation and embedded Website/GBP submenus
+- `frontend/src/components/Admin/mission-control/OrganizationMissionCard.tsx` - Mission Control card actions and Quick details disclosure
+- `plans/05252026-no-ticket-gbp-automated-posting-draft-deploy/*` and `plans/05272026-no-ticket-*/*` - executed specs and verification notes for the posts manager, client Local Rankings Engage view, and admin navigation polish
+- `/Users/rustinedave/Desktop/alloro-docs/src/data/pages/local-rankings.ts` and `/Users/rustinedave/Desktop/alloro-docs/src/components/replicas/LocalRankingsReplica.tsx` - docs parity for the updated Local Rankings / Alloro Engage workflow
+
 ## [0.0.89] - May 2026
 
 ### GBP Automation And Alloro Engage

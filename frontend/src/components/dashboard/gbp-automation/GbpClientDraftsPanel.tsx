@@ -1,92 +1,80 @@
-import { useMemo } from "react";
-import type { GbpReview, GbpWorkItem } from "../../../api/gbpAutomation";
-import { GbpReplyWorkItemCard } from "./GbpReplyWorkItemCard";
+import type {
+  GbpPublishedLocalPost,
+  GbpPublishedLocalPostInput,
+  GbpReview,
+  GbpWorkItem,
+} from "../../../api/gbpAutomation";
+import {
+  type GbpLocalPostDeployInput,
+  type GbpLocalPostSaveInput,
+} from "./GbpLocalPostWorkItemCard";
+import { GbpPostsManagerPanel } from "./GbpPostsManagerPanel";
 
 export type GbpClientDraftsPanelProps = {
   reviews: GbpReview[];
   workItems: GbpWorkItem[];
+  publishedPosts?: GbpPublishedLocalPost[];
+  publishedPostsPagination?: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
   isBusy: boolean;
-  onSave: (workItemId: string, draftContent: string) => void;
-  onApprove: (workItemId: string, approvedContent: string) => void;
-  onDeploy: (workItemId: string) => void;
-  onRetry: (workItemId: string) => void;
+  isLoadingPublishedPosts?: boolean;
+  onPublishedPostsPageChange?: (page: number) => void;
   onDelete: (workItemId: string) => void | Promise<unknown>;
+  onSavePost: (input: GbpLocalPostSaveInput) => void | Promise<unknown>;
+  onRegeneratePost: (workItemId: string) => void | Promise<unknown>;
+  onDeployPost: (input: GbpLocalPostDeployInput) => void | Promise<unknown>;
+  onGeneratePostDraft?: (featuredImageUrl: string) => void | Promise<unknown>;
+  onUploadPostImage: (file: File) => Promise<string>;
+  onSavePublishedPost?: (input: GbpPublishedLocalPostInput) => void | Promise<unknown>;
+  onDeletePublishedPost?: (name: string) => void | Promise<unknown>;
+  isGeneratingPostDraft?: boolean;
+  nextPostGenerationAt?: string | null;
 };
 
 export function GbpClientDraftsPanel({
   reviews,
   workItems,
+  publishedPosts = [],
+  publishedPostsPagination,
   isBusy,
-  onSave,
-  onApprove,
-  onDeploy,
-  onRetry,
+  isLoadingPublishedPosts = false,
+  onPublishedPostsPageChange,
   onDelete,
+  onSavePost,
+  onRegeneratePost,
+  onDeployPost,
+  onGeneratePostDraft,
+  onUploadPostImage,
+  onSavePublishedPost,
+  onDeletePublishedPost,
+  isGeneratingPostDraft = false,
+  nextPostGenerationAt,
 }: GbpClientDraftsPanelProps) {
-  const reviewById = useMemo(
-    () => new Map(reviews.map((review) => [review.id, review])),
-    [reviews]
-  );
-  const activeWorkItems = useMemo(
-    () =>
-      workItems.filter(
-        (item) =>
-          item.status !== "published" &&
-          item.status !== "rejected" &&
-          (!item.content_type || item.content_type === "review_reply")
-      ),
-    [workItems]
-  );
-  const postDrafts = useMemo(
-    () =>
-      workItems.filter(
-        (item) =>
-          item.content_type === "local_post" &&
-          item.status !== "published" &&
-          item.status !== "rejected"
-      ),
-    [workItems]
-  );
-
   return (
     <div className="mt-4 space-y-3">
-      {activeWorkItems.map((item) => (
-        <GbpReplyWorkItemCard
-          key={item.id}
-          item={item}
-          sourceReview={
-            item.source_review_id ? reviewById.get(item.source_review_id) : undefined
-          }
-          isBusy={isBusy}
-          onSave={onSave}
-          onApprove={onApprove}
-          onDeploy={onDeploy}
-          onRetry={onRetry}
-          onDelete={onDelete}
-        />
-      ))}
-      {activeWorkItems.length === 0 && (
-        <p className="rounded-[10px] bg-slate-50 p-3 text-sm font-bold text-slate-500">
-          No review reply drafts are waiting right now.
-        </p>
-      )}
-      {postDrafts.length > 0 && (
-        <div className="space-y-2">
-          <p className="pt-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
-            Post drafts
-          </p>
-          {postDrafts.map((item) => (
-            <div key={item.id} className="rounded-[12px] border border-slate-200 bg-white p-4">
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-slate-500">
-                Local post
-              </span>
-              <p className="mt-3 whitespace-pre-wrap rounded-[10px] bg-slate-50 p-3 text-sm font-medium leading-6 text-alloro-navy">
-                {item.draft_content}
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
+      <GbpPostsManagerPanel
+        reviews={reviews}
+        workItems={workItems}
+        publishedPosts={publishedPosts}
+        publishedPostsPagination={publishedPostsPagination}
+        nextPostGenerationAt={nextPostGenerationAt}
+        isBusy={isBusy}
+        isLoadingPublishedPosts={isLoadingPublishedPosts}
+        isGeneratingPostDraft={isGeneratingPostDraft}
+        onPublishedPostsPageChange={onPublishedPostsPageChange}
+        onGeneratePostDraft={onGeneratePostDraft}
+        onUploadPostImage={onUploadPostImage}
+        onSavePublishedPost={onSavePublishedPost}
+        onDeletePublishedPost={onDeletePublishedPost}
+        onSavePost={onSavePost}
+        onRegeneratePost={onRegeneratePost}
+        onDeployPost={onDeployPost}
+        onDelete={onDelete}
+      />
     </div>
   );
 }

@@ -87,6 +87,41 @@ import { fetchProjectCodeSnippets } from "../../api/codeSnippets";
 import type { CodeSnippet } from "../../api/codeSnippets";
 import { useConfirm } from "../../components/ui/ConfirmModal";
 
+type OrganizationListItem = {
+  id: number;
+  name: string;
+  website?: unknown | null;
+};
+
+type OrganizationsResponse = {
+  organizations?: OrganizationListItem[];
+};
+
+type WebsiteProjectDomainFields = WebsiteProjectWithPages & {
+  domain_verified_at?: string | null;
+};
+
+const WEBSITE_DETAIL_TABS = [
+  "pages",
+  "layouts",
+  "code-manager",
+  "media",
+  "form-submissions",
+  "posts",
+  "menus",
+  "reviews",
+  "redirects",
+  "integrations",
+  "backups",
+  "advanced-tools",
+  "costs",
+] as const;
+
+type WebsiteDetailTab = (typeof WEBSITE_DETAIL_TABS)[number];
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
 
 /**
  * SEO score matching SeoPanel's calculateScores exactly.
@@ -144,11 +179,11 @@ function computeSeoScore(
   if (maxPreview === "large") score += 4;
 
   // Significant (22)
-  if (schema.some((s: any) => s["@type"] === "LocalBusiness")) score += 6;
-  if (schema.some((s: any) => s["@type"] === "FAQPage")) score += 5;
-  if (schema.some((s: any) => s["@type"] === "Organization")) score += 4;
-  if (schema.some((s: any) => s["@type"] === "Service")) score += 4;
-  if (schema.some((s: any) => s["@type"] === "BreadcrumbList")) score += 3;
+  if (schema.some((s) => s["@type"] === "LocalBusiness")) score += 6;
+  if (schema.some((s) => s["@type"] === "FAQPage")) score += 5;
+  if (schema.some((s) => s["@type"] === "Organization")) score += 4;
+  if (schema.some((s) => s["@type"] === "Service")) score += 4;
+  if (schema.some((s) => s["@type"] === "BreadcrumbList")) score += 3;
 
   // Moderate (13)
   if (ogImage.length > 0) score += 4;
@@ -201,8 +236,27 @@ function groupPagesByPath(pages: WebsitePage[]) {
     }));
 }
 
-export default function WebsiteDetail() {
-  const { id } = useParams<{ id: string }>();
+export type WebsiteDetailProps = {
+  projectId?: string;
+  embedded?: boolean;
+  activeTab?: WebsiteDetailTab;
+  backPath?: string;
+  backLabel?: string;
+  hideTabBar?: boolean;
+  onTabChange?: (tab: WebsiteDetailTab) => void;
+};
+
+export default function WebsiteDetail({
+  projectId,
+  embedded = false,
+  activeTab,
+  backPath = "/admin/websites",
+  backLabel = "Back to Websites",
+  hideTabBar = false,
+  onTabChange,
+}: WebsiteDetailProps = {}) {
+  const { id: routeId } = useParams<{ id: string }>();
+  const id = projectId || routeId;
   const navigate = useNavigate();
   const confirm = useConfirm();
   // TanStack Query — cached initial load
@@ -286,8 +340,8 @@ export default function WebsiteDetail() {
       stopBulkSeoPoll();
       await pollBulkSeo(res.job_id);
       bulkSeoIntervalRef.current = setInterval(() => pollBulkSeo(res.job_id), 2000);
-    } catch (err: any) {
-      toast.error(err.message || "Failed to start SEO generation");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to start SEO generation"));
     }
   }, [id, pollBulkSeo, stopBulkSeoPoll]);
 
@@ -318,12 +372,18 @@ export default function WebsiteDetail() {
   const isBulkSeoActive = bulkSeoStatus !== null && (bulkSeoStatus.status === "queued" || bulkSeoStatus.status === "processing");
 
   // Detail tab: persisted in URL search params so refresh preserves tab
-  const VALID_TABS = ["pages", "layouts", "code-manager", "media", "form-submissions", "posts", "menus", "reviews", "redirects", "integrations", "backups", "advanced-tools", "costs"] as const;
-  type DetailTab = typeof VALID_TABS[number];
   const [searchParams, setSearchParams] = useSearchParams();
   const rawTab = searchParams.get("tab");
-  const detailTab: DetailTab = VALID_TABS.includes(rawTab as DetailTab) ? (rawTab as DetailTab) : "pages";
-  const setDetailTab = (tab: DetailTab) => {
+  const detailTab: WebsiteDetailTab = activeTab
+    ? activeTab
+    : WEBSITE_DETAIL_TABS.includes(rawTab as WebsiteDetailTab)
+      ? (rawTab as WebsiteDetailTab)
+      : "pages";
+  const setDetailTab = (tab: WebsiteDetailTab) => {
+    if (onTabChange) {
+      onTabChange(tab);
+      return;
+    }
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       if (tab === "pages") {
@@ -382,15 +442,12 @@ export default function WebsiteDetail() {
       const response = await fetch("/api/admin/organizations", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await response.json();
+      const data = (await response.json()) as OrganizationsResponse;
 
       // Filter to orgs without websites (or currently linked org)
-      const availableOrgs = data.organizations
-        .filter(
-          (org: any) =>
-            !org.website || org.id === website?.organization?.id,
-        )
-        .map((org: any) => ({ id: org.id, name: org.name }));
+      const availableOrgs = (data.organizations || [])
+        .filter((org) => !org.website || org.id === website?.organization?.id)
+        .map((org) => ({ id: org.id, name: org.name }));
 
       setAvailableOrganizations(availableOrgs);
     } catch (err) {
@@ -910,13 +967,15 @@ export default function WebsiteDetail() {
   if (error) {
     return (
       <div className="space-y-6">
-        <Link
-          to="/admin/websites"
-          className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Websites
-        </Link>
+        {!embedded && (
+          <Link
+            to={backPath}
+            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            {backLabel}
+          </Link>
+        )}
         <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
           <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
@@ -939,13 +998,15 @@ export default function WebsiteDetail() {
   if (!website) {
     return (
       <div className="space-y-6">
-        <Link
-          to="/admin/websites"
-          className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Websites
-        </Link>
+        {!embedded && (
+          <Link
+            to={backPath}
+            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            {backLabel}
+          </Link>
+        )}
         <div className="text-center py-16 text-gray-500">Website not found</div>
       </div>
     );
@@ -955,6 +1016,13 @@ export default function WebsiteDetail() {
   const isCreatedStatus = website.status === "CREATED";
   const isLive = website.status === "LIVE";
   const isInProgress = website.status === "IN_PROGRESS";
+  const domainVerifiedAt =
+    (website as WebsiteProjectDomainFields).domain_verified_at || null;
+  const customDomain = website.custom_domain || null;
+  const liveDomain =
+    customDomain && domainVerifiedAt
+      ? customDomain
+      : `${website.generated_hostname}.sites.getalloro.com`;
   const pageGroups = groupPagesByPath(website.pages);
 
   // Pre-compute all SEO titles/descriptions for uniqueness checks in the page list
@@ -971,222 +1039,241 @@ export default function WebsiteDetail() {
     return { titles, descriptions };
   })();
 
+  const headerActionPills = (
+    <>
+      <button
+        onClick={() => setShowIdentityModal(true)}
+        className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+        title="Project Identity — business data, brand, voice, and content context for the AI"
+      >
+        <Fingerprint className="h-4 w-4" />
+        Identity
+        {website?.project_identity?.meta?.warmup_status === "ready" && (
+          <span className="ml-1 h-1.5 w-1.5 rounded-full bg-green-500" />
+        )}
+        {(website?.project_identity?.meta?.warmup_status === "running" ||
+          website?.project_identity?.meta?.warmup_status === "queued") && (
+          <Loader2 className="h-3 w-3 animate-spin text-amber-500" />
+        )}
+      </button>
+
+      <div className="relative" ref={orgDropdownRef}>
+        <button
+          onClick={() => setShowOrgDropdown(!showOrgDropdown)}
+          className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+        >
+          <Building2 className="h-4 w-4" />
+          {website?.organization ? website.organization.name : "No Organization"}
+          <ChevronDown
+            className={`h-3 w-3 transition-transform ${showOrgDropdown ? "rotate-180" : ""}`}
+          />
+        </button>
+
+        <AnimatePresence>
+          {showOrgDropdown && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="absolute left-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50"
+            >
+              {website?.organization ? (
+                <>
+                  <Link
+                    to="/admin/organization-management"
+                    className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    onClick={() => setShowOrgDropdown(false)}
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Open Organization
+                  </Link>
+                  <button
+                    onClick={() => {
+                      setShowOrgDropdown(false);
+                      handleUnlink();
+                    }}
+                    disabled={isLinking}
+                    className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full text-left disabled:opacity-50"
+                  >
+                    <X className="h-4 w-4" />
+                    {isLinking ? "Unlinking..." : "Unlink Organization"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  {loadingOrgs ? (
+                    <div className="flex items-center gap-2 px-4 py-2 text-sm text-gray-500">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading...
+                    </div>
+                  ) : availableOrganizations.length === 0 ? (
+                    <div className="px-4 py-2 text-sm text-gray-500">
+                      No available organizations
+                    </div>
+                  ) : (
+                    <>
+                      <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase">
+                        Link to Organization
+                      </div>
+                      {availableOrganizations.map((org) => (
+                        <button
+                          key={org.id}
+                          onClick={async () => {
+                            setSelectedOrgId(org.id);
+                            setShowOrgDropdown(false);
+                            setIsLinking(true);
+                            try {
+                              await linkWebsiteToOrganization(id!, org.id);
+                              toast.success("Organization linked");
+                              await loadWebsite();
+                              await loadAvailableOrganizations();
+                            } catch (err) {
+                              toast.error(
+                                err instanceof Error
+                                  ? err.message
+                                  : "Failed to link",
+                              );
+                            } finally {
+                              setIsLinking(false);
+                              setSelectedOrgId(null);
+                            }
+                          }}
+                          disabled={isLinking}
+                          className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-purple-50 w-full text-left disabled:opacity-50"
+                        >
+                          <Building2 className="h-4 w-4" />
+                          {org.name}
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <button
+        onClick={() => setShowDomainModal(true)}
+        className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+          customDomain && domainVerifiedAt
+            ? "border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
+            : customDomain
+              ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+              : "border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100"
+        }`}
+      >
+        <Globe className="h-4 w-4" />
+        {customDomain || "Custom Domain"}
+      </button>
+    </>
+  );
+
+  const headerActionIcons = (
+    <>
+      <button
+        onClick={loadWebsite}
+        title="Refresh"
+        aria-label="Refresh website"
+        className="inline-flex items-center justify-center rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
+      >
+        <RefreshCw className="h-4 w-4" />
+      </button>
+      {isLive && (
+        <a
+          href={`https://${liveDomain}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="View Live Site"
+          aria-label="View live site"
+          className="inline-flex items-center justify-center rounded-lg p-2 text-green-600 transition hover:bg-green-50 hover:text-green-700"
+        >
+          <ExternalLink className="h-4 w-4" />
+        </a>
+      )}
+      <button
+        onClick={handleDelete}
+        disabled={isDeleting}
+        title={isDeleting ? "Deleting..." : "Delete"}
+        aria-label={isDeleting ? "Deleting website" : "Delete website"}
+        className="inline-flex items-center justify-center rounded-lg p-2 text-red-500 transition hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
+      >
+        {isDeleting ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Trash2 className="h-4 w-4" />
+        )}
+      </button>
+    </>
+  );
+
   return (
     <div className="space-y-6">
       {/* Back link */}
-      <Link
-        to="/admin/websites"
-        className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Websites
-      </Link>
+      {!embedded && (
+        <Link
+          to={backPath}
+          className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          {backLabel}
+        </Link>
+      )}
 
-      {/* Header with compact meta pills */}
-      <AdminPageHeader
-        icon={<Globe className="w-6 h-6" />}
-        title={
-          website.display_name || (gbpData?.name ? String(gbpData.name) : website.generated_hostname)
-        }
-        description={
-          <div className="flex flex-wrap items-center gap-2 mt-1">
-            <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 bg-gray-100 rounded-full px-2.5 py-1">
-              <Globe className="h-3 w-3" />
-              {website.generated_hostname}
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 bg-gray-100 rounded-full px-2.5 py-1">
-              <Clock className="h-3 w-3" />
-              Created {formatDate(website.created_at)}
-            </span>
-            {website.updated_at !== website.created_at && (
+      {embedded ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            {headerActionPills}
+          </div>
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            {headerActionIcons}
+          </div>
+        </div>
+      ) : (
+        <AdminPageHeader
+          icon={<Globe className="w-6 h-6" />}
+          title={
+            website.display_name ||
+            (gbpData?.name ? String(gbpData.name) : website.generated_hostname)
+          }
+          description={
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 bg-gray-100 rounded-full px-2.5 py-1">
+                <Globe className="h-3 w-3" />
+                {website.generated_hostname}
+              </span>
               <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 bg-gray-100 rounded-full px-2.5 py-1">
                 <Clock className="h-3 w-3" />
-                Updated {formatDate(website.updated_at)}
+                Created {formatDate(website.created_at)}
               </span>
-            )}
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${getStatusStyles(website.status)}`}
-            >
-              {website.status === "LIVE" && (
-                <CheckCircle className="h-3 w-3" />
+              {website.updated_at !== website.created_at && (
+                <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 bg-gray-100 rounded-full px-2.5 py-1">
+                  <Clock className="h-3 w-3" />
+                  Updated {formatDate(website.updated_at)}
+                </span>
               )}
-              {isProcessingStatus(website.status) && (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              )}
-              {formatStatus(website.status)}
-            </span>
-          </div>
-        }
-        actionButtons={
-          <div className="flex items-center gap-2">
-            {/* Project Identity button */}
-            <button
-              onClick={() => setShowIdentityModal(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
-              title="Project Identity — business data, brand, voice, and content context for the AI"
-            >
-              <Fingerprint className="h-4 w-4" />
-              Identity
-              {website?.project_identity?.meta?.warmup_status === "ready" && (
-                <span className="ml-1 h-1.5 w-1.5 rounded-full bg-green-500" />
-              )}
-              {(website?.project_identity?.meta?.warmup_status === "running" ||
-                website?.project_identity?.meta?.warmup_status === "queued") && (
-                <Loader2 className="h-3 w-3 animate-spin text-amber-500" />
-              )}
-            </button>
-
-            {/* Organization Dropdown */}
-            <div className="relative" ref={orgDropdownRef}>
-              <button
-                onClick={() => setShowOrgDropdown(!showOrgDropdown)}
-                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${getStatusStyles(website.status)}`}
               >
-                <Building2 className="h-4 w-4" />
-                {website?.organization
-                  ? website.organization.name
-                  : "No Organization"}
-                <ChevronDown
-                  className={`h-3 w-3 transition-transform ${showOrgDropdown ? "rotate-180" : ""}`}
-                />
-              </button>
-
-              <AnimatePresence>
-                {showOrgDropdown && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50"
-                  >
-                    {website?.organization ? (
-                      <>
-                        <Link
-                          to="/admin/organization-management"
-                          className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                          onClick={() => setShowOrgDropdown(false)}
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                          Open Organization
-                        </Link>
-                        <button
-                          onClick={() => {
-                            setShowOrgDropdown(false);
-                            handleUnlink();
-                          }}
-                          disabled={isLinking}
-                          className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full text-left disabled:opacity-50"
-                        >
-                          <X className="h-4 w-4" />
-                          {isLinking ? "Unlinking..." : "Unlink Organization"}
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        {loadingOrgs ? (
-                          <div className="flex items-center gap-2 px-4 py-2 text-sm text-gray-500">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Loading...
-                          </div>
-                        ) : availableOrganizations.length === 0 ? (
-                          <div className="px-4 py-2 text-sm text-gray-500">
-                            No available organizations
-                          </div>
-                        ) : (
-                          <>
-                            <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase">
-                              Link to Organization
-                            </div>
-                            {availableOrganizations.map((org) => (
-                              <button
-                                key={org.id}
-                                onClick={async () => {
-                                  setSelectedOrgId(org.id);
-                                  setShowOrgDropdown(false);
-                                  setIsLinking(true);
-                                  try {
-                                    await linkWebsiteToOrganization(
-                                      id!,
-                                      org.id,
-                                    );
-                                    toast.success("Organization linked");
-                                    await loadWebsite();
-                                    await loadAvailableOrganizations();
-                                  } catch (err) {
-                                    toast.error(
-                                      err instanceof Error
-                                        ? err.message
-                                        : "Failed to link",
-                                    );
-                                  } finally {
-                                    setIsLinking(false);
-                                    setSelectedOrgId(null);
-                                  }
-                                }}
-                                disabled={isLinking}
-                                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-purple-50 w-full text-left disabled:opacity-50"
-                              >
-                                <Building2 className="h-4 w-4" />
-                                {org.name}
-                              </button>
-                            ))}
-                          </>
-                        )}
-                      </>
-                    )}
-                  </motion.div>
+                {website.status === "LIVE" && (
+                  <CheckCircle className="h-3 w-3" />
                 )}
-              </AnimatePresence>
+                {isProcessingStatus(website.status) && (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                )}
+                {formatStatus(website.status)}
+              </span>
             </div>
-
-            <button
-              onClick={() => setShowDomainModal(true)}
-              className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
-                (website as any).custom_domain && (website as any).domain_verified_at
-                  ? "border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
-                  : (website as any).custom_domain
-                    ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                    : "border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100"
-              }`}
-            >
-              <Globe className="h-4 w-4" />
-              {(website as any).custom_domain
-                ? (website as any).custom_domain
-                : "Custom Domain"}
-            </button>
-            <button
-              onClick={loadWebsite}
-              title="Refresh"
-              className="inline-flex items-center justify-center rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </button>
-            {isLive && (
-              <a
-                href={`https://${(website as any).custom_domain && (website as any).domain_verified_at ? (website as any).custom_domain : `${website.generated_hostname}.sites.getalloro.com`}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                title="View Live Site"
-                className="inline-flex items-center justify-center rounded-lg p-2 text-green-600 transition hover:bg-green-50 hover:text-green-700"
-              >
-                <ExternalLink className="h-4 w-4" />
-              </a>
-            )}
-            <button
-              onClick={handleDelete}
-              disabled={isDeleting}
-              title={isDeleting ? "Deleting..." : "Delete"}
-              className="inline-flex items-center justify-center rounded-lg p-2 text-red-500 transition hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
-            >
-              {isDeleting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2 className="h-4 w-4" />
-              )}
-            </button>
-          </div>
-        }
-      />
+          }
+          actionButtons={
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {headerActionPills}
+              {headerActionIcons}
+            </div>
+          }
+        />
+      )}
 
       {/* Status Card — hidden when LIVE */}
       {!isLive && (
@@ -1305,8 +1392,15 @@ export default function WebsiteDetail() {
       )}
 
       {/* Tab bar: Pages | Layouts | Code Manager | Media | Form Submissions */}
-      <div className="flex items-stretch gap-1 p-1.5 bg-gray-100 rounded-xl mb-4">
-        {(["pages", "layouts", "code-manager", "media", "form-submissions", "posts", "menus", "reviews", "redirects", "integrations", "backups", "advanced-tools", "costs"] as const).map((tab) => {
+      {!hideTabBar && (
+        <div
+          className={
+            embedded
+              ? "mb-4 flex items-center gap-7 overflow-x-auto border-b border-gray-200 px-1"
+              : "flex items-stretch gap-1 p-1.5 bg-gray-100 rounded-xl mb-4"
+          }
+        >
+          {WEBSITE_DETAIL_TABS.map((tab) => {
           const isActive = detailTab === tab;
           const tabConfig: Record<string, { label: string; icon: React.ReactNode }> = {
             "pages": { label: "Pages", icon: <FileText className="w-3.5 h-3.5" /> },
@@ -1328,16 +1422,33 @@ export default function WebsiteDetail() {
             <motion.button
               key={tab}
               onClick={() => setDetailTab(tab)}
-              className={`group relative flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                isActive ? "text-gray-900" : "text-gray-500 hover:text-gray-700"
-              }`}
+              className={
+                embedded
+                  ? `group relative flex shrink-0 items-center gap-2 pb-3 pt-1 text-sm font-semibold transition-colors ${
+                      isActive
+                        ? "text-gray-900"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`
+                  : `group relative flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                      isActive
+                        ? "text-gray-900"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`
+              }
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
-              {isActive && (
+              {isActive && !embedded && (
                 <motion.div
                   className="absolute inset-0 bg-white rounded-lg shadow-sm"
                   layoutId="websiteDetailTab"
+                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                />
+              )}
+              {isActive && embedded && (
+                <motion.span
+                  className="absolute inset-x-0 bottom-0 h-0.5 bg-alloro-orange"
+                  layoutId="websiteDetailEmbeddedTab"
                   transition={{ type: "spring", stiffness: 400, damping: 30 }}
                 />
               )}
@@ -1348,7 +1459,8 @@ export default function WebsiteDetail() {
             </motion.button>
           );
         })}
-      </div>
+        </div>
+      )}
 
       {/* Pages Section — grouped by path, expandable versions */}
       {detailTab === "pages" && (
@@ -2177,8 +2289,8 @@ export default function WebsiteDetail() {
           isOpen={showDomainModal}
           onClose={() => setShowDomainModal(false)}
           projectId={website.id}
-          currentDomain={(website as any).custom_domain || null}
-          domainVerifiedAt={(website as any).domain_verified_at || null}
+          currentDomain={customDomain}
+          domainVerifiedAt={domainVerifiedAt}
           onDomainChange={async () => {
             const res = await fetchWebsiteDetail(website.id);
             if (res.success) setWebsite(res.data);

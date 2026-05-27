@@ -3,7 +3,9 @@ import { NotificationModel } from "../../../models/NotificationModel";
 type GbpNotificationKind =
   | "gbp_reply_draft_ready"
   | "gbp_reply_published"
-  | "gbp_reply_deploy_failed";
+  | "gbp_reply_deploy_failed"
+  | "gbp_post_published"
+  | "gbp_post_deploy_failed";
 
 interface NotifyParams {
   organizationId: number;
@@ -25,7 +27,7 @@ export class GbpNotificationService {
       metadata: {
         kind: params.kind,
         workItemId: params.workItemId,
-        severity: params.kind === "gbp_reply_deploy_failed" ? "high" : "normal",
+        severity: params.kind.endsWith("_deploy_failed") ? "high" : "normal",
       },
     });
   }

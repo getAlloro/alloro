@@ -1,9 +1,7 @@
 import {
   AlertCircle,
-  Clock,
-  ClipboardList,
-  Image,
   MessageSquareText,
+  Newspaper,
   Settings2,
   Sparkles,
   type LucideIcon,
@@ -13,9 +11,8 @@ import type {
   GbpReadiness,
   GbpReadinessStatus,
 } from "../../../api/gbpAutomation";
-import { nextPostLabel } from "./gbpReadinessUtils";
 
-export type ClientGbpView = "reviews" | "drafts" | "settings";
+export type ClientGbpView = "reviews" | "posts" | "settings";
 
 export type GbpClientAutomationHeaderProps = {
   activeView: ClientGbpView;
@@ -40,22 +37,21 @@ const VIEW_OPTIONS: Array<{
   label: string;
   icon: LucideIcon;
 }> = [
-  { key: "reviews", label: "Reviews Manager", icon: Sparkles },
-  { key: "drafts", label: "Drafts", icon: ClipboardList },
+  { key: "reviews", label: "Reviews", icon: Sparkles },
+  { key: "posts", label: "GBP Posts", icon: Newspaper },
   { key: "settings", label: "Settings", icon: Settings2 },
 ];
 
 export function GbpClientAutomationHeader({
   activeView,
   readiness,
-  settings,
   onViewChange,
 }: GbpClientAutomationHeaderProps) {
   const shouldShowReadinessAlert = !readiness.ready;
 
   return (
     <>
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div>
         <div>
           <div className="flex items-center gap-2 text-alloro-navy">
             <MessageSquareText size={18} />
@@ -66,26 +62,6 @@ export function GbpClientAutomationHeader({
           <p className="mt-1 text-sm font-medium text-slate-500">
             Choose reviews, polish replies, and publish them to Google.
           </p>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <div className="rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2">
-            <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500">
-              <Clock size={12} />
-              Next post
-            </p>
-            <p className="mt-1 text-sm font-black text-alloro-navy">
-              {nextPostLabel(settings.next_post_generation_at)}
-            </p>
-          </div>
-          <div className="rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2">
-            <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500">
-              <Image size={12} />
-              Featured image
-            </p>
-            <p className="mt-1 text-sm font-black text-alloro-navy">
-              {settings.default_featured_image_url ? "Ready" : "Needed"}
-            </p>
-          </div>
         </div>
       </div>
 

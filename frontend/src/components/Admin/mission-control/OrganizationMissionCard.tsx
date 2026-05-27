@@ -1,13 +1,16 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import type { KeyboardEvent, ReactNode } from "react";
+import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
 import {
   AlertTriangle,
   Bell,
   Building2,
+  ChevronDown,
   CheckCircle2,
   CreditCard,
   Database,
+  FileCode,
   MapPin,
   SearchCheck,
   Users,
@@ -32,13 +35,19 @@ export function OrganizationMissionCard({
   index,
 }: OrganizationMissionCardProps) {
   const navigate = useNavigate();
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const hasRisk = organization.riskFlags.length > 0;
+  const hasConnectedWebsite = Boolean(organization.websiteStatus);
   const sparkTone: "red" | "teal" | "orange" = hasRisk
     ? "red"
     : organization.monthToDatePaid > 0
       ? "teal"
       : "orange";
   const openOrganization = () => navigate(`/admin/organizations/${organization.id}`);
+  const openWebsite = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    navigate(`/admin/organizations/${organization.id}?section=website`);
+  };
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
@@ -57,26 +66,41 @@ export function OrganizationMissionCard({
       transition={{ delay: index * 0.03, duration: 0.25 }}
       className="group h-full cursor-pointer rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-1 hover:border-alloro-orange/40 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-alloro-teal/40"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-alloro-navy text-white">
-              <Building2 className="h-4.5 w-4.5" />
-            </div>
-            <div className="min-w-0">
-              <h3 className="truncate text-base font-black text-alloro-navy">
-                {organization.name}
-              </h3>
-              <p className="truncate text-xs font-medium text-gray-500">
-                {organization.domain || "No domain assigned"}
-              </p>
-            </div>
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-alloro-navy text-white">
+            <Building2 className="h-4.5 w-4.5" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="truncate text-base font-black text-alloro-navy">
+              {organization.name}
+            </h3>
+            <p className="truncate text-xs font-medium text-gray-500">
+              {organization.domain || "No domain assigned"}
+            </p>
           </div>
         </div>
-        <MissionControlPilotMenu
-          users={organization.adminUsers}
-          organizationName={organization.name}
-        />
+        <div
+          className="mt-3 flex flex-wrap items-center gap-2"
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+        >
+          <MissionControlPilotMenu
+            users={organization.adminUsers}
+            organizationName={organization.name}
+          />
+          {hasConnectedWebsite && (
+            <button
+              type="button"
+              onClick={openWebsite}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-2.5 py-1.5 text-xs font-bold text-green-700 transition-all hover:border-green-300 hover:bg-green-100"
+              aria-label={`Open website for ${organization.name}`}
+            >
+              <FileCode className="h-3.5 w-3.5" />
+              Website
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
@@ -114,13 +138,34 @@ export function OrganizationMissionCard({
         ))}
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2 text-[11px] text-gray-500">
-        <Signal icon={<Users className="h-3.5 w-3.5" />} value={`${organization.userCount} users`} />
-        <Signal icon={<MapPin className="h-3.5 w-3.5" />} value={`${organization.locationCount} locations`} />
-        <Signal icon={<Bell className="h-3.5 w-3.5" />} value={`${organization.unreadNotificationCount} unread`} />
-        <Signal icon={<Database className="h-3.5 w-3.5" />} value={organization.latestPms ? organization.latestPms.status : "No PMS"} />
-        <Signal icon={<SearchCheck className="h-3.5 w-3.5" />} value={organization.latestRanking ? organization.latestRanking.status : "No rank"} />
-        <Signal icon={<CreditCard className="h-3.5 w-3.5" />} value={paymentMethodLabel(organization)} />
+      <div
+        className="mt-4"
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={() => setDetailsOpen((open) => !open)}
+          className="flex w-full items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs font-bold text-gray-600 transition-colors hover:border-gray-200 hover:bg-gray-100"
+          aria-expanded={detailsOpen}
+        >
+          Quick details
+          <ChevronDown
+            className={`h-3.5 w-3.5 transition-transform ${
+              detailsOpen ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+        {detailsOpen && (
+          <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-gray-500">
+            <Signal icon={<Users className="h-3.5 w-3.5" />} value={countLabel(organization.userCount, "user")} />
+            <Signal icon={<MapPin className="h-3.5 w-3.5" />} value={countLabel(organization.locationCount, "location")} />
+            <Signal icon={<Bell className="h-3.5 w-3.5" />} value={`${organization.unreadNotificationCount} unread`} />
+            <Signal icon={<Database className="h-3.5 w-3.5" />} value={organization.latestPms ? organization.latestPms.status : "No PMS"} />
+            <Signal icon={<SearchCheck className="h-3.5 w-3.5" />} value={organization.latestRanking ? organization.latestRanking.status : "No rank"} />
+            <Signal icon={<CreditCard className="h-3.5 w-3.5" />} value={paymentMethodLabel(organization)} />
+          </div>
+        )}
       </div>
     </motion.article>
   );
@@ -184,6 +229,10 @@ function Signal({ icon, value }: { icon: ReactNode; value: string }) {
 function paymentMethodLabel(organization: MissionControlOrganization): string {
   if (!organization.paymentMethod) return "No method";
   return `${organization.paymentMethod.brand} ${organization.paymentMethod.last4}`;
+}
+
+function countLabel(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 function formatRiskFlag(value: string): string {

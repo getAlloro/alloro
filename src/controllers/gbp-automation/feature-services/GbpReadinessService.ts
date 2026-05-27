@@ -25,6 +25,8 @@ export interface GbpReadinessResult {
   actions: string[];
   checks: {
     featureEnabled: boolean;
+    reviewRepliesEnabled: boolean;
+    postDraftsEnabled: boolean;
     hasGoogleConnection: boolean;
     hasRefreshToken: boolean;
     hasBusinessManageScope: boolean;
@@ -37,6 +39,7 @@ export interface GbpReadinessResult {
   googleProperty: IGoogleProperty | null;
   nextPostGenerationAt: Date | null;
   syncHealth: IGbpSyncHealth | null;
+  postSyncHealth: IGbpSyncHealth | null;
 }
 
 function hasBusinessManageScope(scopes: string | null): boolean {
@@ -47,12 +50,12 @@ function buildStatus(
   checks: GbpReadinessResult["checks"],
   counts: ReviewReplyabilityCounts
 ): GbpReadinessStatus {
-  if (!checks.featureEnabled) return "feature_disabled";
   if (!checks.hasSelectedGbpProperty || !checks.hasAccountId || !checks.hasExternalId) {
     return "missing_gbp_property";
   }
   if (!checks.hasGoogleConnection || !checks.hasRefreshToken) return "reconnect_required";
   if (!checks.hasBusinessManageScope) return "missing_business_manage_scope";
+  if (!checks.featureEnabled) return "feature_disabled";
   if (counts.replyable_oauth > 0) return "ready";
   if (counts.maps_only > 0) return "maps_only_reviews";
   return "no_replyable_reviews";
@@ -106,6 +109,8 @@ export class GbpReadinessService {
         actions: actionsForStatus("location_not_found"),
         checks: {
           featureEnabled: false,
+          reviewRepliesEnabled: false,
+          postDraftsEnabled: false,
           hasGoogleConnection: false,
           hasRefreshToken: false,
           hasBusinessManageScope: false,
@@ -118,6 +123,7 @@ export class GbpReadinessService {
         googleProperty: null,
         nextPostGenerationAt: null,
         syncHealth: null,
+        postSyncHealth: null,
       };
     }
 
@@ -132,14 +138,17 @@ export class GbpReadinessService {
           organizationId
         )
       : undefined;
-    const [counts, replyOps, syncHealth] = await Promise.all([
+    const [counts, replyOps, syncHealth, postSyncHealth] = await Promise.all([
       ReviewModel.getReplyabilityCounts(locationId),
       ReviewModel.getReplyOpsMetrics(locationId),
       GbpSyncHealthModel.latestForLocation(locationId),
+      GbpSyncHealthModel.latestForLocation(locationId, "local_posts"),
     ]);
 
     const checks = {
       featureEnabled: Boolean(settings?.review_reply_enabled),
+      reviewRepliesEnabled: Boolean(settings?.review_reply_enabled),
+      postDraftsEnabled: Boolean(settings?.local_post_generation_enabled),
       hasGoogleConnection: Boolean(connection),
       hasRefreshToken: Boolean(connection?.refresh_token),
       hasBusinessManageScope: Boolean(connection && hasBusinessManageScope(connection.scopes)),
@@ -159,6 +168,7 @@ export class GbpReadinessService {
       googleProperty: googleProperty || null,
       nextPostGenerationAt: settings?.next_post_generation_at || null,
       syncHealth: syncHealth || null,
+      postSyncHealth: postSyncHealth || null,
     };
   }
 }

@@ -92,6 +92,26 @@ export class GbpAutomationSettingsModel extends BaseModel {
     return row ? this.deserializeJsonFields(row) : undefined;
   }
 
+  static async listDueLocalPostGeneration(
+    now: Date,
+    limit = 25,
+    trx?: QueryContext
+  ): Promise<IGbpAutomationSettings[]> {
+    const rows = await this.table(trx)
+      .where({ local_post_generation_enabled: true })
+      .whereNotNull("location_id")
+      .where(function () {
+        this.whereNull("next_post_generation_at").orWhere(
+          "next_post_generation_at",
+          "<=",
+          now
+        );
+      })
+      .orderByRaw("next_post_generation_at ASC NULLS FIRST")
+      .limit(Math.min(Math.max(limit, 1), 100));
+    return rows.map((row: IGbpAutomationSettings) => this.deserializeJsonFields(row));
+  }
+
   static async upsertForScope(
     organizationId: number,
     locationId: number | null,
