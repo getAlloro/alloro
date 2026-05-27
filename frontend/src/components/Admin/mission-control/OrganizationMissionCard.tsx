@@ -66,8 +66,8 @@ export function OrganizationMissionCard({
       transition={{ delay: index * 0.03, duration: 0.25 }}
       className="group h-full cursor-pointer rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-1 hover:border-alloro-orange/40 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-alloro-teal/40"
     >
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-alloro-navy text-white">
             <Building2 className="h-4.5 w-4.5" />
           </div>
@@ -81,7 +81,7 @@ export function OrganizationMissionCard({
           </div>
         </div>
         <div
-          className="mt-3 flex flex-wrap items-center gap-2"
+          className="shrink-0"
           onClick={(event) => event.stopPropagation()}
           onKeyDown={(event) => event.stopPropagation()}
         >
@@ -89,19 +89,25 @@ export function OrganizationMissionCard({
             users={organization.adminUsers}
             organizationName={organization.name}
           />
-          {hasConnectedWebsite && (
-            <button
-              type="button"
-              onClick={openWebsite}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-2.5 py-1.5 text-xs font-bold text-green-700 transition-all hover:border-green-300 hover:bg-green-100"
-              aria-label={`Open website for ${organization.name}`}
-            >
-              <FileCode className="h-3.5 w-3.5" />
-              Website
-            </button>
-          )}
         </div>
       </div>
+      {hasConnectedWebsite && (
+        <div
+          className="mt-3 flex flex-wrap items-center gap-2"
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={openWebsite}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-2.5 py-1.5 text-xs font-bold text-green-700 transition-all hover:border-green-300 hover:bg-green-100"
+            aria-label={`Open website for ${organization.name}`}
+          >
+            <FileCode className="h-3.5 w-3.5" />
+            Website
+          </button>
+        </div>
+      )}
 
       <div className="mt-4 grid grid-cols-2 gap-3">
         <MoneyStat label="Expected" value={organization.expectedMonthlyAmount} />
