@@ -2,6 +2,23 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.91] - May 2026
+
+### Feature Friyays
+
+Added the inaugural Feature Friyay release package so weekly shipped work can be compiled into a branded shareable roundup and customer email draft.
+
+**Key Changes:**
+- Added repo-local Feature Friyay workflow rules, including `--done friyay`, plain `--done` inference, and ask-when-unsure classification behavior
+- Added the inaugural `friyays/05-25-2026` static HTML/CSS package with a branded roundup page, email draft, evidence-backed inventory, release-state notes, and ship checklist
+- Switched Friyay artifacts from standalone Markdown drafts to `index.html`, `email.html`, and `styles.css` so the weekly roundup is presentable without extra tooling
+- Preserved release-state distinctions between production workflow evidence, dev workflow evidence, needs verification, and internal-only items
+
+**Commits:**
+- `AGENTS.md` - Feature Friyay folder contract, `--done friyay` behavior, inference rules, and HTML/CSS artifact requirements
+- `friyays/05-25-2026/*` - inaugural branded Feature Friyay page, email draft, and shared Alloro styling
+- `plans/05282026-no-ticket-feature-friyays-inaugural-roundup/spec.md` - execution spec and revision log for the Markdown-to-HTML conversion
+
 ## [0.0.90] - May 2026
 
 ### GBP Posts Manager And Admin Navigation

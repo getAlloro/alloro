@@ -124,6 +124,39 @@ Before saying a change is live, distinguish:
 
 Do not collapse these into one vague "done."
 
+## Feature Friyays
+
+Feature Friyays are weekly Alloro feature-roundup artifacts. They live in this repo under `friyays/`.
+
+Folder naming:
+
+- Use `friyays/{MM-DD-YYYY}/`, where the date is the Monday that starts the Friyay coverage week.
+- Standard coverage is Monday through Sunday, inclusive, including weekend work.
+- The inaugural folder is `friyays/05-25-2026/`. For that first edition only, include features developed from Thursday, May 21, 2026 through Sunday, May 31, 2026, even though the folder name remains `05-25-2026`.
+
+Required files in each weekly folder:
+
+- `index.html` - branded static Friyay page containing the feature inventory, documentation, release-state notes, internal/admin notes, and ship checklist.
+- `email.html` - branded customer-ready email HTML in plain language, focused on user value rather than implementation detail.
+- `styles.css` - shared Alloro-branded styling for the Friyay page and email preview.
+
+Optional files:
+
+- `assets/` - screenshots, product captures, or other visual assets referenced by `index.html`.
+
+Agent behavior:
+
+- Create the weekly folder if it does not exist when asked to compile, draft, or finalize Feature Friyay material.
+- During `--done friyay`, update the current Friyay folder alongside `CHANGELOG.md` after normal finalization checks pass.
+- During plain `--done`, infer Friyay inclusion when the completed work is a user-facing product change, admin/operator feature, meaningful support fix, docs-visible change, content launch, data cleanup with client impact, deployment/reliability improvement worth communicating, or any changelog-worthy item in the current coverage window.
+- If Friyay inclusion is uncertain, ask targeted questions before finalizing. While waiting for clarity, list the item in the inventory section of `index.html` as `Needs classification` or `Needs verification` rather than omitting it.
+- Use real evidence: plan folders, changelog entries, git history, merged commits, PRs, deployment checks, and direct file/runtime verification where needed.
+- Distinguish feature states clearly: drafted, implemented locally, committed, pushed, deployed to dev, deployed to production, and user-verified are not the same thing.
+- Do not invent feature claims from memory. If a feature is plausible but unverified, put it in the inventory section of `index.html` as `Needs verification`, not in customer-facing copy.
+- Keep in-progress notes out of `email.html` unless the email is explicitly marked as a draft.
+- Do not create new standalone Markdown Friyay artifacts unless the user explicitly asks for Markdown export. If an older Friyay folder has Markdown artifacts, migrate them into the HTML/CSS package and remove the old Markdown files.
+- Dashboard/admin/client-dashboard features still require Alloro Docs parity before finalization; update `/Users/rustinedave/Desktop/alloro-docs` when the feature changes user-facing UI, controls, labels, tooltips, page copy, navigation, screenshots, or guidance.
+
 ## Dashboard Docs Parity
 
 When work changes dashboard pages or admin/client dashboard UI, documentation parity is required before finalization.
