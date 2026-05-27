@@ -24,6 +24,19 @@ export const getProjectActivity = placeholder;
 // Stats (placeholder until Phase 3)
 export const getStats = placeholderSingle;
 
+type PmUserRow = {
+  id: number | string;
+  email: string;
+  name: string | null;
+  first_name: string | null;
+  last_name: string | null;
+};
+
+function displayNameForUser(user: PmUserRow, fallbackEmail: string): string {
+  const fullName = [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
+  return fullName || user.name || fallbackEmail.split("@")[0];
+}
+
 // Users — returns admin emails from SUPER_ADMIN_EMAILS env var
 export async function listUsers(_req: Request, res: Response): Promise<any> {
   try {
@@ -32,20 +45,28 @@ export async function listUsers(_req: Request, res: Response): Promise<any> {
       .map((e) => e.trim().toLowerCase())
       .filter((e) => e.length > 0);
 
-    const dbUsers = await db("users")
-      .whereIn("email", emails)
-      .select("id", "email");
+    if (emails.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
 
-    const userMap = new Map<string, number>(
-      dbUsers.map((u: any) => [u.email.toLowerCase(), Number(u.id)])
+    const emailPlaceholders = emails.map(() => "?").join(", ");
+    const dbUsers: PmUserRow[] = await db("users")
+      .whereRaw(`LOWER(email) IN (${emailPlaceholders})`, emails)
+      .select("id", "email", "name", "first_name", "last_name");
+
+    const userMap = new Map<string, PmUserRow>(
+      dbUsers.map((u) => [u.email.toLowerCase(), u])
     );
 
     const users = emails
-      .map((email) => ({
-        id: userMap.get(email) ?? null,
-        email,
-        display_name: email.split("@")[0],
-      }))
+      .map((email) => {
+        const user = userMap.get(email);
+        return {
+          id: user ? Number(user.id) : null,
+          email,
+          display_name: user ? displayNameForUser(user, email) : email.split("@")[0],
+        };
+      })
       .filter((u) => u.id !== null);
 
     return res.json({ success: true, data: users });
