@@ -9,7 +9,7 @@ import type { FormContents, FormSection, FileValue } from "../../../models/websi
 
 const DEFAULT_HEADER_COLOR = "#0e8988";
 const HEADER_TEXT_LIGHT = "#ffffff";
-const HEADER_TEXT_DARK = "#212D40";
+const HEADER_TEXT_DARK = "#000000";
 const SERIF_FONT = "Georgia, 'Times New Roman', Times, serif";
 const SANS_FONT = "Arial, sans-serif";
 const DEFAULT_LOGO_URL = "https://app.getalloro.com/logo.png";
@@ -121,25 +121,16 @@ function hasFiles(contents: FormContents): boolean {
 function buildSectionsHtml(sections: FormSection[]): string {
   return sections
     .map((section) => {
-      const sectionHeader = `<tr><td colspan="2" style="padding:16px 0 8px 0;font-size:16px;font-family:${SERIF_FONT};font-weight:700;color:#007693;border-bottom:1px solid #e5e7eb;">${section.title}</td></tr>`;
+      const sectionHeader = `<tr><td style="padding:16px 0 8px 0;font-size:16px;font-family:${SERIF_FONT};font-weight:700;color:#111827;border-bottom:1px solid #e5e7eb;">${section.title}</td></tr>`;
       const fieldRows = section.fields
         .filter(([, value]) => typeof value === "string")
-        .map(
-          ([label, value]) =>
-            `<tr>
-              <td style="padding:6px 12px 6px 0;color:#6b7280;vertical-align:top;white-space:nowrap;width:40%;font-family:${SERIF_FONT};">${label}</td>
-              <td style="padding:6px 0;color:#111827;font-weight:600;">${value}</td>
-            </tr>`,
-        )
+        .map(([label, value]) => buildFieldRow(label, value as string))
         .join("");
       const fileFieldRows = section.fields
         .filter(([, value]) => typeof value === "object" && value !== null)
         .map(([, value]) => {
           const fv = value as FileValue;
-          return `<tr>
-            <td style="padding:6px 12px 6px 0;color:#6b7280;vertical-align:top;white-space:nowrap;font-family:${SERIF_FONT};">Attached File</td>
-            <td style="padding:6px 0;color:#111827;font-weight:600;">${fv.name}</td>
-          </tr>`;
+          return buildFieldRow("Attached File", fv.name);
         })
         .join("");
       return sectionHeader + fieldRows + fileFieldRows;
@@ -150,23 +141,23 @@ function buildSectionsHtml(sections: FormSection[]): string {
 function buildFlatHtml(contents: Record<string, string | FileValue>): string {
   const rows = Object.entries(contents)
     .filter(([, value]) => typeof value === "string")
-    .map(
-      ([label, value]) =>
-        `<tr>
-          <td style="padding:8px 12px 8px 0;color:#6b7280;vertical-align:top;white-space:nowrap;font-family:${SERIF_FONT};">${label}</td>
-          <td style="padding:8px 0;color:#111827;font-weight:600;">${value}</td>
-        </tr>`,
-    )
+    .map(([label, value]) => buildFieldRow(label, value as string))
     .join("");
   const fileRows = Object.entries(contents)
     .filter(([, value]) => typeof value === "object" && value !== null)
     .map(([, value]) => {
       const fv = value as FileValue;
-      return `<tr>
-        <td style="padding:8px 12px 8px 0;color:#6b7280;vertical-align:top;white-space:nowrap;font-family:${SERIF_FONT};">Attached File</td>
-        <td style="padding:8px 0;color:#111827;font-weight:600;">${fv.name}</td>
-      </tr>`;
+      return buildFieldRow("Attached File", fv.name);
     })
     .join("");
   return rows + fileRows;
+}
+
+function buildFieldRow(label: string, value: string): string {
+  return `<tr>
+    <td style="padding:10px 0 16px 0;vertical-align:top;border-bottom:1px solid #eef2f7;">
+      <div style="margin:0 0 6px 0;color:#111827;font-family:${SERIF_FONT};font-weight:700;line-height:1.35;">${label}</div>
+      <div style="margin:0;color:#111827;font-weight:700;line-height:1.45;word-break:break-word;">${value}</div>
+    </td>
+  </tr>`;
 }
