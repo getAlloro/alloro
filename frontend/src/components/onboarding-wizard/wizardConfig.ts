@@ -129,18 +129,18 @@ export const WIZARD_STEPS: WizardStep[] = [
     id: "pms-insights",
     page: "pmsStatistics",
     targetSelector: "[data-wizard-target='pms-insights']",
-    title: "What's Good & What's Risky",
+    title: "Top Source & Insights",
     description:
-      "Alloro highlights positive trends and potential concerns in your referral data so you know where to focus your energy.",
+      "Your highest-producing referral source at a glance, with the doctor vs. self-referral split. Alloro highlights what matters most.",
     scrollToElement: true,
   },
   {
     id: "pms-velocity",
     page: "pmsStatistics",
     targetSelector: "[data-wizard-target='pms-velocity']",
-    title: "Referral Velocity",
+    title: "Drill Into the Details",
     description:
-      "Monthly referral volume over time — see whether your pipeline is growing, steady, or needs attention.",
+      "Click to open the full referral trends — production over time, referral mix, and monthly velocity — or see all sources ranked by production.",
     scrollToElement: true,
   },
   {

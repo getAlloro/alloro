@@ -1,16 +1,19 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { PmsDashboardHero } from "./PmsDashboardHero";
 import { PmsEmptyDashboardState } from "./PmsEmptyDashboardState";
-import { PmsExecutiveSummary } from "./PmsExecutiveSummary";
 import { PmsGrowthOpportunities } from "./PmsGrowthOpportunities";
 import { PmsIngestionCard } from "./PmsIngestionCard";
 import { PmsProductionChart } from "./PmsProductionChart";
 import { PmsProcessingStatusCard } from "./PmsProcessingStatusCard";
 import { PmsReferralMixCard } from "./PmsReferralMixCard";
-import { PmsSectionHeader } from "./PmsSectionHeader";
+import { PmsReferralsMeaningCard } from "./PmsReferralsMeaningCard";
 import { PmsTopSourcesCard } from "./PmsTopSourcesCard";
-import { PmsVitalsRow } from "./PmsVitalsRow";
+import { PmsVelocityCard } from "./PmsVelocityCard";
+import { RankingDetailsModal } from "../../dashboard/rankings/RankingDetailsModal";
 import type { PmsDashboardData } from "./types";
+
+type DetailModal = "sources" | "trends" | null;
 
 export type PmsDashboardSurfaceProps = PmsDashboardData & {
   onJumpToIngestion: () => void;
@@ -23,7 +26,6 @@ export function PmsDashboardSurface({
   topSources,
   totalProduction,
   totalReferrals,
-  doctorReferralCount,
   doctorPercentage,
   referralData,
   isLoading,
@@ -36,6 +38,8 @@ export function PmsDashboardSurface({
   onOpenManualEntry,
   onOpenSettings,
 }: PmsDashboardSurfaceProps) {
+  const [detailModal, setDetailModal] = useState<DetailModal>(null);
+
   const hasExistingData =
     monthlyData.length > 0 ||
     topSources.length > 0 ||
@@ -71,47 +75,20 @@ export function PmsDashboardSurface({
         />
       ) : (
         <>
-          {/* Lead with meaning: the cream hero is the page's first read. */}
-          <PmsExecutiveSummary
-            bullets={referralData?.executive_summary}
+          <PmsReferralsMeaningCard
+            months={monthlyData}
+            topSources={topSources}
             totalProduction={totalProduction}
             totalReferrals={totalReferrals}
             doctorPercentage={doctorPercentage}
-            topSources={topSources}
+            referralData={referralData}
             isProcessingInsights={isProcessingInsights}
+            onOpenSources={() => setDetailModal("sources")}
+            onOpenTrends={() => setDetailModal("trends")}
           />
 
-          {/* Best next actions, promoted above the detail cards. */}
           <PmsGrowthOpportunities referralData={referralData} />
 
-          <PmsSectionHeader title="Your referral numbers" />
-          <PmsVitalsRow
-            months={monthlyData}
-            totalProduction={totalProduction}
-            totalReferrals={totalReferrals}
-            isLoading={isLoading}
-            isProcessingInsights={isProcessingInsights}
-          />
-
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(320px,2fr)]">
-            <PmsProductionChart
-              months={monthlyData}
-              isProcessingInsights={isProcessingInsights}
-            />
-            <PmsReferralMixCard
-              doctorPercentage={doctorPercentage}
-              doctorReferralCount={doctorReferralCount}
-              totalReferrals={totalReferrals}
-              isProcessingInsights={isProcessingInsights}
-            />
-          </div>
-
-          <PmsTopSourcesCard
-            sources={topSources}
-            isProcessingInsights={isProcessingInsights}
-          />
-
-          <PmsSectionHeader title="Update your data" />
           <PmsIngestionCard
             canUploadPMS={canUploadPMS}
             hasProperties={hasProperties}
@@ -122,6 +99,42 @@ export function PmsDashboardSurface({
           />
         </>
       )}
+
+      {/* Detail modals — rendered outside the conditional so AnimatePresence
+          exit animations work even when the data section isn't mounted. */}
+      <RankingDetailsModal
+        open={detailModal === "sources"}
+        title="All sources ranked by production"
+        eyebrow="Referral Sources"
+        onClose={() => setDetailModal(null)}
+      >
+        <PmsTopSourcesCard
+          sources={topSources}
+          isProcessingInsights={isProcessingInsights}
+        />
+      </RankingDetailsModal>
+
+      <RankingDetailsModal
+        open={detailModal === "trends"}
+        title="Production and referral patterns"
+        eyebrow="Referral Trends"
+        onClose={() => setDetailModal(null)}
+      >
+        <div className="space-y-5">
+          <PmsProductionChart
+            months={monthlyData}
+            isProcessingInsights={isProcessingInsights}
+          />
+          <PmsReferralMixCard
+            months={monthlyData}
+            isProcessingInsights={isProcessingInsights}
+          />
+          <PmsVelocityCard
+            months={monthlyData}
+            isProcessingInsights={isProcessingInsights}
+          />
+        </div>
+      </RankingDetailsModal>
     </motion.div>
   );
 }
