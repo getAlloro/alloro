@@ -197,7 +197,7 @@ export function GbpReviewReplySlot({
           className="inline-flex items-center gap-1.5 rounded-[9px] bg-alloro-orange px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-alloro-orange/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isGenerating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles size={13} />}
-          {isGenerating ? "Generating" : "Generate Draft"}
+          {isGenerating ? "Generating" : "Generate draft"}
         </button>
         <button
           type="button"
@@ -206,7 +206,7 @@ export function GbpReviewReplySlot({
           className="inline-flex items-center gap-1.5 rounded-[9px] bg-alloro-navy px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-alloro-navy/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isDeploying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send size={13} />}
-          {isDeploying ? "Queueing" : "Deploy to GBP"}
+          {isDeploying ? "Queueing" : "Publish to Google"}
         </button>
       </div>
     </motion.div>

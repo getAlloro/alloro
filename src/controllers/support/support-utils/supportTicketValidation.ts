@@ -89,11 +89,13 @@ export function validateCreateSupportTicketInput(
     );
   }
 
+  const sanitizedGuidedAnswers = sanitizeGuidedAnswers(type, guidedAnswers);
+
   return {
     valid: true,
     data: {
       type,
-      guidedAnswers,
+      guidedAnswers: sanitizedGuidedAnswers,
       additionalContext,
       currentPageUrl,
       requestedCompletionDate,
@@ -211,12 +213,20 @@ function validateGuidedAnswers(
     if (!cleanText(guidedAnswers.requestedChange, 2000)) {
       return "Describe the website change you want made.";
     }
-    if (!cleanText(guidedAnswers.approvalNotes, 2000)) {
-      return "Add the approval notes for this website change.";
-    }
   }
 
   return null;
+}
+
+function sanitizeGuidedAnswers(
+  type: SupportTicketType,
+  guidedAnswers: Record<string, unknown>,
+): Record<string, unknown> {
+  if (type !== "website_edit") return guidedAnswers;
+
+  const sanitized = { ...guidedAnswers };
+  delete sanitized.approvalNotes;
+  return sanitized;
 }
 
 function failure<T>(error: string, message: string): ValidationResult<T> {

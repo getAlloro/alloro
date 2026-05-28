@@ -22,11 +22,11 @@ export type GbpClientAutomationHeaderProps = {
 };
 
 const READINESS_COPY: Record<GbpReadinessStatus, string> = {
-  ready: "GBP replies are ready for this location.",
-  feature_disabled: "GBP review replies are off until someone enables them.",
-  location_not_found: "Select a valid location before using GBP replies.",
+  ready: "Google review replies are ready for this location.",
+  feature_disabled: "Google review replies are off until someone enables them.",
+  location_not_found: "Select a valid location before using Google review replies.",
   reconnect_required: "Reconnect Google before Alloro can publish replies.",
-  missing_gbp_property: "Select the GBP profile for this location.",
+  missing_gbp_property: "Select the Google profile for this location.",
   missing_business_manage_scope: "Reconnect Google with Business Profile permissions.",
   no_replyable_reviews: "No unreplied OAuth-synced reviews are ready yet.",
   maps_only_reviews: "Maps/Apify-only reviews cannot be replied to from Alloro.",
@@ -38,7 +38,7 @@ const VIEW_OPTIONS: Array<{
   icon: LucideIcon;
 }> = [
   { key: "reviews", label: "Reviews", icon: Sparkles },
-  { key: "posts", label: "GBP Posts", icon: Newspaper },
+  { key: "posts", label: "Google Posts", icon: Newspaper },
   { key: "settings", label: "Settings", icon: Settings2 },
 ];
 
@@ -60,7 +60,7 @@ export function GbpClientAutomationHeader({
             </h2>
           </div>
           <p className="mt-1 text-sm font-medium text-slate-500">
-            Choose reviews, polish replies, and publish them to Google.
+            Reply to Google reviews and prepare Google posts from one workspace.
           </p>
         </div>
       </div>

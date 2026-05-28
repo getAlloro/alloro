@@ -41,7 +41,7 @@ export function GbpPublishedPostsList({
   if (posts.length === 0 || !onSave || !onDelete) {
     return (
       <p className="rounded-[10px] bg-slate-50 p-3 text-sm font-bold text-slate-500">
-        No synced GBP posts for this location yet. Run Manual posts sync from Settings.
+        No synced Google posts for this location yet. Run Manual posts sync from Settings.
       </p>
     );
   }

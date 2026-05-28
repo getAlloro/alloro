@@ -65,7 +65,7 @@ export function GbpPublishedLocalPostActions({
             className="inline-flex items-center gap-1.5 rounded-[9px] bg-red-600 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 size={12} />}
-            {isDeleting ? "Deleting..." : "Delete from GBP"}
+            {isDeleting ? "Deleting..." : "Delete from Google"}
           </button>
         </span>
       ) : (
@@ -76,7 +76,7 @@ export function GbpPublishedLocalPostActions({
           className="inline-flex items-center gap-1.5 rounded-[9px] border border-red-200 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Trash2 size={12} />
-          Delete from GBP
+          Delete from Google
         </button>
       )}
     </div>

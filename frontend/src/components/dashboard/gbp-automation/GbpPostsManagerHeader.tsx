@@ -17,9 +17,9 @@ export function GbpPostsManagerHeader({
   return (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
       <div>
-        <h3 className="text-base font-black text-alloro-navy">GBP Posts Manager</h3>
+        <h3 className="text-base font-black text-alloro-navy">Google posts</h3>
         <p className="mt-1 text-sm font-semibold leading-6 text-slate-500">
-          Manage published Google posts and keep new AI drafts separate until deploy.
+          Manage published posts and keep new drafts separate until you publish.
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">

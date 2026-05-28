@@ -17,20 +17,31 @@ export type SupportTicketComposerProps = {
   locationId?: number | null;
   isSubmitting: boolean;
   errorMessage?: string | null;
+  initialType?: SupportTicketType;
+  initialFiles?: File[];
+  animatedFileNames?: string[];
+  sourceUrl?: string;
   onCreateTicket: (payload: CreateSupportTicketPayload, files: File[]) => void;
 };
+
+const EMPTY_FILES: File[] = [];
+const EMPTY_FILE_NAMES: string[] = [];
 
 export function SupportTicketComposer({
   locationId,
   isSubmitting,
   errorMessage,
+  initialType = "bug_report",
+  initialFiles = EMPTY_FILES,
+  animatedFileNames = EMPTY_FILE_NAMES,
+  sourceUrl,
   onCreateTicket,
 }: SupportTicketComposerProps) {
-  const [type, setType] = useState<SupportTicketType>("bug_report");
+  const [type, setType] = useState<SupportTicketType>(initialType);
   const [answers, setAnswers] = useState(initialSupportAnswers);
   const [additionalContext, setAdditionalContext] = useState("");
   const [requestedCompletionDate, setRequestedCompletionDate] = useState("");
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<File[]>(initialFiles);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -41,7 +52,7 @@ export function SupportTicketComposer({
         additionalContext,
         requestedCompletionDate:
           type === "website_edit" ? requestedCompletionDate : undefined,
-        currentPageUrl: window.location.href,
+        currentPageUrl: sourceUrl ?? window.location.href,
         locationId,
       },
       files,
@@ -79,7 +90,7 @@ export function SupportTicketComposer({
         {type === "website_edit" && (
           <label className="space-y-1.5 text-left">
             <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
-              Requested completion
+              When do you need this by?
             </span>
             <input
               required
@@ -96,6 +107,7 @@ export function SupportTicketComposer({
 
       <SupportTicketAttachmentPicker
         files={files}
+        animatedFileNames={animatedFileNames}
         isDisabled={isSubmitting}
         onFilesChange={setFiles}
       />

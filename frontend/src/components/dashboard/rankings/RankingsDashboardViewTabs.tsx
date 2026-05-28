@@ -13,7 +13,7 @@ const VIEW_OPTIONS: Array<{
   icon: LucideIcon;
 }> = [
   { key: "overview", label: "Overview", icon: BarChart3 },
-  { key: "engage", label: "Alloro Engage™", icon: Sparkles },
+  { key: "engage", label: "Reviews & Posts", icon: Sparkles },
 ];
 
 export function RankingsDashboardViewTabs({

@@ -1,179 +1,188 @@
-import { ArrowRight, Loader2, MessageSquareText, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
-import { useGbpAutomation } from "../../../hooks/queries/useGbpAutomationQueries";
-import type { GbpReplyOpsMetrics } from "../../../api/gbpAutomation";
-import { GbpEngagementSparkline } from "./GbpEngagementSparkline";
+import { useGbpAutomation, useGbpPublishedLocalPosts } from "../../../hooks/queries/useGbpAutomationQueries";
+import { GbpEngagementActionNotice } from "./GbpEngagementActionNotice";
+import { GbpEngagementInfoTip } from "./GbpEngagementInfoTip";
+import { GbpEngagementMetricCard } from "./GbpEngagementMetricCard";
+import { GbpLatestReviewQuickAction } from "./GbpLatestReviewQuickAction";
+import { useOptimisticReplyQueue } from "./useOptimisticReplyQueue";
 
 export type GbpEngagementSummaryCardProps = {
+  agentContent?: {
+    title?: string | null;
+    text?: string | null;
+    highlights?: string[] | null;
+    sentiment?: string | null;
+  } | null;
   organizationId: number | null;
   locationId?: number | null;
   onOpenEngage: () => void;
 };
 
-const EMPTY_REVIEW_MONTHS = { needsReply: [], replied: [] };
-const EMPTY_REPLY_OPS: GbpReplyOpsMetrics = {
-  totalOauthReviews: 0,
-  totalUnreplied: 0,
-  unrepliedLast30d: 0,
-  unrepliedOver7d: 0,
-  unrepliedOver30d: 0,
-  oldestUnrepliedAt: null,
-  averageReplyHours: null,
-  averageReplyDays: null,
-  medianReplyDays: null,
-  replyCoveragePercent: 0,
-};
+const POST_FRESHNESS_WINDOW_DAYS = 15;
 
-function countLabel(value: number): string {
-  return value.toLocaleString();
+function daysSince(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return null;
+  return Math.max(0, Math.floor((Date.now() - timestamp) / 86_400_000));
 }
 
 function durationLabel(days: number | null): string {
   if (days === null) return "-";
   if (days < 1) return "<1 day";
-  return `${Math.round(days)} day${Math.round(days) === 1 ? "" : "s"}`;
+  const rounded = Math.round(days);
+  return `${rounded} day${rounded === 1 ? "" : "s"}`;
 }
 
-function MetricTile({
-  label,
-  value,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string;
-  tone?: "neutral" | "attention";
-}) {
-  return (
-    <div
-      className={`rounded-[10px] border px-3 py-2.5 ${
-        tone === "attention"
-          ? "border-alloro-orange/20 bg-alloro-orange/5"
-          : "border-slate-200 bg-slate-50"
-      }`}
-    >
-      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-        {label}
-      </p>
-      <p
-        className={`mt-1 font-display text-xl font-medium tabular-nums ${
-          tone === "attention" ? "text-alloro-orange" : "text-alloro-navy"
-        }`}
-      >
-        {value}
-      </p>
-    </div>
-  );
+function postFreshnessLabel(params: {
+  postCheckPending: boolean;
+  postCheckUnavailable: boolean;
+  latestPostAgeDays: number | null;
+}): string {
+  const { postCheckPending, postCheckUnavailable, latestPostAgeDays } = params;
+  if (postCheckUnavailable) return "Unavailable";
+  if (postCheckPending) return "Checking";
+  if (latestPostAgeDays === null) return "No post yet";
+  if (latestPostAgeDays === 0) return "Today";
+  return durationLabel(latestPostAgeDays);
 }
 
 function SummarySkeleton() {
   return (
-    <section className="rounded-[14px] border border-line-soft bg-white p-6 shadow-premium">
-      <div className="h-5 w-44 animate-pulse rounded bg-slate-100" />
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <div className="h-16 animate-pulse rounded-[10px] bg-slate-100" />
-        <div className="h-16 animate-pulse rounded-[10px] bg-slate-100" />
-        <div className="h-16 animate-pulse rounded-[10px] bg-slate-100" />
-        <div className="h-16 animate-pulse rounded-[10px] bg-slate-100" />
-        <div className="h-16 animate-pulse rounded-[10px] bg-slate-100" />
-      </div>
-      <div className="mt-4 h-40 animate-pulse rounded-[10px] bg-slate-100" />
+    <section className="rounded-[14px] border border-line-soft bg-white p-6 shadow-premium lg:p-7">
+      <div className="h-24 animate-pulse rounded-[12px] bg-slate-100" />
     </section>
   );
 }
 
 export function GbpEngagementSummaryCard({
+  agentContent,
   organizationId,
   locationId,
   onOpenEngage,
 }: GbpEngagementSummaryCardProps) {
-  const { data, isLoading, isFetching, error } = useGbpAutomation(
+  const { data, isLoading, error } = useGbpAutomation(organizationId, locationId);
+  const {
+    data: publishedPostsData,
+    isLoading: isLoadingPublishedPosts,
+    isPlaceholderData: isPublishedPostsPlaceholder,
+    error: publishedPostsError,
+  } = useGbpPublishedLocalPosts(organizationId, locationId, true, {
+    page: 1,
+    limit: 1,
+  });
+  const counts = data?.readiness.counts;
+  const needsReplyTotal = counts?.replyable_oauth ?? 0;
+  const needsReplyLast30 = counts?.replyable_oauth_last_30d || 0;
+  const {
+    completedReplyCount,
+    displayedNeedsReplyTotal,
+    displayedNeedsReplyLast30,
+    onReplyDeployed,
+  } = useOptimisticReplyQueue({
     organizationId,
-    locationId
-  );
+    locationId,
+    needsReplyTotal,
+    needsReplyLast30,
+  });
 
   if (!organizationId || !locationId) return null;
   if (isLoading) return <SummarySkeleton />;
   if (error || !data) return null;
 
-  const counts = data.readiness.counts;
-  const replyOps = data.readiness.replyOps || EMPTY_REPLY_OPS;
-  const reviewMonths = data.reviewMonths || EMPTY_REVIEW_MONTHS;
-  const needsReplyTotal = counts.replyable_oauth;
-  const needsReplyLast30 = counts.replyable_oauth_last_30d || 0;
-  const statusCopy =
-    needsReplyTotal > 0
-      ? `${needsReplyTotal.toLocaleString()} review${needsReplyTotal === 1 ? "" : "s"} need a reply.`
-      : "No synced GBP reviews need replies right now.";
+  const latestPost = publishedPostsData?.posts[0];
+  const latestPostAt = latestPost?.createTime || latestPost?.updateTime || null;
+  const latestPostAgeDays = daysSince(latestPostAt);
+  const postFreshnessKnown =
+    Boolean(publishedPostsData) &&
+    !isLoadingPublishedPosts &&
+    !isPublishedPostsPlaceholder &&
+    !publishedPostsError;
+  const postNeedsAttention =
+    postFreshnessKnown &&
+    (latestPostAgeDays === null || latestPostAgeDays > POST_FRESHNESS_WINDOW_DAYS);
+  const postCheckPending = !publishedPostsError && !postFreshnessKnown;
+  const reviewNeedsAttention = displayedNeedsReplyLast30 > 0 || displayedNeedsReplyTotal > 0;
+  const needsAttention = reviewNeedsAttention || postNeedsAttention;
+
+  const infoCards = [
+    {
+      label: "Need replies 30d",
+      value: displayedNeedsReplyLast30.toLocaleString(),
+      tooltip: "Google reviews from the last 30 days that can still receive a public reply.",
+      tone: displayedNeedsReplyLast30 > 0 ? "attention" : "neutral",
+    },
+    {
+      label: "Need replies total",
+      value: displayedNeedsReplyTotal.toLocaleString(),
+      tooltip: "All replyable Google reviews still waiting for a response.",
+      tone: displayedNeedsReplyTotal > 0 ? "attention" : "neutral",
+    },
+    {
+      label: "Last Google post",
+      value: postFreshnessLabel({
+        postCheckPending,
+        postCheckUnavailable: Boolean(publishedPostsError),
+        latestPostAgeDays,
+      }),
+      tooltip: "How long it has been since the last published Google Business Profile post.",
+      tone: postNeedsAttention ? "attention" : "neutral",
+    },
+  ] as const;
 
   return (
     <motion.section
-      className="rounded-[14px] border border-line-soft bg-white p-6 shadow-premium"
+      className="rounded-[14px] border border-line-soft bg-white p-6 shadow-premium lg:p-7"
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.24, ease: "easeOut" }}
     >
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-alloro-navy">
-            <MessageSquareText className="h-4 w-4 text-alloro-orange" />
-            <h2 className="font-display text-lg font-medium tracking-tight">
-              Review engagement
-            </h2>
-            {isFetching && <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />}
-          </div>
-          <p className="mt-1 max-w-2xl text-sm font-medium leading-6 text-slate-500">
-            {statusCopy} Open Alloro Engage™ to draft, polish, and publish replies.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onOpenEngage}
-          className="inline-flex items-center justify-center gap-2 rounded-[10px] bg-alloro-navy px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white transition hover:brightness-110 focus:outline-none focus:ring-4 focus:ring-alloro-orange/20"
-        >
-          <Sparkles className="h-3.5 w-3.5" />
-          Open Alloro Engage™
-          <ArrowRight className="h-3.5 w-3.5" />
-        </button>
-      </div>
-
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <MetricTile label="Total reviews" value={countLabel(counts.total)} />
-        <MetricTile
-          label="Need replies in 30d"
-          value={countLabel(needsReplyLast30)}
-          tone="attention"
-        />
-        <MetricTile
-          label="Need replies overall"
-          value={countLabel(needsReplyTotal)}
-          tone="attention"
-        />
-        <MetricTile
-          label="Avg reply time"
-          value={durationLabel(replyOps.averageReplyDays)}
-        />
-        <MetricTile
-          label="Reply coverage"
-          value={`${replyOps.replyCoveragePercent}%`}
-        />
-      </div>
-
-      <div className="mt-4">
-        <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
-          <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-slate-500">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-alloro-navy" />
-              Total
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-alloro-orange" />
-              Unreplied
-            </span>
+      <header className="mb-5 flex items-center justify-between gap-3 border-b border-line-soft pb-4">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-alloro-orange" />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="font-display text-[15px] font-medium leading-tight tracking-tight text-alloro-navy lg:text-base">
+                Alloro Engage™
+              </p>
+              <GbpEngagementInfoTip />
+            </div>
           </div>
         </div>
-        <GbpEngagementSparkline
-          needsReplyMonths={reviewMonths.needsReply}
-          repliedMonths={reviewMonths.replied}
+      </header>
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch">
+        <div className="flex min-w-0 flex-col justify-between gap-4 lg:min-h-[360px]">
+          <GbpEngagementActionNotice
+            agentContent={completedReplyCount > 0 ? null : agentContent}
+            needsAttention={needsAttention}
+            reviewNeedsAttention={reviewNeedsAttention}
+            postNeedsAttention={postNeedsAttention}
+            postCheckPending={postCheckPending}
+            postCheckUnavailable={Boolean(publishedPostsError)}
+            needsReplyLast30={displayedNeedsReplyLast30}
+            needsReplyTotal={displayedNeedsReplyTotal}
+            latestPostAgeDays={latestPostAgeDays}
+          />
+          <div className="mt-auto grid gap-3 sm:grid-cols-3">
+            {infoCards.map((card) => (
+              <GbpEngagementMetricCard
+                key={card.label}
+                label={card.label}
+                value={card.value}
+                tooltip={card.tooltip}
+                tone={card.tone}
+              />
+            ))}
+          </div>
+        </div>
+        <GbpLatestReviewQuickAction
+          organizationId={organizationId}
+          locationId={locationId}
+          reviews={data.eligibleReviews}
+          workItems={data.workItems}
+          queueRemaining={displayedNeedsReplyTotal}
+          onReplyDeployed={onReplyDeployed}
+          onOpenEngage={onOpenEngage}
         />
       </div>
     </motion.section>

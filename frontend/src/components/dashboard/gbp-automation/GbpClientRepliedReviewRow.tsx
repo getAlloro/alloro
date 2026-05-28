@@ -114,7 +114,7 @@ export function GbpClientRepliedReviewRow({
               onClick={() => onUpdatePublishedReply({ reviewId: review.id, replyContent: value })}
               className="rounded-[9px] bg-alloro-orange px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-alloro-orange/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Update GBP
+              Update on Google
             </button>
             <button
               type="button"

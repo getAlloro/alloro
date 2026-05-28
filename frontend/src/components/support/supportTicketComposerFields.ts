@@ -3,7 +3,7 @@ import type { SupportTicketType } from "../../api/support";
 export const initialSupportAnswers = {
   bug_report: { tryingToDo: "", whatHappened: "", workImpact: "" },
   feature_request: { idea: "", usefulness: "", importance: "" },
-  website_edit: { pageUrl: "", requestedChange: "", approvalNotes: "" },
+  website_edit: { pageUrl: "", requestedChange: "" },
 };
 
 export type SupportComposerFieldConfig = {
@@ -71,14 +71,6 @@ export function getSupportFieldConfig(
         kind: "textarea",
         rows: 4,
         placeholder: "Describe the exact edit, copy, image, or layout change.",
-      },
-      {
-        name: "approvalNotes",
-        label: "Approval notes",
-        required: true,
-        kind: "textarea",
-        rows: 3,
-        placeholder: "Add legal, clinical, or brand approval details.",
       },
     ];
   }

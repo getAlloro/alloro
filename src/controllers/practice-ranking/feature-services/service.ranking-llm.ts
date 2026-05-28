@@ -12,6 +12,7 @@ import * as llmWebhookHandler from "./service.llm-webhook-handler";
 import { log, logError } from "../feature-utils/util.ranking-logger";
 import { db } from "../../../database/connection";
 import { updateStatus, StatusDetail } from "./service.ranking-pipeline";
+import { sanitizeRankingLlmAnalysis } from "./service.ranking-output-guardrails";
 import {
   getExternalErrorMessage,
   isRetryableExternalError,
@@ -35,6 +36,7 @@ export interface RankingLlmPayload {
       gbp_location_id: string;
       gbp_account_id: string;
       rank_score: number;
+      visible_local_search_score: number;
       rank_position: number;
       total_competitors: number;
       factors: Record<string, any>;
@@ -49,6 +51,17 @@ export interface RankingLlmPayload {
     };
     competitors: any[];
     benchmarks: Record<string, any>;
+    engagement_summary?: {
+      unanswered_reviews_total: number;
+      unanswered_reviews_last_30d: number;
+      all_reviews_replied: boolean;
+      published_posts_total: number;
+      latest_post_age_days: number | null;
+      latest_post_at: string | null;
+      has_recent_post_15d: boolean;
+      post_freshness_window_days: number;
+      photos_count: number;
+    };
     /**
      * Google Maps position snapshot context.
      * Spec: plans/04122026-no-ticket-practice-health-search-position-split/spec.md
@@ -117,7 +130,15 @@ const SYSTEM_PROMPT = `You are an expert SEO and local search analyst specializi
 - Reference actual competitor data
 - Prioritize by impact and effort
 - The title and recommendations should use less technical terms and should be easily understood by a doctor or someone who does not have a technical background
+- When mentioning the Local Search Score, use only \`client.visible_local_search_score\` and write it as \`N/100\`. Do not calculate, round differently, or use any other score field in narrative copy.
+- Treat \`client.visible_local_search_score\` as the exact number the user sees in the main card. The persisted competitive score may differ and should not be mentioned in owner-facing copy.
+- Do not use the words "estimated" or "estimate" in owner-facing narrative fields. Use "ranked #N" or "sampled at #N" instead.
+- Use \`engagement_summary\` for review reply and Google post language. This is a compact summary, not the full review dataset.
+- If \`engagement_summary.all_reviews_replied\` is true or \`unanswered_reviews_total\` is 0, do not mention unanswered reviews, pending review replies, or review cleanup.
+- If \`engagement_summary.has_recent_post_15d\` is true, do not mention stale or missing Google posts as a problem.
 - If \`website_audit\` is missing, failed, skipped, or marked unmeasured, do not recommend website fixes from that absence alone. A website basics check is not a Lighthouse score or Core Web Vitals test.
+- Do not recommend website speed, page load, Lighthouse, Core Web Vitals, or technical website performance work anywhere. Website performance is owned by Alloro, not the practice. If website speed appears weak, omit it and choose review growth, Google profile activity, photos, category/profile completeness, NAP consistency, or review reply/posting actions instead.
+- Do not use titles like "Speed Up Your Website" or tell the doctor to ask a web provider for changes.
 
 ## Output Schema
 
@@ -150,6 +171,16 @@ You MUST respond with valid JSON matching this exact structure:
   "render_text": "<plain text analysis summary with executive summary, key findings, and 90-day action plan. NO MARKDOWN FORMATTING.>",
   "client_summary": "<plain text non-tech-readable format of above render text>",
   "one_line_summary": "<very short, plain 1-2 sentences summary of everything including the top proper next step>",
+  "overview_card": {
+    "text": "<one strong owner-readable sentence for the main What this means card. If mentioning score, use client.visible_local_search_score as N/100. Include review reply context only when engagement_summary says unanswered reviews exist.>",
+    "highlights": ["<exact short phrase from text to highlight>"]
+  },
+  "engagement_card": {
+    "title": "<short plain-English title for the Local Rankings reviews/posts action card>",
+    "text": "<one or two plain-English sentences for the reviews/posts action card. Use only engagement_summary counts for unanswered reviews and post freshness. Omit review reply language if everything is replied.>",
+    "highlights": ["<exact short phrase from text to highlight>"],
+    "sentiment": "<fallback one sentence explaining why reviews, review replies, Google posts, or profile activity matter right now. Do not include raw counts unless engagement_summary is present.>"
+  },
   "verdict": "improving | stable | declining | needs_attention",
   "confidence": <number between 0 and 1>,
   "top_recommendations": [
@@ -177,6 +208,12 @@ You MUST respond with valid JSON matching this exact structure:
 - Keep \`render_text\` focused: roughly 900-1,200 characters, not a long report
 - Keep \`client_summary\` under 500 characters
 - Keep \`one_line_summary\` under 220 characters
+- Keep \`overview_card.text\` under 240 characters
+- Keep \`overview_card.highlights\` to 1-3 exact phrases that appear in \`overview_card.text\`
+- Keep \`engagement_card.title\` under 80 characters
+- Keep \`engagement_card.text\` under 260 characters
+- Keep \`engagement_card.highlights\` to 1-3 exact phrases that appear in \`engagement_card.text\`
+- Keep \`engagement_card.sentiment\` under 180 characters
 - Keep each recommendation description and expected outcome under 180 characters`;
 
 function compactText(value: unknown, maxLength: number): string | undefined {
@@ -309,6 +346,7 @@ function buildLeanRankingInput(
     },
     competitors: data.competitors.slice(0, 8).map(compactCompetitor),
     benchmarks: data.benchmarks,
+    engagement_summary: data.engagement_summary,
     search_position: data.search_position
       ? {
           query: data.search_position.query,
@@ -393,7 +431,9 @@ export async function runRankingAnalysis(
       `[RANKING] [${rankingId}] Claude responded (${result.inputTokens} in / ${result.outputTokens} out, attempts=${attempts.length})`,
     );
 
-    const llmAnalysis = result.parsed;
+    const llmAnalysis = sanitizeRankingLlmAnalysis(result.parsed, {
+      visibleScore: leanInput.client?.visible_local_search_score,
+    });
 
     // Ensure practice_ranking_id is set correctly
     llmAnalysis.practice_ranking_id = rankingId;

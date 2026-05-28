@@ -85,22 +85,22 @@ function postDraftGateMessage(
   isPostGenerationEnabled: boolean
 ): string {
   if (isPostGenerationEnabled && diagnosticsConfirmed && prerequisitesReady) {
-    return "GBP post drafts are enabled. New post drafts will appear in GBP Posts.";
+    return "Google post drafts are enabled. New post drafts will appear in Google Posts.";
   }
-  if (!diagnosticsConfirmed) return "Rerun diagnostics before enabling GBP post drafts.";
-  if (!prerequisitesReady) return "Resolve diagnostics before enabling GBP post drafts.";
-  return "Diagnostics passed. GBP post drafts can be enabled.";
+  if (!diagnosticsConfirmed) return "Rerun diagnostics before enabling Google post drafts.";
+  if (!prerequisitesReady) return "Resolve diagnostics before enabling Google post drafts.";
+  return "Diagnostics passed. Google post drafts can be enabled.";
 }
 
 const CHECK_LABELS: Record<string, string> = {
   reviewRepliesEnabled: "Review replies enabled",
-  postDraftsEnabled: "GBP post drafts enabled",
+  postDraftsEnabled: "Google post drafts enabled",
   hasGoogleConnection: "Google connected",
   hasRefreshToken: "Refresh token",
   hasBusinessManageScope: "Business Manage scope",
-  hasSelectedGbpProperty: "GBP profile selected",
+  hasSelectedGbpProperty: "Google profile selected",
   hasAccountId: "Google account ID",
-  hasExternalId: "GBP location ID",
+  hasExternalId: "Google location ID",
 };
 
 function diagnosticChecks(readiness: GbpReadiness): Array<[string, boolean]> {
@@ -165,7 +165,7 @@ export function GbpSettingsSection({
     ? "Saving review reply setting..."
     : diagnosticsGateMessage(diagnosticsConfirmed, prerequisitesReady, isReviewReplyEnabled);
   const postDraftStatusText = isSavingPostDrafts
-    ? "Saving GBP post draft setting..."
+    ? "Saving Google post draft setting..."
     : postDraftGateMessage(diagnosticsConfirmed, prerequisitesReady, isPostGenerationEnabled);
   const diagnosticAction = diagnosticsActionText(readiness, prerequisitesReady);
 
@@ -232,7 +232,7 @@ export function GbpSettingsSection({
         <div className="flex items-center justify-between gap-4 rounded-xl border border-gray-200 p-4">
           <div>
             <p id="gbp-local-posts-label" className="text-sm font-bold text-gray-900">
-              GBP post drafts
+              Google post drafts
             </p>
             <p className="mt-1 text-xs font-medium text-gray-500">
               {postDraftStatusText}

@@ -1,6 +1,9 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { LifeBuoy, X } from "lucide-react";
-import type { CreateSupportTicketPayload } from "../../api/support";
+import type {
+  CreateSupportTicketPayload,
+  SupportTicketType,
+} from "../../api/support";
 import { SupportTicketComposer } from "./SupportTicketComposer";
 
 export type SupportTicketComposerModalProps = {
@@ -8,6 +11,11 @@ export type SupportTicketComposerModalProps = {
   locationId?: number | null;
   isSubmitting: boolean;
   errorMessage?: string | null;
+  draftKey?: string | null;
+  initialType?: SupportTicketType;
+  initialFiles?: File[];
+  animatedFileNames?: string[];
+  sourceUrl?: string;
   onClose: () => void;
   onCreateTicket: (payload: CreateSupportTicketPayload, files: File[]) => void;
 };
@@ -17,6 +25,11 @@ export function SupportTicketComposerModal({
   locationId,
   isSubmitting,
   errorMessage,
+  draftKey,
+  initialType,
+  initialFiles,
+  animatedFileNames,
+  sourceUrl,
   onClose,
   onCreateTicket,
 }: SupportTicketComposerModalProps) {
@@ -70,9 +83,14 @@ export function SupportTicketComposerModal({
             </header>
 
             <SupportTicketComposer
+              key={draftKey ?? "manual"}
               locationId={locationId}
               isSubmitting={isSubmitting}
               errorMessage={errorMessage}
+              initialType={initialType}
+              initialFiles={initialFiles}
+              animatedFileNames={animatedFileNames}
+              sourceUrl={sourceUrl}
               onCreateTicket={onCreateTicket}
             />
           </motion.section>

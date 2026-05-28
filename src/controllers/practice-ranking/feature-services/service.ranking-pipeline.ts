@@ -37,6 +37,8 @@ import {
 import { createNotification } from "../../../utils/core/notificationHelper";
 import { listLocalPostsInRange } from "../../../routes/gbp";
 import { runRankingAnalysis, RankingLlmPayload } from "./service.ranking-llm";
+import { GbpLocalPostModel } from "../../../models/GbpLocalPostModel";
+import { ReviewModel } from "../../../models/website-builder/ReviewModel";
 import { DEFAULT_COMPETITOR_DISCOVERY_RADIUS_METERS } from "../feature-utils/util.competitor-validator";
 import { parseJsonField } from "../feature-utils/util.json-parser";
 import {
@@ -140,6 +142,59 @@ interface ReviewVelocityMeasurement {
 }
 
 const SELECTED_COMPETITOR_VELOCITY_CACHE_MS = 7 * 24 * 60 * 60 * 1000;
+const POST_FRESHNESS_WINDOW_DAYS = 15;
+
+function daysSinceDate(value: Date | string | null | undefined): number | null {
+  if (!value) return null;
+  const timestamp = value instanceof Date ? value.getTime() : new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return null;
+  return Math.max(0, Math.floor((Date.now() - timestamp) / 86_400_000));
+}
+
+async function buildRankingEngagementSummary(params: {
+  organizationId: number | null;
+  locationId: number | null;
+  photosCount: number;
+  log: (msg: string) => void;
+}): Promise<RankingLlmPayload["additional_data"]["engagement_summary"] | null> {
+  const { organizationId, locationId, photosCount, log } = params;
+  if (!organizationId || !locationId) return null;
+
+  try {
+    const [counts, posts] = await Promise.all([
+      ReviewModel.getReplyabilityCounts(locationId),
+      GbpLocalPostModel.listForLocation({
+        organizationId,
+        locationId,
+        page: 1,
+        limit: 1,
+      }),
+    ]);
+    const latestPost = posts.data[0] ?? null;
+    const latestPostAt = latestPost?.create_time || latestPost?.update_time || null;
+    const latestPostAgeDays = daysSinceDate(latestPostAt);
+
+    return {
+      unanswered_reviews_total: counts.replyable_oauth,
+      unanswered_reviews_last_30d: counts.replyable_oauth_last_30d,
+      all_reviews_replied: counts.replyable_oauth === 0,
+      published_posts_total: posts.total,
+      latest_post_age_days: latestPostAgeDays,
+      latest_post_at: latestPostAt ? new Date(latestPostAt).toISOString() : null,
+      has_recent_post_15d:
+        latestPostAgeDays !== null
+          ? latestPostAgeDays <= POST_FRESHNESS_WINDOW_DAYS
+          : false,
+      post_freshness_window_days: POST_FRESHNESS_WINDOW_DAYS,
+      photos_count: photosCount,
+    };
+  } catch (error: any) {
+    log(
+      `[RANKING] Failed to build engagement summary for LLM: ${error.message}`,
+    );
+    return null;
+  }
+}
 
 function beginPipelineTiming(step: string): ActivePipelineTiming {
   return {
@@ -761,6 +816,7 @@ export async function processLocationRanking(
     .select(
       "pr.location_id",
       "pr.competitor_discovery_radius_meters as ranking_discovery_radius",
+      "l.organization_id",
       "l.competitor_discovery_radius_meters as location_discovery_radius",
     )
     .first();
@@ -1768,6 +1824,21 @@ export async function processLocationRanking(
     rating: entry.rating,
     is_client: entry.isClient,
   }));
+  const ownerVisibleScore = Math.round(clientRanking.totalScore);
+  const rawOrganizationIdForEngagement = Number(
+    rankingRunContext?.organization_id ?? account.organization_id ?? 0,
+  );
+  const organizationIdForEngagement =
+    Number.isFinite(rawOrganizationIdForEngagement) &&
+    rawOrganizationIdForEngagement > 0
+      ? rawOrganizationIdForEngagement
+      : null;
+  const engagementSummary = await buildRankingEngagementSummary({
+    organizationId: organizationIdForEngagement,
+    locationId: rankingRunContext?.location_id ?? null,
+    photosCount: clientPracticeData.photosCount || 0,
+    log,
+  });
 
   const llmPayload: RankingLlmPayload = {
     additional_data: {
@@ -1780,7 +1851,8 @@ export async function processLocationRanking(
         location: marketLocation,
         gbp_location_id: gbpLocationId,
         gbp_account_id: gbpAccountId,
-        rank_score: clientRanking.totalScore,
+        rank_score: ownerVisibleScore,
+        visible_local_search_score: ownerVisibleScore,
         rank_position: clientRankResult?.rankPosition || 1,
         total_competitors: competitorDetails.length,
         factors: rankingFactors,
@@ -1795,6 +1867,7 @@ export async function processLocationRanking(
       },
       competitors: rawData.competitors.slice(0, 5),
       benchmarks,
+      engagement_summary: engagementSummary ?? undefined,
       search_position: {
         query: searchQuery,
         position: searchPosition,

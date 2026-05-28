@@ -207,7 +207,7 @@ export function GbpClientUnrepliedReviewsPanel({
           )}
           {!isLoading && visibleReviews.length === 0 && (
             <p className="rounded-[10px] bg-slate-50 p-3 text-sm font-bold text-slate-500">
-              No unreplied OAuth GBP reviews match this view.
+              No unreplied Google reviews match this view.
             </p>
           )}
         </div>

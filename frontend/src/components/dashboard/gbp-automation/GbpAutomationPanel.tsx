@@ -13,6 +13,7 @@ import {
 } from "./GbpClientAutomationHeader";
 import { GbpClientDraftsPanel } from "./GbpClientDraftsPanel";
 import { GbpClientReviewsPanel } from "./GbpClientReviewsPanel";
+import { GbpEngagementTrendCard } from "./GbpEngagementTrendCard";
 import { GbpReviewListSkeleton } from "./GbpReviewListSkeleton";
 import { GbpSettingsSection } from "./GbpSettingsSection";
 
@@ -95,7 +96,7 @@ export function GbpAutomationPanel({ organizationId, locationId }: GbpAutomation
       await run();
       toast.success(message);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "GBP action failed.");
+      toast.error(err instanceof Error ? err.message : "Google profile action failed.");
       if (options?.rethrow) throw err;
     }
   };
@@ -169,7 +170,7 @@ export function GbpAutomationPanel({ organizationId, locationId }: GbpAutomation
       } finally {
         setIsSavingPostDrafts(false);
       }
-    }, enabled ? "GBP post drafts enabled." : "GBP post drafts disabled.");
+    }, enabled ? "Google post drafts enabled." : "Google post drafts disabled.");
 
   if (isLoading) {
     return (
@@ -185,7 +186,7 @@ export function GbpAutomationPanel({ organizationId, locationId }: GbpAutomation
       <section className="rounded-[14px] border border-red-200 bg-red-50 p-5">
         <p className="flex items-center gap-2 text-sm font-bold text-red-700">
           <AlertCircle size={16} />
-          Could not load GBP automation status.
+          Could not load reviews and posts status.
         </p>
       </section>
     );
@@ -209,94 +210,100 @@ export function GbpAutomationPanel({ organizationId, locationId }: GbpAutomation
           <GbpReviewListSkeleton rows={3} />
         </div>
       ) : activeView === "reviews" ? (
-        <GbpClientReviewsPanel
-          reviews={data.eligibleReviews}
-          repliedReviews={data.repliedReviews}
-          workItems={data.workItems}
-          reviewMonths={reviewMonths}
-          needsReplyMonth={needsReplyMonth}
-          repliedMonth={repliedMonth}
-          isReady={isReady}
-          isLoading={isReviewMonthLoading}
-          isBusy={isBusy}
-          replyOps={data.readiness.replyOps}
-          onGenerate={(reviewId) =>
-            handle(
-              () => actions.generateDraft.mutateAsync(reviewId),
-              "Reply draft generated."
-            )
-          }
-          onEscalationChange={(reviewId, status, reason) =>
-            handle(
-              () =>
-                actions.updateEscalation.mutateAsync({
-                  reviewId,
-                  status,
-                  reason,
-                }),
-              status === "open" ? "Review marked for follow-up." : "Review follow-up updated."
-            )
-          }
-          onSaveDraft={({ reviewId, workItemId, draftContent }) =>
-            workItemId
-              ? actions.updateDraft.mutateAsync({ workItemId, draftContent })
-              : actions.saveReviewSlotDraft.mutateAsync({ reviewId, draftContent })
-          }
-          onDeployDraft={({ workItemId, draftContent }) =>
-            handle(
-              async () => {
-                await actions.approve.mutateAsync({ workItemId, approvedContent: draftContent });
-                const confirmNeedsReview = await confirmDeployPreview(workItemId);
-                return actions.deploy.mutateAsync({
-                  workItemId,
-                  confirmNeedsReview,
-                });
-              },
-              "Deployment queued."
-            )
-          }
-          onSaveWorkItemDraft={(workItemId, draftContent) =>
-            handle(
-              () => actions.updateDraft.mutateAsync({ workItemId, draftContent }),
-              "Draft saved."
-            )
-          }
-          onApproveWorkItemDraft={(workItemId, approvedContent) =>
-            handle(
-              () => actions.approve.mutateAsync({ workItemId, approvedContent }),
-              "Draft approved."
-            )
-          }
-          onDeployWorkItemDraft={(workItemId) =>
-            handle(
-              async () => {
-                const confirmNeedsReview = await confirmDeployPreview(workItemId);
-                return actions.deploy.mutateAsync({ workItemId, confirmNeedsReview });
-              },
-              "Deployment queued."
-            )
-          }
-          onRetryWorkItemDraft={(workItemId) =>
-            handle(() => actions.retry.mutateAsync(workItemId), "Retry queued.")
-          }
-          onDeleteWorkItemDraft={(workItemId) =>
-            handle(() => actions.deleteDraft.mutateAsync(workItemId), "Draft deleted.")
-          }
-          onUpdatePublishedReply={(input) =>
-            handle(
-              () => actions.updatePublishedReply.mutateAsync(input),
-              "GBP reply updated."
-            )
-          }
-          onDeletePublishedReply={(reviewId) =>
-            handle(
-              () => actions.deletePublishedReply.mutateAsync(reviewId),
-              "GBP reply deleted."
-            )
-          }
-          onNeedsReplyMonthChange={setNeedsReplyMonth}
-          onRepliedMonthChange={setRepliedMonth}
-        />
+        <>
+          <GbpEngagementTrendCard
+            needsReplyMonths={reviewMonths.needsReply}
+            repliedMonths={reviewMonths.replied}
+          />
+          <GbpClientReviewsPanel
+            reviews={data.eligibleReviews}
+            repliedReviews={data.repliedReviews}
+            workItems={data.workItems}
+            reviewMonths={reviewMonths}
+            needsReplyMonth={needsReplyMonth}
+            repliedMonth={repliedMonth}
+            isReady={isReady}
+            isLoading={isReviewMonthLoading}
+            isBusy={isBusy}
+            replyOps={data.readiness.replyOps}
+            onGenerate={(reviewId) =>
+              handle(
+                () => actions.generateDraft.mutateAsync(reviewId),
+                "Reply draft generated."
+              )
+            }
+            onEscalationChange={(reviewId, status, reason) =>
+              handle(
+                () =>
+                  actions.updateEscalation.mutateAsync({
+                    reviewId,
+                    status,
+                    reason,
+                  }),
+                status === "open" ? "Review marked for follow-up." : "Review follow-up updated."
+              )
+            }
+            onSaveDraft={({ reviewId, workItemId, draftContent }) =>
+              workItemId
+                ? actions.updateDraft.mutateAsync({ workItemId, draftContent })
+                : actions.saveReviewSlotDraft.mutateAsync({ reviewId, draftContent })
+            }
+            onDeployDraft={({ workItemId, draftContent }) =>
+              handle(
+                async () => {
+                  await actions.approve.mutateAsync({ workItemId, approvedContent: draftContent });
+                  const confirmNeedsReview = await confirmDeployPreview(workItemId);
+                  return actions.deploy.mutateAsync({
+                    workItemId,
+                    confirmNeedsReview,
+                  });
+                },
+                "Deployment queued."
+              )
+            }
+            onSaveWorkItemDraft={(workItemId, draftContent) =>
+              handle(
+                () => actions.updateDraft.mutateAsync({ workItemId, draftContent }),
+                "Draft saved."
+              )
+            }
+            onApproveWorkItemDraft={(workItemId, approvedContent) =>
+              handle(
+                () => actions.approve.mutateAsync({ workItemId, approvedContent }),
+                "Draft approved."
+              )
+            }
+            onDeployWorkItemDraft={(workItemId) =>
+              handle(
+                async () => {
+                  const confirmNeedsReview = await confirmDeployPreview(workItemId);
+                  return actions.deploy.mutateAsync({ workItemId, confirmNeedsReview });
+                },
+                "Deployment queued."
+              )
+            }
+            onRetryWorkItemDraft={(workItemId) =>
+              handle(() => actions.retry.mutateAsync(workItemId), "Retry queued.")
+            }
+            onDeleteWorkItemDraft={(workItemId) =>
+              handle(() => actions.deleteDraft.mutateAsync(workItemId), "Draft deleted.")
+            }
+            onUpdatePublishedReply={(input) =>
+              handle(
+                () => actions.updatePublishedReply.mutateAsync(input),
+                "Google reply updated."
+              )
+            }
+            onDeletePublishedReply={(reviewId) =>
+              handle(
+                () => actions.deletePublishedReply.mutateAsync(reviewId),
+                "Google reply deleted."
+              )
+            }
+            onNeedsReplyMonthChange={setNeedsReplyMonth}
+            onRepliedMonthChange={setRepliedMonth}
+          />
+        </>
       ) : activeView === "posts" ? (
         <GbpClientDraftsPanel
           reviews={sourceReviews}
@@ -351,7 +358,7 @@ export function GbpAutomationPanel({ organizationId, locationId }: GbpAutomation
           onGeneratePostDraft={(featuredImageUrl) =>
             handle(
               () => actions.generatePostDraftNow.mutateAsync(featuredImageUrl),
-              "GBP post draft generation queued."
+              "Google post draft generation queued."
             )
           }
           onUploadPostImage={(file) =>
@@ -360,13 +367,13 @@ export function GbpAutomationPanel({ organizationId, locationId }: GbpAutomation
           onSavePublishedPost={(input) =>
             handle(
               () => actions.updatePublishedLocalPost.mutateAsync(input),
-              "GBP post updated."
+              "Google post updated."
             )
           }
           onDeletePublishedPost={(name) =>
             handle(
               () => actions.deletePublishedLocalPost.mutateAsync(name),
-              "GBP post deleted."
+              "Google post deleted."
             )
           }
           isGeneratingPostDraft={actions.generatePostDraftNow.isPending}

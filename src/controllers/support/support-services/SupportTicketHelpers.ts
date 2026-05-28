@@ -115,7 +115,6 @@ function labelize(key: string): string {
     importance: "How important this is right now",
     pageUrl: "Where on the site this change belongs",
     requestedChange: "What should change",
-    approvalNotes: "Approval notes",
   };
 
   if (labels[key]) return labels[key];

@@ -104,7 +104,7 @@ export function GbpPostsManagerPanel({
         <div className="mt-4 rounded-[10px] border border-alloro-orange/20 bg-alloro-orange/10 px-3 py-2 text-xs font-bold text-alloro-orange">
           <span className="inline-flex items-center gap-2">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            A GBP post draft is generating. This page will keep checking until it is ready.
+            A Google post draft is generating. This page will keep checking until it is ready.
           </span>
         </div>
       )}
@@ -165,7 +165,7 @@ export function GbpPostsManagerPanel({
             ))
           ) : (
             <p className="rounded-[10px] bg-slate-50 p-3 text-sm font-bold text-slate-500">
-              No GBP post drafts are waiting right now.
+              No Google post drafts are waiting right now.
             </p>
           )}
         </div>

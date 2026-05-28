@@ -173,7 +173,7 @@ export function GbpReplyWorkItemCard({
           ) : (
             <Send size={12} />
           )}
-          {isQueueingDeployment ? "Queueing" : "Deploy to GBP"}
+          {isQueueingDeployment ? "Queueing" : "Publish to Google"}
         </button>
         {canRetry && (
           <button

@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useRef } from "react";
+import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Sparkles,
   Info,
+  ArrowUpDown,
 } from "lucide-react";
 import { getPriorityItem } from "../../hooks/useLocalStorage";
 import {
@@ -24,8 +25,11 @@ import {
   reselectAndRun,
   type SelectedCompetitorSearchResult,
 } from "../../api/practiceRanking";
-import { CompetitorComparisonModal } from "./rankings/CompetitorComparisonModal";
 import { RankingsLoadingState } from "./rankings/RankingsLoadingState";
+import { RankingMeaningCard } from "./rankings/RankingMeaningCard";
+import { RankingDetailsModal } from "./rankings/RankingDetailsModal";
+import { CompetitorComparisonSortMenu } from "./rankings/CompetitorComparisonSortMenu";
+import { CompetitorComparisonTable } from "./rankings/CompetitorComparisonTable";
 import { GbpAutomationPanel } from "./gbp-automation/GbpAutomationPanel";
 import { GbpEngagementSummaryCard } from "./gbp-automation/GbpEngagementSummaryCard";
 import {
@@ -34,19 +38,10 @@ import {
 } from "./rankings/RankingsDashboardViewTabs";
 import {
   buildCompetitorComparisonRows,
-  sortRowsForMapsList,
-  type ComparisonRow,
+  getComparisonInsight,
+  sortComparisonRows,
+  type ComparisonSortKey,
 } from "./rankings/competitorComparison";
-
-/**
- * Date when the Practice Health scoring methodology changed (Practice Health +
- * Search Position split). Score values from rankings observed before this date
- * were computed against the legacy competitor discovery path and are not
- * directly comparable to post-ship values.
- *
- * Spec: plans/04122026-no-ticket-practice-health-search-position-split/spec.md
- */
-const PRACTICE_HEALTH_METHODOLOGY_CHANGED_AT = "2026-04-12";
 
 type CompetitorSnapshot = {
   competitors?: Array<{
@@ -55,7 +50,7 @@ type CompetitorSnapshot = {
   }>;
 };
 
-// Type for client GBP data
+// Type for client Google Business Profile data
 interface ClientGbpData {
   totalReviewCount?: number;
   averageRating?: number;
@@ -173,6 +168,16 @@ interface RankingResult {
     render_text: string;
     client_summary?: string | null;
     one_line_summary?: string | null;
+    overview_card?: {
+      text?: string | null;
+      highlights?: string[] | null;
+    } | null;
+    engagement_card?: {
+      title?: string | null;
+      text?: string | null;
+      highlights?: string[] | null;
+      sentiment?: string | null;
+    } | null;
     top_recommendations?: Array<{
       priority: number;
       title: string;
@@ -517,7 +522,7 @@ export function RankingsDashboard({
                   Connect Your Google Business Profile
                 </h3>
                 <p className="text-slate-500 font-medium leading-relaxed mb-4">
-                  Link your GBP to unlock local ranking insights, competitor
+                  Link your Google Business Profile to unlock local ranking insights, competitor
                   analysis, and visibility tracking.
                 </p>
                 <div className="flex items-center gap-2 text-alloro-orange font-bold text-sm group-hover:gap-3 transition-all">
@@ -652,9 +657,9 @@ export function RankingsDashboard({
               },
               {
                 priority: 2,
-                title: "Post more GBP updates",
+                title: "Post more Google updates",
                 description:
-                  "Increase posting frequency to improve GBP activity score",
+                  "Increase posting frequency to improve Google profile activity score",
               },
             ],
           },
@@ -771,17 +776,12 @@ export function RankingsDashboard({
   // Use the first ranking (backend filters by locationId)
   const selectedRanking = effectiveRankings[0] || null;
   const selectedInsight =
+    selectedRanking?.llmAnalysis?.overview_card?.text ||
     selectedRanking?.llmAnalysis?.one_line_summary ||
     selectedRanking?.llmAnalysis?.client_summary ||
     null;
   const selectedGbpAutomationLocationId =
     selectedRanking?.locationId || locationId || null;
-  const selectedSnapshotLabel = new Date(
-    selectedRanking?.observedAt || new Date()
-  ).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
   const selectedCompetitorPlaceIds = getSelectedCompetitorPlaceIds(
     selectedRanking,
   );
@@ -790,7 +790,7 @@ export function RankingsDashboard({
 
   async function handleRefreshRankings() {
     if (!selectedRanking?.locationId || selectedCompetitorPlaceIds.length === 0) {
-      setRerankError("No selected competitors are available for this snapshot.");
+      setRerankError("No selected competitors are available for this location.");
       return;
     }
 
@@ -826,39 +826,39 @@ export function RankingsDashboard({
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-alloro-navy/45 mb-2">
-              Market Intelligence
+              Local visibility
             </div>
             <h1 className="font-display text-[28px] font-medium tracking-tight text-alloro-navy">
               Local Rankings
             </h1>
             <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-alloro-navy/55">
-              How you compare to competitors in your area.
+              Your local search estimate, closest competitors, and the next action to take.
             </p>
           </div>
 
-          <div className="flex flex-col gap-3 rounded-[14px] border border-line-soft bg-white px-5 py-4 shadow-premium lg:min-w-[560px]">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  Latest snapshot:
-                </span>
-                <span className="text-[12px] font-black text-alloro-navy">
-                  {selectedSnapshotLabel}
-                </span>
-              </div>
-              {selectedRanking?.locationId && (
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          {selectedRanking?.locationId && (
+            <div className="flex flex-col gap-3 rounded-[14px] border border-line-soft bg-white px-5 py-3.5 shadow-premium lg:min-w-[560px]">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+                  <span className="shrink-0 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    Update location
+                  </span>
+                  <p className="truncate text-[12px] font-semibold text-alloro-navy/55">
+                    Refresh data or edit competitors.
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
                   <button
                     type="button"
                     onClick={handleRefreshRankings}
                     disabled={!canRefreshRankings || refreshingRankings}
-                    className="inline-flex items-center justify-center gap-2 rounded-[10px] bg-alloro-orange px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white transition-colors hover:bg-alloro-orange/90 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[10px] bg-alloro-orange px-3.5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white transition-colors hover:bg-alloro-orange/90 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <RefreshCw
                       size={13}
                       className={refreshingRankings ? "animate-spin" : ""}
                     />
-                    {refreshingRankings ? "Refreshing" : "Refresh Rankings"}
+                    {refreshingRankings ? "Refreshing" : "Refresh rankings"}
                   </button>
                   <button
                     type="button"
@@ -867,21 +867,21 @@ export function RankingsDashboard({
                         `/dashboard/competitors/${selectedRanking.locationId}/onboarding?mode=reselect`
                       )
                     }
-                    className="inline-flex items-center justify-center gap-2 rounded-[10px] bg-alloro-navy px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white transition-colors hover:bg-alloro-navy/90"
+                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[10px] bg-alloro-navy px-3.5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white transition-colors hover:bg-alloro-navy/90"
                   >
                     <Settings size={13} />
                     Manage competitors
                   </button>
                 </div>
+              </div>
+              {rerankError && (
+                <p className="flex items-center gap-2 text-[11px] font-bold text-red-600">
+                  <AlertCircle size={13} />
+                  {rerankError}
+                </p>
               )}
             </div>
-            {rerankError && (
-              <p className="flex items-center gap-2 text-[11px] font-bold text-red-600">
-                <AlertCircle size={13} />
-                {rerankError}
-              </p>
-            )}
-          </div>
+          )}
         </div>
 
         <RankingsDashboardViewTabs
@@ -918,29 +918,14 @@ export function RankingsDashboard({
                 />
               )}
 
-            {/* CLIENT SUMMARY CARD — soft cream callout, concise by default */}
-            {selectedInsight && (
-              <section className="animate-in fade-in slide-in-from-bottom-2 duration-700 delay-150">
-                <div className="bg-[#FCFAED] border border-[#EDE5C0] rounded-[14px] px-5 py-4 lg:px-6 lg:py-5">
-                  <div className="flex items-center gap-1.5 mb-2 text-[#8A7A4A]">
-                    <Info size={12} />
-                    <span className="text-[10px] font-bold uppercase tracking-[0.14em]">
-                      Practice insight
-                    </span>
-                  </div>
-                  <p className="font-display text-[14px] leading-[1.65] text-[#2C2A26]">
-                    {selectedInsight}
-                  </p>
-                </div>
-              </section>
-            )}
-
             {/* Selected Location Detail */}
             {selectedRanking && (
               <PerformanceDashboard
                 result={selectedRanking}
+                insight={selectedInsight || undefined}
                 engagementSummary={
                   <GbpEngagementSummaryCard
+                    agentContent={selectedRanking.llmAnalysis?.engagement_card ?? null}
                     organizationId={organizationId}
                     locationId={selectedGbpAutomationLocationId}
                     onOpenEngage={() => setDashboardView("engage")}
@@ -962,134 +947,18 @@ export function RankingsDashboard({
   );
 }
 
-/**
- * Search Position Section — top-5 Google Maps list (compact rows).
- *
- * Returns null when the search is non-ok or there are no results — the
- * branched headline copy lives in HeroPanel's left card now. The headline
- * (giant rank, growth arrow, query line) also moved up to the hero, so this
- * section is purely the competitor list.
- *
- * Spec: plans/04282026-no-ticket-rankings-page-redesign/spec.md (T4).
- * Original section spec: plans/04122026-no-ticket-practice-health-search-position-split/spec.md
- */
-function isSelectedMapsTopTen(row: ComparisonRow): boolean {
-  return (
-    row.mapsStatus === "measured" &&
-    row.mapsPosition !== null &&
-    row.mapsPosition <= 10
-  );
-}
-
-function getSelectedMapsLabel(row: ComparisonRow): string {
-  if (isSelectedMapsTopTen(row)) return "EST IN TOP 10";
-  if (row.mapsStatus === "measured") return "Outside top 10";
-  return row.mapsStatus === "not_in_top_20" ? "Not in top 20" : "Not measured";
-}
-
-function getMapsDistanceLabel(row: ComparisonRow): string | null {
-  if (
-    typeof row.distanceMiles !== "number" ||
-    !Number.isFinite(row.distanceMiles)
-  ) {
-    return null;
-  }
-
-  return `${row.distanceMiles < 10 ? row.distanceMiles.toFixed(1) : Math.round(row.distanceMiles)} mi`;
-}
-
 function SearchPositionSection({ result }: { result: RankingResult }) {
-  const [showOutsideTopTen, setShowOutsideTopTen] = useState(false);
-  const status = result.searchStatus ?? "ok";
-  const selectedResults = result.selectedCompetitorSearchResults ?? [];
-  const hasSelectedProjection = selectedResults.length > 0;
-  const selectedProjectionRows = hasSelectedProjection
-    ? sortRowsForMapsList(
-        buildCompetitorComparisonRows(result).filter(
-          (row) => row.source === "selected",
-        ),
-      )
-    : [];
-  const selectedTopTenRows = selectedProjectionRows.filter(isSelectedMapsTopTen);
-  const selectedOutsideTopTenRows = selectedProjectionRows.filter(
-    (row) => !isSelectedMapsTopTen(row),
+  const [sortKey, setSortKey] = useState<ComparisonSortKey>("mapsPosition");
+  const rows = useMemo(() => buildCompetitorComparisonRows(result), [result]);
+  const sortedRows = useMemo(
+    () => sortComparisonRows(rows, sortKey),
+    [rows, sortKey],
   );
-  const topResults = hasSelectedProjection
-    ? []
-    : (result.searchResults ?? []).slice(0, 5);
-  if (!hasSelectedProjection && (status !== "ok" || topResults.length === 0)) {
-    return null;
-  }
-
+  const insight = useMemo(
+    () => getComparisonInsight(rows, sortKey),
+    [rows, sortKey],
+  );
   const accent = "#D66853";
-  const checkedDate = result.searchCheckedAt
-    ? new Date(result.searchCheckedAt).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      })
-    : null;
-
-  const renderSelectedProjectionRow = (
-    row: ComparisonRow,
-    variant: "top-ten" | "outside",
-  ) => {
-    const statusLabel = getSelectedMapsLabel(row);
-    const distanceLabel = getMapsDistanceLabel(row);
-    const subline = row.address;
-    const isTopTen = variant === "top-ten";
-
-    return (
-      <div
-        key={row.id}
-        className={`grid grid-cols-[150px_minmax(0,1fr)_auto] items-center gap-4 px-6 lg:px-7 py-3.5 border-b last:border-b-0 border-line-soft transition-colors hover:bg-[rgba(17,21,28,0.025)] ${
-          isTopTen ? "" : "bg-slate-50/40"
-        }`}
-      >
-        <div className="flex items-baseline gap-2">
-          <span
-            className={`whitespace-nowrap text-[10px] font-black uppercase tracking-[0.12em] ${
-              isTopTen ? "text-alloro-orange" : "text-slate-500"
-            }`}
-          >
-            {statusLabel}
-          </span>
-          {distanceLabel && (
-            <span className="whitespace-nowrap text-[10px] font-semibold text-alloro-navy/35">
-              {distanceLabel}
-            </span>
-          )}
-        </div>
-        <div className="min-w-0">
-          <span className="block truncate font-bold text-[15px] text-alloro-navy">
-            {row.name}
-          </span>
-          {subline && (
-            <span
-              className="mt-0.5 block max-w-full truncate text-[11px] font-semibold leading-snug text-alloro-navy/40"
-              title={subline}
-            >
-              {subline}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-5 shrink-0">
-          {typeof row.starRating === "number" && (
-            <div className="flex items-center gap-1.5 tabular-nums text-[13px] font-bold text-alloro-navy/80">
-              <StarIcon size={12} /> {row.starRating.toFixed(1)}
-            </div>
-          )}
-          {typeof row.reviewCount === "number" && (
-            <div className="text-[13px] font-bold tabular-nums text-alloro-navy min-w-[52px] text-right">
-              {row.reviewCount.toLocaleString()}
-              <span className="ml-1 text-[10px] font-semibold text-alloro-navy/35 uppercase tracking-wider">
-                rev
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
 
   return (
     <section
@@ -1105,125 +974,34 @@ function SearchPositionSection({ result }: { result: RankingResult }) {
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-2">
               <SectionTitle>
-                {hasSelectedProjection
-                  ? "Selected competitors in Google Maps"
-                  : `Top ${topResults.length} on Google Maps`}
+                Your competitors on Local Search
               </SectionTitle>
               <InfoTip
-                content={
-                  hasSelectedProjection
-                    ? "These are the competitors in your saved comparison set, shown with their position in the latest sampled Google Maps snapshot when available. Other Google results are hidden because they are not part of your selected comparison set."
-                    : "The top results Google Maps shows for this search in your area. Your row is highlighted."
-                }
+                content="These are the competitors in your saved comparison set, shown with their latest sampled local search position when available. Your practice is included so the table can be sorted against the same metrics."
               />
             </div>
-            {result.searchQuery && (
-              <span className="text-[11.5px] font-medium text-alloro-navy/45 truncate mt-0.5">
-                {result.searchQuery}
-              </span>
-            )}
           </div>
         </div>
-        {checkedDate && (
-          <span className="font-mono-display text-[10px] tracking-widest text-alloro-navy/35 uppercase shrink-0">
-            snapshot • {checkedDate}
-          </span>
-        )}
       </header>
-      <div>
-        {hasSelectedProjection &&
-          selectedTopTenRows.map((row) =>
-            renderSelectedProjectionRow(row, "top-ten"),
-          )}
-        {hasSelectedProjection && selectedOutsideTopTenRows.length > 0 && (
-          <div className="border-b last:border-b-0 border-line-soft bg-slate-50/70">
-            <button
-              type="button"
-              aria-expanded={showOutsideTopTen}
-              onClick={() => setShowOutsideTopTen((current) => !current)}
-              className="flex w-full items-center justify-between gap-4 px-6 lg:px-7 py-4 text-left transition-colors hover:bg-slate-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-alloro-orange/35"
-            >
-              <span className="min-w-0">
-                <span className="block text-[11px] font-black uppercase tracking-[0.14em] text-slate-600">
-                  {showOutsideTopTen ? "Hide" : "Show"} competitors outside top 10
-                </span>
-                <span className="mt-0.5 block truncate text-[10.5px] font-semibold text-alloro-navy/40">
-                  {result.searchQuery
-                    ? `Not currently in the sampled top 10 for ${result.searchQuery}`
-                    : "Not currently in the sampled top 10 for this query"}
-                </span>
-              </span>
-              <span className="flex shrink-0 items-center gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
-                {selectedOutsideTopTenRows.length} selected
-                <ChevronRight
-                  size={14}
-                  className={`transition-transform ${
-                    showOutsideTopTen ? "rotate-90" : ""
-                  }`}
-                  aria-hidden="true"
-                />
-              </span>
-            </button>
-            {showOutsideTopTen && (
-              <div className="border-t border-line-soft">
-                {selectedOutsideTopTenRows.map((row) =>
-                  renderSelectedProjectionRow(row, "outside"),
-                )}
-              </div>
-            )}
-          </div>
-        )}
-        {!hasSelectedProjection && topResults.map((row) => {
-          const isYou = row.isClient;
-          return (
-            <div
-              key={row.placeId}
-              className="grid grid-cols-[44px_1fr_auto] items-center gap-4 px-6 lg:px-7 py-3.5 border-b last:border-b-0 border-line-soft transition-colors hover:bg-[rgba(17,21,28,0.025)]"
-              style={isYou ? { background: "rgba(214,104,83,0.04)" } : undefined}
-            >
-              <div className="flex items-center justify-center">
-                <span
-                  className="font-extrabold text-[20px] tabular-nums"
-                  style={{
-                    color: row.position <= 3 ? accent : "rgba(17,21,28,0.32)",
-                  }}
-                >
-                  #{row.position}
-                </span>
-              </div>
-              <div className="flex items-center gap-3 min-w-0">
-                <span
-                  className="font-bold truncate"
-                  style={{
-                    color: isYou ? accent : "#11151C",
-                    fontSize: 15,
-                  }}
-                >
-                  {row.name}
-                </span>
-                {isYou && (
-                  <span
-                    className="px-1.5 py-0.5 rounded text-[9px] font-extrabold tracking-[0.16em] uppercase text-white shrink-0"
-                    style={{ background: accent }}
-                  >
-                    You
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-5 shrink-0">
-                <div className="flex items-center gap-1.5 tabular-nums text-[13px] font-bold text-alloro-navy/80">
-                  <StarIcon size={12} /> {row.rating.toFixed(1)}
-                </div>
-                <div className="text-[13px] font-bold tabular-nums text-alloro-navy min-w-[52px] text-right">
-                  {row.reviewCount.toLocaleString()}
-                  <span className="ml-1 text-[10px] font-semibold text-alloro-navy/35 uppercase tracking-wider">
-                    rev
-                  </span>
-                </div>
-              </div>
+      <div className="px-6 py-5 lg:px-7">
+        <div className="mb-4 flex flex-col gap-3 rounded-[12px] border border-line-soft bg-[#F7F5F1] p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-alloro-orange/10 text-alloro-orange">
+              <ArrowUpDown size={18} />
             </div>
-          );
-        })}
+            <p className="text-[13px] font-semibold leading-relaxed text-alloro-navy/70">
+              {insight}
+            </p>
+          </div>
+          <CompetitorComparisonSortMenu value={sortKey} onChange={setSortKey} />
+        </div>
+        <div className="overflow-hidden rounded-[12px] border border-line-soft bg-white">
+          <CompetitorComparisonTable
+            rows={sortedRows}
+            sortKey={sortKey}
+            onSort={setSortKey}
+          />
+        </div>
       </div>
     </section>
   );
@@ -1241,7 +1019,7 @@ const FACTOR_LABEL: Record<string, string> = {
   keyword_name: "Keyword in name",
   review_velocity: "Review velocity",
   nap_consistency: "NAP consistency",
-  gbp_activity: "GBP activity",
+  gbp_activity: "Google profile activity",
   sentiment: "Review sentiment",
 };
 
@@ -1259,7 +1037,7 @@ const FACTOR_TOOLTIP: Record<string, string> = {
   nap_consistency:
     "Whether your Name, Address, and Phone match exactly across Google, your website, and online directories. Mismatches reduce Google's confidence in your listing.",
   gbp_activity:
-    "Frequency of GBP posts, photo uploads, and Q&A activity over the last 90 days. Active profiles (8+ posts/quarter) get a measurable lift.",
+    "Frequency of Google posts, photo uploads, and Q&A activity over the last 90 days. Active profiles (8+ posts/quarter) get a measurable lift.",
   sentiment:
     "How positive the text content of your recent reviews is. Beyond stars — Google reads review wording for relevance and quality signals.",
 };
@@ -1403,20 +1181,30 @@ function Delta({
 }
 
 /**
- * Half-arc gauge — single value /100, optional prev for an inline delta pill
+ * Half-arc gauge — single value /100, optional prev for an inline delta badge
  * shown next to the score. Header label is owned by the consuming card so we
  * don't duplicate "Practice Health" inside + outside the gauge.
  */
-function HealthGauge({ value, prev }: { value: number; prev?: number | null }) {
+function HealthGauge({
+  value,
+  prev,
+  compact = false,
+}: {
+  value: number;
+  prev?: number | null;
+  compact?: boolean;
+}) {
   const v = Math.max(0, Math.min(100, value));
   const pathProgress = v / 100;
   const tone = v >= 80 ? "#22c55e" : v >= 60 ? "#D66853" : "#ef4444";
   const delta =
     prev !== null && prev !== undefined ? Math.round(value - prev) : null;
+  const width = compact ? 140 : 210;
+  const height = compact ? 82 : 124;
 
   return (
     <div className="flex flex-col items-center text-center">
-      <svg width="180" height="106" viewBox="0 0 180 106" className="overflow-visible">
+      <svg width={width} height={height} viewBox="0 0 180 106" className="overflow-visible">
         <path
           d="M 26 90 A 64 64 0 0 1 154 90"
           fill="none"
@@ -1467,39 +1255,47 @@ function HealthGauge({ value, prev }: { value: number; prev?: number | null }) {
   );
 }
 
-function PracticeHealthComparisonCta({ onOpen }: { onOpen: () => void }) {
+function ScoreCardCtas({
+  onOpenScoreDetails,
+  onOpenGaps,
+  score,
+}: {
+  onOpenScoreDetails: () => void;
+  onOpenGaps: () => void;
+  score: number;
+}) {
+  const actions = [
+    { label: `Why you scored ${Math.round(score)}/100`, onClick: onOpenScoreDetails },
+    { label: "How to close the gap", onClick: onOpenGaps },
+  ];
+
   return (
-    <div className="mt-5 flex justify-center border-t border-line-soft pt-4">
-      <motion.button
-        type="button"
-        onClick={onOpen}
-        className="mx-auto inline-flex items-center justify-center gap-2 rounded-[10px] border border-alloro-orange/20 bg-alloro-orange/10 px-4 py-2.5 text-[11px] font-black uppercase tracking-[0.12em] text-alloro-orange transition-colors hover:border-alloro-orange/35 hover:bg-alloro-orange/15 focus:outline-none focus:ring-2 focus:ring-alloro-orange/30"
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        whileHover={{ y: -1 }}
-        transition={{ duration: 0.22, ease: "easeOut" }}
-      >
-        See how I perform against competitors
-        <ChevronRight size={14} />
-      </motion.button>
+    <div className="grid grid-cols-1 gap-2">
+      {actions.map((action) => (
+        <motion.button
+          key={action.label}
+          type="button"
+          onClick={action.onClick}
+          className="inline-flex min-h-[44px] w-full items-center justify-between gap-2 rounded-[10px] border border-line-soft bg-white px-3 py-2.5 text-left text-[10px] font-black uppercase tracking-[0.1em] text-alloro-navy/70 transition-colors hover:border-alloro-orange/25 hover:bg-alloro-orange/10 hover:text-alloro-orange focus:outline-none focus:ring-2 focus:ring-alloro-orange/30"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          whileHover={{ y: -1 }}
+          transition={{ duration: 0.22, ease: "easeOut" }}
+        >
+          {action.label}
+          <ChevronRight size={14} />
+        </motion.button>
+      ))}
     </div>
   );
 }
 
-/**
- * HERO — Google Maps estimate composite (left) + Practice Health gauge (right).
- * Replaces the legacy 4-up KPICard grid and absorbs the SearchPositionSection
- * headline + searchStatus branching. The body's SearchPositionSection now
- * renders only the top-5 list.
- */
-function HeroPanel({
+function LocalSearchEstimateSummary({
   result,
   marketAvgRating,
-  onOpenComparison,
 }: {
   result: RankingResult;
   marketAvgRating: number;
-  onOpenComparison: () => void;
 }) {
   const status = result.searchStatus ?? "ok";
   const rank = result.searchPosition;
@@ -1511,171 +1307,180 @@ function HeroPanel({
         ? "#11151C"
         : "rgba(17,21,28,0.45)";
 
-  // Practice Health gauge — suppress prev when the previous run predates the
-  // methodology cutover (scores aren't directly comparable).
-  let gaugePrev: number | null = null;
-  if (result.previousAnalysis) {
-    const prevDate = new Date(result.previousAnalysis.observedAt);
-    const cutoff = new Date(PRACTICE_HEALTH_METHODOLOGY_CHANGED_AT);
-    if (prevDate >= cutoff) {
-      gaugePrev = Number(result.previousAnalysis.rankScore);
-    }
-  }
-
   const clientGbp = result.rawData?.client_gbp ?? null;
   const avgRating = clientGbp?.averageRating ?? null;
   const reviewCount = clientGbp?.totalReviewCount ?? null;
   const reviewsLast30d = clientGbp?.reviewsLast30d ?? 0;
 
-  const checkedDate = result.searchCheckedAt
-    ? new Date(result.searchCheckedAt).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      })
-    : null;
-
-  const score = Number(result.rankScore);
-  const verdictHint =
-    score >= 80
-      ? "Excellent — protect what's working."
-      : score >= 60
-        ? "Good. Clear path to climb."
-        : "Needs improvement. Focus on velocity.";
-
   return (
-    <section className="grid grid-cols-1 lg:grid-cols-[1.35fr_1fr] gap-4 lg:gap-5">
-      {/* LEFT — Google Maps estimate (or branched copy for non-ok statuses) */}
-      <div className="bg-white border border-line-soft rounded-[14px] shadow-premium p-7 lg:p-9">
-        <div className="flex items-center justify-between mb-6 gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <span
-              className="w-1.5 h-1.5 rounded-full shrink-0"
-              style={{ background: accent }}
-            />
-            <SectionTitle>Google Maps estimate</SectionTitle>
-            <InfoTip content="A sampled Google Maps position for the selected query and location. Results can vary by device, searcher location, and personalization, so treat this as an estimate, not a guaranteed exact rank." />
-          </div>
-          {checkedDate && (
-            <span className="font-mono-display text-[10px] tracking-widest text-alloro-navy/40 uppercase shrink-0">
-              checked {checkedDate}
-            </span>
-          )}
+    <div>
+      <div className="mb-4 flex items-center gap-2.5">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span
+            className="h-1.5 w-1.5 shrink-0 rounded-full"
+            style={{ background: accent }}
+          />
+          <SectionTitle>Local Search Estimate</SectionTitle>
+          <InfoTip content="This is a sampled Google Maps result gathered through SerpAPI. It can vary by device, prior searches, and the searcher's exact physical location, so use it as a directional read." />
         </div>
-
-        {status === "ok" && rank !== null && (
-          <>
-            <div className="flex items-end gap-5 lg:gap-7">
-              <div className="leading-[0.85]">
-                <div className="flex items-baseline">
-                  <span
-                    className="font-display text-[110px] lg:text-[140px] font-medium tracking-tight tabular-nums"
-                    style={{ color: rankColor, lineHeight: 0.85 }}
-                  >
-                    #{rank}
-                  </span>
-                </div>
-              </div>
-
-              <div className="pb-6 min-w-0">
-                <div className="text-[13px] font-medium text-alloro-navy/75 leading-relaxed max-w-[26ch]">
-                  for{" "}
-                  <span className="font-bold text-alloro-navy">
-                    {result.searchQuery ?? "your specialty query"}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Metric strip — Star rating + Reviews. Local Rank dropped: the
-                hero #X already shows the live rank; surfacing a second
-                (curated-cohort) rank confused users. */}
-            <div className="mt-7 pt-5 border-t border-line-soft grid grid-cols-2 gap-4">
-              <Metric
-                label="Star rating"
-                value={avgRating !== null ? avgRating.toFixed(1) : "—"}
-                adornment={<StarIcon size={14} />}
-                sub={`Market avg ${marketAvgRating.toFixed(1)}`}
-              />
-              <Metric
-                label="Reviews"
-                value={
-                  reviewCount !== null ? reviewCount.toLocaleString() : "—"
-                }
-                sub={`+${reviewsLast30d} in 30d`}
-              />
-            </div>
-          </>
-        )}
-
-        {status === "not_in_top_20" && (
-          <div className="flex flex-col gap-2 py-2">
-            <span className="font-display text-3xl lg:text-4xl font-medium text-alloro-navy/45 tracking-tight leading-tight">
-              Not ranked in top 20
-            </span>
-            <p className="text-sm font-medium text-alloro-navy/65 max-w-[44ch] leading-relaxed">
-              for{" "}
-              <span className="font-bold text-alloro-navy">
-                {result.searchQuery ?? "your specialty query"}
-              </span>
-              . Practice Health on the right shows what's keeping you out of the
-              top 20.
-            </p>
-          </div>
-        )}
-
-        {status === "bias_unavailable" && (
-          <div className="flex flex-col gap-2 py-2">
-            <span className="font-display text-3xl lg:text-4xl font-medium text-alloro-navy/45 tracking-tight leading-tight">
-              Couldn't locate your practice on Google
-            </span>
-            <p className="text-sm font-medium text-alloro-navy/65 max-w-[44ch] leading-relaxed">
-              Check that your Google Business Profile is connected and has a
-              valid address.{" "}
-              <a
-                href="/settings"
-                className="font-bold underline underline-offset-4"
-                style={{ color: accent }}
-              >
-                Open settings →
-              </a>
-            </p>
-          </div>
-        )}
-
-        {status === "api_error" && (
-          <div className="flex flex-col gap-2 py-2">
-            <span className="font-display text-3xl lg:text-4xl font-medium text-alloro-navy/45 tracking-tight leading-tight">
-              Google search temporarily unavailable
-            </span>
-            <p className="text-sm font-medium text-alloro-navy/65 max-w-[44ch] leading-relaxed">
-              We'll try again on your next refresh.
-            </p>
-          </div>
-        )}
       </div>
 
-      {/* RIGHT — Practice Health gauge */}
-      <div className="bg-white border border-line-soft rounded-[14px] shadow-premium p-7 lg:p-9 flex flex-col">
-        <div className="flex items-center mb-2 gap-2.5">
-          <span
-            className="w-1.5 h-1.5 rounded-full shrink-0"
-            style={{ background: "#22c55e" }}
-          />
-          <SectionTitle>Practice Health</SectionTitle>
-          <InfoTip content="Alloro's diagnostic score (0–100) for your local SEO fundamentals: review velocity, rating, profile completeness, NAP consistency, sentiment. Independent of your sampled Maps estimate." />
-        </div>
+      {status === "ok" && rank !== null && (
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="leading-[0.85]">
+              <span
+                className="font-display text-[74px] font-medium tracking-tight tabular-nums lg:text-[92px]"
+                style={{ color: rankColor, lineHeight: 0.85 }}
+              >
+                #{rank}
+              </span>
+            </div>
 
-        <div className="flex-1 flex flex-col items-center justify-center pt-2">
-          <HealthGauge value={score} prev={gaugePrev} />
-          <p className="mt-3 text-[12px] font-medium text-alloro-navy/65 max-w-[28ch] text-center leading-relaxed">
-            {verdictHint}
+            <div className="min-w-0 pb-2">
+              <p className="text-[13px] font-medium leading-relaxed text-alloro-navy/70">
+                for{" "}
+                <span className="font-bold text-alloro-navy">
+                  {result.searchQuery ?? "your tracked search"}
+                </span>
+              </p>
+              <p className="mt-1 text-[12px] font-semibold leading-relaxed text-alloro-navy/45">
+                This is the position patients are most likely to notice first.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid max-w-[300px] grid-cols-2 gap-4 border-t border-[#EDE5C0] pt-4 sm:min-w-[270px] lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+            <Metric
+              label="Star rating"
+              value={avgRating !== null ? avgRating.toFixed(1) : "-"}
+              adornment={<StarIcon size={14} />}
+              sub={`Market avg ${marketAvgRating.toFixed(1)}`}
+            />
+            <Metric
+              label="Reviews"
+              value={reviewCount !== null ? reviewCount.toLocaleString() : "-"}
+              sub={`+${reviewsLast30d} in 30d`}
+            />
+          </div>
+        </div>
+      )}
+
+      {status === "not_in_top_20" && (
+        <div className="flex flex-col gap-2 py-2">
+          <span className="font-display text-3xl font-medium tracking-tight text-alloro-navy/50 lg:text-4xl">
+            Not ranked in top 20
+          </span>
+          <p className="max-w-[48ch] text-sm font-medium leading-relaxed text-alloro-navy/65">
+            for{" "}
+            <span className="font-bold text-alloro-navy">
+              {result.searchQuery ?? "your tracked search"}
+            </span>
+            . The score details below show which signals need work.
           </p>
         </div>
+      )}
 
-        <PracticeHealthComparisonCta onOpen={onOpenComparison} />
-      </div>
-    </section>
+      {status === "bias_unavailable" && (
+        <div className="flex flex-col gap-2 py-2">
+          <span className="font-display text-3xl font-medium tracking-tight text-alloro-navy/50 lg:text-4xl">
+            Couldn't locate your practice on Google
+          </span>
+          <p className="max-w-[48ch] text-sm font-medium leading-relaxed text-alloro-navy/65">
+            Check that your Google profile is connected and has a valid address.{" "}
+            <a
+              href="/settings"
+              className="font-bold underline underline-offset-4"
+              style={{ color: accent }}
+            >
+              Open settings →
+            </a>
+          </p>
+        </div>
+      )}
+
+      {status === "api_error" && (
+        <div className="flex flex-col gap-2 py-2">
+          <span className="font-display text-3xl font-medium tracking-tight text-alloro-navy/50 lg:text-4xl">
+            Google search temporarily unavailable
+          </span>
+          <p className="max-w-[48ch] text-sm font-medium leading-relaxed text-alloro-navy/65">
+            We'll try again on your next refresh.
+          </p>
+        </div>
+      )}
+    </div>
   );
+}
+
+function getComparablePreviousScore(result: RankingResult): number | null {
+  void result;
+  // The main overview gauge now uses the owner-visible 8-factor score from
+  // rankingFactors. Previous rows expose only the persisted 6-factor
+  // competitive score through previousAnalysis, so showing a delta here would
+  // compare different score bases.
+  return null;
+}
+
+function getOwnerVisibleScore(result: RankingResult): number {
+  const factorTotal = result.rankingFactors
+    ? Object.values(result.rankingFactors).reduce(
+        (sum, factor) => sum + Number(factor?.weighted ?? 0),
+        0,
+      )
+    : NaN;
+
+  if (Number.isFinite(factorTotal) && factorTotal > 0) return factorTotal;
+  const fallback = Number(result.rankScore);
+  return Number.isFinite(fallback) ? fallback : 0;
+}
+
+function normalizeNarrativeScoreText(text: string, score: number): string {
+  const scoreLabel = `${Math.round(score)}/100`;
+  return text
+    .replace(/\b\d{2,3}\s*\/\s*\d{2,3}\s*\/\s*100\b/g, scoreLabel)
+    .replace(/\b\d{2,3}(?:\.\d+)?\s*\/\s*100\b/g, scoreLabel)
+    .replace(
+      /(?<!\/)\b\d{2,3}(?:\.\d+)?(?!\s*\/)\s+score\b/g,
+      `${scoreLabel} score`,
+    )
+    .replace(/\ban\s+(\d{2,3}\/100 score)\b/g, "a $1")
+    .replace(
+      /\bestimated at position\s+(\d+)\s+on\s+Google Maps\b/gi,
+      "ranked #$1 in Local Search",
+    )
+    .replace(/\bestimated at position\s+(\d+)\b/gi, "ranked #$1")
+    .replace(
+      /\bestimated\s+#?(\d+)\s+(?:on|in)\s+(?:Google Maps|Maps|Local Search)\b/gi,
+      "ranked #$1 in Local Search",
+    )
+    .replace(/\bposition\s+(\d+)\s+on\s+Maps\b/gi, "position #$1 in Local Search")
+    .replace(/\bon\s+Google Maps\b/g, "in Local Search")
+    .replace(/\bon\s+Maps\b/g, "in Local Search");
+}
+
+function normalizeNarrativeHighlights(
+  highlights: string[] | null | undefined,
+  score: number,
+): string[] {
+  return (highlights ?? [])
+    .map((highlight) => normalizeNarrativeScoreText(highlight, score).trim())
+    .filter(Boolean)
+    .slice(0, 3);
+}
+
+function getOverviewFallbackInsight(result: RankingResult): string {
+  const query = result.searchQuery ?? "your tracked search";
+  if ((result.searchStatus ?? "ok") === "ok" && result.searchPosition !== null) {
+    return `Ranked number ${result.searchPosition} for ${query}. Keep reviews and Google posts moving to protect that position.`;
+  }
+  if (result.searchStatus === "not_in_top_20") {
+    return `You are not in the top 20 for ${query}. Focus on reviews, profile activity, and the gaps below first.`;
+  }
+  if (result.searchStatus === "bias_unavailable") {
+    return "Google could not locate the practice for this search. Check the connected profile and address before reading the rest of the report.";
+  }
+  return "Local search data is temporarily unavailable. Review the score details and try refreshing rankings again later.";
 }
 
 function Metric({
@@ -1710,7 +1515,13 @@ function Metric({
 /* ─────────────────────────────────────────────────────────────
    DriversPanel — split <details> accordion (T5)
    ───────────────────────────────────────────────────────────── */
-function DriversPanel({ result }: { result: RankingResult }) {
+function DriversPanel({
+  result,
+  embedded = false,
+}: {
+  result: RankingResult;
+  embedded?: boolean;
+}) {
   const drivers = result.llmAnalysis?.drivers ?? [];
   if (drivers.length === 0) return null;
   const positives = drivers.filter((d) => d.direction === "positive");
@@ -1719,21 +1530,25 @@ function DriversPanel({ result }: { result: RankingResult }) {
   return (
     <section
       data-wizard-target="rankings-factors"
-      className="bg-white border border-line-soft rounded-[14px] shadow-premium overflow-hidden"
+      className={`bg-white border border-line-soft rounded-[14px] overflow-hidden ${
+        embedded ? "" : "shadow-premium"
+      }`}
     >
-      <header className="px-6 lg:px-7 py-4 flex items-center justify-between border-b border-line-soft gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span
-            className="w-1.5 h-1.5 rounded-full shrink-0"
-            style={{ background: "#11151C" }}
-          />
-          <SectionTitle>What's driving visibility</SectionTitle>
-          <InfoTip content="The factors moving your local visibility most. Green is working for you; red is holding you back. Click a factor for the specific insight." />
-        </div>
-        <span className="font-mono-display text-[10px] tracking-widest text-alloro-navy/40 uppercase shrink-0">
-          {drivers.length} factors
-        </span>
-      </header>
+      {!embedded && (
+        <header className="px-6 lg:px-7 py-4 flex items-center justify-between border-b border-line-soft gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span
+              className="w-1.5 h-1.5 rounded-full shrink-0"
+              style={{ background: "#11151C" }}
+            />
+            <SectionTitle>Score details</SectionTitle>
+            <InfoTip content="The visibility signals helping or hurting your local search estimate. Green is working for you; red needs attention. Click a factor for the specific insight." />
+          </div>
+          <span className="font-mono-display text-[10px] tracking-widest text-alloro-navy/40 uppercase shrink-0">
+            {drivers.length} factors
+          </span>
+        </header>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2">
         <DriversColumn title="Working for you" tone="positive" drivers={positives} />
         <div className="border-t md:border-t-0 md:border-l border-line-soft">
@@ -1826,7 +1641,7 @@ function DriversColumn({
  * comparison data isn't available — gbp_activity, nap_consistency, and
  * sentiment fall here because the per-competitor data we collect either
  * doesn't exist (NAP, sentiment) or is unreliable (postsLast90d is always 0
- * in production — see service.apify.ts where Apify can't fetch GBP posts).
+ * in production — see service.apify.ts where Apify can't fetch Google posts).
  */
 function computeCohortDelta(
   key: string,
@@ -1932,11 +1747,11 @@ function FactorBreakdown({
             className="w-1.5 h-1.5 rounded-full shrink-0"
             style={{ background: "#11151C" }}
           />
-          <SectionTitle>Ranking factor breakdown</SectionTitle>
-          <InfoTip content="Each ranking factor's score (0–100) and its weight in your Practice Health calculation. Sorted by weighted impact. Where data is available, each row shows your value and the cohort median for comparison." />
+          <SectionTitle>Score factor breakdown</SectionTitle>
+          <InfoTip content="Each visibility factor's score and impact. Where data is available, each row shows your value and the competitor median for comparison." />
         </div>
         <span className="font-mono-display text-[10px] tracking-widest text-alloro-navy/40 uppercase shrink-0">
-          weighted score
+          score impact
         </span>
       </header>
       <ul className="px-6 lg:px-7 py-5 space-y-4">
@@ -2004,67 +1819,51 @@ function NextMoves({ result }: { result: RankingResult }) {
   const recs = result.llmAnalysis?.top_recommendations ?? [];
   if (recs.length === 0) return null;
   const accent = "#D66853";
+  const visibleRecs = recs.slice(0, 3);
 
   return (
-    <section className="bg-white border border-line-soft rounded-[14px] shadow-premium overflow-hidden">
-      <header className="px-6 lg:px-7 py-4 flex items-center justify-between border-b border-line-soft gap-3">
+    <section className="rounded-[14px] border border-line-soft bg-white p-6 shadow-premium lg:p-7">
+      <header className="mb-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <span
             className="w-1.5 h-1.5 rounded-full shrink-0"
             style={{ background: accent }}
           />
-          <SectionTitle>Top moves to climb</SectionTitle>
+          <SectionTitle>Best next actions</SectionTitle>
           <InfoTip content="Highest-impact actions to improve local visibility, ordered by priority. Click any move to see why it matters and how to do it." />
         </div>
         <span className="font-mono-display text-[10px] tracking-widest text-alloro-navy/40 uppercase shrink-0">
-          {recs.length} actions
+          {visibleRecs.length} actions
         </span>
       </header>
-      <ol className="divide-y divide-line-soft">
-        {recs.map((rec, i) => (
+      <ol className="grid gap-4 lg:grid-cols-3">
+        {visibleRecs.map((rec, i) => (
           <li key={i}>
-            <details className="group">
-              <summary className="grid grid-cols-[36px_1fr_auto] gap-4 items-start px-6 lg:px-7 py-4 cursor-pointer list-none [&::-webkit-details-marker]:hidden hover:bg-[rgba(17,21,28,0.025)] transition-colors">
-                <div className="pt-0.5">
-                  <div
-                    className="w-7 h-7 rounded-full border flex items-center justify-center font-extrabold text-[12px] tabular-nums"
-                    style={{
-                      color: accent,
-                      background: "rgba(214,104,83,0.06)",
-                      borderColor: "rgba(17,21,28,0.10)",
-                    }}
-                  >
-                    {rec.priority}
-                  </div>
-                </div>
-                <div className="min-w-0 pt-1">
-                  <div className="font-bold text-[14.5px] tracking-tight text-alloro-navy">
-                    {rec.title}
-                  </div>
-                </div>
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 10 10"
-                  className="shrink-0 mt-2 text-alloro-navy/35 transition-transform group-open:rotate-90"
-                  aria-hidden
+            <article className="h-full rounded-[12px] border border-line-soft bg-white p-4 shadow-[0_12px_28px_rgba(17,21,28,0.07)] transition-transform duration-200 hover:-translate-y-0.5 hover:border-alloro-orange/25">
+              <div className="mb-3 flex items-center gap-2">
+                <div
+                  className="flex h-7 w-7 items-center justify-center rounded-full border font-extrabold text-[12px] tabular-nums"
+                  style={{
+                    color: accent,
+                    background: "rgba(214,104,83,0.08)",
+                    borderColor: "rgba(214,104,83,0.22)",
+                  }}
                 >
-                  <path
-                    d="M3 1l4 4-4 4"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </summary>
+                  {rec.priority}
+                </div>
+                <span className="font-mono-display text-[10px] font-bold uppercase tracking-[0.16em] text-alloro-navy/35">
+                  Action
+                </span>
+              </div>
+              <h4 className="text-[14.5px] font-bold leading-snug tracking-tight text-alloro-navy">
+                {rec.title}
+              </h4>
               {rec.description && (
-                <p className="px-6 lg:px-7 pb-5 pl-[60px] lg:pl-[64px] -mt-1 text-[12.5px] leading-relaxed text-alloro-navy/65 max-w-[64ch]">
+                <p className="mt-3 text-[12.5px] font-medium leading-relaxed text-alloro-navy/65">
                   {rec.description}
                 </p>
               )}
-            </details>
+            </article>
           </li>
         ))}
       </ol>
@@ -2075,7 +1874,13 @@ function NextMoves({ result }: { result: RankingResult }) {
 /* ─────────────────────────────────────────────────────────────
    GapsPanel — opportunities right-rail (T7)
    ───────────────────────────────────────────────────────────── */
-function GapsPanel({ result }: { result: RankingResult }) {
+function GapsPanel({
+  result,
+  embedded = false,
+}: {
+  result: RankingResult;
+  embedded?: boolean;
+}) {
   const gaps = result.llmAnalysis?.gaps ?? [];
   if (gaps.length === 0) return null;
   const tone = (impact: string) =>
@@ -2086,60 +1891,50 @@ function GapsPanel({ result }: { result: RankingResult }) {
         : { c: "#11151C", b: "rgba(17,21,28,0.05)" };
 
   return (
-    <section className="bg-white border border-line-soft rounded-[14px] shadow-premium overflow-hidden">
-      <header className="px-6 lg:px-7 py-4 flex items-center justify-between border-b border-line-soft gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span
-            className="w-1.5 h-1.5 rounded-full shrink-0"
-            style={{ background: "#D9A441" }}
-          />
-          <SectionTitle>Opportunities</SectionTitle>
-          <InfoTip content="Specific gaps where competitors outperform you. High-impact gaps are the fastest path to climbing — click any gap for the details." />
-        </div>
-        <span className="font-mono-display text-[10px] tracking-widest text-alloro-navy/40 uppercase shrink-0">
-          {gaps.length}
-        </span>
-      </header>
+    <section
+      className={`bg-white border border-line-soft rounded-[14px] overflow-hidden ${
+        embedded ? "" : "shadow-premium"
+      }`}
+    >
+      {!embedded && (
+        <header className="px-6 lg:px-7 py-4 flex items-center justify-between border-b border-line-soft gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span
+              className="w-1.5 h-1.5 rounded-full shrink-0"
+              style={{ background: "#D9A441" }}
+            />
+            <SectionTitle>Gaps to fix</SectionTitle>
+            <InfoTip content="Specific gaps where competitors outperform you. High-impact gaps are the fastest path to climbing — click any gap for the details." />
+          </div>
+          <span className="font-mono-display text-[10px] tracking-widest text-alloro-navy/40 uppercase shrink-0">
+            {gaps.length}
+          </span>
+        </header>
+      )}
       <ul className="divide-y divide-line-soft">
         {gaps.map((g, i) => {
           const t = tone(g.impact);
           return (
-            <li key={i}>
-              <details className="group">
-                <summary className="flex items-center gap-3 px-6 lg:px-7 py-4 cursor-pointer list-none [&::-webkit-details-marker]:hidden hover:bg-[rgba(17,21,28,0.025)] transition-colors">
-                  <span
-                    className="px-1.5 py-0.5 rounded text-[9px] font-extrabold tracking-[0.18em] uppercase shrink-0"
-                    style={{ color: t.c, background: t.b }}
-                  >
-                    {g.impact}
-                  </span>
-                  <span className="font-bold text-[13.5px] text-alloro-navy flex-1 truncate">
+            <li key={i} className="px-6 py-4 lg:px-7">
+              <div className="flex items-start gap-3">
+                <span
+                  className="mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-[0.18em]"
+                  style={{ color: t.c, background: t.b }}
+                >
+                  {g.impact}
+                </span>
+                <div className="min-w-0">
+                  <h4 className="text-[13.5px] font-bold text-alloro-navy">
                     {FACTOR_LABEL[g.type] ||
                       g.type
                         .replace(/_/g, " ")
                         .replace(/\b\w/g, (c) => c.toUpperCase())}
-                  </span>
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 10 10"
-                    className="shrink-0 text-alloro-navy/35 transition-transform group-open:rotate-90"
-                    aria-hidden
-                  >
-                    <path
-                      d="M3 1l4 4-4 4"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </summary>
-                <p className="px-6 lg:px-7 pb-4 -mt-1 text-[12.5px] leading-relaxed text-alloro-navy/65 max-w-[62ch]">
-                  {g.reason}
-                </p>
-              </details>
+                  </h4>
+                  <p className="mt-2 max-w-[72ch] text-[12.5px] leading-relaxed text-alloro-navy/65">
+                    {g.reason}
+                  </p>
+                </div>
+              </div>
             </li>
           );
         })}
@@ -2151,17 +1946,28 @@ function GapsPanel({ result }: { result: RankingResult }) {
 // Performance Dashboard View Component
 function PerformanceDashboard({
   result,
+  insight,
   engagementSummary,
 }: {
   result: RankingResult;
+  insight?: string;
   engagementSummary?: React.ReactNode;
 }) {
-  const [comparisonOpen, setComparisonOpen] = useState(false);
+  const [detailsModal, setDetailsModal] = useState<"score" | "gaps" | null>(null);
   const competitors = result.rawData?.competitors || [];
+  const score = getOwnerVisibleScore(result);
+  const gaugePrev = getComparablePreviousScore(result);
+  const overviewInsight = normalizeNarrativeScoreText(
+    insight ?? getOverviewFallbackInsight(result),
+    score,
+  );
+  const overviewHighlights = normalizeNarrativeHighlights(
+    result.llmAnalysis?.overview_card?.highlights,
+    score,
+  );
 
-  // Market average rating (from curated competitors) — surfaced on the hero
-  // metric strip's Star rating sub-line so the redesign preserves the legacy
-  // "Happy Patients vs market" comparison.
+  // Market average rating (from curated competitors) — surfaced in the
+  // overview local search summary so the star rating keeps its comparison context.
   const marketAvgRating =
     competitors.length > 0
       ? competitors.reduce((sum, c) => sum + (c.averageRating || 0), 0) /
@@ -2173,35 +1979,48 @@ function PerformanceDashboard({
       data-wizard-target="rankings-score"
       className="space-y-5 lg:space-y-6"
     >
-      {/* HERO — Live Google Rank composite + Practice Health gauge.
-          Spec: plans/04282026-no-ticket-rankings-page-redesign/spec.md (T3) */}
-      <HeroPanel
-        result={result}
-        marketAvgRating={marketAvgRating}
-        onOpenComparison={() => setComparisonOpen(true)}
+      <RankingMeaningCard
+        insight={overviewInsight}
+        insightHighlights={overviewHighlights}
+        score={<HealthGauge value={score} prev={gaugePrev} />}
+        scoreTooltip="This 0-100 score summarizes the local visibility signals behind the estimate, including reviews, rating, category match, profile activity, and consistency. It explains why the estimate looks the way it does; it is not a guaranteed Google rank."
+        estimateSummary={
+          <LocalSearchEstimateSummary
+            result={result}
+            marketAvgRating={marketAvgRating}
+          />
+        }
+        actions={
+          <ScoreCardCtas
+            onOpenScoreDetails={() => setDetailsModal("score")}
+            onOpenGaps={() => setDetailsModal("gaps")}
+            score={score}
+          />
+        }
       />
-
+      <NextMoves result={result} />
       {engagementSummary}
+      <SearchPositionSection result={result} />
 
-      {/* BODY — 2-col grid (1.35fr / 1fr) at lg, single col below.
-          Spec: plans/04282026-no-ticket-rankings-page-redesign/spec.md (T8) */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.35fr_1fr] gap-5 lg:gap-6">
-        <div className="space-y-5 lg:space-y-6 min-w-0">
-          <SearchPositionSection result={result} />
-          <DriversPanel result={result} />
+      <RankingDetailsModal
+        open={detailsModal === "score"}
+        title={`Why you scored ${Math.round(score)}/100`}
+        eyebrow="Score details"
+        onClose={() => setDetailsModal(null)}
+      >
+        <div className="space-y-5">
+          <DriversPanel result={result} embedded />
+          <FactorBreakdown result={result} embedded />
         </div>
-        <div className="space-y-5 lg:space-y-6 min-w-0">
-          <NextMoves result={result} />
-          <GapsPanel result={result} />
-        </div>
-      </div>
-
-      <CompetitorComparisonModal
-        open={comparisonOpen}
-        onClose={() => setComparisonOpen(false)}
-        result={result}
-        factorBreakdown={<FactorBreakdown result={result} embedded />}
-      />
+      </RankingDetailsModal>
+      <RankingDetailsModal
+        open={detailsModal === "gaps"}
+        title="How to close the gap"
+        eyebrow="Gaps to fix"
+        onClose={() => setDetailsModal(null)}
+      >
+        <GapsPanel result={result} embedded />
+      </RankingDetailsModal>
     </div>
   );
 }

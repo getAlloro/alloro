@@ -2,6 +2,31 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.92] - May 2026
+
+### Local Rankings And Support Workflow Polish
+
+Redesigned the client Local Rankings experience around a clearer owner-readable story, upgraded Alloro Engage with review-reply quick actions, and added faster support reporting from anywhere in the app.
+
+**Key Changes:**
+- Rebuilt `/rankings` so the first screen leads with a plain-English ranking summary, Local Search Estimate, Local Search Score, owner-friendly next actions, Alloro Engage, and a sortable competitor table
+- Moved Practice Health details into secondary score/gap modals, removed estimated/filler copy, defaulted competitor sorting to Local Search, and blocked website-speed recommendations from ranking outputs
+- Added Alloro Engage review/post narrative cards, compact metric tooltips, latest-review reply drafting, deploy success toasts, card-deck transitions, and optimistic reply-count decrement animations
+- Added a global support launcher that captures a page screenshot, attaches current-session console logs, opens the existing `/help` composer, and preserves the normal support ticket flow
+- Replaced the full pilot-mode bar with a dismissible top-left `PILOT MODE` pill
+- Cleaned up Website Edit ticket copy by removing Approval Notes and renaming the date prompt to `When do you need this by?`
+- Updated Alloro Docs replicas and page guidance for Local Rankings, Alloro Engage, global support, and Website Edit support-copy parity
+
+**Commits:**
+- `frontend/src/components/dashboard/RankingsDashboard.tsx` and `frontend/src/components/dashboard/rankings/*` - owner-readable Local Rankings layout, Local Search Estimate/Score cards, inline competitor table, detail modals, loaders, and copy cleanup
+- `src/controllers/practice-ranking/feature-services/*` - ranking output guardrails, review/post engagement payload context, score alignment, and website-speed recommendation filtering
+- `frontend/src/components/dashboard/gbp-automation/*` - Alloro Engage card narrative, metric cards, latest-review quick action, queue progress, deck animation, and deploy feedback
+- `frontend/src/components/support/*`, `frontend/src/contexts/SupportQuickActionContext.tsx`, and `frontend/src/utils/support*.ts` - global support launcher, screenshot/log capture, draft handoff, attachment animation, and support composer integration
+- `frontend/src/components/Admin/PilotBanner.tsx` - compact dismissible pilot-mode pill
+- `src/controllers/support/*` and `frontend/src/components/support/supportTicketComposerFields.ts` - Website Edit guided-field cleanup and server validation alignment
+- `/Users/rustinedave/Desktop/alloro-docs/src/components/replicas/*` and `/Users/rustinedave/Desktop/alloro-docs/src/data/pages/*` - documentation parity for the redesigned client/dashboard surfaces
+- `plans/05272026-no-ticket-local-rankings-owner-readable-redesign/*` and `plans/05282026-no-ticket-*/*` - executed specs and revision history for the combined release
+
 ## [0.0.91] - May 2026
 
 ### Feature Friyays
