@@ -1,5 +1,4 @@
 import { motion } from "framer-motion";
-import { PmsAttentionCards } from "./PmsAttentionCards";
 import { PmsDashboardHero } from "./PmsDashboardHero";
 import { PmsEmptyDashboardState } from "./PmsEmptyDashboardState";
 import { PmsExecutiveSummary } from "./PmsExecutiveSummary";
@@ -11,7 +10,6 @@ import { PmsReferralMixCard } from "./PmsReferralMixCard";
 import { PmsSectionHeader } from "./PmsSectionHeader";
 import { PmsTopSourcesCard } from "./PmsTopSourcesCard";
 import { PmsVitalsRow } from "./PmsVitalsRow";
-import { PmsVelocityCard } from "./PmsVelocityCard";
 import type { PmsDashboardData } from "./types";
 
 export type PmsDashboardSurfaceProps = PmsDashboardData & {
@@ -25,6 +23,7 @@ export function PmsDashboardSurface({
   topSources,
   totalProduction,
   totalReferrals,
+  doctorReferralCount,
   doctorPercentage,
   referralData,
   isLoading,
@@ -72,25 +71,25 @@ export function PmsDashboardSurface({
         />
       ) : (
         <>
-          <PmsSectionHeader title="PMS Vitals" meta="YTD" />
+          {/* Lead with meaning: the cream hero is the page's first read. */}
+          <PmsExecutiveSummary
+            bullets={referralData?.executive_summary}
+            totalProduction={totalProduction}
+            totalReferrals={totalReferrals}
+            doctorPercentage={doctorPercentage}
+            topSources={topSources}
+            isProcessingInsights={isProcessingInsights}
+          />
+
+          {/* Best next actions, promoted above the detail cards. */}
+          <PmsGrowthOpportunities referralData={referralData} />
+
+          <PmsSectionHeader title="Your referral numbers" />
           <PmsVitalsRow
             months={monthlyData}
             totalProduction={totalProduction}
             totalReferrals={totalReferrals}
-            sourceCount={topSources.length}
             isLoading={isLoading}
-            isProcessingInsights={isProcessingInsights}
-          />
-
-          <PmsAttentionCards
-            topSources={topSources}
-            monthCount={monthlyData.length}
-            doctorPercentage={doctorPercentage}
-            isProcessingInsights={isProcessingInsights}
-          />
-
-          <PmsExecutiveSummary
-            bullets={referralData?.executive_summary}
             isProcessingInsights={isProcessingInsights}
           />
 
@@ -100,24 +99,19 @@ export function PmsDashboardSurface({
               isProcessingInsights={isProcessingInsights}
             />
             <PmsReferralMixCard
-              months={monthlyData}
+              doctorPercentage={doctorPercentage}
+              doctorReferralCount={doctorReferralCount}
+              totalReferrals={totalReferrals}
               isProcessingInsights={isProcessingInsights}
             />
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-2">
-            <PmsTopSourcesCard
-              sources={topSources}
-              isProcessingInsights={isProcessingInsights}
-            />
-            <PmsVelocityCard
-              months={monthlyData}
-              isProcessingInsights={isProcessingInsights}
-            />
-          </div>
+          <PmsTopSourcesCard
+            sources={topSources}
+            isProcessingInsights={isProcessingInsights}
+          />
 
-          <PmsGrowthOpportunities referralData={referralData} />
-
+          <PmsSectionHeader title="Update your data" />
           <PmsIngestionCard
             canUploadPMS={canUploadPMS}
             hasProperties={hasProperties}

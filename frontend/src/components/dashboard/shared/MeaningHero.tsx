@@ -2,23 +2,25 @@ import { CircleHelp } from "lucide-react";
 import type { ReactNode } from "react";
 import HighlightedText from "../focus/HighlightedText";
 
-export type RankingMeaningCardProps = {
+export type MeaningHeroProps = {
   insight: string;
   insightHighlights?: string[];
   score: ReactNode;
+  scoreLabel?: string;
   scoreTooltip: string;
   estimateSummary: ReactNode;
   actions: ReactNode;
 };
 
-export function RankingMeaningCard({
+export function MeaningHero({
   insight,
   insightHighlights,
   score,
+  scoreLabel = "Local Search Score",
   scoreTooltip,
   estimateSummary,
   actions,
-}: RankingMeaningCardProps) {
+}: MeaningHeroProps) {
   return (
     <section className="animate-in fade-in slide-in-from-bottom-2 duration-700 delay-150">
       <div className="rounded-[16px] border border-[#EDE5C0] bg-[#FCFAED] px-6 py-6 shadow-premium lg:px-7 lg:py-7">
@@ -39,13 +41,13 @@ export function RankingMeaningCard({
             <div className="flex min-h-[220px] flex-col justify-center rounded-[14px] border border-[#EDE5C0] bg-white/70 px-5 py-5 text-center">
               <div className="mb-1 flex items-center justify-center gap-1.5 text-[#6F664A]">
                 <span className="text-[10px] font-black uppercase tracking-[0.14em]">
-                  Local Search Score
+                  {scoreLabel}
                 </span>
                 <span
                   className="group relative inline-flex cursor-help"
                   tabIndex={0}
                   role="button"
-                  aria-label="What the local search score means"
+                  aria-label={`What the ${scoreLabel.toLowerCase()} means`}
                 >
                   <CircleHelp size={13} />
                   <span className="pointer-events-none invisible absolute left-1/2 top-full z-40 mt-2 w-64 -translate-x-1/2 -translate-y-1 rounded-lg bg-alloro-navy px-3 py-2 text-left text-[11px] font-medium leading-relaxed text-white opacity-0 shadow-lg transition-[opacity,transform,visibility] duration-150 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus:visible group-focus:translate-y-0 group-focus:opacity-100">

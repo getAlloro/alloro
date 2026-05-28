@@ -9,7 +9,6 @@ import {
   Settings,
   ChevronRight,
   Sparkles,
-  Info,
   ArrowUpDown,
 } from "lucide-react";
 import { getPriorityItem } from "../../hooks/useLocalStorage";
@@ -26,8 +25,10 @@ import {
   type SelectedCompetitorSearchResult,
 } from "../../api/practiceRanking";
 import { RankingsLoadingState } from "./rankings/RankingsLoadingState";
-import { RankingMeaningCard } from "./rankings/RankingMeaningCard";
-import { RankingDetailsModal } from "./rankings/RankingDetailsModal";
+import { MeaningHero } from "./shared/MeaningHero";
+import { DetailsModal } from "./shared/DetailsModal";
+import { SectionTitle } from "./shared/SectionTitle";
+import { InfoTip } from "./shared/InfoTip";
 import { CompetitorComparisonSortMenu } from "./rankings/CompetitorComparisonSortMenu";
 import { CompetitorComparisonTable } from "./rankings/CompetitorComparisonTable";
 import { GbpAutomationPanel } from "./gbp-automation/GbpAutomationPanel";
@@ -1060,74 +1061,6 @@ function Slug({
 }
 
 /**
- * Card section title — Fraunces (font-display) for legibility. Used in card
- * headers where a mono slug felt too small/typewritten. Pair with a colored
- * dot on the left and a mono context label on the right.
- */
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <h3 className="font-display text-[15px] lg:text-base font-medium text-alloro-navy tracking-tight leading-tight">
-      {children}
-    </h3>
-  );
-}
-
-/**
- * InfoTip — small (i) icon with an animated, hover/focus-activated tooltip.
- * Pure CSS transition (no framer-motion). Tooltip pops below the icon, fades
- * + slides in. Accessible via keyboard focus.
- */
-function InfoTip({
-  content,
-  align = "center",
-  placement = "bottom",
-}: {
-  content: string;
-  // `left` anchors the tooltip to the icon's left edge (extends rightward) so
-  // it doesn't clip when the icon sits flush-left in a row grid.
-  align?: "center" | "left";
-  // `top` flips the tooltip above the icon — needed when the InfoTip sits in
-  // the last row of an `overflow-hidden` container that would clip a
-  // bottom-flowing tooltip.
-  placement?: "top" | "bottom";
-}) {
-  const tooltipPos =
-    align === "left" ? "left-0" : "left-1/2 -translate-x-1/2";
-  const arrowPos =
-    align === "left" ? "left-3" : "left-1/2 -translate-x-1/2";
-  const placementCls =
-    placement === "top"
-      ? "bottom-full mb-2 translate-y-1 group-hover/tip:translate-y-0 group-focus/tip:translate-y-0"
-      : "top-full mt-2 -translate-y-1 group-hover/tip:translate-y-0 group-focus/tip:translate-y-0";
-  const arrowEdgeCls =
-    placement === "top"
-      ? "top-full border-t-alloro-navy"
-      : "bottom-full border-b-alloro-navy";
-  return (
-    <span
-      className="relative inline-flex group/tip cursor-help shrink-0 outline-none"
-      tabIndex={0}
-      role="button"
-      aria-label="More info"
-    >
-      <Info
-        size={13}
-        className="text-alloro-navy/35 hover:text-alloro-navy group-focus/tip:text-alloro-navy transition-colors"
-      />
-      <span
-        role="tooltip"
-        className={`pointer-events-none absolute z-50 ${placementCls} ${tooltipPos} w-64 bg-alloro-navy text-white text-[11px] font-medium leading-relaxed rounded-lg px-3 py-2 shadow-lg opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible group-focus/tip:opacity-100 group-focus/tip:visible transition-[opacity,transform,visibility] duration-150 ease-out`}
-      >
-        <span
-          className={`absolute ${arrowEdgeCls} ${arrowPos} w-0 h-0 border-[5px] border-transparent`}
-        />
-        {content}
-      </span>
-    </span>
-  );
-}
-
-/**
  * rankingFactors values arrive as 0..1 fractions in production (e.g. `score:
  * 0.92`, `weight: 0.25`) but the wizard demo + the original redesign mock use
  * 0..100. Normalize defensively so both shapes render correctly.
@@ -1979,7 +1912,7 @@ function PerformanceDashboard({
       data-wizard-target="rankings-score"
       className="space-y-5 lg:space-y-6"
     >
-      <RankingMeaningCard
+      <MeaningHero
         insight={overviewInsight}
         insightHighlights={overviewHighlights}
         score={<HealthGauge value={score} prev={gaugePrev} />}
@@ -2002,7 +1935,7 @@ function PerformanceDashboard({
       {engagementSummary}
       <SearchPositionSection result={result} />
 
-      <RankingDetailsModal
+      <DetailsModal
         open={detailsModal === "score"}
         title={`Why you scored ${Math.round(score)}/100`}
         eyebrow="Score details"
@@ -2012,15 +1945,15 @@ function PerformanceDashboard({
           <DriversPanel result={result} embedded />
           <FactorBreakdown result={result} embedded />
         </div>
-      </RankingDetailsModal>
-      <RankingDetailsModal
+      </DetailsModal>
+      <DetailsModal
         open={detailsModal === "gaps"}
         title="How to close the gap"
         eyebrow="Gaps to fix"
         onClose={() => setDetailsModal(null)}
       >
         <GapsPanel result={result} embedded />
-      </RankingDetailsModal>
+      </DetailsModal>
     </div>
   );
 }

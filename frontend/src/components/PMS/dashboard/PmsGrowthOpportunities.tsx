@@ -22,15 +22,15 @@ export function PmsGrowthOpportunities({
   const fixes = referralData?.growth_opportunity_summary?.top_three_fixes ?? [];
 
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-alloro-navy bg-alloro-navy p-6 text-white shadow-premium sm:p-8">
+    <section className="relative overflow-hidden rounded-[14px] border border-alloro-navy bg-alloro-navy p-6 text-white shadow-premium sm:p-8">
       <div className="absolute right-0 top-0 h-64 w-64 rounded-full bg-alloro-orange/20 blur-3xl" />
       <div className="relative z-10 mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-white/45">
+          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-white/70">
             Growth Opportunities
           </p>
           <h2 className="mt-1 font-display text-3xl font-medium tracking-tight text-white">
-            Top actions to grow referrals
+            Best next actions
           </h2>
         </div>
       </div>

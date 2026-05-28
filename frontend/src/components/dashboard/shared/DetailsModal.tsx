@@ -1,8 +1,8 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect, useId } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 
-export type RankingDetailsModalProps = {
+export type DetailsModalProps = {
   open: boolean;
   title: string;
   eyebrow: string;
@@ -10,13 +10,26 @@ export type RankingDetailsModalProps = {
   onClose: () => void;
 };
 
-export function RankingDetailsModal({
+export function DetailsModal({
   open,
   title,
   eyebrow,
   children,
   onClose,
-}: RankingDetailsModalProps) {
+}: DetailsModalProps) {
+  const titleId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
+
   return (
     <AnimatePresence>
       {open && (
@@ -34,7 +47,7 @@ export function RankingDetailsModal({
           <motion.div
             role="dialog"
             aria-modal="true"
-            aria-labelledby="ranking-details-modal-title"
+            aria-labelledby={titleId}
             className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-[16px] border border-white/70 bg-[#F7F5F1] shadow-2xl"
             initial={{ opacity: 0, scale: 0.96, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -48,7 +61,7 @@ export function RankingDetailsModal({
                   {eyebrow}
                 </span>
                 <h2
-                  id="ranking-details-modal-title"
+                  id={titleId}
                   className="mt-1 font-display text-[24px] font-medium tracking-tight text-alloro-navy"
                 >
                   {title}
