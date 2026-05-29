@@ -845,7 +845,7 @@ export function RankingsDashboard({
                     Update location
                   </span>
                   <p className="truncate text-[12px] font-semibold text-alloro-navy/55">
-                    Refresh data or edit competitors.
+                    Refresh local search data.
                   </p>
                 </div>
                 <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
@@ -860,18 +860,6 @@ export function RankingsDashboard({
                       className={refreshingRankings ? "animate-spin" : ""}
                     />
                     {refreshingRankings ? "Refreshing" : "Refresh rankings"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      navigate(
-                        `/dashboard/competitors/${selectedRanking.locationId}/onboarding?mode=reselect`
-                      )
-                    }
-                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[10px] bg-alloro-navy px-3.5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white transition-colors hover:bg-alloro-navy/90"
-                  >
-                    <Settings size={13} />
-                    Manage competitors
                   </button>
                 </div>
               </div>
@@ -924,6 +912,7 @@ export function RankingsDashboard({
               <PerformanceDashboard
                 result={selectedRanking}
                 insight={selectedInsight || undefined}
+                onOpenEngage={() => setDashboardView("engage")}
                 engagementSummary={
                   <GbpEngagementSummaryCard
                     agentContent={selectedRanking.llmAnalysis?.engagement_card ?? null}
@@ -949,6 +938,7 @@ export function RankingsDashboard({
 }
 
 function SearchPositionSection({ result }: { result: RankingResult }) {
+  const navigate = useNavigate();
   const [sortKey, setSortKey] = useState<ComparisonSortKey>("mapsPosition");
   const rows = useMemo(() => buildCompetitorComparisonRows(result), [result]);
   const sortedRows = useMemo(
@@ -1003,6 +993,22 @@ function SearchPositionSection({ result }: { result: RankingResult }) {
             onSort={setSortKey}
           />
         </div>
+        {result.locationId && (
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() =>
+                navigate(
+                  `/dashboard/competitors/${result.locationId}/onboarding?mode=reselect`,
+                )
+              }
+              className="inline-flex items-center justify-center gap-2 rounded-[10px] bg-alloro-navy px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white transition-colors hover:bg-alloro-navy/90 focus:outline-none focus:ring-2 focus:ring-alloro-orange/35"
+            >
+              <Settings size={13} />
+              Manage competitors
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -1392,14 +1398,81 @@ function normalizeNarrativeScoreText(text: string, score: number): string {
     .replace(/\bon\s+Maps\b/g, "in Local Search");
 }
 
-function normalizeNarrativeHighlights(
-  highlights: string[] | null | undefined,
+function getPracticeDisplayName(result: RankingResult): string {
+  return (
+    result.gbpLocationName?.trim() ||
+    result.rawData?.client_gbp?.gbpLocationName?.trim() ||
+    result.location?.trim() ||
+    "This location"
+  );
+}
+
+function getOverviewRecommendedAction(result: RankingResult): string {
+  const recommendations =
+    result.llmAnalysis?.top_recommendations?.map((rec) =>
+      `${rec.title} ${rec.description ?? ""}`.toLowerCase(),
+    ) ?? [];
+
+  if (recommendations.some((rec) => rec.includes("post"))) {
+    return "Start posting to Google Business Profile weekly to protect the lead";
+  }
+
+  if (recommendations.some((rec) => rec.includes("review"))) {
+    return "Reply to unanswered Google reviews to strengthen the profile";
+  }
+
+  if (recommendations.some((rec) => rec.includes("photo"))) {
+    return "Add fresh Google Business Profile photos to strengthen the profile";
+  }
+
+  return "Start posting to Google Business Profile weekly to protect the lead";
+}
+
+function getStructuredOverviewInsight(
+  result: RankingResult,
+  score: number,
+): string {
+  const rankLabel =
+    (result.searchStatus ?? "ok") === "ok" && result.searchPosition
+      ? `#${result.searchPosition}`
+      : "tracked";
+  const rankTone = result.searchPosition === 1 ? "dominant" : "current";
+  const roundedScore = Math.round(score);
+
+  return `${getPracticeDisplayName(result)} holds a ${rankTone} ${rankLabel} Local Search Ranking with a ${roundedScore} Alloro Health Score. Recommended Action: ${getOverviewRecommendedAction(result)}.`;
+}
+
+function getOverviewDisplayInsight(
+  result: RankingResult,
+  insight: string | undefined,
+  score: number,
+): string {
+  if (
+    insight &&
+    /Local Search Ranking/i.test(insight) &&
+    /Alloro Health Score/i.test(insight) &&
+    /Recommended Action:/i.test(insight)
+  ) {
+    return normalizeNarrativeScoreText(insight, score);
+  }
+
+  return getStructuredOverviewInsight(result, score);
+}
+
+function getOverviewDisplayHighlights(
+  result: RankingResult,
+  insight: string,
   score: number,
 ): string[] {
-  return (highlights ?? [])
-    .map((highlight) => normalizeNarrativeScoreText(highlight, score).trim())
-    .filter(Boolean)
-    .slice(0, 3);
+  const scoreHighlight = `${Math.round(score)} Alloro Health Score`;
+  const rankHighlight =
+    (result.searchStatus ?? "ok") === "ok" && result.searchPosition
+      ? `#${result.searchPosition} Local Search Ranking`
+      : "Local Search Ranking";
+
+  return [rankHighlight, scoreHighlight, "Recommended Action"].filter((highlight) =>
+    insight.includes(highlight),
+  );
 }
 
 function getOverviewFallbackInsight(result: RankingResult): string {
@@ -1880,22 +1953,26 @@ function GapsPanel({
 function PerformanceDashboard({
   result,
   insight,
+  onOpenEngage,
   engagementSummary,
 }: {
   result: RankingResult;
   insight?: string;
+  onOpenEngage: () => void;
   engagementSummary?: React.ReactNode;
 }) {
   const [detailsModal, setDetailsModal] = useState<"score" | "gaps" | null>(null);
   const competitors = result.rawData?.competitors || [];
   const score = getOwnerVisibleScore(result);
   const gaugePrev = getComparablePreviousScore(result);
-  const overviewInsight = normalizeNarrativeScoreText(
+  const overviewInsight = getOverviewDisplayInsight(
+    result,
     insight ?? getOverviewFallbackInsight(result),
     score,
   );
-  const overviewHighlights = normalizeNarrativeHighlights(
-    result.llmAnalysis?.overview_card?.highlights,
+  const overviewHighlights = getOverviewDisplayHighlights(
+    result,
+    overviewInsight,
     score,
   );
 
@@ -1929,6 +2006,16 @@ function PerformanceDashboard({
             onOpenGaps={() => setDetailsModal("gaps")}
             score={score}
           />
+        }
+        insightAction={
+          <button
+            type="button"
+            onClick={onOpenEngage}
+            className="inline-flex items-center gap-2 rounded-[10px] bg-alloro-orange px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white shadow-sm transition-colors hover:bg-alloro-orange/90 focus:outline-none focus:ring-2 focus:ring-alloro-orange/35"
+          >
+            Open Alloro Engage GBP Posts
+            <ChevronRight size={14} />
+          </button>
         }
       />
       <NextMoves result={result} />

@@ -1,6 +1,5 @@
 import { motion } from "framer-motion";
 import type { ReactNode } from "react";
-import HighlightedText from "../focus/HighlightedText";
 
 export type GbpEngagementActionNoticeProps = {
   agentContent?: {
@@ -31,11 +30,6 @@ function daysAgoLabel(days: number): string {
   return `${days.toLocaleString()} days ago`;
 }
 
-function daysDurationLabel(days: number): string {
-  if (days === 1) return "1 day";
-  return `${days.toLocaleString()} days`;
-}
-
 function Highlight({ children }: { children: ReactNode }) {
   return (
     <motion.span
@@ -50,7 +44,6 @@ function Highlight({ children }: { children: ReactNode }) {
 }
 
 export function GbpEngagementActionNotice({
-  agentContent,
   needsAttention,
   reviewNeedsAttention,
   postNeedsAttention,
@@ -60,62 +53,78 @@ export function GbpEngagementActionNotice({
   needsReplyTotal,
   latestPostAgeDays,
 }: GbpEngagementActionNoticeProps) {
-  const sentiment = reviewNeedsAttention
-    ? needsReplyLast30 > 0
-      ? "Newer reviews are where trust is won, so this is the fastest place to clean up the public profile."
-      : "This is older cleanup work, but it still leaves public conversations unfinished."
-    : postNeedsAttention
-      ? "A fresh post gives patients and Google a clearer signal that the practice is active."
-      : "This is the steady state: patients see answers, and Google sees an active profile.";
-  const finalSentiment =
-    needsAttention && agentContent?.sentiment ? agentContent.sentiment : sentiment;
-  const generatedText =
-    needsAttention && agentContent?.text ? agentContent.text.trim() : "";
+  const hasReplyBacklog = reviewNeedsAttention && needsReplyTotal > 0;
+  const hasRecentReplyBacklog = hasReplyBacklog && needsReplyLast30 > 0;
+  const jointAction = reviewNeedsAttention && postNeedsAttention
+    ? "posting weekly and catching up on replies will strengthen the profile."
+    : reviewNeedsAttention
+      ? "catching up on replies will strengthen trust with patients."
+      : "posting weekly will keep the profile fresh for patients and Google.";
+  const standaloneAction = reviewNeedsAttention && postNeedsAttention
+    ? "Posting weekly and catching up on replies will strengthen the profile."
+    : reviewNeedsAttention
+      ? "Catching up on replies will strengthen trust with patients."
+      : "Posting weekly will keep the profile fresh for patients and Google.";
 
   return (
     <div className="min-w-0">
       <p className="font-display text-[19px] font-medium leading-8 text-[#2C2A26] [&_mark.hl]:text-[19px] [&_mark.hl]:font-semibold [&_mark.hl]:text-alloro-orange">
-          {generatedText ? (
-            <HighlightedText
-              text={generatedText}
-              highlights={agentContent?.highlights ?? []}
-            />
-          ) : reviewNeedsAttention ? (
-            <>
-              {needsReplyLast30 > 0 && (
+        {needsAttention ? (
+          <>
+            {hasReplyBacklog ? (
+              hasRecentReplyBacklog ? (
                 <>
                   <Highlight>{needsReplyLast30.toLocaleString()}</Highlight>{" "}
                   Google {plural(needsReplyLast30, "review")} from the last 30 days{" "}
                   {plural(needsReplyLast30, "needs", "need")} a reply
-                  {needsReplyTotal > needsReplyLast30 ? ", with " : ". "}
+                  {needsReplyTotal > needsReplyLast30 ? (
+                    <>
+                      , with <Highlight>{needsReplyTotal.toLocaleString()}</Highlight>{" "}
+                      total unanswered {plural(needsReplyTotal, "review")} waiting.
+                    </>
+                  ) : (
+                    "."
+                  )}{" "}
                 </>
-              )}
-              {needsReplyTotal > needsReplyLast30 && (
+              ) : (
                 <>
                   <Highlight>{needsReplyTotal.toLocaleString()}</Highlight> total unanswered{" "}
-                  {plural(needsReplyTotal, "review")} waiting.{" "}
+                  {plural(needsReplyTotal, "review")}{" "}
+                  {plural(needsReplyTotal, "is", "are")} waiting.{" "}
                 </>
-              )}
-            </>
-          ) : (
-            "Every replyable Google review is handled. "
-          )}
-          {postCheckUnavailable ? (
-            "Google post freshness could not be checked right now. "
-          ) : postCheckPending ? (
-            "Google post freshness is still checking. "
-          ) : latestPostAgeDays === null ? (
-            "No Google post is on record yet. "
-          ) : latestPostAgeDays > POST_FRESHNESS_WINDOW_DAYS ? (
-            <>
-              The profile has been quiet for <Highlight>{daysDurationLabel(latestPostAgeDays)}</Highlight>.{" "}
-            </>
-          ) : (
-            <>
-              The latest Google post went live <Highlight>{daysAgoLabel(latestPostAgeDays)}</Highlight>.{" "}
-            </>
-          )}
-          {finalSentiment}
+              )
+            ) : (
+              <>Every replyable Google review is handled. </>
+            )}
+
+            {postCheckUnavailable ? (
+              <>Google post freshness could not be checked right now. {standaloneAction}</>
+            ) : postCheckPending ? (
+              <>Google post freshness is still checking. {standaloneAction}</>
+            ) : latestPostAgeDays === null ? (
+              <>No Google post is on record yet, so {jointAction}</>
+            ) : latestPostAgeDays > POST_FRESHNESS_WINDOW_DAYS ? (
+              <>
+                Your last Google post was{" "}
+                <Highlight>{daysAgoLabel(latestPostAgeDays)}</Highlight>, so{" "}
+                {jointAction}
+              </>
+            ) : postNeedsAttention ? (
+              <>Google posts need attention, so {jointAction}</>
+            ) : (
+              <>
+                The latest Google post went live{" "}
+                <Highlight>{daysAgoLabel(latestPostAgeDays)}</Highlight>.{" "}
+                {reviewNeedsAttention ? standaloneAction : "Keep the same rhythm going."}
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            Every replyable Google review is handled, and Google posts are current. Keep
+            the same rhythm going.
+          </>
+        )}
       </p>
     </div>
   );

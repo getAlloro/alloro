@@ -10,6 +10,7 @@ export type MeaningHeroProps = {
   scoreTooltip: string;
   estimateSummary: ReactNode;
   actions: ReactNode;
+  insightAction?: ReactNode;
 };
 
 export function MeaningHero({
@@ -20,6 +21,7 @@ export function MeaningHero({
   scoreTooltip,
   estimateSummary,
   actions,
+  insightAction,
 }: MeaningHeroProps) {
   return (
     <section className="animate-in fade-in slide-in-from-bottom-2 duration-700 delay-150">
@@ -30,6 +32,7 @@ export function MeaningHero({
               <p className="font-display text-[22px] font-medium leading-[1.35] tracking-tight text-[#2C2A26] md:text-[28px]">
                 <HighlightedText text={insight} highlights={insightHighlights} />
               </p>
+              {insightAction && <div className="mt-4">{insightAction}</div>}
             </div>
 
             <div className="flex flex-1 items-center rounded-[14px] border border-[#EDE5C0] bg-white/75 p-5">

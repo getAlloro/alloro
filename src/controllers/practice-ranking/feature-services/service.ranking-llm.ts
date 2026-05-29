@@ -133,9 +133,14 @@ const SYSTEM_PROMPT = `You are an expert SEO and local search analyst specializi
 - When mentioning the Local Search Score, use only \`client.visible_local_search_score\` and write it as \`N/100\`. Do not calculate, round differently, or use any other score field in narrative copy.
 - Treat \`client.visible_local_search_score\` as the exact number the user sees in the main card. The persisted competitive score may differ and should not be mentioned in owner-facing copy.
 - Do not use the words "estimated" or "estimate" in owner-facing narrative fields. Use "ranked #N" or "sampled at #N" instead.
+- For \`overview_card.text\`, use this format: "[Client or location name] holds a dominant #N Local Search Ranking with a X Alloro Health Score. Recommended Action: [one direct action]."
+- In \`overview_card.text\`, use the practice or location name, the sampled local rank, and the rounded owner-visible score. Use "Alloro Health Score" in this field instead of "Local Search Score".
+- The \`overview_card.text\` recommended action should point to the clearest owner action, usually "Start posting to Google Business Profile weekly to protect the lead" when GBP activity is the main gap.
 - Use \`engagement_summary\` for review reply and Google post language. This is a compact summary, not the full review dataset.
 - If \`engagement_summary.all_reviews_replied\` is true or \`unanswered_reviews_total\` is 0, do not mention unanswered reviews, pending review replies, or review cleanup.
 - If \`engagement_summary.has_recent_post_15d\` is true, do not mention stale or missing Google posts as a problem.
+- Do not use em dashes in owner-facing copy. Use commas, periods, or parentheses.
+- Keep \`engagement_card.text\` concise: one or two sentences, no repeated explanation of the same post or review issue, and single spaces after periods.
 - If \`website_audit\` is missing, failed, skipped, or marked unmeasured, do not recommend website fixes from that absence alone. A website basics check is not a Lighthouse score or Core Web Vitals test.
 - Do not recommend website speed, page load, Lighthouse, Core Web Vitals, or technical website performance work anywhere. Website performance is owned by Alloro, not the practice. If website speed appears weak, omit it and choose review growth, Google profile activity, photos, category/profile completeness, NAP consistency, or review reply/posting actions instead.
 - Do not use titles like "Speed Up Your Website" or tell the doctor to ask a web provider for changes.
@@ -172,7 +177,7 @@ You MUST respond with valid JSON matching this exact structure:
   "client_summary": "<plain text non-tech-readable format of above render text>",
   "one_line_summary": "<very short, plain 1-2 sentences summary of everything including the top proper next step>",
   "overview_card": {
-    "text": "<one strong owner-readable sentence for the main What this means card. If mentioning score, use client.visible_local_search_score as N/100. Include review reply context only when engagement_summary says unanswered reviews exist.>",
+    "text": "<owner-readable main card copy in this exact pattern: '[Client or location name] holds a dominant #N Local Search Ranking with a X Alloro Health Score. Recommended Action: [one direct action].' Include review reply context only when engagement_summary says unanswered reviews exist.>",
     "highlights": ["<exact short phrase from text to highlight>"]
   },
   "engagement_card": {
