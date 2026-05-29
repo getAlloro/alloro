@@ -89,6 +89,14 @@ export function GlobalSupportAction() {
       await new Promise((resolve) => window.setTimeout(resolve, 180));
       const sourceUrl = window.location.href;
       const screenshot = await captureSupportScreenshot();
+
+      // Order matters: the screenshot is captured with the current view (incl.
+      // any open modal/overlay) intact, THEN we dismiss those overlays so the
+      // page is clean, THEN we hand off to the support composer where the
+      // attachment animation plays.
+      dismissOpenOverlays();
+      await new Promise((resolve) => window.setTimeout(resolve, 220));
+
       const consoleLogFile = createSupportConsoleLogFile(sourceUrl);
       const draftId = buildDraftId();
       const draft = {
@@ -123,7 +131,7 @@ export function GlobalSupportAction() {
     <div
       ref={actionRef}
       data-support-capture-exclude
-      className="fixed bottom-[calc(env(safe-area-inset-bottom)+5rem)] right-4 z-40 flex flex-col items-end gap-3 lg:bottom-6 lg:right-6"
+      className="fixed bottom-[calc(env(safe-area-inset-bottom)+5rem)] right-4 z-[115] flex flex-col items-end gap-3 lg:bottom-6 lg:right-6"
     >
       <AnimatePresence>
         {isOpen && (
@@ -191,6 +199,19 @@ export function GlobalSupportAction() {
         />
       </div>
     </div>
+  );
+}
+
+/**
+ * Dismiss whatever overlay is currently open (DetailsModal, confirm dialogs, the
+ * FAB menu, etc.). They all close on a document-level Escape keydown, so a
+ * synthetic Escape is the decoupled way to close them without a central modal
+ * registry. Called AFTER the screenshot is captured so the modal still appears
+ * in the capture, then the page is clean before the support handoff.
+ */
+function dismissOpenOverlays(): void {
+  document.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
   );
 }
 

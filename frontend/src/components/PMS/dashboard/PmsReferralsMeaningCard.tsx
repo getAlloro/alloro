@@ -38,13 +38,13 @@ function MeaningMetric({
   isAccent?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex min-w-0 flex-col gap-1.5">
       <span className="font-mono-display text-[10px] font-bold uppercase tracking-[0.18em] text-[#6F664A]">
         {label}
       </span>
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         <span
-          className={`font-display text-[28px] font-medium tabular-nums leading-none tracking-tight ${
+          className={`font-display text-[18px] font-medium tabular-nums leading-none tracking-tight ${
             isAccent ? "text-alloro-orange" : "text-alloro-navy"
           }`}
         >
@@ -126,11 +126,11 @@ export function PmsReferralsMeaningCard({
                   <SkeletonBlock className="h-7 w-3/4" />
                 </div>
               ) : primaryInsight ? (
-                <p className="font-display text-[22px] font-medium leading-[1.35] tracking-tight text-[#2C2A26] md:text-[28px]">
+                <p className="font-display text-[18px] font-medium leading-[1.4] tracking-tight text-[#2C2A26] md:text-[22px]">
                   {primaryInsight}
                 </p>
               ) : (
-                <p className="font-display text-[20px] font-medium leading-[1.35] tracking-tight text-[#6F664A]/60 md:text-[24px]">
+                <p className="font-display text-[16px] font-medium leading-[1.4] tracking-tight text-[#6F664A]/60 md:text-[19px]">
                   Referral intelligence will appear after PMS data has been
                   approved and processed.
                 </p>
@@ -140,7 +140,7 @@ export function PmsReferralsMeaningCard({
             {/* Key metrics inset */}
             <div className="flex flex-1 items-center rounded-[14px] border border-[#EDE5C0] bg-white/75 p-5">
               {isProcessingInsights ? (
-                <div className="grid w-full gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid w-full grid-cols-1 gap-x-5 gap-y-6 sm:grid-cols-2 xl:grid-cols-4">
                   {Array.from({ length: 4 }).map((_, i) => (
                     <div key={i} className="space-y-2">
                       <SkeletonBlock className="h-3 w-20" />
@@ -150,7 +150,7 @@ export function PmsReferralsMeaningCard({
                   ))}
                 </div>
               ) : (
-                <div className="grid w-full gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid w-full grid-cols-1 gap-x-5 gap-y-6 sm:grid-cols-2 xl:grid-cols-4">
                   <MeaningMetric
                     label="Production this month"
                     value={
@@ -218,7 +218,7 @@ export function PmsReferralsMeaningCard({
                 </div>
               ) : topSource ? (
                 <>
-                  <h3 className="font-display text-[22px] font-medium leading-tight tracking-tight text-alloro-navy">
+                  <h3 className="font-display text-[19px] font-medium leading-tight tracking-tight text-alloro-navy">
                     {topSource.name}
                   </h3>
                   <p className="mt-2 text-[13px] font-semibold leading-relaxed text-[#6F664A]/70">

@@ -34,7 +34,7 @@ export function PmsDashboardHero({
         <button
           type="button"
           onClick={onJumpToIngestion}
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-alloro-orange px-5 py-3 text-[11px] font-black uppercase tracking-widest text-white shadow-lg shadow-alloro-orange/25 transition-all duration-200 hover:scale-[1.02] hover:brightness-110 focus:outline-none focus:ring-4 focus:ring-alloro-teal/30"
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-alloro-orange px-5 py-3 text-[11px] font-black uppercase tracking-widest text-white shadow-lg shadow-alloro-orange/25 transition-all duration-200 hover:scale-[1.02] hover:brightness-110 focus:outline-none focus-visible:ring-4 focus-visible:ring-alloro-orange/40"
         >
           Update data
           <ArrowRight className="h-4 w-4" />

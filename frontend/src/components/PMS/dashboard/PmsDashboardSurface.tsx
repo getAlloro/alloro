@@ -10,7 +10,7 @@ import { PmsReferralMixCard } from "./PmsReferralMixCard";
 import { PmsReferralsMeaningCard } from "./PmsReferralsMeaningCard";
 import { PmsTopSourcesCard } from "./PmsTopSourcesCard";
 import { PmsVelocityCard } from "./PmsVelocityCard";
-import { RankingDetailsModal } from "../../dashboard/rankings/RankingDetailsModal";
+import { DetailsModal } from "../../dashboard/shared/DetailsModal";
 import type { PmsDashboardData } from "./types";
 
 type DetailModal = "sources" | "trends" | null;
@@ -26,6 +26,7 @@ export function PmsDashboardSurface({
   topSources,
   totalProduction,
   totalReferrals,
+  doctorReferralCount,
   doctorPercentage,
   referralData,
   isLoading,
@@ -102,7 +103,7 @@ export function PmsDashboardSurface({
 
       {/* Detail modals — rendered outside the conditional so AnimatePresence
           exit animations work even when the data section isn't mounted. */}
-      <RankingDetailsModal
+      <DetailsModal
         open={detailModal === "sources"}
         title="All sources ranked by production"
         eyebrow="Referral Sources"
@@ -111,10 +112,11 @@ export function PmsDashboardSurface({
         <PmsTopSourcesCard
           sources={topSources}
           isProcessingInsights={isProcessingInsights}
+          expanded
         />
-      </RankingDetailsModal>
+      </DetailsModal>
 
-      <RankingDetailsModal
+      <DetailsModal
         open={detailModal === "trends"}
         title="Production and referral patterns"
         eyebrow="Referral Trends"
@@ -126,7 +128,9 @@ export function PmsDashboardSurface({
             isProcessingInsights={isProcessingInsights}
           />
           <PmsReferralMixCard
-            months={monthlyData}
+            doctorPercentage={doctorPercentage}
+            doctorReferralCount={doctorReferralCount}
+            totalReferrals={totalReferrals}
             isProcessingInsights={isProcessingInsights}
           />
           <PmsVelocityCard
@@ -134,7 +138,7 @@ export function PmsDashboardSurface({
             isProcessingInsights={isProcessingInsights}
           />
         </div>
-      </RankingDetailsModal>
+      </DetailsModal>
     </motion.div>
   );
 }

@@ -34,7 +34,7 @@ export function PmsReferralMixCard({
       eyebrow="Referral mix"
       title="Where your referrals come from"
       action={
-        <span className="rounded-xl bg-alloro-orange/10 p-2.5 text-alloro-orange">
+        <span className="inline-flex items-center justify-center rounded-xl bg-alloro-orange/10 p-2.5 text-alloro-orange">
           <UsersRound className="h-5 w-5" />
         </span>
       }

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Search } from "lucide-react";
 import type { PmsKeyDataSource } from "../../../api/pms";
 import { DetailsModal } from "../../dashboard/shared/DetailsModal";
 import { PmsCardShell } from "./primitives";
@@ -7,15 +8,19 @@ import { formatCurrency } from "./utils";
 export type PmsTopSourcesCardProps = {
   sources: PmsKeyDataSource[];
   isProcessingInsights: boolean;
+  /**
+   * When true, every ranked source renders inline and the top-3 cap +
+   * "See all sources" nested modal are skipped. Used when the card is already
+   * shown inside a DetailsModal, where a modal-in-modal makes no sense.
+   */
+  expanded?: boolean;
 };
 
 function SourceRow({
   source,
-  index,
   maxPercentage,
 }: {
   source: PmsKeyDataSource;
-  index: number;
   maxPercentage: number;
 }) {
   const barWidth = Math.max((source.percentage / maxPercentage) * 100, 8);
@@ -23,7 +28,7 @@ function SourceRow({
     <div className="grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-4 py-4 first:pt-0 last:pb-0">
       <span
         className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-black ${
-          index < 3
+          source.rank <= 3
             ? "bg-alloro-orange text-white"
             : "bg-slate-100 text-slate-500"
         }`}
@@ -63,8 +68,10 @@ function SourceRow({
 export function PmsTopSourcesCard({
   sources,
   isProcessingInsights,
+  expanded = false,
 }: PmsTopSourcesCardProps) {
   const [showAll, setShowAll] = useState(false);
+  const [query, setQuery] = useState("");
 
   const maxPercentage = Math.max(
     ...sources.map((source) => source.percentage),
@@ -74,7 +81,15 @@ export function PmsTopSourcesCard({
     (a, b) => b.production - a.production,
   );
   const topThree = rankedSources.slice(0, 3);
-  const hasOverflow = rankedSources.length > topThree.length;
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredSources =
+    expanded && normalizedQuery
+      ? rankedSources.filter((source) =>
+          source.name.toLowerCase().includes(normalizedQuery),
+        )
+      : rankedSources;
+  const displayedSources = expanded ? filteredSources : topThree;
+  const hasOverflow = !expanded && rankedSources.length > topThree.length;
 
   return (
     <>
@@ -89,16 +104,36 @@ export function PmsTopSourcesCard({
       >
         {sources.length > 0 ? (
           <>
-            <div className="divide-y divide-line-soft">
-              {topThree.map((source, index) => (
-                <SourceRow
-                  key={`${source.rank}-${source.name}`}
-                  source={source}
-                  index={index}
-                  maxPercentage={maxPercentage}
+            {expanded && (
+              <div className="relative mb-4">
+                <Search
+                  size={16}
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--color-pm-text-secondary)]"
                 />
-              ))}
-            </div>
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search sources…"
+                  className="w-full rounded-[10px] border border-line-soft bg-[#FCFAED] py-2.5 pl-9 pr-3 text-sm font-medium text-alloro-navy placeholder:text-[color:var(--color-pm-text-secondary)] focus:outline-none focus:ring-2 focus:ring-alloro-orange/30"
+                />
+              </div>
+            )}
+            {displayedSources.length > 0 ? (
+              <div className="divide-y divide-line-soft">
+                {displayedSources.map((source) => (
+                  <SourceRow
+                    key={`${source.rank}-${source.name}`}
+                    source={source}
+                    maxPercentage={maxPercentage}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="py-10 text-center text-sm font-semibold text-[color:var(--color-pm-text-secondary)]">
+                No sources match “{query.trim()}”.
+              </div>
+            )}
             {hasOverflow && (
               <button
                 type="button"
@@ -118,23 +153,24 @@ export function PmsTopSourcesCard({
         )}
       </PmsCardShell>
 
-      <DetailsModal
-        open={showAll}
-        onClose={() => setShowAll(false)}
-        eyebrow="Referral sources · All time"
-        title="All referral sources"
-      >
-        <div className="divide-y divide-line-soft">
-          {rankedSources.map((source, index) => (
-            <SourceRow
-              key={`${source.rank}-${source.name}`}
-              source={source}
-              index={index}
-              maxPercentage={maxPercentage}
-            />
-          ))}
-        </div>
-      </DetailsModal>
+      {!expanded && (
+        <DetailsModal
+          open={showAll}
+          onClose={() => setShowAll(false)}
+          eyebrow="Referral sources · All time"
+          title="All referral sources"
+        >
+          <div className="divide-y divide-line-soft">
+            {rankedSources.map((source) => (
+              <SourceRow
+                key={`${source.rank}-${source.name}`}
+                source={source}
+                maxPercentage={maxPercentage}
+              />
+            ))}
+          </div>
+        </DetailsModal>
+      )}
     </>
   );
 }

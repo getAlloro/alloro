@@ -42,8 +42,8 @@ export function PmsIngestionCard({
               Update your referral data
             </h2>
             <p className="mt-3 text-base font-medium leading-7 text-[color:var(--color-pm-text-secondary)]">
-              Keep this month’s referral and production numbers current. The
-              existing entry flow stays unchanged.
+              Upload your latest month’s referral and production numbers. Re-upload
+              a month you’ve already saved to overwrite its existing entry.
             </p>
           </div>
 
