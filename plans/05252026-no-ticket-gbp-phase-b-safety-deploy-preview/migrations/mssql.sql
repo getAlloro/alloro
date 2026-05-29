@@ -1,0 +1,3 @@
+-- GBP Phase B Safety And Deploy Preview SQL Server scaffold
+-- Runtime DB is PostgreSQL. Keep this as review companion only.
+-- TODO mirror PostgreSQL schema intent if required.

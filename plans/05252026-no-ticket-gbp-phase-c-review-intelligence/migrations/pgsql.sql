@@ -1,0 +1,6 @@
+-- GBP Phase C Review Intelligence PostgreSQL scaffold
+-- TODO during execution:
+-- - Create gbp_review_insights.
+-- - Create gbp_review_escalations.
+-- - Add structured voice example and rules columns to gbp_automation_settings.
+-- - Add safe indexes for location/review/status/theme access.

@@ -19,6 +19,7 @@ import {
   Circle,
   CheckCircle,
   Send,
+  Loader2,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import {
@@ -44,6 +45,7 @@ import {
   type UpdateFormCatalogPreferencesFn,
   type FetchWebsiteRecipientsFn,
   type UpdateFormRecipientRuleFn,
+  useAdminWebsiteRecipients,
   useUpdateWebsiteFormCatalogPreferences,
   useWebsiteFormRecipientCatalog,
 } from "../../hooks/queries/useWebsiteFormRecipientRouting";
@@ -163,6 +165,9 @@ export default function FormSubmissionsTab({
   // Multi-select state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [sendingSubmissionIds, setSendingSubmissionIds] = useState<Set<string>>(
+    new Set(),
+  );
   const catalogQueryKey = useMemo(
     () => [formCatalogQueryScope, "website", projectId, "form-catalog"],
     [formCatalogQueryScope, projectId],
@@ -171,6 +176,14 @@ export default function FormSubmissionsTab({
     fetchCatalogFn: fetchFormCatalogFn,
     queryKey: catalogQueryKey,
     refetchInterval: 5000,
+  });
+  const recipientsQueryKey = useMemo(
+    () => [formCatalogQueryScope, "website", projectId, "recipients"],
+    [formCatalogQueryScope, projectId],
+  );
+  const recipientsQuery = useAdminWebsiteRecipients(projectId, {
+    fetchRecipientsFn,
+    queryKey: recipientsQueryKey,
   });
   const updateFormPreferences = useUpdateWebsiteFormCatalogPreferences(
     projectId,
@@ -187,6 +200,7 @@ export default function FormSubmissionsTab({
       null,
     [forms, selectedFormKey],
   );
+  const selectedFormName = selectedForm?.form_name ?? null;
 
   useEffect(() => {
     if (forms.length === 0) {
@@ -201,7 +215,7 @@ export default function FormSubmissionsTab({
 
   const load = useCallback(async (options?: { silent?: boolean }) => {
     if (catalogQuery.isLoading) return;
-    if (!selectedForm?.form_name) {
+    if (!selectedFormName) {
       setSubmissions([]);
       setTotalPages(1);
       setAllCount(0);
@@ -223,7 +237,7 @@ export default function FormSubmissionsTab({
         page,
         20,
         filterParam,
-        selectedForm.form_name,
+        selectedFormName,
       );
       if (res.error || res.success === false) {
         if (!options?.silent) {
@@ -233,7 +247,7 @@ export default function FormSubmissionsTab({
       }
       setSubmissions(res.data || []);
       setTotalPages(res.pagination?.totalPages || 1);
-      setAllCount(res.allCount ?? selectedForm.submission_count ?? 0);
+      setAllCount(res.allCount ?? res.pagination?.total ?? 0);
       setUnreadCount(res.unreadCount || 0);
       setFlaggedCount(res.flaggedCount || 0);
       setVerifiedCount(res.verifiedCount || 0);
@@ -248,7 +262,7 @@ export default function FormSubmissionsTab({
     activeTab,
     fetchSubmissionsFn,
     catalogQuery.isLoading,
-    selectedForm,
+    selectedFormName,
   ]);
 
   useEffect(() => {
@@ -415,11 +429,20 @@ export default function FormSubmissionsTab({
 
   const handleSendSingle = async (sub: FormSubmission, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (sendingSubmissionIds.has(sub.id)) return;
+
+    setSendingSubmissionIds((prev) => new Set(prev).add(sub.id));
     try {
       await sendFormSubmissionEmail(projectId, sub.id);
-      toast.success("Sent successfully");
+      toast.success("Sent to current recipients");
     } catch {
       toast.error("Failed to send");
+    } finally {
+      setSendingSubmissionIds((prev) => {
+        const next = new Set(prev);
+        next.delete(sub.id);
+        return next;
+      });
     }
   };
 
@@ -509,6 +532,28 @@ export default function FormSubmissionsTab({
   };
 
   const currentDetail = detailSubmission && detailSubmission.id === selectedId ? detailSubmission : null;
+  const currentDetailForm = useMemo(
+    () =>
+      currentDetail
+        ? forms.find((form) => form.form_name === currentDetail.form_name) ?? null
+        : null,
+    [currentDetail, forms],
+  );
+  const currentDetailFormRecipients =
+    currentDetailForm?.rule?.is_enabled &&
+    currentDetailForm.rule.recipients.length > 0
+      ? currentDetailForm.rule.recipients
+      : null;
+  const currentConfiguredRecipients =
+    currentDetailFormRecipients ?? recipientsQuery.data?.recipients ?? [];
+  const detailResendRecipients =
+    currentConfiguredRecipients.length > 0
+      ? currentConfiguredRecipients
+      : currentDetail?.recipients_sent_to ?? [];
+  const isShowingCurrentRecipients = currentConfiguredRecipients.length > 0;
+  const isCurrentDetailSending = currentDetail
+    ? sendingSubmissionIds.has(currentDetail.id)
+    : false;
   const canUseBulkActions = isAdmin;
   const canResendSubmission = isAdmin;
 
@@ -726,6 +771,7 @@ export default function FormSubmissionsTab({
             <div className="divide-y divide-gray-100">
               {submissions.map((sub) => {
                 const isMultiSelected = selectedIds.has(sub.id);
+                const isSending = sendingSubmissionIds.has(sub.id);
                 return (
                   <div
                     key={sub.id}
@@ -800,11 +846,20 @@ export default function FormSubmissionsTab({
                       {canResendSubmission && (
                         <button
                           onClick={(e) => handleSendSingle(sub, e)}
-                          className={`p-1.5 rounded-lg transition ${sub.is_flagged ? "hover:bg-amber-50 text-amber-400 hover:text-amber-600" : "hover:bg-gray-100 text-gray-400 hover:text-gray-600"}`}
-                          title="Resend to saved recipients"
-                          aria-label="Resend submission"
+                          disabled={isSending}
+                          className={`p-1.5 rounded-lg transition disabled:cursor-not-allowed disabled:opacity-60 ${sub.is_flagged ? "hover:bg-amber-50 text-amber-400 hover:text-amber-600" : "hover:bg-gray-100 text-gray-400 hover:text-gray-600"}`}
+                          title={
+                            isSending
+                              ? "Resending to current configured recipients"
+                              : "Resend to current configured recipients"
+                          }
+                          aria-label={isSending ? "Resending submission" : "Resend submission"}
                         >
-                          <Send size={14} />
+                          {isSending ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <Send size={14} />
+                          )}
                         </button>
                       )}
                       <button
@@ -867,11 +922,20 @@ export default function FormSubmissionsTab({
                         {canResendSubmission && (
                           <button
                             onClick={(e) => handleSendSingle(currentDetail, e)}
-                            title="Resend to saved recipients"
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition text-sm font-medium border ${currentDetail.is_flagged ? "bg-amber-50 text-amber-600 hover:bg-amber-100 border-amber-200" : "bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200"}`}
+                            disabled={isCurrentDetailSending}
+                            title={
+                              isCurrentDetailSending
+                                ? "Resending to current configured recipients"
+                                : "Resend to current configured recipients"
+                            }
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition text-sm font-medium border disabled:cursor-not-allowed disabled:opacity-60 ${currentDetail.is_flagged ? "bg-amber-50 text-amber-600 hover:bg-amber-100 border-amber-200" : "bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200"}`}
                           >
-                            <Send size={13} />
-                            Resend
+                            {isCurrentDetailSending ? (
+                              <Loader2 size={13} className="animate-spin" />
+                            ) : (
+                              <Send size={13} />
+                            )}
+                            {isCurrentDetailSending ? "Sending..." : "Resend"}
                           </button>
                         )}
                         <button
@@ -896,7 +960,15 @@ export default function FormSubmissionsTab({
                         </div>
                       )}
 
-                      <RecipientsSummary recipients={currentDetail.recipients_sent_to} />
+                      <RecipientsSummary
+                        recipients={detailResendRecipients}
+                        title={
+                          isShowingCurrentRecipients
+                            ? "Current resend recipients"
+                            : "Original recipients"
+                        }
+                        emptyMessage="No recipients are configured for this form."
+                      />
 
                       {detailLoading ? (
                         <div className="text-sm text-gray-400 py-4">Loading file details...</div>
@@ -995,10 +1067,18 @@ function SubmissionStatusChip({ submission }: { submission: FormSubmission }) {
   );
 }
 
-function RecipientsSummary({ recipients }: { recipients: string[] }) {
+function RecipientsSummary({
+  recipients,
+  title = "Saved recipients",
+  emptyMessage = "No recipients were saved.",
+}: {
+  recipients: string[];
+  title?: string;
+  emptyMessage?: string;
+}) {
   return (
     <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
-      <p className="text-xs font-medium text-gray-500">Saved recipients</p>
+      <p className="text-xs font-medium text-gray-500">{title}</p>
       {recipients.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-2">
           {recipients.map((email) => (
@@ -1011,7 +1091,7 @@ function RecipientsSummary({ recipients }: { recipients: string[] }) {
           ))}
         </div>
       ) : (
-        <p className="mt-1 text-sm text-red-600">No recipients were saved.</p>
+        <p className="mt-1 text-sm text-red-600">{emptyMessage}</p>
       )}
     </div>
   );

@@ -6,121 +6,34 @@ import {
 } from "../../hooks/queries/useAdminQueries";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import {
-  ArrowLeft,
-  RefreshCw,
-  Crown,
-  Users,
-  Globe,
-  CheckSquare,
-  Database,
-  Trophy,
-  MessageSquare,
-  FileText,
-  TrendingUp,
-  Target,
-  Share2,
-  Bell,
-  Settings,
-  BarChart3,
-  ChevronDown,
-  RotateCcw,
-} from "lucide-react";
+import { ArrowLeft, RefreshCw, Globe, FileCode } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { AdminPageHeader, Badge } from "../../components/ui/DesignSystem";
+import { Badge } from "../../components/ui/DesignSystem";
 import { OrgLocationSelector } from "../../components/Admin/OrgLocationSelector";
 import { OrgTasksTab } from "../../components/Admin/OrgTasksTab";
 import { OrgPmsTab } from "../../components/Admin/OrgPmsTab";
 import { OrgAgentOutputsTab } from "../../components/Admin/OrgAgentOutputsTab";
 import { OrgRankingsTab } from "../../components/Admin/OrgRankingsTab";
 import { OrgNotificationsTab } from "../../components/Admin/OrgNotificationsTab";
+import { OrgGbpAutomationTab } from "../../components/Admin/OrgGbpAutomationTab";
 import { OrgSubscriptionSection } from "../../components/Admin/OrgSubscriptionSection";
 import { OrgUsersSection } from "../../components/Admin/OrgUsersSection";
 import { OrgConnectionsSection } from "../../components/Admin/OrgConnectionsSection";
 import { OrgSettingsSection } from "../../components/Admin/OrgSettingsSection";
-import { ResetOrgDataModal } from "../../components/Admin/ResetOrgDataModal";
+import { OrganizationDetailNavigation } from "../../components/Admin/OrganizationDetailNavigation";
+import {
+  isOrganizationDetailAgentTabKey,
+  isOrganizationDetailGbpTabKey,
+  isOrganizationDetailSectionKey,
+  isOrganizationDetailWebsiteTabKey,
+  type OrganizationDetailAgentTabKey,
+  type OrganizationDetailGbpTabKey,
+  type OrganizationDetailSectionKey,
+  type OrganizationDetailSubmenuSectionKey,
+  type OrganizationDetailWebsiteTabKey,
+} from "../../components/Admin/organizationDetailNavigationConfig";
 import type { AdminLocation } from "../../api/admin-organizations";
-
-// ---------------------------------------------------------------------------
-// Sidebar section definitions
-// ---------------------------------------------------------------------------
-
-type SectionKey = "subscription" | "users" | "connections" | "agent" | "settings";
-
-const SECTION_CONFIG: Record<
-  SectionKey,
-  { label: string; icon: React.ReactNode }
-> = {
-  subscription: {
-    label: "Subscription & Project",
-    icon: <Crown className="h-4 w-4" />,
-  },
-  users: {
-    label: "Users & Roles",
-    icon: <Users className="h-4 w-4" />,
-  },
-  connections: {
-    label: "Connections",
-    icon: <Globe className="h-4 w-4" />,
-  },
-  agent: {
-    label: "Agent Results",
-    icon: <BarChart3 className="h-4 w-4" />,
-  },
-  settings: {
-    label: "Organization Settings",
-    icon: <Settings className="h-4 w-4" />,
-  },
-};
-
-const SECTION_KEYS: SectionKey[] = [
-  "subscription",
-  "users",
-  "connections",
-  "agent",
-  "settings",
-];
-
-// Agent Results sub-tabs
-const AGENT_TAB_KEYS = [
-  "tasks",
-  "notifications",
-  "rankings",
-  "pms",
-  "proofline",
-  "summary",
-  "opportunity",
-  "cro",
-  "referral",
-] as const;
-type AgentTabKey = (typeof AGENT_TAB_KEYS)[number];
-
-const AGENT_TAB_CONFIG: Record<
-  AgentTabKey,
-  { label: string; icon: React.ReactNode }
-> = {
-  tasks: { label: "Tasks Hub", icon: <CheckSquare className="h-3.5 w-3.5" /> },
-  notifications: {
-    label: "Notifications",
-    icon: <Bell className="h-3.5 w-3.5" />,
-  },
-  rankings: { label: "Rankings", icon: <Trophy className="h-3.5 w-3.5" /> },
-  pms: { label: "PMS Ingestion", icon: <Database className="h-3.5 w-3.5" /> },
-  proofline: {
-    label: "Proofline",
-    icon: <MessageSquare className="h-3.5 w-3.5" />,
-  },
-  summary: { label: "Summary", icon: <FileText className="h-3.5 w-3.5" /> },
-  opportunity: {
-    label: "Opportunity",
-    icon: <TrendingUp className="h-3.5 w-3.5" />,
-  },
-  cro: { label: "CRO", icon: <Target className="h-3.5 w-3.5" /> },
-  referral: {
-    label: "Referral Engine",
-    icon: <Share2 className="h-3.5 w-3.5" />,
-  },
-};
+import WebsiteDetail from "./WebsiteDetail";
 
 // ---------------------------------------------------------------------------
 // Component
@@ -137,45 +50,81 @@ export default function OrganizationDetail() {
     useAdminOrganizationLocations(orgId);
   const { invalidateOne: invalidateOrg } = useInvalidateOrganizations();
   const loading = orgLoading || locLoading;
+  const hasMultipleLocations = locations.length > 1;
 
   // URL-driven state
-  const activeSection = (searchParams.get("section") || "subscription") as SectionKey;
-  const activeAgentTab = (searchParams.get("tab") || "tasks") as AgentTabKey;
-  const [agentExpanded, setAgentExpanded] = useState(activeSection === "agent");
+  const rawSection = searchParams.get("section");
+  const rawTab = searchParams.get("tab");
+  const activeSection = (
+    isOrganizationDetailSectionKey(rawSection) ? rawSection : "subscription"
+  ) as OrganizationDetailSectionKey;
+  const activeAgentTab = (
+    activeSection === "agent" && isOrganizationDetailAgentTabKey(rawTab)
+      ? rawTab
+      : "tasks"
+  ) as OrganizationDetailAgentTabKey;
+  const activeWebsiteTab = (
+    activeSection === "website" && isOrganizationDetailWebsiteTabKey(rawTab)
+      ? rawTab
+      : "pages"
+  ) as OrganizationDetailWebsiteTabKey;
+  const activeGbpTab = (
+    activeSection === "gbpAutomation" && isOrganizationDetailGbpTabKey(rawTab)
+      ? rawTab
+      : "reviews"
+  ) as OrganizationDetailGbpTabKey;
+  const [expandedSection, setExpandedSection] =
+    useState<OrganizationDetailSubmenuSectionKey | null>(
+      getSubmenuSection(activeSection)
+    );
 
   const [selectedLocation, setSelectedLocation] =
     useState<AdminLocation | null>(null);
 
-  // Reset Data modal — destructive action, page is already super-admin gated
-  // by AdminGuard so no extra role check is needed here.
-  const [resetModalOpen, setResetModalOpen] = useState(false);
-
   useEffect(() => {
     if (!orgId) {
       toast.error("Invalid organization ID");
-      navigate("/admin/organization-management");
+      navigate("/admin/mission-control");
     }
-  }, [orgId]);
+  }, [navigate, orgId]);
 
   useEffect(() => {
     if (locations.length > 0 && !selectedLocation) {
       setSelectedLocation(locations[0]);
     }
-  }, [locations]);
+  }, [locations, selectedLocation]);
 
-  // Keep agent expanded state in sync with URL
   useEffect(() => {
-    if (activeSection === "agent") setAgentExpanded(true);
+    setExpandedSection(getSubmenuSection(activeSection));
   }, [activeSection]);
 
-  const setSection = (section: SectionKey, tab?: string) => {
+  useEffect(() => {
+    if (rawSection === "agent" && rawTab === "gbpAutomation") {
+      setSearchParams({ section: "gbpAutomation" });
+    }
+  }, [rawSection, rawTab, setSearchParams]);
+
+  const setSection = (section: OrganizationDetailSectionKey, tab?: string) => {
     const params: Record<string, string> = { section };
-    if (section === "agent") params.tab = tab || activeAgentTab;
+    if (tab) params.tab = tab;
     setSearchParams(params);
   };
 
-  const setAgentTab = (tab: AgentTabKey) => {
+  const setSubmenuSection = (section: OrganizationDetailSubmenuSectionKey) => {
+    setExpandedSection(section);
+    setSection(section, getDefaultTab(section));
+  };
+
+  const setAgentTab = (tab: OrganizationDetailAgentTabKey) => {
     setSearchParams({ section: "agent", tab });
+  };
+
+  const setWebsiteTab = (tab: OrganizationDetailWebsiteTabKey) => {
+    setSearchParams({ section: "website", tab });
+  };
+
+  const setGbpTab = (tab: OrganizationDetailGbpTabKey) => {
+    setSearchParams({ section: "gbpAutomation", tab });
   };
 
   const handleRefresh = async () => {
@@ -207,116 +156,53 @@ export default function OrganizationDetail() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={() => navigate("/admin/organization-management")}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          title="Back to organizations"
-        >
-          <ArrowLeft className="h-5 w-5 text-gray-600" />
-        </button>
-        <div className="flex-1">
-          <AdminPageHeader
-            icon={<Globe className="w-6 h-6" />}
-            title={org.name}
-            description={org.domain || "No domain assigned"}
-            actionButtons={
-              <div className="flex items-center gap-2">
-                <Badge variant="orange">DFY</Badge>
-                {activeSection === "agent" && (
-                  <button
-                    onClick={() => setResetModalOpen(true)}
-                    title="Wipe selected agent outputs and PMS data for this org"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 border border-red-300 bg-transparent rounded-lg hover:bg-red-50 transition-colors"
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" />
-                    Reset Data
-                  </button>
-                )}
-              </div>
-            }
-          />
+      <section className="rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-4">
+            <button
+              type="button"
+              onClick={() => navigate("/admin/mission-control")}
+              aria-label="Back to Mission Control"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-gray-600 transition-all duration-200 hover:-translate-x-0.5 hover:border-alloro-orange/30 hover:bg-alloro-orange/10 hover:text-alloro-orange focus:outline-none focus:ring-2 focus:ring-alloro-orange/30"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-alloro-navy text-white shadow-premium">
+              <Globe className="h-7 w-7" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                Organization
+              </p>
+              <h1 className="mt-1 truncate text-2xl font-black tracking-tight text-alloro-navy">
+                {org.name}
+              </h1>
+              <p className="mt-1 truncate text-sm font-semibold text-gray-500">
+                {org.domain || "No domain assigned"}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center sm:justify-end">
+            <Badge variant="orange">DFY</Badge>
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* Sidebar + Content Layout */}
-      <div className="flex gap-6 min-h-[600px]">
-        {/* Sidebar */}
-        <nav className="w-[220px] shrink-0 rounded-2xl border border-gray-200 bg-white p-2 self-start sticky top-4">
-          {SECTION_KEYS.map((key) => {
-            const config = SECTION_CONFIG[key];
-            const isActive = activeSection === key;
-            const isAgent = key === "agent";
+      <OrganizationDetailNavigation
+        activeSection={activeSection}
+        activeAgentTab={activeAgentTab}
+        activeWebsiteTab={activeWebsiteTab}
+        activeGbpTab={activeGbpTab}
+        expandedSection={expandedSection}
+        onSectionChange={setSection}
+        onSubmenuToggle={setSubmenuSection}
+        onAgentTabChange={setAgentTab}
+        onWebsiteTabChange={setWebsiteTab}
+        onGbpTabChange={setGbpTab}
+      />
 
-            return (
-              <div key={key}>
-                <button
-                  onClick={() => {
-                    if (isAgent) {
-                      setAgentExpanded(!agentExpanded);
-                      setSection("agent", "tasks");
-                    } else {
-                      setSection(key);
-                    }
-                  }}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${
-                    isActive && !isAgent
-                      ? "bg-alloro-orange/10 text-alloro-orange"
-                      : isAgent && activeSection === "agent"
-                        ? "bg-alloro-orange/10 text-alloro-orange"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                  }`}
-                >
-                  {config.icon}
-                  <span className="flex-1 text-left">{config.label}</span>
-                  {isAgent && (
-                    <ChevronDown
-                      className={`h-3.5 w-3.5 transition-transform ${agentExpanded ? "rotate-180" : ""}`}
-                    />
-                  )}
-                </button>
-
-                {/* Agent sub-items */}
-                {isAgent && agentExpanded && (
-                  <div className="ml-3 mt-0.5 mb-1 border-l-2 border-gray-200 pl-2 space-y-0.5">
-                    {AGENT_TAB_KEYS.map((tab) => {
-                      const tabConfig = AGENT_TAB_CONFIG[tab];
-                      const isTabActive =
-                        activeSection === "agent" && activeAgentTab === tab;
-
-                      return (
-                        <button
-                          key={tab}
-                          onClick={() => setAgentTab(tab)}
-                          className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                            isTabActive
-                              ? "text-alloro-orange bg-alloro-orange/5 border-l-2 border-alloro-orange -ml-[2px] pl-[12px]"
-                              : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-                          }`}
-                        >
-                          {tabConfig.icon}
-                          {tabConfig.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Divider after connections (before agent results) */}
-                {key === "connections" && (
-                  <div className="border-t border-gray-100 my-1.5 mx-2" />
-                )}
-              </div>
-            );
-          })}
-
-          {/* Divider before settings */}
-          <div className="border-t border-gray-100 my-1.5 mx-2" />
-        </nav>
-
-        {/* Main Content */}
-        <div className="flex-1 min-w-0">
+      <div className="min-h-[600px]">
+        <div className="min-w-0">
           {activeSection === "subscription" && (
             <OrgSubscriptionSection
               org={org}
@@ -337,19 +223,76 @@ export default function OrganizationDetail() {
             <OrgConnectionsSection org={org} />
           )}
 
+          {activeSection === "website" && (
+            org.website ? (
+              <WebsiteDetail
+                projectId={String(org.website.id)}
+                embedded
+                activeTab={activeWebsiteTab}
+                hideTabBar
+                onTabChange={setWebsiteTab}
+              />
+            ) : (
+              <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
+                <FileCode className="mx-auto h-10 w-10 text-gray-300" />
+                <h3 className="mt-3 text-lg font-semibold text-gray-900">
+                  No website connected
+                </h3>
+                <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">
+                  Connect this organization to a website project before managing
+                  website pages, forms, media, posts, and integrations here.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => navigate("/admin/websites")}
+                  className="mt-4 rounded-xl bg-alloro-orange px-4 py-2 text-sm font-semibold text-white transition hover:bg-alloro-orange/90"
+                >
+                  Open Websites
+                </button>
+              </div>
+            )
+          )}
+
+          {activeSection === "gbpAutomation" && (
+            <div className="space-y-4">
+              {hasMultipleLocations && (
+                <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">
+                    Location context
+                  </span>
+                  <OrgLocationSelector
+                    locations={locations}
+                    selectedLocation={selectedLocation}
+                    onSelect={setSelectedLocation}
+                  />
+                </div>
+              )}
+
+              <OrgGbpAutomationTab
+                organizationId={orgId}
+                locationId={selectedLocation?.id ?? null}
+                activeView={activeGbpTab}
+                hideHeader
+                onViewChange={setGbpTab}
+              />
+            </div>
+          )}
+
           {activeSection === "agent" && (
             <div className="space-y-4">
               {/* Location Selector — only in Agent Results */}
-              <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-700">
-                  Location context
-                </span>
-                <OrgLocationSelector
-                  locations={locations}
-                  selectedLocation={selectedLocation}
-                  onSelect={setSelectedLocation}
-                />
-              </div>
+              {hasMultipleLocations && (
+                <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">
+                    Location context
+                  </span>
+                  <OrgLocationSelector
+                    locations={locations}
+                    selectedLocation={selectedLocation}
+                    onSelect={setSelectedLocation}
+                  />
+                </div>
+              )}
 
               {/* Agent Tab Content */}
               <div className="rounded-2xl border border-gray-200 bg-white p-6">
@@ -422,12 +365,25 @@ export default function OrganizationDetail() {
         </div>
       </div>
 
-      {/* Reset Data destructive modal — super-admin only via AdminGuard */}
-      <ResetOrgDataModal
-        org={{ id: orgId, name: org.name }}
-        open={resetModalOpen}
-        onClose={() => setResetModalOpen(false)}
-      />
     </div>
   );
+}
+
+function getSubmenuSection(
+  section: OrganizationDetailSectionKey
+): OrganizationDetailSubmenuSectionKey | null {
+  if (
+    section === "website" ||
+    section === "gbpAutomation" ||
+    section === "agent"
+  ) {
+    return section;
+  }
+  return null;
+}
+
+function getDefaultTab(section: OrganizationDetailSubmenuSectionKey): string {
+  if (section === "website") return "pages";
+  if (section === "gbpAutomation") return "reviews";
+  return "tasks";
 }

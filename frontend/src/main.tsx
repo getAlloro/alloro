@@ -8,9 +8,12 @@ Sentry.init({
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App.tsx";
+import { installSupportConsoleLogBuffer } from "./utils/supportConsoleLogs";
+
+installSupportConsoleLogBuffer();
 
 createRoot(document.getElementById("root")!).render(
   <Sentry.ErrorBoundary fallback={<p>Something went wrong.</p>}>
     <App />
-  </Sentry.ErrorBoundary>
+  </Sentry.ErrorBoundary>,
 );

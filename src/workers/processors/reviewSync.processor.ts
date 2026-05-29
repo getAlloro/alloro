@@ -9,9 +9,11 @@
 import { Job } from "bullmq";
 import axios from "axios";
 import { db } from "../../database/connection";
+import { GbpSyncHealthModel, GbpSyncSource } from "../../models/GbpSyncHealthModel";
 import { ReviewModel } from "../../models/website-builder/ReviewModel";
 import { createOAuth2ClientForConnection } from "../../auth/oauth2Helper";
 import { buildAuthHeaders } from "../../controllers/gbp/gbp-services/gbp-api.service";
+import { GbpReviewInsightService } from "../../controllers/gbp-automation/feature-services/GbpReviewInsightService";
 
 const STAR_TO_NUM: Record<string, number> = {
   ONE: 1,
@@ -23,13 +25,25 @@ const STAR_TO_NUM: Record<string, number> = {
 
 export interface ReviewSyncData {
   organizationId?: number; // if provided, only sync this org's locations
+  locationId?: number; // if provided, only sync this location
+  syncSource?: GbpSyncSource;
 }
 
 export async function processReviewSync(job: Job<ReviewSyncData>): Promise<void> {
-  const { organizationId } = job.data || {};
+  const { organizationId, locationId } = job.data || {};
+  const syncSource: GbpSyncSource =
+    job.data?.syncSource || (job.name === "daily-review-sync" ? "auto" : "manual");
   const start = Date.now();
 
-  console.log(`[REVIEW-SYNC] ▶ Starting review sync${organizationId ? ` for org ${organizationId}` : " (all orgs)"}`);
+  console.log(
+    `[REVIEW-SYNC] ▶ Starting review sync${
+      locationId
+        ? ` for location ${locationId}`
+        : organizationId
+          ? ` for org ${organizationId}`
+          : " (all orgs)"
+    }`
+  );
 
   try {
     // Get all selected GBP properties with their connections
@@ -38,6 +52,7 @@ export async function processReviewSync(job: Job<ReviewSyncData>): Promise<void>
       .where("gp.type", "gbp")
       .where("gp.selected", true)
       .select(
+        "gp.id as google_property_id",
         "gp.location_id",
         "gp.external_id",
         "gp.account_id",
@@ -47,6 +62,9 @@ export async function processReviewSync(job: Job<ReviewSyncData>): Promise<void>
 
     if (organizationId) {
       query = query.where("gc.organization_id", organizationId);
+    }
+    if (locationId) {
+      query = query.where("gp.location_id", locationId);
     }
 
     const properties = await query;
@@ -83,12 +101,29 @@ export async function processReviewSync(job: Job<ReviewSyncData>): Promise<void>
         const batch = props.slice(i, i + 5);
 
         for (const prop of batch) {
+          const health = await GbpSyncHealthModel.markStarted({
+            organizationId: prop.organization_id,
+            locationId: prop.location_id,
+            googlePropertyId: prop.google_property_id,
+            metadata: { jobId: job.id || null, jobName: job.name, syncSource },
+          });
           try {
             const count = await syncLocationReviews(auth, prop);
+            await GbpSyncHealthModel.markSucceeded(health.id, count, {
+              jobId: job.id || null,
+              jobName: job.name,
+              syncSource,
+            });
             totalSynced += count;
             totalLocations++;
             console.log(`[REVIEW-SYNC] ✓ Location ${prop.location_id}: ${count} reviews synced`);
           } catch (err: any) {
+            await GbpSyncHealthModel.markFailed(
+              health.id,
+              err?.code || "REVIEW_SYNC_FAILED",
+              err?.message || "Review sync failed.",
+              { jobId: job.id || null, jobName: job.name, syncSource }
+            );
             console.error(`[REVIEW-SYNC] ✗ Location ${prop.location_id} failed:`, err.message);
           }
         }
@@ -110,7 +145,12 @@ export async function processReviewSync(job: Job<ReviewSyncData>): Promise<void>
 
 async function syncLocationReviews(
   auth: any,
-  prop: { location_id: number; external_id: string; account_id: string | null }
+  prop: {
+    google_property_id: number;
+    location_id: number;
+    external_id: string;
+    account_id: string | null;
+  }
 ): Promise<number> {
   if (!prop.account_id) {
     console.warn(`[REVIEW-SYNC] No account_id for location ${prop.location_id}, skipping`);
@@ -139,7 +179,7 @@ async function syncLocationReviews(
 
       if (!starRating || !r.name) continue;
 
-      await ReviewModel.upsertByGoogleName({
+      const review = await ReviewModel.upsertByGoogleName({
         source: "oauth",
         place_id: null,
         location_id: prop.location_id,
@@ -154,6 +194,7 @@ async function syncLocationReviews(
         reply_text: r.reviewReply?.comment || null,
         reply_date: r.reviewReply?.updateTime ? new Date(r.reviewReply.updateTime) : null,
       });
+      await GbpReviewInsightService.ensureForReviews([review]);
 
       synced++;
     }

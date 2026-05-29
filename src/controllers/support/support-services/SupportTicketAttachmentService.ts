@@ -227,7 +227,7 @@ function validateFile(file: Express.Multer.File | undefined): void {
   if (!isMimeAllowed(mimeType)) {
     throw new SupportServiceError(
       "ATTACHMENT_TYPE_NOT_ALLOWED",
-      "Attach an image or PDF file.",
+      "Attach an image, PDF, or plain text file.",
       400,
     );
   }

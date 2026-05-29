@@ -12,6 +12,7 @@
  * without aborting the entire batch.
  */
 
+import sharp from "sharp";
 import { MediaModel, IMedia } from "../../../models/website-builder/MediaModel";
 import { ProjectModel } from "../../../models/website-builder/ProjectModel";
 import { uploadToS3 } from "../../../utils/core/s3";
@@ -37,6 +38,10 @@ export interface UploadFailure {
   message: string;
 }
 
+export interface UploadOptions {
+  preserveImageFormat?: boolean;
+}
+
 /**
  * Upload multiple files for a project.
  *
@@ -47,7 +52,8 @@ export interface UploadFailure {
  */
 export async function uploadBulk(
   projectId: string,
-  files: Express.Multer.File[]
+  files: Express.Multer.File[],
+  options: UploadOptions = {}
 ): Promise<UploadResult> {
   if (!files || files.length === 0) {
     const error: any = new Error("No files provided for upload");
@@ -89,7 +95,7 @@ export async function uploadBulk(
 
   // Process and upload files in parallel
   const uploadPromises = files.map(async (file) => {
-    return processFile(projectId, file);
+    return processFile(projectId, file, options);
   });
 
   const results = await Promise.all(uploadPromises);
@@ -114,7 +120,8 @@ export async function uploadBulk(
  */
 async function processFile(
   projectId: string,
-  file: Express.Multer.File
+  file: Express.Multer.File,
+  options: UploadOptions
 ): Promise<IMedia | UploadFailure> {
   try {
     // Validate MIME type
@@ -137,7 +144,19 @@ async function processFile(
     let finalBuffer = file.buffer;
 
     // Process based on file type
-    if (isProcessableImage(file.mimetype)) {
+    if (isProcessableImage(file.mimetype) && options.preserveImageFormat) {
+      const metadata = await sharp(file.buffer).metadata();
+      finalBuffer = file.buffer;
+      finalMimeType = file.mimetype === "image/jpg" ? "image/jpeg" : file.mimetype;
+      width = metadata.width || null;
+      height = metadata.height || null;
+      originalMimeType = file.mimetype;
+      compressed = false;
+
+      s3Key = buildMediaS3Key(projectId, originalFilename);
+      await uploadToS3(s3Key, finalBuffer, finalMimeType);
+      s3Url = buildS3Url(s3Key);
+    } else if (isProcessableImage(file.mimetype)) {
       // Image: compress, convert to WebP, generate thumbnail
       const processed = await processImage(file.buffer, file.mimetype);
 

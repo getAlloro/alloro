@@ -4,7 +4,6 @@ import { RefreshCw, MapPin } from "lucide-react";
 import { useAuth } from "../../../hooks/useAuth";
 import { useLocationContext } from "../../../contexts/locationContext";
 import { useDashboardMetrics } from "../../../hooks/queries/useDashboardMetrics";
-import FactorBar from "./FactorBar";
 import { useIsWizardActive, useWizardDemoData } from "../../../contexts/OnboardingWizardContext";
 
 /**
@@ -14,10 +13,9 @@ import { useIsWizardActive, useWizardDemoData } from "../../../contexts/Onboardi
  *   - useDashboardMetrics(orgId, locationId) for ranking summary metrics
  *     (position, total_competitors, score, lowest_factor).
  *   - useLatestRanking(orgId, locationId) (defined inline below) for the
- *     full rankingFactors jsonb (need all 8 factor scores) plus the
- *     specialty (category) and location (city) metadata. Wraps the same
- *     /api/practice-ranking/latest endpoint that DashboardOverview.tsx:265
- *     already calls.
+ *     latest Maps estimate, Practice Health, and client-facing LLM summary.
+ *     Wraps the same /api/practice-ranking/latest endpoint that the full
+ *     rankings page uses.
  *
  * Spec: plans/04282026-no-ticket-focus-dashboard-frontend/spec.md (T15)
  *
@@ -38,6 +36,10 @@ interface RankingResultLite {
   searchQuery: string | null;
   searchCheckedAt: string | null;
   practiceHealth: number | null;
+  llmAnalysis: {
+    client_summary?: string | null;
+    one_line_summary?: string | null;
+  } | null;
 }
 
 interface LatestRankingResponse {
@@ -80,26 +82,9 @@ const CARD_BORDER = "#E8E4DD";
 const BRAND_ORANGE = "#D66853";
 const MUTED = "#8E8579";
 const INK = "#1F1B16";
-const INK_SOFT = "#3A342B";
-const LINE_SOFT = "#F0ECE5";
 
 const FRAUNCES =
   "'Fraunces', ui-serif, Georgia, Cambria, 'Times New Roman', serif";
-
-// Factor key sets for the two sub-sections. These mirror the 8 factors
-// the LLM scoring prompt emits; missing keys fall back to 0.
-const GOOGLE_KEYS: Array<{ key: string; label: string }> = [
-  { key: "category_match", label: "Category match" },
-  { key: "keyword_name", label: "Keyword in name" },
-  { key: "gbp_activity", label: "GBP activity" },
-  { key: "nap_consistency", label: "NAP consistency" },
-];
-const HEALTH_KEYS: Array<{ key: string; label: string }> = [
-  { key: "star_rating", label: "Star rating" },
-  { key: "review_count", label: "Review count" },
-  { key: "review_velocity", label: "Review velocity" },
-  { key: "sentiment", label: "Sentiment" },
-];
 
 function CardShell({ children }: { children: React.ReactNode }) {
   return (
@@ -141,16 +126,10 @@ function SkeletonShell() {
         <div className="h-9 w-32 animate-pulse rounded-md bg-neutral-100" />
         <div className="h-3 w-56 animate-pulse rounded bg-neutral-100" />
       </div>
-      <div className="mt-5 space-y-2">
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="h-3 w-full animate-pulse rounded bg-neutral-100" />
-        ))}
-      </div>
-      <div className="mt-4 h-px w-full" style={{ background: LINE_SOFT }} />
-      <div className="mt-4 space-y-2">
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="h-3 w-full animate-pulse rounded bg-neutral-100" />
-        ))}
+      <div className="mt-5 space-y-2.5">
+        <div className="h-3 w-full animate-pulse rounded bg-neutral-100" />
+        <div className="h-3 w-11/12 animate-pulse rounded bg-neutral-100" />
+        <div className="h-3 w-2/3 animate-pulse rounded bg-neutral-100" />
       </div>
     </CardShell>
   );
@@ -222,51 +201,6 @@ function EmptyShell() {
   );
 }
 
-function getFactorScore(
-  factors: Record<string, unknown> | null | undefined,
-  key: string,
-): number {
-  if (!factors) return 0;
-  const raw = factors[key];
-  if (typeof raw === "number") return Math.max(0, Math.min(1, raw));
-  if (raw && typeof raw === "object" && "score" in (raw as object)) {
-    const inner = (raw as { score?: unknown }).score;
-    if (typeof inner === "number") return Math.max(0, Math.min(1, inner));
-  }
-  return 0;
-}
-
-function avgScore(
-  factors: Record<string, unknown> | null | undefined,
-  keys: Array<{ key: string }>,
-): number {
-  const values = keys.map((k) => getFactorScore(factors, k.key));
-  if (values.length === 0) return 0;
-  const sum = values.reduce((a, v) => a + v, 0);
-  return Math.round((sum / values.length) * 100);
-}
-
-function lowestFactorHint(factorName: string | undefined | null): string {
-  if (!factorName) return "Address your weakest signal to climb the rankings.";
-  const lower = factorName.toLowerCase();
-  if (lower.includes("review")) {
-    return "Replying to recent reviews directly lifts this.";
-  }
-  if (lower.includes("rating") || lower.includes("sentiment")) {
-    return "Improving review tone and rating moves this fastest.";
-  }
-  if (lower.includes("gbp") || lower.includes("activity")) {
-    return "Posting and updating your GBP weekly improves this.";
-  }
-  if (lower.includes("nap") || lower.includes("consistency")) {
-    return "Aligning name, address, and phone across directories fixes this.";
-  }
-  if (lower.includes("category") || lower.includes("keyword")) {
-    return "Tightening your primary category and business name helps here.";
-  }
-  return "Focused effort on this factor yields the largest gain.";
-}
-
 const LocalRankingCard: React.FC = () => {
   const isWizardActive = useIsWizardActive();
   const wizardDemoData = useWizardDemoData();
@@ -306,16 +240,11 @@ const LocalRankingCard: React.FC = () => {
   const mapsEstimate = latestRow.searchPosition;
   const searchStatus = latestRow.searchStatus ?? "ok";
   const rankScore =
-    latestRow.practiceHealth ?? latestRow.rankScore ?? ranking?.score ?? 0;
-  const category = latestRow.specialty || "Local market";
-  const city = latestRow.location || "";
-
-  const factors = latestRow.rankingFactors;
-  const googleAvg = avgScore(factors, GOOGLE_KEYS);
-  const healthAvg = avgScore(factors, HEALTH_KEYS);
-
-  const lowestName = ranking?.lowest_factor?.name ?? null;
-  const hint = lowestFactorHint(lowestName);
+    ranking?.score ?? latestRow.practiceHealth ?? latestRow.rankScore ?? 0;
+  const summary =
+    latestRow.llmAnalysis?.one_line_summary ||
+    latestRow.llmAnalysis?.client_summary ||
+    "Your ranking summary will appear after the next local visibility scan.";
 
   return (
     <CardShell>
@@ -347,77 +276,7 @@ const LocalRankingCard: React.FC = () => {
         className="mt-1.5 leading-relaxed"
         style={{ fontSize: 12, color: MUTED }}
       >
-        Practice Health {Math.round(Number(rankScore))}/100 · {category}
-        {city ? ` · ${city}` : ""}
-      </div>
-
-      {/* GOOGLE SEARCH */}
-      <div className="mt-4">
-        <div className="mb-2.5 flex items-center justify-between">
-          <span
-            className="font-bold uppercase"
-            style={{
-              fontSize: 10.5,
-              letterSpacing: "0.14em",
-              color: INK_SOFT,
-            }}
-          >
-            Google Maps signals
-          </span>
-          <span
-            style={{
-              fontFamily: FRAUNCES,
-              fontWeight: 500,
-              fontSize: 18,
-              color: INK,
-            }}
-          >
-            {googleAvg}
-          </span>
-        </div>
-        {GOOGLE_KEYS.map((f) => (
-          <FactorBar
-            key={f.key}
-            label={f.label}
-            score={getFactorScore(factors, f.key)}
-          />
-        ))}
-      </div>
-
-      {/* PRACTICE HEALTH */}
-      <div
-        className="mt-4 pt-4 border-t"
-        style={{ borderColor: LINE_SOFT }}
-      >
-        <div className="mb-2.5 flex items-center justify-between">
-          <span
-            className="font-bold uppercase"
-            style={{
-              fontSize: 10.5,
-              letterSpacing: "0.14em",
-              color: INK_SOFT,
-            }}
-          >
-            Practice Health
-          </span>
-          <span
-            style={{
-              fontFamily: FRAUNCES,
-              fontWeight: 500,
-              fontSize: 18,
-              color: INK,
-            }}
-          >
-            {healthAvg}
-          </span>
-        </div>
-        {HEALTH_KEYS.map((f) => (
-          <FactorBar
-            key={f.key}
-            label={f.label}
-            score={getFactorScore(factors, f.key)}
-          />
-        ))}
+        Practice Health {Math.round(Number(rankScore))}/100
       </div>
 
       <div
@@ -429,11 +288,7 @@ const LocalRankingCard: React.FC = () => {
           fontSize: 12,
         }}
       >
-        Lowest factor:{" "}
-        <strong style={{ color: BRAND_ORANGE, fontWeight: 700 }}>
-          {lowestName ?? "n/a"}
-        </strong>
-        . {hint}
+        {summary}
       </div>
     </CardShell>
   );

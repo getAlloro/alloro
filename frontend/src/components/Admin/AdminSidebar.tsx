@@ -8,7 +8,6 @@ import {
   Cpu,
   LineChart,
   FileText,
-  Building,
   Database,
   Bot,
   Brain,
@@ -21,11 +20,13 @@ import {
   Settings,
   Clock,
   Inbox,
+  Radar,
   UserCheck,
 } from "lucide-react";
 import { useSidebar } from "./SidebarContext";
 
 export type AdminNavKey =
+  | "mission-control"
   | "action-items"
   | "agent-outputs"
   | "ai-pms-automation"
@@ -64,12 +65,12 @@ const DONE_FOR_YOU_ITEMS: NavItem[] = [
 ];
 
 const TOP_ITEMS: NavItem[] = [
+  { key: "mission-control", label: "Mission Control", icon: Radar },
   { key: "action-items", label: "Action Items Hub", icon: CheckSquare },
 ];
 
 const BOTTOM_ITEMS: NavItem[] = [
   { key: "app-logs", label: "App Logs", icon: FileText },
-  { key: "organization-management", label: "Organizations", icon: Building },
   { key: "schedules", label: "Schedules", icon: Clock },
   { key: "settings", label: "Settings", icon: Settings },
 ];

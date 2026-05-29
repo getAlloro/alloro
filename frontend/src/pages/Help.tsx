@@ -1,29 +1,54 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { LifeBuoy, Plus } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
-import type { CreateSupportTicketPayload } from "../api/support";
+import type {
+  CreateSupportTicketPayload,
+  SupportTicketType,
+} from "../api/support";
 import { SupportTicketComposerModal } from "../components/support/SupportTicketComposerModal";
 import { SupportTicketDetail } from "../components/support/SupportTicketDetail";
 import { SupportTicketList } from "../components/support/SupportTicketList";
 import { useLocationContext } from "../contexts/locationContext";
+import {
+  getPendingSupportDraftCache,
+  type PendingSupportDraft,
+  useSupportQuickAction,
+} from "../contexts/SupportQuickActionContext";
 import {
   useCreateSupportTicket,
   useCreateSupportTicketMessage,
   useSupportTicket,
   useSupportTickets,
 } from "../hooks/queries/useSupportQueries";
-import { useIsWizardActive, useWizardDemoData } from "../contexts/OnboardingWizardContext";
+import {
+  useIsWizardActive,
+  useWizardDemoData,
+} from "../contexts/OnboardingWizardContext";
+
+type ComposerDraft = {
+  id: string;
+  type: SupportTicketType;
+  files: File[];
+  animatedFileNames: string[];
+  sourceUrl?: string;
+};
 
 export default function Help() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const routerLocation = useLocation();
+  const navigate = useNavigate();
   const [composerError, setComposerError] = useState<string | null>(null);
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(
     searchParams.get("ticket"),
   );
   const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const [composerDraft, setComposerDraft] = useState<ComposerDraft | null>(
+    null,
+  );
   const { selectedLocation } = useLocationContext();
+  const { pendingDraft, clearPendingDraft } = useSupportQuickAction();
   const isWizardActive = useIsWizardActive();
   const wizardDemoData = useWizardDemoData();
   const ticketsQuery = useSupportTickets({ limit: 50 });
@@ -47,6 +72,55 @@ export default function Help() {
   }, [searchParams, selectedTicketId]);
 
   useEffect(() => {
+    const requestedType = parseSupportTicketType(searchParams.get("newTicket"));
+    const routeDraft = getRouteSupportDraft(routerLocation.state);
+    const cachedDraft =
+      routeDraft ?? pendingDraft ?? getPendingSupportDraftCache();
+    const draftType = cachedDraft?.type ?? requestedType;
+    if (!draftType) return;
+
+    const files = [
+      cachedDraft?.screenshotFile,
+      cachedDraft?.consoleLogFile,
+    ].filter((file): file is File => Boolean(file));
+
+    setComposerDraft({
+      id: cachedDraft?.id ?? buildDraftId(draftType),
+      type: draftType,
+      files,
+      animatedFileNames: cachedDraft?.screenshotFile
+        ? [cachedDraft.screenshotFile.name]
+        : [],
+      sourceUrl: cachedDraft?.sourceUrl,
+    });
+    setComposerError(null);
+    setIsComposerOpen(true);
+
+    if (cachedDraft) {
+      clearPendingDraft();
+    }
+
+    if (searchParams.has("newTicket") || routeDraft) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete("newTicket");
+      navigate(
+        {
+          pathname: routerLocation.pathname,
+          search: nextParams.toString(),
+        },
+        { replace: true, state: null },
+      );
+    }
+  }, [
+    clearPendingDraft,
+    navigate,
+    pendingDraft,
+    routerLocation.pathname,
+    routerLocation.state,
+    searchParams,
+  ]);
+
+  useEffect(() => {
     if (!selectedTicketId && tickets.length > 0) {
       setSelectedTicketId(tickets[0].id);
     }
@@ -59,12 +133,14 @@ export default function Help() {
 
   const handleOpenComposer = () => {
     setComposerError(null);
+    setComposerDraft(null);
     setIsComposerOpen(true);
   };
 
   const handleCloseComposer = () => {
     if (!createTicket.isPending) {
       setIsComposerOpen(false);
+      setComposerDraft(null);
     }
   };
 
@@ -73,16 +149,20 @@ export default function Help() {
     files: File[],
   ) => {
     setComposerError(null);
-    createTicket.mutate({ payload, files }, {
-      onSuccess: (data) => {
-        toast.success("Support ticket created");
-        handleSelectTicket(data.ticket.id);
-        setIsComposerOpen(false);
+    createTicket.mutate(
+      { payload, files },
+      {
+        onSuccess: (data) => {
+          toast.success("Support ticket created");
+          handleSelectTicket(data.ticket.id);
+          setIsComposerOpen(false);
+          setComposerDraft(null);
+        },
+        onError: (error) => {
+          setComposerError(error.message);
+        },
       },
-      onError: (error) => {
-        setComposerError(error.message);
-      },
-    });
+    );
   };
 
   const handleReply = (body: string) => {
@@ -93,7 +173,10 @@ export default function Help() {
   };
 
   return (
-    <div className="pm-light min-h-screen bg-[var(--color-pm-bg-primary)] font-body text-alloro-navy" data-wizard-target="support-overview">
+    <div
+      className="pm-light min-h-screen bg-[var(--color-pm-bg-primary)] font-body text-alloro-navy"
+      data-wizard-target="support-overview"
+    >
       <div className="mx-auto w-full max-w-[1320px] space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
         <motion.header
           initial={{ opacity: 0, y: 16 }}
@@ -140,17 +223,17 @@ export default function Help() {
           <SupportTicketDetail
             ticket={
               isWizardActive && wizardDemoData?.demoTickets
-                ? wizardDemoData.demoTickets.find((ticket) => ticket.id === selectedTicketId) ?? wizardDemoData.demoTickets[0]
+                ? (wizardDemoData.demoTickets.find(
+                    (ticket) => ticket.id === selectedTicketId,
+                  ) ?? wizardDemoData.demoTickets[0])
                 : detailQuery.data?.ticket
             }
             messages={
               isWizardActive && wizardDemoData?.demoMessages && selectedTicketId
-                ? wizardDemoData.demoMessages[selectedTicketId] ?? []
+                ? (wizardDemoData.demoMessages[selectedTicketId] ?? [])
                 : detailQuery.data?.messages
             }
-            attachments={
-              isWizardActive ? [] : detailQuery.data?.attachments
-            }
+            attachments={isWizardActive ? [] : detailQuery.data?.attachments}
             isLoading={isWizardActive ? false : detailQuery.isLoading}
             isReplying={createMessage.isPending}
             onReply={handleReply}
@@ -163,9 +246,40 @@ export default function Help() {
         locationId={selectedLocation?.id ?? null}
         isSubmitting={createTicket.isPending}
         errorMessage={composerError}
+        draftKey={composerDraft?.id}
+        initialType={composerDraft?.type}
+        initialFiles={composerDraft?.files}
+        animatedFileNames={composerDraft?.animatedFileNames}
+        sourceUrl={composerDraft?.sourceUrl}
         onClose={handleCloseComposer}
         onCreateTicket={handleSubmitTicket}
       />
     </div>
   );
+}
+
+function parseSupportTicketType(
+  value: string | null,
+): SupportTicketType | null {
+  if (
+    value === "bug_report" ||
+    value === "website_edit" ||
+    value === "feature_request"
+  ) {
+    return value;
+  }
+  return null;
+}
+
+function buildDraftId(type: SupportTicketType): string {
+  return `support-${type}-${Date.now()}`;
+}
+
+function getRouteSupportDraft(state: unknown): PendingSupportDraft | null {
+  if (typeof state === "object" && state !== null && "supportDraft" in state) {
+    return (
+      (state as { supportDraft?: PendingSupportDraft }).supportDraft ?? null
+    );
+  }
+  return null;
 }

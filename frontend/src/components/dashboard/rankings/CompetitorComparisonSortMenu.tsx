@@ -55,7 +55,7 @@ export function CompetitorComparisonSortMenu({
         onClick={() => setOpen((current) => !current)}
         className="inline-flex min-w-[164px] items-center justify-between gap-3 rounded-[10px] border border-line-soft bg-[#F7F5F1] px-3 py-2 text-left text-[12px] font-black text-alloro-navy shadow-sm transition-colors hover:border-alloro-orange/30 hover:bg-white focus:outline-none focus:ring-2 focus:ring-alloro-orange/30"
       >
-        <span>{activeOption?.label ?? "Review Count"}</span>
+        <span>{activeOption?.label ?? "Local Search"}</span>
         <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.18 }}>
           <ChevronDown size={14} className="text-alloro-navy/45" />
         </motion.span>

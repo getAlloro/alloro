@@ -8,7 +8,7 @@ import {
   fetchPmsKeyData,
   type PmsKeyDataResponse,
 } from "../../../api/pms";
-import Sparkline from "./Sparkline";
+import { FocusTrendChart, type FocusTrendDatum } from "./FocusTrendChart";
 import { useIsWizardActive, useWizardDemoData } from "../../../contexts/OnboardingWizardContext";
 
 /**
@@ -308,13 +308,13 @@ const PMSCard: React.FC = () => {
   const doctorPct = denom > 0 ? Math.round((doctorRefs / denom) * 100) : 0;
   const selfPct = denom > 0 ? 100 - doctorPct : 0;
 
-  const sparkData = months.map((m) => m.productionTotal);
-  const firstLabel = monthLabelLong(months[0]?.month);
-  const middleLabel = monthLabelLong(
-    months[Math.floor(months.length / 2)]?.month,
-  );
-  const lastLabel = monthLabelLong(months[months.length - 1]?.month);
-
+  const productionTrend = months.map<FocusTrendDatum>((m) => ({
+    key: m.month,
+    label: monthLabelLong(m.month),
+    tooltipLabel: monthLabelLong(m.month),
+    value: Number(m.productionTotal) || 0,
+    detail: `${m.totalReferrals} referrals`,
+  }));
   const top3 = sources.slice(0, 3);
 
   return (
@@ -355,22 +355,16 @@ const PMSCard: React.FC = () => {
           <div className="h-16 w-full animate-pulse rounded-md bg-neutral-100" />
           <div className="h-2 w-full animate-pulse rounded-full bg-neutral-100" />
         </div>
-      ) : sparkData.length > 0 && (
+      ) : productionTrend.length > 0 && (
         <div className="mt-4">
-          <Sparkline data={sparkData} color={PMS_GREEN} fillId="pms-grad" />
-          <div
-            className="mt-1 grid font-semibold uppercase"
-            style={{
-              gridTemplateColumns: "1fr 1fr 1fr",
-              fontSize: 9.5,
-              letterSpacing: "0.1em",
-              color: MUTED,
-            }}
-          >
-            <span>{firstLabel}</span>
-            <span style={{ textAlign: "center" }}>{middleLabel}</span>
-            <span style={{ textAlign: "right" }}>{lastLabel}</span>
-          </div>
+          <FocusTrendChart
+            data={productionTrend}
+            color={PMS_GREEN}
+            gradientId="pms-production"
+            ariaLabel="Monthly PMS production trend"
+            emptyLabel="No monthly PMS trend yet"
+            valueLabel={(value) => `$${value.toLocaleString()} production`}
+          />
         </div>
       )}
 

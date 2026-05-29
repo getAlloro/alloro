@@ -7,6 +7,7 @@ export const ALLOWED_MIME_TYPES = [
   "image/webp",
   "image/gif",
   "application/pdf",
+  "text/plain",
 ] as const;
 
 export type SupportAttachmentMimeType = (typeof ALLOWED_MIME_TYPES)[number];

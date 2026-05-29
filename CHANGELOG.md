@@ -2,6 +2,120 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.92] - May 2026
+
+### Local Rankings And Support Workflow Polish
+
+Redesigned the client Local Rankings experience around a clearer owner-readable story, upgraded Alloro Engage with review-reply quick actions, and added faster support reporting from anywhere in the app.
+
+**Key Changes:**
+- Rebuilt `/rankings` so the first screen leads with a plain-English ranking summary, Local Search Estimate, Local Search Score, owner-friendly next actions, Alloro Engage, and a sortable competitor table
+- Moved Practice Health details into secondary score/gap modals, removed estimated/filler copy, defaulted competitor sorting to Local Search, and blocked website-speed recommendations from ranking outputs
+- Added Alloro Engage review/post narrative cards, compact metric tooltips, latest-review reply drafting, deploy success toasts, card-deck transitions, and optimistic reply-count decrement animations
+- Added a global support launcher that captures a page screenshot, attaches current-session console logs, opens the existing `/help` composer, and preserves the normal support ticket flow
+- Replaced the full pilot-mode bar with a dismissible top-left `PILOT MODE` pill
+- Cleaned up Website Edit ticket copy by removing Approval Notes and renaming the date prompt to `When do you need this by?`
+- Updated Alloro Docs replicas and page guidance for Local Rankings, Alloro Engage, global support, and Website Edit support-copy parity
+
+**Commits:**
+- `frontend/src/components/dashboard/RankingsDashboard.tsx` and `frontend/src/components/dashboard/rankings/*` - owner-readable Local Rankings layout, Local Search Estimate/Score cards, inline competitor table, detail modals, loaders, and copy cleanup
+- `src/controllers/practice-ranking/feature-services/*` - ranking output guardrails, review/post engagement payload context, score alignment, and website-speed recommendation filtering
+- `frontend/src/components/dashboard/gbp-automation/*` - Alloro Engage card narrative, metric cards, latest-review quick action, queue progress, deck animation, and deploy feedback
+- `frontend/src/components/support/*`, `frontend/src/contexts/SupportQuickActionContext.tsx`, and `frontend/src/utils/support*.ts` - global support launcher, screenshot/log capture, draft handoff, attachment animation, and support composer integration
+- `frontend/src/components/Admin/PilotBanner.tsx` - compact dismissible pilot-mode pill
+- `src/controllers/support/*` and `frontend/src/components/support/supportTicketComposerFields.ts` - Website Edit guided-field cleanup and server validation alignment
+- `/Users/rustinedave/Desktop/alloro-docs/src/components/replicas/*` and `/Users/rustinedave/Desktop/alloro-docs/src/data/pages/*` - documentation parity for the redesigned client/dashboard surfaces
+- `plans/05272026-no-ticket-local-rankings-owner-readable-redesign/*` and `plans/05282026-no-ticket-*/*` - executed specs and revision history for the combined release
+
+## [0.0.91] - May 2026
+
+### Feature Friyays
+
+Added the inaugural Feature Friyay release package so weekly shipped work can be compiled into a branded shareable roundup and customer email draft.
+
+**Key Changes:**
+- Added repo-local Feature Friyay workflow rules, including `--done friyay`, plain `--done` inference, and ask-when-unsure classification behavior
+- Added the inaugural `friyays/05-25-2026` static HTML/CSS package with a branded roundup page, email draft, evidence-backed inventory, release-state notes, and ship checklist
+- Switched Friyay artifacts from standalone Markdown drafts to `index.html`, `email.html`, and `styles.css` so the weekly roundup is presentable without extra tooling
+- Preserved release-state distinctions between production workflow evidence, dev workflow evidence, needs verification, and internal-only items
+
+**Commits:**
+- `AGENTS.md` - Feature Friyay folder contract, `--done friyay` behavior, inference rules, and HTML/CSS artifact requirements
+- `friyays/05-25-2026/*` - inaugural branded Feature Friyay page, email draft, and shared Alloro styling
+- `plans/05282026-no-ticket-feature-friyays-inaugural-roundup/spec.md` - execution spec and revision log for the Markdown-to-HTML conversion
+
+## [0.0.90] - May 2026
+
+### GBP Posts Manager And Admin Navigation
+
+Expanded GBP Automation into a fuller posts manager while tightening the admin and client workflows around Local Rankings, organization detail, and Mission Control.
+
+**Key Changes:**
+- Added draft-first GBP local post generation with required per-post image upload, background generation jobs, safety checks, editable drafts, explicit deploy, and delete flows
+- Added published GBP post sync, pagination, image previews, edit/delete actions, Google open links, and manual/automatic sync health labels
+- Added client and admin GBP Posts tabs with Published/Drafts separation and a create-post modal instead of an always-visible generation form
+- Simplified client Local Rankings Alloro Engage by removing the extra workspace heading card and Next Post tile, keeping users directly in the action panel
+- Moved Reply Drafts into the Reviews workflow and improved GBP Automation settings/diagnostics copy and feature separation
+- Added shared organization-detail submenus for Website, Agent Results, and GBP Automation, plus a Mission Control-friendly organization title block
+- Added Mission Control card actions for Pilot/Website and collapsed lower-priority organization signals into Quick details
+- Updated Local Rankings docs replica and walkthrough copy for the simplified Alloro Engage client flow
+
+**Commits:**
+- `src/controllers/gbp-automation/*`, `src/models/GbpLocalPostModel.ts`, `src/models/GbpWorkItemModel.ts`, `src/routes/gbpAutomation.ts`, and `src/routes/admin/gbpAutomation.ts` - local post draft generation, media upload, published post sync, deployment, and API surfaces
+- `src/controllers/gbp/gbp-services/gbp-write.service.ts`, `src/workers/processors/gbpAutomation.processor.ts`, and `src/workers/worker.ts` - Google local post write/update/delete/sync helpers and scheduled worker wiring
+- `frontend/src/components/dashboard/gbp-automation/*`, `frontend/src/api/gbpAutomation.ts`, and `frontend/src/hooks/queries/useGbpAutomationQueries.ts` - client Alloro Engage reviews, reply drafts, GBP posts manager, image upload, and settings flow
+- `frontend/src/components/Admin/OrgGbpAutomationTab.tsx`, `frontend/src/api/admin-gbp-automation.ts`, and `frontend/src/hooks/queries/useAdminGbpAutomationQueries.ts` - admin GBP Automation parity for reviews, posts, sync, and settings
+- `frontend/src/pages/admin/OrganizationDetail.tsx`, `frontend/src/pages/admin/WebsiteDetail.tsx`, and `frontend/src/components/Admin/OrganizationDetailNavigation.tsx` - shared organization-detail navigation and embedded Website/GBP submenus
+- `frontend/src/components/Admin/mission-control/OrganizationMissionCard.tsx` - Mission Control card actions and Quick details disclosure
+- `plans/05252026-no-ticket-gbp-automated-posting-draft-deploy/*` and `plans/05272026-no-ticket-*/*` - executed specs and verification notes for the posts manager, client Local Rankings Engage view, and admin navigation polish
+- `/Users/rustinedave/Desktop/alloro-docs/src/data/pages/local-rankings.ts` and `/Users/rustinedave/Desktop/alloro-docs/src/components/replicas/LocalRankingsReplica.tsx` - docs parity for the updated Local Rankings / Alloro Engage workflow
+
+## [0.0.89] - May 2026
+
+### GBP Automation And Alloro Engage
+
+Added the GBP review-reply automation foundation, client-facing Alloro Engage experience, admin controls, review intelligence metrics, and production hardening for Google write actions.
+
+**Key Changes:**
+- Added GBP Automation admin and client surfaces for review queues, reply drafts, replied reviews, settings, diagnostics, and draft deletion
+- Added Alloro Engage to Local Rankings with an Overview card, engagement metrics, monthly review map, and a dedicated reply workflow tab
+- Added review-reply work items, audit events, deployment attempts, automation settings, review insights, escalation tracking, and sync-health persistence
+- Added AI review reply draft generation with organization/location customizations, safety checks, deploy previews, and manual save/deploy flows
+- Added Google Business Profile reply write/delete support with scoped OAuth usage, retryable worker deployment, and review sync support
+- Hardened authorization, location scoping, attempt visibility, status transitions, Google error classification, LLM input sanitization, and autosave/deploy race handling
+- Updated Alloro Docs replicas and page copy for the new Local Rankings / Alloro Engage workflow
+
+**Commits:**
+- `src/controllers/gbp-automation/*`, `src/routes/gbpAutomation.ts`, and `src/routes/admin/gbpAutomation.ts` - GBP automation controllers, services, client/admin routes, deploy previews, draft generation, settings, published-reply management, and hardening utilities
+- `src/models/Gbp*Model.ts`, `src/database/migrations/20260524*.ts`, and `src/database/migrations/20260525*.ts` - GBP work item, event, attempt, settings, insight, escalation, and sync-health schema/model support
+- `src/controllers/gbp/gbp-services/gbp-write.service.ts`, `src/workers/processors/gbpAutomation.processor.ts`, and worker queue wiring - Google write helpers and queued deployment processing
+- `frontend/src/components/dashboard/gbp-automation/*`, `frontend/src/api/gbpAutomation.ts`, and `frontend/src/hooks/queries/useGbpAutomationQueries.ts` - client Alloro Engage UI, review queues, draft slots, settings, metrics, and React Query wiring
+- `frontend/src/components/Admin/gbp-automation/*`, `frontend/src/api/admin-gbp-automation.ts`, and `frontend/src/hooks/queries/useAdminGbpAutomationQueries.ts` - admin GBP Automation tab, settings, diagnostics, review queues, drafts, and replied-review controls
+- `frontend/src/components/dashboard/RankingsDashboard.tsx`, `frontend/src/components/dashboard/rankings/RankingsDashboardViewTabs.tsx`, and `frontend/src/pages/admin/OrganizationDetail.tsx` - Local Rankings tab split, overview integration, and admin navigation
+- `src/agents/gbpAgents/*` - GBP review reply, local post, and review insight prompts with healthcare safety guidance
+- `plans/05242026-no-ticket-gbp-review-reply-draft-deploy-foundation/*` and `plans/05252026-no-ticket-gbp-*/*` - executed specs, migrations scaffolds, phased add-on plans, and hardening verification notes
+- `/Users/rustinedave/Desktop/alloro-docs/src/data/pages/local-rankings.ts` and `/Users/rustinedave/Desktop/alloro-docs/src/components/replicas/LocalRankingsReplica.tsx` - docs parity for Local Rankings and Alloro Engage
+
+## [0.0.88] - May 2026
+
+### Admin Mission Control Dashboard
+
+Added a super-admin Mission Control dashboard for revenue visibility, organization health, payment watchlists, and concise movement insight.
+
+**Key Changes:**
+- Added a Mission Control admin route with Stripe-backed expected MRR, paid revenue, lifetime revenue, and payment-risk summaries
+- Added organization grid cards with Recharts paid-invoice movement charts, billing flags, admin-role pilot shortcuts, and click-through to existing organization detail pages
+- Added a 12-month recurring revenue trend, Payment Watch lifetime/billing flag views, and on-demand sanitized movement insight
+- Filtered internal sandbox organizations out of client counts and sorted the client grid by highest lifetime paid first
+- Kept the legacy Organizations management route available and extracted create-organization behavior for reuse
+
+**Commits:**
+- `src/controllers/admin-mission-control/*`, `src/models/MissionControlModel.ts`, and `src/routes/admin/missionControl.ts` - aggregate Mission Control API, Stripe revenue reads, sanitized insight generation, and admin route protection
+- `frontend/src/pages/admin/MissionControl.tsx` and `frontend/src/components/Admin/mission-control/*` - Mission Control dashboard UI, revenue charts, organization cards, Payment Watch, pilot menu, and insight panel
+- `frontend/src/api/admin-mission-control.ts`, `frontend/src/hooks/queries/useAdminMissionControlQueries.ts`, and `frontend/src/lib/queryClient.ts` - typed frontend API, React Query hooks, and cache keys
+- `frontend/src/components/Admin/CreateOrganizationModal.tsx`, `frontend/src/pages/admin/OrganizationManagement.tsx`, `frontend/src/pages/Admin.tsx`, and `frontend/src/components/Admin/AdminSidebar.tsx` - shared create-org modal and admin navigation/routing
+- `plans/05252026-no-ticket-admin-mission-control-dashboard/spec.md` - executed spec, revisions, risk notes, and verification checklist
+
 ## [0.0.87] - May 2026
 
 ### Form Email Submission Links

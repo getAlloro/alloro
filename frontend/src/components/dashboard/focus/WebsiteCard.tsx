@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { apiGet } from "../../../api";
 import { useFormSubmissionsTimeseries } from "../../../hooks/queries/useFormSubmissionsTimeseries";
 import type { TimeseriesPoint } from "../../../api/formSubmissionsTimeseries";
-import Sparkline from "./Sparkline";
+import SubmissionsTrendChart from "./SubmissionsTrendChart";
 import { useIsWizardActive, useWizardDemoData } from "../../../contexts/OnboardingWizardContext";
 
 /**
@@ -25,16 +25,20 @@ import { useIsWizardActive, useWizardDemoData } from "../../../contexts/Onboardi
  */
 
 interface FormSubmissionsStats {
+  allCount: number;
   unreadCount: number;
   flaggedCount: number;
   verifiedCount: number;
+  blockedCount: number;
 }
 
 interface FormSubmissionsStatsResponse {
   success: boolean;
+  allCount?: number;
   unreadCount?: number;
   flaggedCount?: number;
   verifiedCount?: number;
+  blockedCount?: number;
   errorMessage?: string;
 }
 
@@ -49,9 +53,11 @@ async function fetchFormSubmissionsStats(): Promise<FormSubmissionsStats> {
     );
   }
   return {
+    allCount: result.allCount ?? result.verifiedCount ?? 0,
     unreadCount: result.unreadCount ?? 0,
     flaggedCount: result.flaggedCount ?? 0,
     verifiedCount: result.verifiedCount ?? 0,
+    blockedCount: result.blockedCount ?? 0,
   };
 }
 
@@ -243,45 +249,47 @@ function lastVsPrior(points: TimeseriesPoint[]): {
   prior: number;
 } {
   if (points.length === 0) return { current: 0, prior: 0 };
-  if (points.length === 1) return { current: points[0].verified, prior: 0 };
-  const current = points[points.length - 1].verified;
-  const prior = points[points.length - 2].verified;
+  if (points.length === 1) return { current: pointVerified(points[0]), prior: 0 };
+  const current = pointVerified(points[points.length - 1]);
+  const prior = pointVerified(points[points.length - 2]);
   return { current, prior };
 }
 
-function monthLabel(month: string | undefined): string {
-  if (!month) return "";
-  const m = /^(\d{4})-(\d{2})/.exec(month);
-  if (!m) return month;
-  const monthIndex = parseInt(m[2], 10) - 1;
-  if (monthIndex < 0 || monthIndex > 11) return month;
-  const names = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ];
-  return names[monthIndex];
+function pointTotal(point: TimeseriesPoint): number {
+  return point.total ?? point.verified + point.flagged + (point.blocked ?? 0);
+}
+
+function pointVerified(point: TimeseriesPoint): number {
+  return Math.max(0, pointTotal(point) - point.flagged - (point.blocked ?? 0));
+}
+
+function statsVerified(statsData: FormSubmissionsStats | undefined): number {
+  if (!statsData) return 0;
+  return Math.max(
+    0,
+    (statsData.allCount ?? statsData.verifiedCount) -
+      statsData.flaggedCount -
+      statsData.blockedCount,
+  );
 }
 
 function TrendPill({ delta }: { delta: number | null }) {
   if (delta === null) return null;
   const up = delta >= 0;
+  const sign = `${up ? "+" : ""}${delta}%`;
   return (
     <span
-      className="ml-auto font-bold"
+      tabIndex={0}
+      aria-label={`${sign} compared to last month`}
+      className="group relative ml-auto inline-flex cursor-help items-center font-bold outline-none"
       style={{ fontSize: 11, color: up ? "#4F8A5B" : "#B3503E" }}
     >
-      {up ? "▲" : "▼"} {up ? "+" : ""}
-      {delta}%
+      <span aria-hidden="true">
+        {up ? "▲" : "▼"} {sign}
+      </span>
+      <span className="pointer-events-none absolute right-0 top-full z-10 mt-2 translate-y-1 whitespace-nowrap rounded-[8px] border border-[#E8E4DD] bg-white px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8E8579] opacity-0 shadow-lg transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-focus:translate-y-0 group-focus:opacity-100">
+        Compared to last month
+      </span>
     </span>
   );
 }
@@ -313,23 +321,25 @@ const WebsiteCard: React.FC = () => {
   const wizardTimeseries = wizardDemoData?.websiteCardData?.timeseries as TimeseriesPoint[] | undefined;
 
   const points = isWizardActive ? (wizardTimeseries ?? []) : (series.data ?? []);
-  const verifiedCount = isWizardActive ? (wizardStats?.verifiedCount ?? 0) : (stats.data?.verifiedCount ?? 0);
-  const unread = isWizardActive ? (wizardStats?.unreadCount ?? 0) : (stats.data?.unreadCount ?? 0);
-  const flagged = isWizardActive ? (wizardStats?.flaggedCount ?? 0) : (stats.data?.flaggedCount ?? 0);
+  const fallbackStats = isWizardActive ? wizardStats : stats.data;
+  const fallbackTotal = fallbackStats?.allCount ?? fallbackStats?.verifiedCount ?? 0;
+  const fallbackVerified = statsVerified(fallbackStats);
+  const currentPoint = points[points.length - 1] ?? null;
+  const currentTotal = currentPoint ? pointTotal(currentPoint) : fallbackTotal;
+  const currentVerified = currentPoint ? pointVerified(currentPoint) : fallbackVerified;
+  const currentSpam = currentPoint
+    ? currentPoint.flagged
+    : isWizardActive
+      ? (wizardStats?.flaggedCount ?? 0)
+      : (stats.data?.flaggedCount ?? 0);
+  const spamLabel = currentSpam === 1 ? "Spam" : "Spams";
 
-  if (points.length === 0 && verifiedCount === 0) {
+  if (points.length === 0 && currentVerified === 0 && currentTotal === 0) {
     return <EmptyShell />;
   }
 
   const { current, prior } = lastVsPrior(points);
   const delta = pctDelta(current, prior);
-
-  const sparkData = points.map((p) => p.verified);
-  const firstLabel = monthLabel(points[0]?.month);
-  const middleLabel = monthLabel(
-    points[Math.floor(points.length / 2)]?.month,
-  );
-  const lastLabel = monthLabel(points[points.length - 1]?.month);
 
   return (
     <CardShell>
@@ -346,10 +356,10 @@ const WebsiteCard: React.FC = () => {
             color: INK,
           }}
         >
-          {verifiedCount}
+          {currentVerified}
         </span>
         <span className="font-medium" style={{ fontSize: 12, color: MUTED }}>
-          verified leads
+          verified {currentVerified === 1 ? "submission" : "submissions"}
         </span>
         <TrendPill delta={delta} />
       </div>
@@ -358,39 +368,12 @@ const WebsiteCard: React.FC = () => {
         className="mt-1.5 leading-relaxed"
         style={{ fontSize: 12, color: MUTED }}
       >
-        {unread} unread · {flagged} flagged · vs last 30 days
+        {currentTotal} total submissions · Alloro Protect Blocked{" "}
+        {currentSpam} {spamLabel}
       </div>
 
       <div className="mt-4">
-        <Sparkline data={sparkData} color={BRAND_ORANGE} fillId="ws-grad" />
-        <div
-          className="mt-1 grid font-semibold uppercase"
-          style={{
-            gridTemplateColumns: "1fr 1fr 1fr",
-            fontSize: 9.5,
-            letterSpacing: "0.1em",
-            color: MUTED,
-          }}
-        >
-          <span>{firstLabel}</span>
-          <span style={{ textAlign: "center" }}>{middleLabel}</span>
-          <span style={{ textAlign: "right" }}>{lastLabel}</span>
-        </div>
-      </div>
-
-      <div
-        className="mt-3.5 rounded-[10px] border px-3 py-2.5 leading-relaxed"
-        style={{
-          background: "#FFF7F2",
-          borderColor: "#F3D6C4",
-          color: "#8A4A36",
-          fontSize: 12,
-        }}
-      >
-        <strong style={{ color: BRAND_ORANGE, fontWeight: 700 }}>
-          Coming soon:
-        </strong>{" "}
-        sessions, bounce rate, avg session duration via Rybbit.
+        <SubmissionsTrendChart points={points} />
       </div>
 
       <div className="mt-4 flex items-center justify-between">

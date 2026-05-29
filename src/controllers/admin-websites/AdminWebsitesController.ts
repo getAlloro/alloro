@@ -46,13 +46,18 @@ import type { PageGenerateJobData } from "../../workers/processors/websiteGenera
 import type { IdentityWarmupJobData } from "../../workers/processors/identityWarmup.processor";
 import type { LayoutGenerateJobData } from "../../workers/processors/websiteLayouts.processor";
 import { FormSubmissionModel } from "../../models/website-builder/FormSubmissionModel";
+import {
+  ProjectModel,
+  type IProject,
+} from "../../models/website-builder/ProjectModel";
 import { ProjectIdentityModel } from "../../models/website-builder/ProjectIdentityModel";
 import { ProjectReviewModel } from "../../models/website-builder/ProjectReviewModel";
 import { ReviewModel } from "../../models/website-builder/ReviewModel";
 import { generatePresignedUrl } from "../../utils/core/s3";
 import { buildEmailBody } from "../websiteContact/websiteContact-services/emailBodyBuilder";
-import { resolveFormSubmissionEmailContextForProjectId } from "../websiteContact/websiteContact-services/formSubmissionEmailContextService";
+import { resolveFormSubmissionEmailContext } from "../websiteContact/websiteContact-services/formSubmissionEmailContextService";
 import { sendEmailWebhook, WebhookError } from "../websiteContact/websiteContact-services/emailWebhookService";
+import { resolveWebsiteFormRecipients } from "../../services/formRecipientRoutingService";
 import {
   getConfiguredRecipients,
   listOrgUserRecipientOptions,
@@ -2950,8 +2955,24 @@ export async function deleteFormSubmission(
 
 const BULK_MAX = 50;
 const FROM_EMAIL = process.env.CONTACT_FORM_FROM || "info@getalloro.com";
+type FormResendProject = Pick<IProject, "organization_id" | "recipients">;
 
-/** POST /:id/form-submissions/:submissionId/send-email — Manually send a single submission */
+async function resolveCurrentFormSubmissionRecipients(
+  projectId: string,
+  formName: string,
+  project: FormResendProject,
+): Promise<string[]> {
+  const resolution = await resolveWebsiteFormRecipients({
+    projectId,
+    formName,
+    organizationId: project.organization_id,
+    legacyProjectRecipients: project.recipients,
+  });
+
+  return resolution.recipients;
+}
+
+/** POST /:id/form-submissions/:submissionId/send-email — Manually send a single submission to current recipients */
 export async function sendFormSubmissionEmail(
   req: Request,
   res: Response
@@ -2966,13 +2987,21 @@ export async function sendFormSubmissionEmail(
     if (submission.project_id !== projectId) {
       return res.status(404).json({ success: false, error: "NOT_FOUND", message: "Submission not found" });
     }
-    if (!submission.recipients_sent_to?.length) {
-      return res.status(400).json({ success: false, error: "NO_RECIPIENTS", message: "No recipients on file for this submission" });
+    const project = await ProjectModel.findById(projectId);
+    if (!project) {
+      return res.status(404).json({ success: false, error: "NOT_FOUND", message: "Website project not found" });
     }
 
-    const emailContext = await resolveFormSubmissionEmailContextForProjectId(
-      submission.project_id,
+    const recipients = await resolveCurrentFormSubmissionRecipients(
+      projectId,
+      submission.form_name,
+      project,
     );
+    if (recipients.length === 0) {
+      return res.status(400).json({ success: false, error: "NO_RECIPIENTS", message: "No recipients configured for this form" });
+    }
+
+    const emailContext = await resolveFormSubmissionEmailContext(project);
     const emailBody = buildEmailBody(submission.form_name, submission.contents, {
       headerColor: emailContext.headerColor,
       logoUrl: emailContext.logoUrl,
@@ -2985,10 +3014,10 @@ export async function sendFormSubmissionEmail(
       from: FROM_EMAIL,
       subject: `New Entry From ${submission.form_name}`,
       fromName: emailContext.fromName,
-      recipients: submission.recipients_sent_to,
+      recipients,
     });
 
-    return res.json({ success: true });
+    return res.json({ success: true, data: { recipients } });
   } catch (error: any) {
     if (error instanceof WebhookError) {
       return res.status(502).json({ success: false, error: "WEBHOOK_ERROR", message: "Failed to send email" });
@@ -3016,22 +3045,39 @@ export async function bulkSendFormSubmissionsEmail(
 
     let sent = 0;
     let skipped = 0;
-    const emailContext = await resolveFormSubmissionEmailContextForProjectId(
-      projectId,
-    );
+    const project = await ProjectModel.findById(projectId);
+    if (!project) {
+      return res.status(404).json({ success: false, error: "NOT_FOUND", message: "Website project not found" });
+    }
+    const emailContext = await resolveFormSubmissionEmailContext(project);
+    const recipientsByFormName = new Map<string, string[]>();
 
     for (const id of submissionIds) {
       const submission = await FormSubmissionModel.findById(String(id));
       if (
         !submission ||
-        submission.project_id !== projectId ||
-        !submission.recipients_sent_to?.length
+        submission.project_id !== projectId
       ) {
         skipped++;
         continue;
       }
 
       try {
+        let recipients = recipientsByFormName.get(submission.form_name);
+        if (!recipients) {
+          recipients = await resolveCurrentFormSubmissionRecipients(
+            projectId,
+            submission.form_name,
+            project,
+          );
+          recipientsByFormName.set(submission.form_name, recipients);
+        }
+
+        if (recipients.length === 0) {
+          skipped++;
+          continue;
+        }
+
         const emailBody = buildEmailBody(
           submission.form_name,
           submission.contents,
@@ -3047,7 +3093,7 @@ export async function bulkSendFormSubmissionsEmail(
           from: FROM_EMAIL,
           subject: `New Entry From ${submission.form_name}`,
           fromName: emailContext.fromName,
-          recipients: submission.recipients_sent_to,
+          recipients,
         });
         sent++;
       } catch {

@@ -18,11 +18,11 @@ const TABLE_COLUMNS: Array<{
   sortKey?: ComparisonSortKey;
 }> = [
   { heading: "Practice" },
-  { heading: "Maps", sortKey: "mapsPosition" },
+  { heading: "Local Search", sortKey: "mapsPosition" },
   { heading: "Reviews", sortKey: "reviewCount" },
   { heading: "Velocity", sortKey: "reviewVelocity" },
   { heading: "Rating", sortKey: "starRating" },
-  { heading: "Health", sortKey: "practiceHealth" },
+  { heading: "Score", sortKey: "practiceHealth" },
 ];
 
 export function CompetitorComparisonTable({
@@ -31,7 +31,7 @@ export function CompetitorComparisonTable({
   onSort,
 }: CompetitorComparisonTableProps) {
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto [scrollbar-color:#D66853_#F7F5F1] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-alloro-orange [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-[#F7F5F1]">
       <table className="min-w-[860px] w-full border-collapse">
         <thead>
           <tr className="border-b border-line-soft bg-alloro-navy/[0.025]">

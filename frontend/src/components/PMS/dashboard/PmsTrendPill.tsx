@@ -12,7 +12,7 @@ export function PmsTrendPill({ change }: PmsTrendPillProps) {
     ? "bg-green-50 text-green-700 border-green-100"
     : isNegative
       ? "bg-red-50 text-red-700 border-red-100"
-      : "bg-slate-100 text-slate-500 border-slate-200";
+      : "border-line-soft bg-[#F7F5F3] text-[color:var(--color-pm-text-secondary)]";
 
   return (
     <span

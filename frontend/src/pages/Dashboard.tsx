@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from "react";
-import Lottie from "lottie-react";
-import cogitatingSpinner from "../assets/cogitating-spinner.json";
 import { AlertTriangle, Building2, Settings, Lock, ChevronRight, ChevronDown } from "lucide-react";
 
 // Import auth and integration hooks for domain selection
@@ -12,6 +10,7 @@ import { DashboardOverview } from "../components/dashboard/DashboardOverview";
 import { ReferralEngineDashboard } from "../components/ReferralEngineDashboard";
 import { PMSVisualPillars } from "../components/PMS/PMSVisualPillars";
 import { RankingsDashboard } from "../components/dashboard/RankingsDashboard";
+import { CogitatingLoader } from "../components/ui/CogitatingLoader";
 
 // Integration Modal Components
 import { GBPIntegrationModal } from "../components/GBPIntegrationModal";
@@ -25,82 +24,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { OnboardingContainer } from "../components/onboarding/OnboardingContainer";
 import { useIsWizardActive, useIsWizardLoading, useRecheckWizardStatus } from "../contexts/OnboardingWizardContext";
 import { useLocationContext } from "../contexts/locationContext";
-
-const COGITATING_PHRASES = [
-  "Reading the leaves",
-  "Turning over new leaves",
-  "Tending the garden",
-  "Pruning the branches",
-  "Cultivating insights",
-  "Planting seeds",
-  "Watching things grow",
-  "Raking through data",
-  "Leafing through results",
-  "Letting ideas bloom",
-  "Branching out",
-  "Nurturing the roots",
-  "Gathering the harvest",
-  "Composting old data",
-  "Sprouting new insights",
-  "Tracing the veins",
-  "Following the canopy",
-  "Photosynthesizing",
-  "Unfurling the fronds",
-  "Sowing the metrics",
-  "Tilling the numbers",
-  "Training the vines",
-  "Feeding the algorithm",
-  "Grafting the models",
-  "Pollinating ideas",
-  "Running the neural roots",
-  "Warming the greenhouse",
-  "Mapping the growth rings",
-  "Distilling the nectar",
-  "Shaking the branches",
-];
-
-function CogitatingText() {
-  const [targetPhrase, setTargetPhrase] = useState(() =>
-    COGITATING_PHRASES[Math.floor(Math.random() * COGITATING_PHRASES.length)]
-  );
-  const [displayed, setDisplayed] = useState("");
-  const [isTyping, setIsTyping] = useState(true);
-
-  useEffect(() => {
-    if (isTyping) {
-      if (displayed.length < targetPhrase.length) {
-        const t = setTimeout(
-          () => setDisplayed(targetPhrase.slice(0, displayed.length + 1)),
-          35
-        );
-        return () => clearTimeout(t);
-      }
-      const hold = setTimeout(() => setIsTyping(false), 1800);
-      return () => clearTimeout(hold);
-    }
-    // Pick next phrase after hold
-    setTargetPhrase((prev) => {
-      let next: string;
-      do {
-        next = COGITATING_PHRASES[Math.floor(Math.random() * COGITATING_PHRASES.length)];
-      } while (next === prev);
-      return next;
-    });
-    setDisplayed("");
-    setIsTyping(true);
-  }, [displayed, isTyping, targetPhrase]);
-
-  return (
-    <p className="font-semibold text-sm font-display">
-      <span className="cogitating-gradient">{displayed}</span>
-      <span className="inline-flex w-[1.5em] justify-start ml-[1px]">
-        <span className="cogitating-dot" style={{ animationDelay: "0s" }}>.</span>
-        <span className="cogitating-dot" style={{ animationDelay: "0.15s" }}>.</span>
-        <span className="cogitating-dot" style={{ animationDelay: "0.3s" }}>.</span>
-      </span>
-    </p>
-  );
-}
 
 export default function Dashboard() {
   // Domain selection and auth hooks - now includes centralized onboarding state
@@ -233,15 +156,7 @@ export default function Dashboard() {
     <div className="w-full max-w-[1600px] mx-auto min-h-screen flex flex-col bg-[#F7F5F3] font-body text-alloro-navy">
       {/* Show loading state while checking onboarding */}
       {!ready || checkingOnboarding || (!selectedLocation && !isWizardActive) ? (
-        <div className="flex-1 flex items-center justify-center bg-[#F7F5F3]">
-          <div className="text-center">
-            <div className="relative flex items-center justify-center h-16 w-16 mx-auto mb-2">
-              <div className="absolute inset-0 animate-spin rounded-full border-[3px] border-alloro-orange/15 border-t-alloro-orange" style={{ animationDuration: "1.2s" }} />
-              <Lottie animationData={cogitatingSpinner} loop className="relative z-10 w-9 h-9" />
-            </div>
-            <CogitatingText />
-          </div>
-        </div>
+        <CogitatingLoader />
       ) : clientLoading ? (
         <div className="h-full flex items-center justify-center bg-[#F7F5F3]">
           <div className="text-center">

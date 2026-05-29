@@ -1,0 +1,6 @@
+-- GBP Phase B Safety And Deploy Preview PostgreSQL scaffold
+-- TODO during execution:
+-- - Add nullable safety_status, safety_reason_codes, safety_reasons, safety_confidence,
+--   and deploy_preview_payload columns to gbp_work_items if needed.
+-- - Add check constraints only if they do not break existing rows.
+-- - Add indexes only for fields used by filters.

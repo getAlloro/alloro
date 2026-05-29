@@ -1,0 +1,5 @@
+-- GBP Phase D Review-to-Post And Sync Health PostgreSQL scaffold
+-- TODO during execution:
+-- - Create gbp_sync_health.
+-- - Add indexes/unique constraint for organization_id, location_id, google_property_id, sync_source.
+-- - Do not add post publishing schema here.

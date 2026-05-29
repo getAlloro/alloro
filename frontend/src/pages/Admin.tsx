@@ -30,6 +30,7 @@ import ProjectBoard from "./admin/ProjectBoard";
 import { PmErrorBoundary } from "@/components/pm/PmErrorBoundary";
 import LeadgenSubmissions from "./admin/LeadgenSubmissions";
 import SupportDashboard from "./admin/SupportDashboard";
+import MissionControl from "./admin/MissionControl";
 
 function WebDevEngine() {
   return (
@@ -66,7 +67,8 @@ function AdminWithLayout() {
   return (
     <AdminLayout>
       <Routes>
-        <Route path="/" element={<Navigate to="action-items" replace />} />
+        <Route path="/" element={<Navigate to="mission-control" replace />} />
+        <Route path="mission-control" element={<MissionControl />} />
         <Route path="ai-pms-automation" element={<PMSAutomationCards />} />
         <Route path="action-items" element={<ActionItemsHub />} />
         <Route path="agent-outputs" element={<AgentOutputsList />} />

@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Feature Friyay - 05-25-2026</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="hero" aria-labelledby="page-title">
+        <div>
+          <div class="brand-mark"><span class="brand-dot"></span> Alloro Feature Friyay</div>
+          <h1 id="page-title">This week's Alloro feature roundup</h1>
+          <p>Coverage window: Thursday, May 21, 2026 through Sunday, May 31, 2026. Compiled evidence runs through the latest checked <strong>dev/dave</strong> commit dated May 28, 2026 and the latest checked commit on <strong>main</strong> dated May 27, 2026.</p>
+        </div>
+        <aside class="hero-panel" aria-label="Release state summary">
+          <div class="date-kicker">05-25-2026 inaugural edition</div>
+          <div class="status-stack">
+            <div class="status-pill"><strong>Production workflow evidence</strong><span>Website editor, forms, rankings, onboarding</span></div>
+            <div class="status-pill"><strong>Dev workflow evidence</strong><span>GBP Automation, GBP Posts, Mission Control</span></div>
+            <div class="status-pill"><strong>Needs decision</strong><span>Final email scope before send</span></div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="section" aria-labelledby="release-state">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Release state</p>
+            <h2 id="release-state">Evidence before excitement</h2>
+            <p class="section-subtitle">Some items have production workflow evidence. Newer GBP Automation, Mission Control, and navigation improvements have successful dev workflow evidence but still need production confirmation before being sent as live customer announcements.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="customer-highlights">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Customer-facing highlights</p>
+            <h2 id="customer-highlights">What users should care about</h2>
+          </div>
+        </div>
+        <div class="grid highlight-grid">
+          <article class="highlight-card">
+            <h3>Faster website editing</h3>
+            <p>Routine text, link, media, font-size, and visibility changes can now be handled with direct controls instead of starting from an AI edit request.</p>
+            <div class="meta"><span class="tag good">Production workflow</span><span class="tag">Website editor</span></div>
+          </article>
+          <article class="highlight-card">
+            <h3>Inline canvas editing</h3>
+            <p>Safe page text can be edited directly on the website canvas, so small copy changes feel more like editing the actual page.</p>
+            <div class="meta"><span class="tag good">Production workflow</span><span class="tag">Client + admin</span></div>
+          </article>
+          <article class="highlight-card">
+            <h3>Better form submission follow-through</h3>
+            <p>Emails with uploaded files now point recipients back to the Website submissions tab for previews and downloads, without exposing media in the email.</p>
+            <div class="meta"><span class="tag good">Production workflow</span><span class="tag">Forms</span></div>
+          </article>
+          <article class="highlight-card">
+            <h3>Clearer Local Rankings actions</h3>
+            <p>Rankings refreshes and comparison navigation are easier to find and use, while Alloro Engage keeps moving toward a clearer action workspace.</p>
+            <div class="meta"><span class="tag good">Production workflow</span><span class="tag dev">Engage in dev</span></div>
+          </article>
+          <article class="highlight-card">
+            <h3>Expanded onboarding</h3>
+            <p>The guided product tour now covers 33 steps across 11 app pages, helping new users understand more of Alloro faster.</p>
+            <div class="meta"><span class="tag good">Production workflow</span><span class="tag">New users</span></div>
+          </article>
+          <article class="highlight-card">
+            <h3>Alloro Engage progress</h3>
+            <p>GBP review replies and local post workflows are moving into a clearer workspace for queues, drafts, posting actions, and admin support.</p>
+            <div class="meta"><span class="tag dev">Dev workflow</span><span class="tag warn">Confirm before email</span></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="internal-highlights">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Admin and internal</p>
+            <h2 id="internal-highlights">Important, but not all customer email material</h2>
+          </div>
+        </div>
+        <div class="grid admin-grid">
+          <article class="admin-card">
+            <h3>Admin Mission Control</h3>
+            <p>Super-admin visibility for revenue, organization health, payment watchlists, and operational signals.</p>
+            <div class="meta"><span class="tag dev">Dev workflow</span></div>
+          </article>
+          <article class="admin-card">
+            <h3>Organization detail navigation</h3>
+            <p>Shared submenus for Website, Agent Results, and GBP Automation, plus cleaner Mission Control card actions.</p>
+            <div class="meta"><span class="tag dev">Dev workflow</span></div>
+          </article>
+          <article class="admin-card">
+            <h3>Caswell data consolidation</h3>
+            <p>Operational ownership was consolidated onto the canonical organization while preserving stable location IDs.</p>
+            <div class="meta"><span class="tag good">Production workflow</span></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="inventory">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Feature inventory</p>
+            <h2 id="inventory">All candidates, including uncertain items</h2>
+            <p class="section-subtitle">This is the broad list. Customer email copy should only pull from rows that are clearly ready for the intended audience.</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Feature</th>
+                <th>Audience</th>
+                <th>State</th>
+                <th>Email?</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>Website editor direct controls</td><td>Website editors, client admins, internal admins</td><td><span class="tag good">Production workflow succeeded</span></td><td>Yes</td><td>Direct text, link, image, font-size, hide/show controls. Sources: changelog 0.0.84, related plans, production merge dd19ca13.</td></tr>
+              <tr><td>Canvas inline website editing</td><td>Website editors, client admins, internal admins</td><td><span class="tag good">Production workflow succeeded</span></td><td>Yes</td><td>Safe selected text can be edited directly on the canvas. Sources: changelog 0.0.85, related plan, production merge dd19ca13.</td></tr>
+              <tr><td>Form email submission links</td><td>Clients receiving website form emails</td><td><span class="tag good">Production workflow succeeded</span></td><td>Yes</td><td>Uploaded-file emails point to /dfy/website?tab=submissions. Sources: changelog 0.0.87 and related plan.</td></tr>
+              <tr><td>Local Rankings refresh controls</td><td>Client dashboard users</td><td><span class="tag good">Production workflow succeeded</span></td><td>Yes</td><td>Clearer Refresh Rankings action and cleaner comparison-set return path. Source: ranking refresh plan and commit 0f3a83f8.</td></tr>
+              <tr><td>Onboarding wizard full product tour</td><td>New users</td><td><span class="tag good">Production workflow succeeded</span></td><td>Yes</td><td>33-step guided tour across 11 app pages. Source: onboarding wizard plan and commit fcb83497.</td></tr>
+              <tr><td>Client documentation app with visual replicas</td><td>Clients, support, sales enablement</td><td><span class="tag good">Production workflow succeeded</span></td><td>Maybe</td><td>Public framing depends on whether docs are meant to be announced this week. Source: commit 799c7b06 and docs replica plan.</td></tr>
+              <tr><td>Garrison blog post import</td><td>Garrison site visitors</td><td><span class="tag warn">Needs verification</span></td><td>Maybe</td><td>Plan says 33 production articles were imported and verified, but no matching recent changelog/git release note was found.</td></tr>
+              <tr><td>Caswell organization data consolidation</td><td>Internal ops, Caswell account health</td><td><span class="tag good">Production workflow succeeded</span></td><td>Internal only</td><td>Important operational cleanup; not a general customer marketing item.</td></tr>
+              <tr><td>Admin Mission Control dashboard</td><td>Alloro admins/operators</td><td><span class="tag dev">Dev workflow succeeded</span></td><td>Internal/admin</td><td>Revenue, organization health, payment watchlists, and movement insight. Production confirmation needed.</td></tr>
+              <tr><td>Dashboard card polish and verified submissions visibility</td><td>Client dashboard users, admins</td><td><span class="tag dev">Dev workflow succeeded</span></td><td>Maybe</td><td>Include as supporting polish only after deciding if the card/chart changes are part of this email.</td></tr>
+              <tr><td>GBP Automation and Alloro Engage review replies</td><td>Local Rankings and GBP users; admins</td><td><span class="tag dev">Dev workflow succeeded</span></td><td>Draft only</td><td>Review queues, AI reply drafts, replied reviews, diagnostics, settings, metrics, and Google reply deployment foundation.</td></tr>
+              <tr><td>GBP Posts Manager and admin navigation</td><td>Alloro Engage users; admins</td><td><span class="tag dev">Dev workflow succeeded</span></td><td>Draft only</td><td>Draft-first local post generation, image requirement, published/draft tabs, sync, deploy/delete flows, and cleaner org navigation.</td></tr>
+              <tr><td>PM identity repair</td><td>PM/admin users</td><td><span class="tag good">Production workflow succeeded</span></td><td>Internal/support</td><td>Good inventory item, too narrow for general customer email unless support-facing.</td></tr>
+              <tr><td>Form email layout and resend fixes</td><td>Form recipients, admins</td><td><span class="tag warn">Mixed</span></td><td>Maybe</td><td>Layout has production workflow evidence; resend-current-recipient fix has dev workflow evidence.</td></tr>
+              <tr><td>GBP migration file restoration</td><td>Engineering/deployment safety</td><td><span class="tag good">Production workflow succeeded</span></td><td>No</td><td>Release hygiene, not user-facing copy.</td></tr>
+              <tr><td>Mission Control pilot action alignment</td><td>Alloro admins/operators</td><td><span class="tag dev">Dev workflow succeeded</span></td><td>Internal/admin</td><td>Latest dev fix for the Mission Control Pilot action. Not production confirmed.</td></tr>
+              <tr><td>Current local in-progress items</td><td>TBD</td><td><span class="tag warn">Needs verification</span></td><td>No</td><td>Do not email until committed, pushed, workflow-verified, and classified.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="email-draft">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Email draft</p>
+            <h2 id="email-draft">Customer-ready shape, still draft</h2>
+            <p class="section-subtitle">Open <a href="./email.html">email.html</a> for the standalone email version.</p>
+          </div>
+        </div>
+        <article class="email-preview">
+          <div class="email-head">
+            <h3>Feature Friyay: Website Editing, Local Rankings, and Alloro Engage Updates</h3>
+            <p>Status: Draft - confirm production scope before sending.</p>
+          </div>
+          <div class="email-body">
+            <p>Hi there,</p>
+            <p>Welcome to Feature Friyay, our weekly roundup of what is new and improving in Alloro.</p>
+            <p>This week focused on making everyday work faster: cleaner website editing, clearer Local Rankings actions, better form-submission follow-through, and continued progress on Alloro Engage.</p>
+            <ul>
+              <li>Faster website editing with direct controls for common changes.</li>
+              <li>Inline canvas editing for safe page text.</li>
+              <li>Better form submission links back to the Website submissions tab.</li>
+              <li>Clearer Local Rankings refresh and comparison actions.</li>
+              <li>An expanded onboarding tour across more of the app.</li>
+              <li>Alloro Engage progress for GBP review replies and local posts.</li>
+            </ul>
+            <p>Thanks,<br>The Alloro Team</p>
+          </div>
+        </article>
+      </section>
+
+      <section class="section" aria-labelledby="checklist">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Ship checklist</p>
+            <h2 id="checklist">What is done and what still needs a decision</h2>
+          </div>
+        </div>
+        <ul class="checklist">
+          <li><span class="box done">x</span><span>Candidate features are listed in the inventory.</span></li>
+          <li><span class="box done">x</span><span>Each customer-facing feature has source refs from plans, commits, changelog, workflow evidence, or runtime notes.</span></li>
+          <li><span class="box done">x</span><span>Feature states are explicit and not collapsed into a vague "done."</span></li>
+          <li><span class="box"></span><span>Production release scope is confirmed for dev-workflow-only items before final send.</span></li>
+          <li><span class="box"></span><span>Final email copy decision is made: include dev-workflow-only GBP/Mission Control items, describe them as coming soon, or omit them.</span></li>
+          <li><span class="box"></span><span>Dashboard/admin/client-dashboard changes have matching Alloro Docs updates, or a written reason docs were not required.</span></li>
+          <li><span class="box"></span><span>Production behavior is manually verified for every live claim in the final email.</span></li>
+        </ul>
+        <div class="print-actions">
+          <button class="button" type="button" onclick="window.print()">Print or save PDF</button>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

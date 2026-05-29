@@ -24,38 +24,91 @@ interface HighlightedTextProps {
  * never matches them, so they don't affect output.
  */
 const REGEX_SPECIALS = /[.*+?^${}()|[\]\\]/g;
+const HIGHLIGHT_TAG_RE = /(<\/?\s*(?:hghlt|hl)\s*>)/gi;
+const OPEN_HIGHLIGHT_TAG_RE = /^<\s*(?:hghlt|hl)\s*>$/i;
+const CLOSE_HIGHLIGHT_TAG_RE = /^<\s*\/\s*(?:hghlt|hl)\s*>$/i;
+
+type TextPart = {
+  text: string;
+  highlighted: boolean;
+};
+
+function splitHighlightTags(text: string): TextPart[] | null {
+  if (!HIGHLIGHT_TAG_RE.test(text)) {
+    HIGHLIGHT_TAG_RE.lastIndex = 0;
+    return null;
+  }
+  HIGHLIGHT_TAG_RE.lastIndex = 0;
+
+  const rawParts = text.split(HIGHLIGHT_TAG_RE);
+  const parts: TextPart[] = [];
+  let highlighted = false;
+
+  rawParts.forEach((part) => {
+    if (!part) return;
+    if (OPEN_HIGHLIGHT_TAG_RE.test(part)) {
+      highlighted = true;
+      return;
+    }
+    if (CLOSE_HIGHLIGHT_TAG_RE.test(part)) {
+      highlighted = false;
+      return;
+    }
+    parts.push({ text: part, highlighted });
+  });
+
+  return parts;
+}
 
 const HighlightedText: React.FC<HighlightedTextProps> = ({
   text,
   highlights,
 }) => {
-  if (!highlights || highlights.length === 0) {
-    return <>{text}</>;
-  }
+  const taggedParts = splitHighlightTags(text);
 
-  const sorted = highlights
+  const sorted = (highlights ?? [])
     .filter((h): h is string => Boolean(h && h.length))
     .sort((a, b) => b.length - a.length);
 
-  if (sorted.length === 0) {
+  if (!taggedParts && sorted.length === 0) {
     return <>{text}</>;
   }
 
   const escaped = sorted.map((s) => s.replace(REGEX_SPECIALS, "\\$&"));
-  const re = new RegExp(`(${escaped.join("|")})`, "g");
-  const parts = text.split(re);
+  const re = escaped.length > 0 ? new RegExp(`(${escaped.join("|")})`, "g") : null;
+  const parts = taggedParts ?? [{ text, highlighted: false }];
 
   return (
     <>
-      {parts.map((part, i) => {
-        if (sorted.includes(part)) {
+      {parts.flatMap((part, partIndex) => {
+        if (part.highlighted) {
           return (
-            <mark key={i} className="hl">
-              {part}
+            <mark key={`tag-${partIndex}`} className="hl">
+              {part.text}
             </mark>
           );
         }
-        return <React.Fragment key={i}>{part}</React.Fragment>;
+        if (!re) {
+          return (
+            <React.Fragment key={`plain-${partIndex}`}>
+              {part.text}
+            </React.Fragment>
+          );
+        }
+        return part.text.split(re).map((segment, segmentIndex) => {
+          if (sorted.includes(segment)) {
+            return (
+              <mark key={`${partIndex}-${segmentIndex}`} className="hl">
+                {segment}
+              </mark>
+            );
+          }
+          return (
+            <React.Fragment key={`${partIndex}-${segmentIndex}`}>
+              {segment}
+            </React.Fragment>
+          );
+        });
       })}
     </>
   );

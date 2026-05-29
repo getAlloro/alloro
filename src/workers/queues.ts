@@ -72,6 +72,17 @@ export function getHarvestQueue(name: string): Queue {
   return queues[queueName];
 }
 
+export function getGbpAutomationQueue(name: string): Queue {
+  const queueName = `gbp-automation-${name}`;
+  if (!queues[queueName]) {
+    queues[queueName] = new Queue(queueName, {
+      connection: getRedisConnection(),
+      prefix: '{gbp}',
+    });
+  }
+  return queues[queueName];
+}
+
 export async function closeQueues(): Promise<void> {
   for (const queue of Object.values(queues)) {
     await queue.close();

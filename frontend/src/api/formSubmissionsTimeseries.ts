@@ -14,9 +14,11 @@ import { apiGet } from "./index";
 
 export interface TimeseriesPoint {
   month: string;
+  total: number;
   verified: number;
   unread: number;
   flagged: number;
+  blocked: number;
 }
 
 interface TimeseriesResponse {

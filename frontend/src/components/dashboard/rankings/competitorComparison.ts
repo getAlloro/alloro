@@ -71,11 +71,11 @@ export const COMPARISON_SORT_OPTIONS: Array<{
   label: string;
   higherIsBetter: boolean;
 }> = [
+  { key: "mapsPosition", label: "Local Search", higherIsBetter: false },
   { key: "reviewCount", label: "Review Count", higherIsBetter: true },
   { key: "reviewVelocity", label: "Review Velocity", higherIsBetter: true },
   { key: "starRating", label: "Star Rating", higherIsBetter: true },
-  { key: "practiceHealth", label: "Practice Health", higherIsBetter: true },
-  { key: "mapsPosition", label: "Maps Estimate", higherIsBetter: false },
+  { key: "practiceHealth", label: "Score", higherIsBetter: true },
 ];
 
 const COMPARISON_EPSILON = 0.001;
@@ -223,21 +223,9 @@ export function sortComparisonRows(
   });
 }
 
-export function sortRowsForMapsList(rows: ComparisonRow[]): ComparisonRow[] {
-  return [...rows].sort((a, b) => {
-    if (a.mapsPosition === null && b.mapsPosition === null) {
-      if (a.isYou !== b.isYou) return a.isYou ? -1 : 1;
-      return a.selectedOrder - b.selectedOrder;
-    }
-    if (a.mapsPosition === null) return 1;
-    if (b.mapsPosition === null) return -1;
-    return a.mapsPosition - b.mapsPosition;
-  });
-}
-
 export function formatMapsEstimate(row: ComparisonRow): string {
   if (row.mapsStatus === "measured" && row.mapsPosition !== null) {
-    return `Est. #${row.mapsPosition}`;
+    return `#${row.mapsPosition}`;
   }
   return row.mapsStatus === "not_in_top_20" ? "Not in top 20" : "Not measured";
 }
