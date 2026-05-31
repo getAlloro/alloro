@@ -28,10 +28,10 @@ export function PmsEmptyDashboardState({
     <section
       id="data-ingestion-hub"
       data-wizard-target="pms-upload"
-      className={`relative overflow-hidden rounded-[14px] bg-white p-8 shadow-premium sm:p-10 ${
+      className={`relative overflow-hidden rounded-2xl bg-white p-8 shadow-premium sm:p-10 ${
         isHighlighted
           ? "border-2 border-alloro-orange ring-8 ring-alloro-orange/30"
-          : "border border-line-soft"
+          : "border border-slate-200"
       }`}
     >
       <div className="absolute right-0 top-0 h-72 w-72 rounded-full bg-alloro-orange/10 blur-3xl" />
@@ -44,19 +44,19 @@ export function PmsEmptyDashboardState({
           <h2 className="font-display text-3xl font-medium tracking-tight text-alloro-navy sm:text-4xl">
             Your PMS intelligence will live here
           </h2>
-          <p className="mt-4 max-w-2xl text-base font-medium leading-7 text-[color:var(--color-pm-text-secondary)]">
+          <p className="mt-4 max-w-2xl text-base font-medium leading-7 text-slate-500">
             {primaryCopy}
           </p>
         </div>
 
-        <div className="rounded-[14px] border border-[#EDE5C0] bg-[#FCFAED] p-5">
+        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
           <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-alloro-orange/10 text-alloro-orange">
             <BarChart3 className="h-6 w-6" />
           </div>
           <h3 className="text-lg font-black text-alloro-navy">
             {isProcessingInsights ? "Processing is underway" : "Start with PMS data"}
           </h3>
-          <p className="mt-2 text-sm font-medium leading-6 text-[color:var(--color-pm-text-secondary)]">
+          <p className="mt-2 text-sm font-medium leading-6 text-slate-500">
             {needsProperties
               ? "Connect your Google Business Profile before uploading PMS data."
               : "The existing PMS upload and manual entry flow stays unchanged."}
@@ -72,7 +72,7 @@ export function PmsEmptyDashboardState({
             {needsProperties ? "Go to settings" : "Upload PMS data"}
           </button>
 
-          <div className="mt-4 flex flex-wrap justify-center gap-4 text-[9px] font-black uppercase tracking-widest text-[color:var(--color-pm-text-secondary)]">
+          <div className="mt-4 flex flex-wrap justify-center gap-4 text-[9px] font-black uppercase tracking-widest text-slate-400">
             <span className="inline-flex items-center gap-2">
               <Lock className="h-3.5 w-3.5" />
               HIPAA secure
