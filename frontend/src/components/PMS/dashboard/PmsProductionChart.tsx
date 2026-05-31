@@ -9,12 +9,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { LineChart as LineChartIcon } from "lucide-react";
 import type { PmsDashboardMonth } from "./types";
 import { formatCurrency, getLatestMonth } from "./utils";
-import { PmsCardShell, PmsEyebrow } from "./primitives";
-import { PmsVelocityCard } from "./PmsVelocityCard";
-import { DetailsModal } from "../../dashboard/shared/DetailsModal";
 
 export type PmsProductionChartProps = {
   months: PmsDashboardMonth[];
@@ -36,7 +32,6 @@ export function PmsProductionChart({
 }: PmsProductionChartProps) {
   const gradientId = useId().replaceAll(":", "");
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const [isPaceOpen, setIsPaceOpen] = useState(false);
   const latest = getLatestMonth(months);
 
   const chartData = useMemo(() => {
@@ -71,26 +66,28 @@ export function PmsProductionChart({
   };
 
   return (
-    <PmsCardShell>
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-premium">
       <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <PmsEyebrow>Production trend</PmsEyebrow>
+          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">
+            Production Trend
+          </p>
           <div className="mt-2 flex flex-wrap items-baseline gap-2">
             <span className="font-display text-4xl font-medium leading-none tracking-tight text-alloro-navy tabular-nums">
               {formatCurrency(activeMonth?.productionTotal ?? 0)}
             </span>
-            <span className="text-sm font-semibold text-[color:var(--color-pm-text-secondary)]">
+            <span className="text-sm font-semibold text-slate-500">
               {activeMonth?.month ?? "No month"}
             </span>
           </div>
           {activeMonth && (
-            <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-[color:var(--color-pm-text-secondary)]">
+            <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
               {activeMonth.totalReferrals} referrals ·{" "}
               {activeMonth.doctorReferrals} doctor · {activeMonth.selfReferrals} self
             </p>
           )}
         </div>
-        <div className="flex gap-4 text-[10px] font-bold uppercase tracking-widest text-[color:var(--color-pm-text-secondary)]">
+        <div className="flex gap-4 text-[10px] font-black uppercase tracking-widest text-slate-500">
           <span className="inline-flex items-center gap-2">
             <span className="h-1 w-4 rounded-full bg-alloro-orange" />
             Production
@@ -164,39 +161,19 @@ export function PmsProductionChart({
               </LineChart>
             </ResponsiveContainer>
           </div>
-          <div className="grid grid-cols-3 text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--color-pm-text-secondary)]">
+          <div className="grid grid-cols-3 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
             <span>{firstLabel}</span>
             <span className="text-center">{middleLabel}</span>
             <span className="text-right">{lastLabel}</span>
           </div>
-          <div className="mt-5 border-t border-line-soft pt-4">
-            <button
-              type="button"
-              data-wizard-target="pms-velocity"
-              onClick={() => setIsPaceOpen(true)}
-              className="inline-flex items-center gap-2 rounded-[10px] px-2 py-1 text-xs font-semibold text-alloro-navy/70 transition-colors hover:bg-alloro-navy/5 hover:text-alloro-navy focus:outline-none focus:ring-2 focus:ring-alloro-orange/40"
-            >
-              <LineChartIcon size={14} className="text-alloro-orange" />
-              View monthly pace
-            </button>
-          </div>
         </>
       ) : (
-        <div className="rounded-[14px] border border-dashed border-line-soft bg-[#FCFAED] p-10 text-center text-sm font-semibold text-[color:var(--color-pm-text-secondary)]">
+        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-10 text-center text-sm font-semibold text-slate-400">
           {isProcessingInsights
             ? "Your production trend will appear once PMS processing finishes."
             : "Upload PMS data to see production trends."}
         </div>
       )}
-
-      <DetailsModal
-        open={isPaceOpen}
-        title="Monthly referral pace"
-        eyebrow="Referral velocity · Last 6 months"
-        onClose={() => setIsPaceOpen(false)}
-      >
-        <PmsVelocityCard months={months} isProcessingInsights={isProcessingInsights} />
-      </DetailsModal>
-    </PmsCardShell>
+    </section>
   );
 }

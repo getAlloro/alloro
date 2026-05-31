@@ -1,4 +1,3 @@
-import { PmsEyebrow } from "./primitives";
 import { PmsTrendPill } from "./PmsTrendPill";
 import type { PmsDashboardMonth } from "./types";
 import {
@@ -13,6 +12,7 @@ export type PmsVitalsRowProps = {
   months: PmsDashboardMonth[];
   totalProduction: number;
   totalReferrals: number;
+  sourceCount: number;
   isLoading: boolean;
   isProcessingInsights: boolean;
 };
@@ -28,14 +28,14 @@ type Metric = {
 
 function PmsVitalCard({ metric, isLoading }: { metric: Metric; isLoading: boolean }) {
   return (
-    <div className="rounded-[14px] border border-line-soft bg-white p-5 shadow-premium transition-all duration-200 hover:-translate-y-0.5 hover:border-alloro-orange/20 sm:p-6">
-      <div className="mb-4">
-        <PmsEyebrow>{metric.label}</PmsEyebrow>
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-premium transition-all duration-200 hover:-translate-y-0.5 hover:border-alloro-orange/20 sm:p-6">
+      <div className="mb-4 text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
+        {metric.label}
       </div>
       {isLoading ? (
         <div className="space-y-3">
-          <div className="h-8 w-28 animate-pulse rounded-lg bg-line-soft" />
-          <div className="h-3 w-36 animate-pulse rounded bg-[#F7F5F3]" />
+          <div className="h-8 w-28 animate-pulse rounded-lg bg-slate-200" />
+          <div className="h-3 w-36 animate-pulse rounded bg-slate-100" />
         </div>
       ) : (
         <>
@@ -43,7 +43,7 @@ function PmsVitalCard({ metric, isLoading }: { metric: Metric; isLoading: boolea
             <span
               className={`font-display text-3xl font-medium leading-none tracking-tight tabular-nums ${
                 metric.isEmpty
-                  ? "text-[color:var(--color-pm-text-secondary)]/50"
+                  ? "text-slate-300"
                   : metric.isAccent
                     ? "text-alloro-orange"
                     : "text-alloro-navy"
@@ -56,7 +56,7 @@ function PmsVitalCard({ metric, isLoading }: { metric: Metric; isLoading: boolea
             )}
           </div>
           {metric.sub && (
-            <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-[color:var(--color-pm-text-secondary)]">
+            <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
               {metric.sub}
             </p>
           )}
@@ -70,12 +70,14 @@ export function PmsVitalsRow({
   months,
   totalProduction,
   totalReferrals,
+  sourceCount,
   isLoading,
   isProcessingInsights,
 }: PmsVitalsRowProps) {
   const latest = getLatestMonth(months);
   const previous = getPreviousMonth(months);
   const hasMonthData = months.length > 0;
+  const hasSourceData = sourceCount > 0;
   const hasRollupData = totalProduction > 0 || totalReferrals > 0;
   const emptyMetricCopy = isProcessingInsights
     ? "Processing PMS data now"
@@ -106,6 +108,12 @@ export function PmsVitalsRow({
       isEmpty: !hasMonthData,
     },
     {
+      label: "Unique sources",
+      value: hasSourceData ? String(sourceCount) : "—",
+      sub: hasSourceData ? `${months.length} months tracked` : emptyMetricCopy,
+      isEmpty: !hasSourceData,
+    },
+    {
       label: "YTD production",
       value: hasRollupData ? formatCompactCurrency(totalProduction) : "—",
       sub: hasRollupData ? `${totalReferrals} total referrals` : emptyMetricCopy,
@@ -114,7 +122,7 @@ export function PmsVitalsRow({
   ];
 
   return (
-    <div data-wizard-target="pms-vitals" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <div data-wizard-target="pms-vitals" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {metrics.map((metric) => (
         <PmsVitalCard key={metric.label} metric={metric} isLoading={isLoading} />
       ))}

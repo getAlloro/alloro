@@ -1,105 +1,50 @@
-import { MeaningHero } from "../../dashboard/shared/MeaningHero";
-import type { PmsKeyDataSource } from "../../../api/pms";
-import {
-  getReferralFallbackInsight,
-  normalizeReferralBullets,
-} from "./referralInsightCopy";
-import { formatCompactCurrency } from "./utils";
+import { Sparkles } from "lucide-react";
 
 export type PmsExecutiveSummaryProps = {
   bullets?: string[];
-  totalProduction: number;
-  totalReferrals: number;
-  doctorPercentage: number;
-  topSources: PmsKeyDataSource[];
   isProcessingInsights: boolean;
 };
 
-const PROCESSING_INSIGHT =
-  "Alloro is reading your referral data now. Your latest approved numbers stay visible while we write up what they mean.";
-
-/**
- * PmsExecutiveSummary — the renamed, contrast-fixed referral meaning hero.
- *
- * Composes the shared cream `MeaningHero` (RankingMeaningCard analog). The lead
- * slot reads as plain-English prose: normalized LLM `executive_summary` bullets
- * joined into a paragraph, or the deterministic `getReferralFallbackInsight`
- * when none exist / still processing — so the lead is NEVER blank (spec R5).
- *
- * The score slot is a HEADLINE FIGURE (total referral production), NOT a 0-100
- * gauge — no such "referral score" concept exists here (spec Constraints).
- *
- * Renamed away from "Executive Summary" / "What the data is saying" to owner
- * language: "What your referrals are telling you".
- *
- * Spec: plans/05292026-no-ticket-referrals-hub-owner-readable-redesign/spec.md (T3)
- */
 export function PmsExecutiveSummary({
   bullets,
-  totalProduction,
-  totalReferrals,
-  doctorPercentage,
-  topSources,
   isProcessingInsights,
 }: PmsExecutiveSummaryProps) {
-  const normalizedBullets = normalizeReferralBullets(bullets);
-  const hasBullets = normalizedBullets.length > 0;
-
-  // Lead is never blank: prose from bullets, processing copy, or the
-  // deterministic fallback computed from the numbers already on the surface.
-  let insight: string;
-  if (hasBullets) {
-    insight = normalizedBullets.join(" ");
-  } else if (isProcessingInsights) {
-    insight = PROCESSING_INSIGHT;
-  } else {
-    insight = getReferralFallbackInsight({
-      doctorPercentage,
-      topSources,
-      totalProduction,
-      totalReferrals,
-    });
-  }
-
-  const productionLabel = formatCompactCurrency(Math.max(totalProduction, 0));
-  const referralsTracked = Math.max(0, Math.round(totalReferrals));
+  const hasBullets = Boolean(bullets?.length);
 
   return (
-    // data-wizard-target="pms-insights" re-anchors the onboarding wizard's
-    // "What's Good & What's Risky" step here — it previously lived on the now
-    // deleted PmsAttentionCards; the meaning hero is its truest replacement.
-    <div data-wizard-target="pms-insights">
-      <MeaningHero
-        insight={insight}
-        scoreLabel="Referral production"
-      scoreTooltip="Total production tied to tracked referrals across all approved data. This is the dollar value your referral sources have generated."
-      score={
-        <span className="font-display text-[44px] font-medium leading-none tracking-tight tabular-nums text-alloro-navy">
-          {productionLabel}
-        </span>
-      }
-      estimateSummary={
-        <div className="flex flex-col gap-1">
-          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--color-pm-text-secondary)]">
-            What your referrals are telling you
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-premium">
+      <div className="mb-5 flex items-center justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">
+            Executive Summary
           </p>
-          <p className="text-[13px] font-medium leading-relaxed text-alloro-navy/70">
-            {referralsTracked > 0
-              ? `${referralsTracked.toLocaleString("en-US")} referral${
-                  referralsTracked === 1 ? "" : "s"
-                } tracked across all approved data.`
-              : "No referrals tracked yet — approve your PMS data to populate this view."}
-          </p>
+          <h2 className="mt-1 font-display text-2xl font-medium tracking-tight text-alloro-navy">
+            What the data is saying
+          </h2>
         </div>
-      }
-      actions={
-        <p className="text-[13px] font-medium leading-relaxed text-alloro-navy/70">
-          {isProcessingInsights && !hasBullets
-            ? "We'll refine this summary automatically as the analysis finishes — no action needed."
-            : "Read the sources and production below to see exactly what's driving these numbers."}
-        </p>
-      }
-      />
-    </div>
+        <span className="rounded-xl bg-alloro-orange/10 p-2.5 text-alloro-orange">
+          <Sparkles className="h-5 w-5" />
+        </span>
+      </div>
+
+      {hasBullets ? (
+        <div className="grid gap-3">
+          {bullets?.slice(0, 4).map((bullet) => (
+            <div key={bullet} className="flex gap-3 rounded-xl bg-slate-50 p-4">
+              <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-alloro-orange" />
+              <p className="text-sm font-medium leading-6 text-slate-600">
+                {bullet}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-5 text-sm font-medium text-slate-500">
+          {isProcessingInsights
+            ? "Alloro is generating referral intelligence now. Your latest approved values stay visible while the summary is prepared."
+            : "Referral engine summary will appear after PMS data has been approved and processed."}
+        </div>
+      )}
+    </section>
   );
 }
