@@ -2,6 +2,22 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.94] - May 2026
+
+### Review Sync OAuth Refresh Hardening
+
+Hardened the Google Business Profile review sync worker after Garrison Orthodontics showed stale-token `401` failures in the daily Reviews sync status. The worker now uses the existing refresh-aware OAuth path and records fresh health rows when connection auth fails before location sync begins.
+
+**Key Changes:**
+- Switched OAuth review sync from raw stored-token client creation to the existing refresh-aware Google connection helper
+- Added a one-time forced token refresh retry for Google unauthorized responses, reusing the refreshed client for later locations on the same connection
+- Added current failed `gbp_sync_health` rows for connection-level auth failures so the dashboard does not keep showing stale status
+- Verified production state for Garrison Orthodontics, including one `minds-worker`, one `daily-review-sync` repeatable job, and latest successful sync rows with 90 reviews synced
+
+**Commits:**
+- `src/workers/processors/reviewSync.processor.ts` - refresh-aware auth setup, bounded unauthorized retry, refreshed-client reuse, safe sync-health failure rows, and sync metadata cleanup
+- `plans/05312026-no-ticket-fix-review-sync-oauth-refresh/spec.md` - execution spec, risk notes, and verification checklist
+
 ## [0.0.93] - May 2026
 
 ### Background Worker Lock-Renewal Stability Fix
