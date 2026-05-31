@@ -1,83 +1,52 @@
 /**
- * Scheduler Processor
+ * Scheduler Processor (dispatcher)
  *
  * Runs every 60 seconds via BullMQ repeatable job.
- * Checks `schedules` table for due jobs, executes them via the agent registry,
- * and records results in `schedule_runs`.
+ * Finds due schedules and dispatches one execution job per schedule onto the
+ * `minds-schedule-exec` queue. Kept intentionally lightweight so the tick always
+ * finishes well within its lock window. Actual agent execution (which can take
+ * minutes) happens in scheduleExec.processor.ts — that way the 60s tick never
+ * holds a lock through long-running work and can't fall into a stall/renew loop.
  */
 
 import { Job } from "bullmq";
-import { CronExpressionParser } from "cron-parser";
-import { ScheduleModel, ScheduleRunModel, ISchedule } from "../../models/ScheduleModel";
-import { getAgentHandler } from "../../services/agentRegistry";
-
-function computeNextRunAt(schedule: ISchedule): Date {
-  if (schedule.schedule_type === "cron" && schedule.cron_expression) {
-    const interval = CronExpressionParser.parse(schedule.cron_expression, {
-      currentDate: new Date(),
-      tz: schedule.timezone || "UTC",
-    });
-    return interval.next().toDate();
-  }
-
-  if (schedule.schedule_type === "interval_days" && schedule.interval_days) {
-    return new Date(Date.now() + schedule.interval_days * 24 * 60 * 60 * 1000);
-  }
-
-  // Fallback: 24 hours from now
-  return new Date(Date.now() + 24 * 60 * 60 * 1000);
-}
+import { ScheduleModel, ScheduleRunModel } from "../../models/ScheduleModel";
+import { getMindsQueue } from "../queues";
 
 export async function processSchedulerTick(_job: Job): Promise<void> {
   const dueSchedules = await ScheduleModel.findDueSchedules();
 
   if (dueSchedules.length === 0) return;
 
-  console.log(`[SCHEDULER] ${dueSchedules.length} schedule(s) due`);
+  console.log(`[SCHEDULER] ${dueSchedules.length} schedule(s) due — dispatching`);
+
+  const execQueue = getMindsQueue("schedule-exec");
 
   for (const schedule of dueSchedules) {
-    // Skip if already running
+    // Skip if a run is already active — prevents piling up while a long agent runs.
     const isRunning = await ScheduleRunModel.hasActiveRun(schedule.id);
     if (isRunning) {
       console.log(`[SCHEDULER] Skipping "${schedule.agent_key}" — already running`);
       continue;
     }
 
-    // Look up handler
-    const agent = getAgentHandler(schedule.agent_key);
-    if (!agent) {
-      console.error(`[SCHEDULER] No handler registered for agent_key "${schedule.agent_key}"`);
-      continue;
-    }
+    // Idempotent jobId keyed on the due window (next_run_at). Re-ticks that fire
+    // before the run advances next_run_at produce the same id, so BullMQ dedupes
+    // the enqueue instead of stacking duplicate executions.
+    const windowMs = schedule.next_run_at
+      ? new Date(schedule.next_run_at).getTime()
+      : Date.now();
 
-    console.log(`[SCHEDULER] Executing "${schedule.agent_key}" (${agent.displayName})`);
+    await execQueue.add(
+      "run-schedule",
+      { scheduleId: schedule.id },
+      {
+        jobId: `sched-${schedule.id}-${windowMs}`,
+        removeOnComplete: { count: 50 },
+        removeOnFail: { count: 25 },
+      }
+    );
 
-    // Create run record
-    const run = await ScheduleRunModel.createRun(schedule.id);
-
-    try {
-      const result = await agent.handler();
-
-      await ScheduleRunModel.completeRun(run.id, result.summary);
-
-      // Update schedule: last_run_at + next_run_at
-      const nextRunAt = computeNextRunAt(schedule);
-      await ScheduleModel.updateById(schedule.id, {
-        last_run_at: new Date(),
-        next_run_at: nextRunAt,
-      });
-
-      console.log(`[SCHEDULER] "${schedule.agent_key}" completed. Next run: ${nextRunAt.toISOString()}`);
-    } catch (error: any) {
-      console.error(`[SCHEDULER] "${schedule.agent_key}" failed:`, error.message);
-      await ScheduleRunModel.failRun(run.id, error.message || String(error));
-
-      // Still advance next_run_at so we don't retry immediately
-      const nextRunAt = computeNextRunAt(schedule);
-      await ScheduleModel.updateById(schedule.id, {
-        last_run_at: new Date(),
-        next_run_at: nextRunAt,
-      });
-    }
+    console.log(`[SCHEDULER] Dispatched "${schedule.agent_key}" (schedule ${schedule.id})`);
   }
 }

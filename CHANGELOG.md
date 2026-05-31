@@ -2,6 +2,25 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.93] - May 2026
+
+### Background Worker Lock-Renewal Stability Fix
+
+Eliminated the `could not renew lock for job repeat:...` error flood on the `minds-scheduler`, `minds-skill-triggers`, and `gbp-automation-deployment` BullMQ workers. Root cause: tick processors awaited multi-minute work (AI agent runs, per-location Google syncs) inline while holding a short 30-second lock, so the lock expired mid-run, the stalled-job checker requeued the job, the orphaned attempt's renewal failed, and the repeatable iteration never reached a terminal state — looping forever.
+
+**Key Changes:**
+- Split the scheduler tick into a lightweight dispatcher plus a dedicated execution worker: the `minds-scheduler` tick now only finds due schedules and enqueues one job per schedule onto a new `minds-schedule-exec` queue, so the 60-second tick always finishes sub-second and never holds a lock through long-running agent work
+- Added an execution-half processor that owns the agent-run lifecycle (run record, handler execution, `next_run_at` advance) under a 15-minute lock with bounded concurrency, guarded by `hasActiveRun` in both dispatcher and executor for at-most-one active run per schedule
+- Gave every BullMQ worker its own Redis connection via a `makeConnection()` factory instead of sharing a single ioredis instance, removing the lock-renewal starvation amplifier
+- Set realistic explicit lock durations on the previously default-locked workers (skill-triggers 5 minutes, gbp-automation-deployment 20 minutes) and switched skill-trigger webhook fires to bounded-concurrency batches so tick wall-time no longer scales linearly with due-skill count
+
+**Commits:**
+- `src/workers/processors/scheduler.processor.ts` - rewrote `processSchedulerTick` as a dispatcher that enqueues per-schedule exec jobs with an idempotent due-window `jobId`; removed the inline `agent.handler()` call
+- `src/workers/processors/scheduleExec.processor.ts` - new execution-half processor: re-checks active run, creates the run record, runs the agent handler, completes/fails the run, and advances `next_run_at` once per execution
+- `src/workers/processors/skillTrigger.processor.ts` - extracted `processSingleSkill` and fired due-skill webhooks in bounded `Promise.allSettled` batches with per-skill error isolation
+- `src/workers/worker.ts` - added a `makeConnection()` per-worker connection factory and tracked-connection shutdown, registered the new `minds-schedule-exec` worker, and set explicit lock durations on the skill-triggers and gbp-automation-deployment workers
+- `plans/05302026-no-ticket-fix-scheduler-worker-lock-loop/*` - executed spec and revision history (T4 gbp lock-duration resolution plus the deferred per-location dispatch follow-up)
+
 ## [0.0.92] - May 2026
 
 ### Local Rankings And Support Workflow Polish
