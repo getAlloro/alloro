@@ -2,18 +2,14 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ExternalLink,
   AlertCircle,
   Sparkles,
-  Link as LinkIcon,
   Inbox,
   Monitor,
   Smartphone,
-  ChevronDown,
   Undo2,
   Redo2,
   RotateCcw,
-  Check,
   FileText,
   Menu as MenuIcon,
   Pencil,
@@ -90,14 +86,6 @@ interface Project {
   accent_color: string | null;
 }
 
-interface Usage {
-  storage_used: number;
-  storage_limit: number;
-  storage_percentage: number;
-  edits_today: number;
-  edits_limit: number;
-}
-
 const DESKTOP_SCALE = 0.7;
 const WEBSITE_TABS = ["overview", "editor", "submissions", "posts", "menus", "pages"] as const;
 type WebsiteTab = typeof WEBSITE_TABS[number];
@@ -125,13 +113,11 @@ export function DFYWebsite() {
   const [project, setProject] = useState<Project | null>(null);
   const [pages, setPages] = useState<Page[]>([]);
   const [selectedPage, setSelectedPage] = useState<Page | null>(null);
-  const [usage, setUsage] = useState<Usage | null>(null);
   const [showDomainModal, setShowDomainModal] = useState(false);
   const activeView = getWebsiteTabFromParams(searchParams);
   const [viewportMode, setViewportMode] = useState<"desktop" | "mobile">(
     "desktop",
   );
-  const [isPageDropdownOpen, setIsPageDropdownOpen] = useState(false);
 
   // Version preview state
   const [previewVersion, setPreviewVersion] = useState<PageVersion | null>(null);
@@ -188,7 +174,6 @@ export function DFYWebsite() {
   const sectionsRef = useRef(sections);
   sectionsRef.current = sections;
   const deferredEditRef = useRef<DirectEditorOperation | null>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
   // Tracks the page whose editor HTML is already assembled, so re-entering the
   // editor tab (e.g. from the overview) doesn't rebuild and clobber unsaved edits.
   const assembledPageIdRef = useRef<string | null>(null);
@@ -525,17 +510,6 @@ export function DFYWebsite() {
     }
   };
 
-  // Close dropdown on click outside
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setIsPageDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
   // --- Load website data (skip API when wizard is active) ---
   useEffect(() => {
     if (isWizardActive && wizardDemoData) {
@@ -594,7 +568,6 @@ export function DFYWebsite() {
       } else if (data.project) {
         setProject(data.project);
         setPages(data.pages || []);
-        setUsage(data.usage);
 
         if (data.project.is_read_only) {
           setStatus("READ_ONLY");
@@ -1115,73 +1088,6 @@ export function DFYWebsite() {
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Top Bar */}
       <div className="bg-white border-b border-gray-200 px-4 py-0 flex items-center gap-0">
-        {/* Left: Editing Page + page selector */}
-        <div className="flex items-center gap-2 shrink-0 mr-3">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-gray-400">
-            <Pencil className="h-3 w-3" />
-            Editing Page:
-          </div>
-          <div className="relative" ref={dropdownRef}>
-            <button
-              onClick={() => setIsPageDropdownOpen((prev) => !prev)}
-              className="flex items-center gap-1.5 pl-2.5 pr-2 py-1 rounded-md text-sm font-semibold text-gray-800 hover:bg-gray-50 focus:outline-none cursor-pointer transition-colors"
-            >
-              <span className="truncate max-w-[140px]">
-                {selectedPage
-                  ? selectedPage.path === "/"
-                    ? "Home"
-                    : selectedPage.path
-                  : "Select page"}
-              </span>
-              <motion.span
-                animate={{ rotate: isPageDropdownOpen ? 180 : 0 }}
-                transition={{ duration: 0.2 }}
-                className="shrink-0"
-              >
-                <ChevronDown size={12} className="text-gray-400" />
-              </motion.span>
-            </button>
-
-            <AnimatePresence>
-              {isPageDropdownOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: -4, scale: 0.97 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -4, scale: 0.97 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute top-full left-0 mt-1 min-w-[180px] bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-50"
-                >
-                  {pages.map((page) => {
-                    const isActive = selectedPage?.id === page.id;
-                    return (
-                      <button
-                        key={page.id}
-                        onClick={() => {
-                          setSelectedPage(page);
-                          setWebsiteTab("editor");
-                          setIsPageDropdownOpen(false);
-                          setPreviewVersion(null);
-                          setPreviewHtmlContent("");
-                        }}
-                        className={`w-full text-left px-3 py-2 text-sm transition-colors flex items-center justify-between ${
-                          isActive
-                            ? "bg-alloro-orange/5 text-alloro-orange font-medium"
-                            : "text-gray-700 hover:bg-gray-50"
-                        }`}
-                      >
-                        <span>{page.path === "/" ? "Home" : page.path}</span>
-                        {isActive && <Check size={14} className="text-alloro-orange shrink-0" />}
-                      </button>
-                    );
-                  })}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-
-        <div className="w-px h-5 bg-gray-200 mr-1" />
-
         {/* Animated View Tabs */}
         <nav className="flex items-center shrink-0">
           {(
@@ -1306,40 +1212,6 @@ export function DFYWebsite() {
             )}
           </AnimatePresence>
 
-          {usage && (
-            <div className="flex items-center gap-2.5 text-[11px] text-gray-400">
-              <span>
-                {usage.edits_today}/{usage.edits_limit} edits
-              </span>
-              <span>{Math.round(usage.storage_percentage)}% storage</span>
-            </div>
-          )}
-
-          <button
-            onClick={() => setShowDomainModal(true)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
-              project?.custom_domain && project?.domain_verified_at
-                ? "bg-green-50 text-green-700 hover:bg-green-100"
-                : project?.custom_domain
-                  ? "bg-amber-50 text-amber-700 hover:bg-amber-100"
-                  : "bg-alloro-orange/10 text-alloro-orange hover:bg-alloro-orange/20"
-            }`}
-          >
-            <LinkIcon className="w-3 h-3" />
-            {project?.custom_domain || "Connect Domain"}
-          </button>
-
-          {liveUrl && (
-            <a
-              href={`${liveUrl}${selectedPage?.path || ""}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-alloro-orange transition-colors"
-            >
-              <ExternalLink className="w-3 h-3" />
-              View Live
-            </a>
-          )}
         </div>
       </div>
 
@@ -1362,6 +1234,10 @@ export function DFYWebsite() {
           <WebsiteOverview
             pageCount={pages.length}
             templateId={project?.template_id ?? null}
+            liveUrl={liveUrl}
+            customDomain={project?.custom_domain ?? null}
+            domainVerified={!!project?.domain_verified_at}
+            onConnectDomain={() => setShowDomainModal(true)}
             onOpenTab={(tab) => setWebsiteTab(tab)}
           />
         </div>

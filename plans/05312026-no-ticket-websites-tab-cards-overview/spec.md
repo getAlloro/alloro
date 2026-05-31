@@ -149,3 +149,8 @@ The editor is demoted to `?tab=editor` and lazy-mounts. A new `?tab=pages` list 
 - **Sidebar auto-collapse:** the mount effect hard-collapsed the sidebar on every website-tab visit (built for editor-first). Now `setCollapsed(activeView === "editor")` — collapses only for the editor, expands for the overview and other non-editor views; expands on unmount.
 **Reason:** Owner-readable overview is the default; editor-shaped loading + forced collapse were leftovers from editor-first behavior.
 **Updated Done criteria:** Loading skeleton matches the active view; sidebar collapses only on the editor and expands on non-editor views.
+
+### Rev 2 — 2026-05-31
+**Change:** Simplified the Websites top bar to just the tab row (consistent with the app's standard underline tabs). Removed the always-on page selector entirely — page-switching now happens via the Pages tab — plus the edits/storage usage readout and the Connect Domain + View Live buttons. Relocated Connect Domain + View Live into the Overview header (passed `liveUrl`/`customDomain`/`domainVerified`/`onConnectDomain` to `WebsiteOverview`). Pruned the dead dropdown state/ref/click-outside effect, the orphaned `usage` state + `Usage` interface, and now-unused icon imports (`ChevronDown`, `Check`, `LinkIcon`, `ExternalLink`).
+**Reason:** The editor-era top bar was clutter on the cards-first overview and every other non-editor view.
+**Updated Done criteria:** Non-editor views show only the tab row; Connect Domain + View Live live in the Overview header; the editor keeps its own controls (viewport/undo/Save). Verified live: overview top bar = tabs only, header shows the domain + View Live, editor still mounts with viewport toggle.
