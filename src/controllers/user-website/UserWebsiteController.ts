@@ -19,9 +19,11 @@ import * as gscIntegration from "../admin-websites/feature-services/service.gsc-
 import * as postManager from "../admin-websites/feature-services/service.post-manager";
 import * as postTypeManager from "../admin-websites/feature-services/service.post-type-manager";
 import * as menuManager from "../admin-websites/feature-services/service.menu-manager";
+import { getDashboard as getRybbitDashboard } from "../admin-websites/feature-services/service.rybbit-performance";
 import { resolveShortcodes } from "./user-website-services/shortcodeResolver.service";
 import { ProjectModel } from "../../models/website-builder/ProjectModel";
 import { FormSubmissionModel } from "../../models/website-builder/FormSubmissionModel";
+import { WebsiteIntegrationModel } from "../../models/website-builder/WebsiteIntegrationModel";
 import { db } from "../../database/connection";
 import * as formDetection from "../admin-websites/feature-services/service.form-detection";
 import { upsertFormCatalogPreferences } from "../../services/formCatalogPreferenceService";
@@ -634,6 +636,63 @@ export async function getFormSubmissionStats(
     });
   } catch (error) {
     return handleError(res, error, "Fetch submission stats");
+  }
+}
+
+/** GET /api/user/website/analytics — owner-facing Rybbit performance (slim) */
+export async function getWebsiteAnalytics(
+  req: RBACRequest,
+  res: Response
+): Promise<Response> {
+  try {
+    const orgId = req.organizationId;
+    if (!orgId) return res.status(400).json({ error: "No organization found" });
+
+    const project = await ProjectModel.findByOrganizationId(orgId);
+    if (!project) return res.status(404).json({ error: "No website found" });
+
+    const emptyTotals = {
+      sessions: 0,
+      pageviews: 0,
+      users: 0,
+      bounceRate: 0,
+      pagesPerSession: 0,
+      sessionDuration: 0,
+    };
+
+    const integration = await WebsiteIntegrationModel.findByProjectAndPlatform(
+      project.id,
+      "rybbit"
+    );
+    if (!integration) {
+      return res.json({
+        success: true,
+        hasIntegration: false,
+        latestReportDate: null,
+        dataDays: 0,
+        totals: emptyTotals,
+        daily: [],
+      });
+    }
+
+    // Reuse the admin Rybbit dashboard service; request 0 raw rows (card only
+    // needs totals + the daily sparkline series).
+    const dashboard = await getRybbitDashboard(
+      integration,
+      req.query.rangeDays,
+      0,
+      0
+    );
+    return res.json({
+      success: true,
+      hasIntegration: true,
+      latestReportDate: dashboard.latestReportDate,
+      dataDays: dashboard.dataDays,
+      totals: dashboard.totals,
+      daily: dashboard.daily,
+    });
+  } catch (error) {
+    return handleError(res, error, "Fetch website analytics");
   }
 }
 

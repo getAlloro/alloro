@@ -212,6 +212,15 @@ userWebsiteRoutes.put(
   controller.updateFormPreferences
 );
 
+// Analytics (Rybbit)
+userWebsiteRoutes.get(
+  "/analytics",
+  authenticateToken,
+  rbacMiddleware,
+  requireRole("admin", "manager"),
+  controller.getWebsiteAnalytics
+);
+
 // Form submissions
 userWebsiteRoutes.get(
   "/form-submissions/stats",

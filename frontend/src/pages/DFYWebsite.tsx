@@ -19,6 +19,8 @@ import {
   Pencil,
   Loader2,
   Save,
+  LayoutGrid,
+  Files,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from "../api";
@@ -28,6 +30,8 @@ import FormSubmissionsTab from "../components/Admin/FormSubmissionsTab";
 import PostsTab from "../components/Admin/PostsTab";
 import MenusTab from "../components/Admin/MenusTab";
 import RecipientsConfig from "../components/Admin/RecipientsConfig";
+import { WebsiteOverview } from "../components/website/overview/WebsiteOverview";
+import { WebsitePagesTab } from "../components/website/WebsitePagesTab";
 import {
   renderPage as assemblePageHtml,
   normalizeSections,
@@ -55,7 +59,11 @@ import type { ChatMessage } from "../components/PageEditor/ChatPanel";
 import type { PageVersion } from "../components/PageEditor/VersionHistoryTab";
 import type { Section } from "../api/templates";
 import { useSidebar } from "../components/Admin/SidebarContext";
-import { useIsWizardActive, useWizardDemoData } from "../contexts/OnboardingWizardContext";
+import {
+  useIsWizardActive,
+  useWizardDemoData,
+  useOnboardingWizard,
+} from "../contexts/OnboardingWizardContext";
 
 interface Page {
   id: string;
@@ -91,7 +99,7 @@ interface Usage {
 }
 
 const DESKTOP_SCALE = 0.7;
-const WEBSITE_TABS = ["editor", "submissions", "posts", "menus"] as const;
+const WEBSITE_TABS = ["overview", "editor", "submissions", "posts", "menus", "pages"] as const;
 type WebsiteTab = typeof WEBSITE_TABS[number];
 
 function parseWebsiteTab(value: string | null): WebsiteTab | null {
@@ -104,7 +112,7 @@ function getWebsiteTabFromParams(searchParams: URLSearchParams): WebsiteTab {
   return (
     parseWebsiteTab(searchParams.get("tab")) ||
     parseWebsiteTab(searchParams.get("view")) ||
-    "editor"
+    "overview"
   );
 }
 
@@ -154,7 +162,7 @@ export function DFYWebsite() {
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.delete("view");
-        if (tab === "editor") {
+        if (tab === "overview") {
           next.delete("tab");
         } else {
           next.set("tab", tab);
@@ -165,11 +173,25 @@ export function DFYWebsite() {
     [setSearchParams],
   );
 
+  // Wizard: drive the active tab so each website tour step spotlights a mounted
+  // view. The editor/submissions targets don't exist on the default overview,
+  // and the editor lazy-mounts — so force the matching tab while the tour runs.
+  const { currentStep: wizardStep } = useOnboardingWizard();
+  useEffect(() => {
+    if (!isWizardActive || !wizardStep || wizardStep.page !== "website") return;
+    if (wizardStep.id === "website-editor") setWebsiteTab("editor");
+    else if (wizardStep.id === "website-submissions") setWebsiteTab("submissions");
+    else if (wizardStep.id === "website-overview") setWebsiteTab("overview");
+  }, [isWizardActive, wizardStep, setWebsiteTab]);
+
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const sectionsRef = useRef(sections);
   sectionsRef.current = sections;
   const deferredEditRef = useRef<DirectEditorOperation | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  // Tracks the page whose editor HTML is already assembled, so re-entering the
+  // editor tab (e.g. from the overview) doesn't rebuild and clobber unsaved edits.
+  const assembledPageIdRef = useRef<string | null>(null);
 
   // Auto-collapse sidebar when entering website editor (like admin PageEditor)
   useEffect(() => {
@@ -530,6 +552,13 @@ export function DFYWebsite() {
   // --- Assemble preview when page or project changes ---
   useEffect(() => {
     if (!selectedPage || !project) return;
+    // Lazy editor: only build the heavy preview HTML (which also triggers
+    // shortcode resolution) when the editor tab is active. Skip re-assembly for
+    // a page that's already built so returning from the overview/other tabs
+    // preserves unsaved edits.
+    if (activeView !== "editor") return;
+    if (assembledPageIdRef.current === selectedPage.id) return;
+    assembledPageIdRef.current = selectedPage.id;
 
     const pageSections = normalizeSections(selectedPage.sections);
     setSections(pageSections);
@@ -552,7 +581,7 @@ export function DFYWebsite() {
     setRedoStack([]);
     setEditError(null);
     setIsDirty(false);
-  }, [selectedPage, project]);
+  }, [selectedPage, project, activeView]);
 
   const fetchWebsite = async () => {
     try {
@@ -1136,12 +1165,14 @@ export function DFYWebsite() {
         <nav className="flex items-center shrink-0">
           {(
             [
+              { key: "overview", icon: LayoutGrid, label: "Overview" },
               { key: "editor", icon: Pencil, label: "Editor" },
               { key: "submissions", icon: Inbox, label: "Submissions" },
               ...(project?.template_id
                 ? [{ key: "posts" as const, icon: FileText, label: "Posts" }]
                 : []),
               { key: "menus", icon: MenuIcon, label: "Menus" },
+              { key: "pages", icon: Files, label: "Pages" },
             ] as const
           ).map((tab) => {
             const Icon = tab.icon;
@@ -1305,7 +1336,28 @@ export function DFYWebsite() {
       )}
 
       {/* Main Content */}
-      {activeView === "submissions" ? (
+      {activeView === "overview" ? (
+        <div className="flex-1 overflow-y-auto bg-gray-50">
+          <WebsiteOverview
+            pageCount={pages.length}
+            templateId={project?.template_id ?? null}
+            onOpenTab={(tab) => setWebsiteTab(tab)}
+          />
+        </div>
+      ) : activeView === "pages" ? (
+        <div className="flex-1 overflow-y-auto bg-gray-50">
+          <WebsitePagesTab
+            pages={pages}
+            onOpenPage={(pageId) => {
+              const target = pages.find((p) => p.id === pageId);
+              if (target) setSelectedPage(target);
+              setPreviewVersion(null);
+              setPreviewHtmlContent("");
+              setWebsiteTab("editor");
+            }}
+          />
+        </div>
+      ) : activeView === "submissions" ? (
         <div className="flex-1 overflow-y-auto p-6 space-y-6" data-wizard-target="website-submissions">
           {project && (
             <>
