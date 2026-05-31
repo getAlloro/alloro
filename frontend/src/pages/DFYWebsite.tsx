@@ -193,10 +193,12 @@ export function DFYWebsite() {
   // editor tab (e.g. from the overview) doesn't rebuild and clobber unsaved edits.
   const assembledPageIdRef = useRef<string | null>(null);
 
-  // Auto-collapse sidebar when entering website editor (like admin PageEditor)
+  // Collapse the sidebar only while the page editor is open; expand it for the
+  // overview and every other (non-editor) view. Restore on unmount.
   useEffect(() => {
-    setCollapsed(true);
-  }, [setCollapsed]);
+    setCollapsed(activeView === "editor");
+    return () => setCollapsed(false);
+  }, [activeView, setCollapsed]);
 
   // Normalize legacy links like ?view=submissions to the new ?tab= permalink.
   useEffect(() => {
@@ -964,36 +966,55 @@ export function DFYWebsite() {
     ? chatMap.get(selectedInfo.alloroClass) || []
     : [];
 
-  // --- Loading skeleton ---
+  // --- Loading skeleton (matches the view being loaded) ---
   if (loading) {
+    const isEditorView = activeView === "editor";
     return (
       <div className="flex flex-col h-screen bg-alloro-bg animate-pulse">
         <div className="bg-white border-b border-black/5 px-4 py-3 flex items-center gap-4">
           <div className="h-6 w-32 bg-slate-200 rounded" />
           <div className="flex gap-2">
-            {[...Array(3)].map((_, i) => (
+            {[...Array(4)].map((_, i) => (
               <div key={i} className="h-8 w-20 bg-slate-100 rounded-lg" />
             ))}
           </div>
         </div>
-        <div className="flex flex-1 min-h-0">
-          <div className="flex-1 p-6">
-            <div className="h-full bg-slate-100 rounded-2xl" />
-          </div>
-          <div className="w-96 bg-white border-l border-black/5 p-4 space-y-4">
-            <div className="h-6 w-24 bg-slate-200 rounded" />
-            <div className="h-4 w-48 bg-slate-100 rounded" />
-            <div className="mt-8 space-y-3">
-              {[...Array(3)].map((_, i) => (
-                <div
-                  key={i}
-                  className="h-4 bg-slate-100 rounded"
-                  style={{ width: `${80 - i * 15}%` }}
-                />
-              ))}
+        {isEditorView ? (
+          <div className="flex flex-1 min-h-0">
+            <div className="flex-1 p-6">
+              <div className="h-full bg-slate-100 rounded-2xl" />
+            </div>
+            <div className="w-96 bg-white border-l border-black/5 p-4 space-y-4">
+              <div className="h-6 w-24 bg-slate-200 rounded" />
+              <div className="h-4 w-48 bg-slate-100 rounded" />
+              <div className="mt-8 space-y-3">
+                {[...Array(3)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-4 bg-slate-100 rounded"
+                    style={{ width: `${80 - i * 15}%` }}
+                  />
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto bg-gray-50">
+            <div className="mx-auto w-full max-w-[1320px] space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+              <div className="space-y-2">
+                <div className="h-7 w-64 bg-slate-200 rounded" />
+                <div className="h-4 w-80 bg-slate-100 rounded" />
+              </div>
+              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="h-72 rounded-[14px] border border-black/5 bg-white xl:col-span-2" />
+                <div className="h-72 rounded-[14px] border border-black/5 bg-white" />
+                <div className="h-40 rounded-[14px] border border-black/5 bg-white" />
+                <div className="h-40 rounded-[14px] border border-black/5 bg-white" />
+                <div className="h-40 rounded-[14px] border border-black/5 bg-white" />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

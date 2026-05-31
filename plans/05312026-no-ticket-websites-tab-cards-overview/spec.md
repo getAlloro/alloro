@@ -140,3 +140,12 @@ The editor is demoted to `?tab=editor` and lazy-mounts. A new `?tab=pages` list 
 - [ ] Editor still edits/saves/undo-redo with no regression; overview triggers no editor-only network calls
 - [ ] Onboarding wizard tour completes; all three website steps spotlight mounted targets
 - [ ] No DB migration; existing PMS/GBP charts and `Admin/*Tab.tsx` untouched
+
+## Revision Log
+
+### Rev 1 — 2026-05-31
+**Change:** Two follow-ups after the landing flip, both because the editor is no longer the default view.
+- **Loading skeleton:** `DFYWebsite`'s `loading` skeleton was editor-shaped (center preview + `w-96` right panel), so it flashed an editor layout before resolving to the overview cards. Made it view-aware — renders an overview cards-grid skeleton when `activeView !== "editor"`, keeps the editor skeleton for the editor.
+- **Sidebar auto-collapse:** the mount effect hard-collapsed the sidebar on every website-tab visit (built for editor-first). Now `setCollapsed(activeView === "editor")` — collapses only for the editor, expands for the overview and other non-editor views; expands on unmount.
+**Reason:** Owner-readable overview is the default; editor-shaped loading + forced collapse were leftovers from editor-first behavior.
+**Updated Done criteria:** Loading skeleton matches the active view; sidebar collapses only on the editor and expands on non-editor views.
