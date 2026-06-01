@@ -4,19 +4,16 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertCircle,
   Sparkles,
-  Inbox,
+  Link as LinkIcon,
+  ExternalLink,
+  ArrowLeft,
   Monitor,
   Smartphone,
   Undo2,
   Redo2,
   RotateCcw,
-  FileText,
-  Menu as MenuIcon,
-  Pencil,
   Loader2,
   Save,
-  LayoutGrid,
-  Files,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from "../api";
@@ -29,6 +26,10 @@ import RecipientsConfig from "../components/Admin/RecipientsConfig";
 import { WebsiteOverview } from "../components/website/overview/WebsiteOverview";
 import { WebsitePagesTab } from "../components/website/WebsitePagesTab";
 import { WebsiteLoadingSkeleton } from "../components/website/WebsiteLoadingSkeleton";
+import {
+  WebsiteDashboardTabs,
+  type WebsiteDashboardView,
+} from "../components/website/WebsiteDashboardTabs";
 import {
   renderPage as assemblePageHtml,
   normalizeSections,
@@ -1037,136 +1038,142 @@ export function DFYWebsite() {
         ? `https://${project.hostname}.sites.getalloro.com`
         : null;
 
-  return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      {/* Top Bar */}
-      <div className="bg-white border-b border-gray-200 px-4 py-0 flex items-center gap-0">
-        {/* Animated View Tabs */}
-        <nav className="flex items-center shrink-0">
-          {(
-            [
-              { key: "overview", icon: LayoutGrid, label: "Overview" },
-              { key: "editor", icon: Pencil, label: "Editor" },
-              { key: "submissions", icon: Inbox, label: "Submissions" },
-              ...(project?.template_id
-                ? [{ key: "posts" as const, icon: FileText, label: "Posts" }]
-                : []),
-              { key: "menus", icon: MenuIcon, label: "Menus" },
-              { key: "pages", icon: Files, label: "Pages" },
-            ] as const
-          ).map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeView === tab.key;
-            return (
-              <button
-                key={tab.key}
-                onClick={() => setWebsiteTab(tab.key)}
-                className={`relative px-3 py-2.5 text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${
-                  isActive ? "text-alloro-orange" : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                <Icon size={13} />
-                {tab.label}
-                {isActive && (
-                  <motion.div
-                    layoutId="activeTab"
-                    className="absolute bottom-0 left-2 right-2 h-[2px] bg-alloro-orange rounded-full"
-                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                  />
-                )}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Viewport toggle — slides in when on editor tab */}
-        <AnimatePresence>
-          {activeView === "editor" && (
-            <motion.div
-              initial={{ opacity: 0, width: 0 }}
-              animate={{ opacity: 1, width: "auto" }}
-              exit={{ opacity: 0, width: 0 }}
-              transition={{ duration: 0.2 }}
-              className="overflow-hidden flex items-center ml-1"
+  // Shared dashboard header (intro heading + pill tabs + site actions). Rendered
+  // INSIDE each non-editor view's scroll area so it scrolls instead of sticking.
+  const dashboardHeader = (
+    <div className="mx-auto w-full max-w-[1320px] px-4 pt-8 sm:px-6 lg:px-8 lg:pt-10">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-alloro-navy/45">
+            Web presence
+          </div>
+          <h1 className="font-display text-[28px] font-medium tracking-tight text-alloro-navy">
+            Website
+          </h1>
+          <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-alloro-navy/55">
+            Traffic, leads, posts, and pages — manage it all in one place.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowDomainModal(true)}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+              project?.custom_domain && project?.domain_verified_at
+                ? "bg-green-50 text-green-700 hover:bg-green-100"
+                : project?.custom_domain
+                  ? "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                  : "bg-alloro-orange/10 text-alloro-orange hover:bg-alloro-orange/20"
+            }`}
+          >
+            <LinkIcon className="h-3.5 w-3.5" />
+            {project?.custom_domain || "Connect Domain"}
+          </button>
+          {liveUrl && (
+            <a
+              href={liveUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-line-soft bg-white px-3 py-1.5 text-xs font-semibold text-alloro-navy/70 transition-colors hover:text-alloro-orange"
             >
-              <div className="flex items-center bg-gray-100 rounded-lg p-0.5 shrink-0">
-                <button
-                  onClick={() => setViewportMode("desktop")}
-                  className={`p-1.5 rounded-md transition-colors ${
-                    viewportMode === "desktop"
-                      ? "bg-white text-gray-900 shadow-sm"
-                      : "text-gray-400 hover:text-gray-600"
-                  }`}
-                  title="Desktop view"
-                >
-                  <Monitor size={13} />
-                </button>
-                <button
-                  onClick={() => setViewportMode("mobile")}
-                  className={`p-1.5 rounded-md transition-colors ${
-                    viewportMode === "mobile"
-                      ? "bg-white text-gray-900 shadow-sm"
-                      : "text-gray-400 hover:text-gray-600"
-                  }`}
-                  title="Mobile view"
-                >
-                  <Smartphone size={13} />
-                </button>
-              </div>
-
-              {/* Undo / Redo */}
-              {(undoStack.length > 0 || redoStack.length > 0) && (
-                <div className="flex items-center gap-0.5 ml-1">
-                  <button
-                    onClick={handleUndo}
-                    disabled={undoStack.length === 0}
-                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                    title="Undo"
-                  >
-                    <Undo2 size={13} />
-                  </button>
-                  <button
-                    onClick={handleRedo}
-                    disabled={redoStack.length === 0}
-                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                    title="Redo"
-                  >
-                    <Redo2 size={13} />
-                  </button>
-                </div>
-              )}
-            </motion.div>
+              <ExternalLink className="h-3.5 w-3.5" />
+              View Live
+            </a>
           )}
-        </AnimatePresence>
-
-        {/* Spacer */}
-        <div className="flex-1" />
-
-        {/* Right section: save, usage, domain, view live */}
-        <div className="flex items-center gap-2.5 shrink-0">
-          {/* Save button — only visible when dirty */}
-          <AnimatePresence>
-            {isDirty && activeView === "editor" && (
-              <motion.button
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                onClick={handleSave}
-                disabled={isSaving}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-alloro-orange text-white hover:bg-alloro-orange/90 transition-colors disabled:opacity-60 shadow-sm shadow-alloro-orange/20"
-              >
-                {isSaving ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Save className="w-3.5 h-3.5" />
-                )}
-                {isSaving ? "Saving..." : "Save & Publish"}
-              </motion.button>
-            )}
-          </AnimatePresence>
-
         </div>
       </div>
+      <div className="mt-6">
+        <WebsiteDashboardTabs
+          activeView={activeView as WebsiteDashboardView}
+          hasPosts={!!project?.template_id}
+          onViewChange={(v) => setWebsiteTab(v)}
+        />
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col h-screen bg-gray-50">
+      {/* Editor toolbar — focused editing mode (reached from the Pages tab) */}
+      {activeView === "editor" && (
+        <div className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-2">
+          <button
+            type="button"
+            onClick={() => setWebsiteTab("pages")}
+            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50 hover:text-alloro-navy"
+          >
+            <ArrowLeft size={15} />
+            Back to pages
+          </button>
+          {selectedPage && (
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="text-gray-400">Editing</span>
+              <span className="font-semibold text-gray-800">
+                {selectedPage.path === "/" ? "Home" : selectedPage.path}
+              </span>
+            </div>
+          )}
+          <div className="flex-1" />
+          <div className="flex items-center rounded-lg bg-gray-100 p-0.5">
+            <button
+              onClick={() => setViewportMode("desktop")}
+              className={`rounded-md p-1.5 transition-colors ${
+                viewportMode === "desktop"
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-400 hover:text-gray-600"
+              }`}
+              title="Desktop view"
+            >
+              <Monitor size={13} />
+            </button>
+            <button
+              onClick={() => setViewportMode("mobile")}
+              className={`rounded-md p-1.5 transition-colors ${
+                viewportMode === "mobile"
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-400 hover:text-gray-600"
+              }`}
+              title="Mobile view"
+            >
+              <Smartphone size={13} />
+            </button>
+          </div>
+          {(undoStack.length > 0 || redoStack.length > 0) && (
+            <div className="flex items-center gap-0.5">
+              <button
+                onClick={handleUndo}
+                disabled={undoStack.length === 0}
+                className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-30"
+                title="Undo"
+              >
+                <Undo2 size={13} />
+              </button>
+              <button
+                onClick={handleRedo}
+                disabled={redoStack.length === 0}
+                className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-30"
+                title="Redo"
+              >
+                <Redo2 size={13} />
+              </button>
+            </div>
+          )}
+          {isDirty && (
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="flex items-center gap-1.5 rounded-lg bg-alloro-orange px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-alloro-orange/20 transition-colors hover:bg-alloro-orange/90 disabled:opacity-60"
+            >
+              {isSaving ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )}
+              {isSaving ? "Saving..." : "Save & Publish"}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Error banner */}
       {editError && (
@@ -1183,19 +1190,17 @@ export function DFYWebsite() {
 
       {/* Main Content */}
       {activeView === "overview" ? (
-        <div className="flex-1 overflow-y-auto bg-gray-50">
+        <div className="flex-1 overflow-y-auto bg-alloro-bg">
+          {dashboardHeader}
           <WebsiteOverview
             pageCount={pages.length}
             templateId={project?.template_id ?? null}
-            liveUrl={liveUrl}
-            customDomain={project?.custom_domain ?? null}
-            domainVerified={!!project?.domain_verified_at}
-            onConnectDomain={() => setShowDomainModal(true)}
             onOpenTab={(tab) => setWebsiteTab(tab)}
           />
         </div>
       ) : activeView === "pages" ? (
-        <div className="flex-1 overflow-y-auto bg-gray-50">
+        <div className="flex-1 overflow-y-auto bg-alloro-bg">
+          {dashboardHeader}
           <WebsitePagesTab
             pages={pages}
             onOpenPage={(pageId) => {
@@ -1208,7 +1213,9 @@ export function DFYWebsite() {
           />
         </div>
       ) : activeView === "submissions" ? (
-        <div className="flex-1 overflow-y-auto p-6 space-y-6" data-wizard-target="website-submissions">
+        <div className="flex-1 overflow-y-auto bg-alloro-bg" data-wizard-target="website-submissions">
+          {dashboardHeader}
+          <div className="mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-6 lg:px-8">
           {project && (
             <>
               <FormSubmissionsTab
@@ -1240,9 +1247,12 @@ export function DFYWebsite() {
 	              />
             </>
           )}
+          </div>
         </div>
       ) : activeView === "posts" ? (
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto bg-alloro-bg">
+          {dashboardHeader}
+          <div className="mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-6 lg:px-8">
           {project && project.template_id && (
             <PostsTab
               projectId={project.id}
@@ -1261,9 +1271,12 @@ export function DFYWebsite() {
               updatePostSeoFn={userUpdatePostSeo}
             />
           )}
+          </div>
         </div>
       ) : activeView === "menus" ? (
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto bg-alloro-bg">
+          {dashboardHeader}
+          <div className="mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-6 lg:px-8">
           {project && (
             <MenusTab
               projectId={project.id}
@@ -1282,6 +1295,7 @@ export function DFYWebsite() {
               fetchPostTypesFn={userFetchPostTypes}
             />
           )}
+          </div>
         </div>
       ) : (
         <div className="flex flex-1 min-h-0 overflow-hidden" data-wizard-target="website-editor">

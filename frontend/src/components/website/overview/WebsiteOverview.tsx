@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link as LinkIcon, ExternalLink } from "lucide-react";
 import { apiGet } from "../../../api";
 import { useIsWizardActive } from "../../../contexts/OnboardingWizardContext";
 import { AnalyticsCard } from "./AnalyticsCard";
@@ -16,10 +15,6 @@ export type WebsiteOverviewTab =
 export type WebsiteOverviewProps = {
   pageCount: number;
   templateId: string | null;
-  liveUrl: string | null;
-  customDomain: string | null;
-  domainVerified: boolean;
-  onConnectDomain: () => void;
   onOpenTab: (tab: WebsiteOverviewTab) => void;
 };
 
@@ -36,10 +31,6 @@ async function fetchCount(path: string): Promise<number> {
 export function WebsiteOverview({
   pageCount,
   templateId,
-  liveUrl,
-  customDomain,
-  domainVerified,
-  onConnectDomain,
   onOpenTab,
 }: WebsiteOverviewProps) {
   const isWizardActive = useIsWizardActive();
@@ -66,44 +57,6 @@ export function WebsiteOverview({
       className="pm-light mx-auto w-full max-w-[1320px] space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10"
       data-wizard-target="website-overview"
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-[22px] font-medium tracking-tight text-alloro-navy">
-            Your website at a glance
-          </h2>
-          <p className="mt-1 text-sm text-[color:var(--color-pm-text-secondary)]">
-            Traffic, leads, and everything you manage — in one place.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onConnectDomain}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-              customDomain && domainVerified
-                ? "bg-green-50 text-green-700 hover:bg-green-100"
-                : customDomain
-                  ? "bg-amber-50 text-amber-700 hover:bg-amber-100"
-                  : "bg-alloro-orange/10 text-alloro-orange hover:bg-alloro-orange/20"
-            }`}
-          >
-            <LinkIcon className="h-3.5 w-3.5" />
-            {customDomain || "Connect Domain"}
-          </button>
-          {liveUrl ? (
-            <a
-              href={liveUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-line-soft bg-white px-3 py-1.5 text-xs font-semibold text-alloro-navy/70 transition-colors hover:text-alloro-orange"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              View Live
-            </a>
-          ) : null}
-        </div>
-      </div>
-
       <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
         <AnalyticsCard className="xl:col-span-2" />
         <FormSubmissionsCard onOpen={() => onOpenTab("submissions")} />

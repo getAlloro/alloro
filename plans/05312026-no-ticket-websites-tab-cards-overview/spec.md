@@ -160,3 +160,11 @@ The editor is demoted to `?tab=editor` and lazy-mounts. A new `?tab=pages` list 
 **Reason:** Two sequential skeletons (DFYRoute → DFYWebsite); the first was the stale editor-shaped one.
 **Updated Done criteria:** No editor-shaped 3-pane skeleton on the overview; DFYRoute + DFYWebsite share one overview skeleton. Verified: old 3-pane markup (`w-64 …border-r`, `h-[70vh]`) absent from the live DOM; overview loads correctly. Transient skeleton frame itself too brief to screenshot on warm loads (confirmed at code + DOM-absence level).
 **Known follow-up (out of scope):** DFYRoute's tier-check and DFYWebsite both fetch `/user/website` — a double call that doubles cold-load time. Consolidating (pass DFYRoute's response to DFYWebsite, or move the gate into DFYWebsite) would roughly halve perceived load.
+
+### Rev 4 — 2026-05-31
+**Change:** Restructured the Websites tab to match the Local Rankings dashboard.
+- Removed **Editor** from the tab menu; **Pages** takes its slot (tabs: Overview, Pages, Submissions, Posts, Menus). Editing only via Pages → a **focused editor** (own toolbar: "Back to pages" + page label + viewport/undo/Save; no dashboard tabs while editing).
+- Replaced the sticky underline top bar with a **pill segmented control** (new `frontend/src/components/website/WebsiteDashboardTabs.tsx`, matching `RankingsDashboardViewTabs`), rendered **inside the scroll area** (not sticky) beneath the heading.
+- Added a **Local-Rankings-style intro heading** above the tabs (eyebrow "Web presence" + h1 "Website" + subtitle). Moved Connect Domain + View Live from the `WebsiteOverview` card into this shared header; removed `WebsiteOverview`'s own heading + the 4 domain/liveUrl props.
+**Reason:** Consistency with Local Rankings; declutter; funnel editing through Pages.
+**Verified live (Garrison, user 26):** heading + pill tabs below it (no Editor); domain + View Live in header; Pages → page → focused editor with Back; Back returns to Pages; analytics/5 cards intact; sidebar expanded. `tsc -b` green. (Note: an expired test JWT briefly showed empty data mid-verification — re-minted; not a regression.)
