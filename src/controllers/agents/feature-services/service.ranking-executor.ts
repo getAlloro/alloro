@@ -78,6 +78,7 @@ export async function setupRankingBatches(connectionIdFilter?: number): Promise<
   let query = db("organizations as o")
     .join("google_connections as gc", "gc.organization_id", "o.id")
     .where("o.onboarding_completed", true)
+    .whereNull("o.archived_at")
     .select(
       "o.id as organization_id",
       "o.name as org_name",

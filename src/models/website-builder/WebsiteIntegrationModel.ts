@@ -40,14 +40,37 @@ const SAFE_COLUMNS = [
   "updated_at",
 ];
 
+const SAFE_COLUMNS_WITH_ALIAS = SAFE_COLUMNS.map((column) => `wi.${column}`);
+
 export class WebsiteIntegrationModel extends BaseModel {
   protected static tableName = "website_builder.website_integrations";
+
+  private static activeIntegrationQuery(trx?: QueryContext) {
+    return (trx || db)(`${this.tableName} as wi`)
+      .join("website_builder.projects as p", "wi.project_id", "p.id")
+      .leftJoin("organizations as o", "p.organization_id", "o.id")
+      .select(SAFE_COLUMNS_WITH_ALIAS)
+      .where("wi.status", "active")
+      .whereNull("p.archived_at")
+      .where(function () {
+        this.whereNull("p.organization_id").orWhereNull("o.archived_at");
+      });
+  }
 
   static async findById(
     id: string,
     trx?: QueryContext,
   ): Promise<IWebsiteIntegrationSafe | undefined> {
     return this.table(trx).select(SAFE_COLUMNS).where({ id }).first();
+  }
+
+  static async findActiveById(
+    id: string,
+    trx?: QueryContext,
+  ): Promise<IWebsiteIntegrationSafe | undefined> {
+    return this.activeIntegrationQuery(trx)
+      .where("wi.id", id)
+      .first();
   }
 
   static async findByProjectId(
@@ -75,10 +98,9 @@ export class WebsiteIntegrationModel extends BaseModel {
     platform: IntegrationPlatform,
     trx?: QueryContext,
   ): Promise<IWebsiteIntegrationSafe[]> {
-    return this.table(trx)
-      .select(SAFE_COLUMNS)
-      .where({ platform, status: "active" })
-      .orderBy("created_at", "asc");
+    return this.activeIntegrationQuery(trx)
+      .where("wi.platform", platform)
+      .orderBy("wi.created_at", "asc");
   }
 
   /**
@@ -181,11 +203,9 @@ export class WebsiteIntegrationModel extends BaseModel {
     types: IntegrationType[],
     trx?: QueryContext,
   ): Promise<IWebsiteIntegrationSafe[]> {
-    return this.table(trx)
-      .select(SAFE_COLUMNS)
-      .where({ status: "active" })
-      .whereIn("type", types)
-      .orderBy("created_at", "asc");
+    return this.activeIntegrationQuery(trx)
+      .whereIn("wi.type", types)
+      .orderBy("wi.created_at", "asc");
   }
 
   /**

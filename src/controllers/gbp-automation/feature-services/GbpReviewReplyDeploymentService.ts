@@ -9,6 +9,10 @@ import { isTransientGoogleError } from "../feature-utils/googleApiErrors";
 import { GbpContentSafetyService } from "./GbpContentSafetyService";
 import { GbpNotificationService } from "./GbpNotificationService";
 import { GbpReadinessService } from "./GbpReadinessService";
+import {
+  OrganizationArchivedError,
+  OrganizationLifecycleService,
+} from "../../../services/OrganizationLifecycleService";
 
 function deploymentContent(item: IGbpWorkItem): string {
   return (item.approved_content || item.draft_content || "").trim();
@@ -24,6 +28,15 @@ export class GbpReviewReplyDeploymentService {
     if (!item) throw new GbpAutomationError("WORK_ITEM_NOT_FOUND", "Work item not found.");
     if (item.status !== "deploying") {
       throw new GbpAutomationError("INVALID_STATUS", "This reply is not queued for deployment.");
+    }
+    try {
+      await OrganizationLifecycleService.assertActive(item.organization_id);
+    } catch (error) {
+      if (!(error instanceof OrganizationArchivedError)) throw error;
+      throw new GbpAutomationError(
+        "ORGANIZATION_ARCHIVED",
+        "Archived organizations cannot deploy GBP review replies."
+      );
     }
 
     const content = deploymentContent(item);

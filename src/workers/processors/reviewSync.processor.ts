@@ -11,7 +11,7 @@ import axios from "axios";
 import { db } from "../../database/connection";
 import { GbpSyncHealthModel, GbpSyncSource } from "../../models/GbpSyncHealthModel";
 import { ReviewModel } from "../../models/website-builder/ReviewModel";
-import { createOAuth2ClientForConnection } from "../../auth/oauth2Helper";
+import { getValidOAuth2ClientByConnection } from "../../auth/oauth2Helper";
 import { buildAuthHeaders } from "../../controllers/gbp/gbp-services/gbp-api.service";
 import { GbpReviewInsightService } from "../../controllers/gbp-automation/feature-services/GbpReviewInsightService";
 
@@ -27,6 +27,50 @@ export interface ReviewSyncData {
   organizationId?: number; // if provided, only sync this org's locations
   locationId?: number; // if provided, only sync this location
   syncSource?: GbpSyncSource;
+}
+
+type ReviewSyncProperty = {
+  google_property_id: number;
+  location_id: number;
+  external_id: string;
+  account_id: string | null;
+  google_connection_id: number;
+  organization_id: number;
+};
+
+function jobMetadata(job: Job<ReviewSyncData>, syncSource: GbpSyncSource): Record<string, unknown> {
+  return { jobId: job.id || null, jobName: job.name, syncSource };
+}
+
+function errorCode(err: any, fallback = "REVIEW_SYNC_FAILED"): string {
+  if (isUnauthorizedGoogleError(err)) return "GBP_GOOGLE_UNAUTHORIZED";
+  return err?.code || fallback;
+}
+
+function errorMessage(err: any, fallback = "Review sync failed."): string {
+  return err?.message || fallback;
+}
+
+function isUnauthorizedGoogleError(err: any): boolean {
+  return err?.response?.status === 401 || err?.status === 401;
+}
+
+async function markConnectionAuthFailed(props: ReviewSyncProperty[], job: Job<ReviewSyncData>, syncSource: GbpSyncSource, err: any): Promise<void> {
+  for (const prop of props) {
+    const health = await GbpSyncHealthModel.markStarted({
+      organizationId: prop.organization_id,
+      locationId: prop.location_id,
+      googlePropertyId: prop.google_property_id,
+      metadata: jobMetadata(job, syncSource),
+    });
+
+    await GbpSyncHealthModel.markFailed(
+      health.id,
+      errorCode(err, "REVIEW_SYNC_AUTH_FAILED"),
+      errorMessage(err, "Google review sync authentication failed."),
+      jobMetadata(job, syncSource)
+    );
+  }
 }
 
 export async function processReviewSync(job: Job<ReviewSyncData>): Promise<void> {
@@ -49,8 +93,10 @@ export async function processReviewSync(job: Job<ReviewSyncData>): Promise<void>
     // Get all selected GBP properties with their connections
     let query = db("google_properties as gp")
       .join("google_connections as gc", "gp.google_connection_id", "gc.id")
+      .join("organizations as o", "gc.organization_id", "o.id")
       .where("gp.type", "gbp")
       .where("gp.selected", true)
+      .whereNull("o.archived_at")
       .select(
         "gp.id as google_property_id",
         "gp.location_id",
@@ -67,7 +113,7 @@ export async function processReviewSync(job: Job<ReviewSyncData>): Promise<void>
       query = query.where("gp.location_id", locationId);
     }
 
-    const properties = await query;
+    const properties = (await query) as ReviewSyncProperty[];
 
     if (properties.length === 0) {
       console.log("[REVIEW-SYNC] No GBP properties found. Skipping.");
@@ -77,7 +123,7 @@ export async function processReviewSync(job: Job<ReviewSyncData>): Promise<void>
     console.log(`[REVIEW-SYNC] Found ${properties.length} GBP properties to sync`);
 
     // Group by connection to reuse OAuth2 clients
-    const byConnection = new Map<number, typeof properties>();
+    const byConnection = new Map<number, ReviewSyncProperty[]>();
     for (const prop of properties) {
       const list = byConnection.get(prop.google_connection_id) || [];
       list.push(prop);
@@ -89,9 +135,11 @@ export async function processReviewSync(job: Job<ReviewSyncData>): Promise<void>
 
     for (const [connectionId, props] of byConnection) {
       let auth;
+      let hasForcedTokenRefresh = false;
       try {
-        auth = await createOAuth2ClientForConnection(connectionId);
+        auth = await getValidOAuth2ClientByConnection(connectionId);
       } catch (err: any) {
+        await markConnectionAuthFailed(props, job, syncSource, err);
         console.error(`[REVIEW-SYNC] Failed to create OAuth2 client for connection ${connectionId}:`, err.message);
         continue;
       }
@@ -105,14 +153,24 @@ export async function processReviewSync(job: Job<ReviewSyncData>): Promise<void>
             organizationId: prop.organization_id,
             locationId: prop.location_id,
             googlePropertyId: prop.google_property_id,
-            metadata: { jobId: job.id || null, jobName: job.name, syncSource },
+            metadata: jobMetadata(job, syncSource),
           });
           try {
-            const count = await syncLocationReviews(auth, prop);
+            const count = await syncLocationReviews({
+              auth,
+              connectionId,
+              prop,
+              hasForcedTokenRefresh,
+              setAuth: (nextAuth) => {
+                auth = nextAuth;
+              },
+              markForcedTokenRefreshUsed: () => {
+                hasForcedTokenRefresh = true;
+              },
+            });
             await GbpSyncHealthModel.markSucceeded(health.id, count, {
-              jobId: job.id || null,
-              jobName: job.name,
-              syncSource,
+              ...jobMetadata(job, syncSource),
+              tokenRefreshRetry: hasForcedTokenRefresh,
             });
             totalSynced += count;
             totalLocations++;
@@ -120,9 +178,9 @@ export async function processReviewSync(job: Job<ReviewSyncData>): Promise<void>
           } catch (err: any) {
             await GbpSyncHealthModel.markFailed(
               health.id,
-              err?.code || "REVIEW_SYNC_FAILED",
-              err?.message || "Review sync failed.",
-              { jobId: job.id || null, jobName: job.name, syncSource }
+              errorCode(err),
+              errorMessage(err),
+              jobMetadata(job, syncSource)
             );
             console.error(`[REVIEW-SYNC] ✗ Location ${prop.location_id} failed:`, err.message);
           }
@@ -144,14 +202,44 @@ export async function processReviewSync(job: Job<ReviewSyncData>): Promise<void>
 }
 
 async function syncLocationReviews(
-  auth: any,
-  prop: {
-    google_property_id: number;
-    location_id: number;
-    external_id: string;
-    account_id: string | null;
+  params: {
+    auth: any;
+    connectionId: number;
+    prop: ReviewSyncProperty;
+    hasForcedTokenRefresh: boolean;
+    setAuth: (nextAuth: any) => void;
+    markForcedTokenRefreshUsed: () => void;
   }
 ): Promise<number> {
+  const {
+    auth,
+    connectionId,
+    prop,
+    hasForcedTokenRefresh,
+    setAuth,
+    markForcedTokenRefreshUsed,
+  } = params;
+
+  try {
+    return await fetchAndStoreLocationReviews(auth, prop);
+  } catch (err: any) {
+    if (!isUnauthorizedGoogleError(err) || hasForcedTokenRefresh) {
+      throw err;
+    }
+
+    console.warn(
+      `[REVIEW-SYNC] Unauthorized Google response for connection ${connectionId}; forcing token refresh and retrying once`
+    );
+    markForcedTokenRefreshUsed();
+    const refreshedAuth = await getValidOAuth2ClientByConnection(connectionId, {
+      forceRefresh: true,
+    });
+    setAuth(refreshedAuth);
+    return fetchAndStoreLocationReviews(refreshedAuth, prop);
+  }
+}
+
+async function fetchAndStoreLocationReviews(auth: any, prop: ReviewSyncProperty): Promise<number> {
   if (!prop.account_id) {
     console.warn(`[REVIEW-SYNC] No account_id for location ${prop.location_id}, skipping`);
     return 0;

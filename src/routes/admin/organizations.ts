@@ -99,6 +99,22 @@ organizationsRoutes.patch(
   controller.updateOrganizationType
 );
 
+// PATCH /api/admin/organizations/:id/archive — Archive organization and connected operations
+organizationsRoutes.patch(
+  "/:id/archive",
+  authenticateToken,
+  superAdminMiddleware,
+  controller.archiveOrganization
+);
+
+// PATCH /api/admin/organizations/:id/unarchive — Restore archived organization visibility
+organizationsRoutes.patch(
+  "/:id/unarchive",
+  authenticateToken,
+  superAdminMiddleware,
+  controller.unarchiveOrganization
+);
+
 // POST /api/admin/organizations/:id/create-project — Create website project for org
 organizationsRoutes.post(
   "/:id/create-project",

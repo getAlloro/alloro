@@ -24,6 +24,7 @@ export interface IProject {
   primary_color: string | null;
   accent_color: string | null;
   recipients: string[];
+  archived_at?: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -49,6 +50,15 @@ export class ProjectModel extends BaseModel {
     trx?: QueryContext,
   ): Promise<IProject | undefined> {
     return this.table(trx).where({ organization_id: orgId }).first();
+  }
+
+  static async findAllByOrganizationId(
+    orgId: number,
+    trx?: QueryContext,
+  ): Promise<IProject[]> {
+    return this.table(trx)
+      .where({ organization_id: orgId })
+      .orderBy("created_at", "asc");
   }
 
   static async create(
@@ -102,9 +112,23 @@ export class ProjectModel extends BaseModel {
     trx?: QueryContext,
   ): Promise<{ custom_domain: string; custom_domain_alt: string | null }[]> {
     return this.table(trx)
-      .select("custom_domain", "custom_domain_alt")
-      .whereNotNull("domain_verified_at")
-      .whereNotNull("custom_domain");
+      .leftJoin(
+        "organizations",
+        "website_builder.projects.organization_id",
+        "organizations.id"
+      )
+      .select(
+        "website_builder.projects.custom_domain",
+        "website_builder.projects.custom_domain_alt"
+      )
+      .whereNotNull("website_builder.projects.domain_verified_at")
+      .whereNotNull("website_builder.projects.custom_domain")
+      .whereNull("website_builder.projects.archived_at")
+      .where(function () {
+        this.whereNull("website_builder.projects.organization_id").orWhereNull(
+          "organizations.archived_at"
+        );
+      });
   }
 
   /**
@@ -125,12 +149,91 @@ export class ProjectModel extends BaseModel {
     return this.table(trx)
       .where(function () {
         if (hostname) {
-          this.where("hostname", hostname);
+          this.where("hostname", hostname).orWhere("generated_hostname", hostname);
         }
         this.orWhere("custom_domain", cleanHost)
           .orWhere("custom_domain_alt", cleanHost);
       })
       .first();
+  }
+
+  static async findActiveByHostnameOrDomain(
+    host: string,
+    trx?: QueryContext,
+  ): Promise<IProject | undefined> {
+    const cleanHost = host.split(":")[0];
+    const subdomainMatch = cleanHost.match(/^(.+)\.sites\.getalloro\.com$/);
+    const hostname = subdomainMatch ? subdomainMatch[1] : null;
+
+    return this.table(trx)
+      .leftJoin(
+        "organizations",
+        "website_builder.projects.organization_id",
+        "organizations.id"
+      )
+      .select("website_builder.projects.*")
+      .where(function () {
+        if (hostname) {
+          this.where("website_builder.projects.hostname", hostname).orWhere(
+            "website_builder.projects.generated_hostname",
+            hostname
+          );
+        }
+        this.orWhere("website_builder.projects.custom_domain", cleanHost)
+          .orWhere("website_builder.projects.custom_domain_alt", cleanHost);
+      })
+      .whereNull("website_builder.projects.archived_at")
+      .where(function () {
+        this.whereNull("website_builder.projects.organization_id").orWhereNull(
+          "organizations.archived_at"
+        );
+      })
+      .first();
+  }
+
+  static async findPublicActiveById(
+    id: string,
+    trx?: QueryContext,
+  ): Promise<IProject | undefined> {
+    return this.table(trx)
+      .leftJoin(
+        "organizations",
+        "website_builder.projects.organization_id",
+        "organizations.id"
+      )
+      .select("website_builder.projects.*")
+      .where("website_builder.projects.id", id)
+      .whereNull("website_builder.projects.archived_at")
+      .where(function () {
+        this.whereNull("website_builder.projects.organization_id").orWhereNull(
+          "organizations.archived_at"
+        );
+      })
+      .first();
+  }
+
+  static async archiveForOrganization(
+    orgId: number,
+    archivedAt: Date,
+    trx?: QueryContext,
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ organization_id: orgId })
+      .update({ archived_at: archivedAt, updated_at: new Date() });
+  }
+
+  static async disconnectDomainsForOrganization(
+    orgId: number,
+    trx?: QueryContext,
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ organization_id: orgId })
+      .update({
+        custom_domain: null,
+        custom_domain_alt: null,
+        domain_verified_at: null,
+        updated_at: new Date(),
+      });
   }
 
   static async listAdmin(

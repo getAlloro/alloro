@@ -6,7 +6,7 @@ import {
 } from "../../hooks/queries/useAdminQueries";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, RefreshCw, Globe, FileCode } from "lucide-react";
+import { ArrowLeft, RefreshCw, Globe, FileCode, Archive } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Badge } from "../../components/ui/DesignSystem";
 import { OrgLocationSelector } from "../../components/Admin/OrgLocationSelector";
@@ -183,10 +183,36 @@ export default function OrganizationDetail() {
             </div>
           </div>
           <div className="flex items-center sm:justify-end">
-            <Badge variant="orange">DFY</Badge>
+            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+              <Badge variant="orange">DFY</Badge>
+              {org.archived_at && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700">
+                  <Archive className="h-3.5 w-3.5" />
+                  Archived
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </section>
+
+      {org.archived_at && (
+        <section className="rounded-2xl border border-gray-300 bg-gray-50 px-5 py-4">
+          <div className="flex items-start gap-3">
+            <Archive className="mt-0.5 h-5 w-5 shrink-0 text-gray-700" />
+            <div>
+              <h2 className="text-sm font-bold text-gray-900">
+                This organization is archived
+              </h2>
+              <p className="mt-1 text-sm text-gray-600">
+                Connected sites are archived, custom domains are disconnected,
+                and automation will not create new work until this organization
+                is restored.
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
 
       <OrganizationDetailNavigation
         activeSection={activeSection}
@@ -360,7 +386,7 @@ export default function OrganizationDetail() {
           )}
 
           {activeSection === "settings" && (
-            <OrgSettingsSection org={org} orgId={orgId} />
+            <OrgSettingsSection org={org} orgId={orgId} onRefresh={handleRefresh} />
           )}
         </div>
       </div>
