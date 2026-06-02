@@ -1,5 +1,5 @@
 /**
- * Card section title — Playfair Display (font-display) for legibility. Used in card
+ * Card section title — Spectral (font-display) for legibility. Used in card
  * headers where a mono slug felt too small/typewritten. Pair with a colored
  * dot on the left and a mono context label on the right.
  */

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Playfair Display Serif Hotfix Spec</title>
+  <title>Spectral Serif Hotfix Spec</title>
   <link rel="stylesheet" href="./spec.css">
 </head>
 <body>
@@ -13,7 +13,7 @@
         <p class="eyebrow">Alloro Plan Spec</p>
         <span class="status-pill status-completed">Completed</span>
       </div>
-      <h1>Playfair Display Serif Hotfix</h1>
+      <h1>Spectral Serif Hotfix</h1>
       <dl class="meta-grid">
         <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/06022026-playfair-display-serif-hotfix</dd></div>
@@ -24,12 +24,12 @@
 
     <section class="spec-card" id="why">
       <h2>Why</h2>
-      <p>Alloro currently loads and directly references Fraunces for display serif typography. The hotfix replaces that serif identity with Playfair Display so production and dev render the requested brand font consistently.</p>
+      <p>Alloro currently loads and directly references Fraunces-derived display serif typography. The hotfix replaces that serif identity with Spectral so production and dev render the requested brand font consistently.</p>
     </section>
 
     <section class="spec-card" id="what">
       <h2>What</h2>
-      <p>Replace live Fraunces references with Playfair Display in the frontend font loader, the global display token, direct dashboard card font stacks, and the rankings SVG font stack. Do not rewrite historical plans, changelog entries, generated snapshots, or unrelated serif/sans email fallback stacks.</p>
+      <p>Replace live display-serif references with Spectral in the frontend font loader, the global display token, direct dashboard card font stacks, and the rankings SVG font stack. Do not rewrite historical plans, changelog entries, generated snapshots, or unrelated serif/sans email fallback stacks.</p>
       <p><strong>Docs impact:</strong> no Alloro Docs update is required because the hotfix changes only the display font family, not dashboard copy, controls, tooltips, navigation, permissions, or user guidance.</p>
     </section>
 
@@ -48,7 +48,7 @@
       <h3>Patterns To Follow</h3>
       <ul>
         <li>Keep the established <code>font-display</code> utility and update the token behind it rather than touching every consumer.</li>
-        <li>Preserve existing fallback behavior with <code>Literata</code>, <code>Georgia</code>, and generic <code>serif</code> after Playfair Display.</li>
+        <li>Preserve existing fallback behavior with <code>Literata</code>, <code>Georgia</code>, and generic <code>serif</code> after Spectral.</li>
       </ul>
       <p><strong>Reference file:</strong> <code>frontend/src/index.css</code> - existing token-based typography structure.</p>
     </section>
@@ -58,7 +58,7 @@
       <p><strong>Level:</strong> 2 - Concern</p>
       <h3>Risks Identified</h3>
       <ul>
-        <li>Direct hardcoded Fraunces stacks bypass the global token. <strong>Mitigation:</strong> replace direct hardcodes and verify no live Fraunces references remain.</li>
+        <li>Direct hardcoded display-serif stacks bypass the global token. <strong>Mitigation:</strong> replace direct hardcodes and verify no live Playfair Display or Fraunces references remain.</li>
         <li>Font loader mismatch can silently fall back to another serif. <strong>Mitigation:</strong> update the Google Fonts URL and build the frontend.</li>
       </ul>
       <p><strong>Blast radius:</strong> authenticated dashboard display headings, focus dashboard product cards, rankings gauge SVG label, and login/signup display headings through <code>font-display</code>.</p>
@@ -71,12 +71,12 @@
     <section class="spec-card" id="tasks">
       <h2>Tasks</h2>
       <article class="task-card">
-        <h3>T1: Replace Live Fraunces References</h3>
+        <h3>T1: Replace Live Display Serif References</h3>
         <dl>
-          <div><dt>Do</dt><dd>Update the font loader, display token, direct dashboard font stacks, rankings SVG font stack, and live comment text to Playfair Display.</dd></div>
+          <div><dt>Do</dt><dd>Update the font loader, display token, direct dashboard font stacks, rankings SVG font stack, and live comment text to Spectral.</dd></div>
           <div><dt>Files</dt><dd><code>frontend/index.html</code>, <code>frontend/src/index.css</code>, <code>frontend/src/components/dashboard/focus/PMSCard.tsx</code>, <code>frontend/src/components/dashboard/focus/LocalRankingCard.tsx</code>, <code>frontend/src/components/dashboard/focus/WebsiteCard.tsx</code>, <code>frontend/src/components/dashboard/RankingsDashboard.tsx</code>, <code>frontend/src/components/dashboard/shared/SectionTitle.tsx</code></dd></div>
           <div><dt>Depends on</dt><dd>None</dd></div>
-          <div><dt>Verify</dt><dd><code>rg -n "Fraunces|fraunces" frontend src</code>, <code>npx tsc --noEmit</code>, <code>cd frontend &amp;&amp; npm run build</code></dd></div>
+          <div><dt>Verify</dt><dd><code>rg -n "Fraunces|fraunces|Playfair Display|Playfair\\+Display" frontend src</code>, <code>npx tsc --noEmit</code>, <code>cd frontend &amp;&amp; npm run build</code></dd></div>
         </dl>
       </article>
       <article class="task-card">
@@ -93,12 +93,22 @@
     <section class="spec-card" id="done">
       <h2>Done</h2>
       <ul class="checklist">
-        <li><input type="checkbox" checked disabled> No live Fraunces references remain under <code>frontend</code> or <code>src</code>.</li>
+        <li><input type="checkbox" checked disabled> No live Fraunces or Playfair Display references remain under <code>frontend</code> or <code>src</code>.</li>
         <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> has no errors caused by this hotfix.</li>
         <li><input type="checkbox" checked disabled> <code>cd frontend &amp;&amp; npm run build</code> passes.</li>
         <li><input type="checkbox" checked disabled> Hotfix branch is pushed and PR targets <code>main</code>.</li>
         <li><input type="checkbox" checked disabled> Hotfix is merged into <code>dev/dave</code>.</li>
       </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - June 2, 2026</h3>
+        <p><strong>Change:</strong> Switch the target display serif from Playfair Display to Spectral.</p>
+        <p><strong>Reason:</strong> User clarified the preferred serif font after the first hotfix pass.</p>
+        <p><strong>Updated Done criteria:</strong> Verify no live Fraunces or Playfair Display references remain under <code>frontend</code> or <code>src</code>.</p>
+      </article>
     </section>
   </main>
 </body>

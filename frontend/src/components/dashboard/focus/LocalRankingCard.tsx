@@ -83,8 +83,8 @@ const BRAND_ORANGE = "#D66853";
 const MUTED = "#8E8579";
 const INK = "#1F1B16";
 
-const PLAYFAIR_DISPLAY =
-  "'Playfair Display', ui-serif, Georgia, Cambria, 'Times New Roman', serif";
+const SPECTRAL =
+  "'Spectral', ui-serif, Georgia, Cambria, 'Times New Roman', serif";
 
 function CardShell({ children }: { children: React.ReactNode }) {
   return (
@@ -253,7 +253,7 @@ const LocalRankingCard: React.FC = () => {
       <div className="flex flex-wrap items-baseline gap-2">
         <span
           style={{
-            fontFamily: PLAYFAIR_DISPLAY,
+            fontFamily: SPECTRAL,
             fontWeight: 500,
             fontSize: 32,
             letterSpacing: "-0.02em",
