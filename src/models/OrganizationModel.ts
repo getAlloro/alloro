@@ -19,15 +19,27 @@ export interface IOrganization {
   onboarding_wizard_completed: boolean;
   setup_progress: Record<string, unknown> | null;
   business_data: Record<string, unknown> | null;
+  archived_at: Date | null;
+  archived_by_user_id: number | null;
+  archive_reason: string | null;
+  archive_metadata: Record<string, unknown>;
   website_edits_this_month: number;
   website_edits_reset_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
 
+export type OrganizationListView = "active" | "archived" | "all";
+
+function isOrganizationListOptions(
+  value: { view?: OrganizationListView } | QueryContext | undefined
+): value is { view?: OrganizationListView } {
+  return Boolean(value && typeof value === "object" && "view" in value);
+}
+
 export class OrganizationModel extends BaseModel {
   protected static tableName = "organizations";
-  protected static jsonFields = ["setup_progress", "business_data"];
+  protected static jsonFields = ["setup_progress", "business_data", "archive_metadata"];
 
   static async findById(
     id: number,
@@ -77,10 +89,49 @@ export class OrganizationModel extends BaseModel {
     );
   }
 
-  static async listAll(trx?: QueryContext): Promise<IOrganization[]> {
-    return this.table(trx)
-      .select("id", "name", "domain", "subscription_tier", "created_at")
+  static async isArchived(id: number, trx?: QueryContext): Promise<boolean> {
+    const row = await this.table(trx).select("archived_at").where({ id }).first();
+    return Boolean(row?.archived_at);
+  }
+
+  static async listAll(
+    optionsOrTrx?: { view?: OrganizationListView } | QueryContext,
+    trx?: QueryContext
+  ): Promise<IOrganization[]> {
+    const options = isOrganizationListOptions(optionsOrTrx)
+      ? optionsOrTrx
+      : undefined;
+    const queryContext: QueryContext | undefined = isOrganizationListOptions(optionsOrTrx)
+      ? trx
+      : optionsOrTrx;
+    const view = options?.view ?? "active";
+
+    const query = this.table(queryContext)
+      .select(
+        "id",
+        "name",
+        "domain",
+        "organization_type",
+        "subscription_tier",
+        "subscription_status",
+        "stripe_customer_id",
+        "archived_at",
+        "archived_by_user_id",
+        "archive_reason",
+        "archive_metadata",
+        "created_at",
+        "updated_at"
+      )
       .orderBy("created_at", "desc");
+
+    if (view === "active") {
+      query.whereNull("archived_at");
+    } else if (view === "archived") {
+      query.whereNotNull("archived_at");
+    }
+
+    const rows = await query;
+    return rows.map((row: IOrganization) => this.deserializeJsonFields(row));
   }
 
   static async completeOnboarding(

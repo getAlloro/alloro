@@ -20,6 +20,10 @@ export interface AdminOrganization {
   subscription_tier: "DWY" | "DFY" | null;
   subscription_status: string | null;
   stripe_customer_id: string | null;
+  archived_at: string | null;
+  archived_by_user_id: number | null;
+  archive_reason: string | null;
+  archive_metadata: Record<string, unknown> | null;
   created_at: string;
   userCount: number;
   connections: { gbp: boolean };
@@ -55,6 +59,10 @@ export interface AdminOrganizationDetail {
   subscription_tier: "DWY" | "DFY" | null;
   subscription_status: string | null;
   stripe_customer_id: string | null;
+  archived_at: string | null;
+  archived_by_user_id: number | null;
+  archive_reason: string | null;
+  archive_metadata: Record<string, unknown> | null;
   created_at: string;
   userCount?: number;
   users: AdminUser[];
@@ -93,6 +101,7 @@ export interface AdminLocationsResponse {
 
 export interface AdminOrganizationsListResponse {
   success: boolean;
+  view: AdminOrganizationListView;
   organizations: AdminOrganization[];
 }
 
@@ -143,11 +152,28 @@ export interface AdminRecipientSettingsResponse {
   data: AdminRecipientSettingsData;
 }
 
+export type AdminOrganizationListView = "active" | "archived" | "all";
+
+export interface AdminOrganizationArchiveResult {
+  organization: AdminOrganizationDetail;
+  archivedProjects: number;
+  disconnectedDomains: number;
+  pausedAutomationSettings: number;
+}
+
+export interface AdminOrganizationUnarchiveResult {
+  organization: AdminOrganizationDetail;
+  restoredProjects: number;
+  restoredAutomationSettings: number;
+}
+
 /**
  * List all organizations with summary metadata
  */
-export async function adminListOrganizations(): Promise<AdminOrganizationsListResponse> {
-  return apiGet({ path: "/admin/organizations" });
+export async function adminListOrganizations(
+  view: AdminOrganizationListView = "active"
+): Promise<AdminOrganizationsListResponse> {
+  return apiGet({ path: `/admin/organizations?view=${view}` });
 }
 
 /**
@@ -218,6 +244,31 @@ export async function adminUpdateOrganizationType(
   return apiPatch({
     path: `/admin/organizations/${orgId}/type`,
     passedData: { type },
+  });
+}
+
+/**
+ * Archive organization and connected operational surfaces.
+ */
+export async function adminArchiveOrganization(
+  orgId: number,
+  reason?: string | null
+): Promise<{ success: boolean; data: AdminOrganizationArchiveResult }> {
+  return apiPatch({
+    path: `/admin/organizations/${orgId}/archive`,
+    passedData: { reason },
+  });
+}
+
+/**
+ * Restore organization visibility. Domains remain disconnected.
+ */
+export async function adminUnarchiveOrganization(
+  orgId: number
+): Promise<{ success: boolean; data: AdminOrganizationUnarchiveResult }> {
+  return apiPatch({
+    path: `/admin/organizations/${orgId}/unarchive`,
+    passedData: {},
   });
 }
 

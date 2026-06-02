@@ -46,6 +46,7 @@ import {
   runWithRetry,
   summarizeRetryAttempts,
 } from "./service.ranking-resilience";
+import { OrganizationLifecycleService } from "../../../services/OrganizationLifecycleService";
 
 // Batch processing configuration
 export const MAX_RETRIES = 3;
@@ -825,6 +826,11 @@ export async function processLocationRanking(
       rankingRunContext?.location_discovery_radius ??
       DEFAULT_COMPETITOR_DISCOVERY_RADIUS_METERS,
   );
+
+  const organizationId = rankingRunContext?.organization_id ?? account.organization_id;
+  if (organizationId) {
+    await OrganizationLifecycleService.assertActive(Number(organizationId));
+  }
 
   const propertyIds =
     typeof account.google_property_ids === "string"

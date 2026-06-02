@@ -59,7 +59,7 @@ export async function processCrmPush(job: Job<CrmPushJobData>): Promise<void> {
     return;
   }
 
-  const integration = await WebsiteIntegrationModel.findById(mapping.integration_id);
+  const integration = await WebsiteIntegrationModel.findActiveById(mapping.integration_id);
   if (!integration || integration.status !== "active") {
     await CrmSyncLogModel.create({
       submission_id: submissionId,
@@ -70,7 +70,7 @@ export async function processCrmPush(job: Job<CrmPushJobData>): Promise<void> {
       outcome: "failed",
       error: integration
         ? `Integration is ${integration.status}`
-        : "Integration deleted before push",
+        : "Integration deleted, archived, or disconnected before push",
     });
     return;
   }

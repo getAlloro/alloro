@@ -4,7 +4,9 @@ import {
   initializeAutomationStatus,
   completeStep,
   updateAutomationStatus,
+  failAutomation,
 } from "../../../utils/pms/pmsAutomationStatus";
+import { OrganizationLifecycleService } from "../../../services/OrganizationLifecycleService";
 
 /**
  * Single source of truth for "PMS data is approved, run agents now."
@@ -55,6 +57,19 @@ export async function finalizePmsJob(
   } = options;
 
   await initializeAutomationStatus(jobId);
+
+  if (organizationId) {
+    try {
+      await OrganizationLifecycleService.assertActive(organizationId);
+    } catch (error) {
+      await failAutomation(
+        jobId,
+        "monthly_agents",
+        "Organization is archived; monthly agents will not run."
+      );
+      throw error;
+    }
+  }
 
   await completeStep(jobId, "file_upload");
 

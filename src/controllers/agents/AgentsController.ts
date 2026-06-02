@@ -171,7 +171,12 @@ export async function runMonthlyAgents(
     const account = await db("google_connections as gc")
       .leftJoin("organizations as o", "gc.organization_id", "o.id")
       .where("gc.id", googleAccountId)
-      .select("gc.*", "o.domain as domain_name", "o.name as practice_name")
+      .select(
+        "gc.*",
+        "o.domain as domain_name",
+        "o.name as practice_name",
+        "o.archived_at as org_archived_at"
+      )
       .first();
 
     if (!account) {
@@ -183,6 +188,18 @@ export async function runMonthlyAgents(
     }
 
     log(`[SETUP] Account found: ${account.domain_name}`);
+
+    if (account.org_archived_at) {
+      const message = "Organization is archived; monthly agents will not run.";
+      if (pmsJobId) {
+        await failAutomation(Number(pmsJobId), "monthly_agents", message);
+      }
+      return res.status(423).json({
+        success: false,
+        error: "ORGANIZATION_ARCHIVED",
+        message,
+      });
+    }
 
     // Use passed locationId if available, otherwise resolve from org
     const locationId = requestLocationId

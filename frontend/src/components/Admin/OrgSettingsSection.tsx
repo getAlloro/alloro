@@ -11,21 +11,26 @@ import {
   CheckCircle,
   Clock,
   Eye,
+  Archive,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import type { AdminOrganizationDetail } from "../../api/admin-organizations";
 import {
   adminDeleteOrganization,
+  adminArchiveOrganization,
   adminGetBusinessData,
   adminRefreshBusinessData,
   adminSyncOrgBusinessData,
+  adminUnarchiveOrganization,
 } from "../../api/admin-organizations";
 import { OrgRecipientSettingsSection } from "./OrgRecipientSettingsSection";
 
 interface OrgSettingsSectionProps {
   org: AdminOrganizationDetail;
   orgId: number;
+  onRefresh?: () => Promise<void> | void;
 }
 
 type ApiErrorLike = {
@@ -43,11 +48,23 @@ function getApiErrorMessage(error: unknown, fallback: string): string {
   );
 }
 
-export function OrgSettingsSection({ org, orgId }: OrgSettingsSectionProps) {
+export function OrgSettingsSection({ org, orgId, onRefresh }: OrgSettingsSectionProps) {
   const navigate = useNavigate();
+  const isArchived = Boolean(org.archived_at);
+  const archiveDate = org.archived_at
+    ? new Date(org.archived_at).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [archiveConfirm, setArchiveConfirm] = useState(false);
+  const [archiveReason, setArchiveReason] = useState("");
+  const [isArchiving, setIsArchiving] = useState(false);
+  const [isUnarchiving, setIsUnarchiving] = useState(false);
 
   // Business data state
   const [businessData, setBusinessData] = useState<{
@@ -132,6 +149,39 @@ export function OrgSettingsSection({ org, orgId }: OrgSettingsSectionProps) {
       toast.error("Failed to delete organization");
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleArchive = async () => {
+    setIsArchiving(true);
+    try {
+      const response = await adminArchiveOrganization(orgId, archiveReason);
+      const data = response.data;
+      toast.success(
+        `Archived ${org.name}: ${data.archivedProjects} site${
+          data.archivedProjects === 1 ? "" : "s"
+        } archived`
+      );
+      setArchiveConfirm(false);
+      setArchiveReason("");
+      await onRefresh?.();
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Failed to archive organization"));
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
+  const handleUnarchive = async () => {
+    setIsUnarchiving(true);
+    try {
+      await adminUnarchiveOrganization(orgId);
+      toast.success(`"${org.name}" has been restored`);
+      await onRefresh?.();
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Failed to restore organization"));
+    } finally {
+      setIsUnarchiving(false);
     }
   };
 
@@ -624,6 +674,54 @@ export function OrgSettingsSection({ org, orgId }: OrgSettingsSectionProps) {
         </div>
       )}
 
+      {/* Archive Organization */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="overflow-hidden rounded-2xl border border-gray-200 bg-white"
+      >
+        <div className="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-6 py-3">
+          <Archive className="h-5 w-5 text-gray-700" />
+          <h3 className="font-semibold text-gray-900">Archive Organization</h3>
+        </div>
+        <div className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-gray-900">
+              {isArchived ? "Restore this organization" : "Archive this organization"}
+            </p>
+            <p className="mt-0.5 max-w-2xl text-xs text-gray-500">
+              {isArchived
+                ? `Archived${archiveDate ? ` on ${archiveDate}` : ""}. Restoring makes the organization visible again, but custom domains stay disconnected until an admin reconnects them.`
+                : "Archives connected sites, disconnects custom domains, pauses GBP automation, and blocks scheduled agents while preserving historical data."}
+            </p>
+          </div>
+          {isArchived ? (
+            <button
+              type="button"
+              onClick={handleUnarchive}
+              disabled={isUnarchiving}
+              className="flex shrink-0 items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isUnarchiving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RotateCcw className="h-4 w-4" />
+              )}
+              Restore
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setArchiveConfirm(true)}
+              className="flex shrink-0 items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            >
+              <Archive className="h-4 w-4" />
+              Archive
+            </button>
+          )}
+        </div>
+      </motion.div>
+
       {/* Danger Zone */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -652,6 +750,85 @@ export function OrgSettingsSection({ org, orgId }: OrgSettingsSectionProps) {
           </button>
         </div>
       </motion.div>
+
+      {/* Archive Confirmation Modal */}
+      {archiveConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm"
+            onClick={() => !isArchiving && setArchiveConfirm(false)}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-xl"
+          >
+            <button
+              type="button"
+              onClick={() => !isArchiving && setArchiveConfirm(false)}
+              disabled={isArchiving}
+              className="absolute right-4 top-4 rounded-lg p-2 transition-colors hover:bg-gray-100 disabled:opacity-50"
+            >
+              <X className="h-5 w-5 text-gray-400" />
+            </button>
+
+            <div className="p-6">
+              <div className="mb-4 flex items-center gap-4">
+                <div className="rounded-xl bg-gray-100 p-3 text-gray-700">
+                  <Archive className="h-6 w-6" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Archive Organization
+                </h3>
+              </div>
+
+              <div className="mb-6 space-y-3 text-sm text-gray-600">
+                <p>
+                  Archiving "{org.name}" will hide it from the default
+                  organization list, archive connected sites, disconnect custom
+                  domains, and stop automation from creating new work.
+                </p>
+                <p className="font-medium text-gray-900">
+                  Historical data stays available to admins.
+                </p>
+              </div>
+
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                Reason
+              </label>
+              <textarea
+                value={archiveReason}
+                onChange={(event) => setArchiveReason(event.target.value)}
+                className="min-h-24 w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200"
+                placeholder="Optional offboarding note"
+                disabled={isArchiving}
+              />
+
+              <div className="mt-6 flex justify-end gap-3 border-t border-gray-200 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setArchiveConfirm(false)}
+                  disabled={isArchiving}
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleArchive}
+                  disabled={isArchiving}
+                  className="flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isArchiving && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Archive Organization
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (
