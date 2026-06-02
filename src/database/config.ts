@@ -4,6 +4,18 @@ import * as dotenv from "dotenv";
 // Load environment variables
 dotenv.config();
 
+// SSL on for remote (RDS) hosts, off for local Postgres which has no TLS.
+// Override explicitly with DB_SSL=true|false.
+function sslOption(): false | { rejectUnauthorized: boolean } {
+  const raw = process.env.DB_SSL;
+  if (raw !== undefined) {
+    return raw === "true" || raw === "1" ? { rejectUnauthorized: false } : false;
+  }
+  const host = process.env.DB_HOST ?? "";
+  const isLocal = host === "localhost" || host === "127.0.0.1" || host === "";
+  return isLocal ? false : { rejectUnauthorized: false };
+}
+
 const config: { [key: string]: Knex.Config } = {
   production: {
     client: "pg",
@@ -13,7 +25,7 @@ const config: { [key: string]: Knex.Config } = {
       user: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      ssl: { rejectUnauthorized: false },
+      ssl: sslOption(),
     },
     migrations: {
       directory: "./src/database/migrations",
@@ -61,7 +73,7 @@ const config: { [key: string]: Knex.Config } = {
       user: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      ssl: { rejectUnauthorized: false },
+      ssl: sslOption(),
     },
     migrations: {
       directory: "./src/database/migrations",
