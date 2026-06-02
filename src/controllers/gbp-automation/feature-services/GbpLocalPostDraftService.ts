@@ -20,6 +20,10 @@ import { GbpCustomizationService } from "./GbpCustomizationService";
 import { GbpLocalPostSafetyService } from "./GbpLocalPostSafetyService";
 import { GbpReadinessService } from "./GbpReadinessService";
 import { GbpReviewInsightService } from "./GbpReviewInsightService";
+import {
+  OrganizationArchivedError,
+  OrganizationLifecycleService,
+} from "../../../services/OrganizationLifecycleService";
 
 const GBP_LOCAL_POST_MODEL =
   process.env.GBP_AUTOMATION_POST_LLM_MODEL ||
@@ -50,6 +54,18 @@ function actorMetadata(actorEmail?: string | null): Record<string, unknown> {
 function ensureLocationAccess(locationId: number, accessibleLocationIds?: number[]): void {
   if (accessibleLocationIds && !accessibleLocationIds.includes(locationId)) {
     throw new GbpAutomationError("LOCATION_ACCESS_DENIED", "No access to this location.");
+  }
+}
+
+async function assertOrganizationActive(organizationId: number): Promise<void> {
+  try {
+    await OrganizationLifecycleService.assertActive(organizationId);
+  } catch (error) {
+    if (!(error instanceof OrganizationArchivedError)) throw error;
+    throw new GbpAutomationError(
+      "ORGANIZATION_ARCHIVED",
+      "Archived organizations cannot create or edit GBP post drafts."
+    );
   }
 }
 
@@ -289,6 +305,8 @@ export class GbpLocalPostDraftService {
     generationWindow?: string | null;
     featuredImageUrl: string;
   }): Promise<IGbpWorkItem> {
+    await assertOrganizationActive(params.organizationId);
+
     const readiness = await GbpReadinessService.getLocationReadiness(
       params.organizationId,
       params.locationId
@@ -562,6 +580,7 @@ export class GbpLocalPostDraftService {
     if (item.content_type !== "local_post") {
       throw new GbpAutomationError("INVALID_CONTENT_TYPE", "This work item is not a GBP post.");
     }
+    await assertOrganizationActive(item.organization_id);
     if (item.status === "published" || item.status === "rejected") return item;
     if (item.metadata?.generationStatus !== "running" && item.draft_content) {
       return item;
@@ -682,6 +701,7 @@ export class GbpLocalPostDraftService {
       params.organizationId
     );
     if (!item) throw new GbpAutomationError("WORK_ITEM_NOT_FOUND", "Work item not found.");
+    await assertOrganizationActive(params.organizationId);
     ensureLocationAccess(item.location_id, params.accessibleLocationIds);
     if (item.content_type !== "local_post") {
       throw new GbpAutomationError("INVALID_CONTENT_TYPE", "This work item is not a GBP post.");

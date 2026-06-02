@@ -23,9 +23,20 @@ let refreshTimer: ReturnType<typeof setInterval> | null = null;
 export async function refreshCustomDomainCache(): Promise<void> {
   try {
     const rows = await db(PROJECTS_TABLE)
-      .select("custom_domain", "custom_domain_alt")
-      .whereNotNull("domain_verified_at")
-      .whereNotNull("custom_domain");
+      .leftJoin(
+        "organizations",
+        `${PROJECTS_TABLE}.organization_id`,
+        "organizations.id"
+      )
+      .select(`${PROJECTS_TABLE}.custom_domain`, `${PROJECTS_TABLE}.custom_domain_alt`)
+      .whereNotNull(`${PROJECTS_TABLE}.domain_verified_at`)
+      .whereNotNull(`${PROJECTS_TABLE}.custom_domain`)
+      .whereNull(`${PROJECTS_TABLE}.archived_at`)
+      .where(function () {
+        this.whereNull(`${PROJECTS_TABLE}.organization_id`).orWhereNull(
+          "organizations.archived_at"
+        );
+      });
 
     const domains = new Set<string>();
     for (const row of rows) {

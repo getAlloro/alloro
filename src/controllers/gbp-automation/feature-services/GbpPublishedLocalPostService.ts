@@ -20,6 +20,10 @@ import {
 import { GbpAutomationError } from "../feature-utils/GbpAutomationError";
 import { sanitizeGbpText, sanitizeGbpUrl } from "../feature-utils/GbpInputSanitizer";
 import { GbpLocalPostSafetyService } from "./GbpLocalPostSafetyService";
+import {
+  OrganizationArchivedError,
+  OrganizationLifecycleService,
+} from "../../../services/OrganizationLifecycleService";
 
 const MAX_GOOGLE_POSTS = 1000;
 
@@ -229,6 +233,16 @@ async function getScopedProperty(params: {
   locationId: number;
   accessibleLocationIds?: number[];
 }): Promise<IGoogleProperty> {
+  try {
+    await OrganizationLifecycleService.assertActive(params.organizationId);
+  } catch (error) {
+    if (!(error instanceof OrganizationArchivedError)) throw error;
+    throw new GbpAutomationError(
+      "ORGANIZATION_ARCHIVED",
+      "Archived organizations cannot sync or manage GBP local posts."
+    );
+  }
+
   if (
     params.accessibleLocationIds &&
     !params.accessibleLocationIds.includes(params.locationId)
@@ -467,9 +481,11 @@ export class GbpPublishedLocalPostService {
   } = {}): Promise<SyncAllLocalPostsResult> {
     let query = db("google_properties as gp")
       .join("google_connections as gc", "gp.google_connection_id", "gc.id")
+      .join("organizations as o", "gc.organization_id", "o.id")
       .where("gp.type", "gbp")
       .where("gp.selected", true)
       .whereNotNull("gp.location_id")
+      .whereNull("o.archived_at")
       .select(
         "gc.organization_id as organization_id",
         "gp.location_id as location_id"

@@ -7,6 +7,7 @@ import { resolveMapping } from "../../../utils/pms/resolveColumnMapping";
 import { applyMapping } from "../../../utils/pms/applyColumnMapping";
 import { signHeaders } from "../../../utils/pms/headerSignature";
 import { finalizePmsJob } from "./pms-finalize.service";
+import { OrganizationLifecycleService } from "../../../services/OrganizationLifecycleService";
 
 /**
  * Process a manual PMS data entry.
@@ -29,6 +30,10 @@ export async function processManualEntry(
   console.log(
     `[PMS] Manual entry received for domain: ${domain}, orgId: ${organizationId}, months: ${parsedManualData.length}`
   );
+
+  if (organizationId) {
+    await OrganizationLifecycleService.assertActive(organizationId);
+  }
 
   // Use passed locationId if available, otherwise resolve from org
   const locationId = passedLocationId ?? await resolveLocationId(organizationId);
@@ -115,6 +120,10 @@ export async function processFileUpload(
     throw Object.assign(new Error("Uploaded file produced no rows"), {
       statusCode: 400,
     });
+  }
+
+  if (organizationId) {
+    await OrganizationLifecycleService.assertActive(organizationId);
   }
 
   const headers = Object.keys(jsonData[0] ?? {});

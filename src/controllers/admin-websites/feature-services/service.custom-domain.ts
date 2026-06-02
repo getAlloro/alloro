@@ -51,10 +51,23 @@ export async function connectDomain(
   const alt = getAltDomain(cleaned);
 
   // Check project exists
-  const project = await db(PROJECTS_TABLE).where("id", projectId).first();
+  const project = await db(`${PROJECTS_TABLE} as p`)
+    .leftJoin("organizations as o", "p.organization_id", "o.id")
+    .select("p.*", "o.archived_at as org_archived_at")
+    .where("p.id", projectId)
+    .first();
   if (!project) {
     return {
       error: { status: 404, code: "NOT_FOUND", message: "Project not found" },
+    };
+  }
+  if (project.archived_at || project.org_archived_at) {
+    return {
+      error: {
+        status: 423,
+        code: "PROJECT_ARCHIVED",
+        message: "Archived organization websites cannot connect custom domains.",
+      },
     };
   }
 
@@ -67,6 +80,7 @@ export async function connectDomain(
         .orWhere("custom_domain_alt", alt);
     })
     .whereNot("id", projectId)
+    .whereNull("archived_at")
     .first();
 
   if (existing) {
@@ -115,14 +129,31 @@ export async function verifyDomain(
     };
   }
 
-  const project = await db(PROJECTS_TABLE)
-    .select("id", "custom_domain", "custom_domain_alt", "domain_verified_at")
-    .where("id", projectId)
+  const project = await db(`${PROJECTS_TABLE} as p`)
+    .leftJoin("organizations as o", "p.organization_id", "o.id")
+    .select(
+      "p.id",
+      "p.custom_domain",
+      "p.custom_domain_alt",
+      "p.domain_verified_at",
+      "p.archived_at",
+      "o.archived_at as org_archived_at"
+    )
+    .where("p.id", projectId)
     .first();
 
   if (!project) {
     return {
       error: { status: 404, code: "NOT_FOUND", message: "Project not found" },
+    };
+  }
+  if (project.archived_at || project.org_archived_at) {
+    return {
+      error: {
+        status: 423,
+        code: "PROJECT_ARCHIVED",
+        message: "Archived organization websites cannot verify custom domains.",
+      },
     };
   }
 

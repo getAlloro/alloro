@@ -555,10 +555,13 @@ async function loadLocationContext(
 
   const org = await db("organizations")
     .where({ id: location.organization_id })
-    .select("id", "domain")
+    .select("id", "domain", "archived_at")
     .first();
   if (!org) {
     throw new Error(`Organization ${location.organization_id} not found`);
+  }
+  if (org.archived_at) {
+    throw new Error("Organization is archived; ranking competitor setup is disabled.");
   }
 
   const gbpProperties = await GooglePropertyModel.findByLocationId(locationId);

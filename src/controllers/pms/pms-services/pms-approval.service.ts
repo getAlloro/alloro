@@ -10,6 +10,7 @@ import {
   setAwaitingApproval,
 } from "../../../utils/pms/pmsAutomationStatus";
 import { parseResponseLog } from "../pms-utils/pms-normalizer.util";
+import { OrganizationLifecycleService } from "../../../services/OrganizationLifecycleService";
 
 /**
  * Admin approval workflow.
@@ -32,6 +33,10 @@ export async function approveByAdmin(jobId: number, requestedApproval: boolean) 
 
   if (!existingJob) {
     throw Object.assign(new Error("PMS job not found"), { statusCode: 404 });
+  }
+
+  if (existingJob.organization_id) {
+    await OrganizationLifecycleService.assertActive(existingJob.organization_id);
   }
 
   if (existingJob.is_approved === 1 && !requestedApproval) {
@@ -132,13 +137,18 @@ export async function approveByClient(jobId: number, clientApproval: boolean) {
       "response_log",
       "timestamp",
       "is_approved",
-      "is_client_approved"
+      "is_client_approved",
+      "organization_id"
     )
     .where({ id: jobId })
     .first();
 
   if (!existingJob) {
     throw Object.assign(new Error("PMS job not found"), { statusCode: 404 });
+  }
+
+  if (existingJob.organization_id) {
+    await OrganizationLifecycleService.assertActive(existingJob.organization_id);
   }
 
   await db("pms_jobs")

@@ -16,6 +16,7 @@ import {
   adminGetOrganization,
   adminGetOrganizationLocations,
   adminGetRecipientSettings,
+  type AdminOrganizationListView,
   type AdminOrganization,
   type AdminOrganizationDetail,
   type AdminUser,
@@ -55,13 +56,13 @@ export type AdminOrganizationMerged = AdminOrganizationDetail & {
 /**
  * All organisations (list view).
  */
-export function useAdminOrganizations() {
-  const queryKey = QUERY_KEYS.organizations;
+export function useAdminOrganizations(view: AdminOrganizationListView = "active") {
+  const queryKey = QUERY_KEYS.organizations(view);
 
   return useQuery({
     queryKey,
     queryFn: async () => {
-      const response = await adminListOrganizations();
+      const response = await adminListOrganizations(view);
       if (!response.success) throw new Error("Failed to fetch organizations");
       return response.organizations;
     },
@@ -278,7 +279,7 @@ export function useInvalidateOrganizations() {
   const qc = useQueryClient();
 
   const invalidateAll = useCallback(
-    () => qc.invalidateQueries({ queryKey: QUERY_KEYS.organizations }),
+    () => qc.invalidateQueries({ queryKey: QUERY_KEYS.organizationsAll }),
     [qc],
   );
 
