@@ -20,7 +20,7 @@ import {
   type ResolvedFields,
 } from "../../../api/minds";
 
-const CHAT_FONT = "'Literata', Georgia, serif";
+const CHAT_FONT = "'Spectral', Georgia, serif";
 
 const THINKING_WORDS = [
   "Thinking",

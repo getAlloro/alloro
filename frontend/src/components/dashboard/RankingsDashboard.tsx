@@ -1165,7 +1165,7 @@ function HealthGauge({
           x="90"
           y="76"
           textAnchor="middle"
-          fontFamily="Fraunces, Literata, Georgia, serif"
+          fontFamily="Spectral, Georgia, serif"
           fontWeight="500"
           fontSize="34"
           fill="#11151C"

@@ -97,7 +97,7 @@ export function TrendPill({ deltaPct }: { deltaPct: number | null }) {
   );
 }
 
-/** Big Fraunces stat number + unit, used by the simple count cards. */
+/** Big Spectral stat number + unit, used by the simple count cards. */
 export function OverviewStat({
   value,
   unit,
