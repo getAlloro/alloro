@@ -155,8 +155,8 @@ export function WebsiteOverview({
   );
 
   const estimateSummary = (
-    <div className="flex h-full flex-col justify-center">
-      <div className="mb-4 font-mono-display text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--color-pm-text-secondary)]">
+    <div className="flex h-full flex-col justify-between gap-4">
+      <div className="font-mono-display text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--color-pm-text-secondary)]">
         This month
       </div>
       <div className="flex items-center justify-between gap-4">
@@ -185,7 +185,18 @@ export function WebsiteOverview({
         </div>
       </div>
       {m.hasAnalytics && (
-        <div className="mt-6">
+        <div className="-mx-1">
+          <TrendSparkline
+            data={m.visitorSeries}
+            valueKey="visitors"
+            labelKey="label"
+            height={84}
+            showLabels={false}
+          />
+        </div>
+      )}
+      {m.hasAnalytics && (
+        <div>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-alloro-navy/10">
             <div
               className="h-full rounded-full bg-alloro-orange"
