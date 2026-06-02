@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, BarChart3, Inbox } from "lucide-react";
+import { ChevronRight, ArrowRight, BarChart3, Inbox } from "lucide-react";
 import { apiGet } from "../../../api";
+import { InfoTip } from "../../dashboard/shared/InfoTip";
 import {
   fetchWebsiteAnalytics,
   type WebsiteAnalytics,
@@ -154,35 +155,48 @@ export function WebsiteOverview({
   );
 
   const estimateSummary = (
-    <div className="grid grid-cols-2 gap-4">
-      <div>
-        <div className="font-mono-display text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--color-pm-text-secondary)]">
-          Visitors
+    <div className="flex h-full flex-col justify-center">
+      <div className="mb-4 font-mono-display text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--color-pm-text-secondary)]">
+        This month
+      </div>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <div className="font-mono-display text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--color-pm-text-secondary)]">
+            Visitors
+          </div>
+          <div className="mt-1.5 flex items-baseline gap-2">
+            <span className="font-display text-[30px] font-medium leading-none tracking-tight text-alloro-navy tabular-nums">
+              {m.hasAnalytics ? fmt(m.monthVisitors) : "—"}
+            </span>
+            <TrendPill deltaPct={m.visitorsDeltaPct} />
+          </div>
         </div>
-        <div className="mt-1 flex items-baseline gap-2">
-          <span className="font-display text-2xl font-medium tracking-tight text-alloro-navy tabular-nums">
-            {m.hasAnalytics ? fmt(m.monthVisitors) : "—"}
-          </span>
-          <TrendPill deltaPct={m.visitorsDeltaPct} />
-        </div>
-        <div className="mt-0.5 text-[11px] text-[color:var(--color-pm-text-secondary)]">
-          this month
+        <ArrowRight className="h-5 w-5 shrink-0 text-alloro-navy/25" />
+        <div className="text-right">
+          <div className="font-mono-display text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--color-pm-text-secondary)]">
+            Leads
+          </div>
+          <div className="mt-1.5 flex items-baseline justify-end gap-2">
+            <span className="font-display text-[30px] font-medium leading-none tracking-tight text-alloro-navy tabular-nums">
+              {m.monthLeads}
+            </span>
+            <TrendPill deltaPct={m.leadsPaceDeltaPct} />
+          </div>
         </div>
       </div>
-      <div>
-        <div className="font-mono-display text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--color-pm-text-secondary)]">
-          Leads
+      {m.hasAnalytics && (
+        <div className="mt-6">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-alloro-navy/10">
+            <div
+              className="h-full rounded-full bg-alloro-orange"
+              style={{ width: `${Math.min(100, Math.max(3, m.conversionRate * 100))}%` }}
+            />
+          </div>
+          <div className="mt-2 text-[11px] font-medium text-[color:var(--color-pm-text-secondary)]">
+            {formatConversion(m.conversionRate)} of visitors became leads
+          </div>
         </div>
-        <div className="mt-1 flex items-baseline gap-2">
-          <span className="font-display text-2xl font-medium tracking-tight text-alloro-navy tabular-nums">
-            {m.monthLeads}
-          </span>
-          <TrendPill deltaPct={m.leadsPaceDeltaPct} />
-        </div>
-        <div className="mt-0.5 text-[11px] text-[color:var(--color-pm-text-secondary)]">
-          on pace vs last month
-        </div>
-      </div>
+      )}
     </div>
   );
 
@@ -342,20 +356,39 @@ export function WebsiteOverview({
       >
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <ModalStat label="Visitors" value={fmt(m.totals?.users ?? 0)} />
-            <ModalStat label="Sessions" value={fmt(m.totals?.sessions ?? 0)} />
-            <ModalStat label="Page views" value={fmt(m.totals?.pageviews ?? 0)} />
             <ModalStat
-              label="Bounce rate"
+              label="Visitors"
+              value={fmt(m.totals?.users ?? 0)}
+              tip="Unique people who visited your site (each person counted once)."
+            />
+            <ModalStat
+              label="Visits"
+              sub="sessions"
+              value={fmt(m.totals?.sessions ?? 0)}
+              tip="Total visits, including repeat visits by the same person."
+            />
+            <ModalStat
+              label="Page views"
+              value={fmt(m.totals?.pageviews ?? 0)}
+              tip="Total number of pages opened across all visits."
+            />
+            <ModalStat
+              label="Left right away"
+              sub="bounce rate"
               value={`${Math.round((m.totals?.bounceRate ?? 0) * 100)}%`}
+              tip="Share of visits where someone viewed just one page and then left."
             />
             <ModalStat
-              label="Pages / session"
+              label="Pages per visit"
+              sub="pages/session"
               value={(m.totals?.pagesPerSession ?? 0).toFixed(1)}
+              tip="Average number of pages someone views in a single visit."
             />
             <ModalStat
-              label="Avg. visit"
+              label="Time on site"
+              sub="avg. visit"
               value={durationLabel(m.totals?.sessionDuration ?? 0)}
+              tip="Average time a visitor spends on your site per visit."
             />
           </div>
           <div className="rounded-[14px] border border-line-soft bg-white p-4 shadow-premium">
@@ -380,13 +413,27 @@ export function WebsiteOverview({
       >
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <ModalStat label="This month" value={String(m.monthLeads)} />
-            <ModalStat label="Last month" value={String(m.prevMonthLeads)} />
+            <ModalStat
+              label="This month"
+              value={String(m.monthLeads)}
+              tip="Verified leads received so far this month."
+            />
+            <ModalStat
+              label="Last month"
+              value={String(m.prevMonthLeads)}
+              tip="Verified leads in the previous full month."
+            />
             <ModalStat
               label="Conversion"
+              sub="rate"
               value={m.hasAnalytics ? formatConversion(m.conversionRate) : "—"}
+              tip="Share of unique visitors who submitted a form this month."
             />
-            <ModalStat label="All time" value={fmt(stats?.allCount ?? 0)} />
+            <ModalStat
+              label="All time"
+              value={fmt(stats?.allCount ?? 0)}
+              tip="Total verified leads ever received from your website forms."
+            />
           </div>
           <div className="rounded-[14px] border border-line-soft bg-white p-4 shadow-premium">
             <div className="mb-3 font-mono-display text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--color-pm-text-secondary)]">
@@ -428,11 +475,29 @@ function StripLink({ label, onClick }: { label: string; onClick: () => void }) {
   );
 }
 
-function ModalStat({ label, value }: { label: string; value: string }) {
+function ModalStat({
+  label,
+  sub,
+  value,
+  tip,
+}: {
+  label: string;
+  sub?: string;
+  value: string;
+  tip?: string;
+}) {
   return (
     <div className="rounded-[12px] border border-line-soft bg-white p-3">
-      <div className="font-mono-display text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--color-pm-text-secondary)]">
-        {label}
+      <div className="flex items-center gap-1">
+        <span className="font-mono-display text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--color-pm-text-secondary)]">
+          {label}
+        </span>
+        {sub ? (
+          <span className="text-[10px] font-medium lowercase text-[color:var(--color-pm-text-secondary)]/60">
+            ({sub})
+          </span>
+        ) : null}
+        {tip ? <InfoTip content={tip} align="left" /> : null}
       </div>
       <div className="mt-1 font-display text-xl font-medium text-alloro-navy tabular-nums">
         {value}

@@ -179,3 +179,8 @@ The editor is demoted to `?tab=editor` and lazy-mounts. A new `?tab=pages` list 
 **Decisions (Dave):** hero-led; conversion = leads ÷ unique visitors.
 **Verified live (Garrison):** hero insight ("17 visitors → 0 leads, 0.0% conversion vs 0.5% last month"), funnel + ▼ delta pills, 2 sparklines, Manage strip ("10 pages · 49 posts"), Traffic modal (225 visitors / 234 sessions / 313 page views / 84% bounce / daily chart). My files type-clean.
 **Note:** `tsc -b` is currently red from an UNRELATED uncommitted WIP file (`PMSManualEntryModal.tsx`, +253/−72) — not mine, not touched; zero errors in any file this change touched. Committing only the Website files keeps HEAD clean.
+
+### Rev 6 — 2026-05-31 (polish on Rev 5)
+**Change:** (1) Added (i) `InfoTip` tooltips to every overview-modal stat card (Traffic: visitors, visits, page views, bounce, pages-per-visit, time-on-site; Leads: this/last month, conversion, all-time). (2) Plain-English stat labels with the technical term as a smaller, muted parenthetical — "Left right away (bounce rate)", "Pages per visit (pages/session)", "Time on site (avg. visit)", "Visits (sessions)". (3) Reworked the hero Visitors→Leads funnel (This-month header + arrow + conversion progress bar + "X% of visitors became leads" caption) to fill the dead whitespace.
+**Reason:** Owner-readable metrics (jargon explained), less empty hero.
+**Verified live (Garrison):** all 6 Traffic stats relabeled with 6 (i) tooltips; hero funnel filled. My files type-clean (the only `tsc` errors remain the unrelated `PMSManualEntryModal` WIP).
