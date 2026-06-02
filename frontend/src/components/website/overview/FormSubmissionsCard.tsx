@@ -89,7 +89,6 @@ export function FormSubmissionsCard({
     );
   } else {
     const activePoint = activeIdx !== null ? points[activeIdx] : null;
-    const unread = stats?.unreadCount ?? 0;
     const total = activePoint
       ? activePoint.total
       : stats?.allCount ?? stats?.verifiedCount ?? 0;
@@ -103,13 +102,6 @@ export function FormSubmissionsCard({
           <span className="text-xs font-medium text-[color:var(--color-pm-text-secondary)]">
             submissions · {headlineLabel}
           </span>
-        </div>
-        <div className="mt-1 text-xs text-[color:var(--color-pm-text-secondary)]">
-          {unread > 0 ? (
-            <span className="font-semibold text-alloro-orange">{unread} unread</span>
-          ) : (
-            "All caught up"
-          )}
         </div>
         <div className="mt-4">
           <TrendSparkline
