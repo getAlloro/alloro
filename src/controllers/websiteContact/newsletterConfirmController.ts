@@ -32,10 +32,15 @@ export async function handleNewsletterConfirm(req: Request, res: Response): Prom
     return;
   }
 
-  const project = await ProjectModel.findById(signup.project_id);
+  const project = await ProjectModel.findPublicActiveById(signup.project_id);
   const siteUrl = project
     ? getSiteUrl(project.hostname, project.custom_domain)
     : "https://getalloro.com";
+
+  if (!project) {
+    res.redirect(siteUrl);
+    return;
+  }
 
   // Already confirmed — redirect to confirmed page
   if (signup.confirmed_at) {

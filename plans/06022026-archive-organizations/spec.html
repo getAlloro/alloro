@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Archive Organizations Plan</title>
+    <link rel="stylesheet" href="./spec.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="hero">
+        <div class="hero-topline">
+          <p class="eyebrow">Alloro Plan</p>
+          <span class="status-pill status-completed">Completed</span>
+        </div>
+        <h1>Archive Organizations</h1>
+        <p class="summary">
+          Add a first-class organization archive lifecycle that hides archived organizations from normal admin views,
+          archives connected website projects, disconnects custom domains, and prevents scheduled/manual automation from
+          creating new work for archived organizations.
+        </p>
+        <dl class="meta-grid">
+          <div class="status-card">
+            <dt>Status</dt>
+            <dd>Completed</dd>
+          </div>
+          <div>
+            <dt>Plan Folder</dt>
+            <dd>plans/06022026-archive-organizations</dd>
+          </div>
+          <div>
+            <dt>Size</dt>
+            <dd>Large</dd>
+          </div>
+          <div>
+            <dt>Risk</dt>
+            <dd>Level 4 - cross-cutting lifecycle and migration</dd>
+          </div>
+        </dl>
+      </header>
+
+      <section class="card">
+        <h2>Why</h2>
+        <p>
+          Deleting organizations is too destructive for normal offboarding, while billing lockout does not reliably stop
+          public websites, domain resolution, GBP automation, PMS-triggered monthly agents, scheduled agents, or ranking
+          runs. Alloro needs a reversible archive state with one clear operational meaning.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>What</h2>
+        <p>
+          Admins can archive an organization from Organization Settings before the permanent Delete Organization danger
+          zone. Archived organizations are excluded from default organization lists and visible only through an Archived
+          tab/filter or direct admin URL. Archiving an organization also archives its connected website projects,
+          disconnects custom domains, preserves historical data, and blocks new automated work.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Scope Ledger</h2>
+        <dl class="ledger">
+          <div>
+            <dt>Objective</dt>
+            <dd>Replace risky delete/lockout behavior with a reversible archived organization lifecycle.</dd>
+          </div>
+          <div>
+            <dt>Intended User</dt>
+            <dd>Internal Alloro admins managing customer organizations and offboarding.</dd>
+          </div>
+          <div>
+            <dt>Surface</dt>
+            <dd>Admin organization list, organization detail settings, admin API, database, public website/form paths, workers.</dd>
+          </div>
+          <div>
+            <dt>System Of Record</dt>
+            <dd>organizations.archived_at plus archive metadata stored by the organization archive service.</dd>
+          </div>
+          <div>
+            <dt>In Scope</dt>
+            <dd>Archive/unarchive endpoints, UI controls, list filtering, connected site archive, domain disconnect, lifecycle guards.</dd>
+          </div>
+          <div>
+            <dt>Out Of Scope</dt>
+            <dd>Hard delete redesign, Stripe cancellation, OAuth revocation, automatic domain reconnection, production promotion.</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="card">
+        <h2>Context</h2>
+        <div class="file-list">
+          <article>
+            <h3>Admin Organization UI</h3>
+            <p><code>frontend/src/components/Admin/OrgSettingsSection.tsx</code> contains the current Delete Organization danger zone.</p>
+            <p><code>frontend/src/pages/admin/OrganizationManagement.tsx</code> lists all organizations without lifecycle filtering today.</p>
+            <p><code>frontend/src/api/admin-organizations.ts</code> and <code>frontend/src/hooks/queries/useAdminQueries.ts</code> own typed admin org API access.</p>
+          </article>
+          <article>
+            <h3>Admin Organization API</h3>
+            <p><code>src/routes/admin/organizations.ts</code> owns super-admin organization routes.</p>
+            <p><code>src/controllers/admin-organizations/AdminOrganizationsController.ts</code> lists/details/mutates organizations.</p>
+            <p><code>src/models/OrganizationModel.ts</code> currently has no archive fields and <code>listAll</code> selects only active metadata.</p>
+          </article>
+          <article>
+            <h3>Website Archive And Domains</h3>
+            <p><code>frontend/src/pages/admin/WebsitesList.tsx</code> already has Active, Inactive, and Archive list views to mirror.</p>
+            <p><code>src/controllers/admin-websites/feature-services/service.project-manager.ts</code> filters website projects by <code>archived_at</code>.</p>
+            <p><code>src/controllers/admin-websites/feature-services/service.custom-domain.ts</code> clears custom domain fields in <code>disconnectDomain</code>.</p>
+            <p><code>src/models/website-builder/ProjectModel.ts</code> only has a single-org project lookup and hostname/domain lookup without archive filtering.</p>
+          </article>
+          <article>
+            <h3>Automation And Worker Entrypoints</h3>
+            <p><code>src/workers/worker.ts</code> registers repeatable GBP and scheduler jobs globally.</p>
+            <p><code>src/workers/processors/reviewSync.processor.ts</code> runs GBP review sync.</p>
+            <p><code>src/workers/processors/gbpAutomation.processor.ts</code> scans/syncs GBP local posts and generated posts.</p>
+            <p><code>src/controllers/agents/AgentsController.ts</code> owns proofline, monthly agents, and ranking HTTP triggers.</p>
+            <p><code>src/controllers/agents/feature-services/service.proofline-executor.ts</code> and <code>service.ranking-executor.ts</code> select onboarded organizations for scheduled agents.</p>
+          </article>
+          <article>
+            <h3>PMS And Ranking Entrypoints</h3>
+            <p><code>src/routes/pms.ts</code> and PMS services trigger monthly agents after upload, approval, retry, and restart flows.</p>
+            <p><code>src/routes/practiceRanking.ts</code> and <code>src/controllers/practice-ranking/PracticeRankingController.ts</code> expose ranking triggers and retries.</p>
+            <p><code>src/controllers/practice-ranking/feature-services/service.ranking-pipeline.ts</code> performs the actual ranking work after entrypoint validation.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Patterns To Follow</h2>
+        <ul>
+          <li>Use the website list view pattern from <code>WebsitesList.tsx</code>: default active view plus explicit Archive tab.</li>
+          <li>Use route-controller-service-model backend layering. Routes stay thin, controllers orchestrate, services apply business rules, models own Knex queries.</li>
+          <li>Use transactions for archive/unarchive because organization, projects, domains, integrations, and automation settings are updated together.</li>
+          <li>Use typed React Query hooks and API helpers for admin UI state. No direct API calls inside new components.</li>
+          <li>Use neutral admin styling already present in Organization Settings. Archive is cautionary, Delete remains the only red danger action.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>Constraints</h2>
+        <h3>Must</h3>
+        <ul>
+          <li>Add real archive columns to <code>organizations</code>; do not overload <code>subscription_status</code>.</li>
+          <li>Archive all website projects connected by <code>organization_id</code>, not just the first project.</li>
+          <li>Disconnect custom domains by clearing <code>custom_domain</code>, <code>custom_domain_alt</code>, and <code>domain_verified_at</code>.</li>
+          <li>Persist previous domain values in archive metadata before clearing them.</li>
+          <li>Block new automation for archived organizations while preserving historical records.</li>
+          <li>Keep global BullMQ repeatable jobs installed; job processors must skip archived organizations.</li>
+          <li>Include Alloro Docs parity because admin UI behavior changes.</li>
+        </ul>
+        <h3>Must Not</h3>
+        <ul>
+          <li>Do not delete organization data, users, tasks, rankings, PMS rows, notifications, agent outputs, submissions, or website pages.</li>
+          <li>Do not revoke Google OAuth tokens during archive.</li>
+          <li>Do not silently reconnect domains on unarchive.</li>
+          <li>Do not change Stripe billing or cancellation behavior in this plan.</li>
+          <li>Do not modify unrelated PM/dashboard/ranking copy work already dirty in the worktree.</li>
+        </ul>
+      </section>
+
+      <section class="card risk">
+        <h2>Risk And Pushback</h2>
+        <p>
+          This is Level 4. It changes organization lifecycle semantics, public site behavior, scheduled workers, admin UI,
+          and database schema. Treat it as a platform lifecycle feature, not a small settings button.
+        </p>
+        <div class="risk-grid">
+          <article>
+            <h3>Production Migration Risk</h3>
+            <p>
+              Adding nullable archive columns is low-lock risk, but indexes and backfill assumptions must be production-safe.
+              The migration runs on dev first through <code>dev/dave</code>, then production after merge to <code>main</code>.
+            </p>
+            <p><strong>Mitigation:</strong> nullable columns, no destructive data rewrite, reversible down migration, explicit indexes.</p>
+          </article>
+          <article>
+            <h3>Domain Disconnect Risk</h3>
+            <p>
+              Clearing custom domains is intentional but not truly reversible unless previous values are saved before mutation.
+            </p>
+            <p><strong>Mitigation:</strong> store prior domain values in archive metadata and require admin confirmation to reconnect.</p>
+          </article>
+          <article>
+            <h3>Automation Drift Risk</h3>
+            <p>
+              Scattered checks will rot. Workers, manual endpoints, and queued jobs must share one lifecycle service/helper.
+            </p>
+            <p><strong>Mitigation:</strong> central <code>OrganizationArchiveService</code> and <code>OrganizationLifecycleService</code> plus model helpers.</p>
+          </article>
+          <article>
+            <h3>Renderer Boundary Risk</h3>
+            <p>
+              If public rendering lives outside this repo, generated hostnames may still render unless that renderer also checks archive state.
+            </p>
+            <p><strong>Mitigation:</strong> include renderer verification and, if outside repo, get explicit permission before editing it.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Blast Radius</h2>
+        <ul>
+          <li>Admin organization management and organization detail settings.</li>
+          <li>Website project list/archive state and custom domain connection state.</li>
+          <li>Public website contact/newsletter submission paths and CRM push queueing.</li>
+          <li>GBP review sync, GBP local post sync/generation, review replies, and local post publishing.</li>
+          <li>Scheduled proofline and ranking agents plus manual monthly agent triggers.</li>
+          <li>PMS upload, approval, retry, restart, and monthly-agent trigger flows.</li>
+          <li>Practice ranking trigger, retry, batch retry, and competitor finalization flows.</li>
+          <li>Alloro Docs/admin documentation for organization management.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>Tasks</h2>
+        <div class="task-list">
+          <article>
+            <h3>T1: Archive Schema And Models</h3>
+            <p><strong>Do:</strong> Add organization archive columns and model helpers. Add project lookup/update helpers for all projects connected to an organization.</p>
+            <p><strong>Files:</strong> <code>src/database/migrations/*archive_organizations*</code>, <code>src/models/OrganizationModel.ts</code>, <code>src/models/website-builder/ProjectModel.ts</code>.</p>
+            <p><strong>Depends on:</strong> none.</p>
+            <p><strong>Verify:</strong> <code>npm run db:migrate</code>, inspect columns/indexes, <code>npm run db:rollback</code> on local/dev before final verification.</p>
+          </article>
+
+          <article>
+            <h3>T2: Admin Archive Service And Endpoints</h3>
+            <p><strong>Do:</strong> Add archive/unarchive service methods and routes. Archive sets org archive state, archives connected projects, snapshots domains, disconnects domains, refreshes domain caches, and pauses relevant automation settings. Unarchive restores org visibility but does not automatically reconnect domains.</p>
+            <p><strong>Files:</strong> <code>src/controllers/admin-organizations/feature-services/OrganizationArchiveService.ts</code>, <code>src/controllers/admin-organizations/AdminOrganizationsController.ts</code>, <code>src/routes/admin/organizations.ts</code>.</p>
+            <p><strong>Depends on:</strong> T1.</p>
+            <p><strong>Verify:</strong> API calls for archive/unarchive return consistent success/error shape and mutate expected rows in one transaction.</p>
+          </article>
+
+          <article>
+            <h3>T3: Admin UI List, Filter, And Settings Controls</h3>
+            <p><strong>Do:</strong> Add Active/Archived organization filtering, archived badge/banner, archive button above Danger Zone, confirmation modal, and unarchive affordance for archived organizations.</p>
+            <p><strong>Files:</strong> <code>frontend/src/pages/admin/OrganizationManagement.tsx</code>, <code>frontend/src/components/Admin/OrgSettingsSection.tsx</code>, <code>frontend/src/pages/admin/OrganizationDetail.tsx</code>, <code>frontend/src/api/admin-organizations.ts</code>, <code>frontend/src/hooks/queries/useAdminQueries.ts</code>, <code>frontend/src/lib/queryClient.ts</code>.</p>
+            <p><strong>Depends on:</strong> T2.</p>
+            <p><strong>Verify:</strong> Browser: admin org list defaults to active, Archived tab only shows archived orgs, direct archived org URL shows banner and disabled operational actions.</p>
+          </article>
+
+          <article>
+            <h3>T4: Public Website And Form Lifecycle Guards</h3>
+            <p><strong>Do:</strong> Exclude archived org projects from public form/newsletter resolution, CRM push enqueueing, active integration queries, data harvest, and domain cache. Verify public renderer behavior for generated hostnames and custom domains.</p>
+            <p><strong>Files:</strong> <code>src/models/website-builder/ProjectModel.ts</code>, <code>src/controllers/websiteContact/formSubmissionController.ts</code>, <code>src/controllers/websiteContact/newsletterConfirmController.ts</code>, <code>src/models/website-builder/WebsiteIntegrationModel.ts</code>, <code>src/workers/processors/dataHarvest.processor.ts</code>, <code>src/workers/processors/crmMappingValidation.processor.ts</code>, <code>src/workers/processors/crmPush.processor.ts</code>.</p>
+            <p><strong>Depends on:</strong> T1, T2.</p>
+            <p><strong>Verify:</strong> Archived org website forms do not save submissions, email recipients, or enqueue CRM pushes. Connected custom domains no longer resolve through project/domain lookup.</p>
+          </article>
+
+          <article>
+            <h3>T5: Automation, PMS, GBP, And Ranking Guards</h3>
+            <p><strong>Do:</strong> Add shared lifecycle checks to scheduled workers and manual triggers so archived organizations are skipped or rejected before Google, PMS, LLM, CRM, or notification work starts.</p>
+            <p><strong>Files:</strong> <code>src/services/OrganizationLifecycleService.ts</code>, <code>src/workers/processors/reviewSync.processor.ts</code>, <code>src/workers/processors/gbpAutomation.processor.ts</code>, <code>src/controllers/gbp-automation/*</code>, <code>src/controllers/agents/AgentsController.ts</code>, <code>src/controllers/agents/feature-services/service.proofline-executor.ts</code>, <code>src/controllers/agents/feature-services/service.ranking-executor.ts</code>, <code>src/controllers/pms/*</code>, <code>src/controllers/practice-ranking/*</code>.</p>
+            <p><strong>Depends on:</strong> T1.</p>
+            <p><strong>Verify:</strong> Archived orgs are skipped by scheduled runs and rejected by manual mutating triggers; historical reads remain available to admins.</p>
+          </article>
+
+          <article>
+            <h3>T6: Docs, QA, And Regression Tests</h3>
+            <p><strong>Do:</strong> Add focused tests where existing test patterns exist, verify TypeScript/build gates, and update Alloro Docs for admin org archive behavior.</p>
+            <p><strong>Files:</strong> relevant test files if present, <code>/Users/rustinedave/Desktop/alloro-docs</code> admin docs.</p>
+            <p><strong>Depends on:</strong> T3, T4, T5.</p>
+            <p><strong>Verify:</strong> <code>npx tsc --noEmit</code>, <code>npm run build</code>, <code>cd frontend && npm run build</code>, manual admin/browser/API checks.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Dependency Chain</h2>
+        <ol>
+          <li>T1 must run first because every other task needs archive state.</li>
+          <li>T2 follows T1 and creates the admin mutation contract.</li>
+          <li>T3 can run after T2.</li>
+          <li>T4 and T5 can run in parallel after T1/T2 as long as file boundaries are respected.</li>
+          <li>T6 runs last after code paths are implemented.</li>
+        </ol>
+      </section>
+
+      <section class="card">
+        <h2>Done</h2>
+        <ul class="checklist">
+          <li>Archive columns exist on organizations and rollback works locally/dev.</li>
+          <li>Admin organization list defaults to non-archived organizations and has an Archived tab/filter.</li>
+          <li>Archive action lives above Delete Organization in Organization Settings.</li>
+          <li>Archived org details show an archived banner and preserve historical read access for admins.</li>
+          <li>Archiving an org archives all connected projects and disconnects custom domains.</li>
+          <li>Archived org public forms/newsletters do not save, email, or enqueue CRM pushes.</li>
+          <li>GBP, PMS, scheduled agents, monthly agents, and rankings skip/reject archived organizations.</li>
+          <li>Historical data is not deleted.</li>
+          <li><code>npx tsc --noEmit</code> passes or only unrelated pre-existing errors are documented.</li>
+          <li><code>npm run build</code> and <code>cd frontend &amp;&amp; npm run build</code> pass or unrelated pre-existing errors are documented.</li>
+          <li>Alloro Docs parity is checked and updated for admin organization archive behavior.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>Revision Log</h2>
+        <p>No revisions yet.</p>
+      </section>
+    </main>
+  </body>
+</html>

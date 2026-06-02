@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import { db } from "../database/connection";
+import { OrganizationLifecycleService } from "../services/OrganizationLifecycleService";
 
 // OAuth2 configuration interface
 interface OAuth2Config {
@@ -60,6 +61,10 @@ export const createOAuth2ClientForConnection = async (connectionId: number) => {
     );
   }
 
+  if (connection.organization_id) {
+    await OrganizationLifecycleService.assertActive(connection.organization_id);
+  }
+
   const oauth2Client = new google.auth.OAuth2(
     config.clientId,
     config.clientSecret,
@@ -100,6 +105,10 @@ export const getValidOAuth2ClientByConnection = async (
     throw new Error(
       `No refresh token found for Google connection: ${connectionId}`
     );
+  }
+
+  if (connection.organization_id) {
+    await OrganizationLifecycleService.assertActive(connection.organization_id);
   }
 
   const oauth2Client = new google.auth.OAuth2(

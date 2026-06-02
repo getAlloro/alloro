@@ -3,6 +3,10 @@ import { db } from "../database/connection";
 import { createOAuth2ClientForConnection } from "../auth/oauth2Helper";
 import { OAuth2Client } from "google-auth-library";
 import { RBACRequest } from "./rbac";
+import {
+  getOrganizationLifecycleErrorStatus,
+  OrganizationLifecycleService,
+} from "../services/OrganizationLifecycleService";
 
 /**
  * Extended Express Request type with OAuth2Client.
@@ -64,6 +68,8 @@ export const tokenRefreshMiddleware = async (
     const isExpiringSoon = expiryDate.getTime() - Date.now() < 5 * 60 * 1000;
 
     try {
+      await OrganizationLifecycleService.assertActive(organizationId);
+
       // Create OAuth2 client
       const oauth2Client = await createOAuth2ClientForConnection(connectionId);
 
@@ -116,6 +122,15 @@ export const tokenRefreshMiddleware = async (
       req.oauth2Client = oauth2Client;
       req.googleConnectionId = connectionId;
     } catch (refreshError: any) {
+      const lifecycleStatus = getOrganizationLifecycleErrorStatus(refreshError);
+      if (lifecycleStatus) {
+        return res.status(lifecycleStatus).json({
+          error: refreshError.code,
+          message: refreshError.message,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       console.error(
         `[Token Refresh] Failed to refresh token for connection ${connectionId}:`,
         refreshError.message

@@ -38,7 +38,9 @@ export const persistOptions = {
 // ─── Query Key Factory ───────────────────────────────────────────
 export const QUERY_KEYS = {
   // Admin — organizations
-  organizations: ["admin", "organizations"] as const,
+  organizations: (view: "active" | "archived" | "all" = "active") =>
+    ["admin", "organizations", view] as const,
+  organizationsAll: ["admin", "organizations"] as const,
   organization: (id: number) => ["admin", "organization", id] as const,
   organizationLocations: (id: number) =>
     ["admin", "organization", id, "locations"] as const,

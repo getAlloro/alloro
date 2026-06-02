@@ -9,12 +9,14 @@ import {
   RefreshCw,
   Plus,
   X,
+  Archive,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import {
   AdminPageHeader,
   Badge,
   EmptyState,
+  TabBar,
 } from "../../components/ui/DesignSystem";
 import {
   cardVariants,
@@ -22,6 +24,7 @@ import {
 } from "../../lib/animations";
 import {
   adminUpdateOrganizationName,
+  type AdminOrganizationListView,
   type AdminOrganization,
 } from "../../api/admin-organizations";
 import {
@@ -31,7 +34,10 @@ import {
 import { CreateOrganizationModal } from "../../components/Admin/CreateOrganizationModal";
 
 export function OrganizationManagement() {
-  const { data: organizations = [], isLoading: loading } = useAdminOrganizations();
+  const [organizationListView, setOrganizationListView] =
+    useState<AdminOrganizationListView>("active");
+  const { data: organizations = [], isLoading: loading } =
+    useAdminOrganizations(organizationListView);
   const { invalidateAll: refetchOrganizations } = useInvalidateOrganizations();
 
   const [editingOrgId, setEditingOrgId] = useState<number | null>(null);
@@ -39,6 +45,29 @@ export function OrganizationManagement() {
 
   // Create Organization modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const emptyTitle =
+    organizationListView === "archived"
+      ? "No archived organizations"
+      : "No active organizations";
+  const emptyDescription =
+    organizationListView === "archived"
+      ? "Archived organizations will appear here after an admin archives them from Organization Settings."
+      : "No active organizations have been created yet.";
+
+  const organizationListTabs = [
+    {
+      id: "active",
+      label: "Active",
+      description: "Default view",
+      icon: <Building className="h-4 w-4" />,
+    },
+    {
+      id: "archived",
+      label: "Archived",
+      description: "Hidden accounts",
+      icon: <Archive className="h-4 w-4" />,
+    },
+  ];
 
   const startEditing = (e: React.MouseEvent, org: AdminOrganization) => {
     e.preventDefault();
@@ -97,24 +126,36 @@ export function OrganizationManagement() {
         actionButtons={
           <div className="flex items-center gap-3">
             <Badge label={`${organizations.length} total`} color="blue" />
-            <motion.button
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 rounded-xl bg-alloro-orange px-4 py-2 text-sm font-bold text-white hover:bg-alloro-navy transition-colors"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Plus className="h-4 w-4" />
-              Create Organization
-            </motion.button>
+            {organizationListView === "active" && (
+              <motion.button
+                onClick={() => setShowCreateModal(true)}
+                className="flex items-center gap-2 rounded-xl bg-alloro-orange px-4 py-2 text-sm font-bold text-white hover:bg-alloro-navy transition-colors"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Plus className="h-4 w-4" />
+                Create Organization
+              </motion.button>
+            )}
           </div>
         }
       />
 
+      <div className="flex">
+        <TabBar
+          tabs={organizationListTabs}
+          activeTab={organizationListView}
+          onTabChange={(tabId) =>
+            setOrganizationListView(tabId as AdminOrganizationListView)
+          }
+        />
+      </div>
+
       {organizations.length === 0 ? (
         <EmptyState
           icon={<Building className="w-8 h-8" />}
-          title="No organizations"
-          description="No organizations have been created yet."
+          title={emptyTitle}
+          description={emptyDescription}
         />
       ) : (
         <motion.div
@@ -181,16 +222,22 @@ export function OrganizationManagement() {
                             {org.name}
                           </h3>
                           <Badge variant="orange">DFY</Badge>
+                          {org.archived_at && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-700">
+                              <Archive className="h-3 w-3" />
+                              Archived
+                            </span>
+                          )}
                           {/* Billing status badge */}
-                          {org.subscription_status === "inactive" ? (
+                          {!org.archived_at && org.subscription_status === "inactive" ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-50 text-red-700 border border-red-200">
                               🔒 Locked
                             </span>
-                          ) : org.stripe_customer_id ? (
+                          ) : !org.archived_at && org.stripe_customer_id ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-green-50 text-green-700 border border-green-200">
                               ✓ Active
                             </span>
-                          ) : org.subscription_status === "active" ? (
+                          ) : !org.archived_at && org.subscription_status === "active" ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-50 text-amber-700 border border-amber-200">
                               ⚠ No Billing
                             </span>

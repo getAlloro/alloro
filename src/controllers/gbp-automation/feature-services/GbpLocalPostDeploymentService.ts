@@ -14,6 +14,10 @@ import { isTransientGoogleError } from "../feature-utils/googleApiErrors";
 import { GbpLocalPostSafetyService } from "./GbpLocalPostSafetyService";
 import { GbpNotificationService } from "./GbpNotificationService";
 import { GbpReadinessService } from "./GbpReadinessService";
+import {
+  OrganizationArchivedError,
+  OrganizationLifecycleService,
+} from "../../../services/OrganizationLifecycleService";
 
 function deploymentContent(item: IGbpWorkItem): string {
   return (item.approved_content || item.draft_content || "").trim();
@@ -199,6 +203,15 @@ export class GbpLocalPostDeploymentService {
     if (item.status !== "deploying") {
       throw new GbpAutomationError("INVALID_STATUS", "This post is not queued for deployment.");
     }
+    try {
+      await OrganizationLifecycleService.assertActive(item.organization_id);
+    } catch (error) {
+      if (!(error instanceof OrganizationArchivedError)) throw error;
+      throw new GbpAutomationError(
+        "ORGANIZATION_ARCHIVED",
+        "Archived organizations cannot deploy GBP posts."
+      );
+    }
 
     const content = deploymentContent(item);
     const payload = buildPayload(item, content);
@@ -327,6 +340,15 @@ export class GbpLocalPostDeploymentService {
       params.organizationId
     );
     if (!item) throw new GbpAutomationError("WORK_ITEM_NOT_FOUND", "Work item not found.");
+    try {
+      await OrganizationLifecycleService.assertActive(params.organizationId);
+    } catch (error) {
+      if (!(error instanceof OrganizationArchivedError)) throw error;
+      throw new GbpAutomationError(
+        "ORGANIZATION_ARCHIVED",
+        "Archived organizations cannot manage GBP posts."
+      );
+    }
     if (
       params.accessibleLocationIds &&
       !params.accessibleLocationIds.includes(item.location_id)

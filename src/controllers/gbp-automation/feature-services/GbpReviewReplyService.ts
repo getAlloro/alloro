@@ -12,6 +12,10 @@ import { GbpDraftGenerationService } from "./GbpDraftGenerationService";
 import { GbpNotificationService } from "./GbpNotificationService";
 import { GbpReviewReplyDeploymentService } from "./GbpReviewReplyDeploymentService";
 import { GbpReadinessService } from "./GbpReadinessService";
+import {
+  OrganizationArchivedError,
+  OrganizationLifecycleService,
+} from "../../../services/OrganizationLifecycleService";
 
 function ensureLocationAccess(
   item: IGbpWorkItem,
@@ -26,6 +30,18 @@ function actorMetadata(actorEmail?: string | null): Record<string, unknown> {
   return actorEmail ? { actorEmail } : {};
 }
 
+async function assertOrganizationActive(organizationId: number): Promise<void> {
+  try {
+    await OrganizationLifecycleService.assertActive(organizationId);
+  } catch (error) {
+    if (!(error instanceof OrganizationArchivedError)) throw error;
+    throw new GbpAutomationError(
+      "ORGANIZATION_ARCHIVED",
+      "Archived organizations cannot generate or deploy GBP review replies."
+    );
+  }
+}
+
 export class GbpReviewReplyService {
   static async generateDraft(params: {
     organizationId: number;
@@ -38,6 +54,7 @@ export class GbpReviewReplyService {
     if (params.accessibleLocationIds && !params.accessibleLocationIds.includes(params.locationId)) {
       throw new GbpAutomationError("LOCATION_ACCESS_DENIED", "No access to this location.");
     }
+    await assertOrganizationActive(params.organizationId);
 
     const readiness = await GbpReadinessService.getLocationReadiness(
       params.organizationId,
@@ -368,6 +385,7 @@ export class GbpReviewReplyService {
       params.organizationId
     );
     if (!item) throw new GbpAutomationError("WORK_ITEM_NOT_FOUND", "Work item not found.");
+    await assertOrganizationActive(params.organizationId);
     ensureLocationAccess(item, params.accessibleLocationIds);
     return item;
   }

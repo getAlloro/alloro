@@ -112,6 +112,7 @@ export async function triggerBatchAnalysis(
         "gc.google_property_ids",
         "o.domain as org_domain",
         "o.name as org_name",
+        "o.archived_at as org_archived_at",
       )
       .first();
 
@@ -120,6 +121,14 @@ export async function triggerBatchAnalysis(
         success: false,
         error: "ACCOUNT_NOT_FOUND",
         message: `Account ${googleAccountId} not found`,
+      });
+    }
+
+    if (account.org_archived_at) {
+      return res.status(423).json({
+        success: false,
+        error: "ORGANIZATION_ARCHIVED",
+        message: "Archived organizations cannot start ranking analysis.",
       });
     }
 
@@ -455,6 +464,7 @@ export async function listAccounts(
     const accounts = await db("google_connections as gc")
       .join("organizations as o", "gc.organization_id", "o.id")
       .where("o.onboarding_completed", true)
+      .whereNull("o.archived_at")
       .select(
         "gc.id",
         "gc.google_property_ids",
