@@ -2,6 +2,24 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.95] - June 2026
+
+### Spectral Serif Typography Standardization
+
+Standardized the active frontend serif/display typography on the Google Font Spectral so dashboard, editorial, and chat surfaces no longer mix older serif stacks.
+
+**Key Changes:**
+- Removed the remaining Literata fallback from the SPA font loader, dashboard display token, and Local Rankings gauge stack
+- Updated hardcoded frontend serif stacks used by dashboard metric cards and Minds chat surfaces to Spectral
+- Added the current-week Feature Friyay package and completed HTML/CSS plan spec for the typography change
+- Kept Alloro Docs aligned through a separate docs parity commit
+
+**Commits:**
+- `frontend/index.html` and `frontend/src/index.css` - final Spectral loader and display font token cleanup
+- `frontend/src/components/dashboard/focus/*`, `frontend/src/components/dashboard/RankingsDashboard.tsx`, and `frontend/src/components/Admin/minds/*` - direct serif stack replacements
+- `friyays/06-01-2026/*` - current-week Feature Friyay draft package
+- `plans/06032026-replace-serif-with-spectral/*` - completed execution spec
+
 ## [0.0.94] - May 2026
 
 ### Review Sync OAuth Refresh Hardening
