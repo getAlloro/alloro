@@ -77,8 +77,8 @@ const INK = "#1F1B16";
 const INK_SOFT = "#3A342B";
 const LINE_SOFT = "#F0ECE5";
 
-const FRAUNCES =
-  "'Fraunces', ui-serif, Georgia, Cambria, 'Times New Roman', serif";
+const PLAYFAIR_DISPLAY =
+  "'Playfair Display', ui-serif, Georgia, Cambria, 'Times New Roman', serif";
 const MONO =
   "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
 
@@ -324,7 +324,7 @@ const PMSCard: React.FC = () => {
       <div className="flex flex-wrap items-baseline gap-2">
         <span
           style={{
-            fontFamily: FRAUNCES,
+            fontFamily: PLAYFAIR_DISPLAY,
             fontWeight: 500,
             fontSize: 32,
             letterSpacing: "-0.02em",
