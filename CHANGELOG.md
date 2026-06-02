@@ -2,6 +2,33 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.95] - June 2026
+
+### Websites Tab — Cards-First Performance Overview
+
+Reworked the DFY Websites tab (`/dfy/website`) from an editor-first landing into an owner-readable performance dashboard, matching the Local Rankings / PMS Statistics pattern. It now opens on a cards overview that leads with the website's conversion story — visitors turning into leads — with the page editor demoted to a focused mode reached from the Pages tab.
+
+**Key Changes:**
+- New cards-first **overview** as the default `/dfy/website` view; the page **editor lazy-mounts** behind the Pages tab as a focused editing mode (with a "Back to pages" toolbar), so the dashboard no longer pays the editor's bootstrap cost.
+- New user-facing **Rybbit analytics endpoint** (`GET /api/user/website/analytics`) that reuses the admin Rybbit dashboard service — no new service, model, or migration.
+- **Performance-first layout:** a cream insight hero ("turned X visitors into Y leads — Z% conversion rate") with a Visitors→Leads funnel, a visitor-trend sparkline, and month-over-month delta pills; plus **Traffic** and **Leads** trend cards that open detail modals.
+- **Conversion rate** (verified leads ÷ unique visitors) and month-over-month/pacing deltas computed entirely client-side from existing endpoints — no backend.
+- **Local-Rankings-style pill tab nav** (Overview · Pages · Submissions · Posts · Menus) beneath a "Web presence / Website" heading, scrolling with the content instead of pinned to the top; Connect Domain + View Live moved into the header; the editor-era page selector and edits/storage readout removed.
+- New **Pages list** view; a shared house-style **TrendSparkline**; a **view-aware loading skeleton** (overview shape, not the editor 3-pane) shared by the route guard and the page; sidebar auto-collapses only for the editor.
+- **Owner-readable metrics:** plain-English stat labels with the technical term as a muted parenthetical (e.g. "Left right away (bounce rate)"), and (i) tooltips on every modal metric.
+- Onboarding wizard kept working via tab-aware steps and demo data.
+
+**Commits:**
+- `frontend/src/pages/DFYWebsite.tsx` - overview-default routing, lazy editor + focused-mode toolbar, pill-tab dashboard header, view-aware skeleton, editor-only sidebar collapse, wizard tab-sync
+- `frontend/src/components/website/overview/*` - `WebsiteOverview` (hero + Traffic/Leads cards + drill-in modals + content strip), `websiteMetrics` (conversion + deltas), `OverviewCard`/`TrendPill` shells
+- `frontend/src/components/website/{WebsiteDashboardTabs,WebsitePagesTab,WebsiteLoadingSkeleton}.tsx` - pill tabs, pages list, shared loading skeleton
+- `frontend/src/components/dashboard/shared/TrendSparkline.tsx` - house-style sparkline primitive (orange line, `.pm-light` tokens)
+- `frontend/src/api/websiteAnalytics.ts` - analytics API client
+- `frontend/src/components/DFYRoute.tsx` - overview-shaped tier-check skeleton
+- `frontend/src/components/onboarding-wizard/wizardConfig.ts` - tab-aware website steps + demo analytics
+- `src/controllers/user-website/UserWebsiteController.ts`, `src/routes/user/website.ts` - `GET /user/website/analytics` endpoint
+- `plans/05312026-no-ticket-websites-tab-cards-overview/spec.md` - spec + 6 revision logs
+
 ## [0.0.94] - May 2026
 
 ### Review Sync OAuth Refresh Hardening
