@@ -47,7 +47,7 @@ export function WebsitePagesTab({
   isLoading = false,
 }: WebsitePagesTabProps) {
   return (
-    <div className="pm-light mx-auto w-full max-w-[1100px] space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+    <div className="pm-light mx-auto w-full max-w-[1320px] space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
       <div>
         <h2 className="font-display text-[22px] font-medium tracking-tight text-alloro-navy">
           Pages
