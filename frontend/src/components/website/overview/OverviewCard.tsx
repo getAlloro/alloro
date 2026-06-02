@@ -81,6 +81,22 @@ export function OverviewCardEmptyState({
   );
 }
 
+/** Colored ▲/▼ delta pill. Green for up, terracotta for down; null hides it. */
+export function TrendPill({ deltaPct }: { deltaPct: number | null }) {
+  if (deltaPct === null || !Number.isFinite(deltaPct)) return null;
+  const up = deltaPct >= 0;
+  return (
+    <span
+      className="inline-flex items-center gap-0.5 text-[11px] font-bold tabular-nums"
+      style={{ color: up ? "#4F8A5B" : "#B3503E" }}
+    >
+      <span aria-hidden>{up ? "▲" : "▼"}</span>
+      {up ? "+" : ""}
+      {Math.round(deltaPct)}%
+    </span>
+  );
+}
+
 /** Big Fraunces stat number + unit, used by the simple count cards. */
 export function OverviewStat({
   value,

@@ -168,3 +168,14 @@ The editor is demoted to `?tab=editor` and lazy-mounts. A new `?tab=pages` list 
 - Added a **Local-Rankings-style intro heading** above the tabs (eyebrow "Web presence" + h1 "Website" + subtitle). Moved Connect Domain + View Live from the `WebsiteOverview` card into this shared header; removed `WebsiteOverview`'s own heading + the 4 domain/liveUrl props.
 **Reason:** Consistency with Local Rankings; declutter; funnel editing through Pages.
 **Verified live (Garrison, user 26):** heading + pill tabs below it (no Editor); domain + View Live in header; Pages → page → focused editor with Back; Back returns to Pages; analytics/5 cards intact; sidebar expanded. `tsc -b` green. (Note: an expired test JWT briefly showed empty data mid-verification — re-minted; not a regression.)
+
+### Rev 5 — 2026-05-31
+**Change:** Reworked the Website Overview from flat number cards to a **performance-first, meaning-led** layout (matches PMS/Rankings), per Dave's ask to show insight over raw numbers.
+- Cream **MeaningHero** leads with the conversion story: "turned {visitors} visitors into {leads} leads — {rate}% conversion rate," score = conversion rate (with "vs {x}% last month"), a Visitors→Leads funnel with ▲/▼ delta pills, and Traffic/Leads drill-in CTAs.
+- Two trend cards (**Traffic**, **Leads**): big number + delta pill + sparkline, each opening a **DetailsModal** (Traffic: sessions/pageviews/visitors/bounce/pages-per-session/avg-visit + daily chart; Leads: this/last/all-time + conversion + 12-mo chart + "View all submissions").
+- Compact **Manage** strip (pages · posts · menus links) replaces the 3 flat count tiles.
+- New pure helper `websiteMetrics.ts`: conversion = verified leads ÷ unique visitors (this month); MoM visitor delta (MTD vs same-day-last-month); leads **pacing** delta (projected full month vs last month). All client-side from existing endpoints — **no backend**.
+- Deleted `AnalyticsCard` + `FormSubmissionsCard` (absorbed into the centralized overview).
+**Decisions (Dave):** hero-led; conversion = leads ÷ unique visitors.
+**Verified live (Garrison):** hero insight ("17 visitors → 0 leads, 0.0% conversion vs 0.5% last month"), funnel + ▼ delta pills, 2 sparklines, Manage strip ("10 pages · 49 posts"), Traffic modal (225 visitors / 234 sessions / 313 page views / 84% bounce / daily chart). My files type-clean.
+**Note:** `tsc -b` is currently red from an UNRELATED uncommitted WIP file (`PMSManualEntryModal.tsx`, +253/−72) — not mine, not touched; zero errors in any file this change touched. Committing only the Website files keeps HEAD clean.
