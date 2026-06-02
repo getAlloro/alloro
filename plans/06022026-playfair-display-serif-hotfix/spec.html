@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Playfair Display Serif Hotfix Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-completed">Completed</span>
+      </div>
+      <h1>Playfair Display Serif Hotfix</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06022026-playfair-display-serif-hotfix</dd></div>
+        <div><dt>Size</dt><dd>Small</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Alloro currently loads and directly references Fraunces for display serif typography. The hotfix replaces that serif identity with Playfair Display so production and dev render the requested brand font consistently.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Replace live Fraunces references with Playfair Display in the frontend font loader, the global display token, direct dashboard card font stacks, and the rankings SVG font stack. Do not rewrite historical plans, changelog entries, generated snapshots, or unrelated serif/sans email fallback stacks.</p>
+      <p><strong>Docs impact:</strong> no Alloro Docs update is required because the hotfix changes only the display font family, not dashboard copy, controls, tooltips, navigation, permissions, or user guidance.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/index.html</code> - Google Fonts loader for the SPA.</li>
+        <li><code>frontend/src/index.css</code> - global <code>--font-display</code> token consumed by <code>.font-display</code>.</li>
+        <li><code>frontend/src/components/dashboard/focus/PMSCard.tsx</code> - direct display serif constant.</li>
+        <li><code>frontend/src/components/dashboard/focus/LocalRankingCard.tsx</code> - direct display serif constant.</li>
+        <li><code>frontend/src/components/dashboard/focus/WebsiteCard.tsx</code> - direct display serif constant.</li>
+        <li><code>frontend/src/components/dashboard/RankingsDashboard.tsx</code> - SVG text font stack.</li>
+        <li><code>frontend/src/components/dashboard/shared/SectionTitle.tsx</code> - live comment naming the display font.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Keep the established <code>font-display</code> utility and update the token behind it rather than touching every consumer.</li>
+        <li>Preserve existing fallback behavior with <code>Literata</code>, <code>Georgia</code>, and generic <code>serif</code> after Playfair Display.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>frontend/src/index.css</code> - existing token-based typography structure.</p>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 - Concern</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li>Direct hardcoded Fraunces stacks bypass the global token. <strong>Mitigation:</strong> replace direct hardcodes and verify no live Fraunces references remain.</li>
+        <li>Font loader mismatch can silently fall back to another serif. <strong>Mitigation:</strong> update the Google Fonts URL and build the frontend.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> authenticated dashboard display headings, focus dashboard product cards, rankings gauge SVG label, and login/signup display headings through <code>font-display</code>.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>This should stay a token swap, not a component sweep. Touching every <code>font-display</code> consumer would create noise and future-us would hate the pointless diff.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Replace Live Fraunces References</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Update the font loader, display token, direct dashboard font stacks, rankings SVG font stack, and live comment text to Playfair Display.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/index.html</code>, <code>frontend/src/index.css</code>, <code>frontend/src/components/dashboard/focus/PMSCard.tsx</code>, <code>frontend/src/components/dashboard/focus/LocalRankingCard.tsx</code>, <code>frontend/src/components/dashboard/focus/WebsiteCard.tsx</code>, <code>frontend/src/components/dashboard/RankingsDashboard.tsx</code>, <code>frontend/src/components/dashboard/shared/SectionTitle.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>None</dd></div>
+          <div><dt>Verify</dt><dd><code>rg -n "Fraunces|fraunces" frontend src</code>, <code>npx tsc --noEmit</code>, <code>cd frontend &amp;&amp; npm run build</code></dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Publish Hotfix</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Commit on a main-based hotfix branch, push, open a PR directly to <code>main</code>, and merge the hotfix into <code>dev/dave</code> without touching unrelated local dirty work.</dd></div>
+          <div><dt>Files</dt><dd>Committed hotfix diff only.</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>PR exists with base <code>main</code>; <code>dev/dave</code> receives the hotfix commit or a merge commit containing it.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> No live Fraunces references remain under <code>frontend</code> or <code>src</code>.</li>
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> has no errors caused by this hotfix.</li>
+        <li><input type="checkbox" checked disabled> <code>cd frontend &amp;&amp; npm run build</code> passes.</li>
+        <li><input type="checkbox" checked disabled> Hotfix branch is pushed and PR targets <code>main</code>.</li>
+        <li><input type="checkbox" checked disabled> Hotfix is merged into <code>dev/dave</code>.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
