@@ -17,6 +17,7 @@ export interface MissionControlOrgBase {
   stripe_subscription_id: string | null;
   stripe_price_id: string | null;
   billing_quantity_override: number | null;
+  archived_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -117,6 +118,7 @@ export class MissionControlModel {
         "stripe_subscription_id",
         "stripe_price_id",
         "billing_quantity_override",
+        "archived_at",
         "created_at",
         "updated_at",
       )
