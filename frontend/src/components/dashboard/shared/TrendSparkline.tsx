@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo } from "react";
 import {
   Area,
   CartesianGrid,
@@ -10,14 +10,13 @@ import {
   YAxis,
 } from "recharts";
 
-const numberFormat = new Intl.NumberFormat("en-US");
-
 /**
  * Shared trend sparkline in the Alloro house chart style (matches
  * PmsProductionChart / GbpEngagementSparkline): orange primary line + gradient
  * wash, optional secondary line, hidden axes with a separate first/middle/last
- * label row, no tooltip box (a dashed cursor drives a headline number the parent
- * renders via `onActiveIndexChange`).
+ * label row, no tooltip box. Hovering drives `onActiveIndexChange` — the PARENT
+ * renders the active point's value/label in its own headline (no floating
+ * tooltip).
  *
  * Must be rendered inside a `.pm-light` wrapper — the `--color-pm-*` tokens used
  * for the grid, dot halos, and labels are dark by default.
@@ -33,12 +32,10 @@ export type TrendSparklineProps = {
   secondaryColor?: string;
   /** Chart body height in px (default 144 → h-36). */
   height?: number;
-  /** Called with the hovered point index, or the last index, or null on leave. */
+  /** Called with the hovered point index, or null on leave. */
   onActiveIndexChange?: (index: number | null) => void;
   /** Render the first/middle/last label row beneath the chart (default true). */
   showLabels?: boolean;
-  /** Formats the value shown in the hover readout (default: comma number). */
-  valueFormatter?: (value: number) => string;
 };
 
 function paddedDomain(values: number[]): [number, number] {
@@ -57,12 +54,8 @@ export function TrendSparkline({
   height = 144,
   onActiveIndexChange,
   showLabels = true,
-  valueFormatter,
 }: TrendSparklineProps) {
   const gradientId = useId().replaceAll(":", "");
-  const [active, setActive] = useState<number | null>(null);
-  const fmtValue =
-    valueFormatter ?? ((v: number) => numberFormat.format(Math.round(v)));
 
   const domain = useMemo(() => {
     const nums: number[] = [];
@@ -83,20 +76,13 @@ export function TrendSparkline({
 
   const handleHover = (state?: { activeTooltipIndex?: number | string | null }) => {
     const nextIndex = Number(state?.activeTooltipIndex);
-    if (Number.isInteger(nextIndex)) {
-      setActive(nextIndex);
-      onActiveIndexChange?.(nextIndex);
-    }
+    if (Number.isInteger(nextIndex)) onActiveIndexChange?.(nextIndex);
   };
-  const handleLeave = () => {
-    setActive(null);
-    onActiveIndexChange?.(null);
-  };
-  const activePoint = active !== null ? data[active] : null;
 
   if (data.length === 0) {
     return (
-      <div className="flex items-center justify-center rounded-[10px] border border-dashed border-line-soft bg-[#FCFAED] text-center text-xs font-bold text-[color:var(--color-pm-text-secondary)]"
+      <div
+        className="flex items-center justify-center rounded-[10px] border border-dashed border-line-soft bg-[#FCFAED] text-center text-xs font-bold text-[color:var(--color-pm-text-secondary)]"
         style={{ height }}
       >
         Trend appears once data is available.
@@ -106,18 +92,13 @@ export function TrendSparkline({
 
   return (
     <div>
-      <div className="relative w-full cursor-crosshair" style={{ height }}>
-        {activePoint ? (
-          <div className="pointer-events-none absolute right-1 top-0 z-10 rounded-md bg-alloro-navy px-2 py-0.5 text-[10px] font-bold tabular-nums text-white shadow-sm">
-            {String(activePoint[labelKey])} · {fmtValue(Number(activePoint[valueKey]))}
-          </div>
-        ) : null}
+      <div className="w-full cursor-crosshair" style={{ height }}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={data}
             margin={{ top: 8, right: 8, bottom: 4, left: 8 }}
             onMouseMove={handleHover}
-            onMouseLeave={handleLeave}
+            onMouseLeave={() => onActiveIndexChange?.(null)}
           >
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">

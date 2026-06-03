@@ -127,6 +127,20 @@ export function WebsiteOverview({
     [analytics, timeseries],
   );
 
+  // Hovering a sparkline point updates the matching headline (no floating chip).
+  const [funnelHover, setFunnelHover] = useState<number | null>(null);
+  const [trafficHover, setTrafficHover] = useState<number | null>(null);
+  const [leadsHover, setLeadsHover] = useState<number | null>(null);
+  const [trafficModalHover, setTrafficModalHover] = useState<number | null>(null);
+  const [leadsModalHover, setLeadsModalHover] = useState<number | null>(null);
+  const funnelPoint = funnelHover !== null ? m.visitorSeries[funnelHover] : null;
+  const trafficPoint = trafficHover !== null ? m.visitorSeries[trafficHover] : null;
+  const leadsPoint = leadsHover !== null ? m.leadSeries[leadsHover] : null;
+  const trafficModalPoint =
+    trafficModalHover !== null ? m.visitorSeries[trafficModalHover] : null;
+  const leadsModalPoint =
+    leadsModalHover !== null ? m.leadSeries[leadsModalHover] : null;
+
   const leadWord = m.monthLeads === 1 ? "lead" : "leads";
   const insight = m.hasAnalytics
     ? `Your website turned ${fmt(m.monthVisitors)} visitors into ${m.monthLeads} ${leadWord} this month — a ${formatConversion(m.conversionRate)} conversion rate.`
@@ -159,9 +173,19 @@ export function WebsiteOverview({
           </div>
           <div className="mt-1.5 flex items-baseline gap-2">
             <span className="font-display text-[30px] font-medium leading-none tracking-tight text-alloro-navy tabular-nums">
-              {m.hasAnalytics ? fmt(m.monthVisitors) : "—"}
+              {funnelPoint
+                ? fmt(funnelPoint.visitors)
+                : m.hasAnalytics
+                  ? fmt(m.monthVisitors)
+                  : "—"}
             </span>
-            <TrendPill deltaPct={m.visitorsDeltaPct} />
+            {funnelPoint ? (
+              <span className="text-[10px] font-semibold text-[color:var(--color-pm-text-secondary)]">
+                {funnelPoint.label}
+              </span>
+            ) : (
+              <TrendPill deltaPct={m.visitorsDeltaPct} />
+            )}
           </div>
         </div>
         <ArrowRight className="h-5 w-5 shrink-0 text-alloro-navy/25" />
@@ -185,6 +209,7 @@ export function WebsiteOverview({
             labelKey="label"
             height={84}
             showLabels={false}
+            onActiveIndexChange={setFunnelHover}
           />
         </div>
       )}
@@ -263,15 +288,17 @@ export function WebsiteOverview({
             <div>
               <div className="flex flex-wrap items-baseline gap-2">
                 <span className="font-display text-[32px] font-medium leading-none tracking-tight text-alloro-navy tabular-nums">
-                  {fmt(m.monthVisitors)}
+                  {trafficPoint ? fmt(trafficPoint.visitors) : fmt(m.monthVisitors)}
                 </span>
                 <span className="text-xs font-medium text-[color:var(--color-pm-text-secondary)]">
-                  visitors
+                  {trafficPoint ? `visitors · ${trafficPoint.label}` : "visitors"}
                 </span>
-                <TrendPill deltaPct={m.visitorsDeltaPct} />
+                {!trafficPoint && <TrendPill deltaPct={m.visitorsDeltaPct} />}
               </div>
               <div className="mt-1 text-xs text-[color:var(--color-pm-text-secondary)]">
-                {fmt(m.monthSessions)} sessions · {fmt(m.monthPageviews)} page views
+                {trafficPoint
+                  ? `${fmt(trafficPoint.sessions)} sessions · ${fmt(trafficPoint.pageviews)} page views`
+                  : `${fmt(m.monthSessions)} sessions · ${fmt(m.monthPageviews)} page views`}
               </div>
               <div className="mt-4">
                 <TrendSparkline
@@ -279,6 +306,7 @@ export function WebsiteOverview({
                   valueKey="visitors"
                   labelKey="label"
                   height={140}
+                  onActiveIndexChange={setTrafficHover}
                 />
               </div>
             </div>
@@ -307,12 +335,12 @@ export function WebsiteOverview({
             <div>
               <div className="flex flex-wrap items-baseline gap-2">
                 <span className="font-display text-[32px] font-medium leading-none tracking-tight text-alloro-navy tabular-nums">
-                  {m.monthLeads}
+                  {leadsPoint ? leadsPoint.leads : m.monthLeads}
                 </span>
                 <span className="text-xs font-medium text-[color:var(--color-pm-text-secondary)]">
-                  leads this month
+                  {leadsPoint ? `leads · ${leadsPoint.label}` : "leads this month"}
                 </span>
-                <TrendPill deltaPct={m.leadsPaceDeltaPct} />
+                {!leadsPoint && <TrendPill deltaPct={m.leadsPaceDeltaPct} />}
               </div>
               <div className="mt-1 text-xs text-[color:var(--color-pm-text-secondary)]">
                 {m.hasAnalytics
@@ -325,6 +353,7 @@ export function WebsiteOverview({
                   valueKey="leads"
                   labelKey="label"
                   height={140}
+                  onActiveIndexChange={setLeadsHover}
                 />
               </div>
             </div>
@@ -397,13 +426,16 @@ export function WebsiteOverview({
           </div>
           <div className="rounded-[14px] border border-line-soft bg-white p-4 shadow-premium">
             <div className="mb-3 font-mono-display text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--color-pm-text-secondary)]">
-              Daily visitors · last {m.rangeDays} days
+              {trafficModalPoint
+                ? `Daily visitors · ${trafficModalPoint.label}: ${fmt(trafficModalPoint.visitors)}`
+                : `Daily visitors · last ${m.rangeDays} days`}
             </div>
             <TrendSparkline
               data={m.visitorSeries}
               valueKey="visitors"
               labelKey="label"
               height={220}
+              onActiveIndexChange={setTrafficModalHover}
             />
           </div>
         </div>
@@ -441,13 +473,16 @@ export function WebsiteOverview({
           </div>
           <div className="rounded-[14px] border border-line-soft bg-white p-4 shadow-premium">
             <div className="mb-3 font-mono-display text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--color-pm-text-secondary)]">
-              Verified leads · last 12 months
+              {leadsModalPoint
+                ? `Verified leads · ${leadsModalPoint.label}: ${leadsModalPoint.leads}`
+                : "Verified leads · last 12 months"}
             </div>
             <TrendSparkline
               data={m.leadSeries}
               valueKey="leads"
               labelKey="label"
               height={220}
+              onActiveIndexChange={setLeadsModalHover}
             />
           </div>
           <button

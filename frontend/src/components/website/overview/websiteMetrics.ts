@@ -28,8 +28,13 @@ export interface WebsiteMetrics {
   /** % change, projected full-month leads vs last month full */
   leadsPaceDeltaPct: number | null;
   prevMonthLeads: number;
-  /** daily visitor series for the sparkline */
-  visitorSeries: Array<{ label: string; visitors: number }>;
+  /** daily visitor series for the sparkline, with per-day breakdown for hover */
+  visitorSeries: Array<{
+    label: string;
+    visitors: number;
+    sessions: number;
+    pageviews: number;
+  }>;
   /** monthly leads series for the sparkline */
   leadSeries: Array<{ label: string; leads: number }>;
   /** totals over the analytics window (for the traffic modal) */
@@ -46,6 +51,15 @@ function shortDate(value: string): string {
   return Number.isNaN(date.getTime())
     ? value
     : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function monthLabel(ym: string): string {
+  const [y, m] = ym.split("-").map(Number);
+  if (!y || !m) return ym;
+  return new Date(y, m - 1, 1).toLocaleDateString(undefined, {
+    month: "short",
+    year: "numeric",
+  });
 }
 
 /**
@@ -129,8 +143,16 @@ export function computeWebsiteMetrics(
     visitorsDeltaPct: meaningfulDelta(monthVisitors, prevVisitorsMtd, 10),
     leadsPaceDeltaPct: meaningfulDelta(leadsPace, prevMonthLeads, 3),
     prevMonthLeads,
-    visitorSeries: daily.map((p) => ({ label: shortDate(p.date), visitors: p.users })),
-    leadSeries: timeseries.map((p) => ({ label: p.month, leads: p.verified })),
+    visitorSeries: daily.map((p) => ({
+      label: shortDate(p.date),
+      visitors: p.users,
+      sessions: p.sessions,
+      pageviews: p.pageviews,
+    })),
+    leadSeries: timeseries.map((p) => ({
+      label: monthLabel(p.month),
+      leads: p.verified,
+    })),
     totals: analytics?.totals ?? null,
     rangeDays: analytics?.dataDays ?? 0,
   };
