@@ -17,6 +17,7 @@ type RankingGap = {
 
 type RankingLlmGuardrailContext = {
   visibleScore?: number | null;
+  searchPosition?: number | null;
 };
 
 const WEBSITE_ACTION_PATTERN =
@@ -113,15 +114,34 @@ function normalizeOwnerRankingLanguage(value: unknown): unknown {
     .replace(/\bon\s+Maps\b/g, "in Local Search");
 }
 
+function normalizeLeadProtectionLanguage(
+  value: unknown,
+  context: RankingLlmGuardrailContext,
+): unknown {
+  if (typeof value !== "string") return value;
+  if (context.searchPosition === 1) return value;
+
+  return value
+    .replace(/\bto protect and improve the position\b/gi, "to improve the position")
+    .replace(/\bprotect and improve the position\b/gi, "improve the position")
+    .replace(/\bto protect the lead\b/gi, "to improve the position")
+    .replace(/\bprotect the lead\b/gi, "improve the position")
+    .replace(/\bprotecting the lead\b/gi, "improving the position")
+    .replace(/\bprotect that lead\b/gi, "improve that position");
+}
+
 function sanitizeText(
   value: unknown,
   context: RankingLlmGuardrailContext,
 ): unknown {
-  return normalizeOwnerRankingLanguage(
-    normalizeVisibleScoreMentions(
-      stripWebsiteActionSentences(value),
-      context.visibleScore,
+  return normalizeLeadProtectionLanguage(
+    normalizeOwnerRankingLanguage(
+      normalizeVisibleScoreMentions(
+        stripWebsiteActionSentences(value),
+        context.visibleScore,
+      ),
     ),
+    context,
   );
 }
 
