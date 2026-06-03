@@ -2,6 +2,30 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.98] - June 2026
+
+### Website Overview Refinements
+
+Refined the Websites tab cards-first overview (added in 0.0.95) for clarity and accuracy: hover-driven chart readouts, a monthly visitor cadence, a daily traffic drill-down that honestly marks gaps, clearer "Leads = form submissions" labeling, a three-column hero funnel, and a fix for an inflated unique-visitor count.
+
+**Key Changes:**
+- Hovering a chart point now updates that card's own headline number and period label (e.g. "Apr 2026") instead of a floating tooltip; month-over-month deltas hide while hovering.
+- Reworked the hero funnel into three columns — Unique visitors, Leads (form submissions), and Conversion rate — that all update on hover, with a three-line trend chart (visitors, submissions, conversion) and color-matched dots.
+- Switched the visitor/traffic cards to a monthly cadence (last 12 months) to match the leads chart; the Traffic detail modal keeps daily resolution and marks days with no data as gaps rather than zeros.
+- Conversion rate is shown as a clear month-to-date figure ("so far this month") with a note that it updates daily; removed the earlier blended "typical" rate.
+- Labeled "Leads" as "(form submissions)" across the funnel and cards so the metric's source is explicit.
+- Filtered no-data months out of the overview cards so charts start at the first month with real data.
+- Fixed an inflated unique-visitor count: monthly/period visitor totals are now fetched as true deduped uniques from Rybbit (a single bucketed query) instead of summing daily uniques, which over-counted repeat visitors by ~10%. Sessions and page views were already accurate. This also corrects (raises) the conversion rate.
+- Form submissions catalog: click any row to open it and drag-and-drop to reorder (replacing the up/down arrows).
+
+**Commits:**
+- `frontend/src/components/website/overview/WebsiteOverview.tsx`, `websiteMetrics.ts`, `OverviewCard.tsx` - 3-column funnel, monthly cadence, no-data filtering, hover readouts, conversion framing, labeling
+- `frontend/src/components/dashboard/shared/TrendSparkline.tsx` - hover-driven headlines, null-gap support, optional third line + area toggle
+- `frontend/src/api/websiteAnalytics.ts` - true per-month unique-visitor field
+- `src/controllers/admin-websites/feature-services/service.rybbit-performance.ts`, `src/controllers/user-website/UserWebsiteController.ts` - live Rybbit per-month/window true-unique queries with stored-data fallback
+- `frontend/src/components/Admin/FormSubmissionsSidebar.tsx`, `FormSubmissionsTab.tsx` - click-to-open + drag-and-drop reorder
+- `plans/05312026-no-ticket-websites-tab-cards-overview/spec.md` - Rev 7–13 plus the data-accuracy finding
+
 ## [0.0.97] - June 2026
 
 ### PMS File Manager
