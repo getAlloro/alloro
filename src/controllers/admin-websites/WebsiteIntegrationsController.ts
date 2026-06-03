@@ -774,14 +774,16 @@ export async function getRybbitStatus(req: Request, res: Response): Promise<Resp
 export async function createRybbitIntegration(req: Request, res: Response): Promise<Response> {
   try {
     const projectId = String(req.params.id);
-    const { siteId, disableSnippetIds } = req.body as {
+    const { siteId, disableSnippetIds, timeZone } = req.body as {
       siteId?: string;
       disableSnippetIds?: string[];
+      timeZone?: string | null;
     };
 
     const result = await rybbitIntegration.saveIntegration(projectId, siteId, {
       connectedBy: "admin",
       disableSnippetIds: Array.isArray(disableSnippetIds) ? disableSnippetIds : [],
+      timeZone,
     });
     return ok(res, result, 201);
   } catch (error) {

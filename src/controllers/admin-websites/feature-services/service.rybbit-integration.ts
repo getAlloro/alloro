@@ -11,6 +11,7 @@ import {
   extractRybbitSiteId,
   isRybbitSnippetCode,
 } from "../feature-utils/util.rybbit-snippet";
+import { isValidIanaTimeZone } from "../../../utils/rybbit/rybbit-time-zone";
 
 const RYBBIT_API_URL = process.env.RYBBIT_API_URL || "";
 const RYBBIT_API_KEY = process.env.RYBBIT_API_KEY || "";
@@ -32,6 +33,7 @@ export interface LegacyRybbitSnippet {
 export interface RybbitStatus {
   integration: IWebsiteIntegrationSafe | null;
   projectSiteId: string | null;
+  projectTimeZone: string | null;
   suggestedSiteId: string | null;
   legacySnippets: LegacyRybbitSnippet[];
   blockingLegacySnippets: LegacyRybbitSnippet[];
@@ -59,6 +61,22 @@ function sanitizeSiteId(value: unknown): string {
     );
   }
   return siteId;
+}
+
+/**
+ * Normalize an admin-supplied timezone. `undefined` leaves the stored value
+ * untouched; `null`/empty clears it (falling back to Eastern); a valid IANA
+ * string sets it. A non-empty invalid value is rejected.
+ */
+function normalizeTimeZoneInput(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === "") return null;
+  if (typeof value === "string" && isValidIanaTimeZone(value)) return value;
+  throw new RybbitIntegrationError(
+    400,
+    "INVALID_TIME_ZONE",
+    "A valid IANA timezone is required",
+  );
 }
 
 function toLegacySnippet(
@@ -130,6 +148,7 @@ export async function getStatus(projectId: string): Promise<RybbitStatus> {
   return {
     integration: integration ?? null,
     projectSiteId: project.rybbit_site_id ?? null,
+    projectTimeZone: project.rybbit_time_zone ?? null,
     suggestedSiteId: getSuggestedSiteId(integration, project, legacySnippets),
     legacySnippets,
     blockingLegacySnippets,
@@ -231,9 +250,11 @@ export async function saveIntegration(
     disableSnippetIds?: string[];
     connectedBy?: IntegrationConnectedBy;
     skipValidation?: boolean;
+    timeZone?: string | null;
   } = {},
 ): Promise<{ integration: IWebsiteIntegrationSafe; status: RybbitStatus }> {
   const siteId = sanitizeSiteId(siteIdInput);
+  const timeZone = normalizeTimeZoneInput(options.timeZone);
   const connectedBy = options.connectedBy ?? "admin";
   const disableSnippetIds = options.disableSnippetIds ?? [];
 
@@ -284,6 +305,10 @@ export async function saveIntegration(
         }, trx);
 
     await ProjectModel.updateRybbitSiteId(projectId, siteId, trx);
+
+    if (timeZone !== undefined) {
+      await ProjectModel.updateRybbitTimeZone(projectId, timeZone, trx);
+    }
 
     if (!saved) {
       throw new RybbitIntegrationError(

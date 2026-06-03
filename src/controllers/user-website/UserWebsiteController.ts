@@ -28,6 +28,7 @@ import {
 } from "../admin-websites/feature-services/service.rybbit-performance";
 import { resolveShortcodes } from "./user-website-services/shortcodeResolver.service";
 import { ProjectModel } from "../../models/website-builder/ProjectModel";
+import { resolveRybbitTimeZone } from "../../utils/rybbit/rybbit-time-zone";
 import { FormSubmissionModel } from "../../models/website-builder/FormSubmissionModel";
 import { WebsiteIntegrationModel } from "../../models/website-builder/WebsiteIntegrationModel";
 import { db } from "../../database/connection";
@@ -697,16 +698,21 @@ export async function getWebsiteAnalytics(
     let monthly: RybbitMonthlyPoint[] = [];
     let liveTotals: RybbitMetricSummary | null = null;
     if (dashboard.fromDate && dashboard.latestReportDate) {
+      const timeZone = resolveRybbitTimeZone(
+        await ProjectModel.getRybbitTimeZone(integration.project_id),
+      );
       const [monthlyResult, totalsResult] = await Promise.all([
         fetchRybbitMonthlyUniques(
           integration,
           dashboard.fromDate,
-          dashboard.latestReportDate
+          dashboard.latestReportDate,
+          timeZone
         ),
         fetchRybbitOverview(
           integration,
           dashboard.fromDate,
-          dashboard.latestReportDate
+          dashboard.latestReportDate,
+          timeZone
         ),
       ]);
       monthly = monthlyResult ?? [];

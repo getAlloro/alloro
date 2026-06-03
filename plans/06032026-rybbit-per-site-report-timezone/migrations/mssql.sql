@@ -1,0 +1,6 @@
+-- N/A — Alloro runs PostgreSQL only (Knex + pg). There is no MSSQL target.
+-- This file exists to satisfy the plan-folder migrations convention; the real
+-- schema change lives in pgsql.sql / knexmigration.js and the knex-TS migration.
+--
+-- For reference, the equivalent MSSQL DDL would be:
+-- ALTER TABLE website_builder.projects ADD rybbit_time_zone NVARCHAR(64) NULL;

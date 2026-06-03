@@ -113,6 +113,7 @@ export interface RybbitLegacySnippet {
 export interface RybbitStatus {
   integration: Integration | null;
   projectSiteId: string | null;
+  projectTimeZone: string | null;
   suggestedSiteId: string | null;
   legacySnippets: RybbitLegacySnippet[];
   blockingLegacySnippets: RybbitLegacySnippet[];
@@ -532,7 +533,7 @@ export const fetchRybbitStatus = (projectId: string) =>
 
 export const createRybbitIntegration = (
   projectId: string,
-  payload: { siteId: string; disableSnippetIds?: string[] },
+  payload: { siteId: string; disableSnippetIds?: string[]; timeZone?: string | null },
 ) =>
   authedPost<Envelope<{ integration: Integration; status: RybbitStatus }>>(
     `/admin/websites/${projectId}/integrations/rybbit`,

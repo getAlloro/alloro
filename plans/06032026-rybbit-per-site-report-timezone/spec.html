@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rybbit Per-Site Report Timezone Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-complete">Completed</span>
+      </div>
+      <h1>Rybbit Per-Site Report Timezone</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed — committed &amp; pushed on dev/dave; migration apply + live Rybbit check are post-deploy ops</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06032026-rybbit-per-site-report-timezone</dd></div>
+        <div><dt>Size</dt><dd>Medium (~12 files)</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Every Rybbit analytics call hardcodes <code>America/New_York</code> as the bucketing timezone for all
+        practices. Day/month boundaries are therefore computed in Eastern time even for practices in Central,
+        Mountain, or Pacific zones, so their daily/monthly buckets do not match what their own staff see in
+        Rybbit's dashboard. Measured impact is small (~0.3% of sessions shift near boundaries, Garrison probe) but
+        it is a real correctness gap for non-Eastern practices, and it now also affects the live unique-visitor
+        queries added 2026-06-03. Deferred from the 2026-06-03 website-overview data-accuracy investigation
+        (<code>plans/05312026-no-ticket-websites-tab-cards-overview/spec.md</code> &rarr; "Data Accuracy Finding");
+        the larger ~10% summing-uniques bug was fixed in commit <code>24ffedba</code>.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Introduce a per-site reporting timezone sourced from a new nullable
+        <code>website_builder.projects.rybbit_time_zone</code> (IANA string), admin-settable through the existing
+        Rybbit integration flow, and thread it through <strong>all four</strong> hardcoded call sites. When unset,
+        every path falls back to <code>America/New_York</code> via one shared default constant &mdash; so existing
+        Eastern practices are byte-for-byte unchanged. Done = no Rybbit request sends a hardcoded zone; each site's
+        daily harvest, historic backfill upper-bound, live overview, live monthly-uniques, and the Proofline/Summary
+        agent comparisons all bucket in that site's configured zone.</p>
+      <p><strong>Pre-decided (Phase 2/3):</strong> Rybbit exposes <em>no</em> per-site timezone (verified against its
+        open-source schema and site-settings docs &mdash; the <code>sites</code> table has no timezone column; the
+        dashboard buckets off the <code>time_zone</code> query param, defaulting to the viewer's browser zone). So
+        "match what the practice sees" resolves to <strong>the practice's local timezone</strong>, and the source
+        must be ours. We also have no existing timezone column anywhere, so the chosen source is a new
+        <code>projects</code> column set by an admin (user-selected over metadata-only, GBP auto-derivation, and
+        WONTFIX).</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files &mdash; the four hardcoded call sites</h3>
+      <ul>
+        <li><code>src/services/integrations/rybbitHarvestAdapter.ts:40</code> &mdash; daily harvest <code>/overview</code> request (integration path; only has <code>integration.project_id</code>, called from <code>dataHarvest.processor.ts:108</code> via the generic <code>IDataHarvestAdapter</code>).</li>
+        <li><code>src/controllers/admin-websites/feature-services/service.rybbit-history.ts:11,99</code> &mdash; <code>RYBBIT_REPORT_TIME_ZONE</code> used by <code>getLatestCompleteRybbitReportDate()</code>; that fn is called exactly once, inside <code>queueHistoricBackfill</code> (line 212), which already holds the integration.</li>
+        <li><code>src/controllers/admin-websites/feature-services/service.rybbit-performance.ts:12,294,316</code> &mdash; <code>fetchRybbitOverview</code> / <code>fetchRybbitMonthlyUniques</code> (live unique queries); both called together from <code>UserWebsiteController.ts:701-706</code>. <code>getDashboard</code> does <em>not</em> use the zone.</li>
+        <li><code>src/utils/rybbit/service.rybbit-data.ts:18,63</code> &mdash; <strong>4th site, not in the original report.</strong> Org-based path (<code>organizationId &rarr; projects.rybbit_site_id</code>) feeding the Proofline daily + Summary monthly agents via <code>service.agent-orchestrator.ts</code>.</li>
+      </ul>
+      <h3>Supporting Files</h3>
+      <ul>
+        <li><code>src/models/website-builder/ProjectModel.ts</code> &mdash; <code>IProject</code>, <code>updateRybbitSiteId</code>; gains the TZ field + accessor.</li>
+        <li><code>src/controllers/admin-websites/feature-services/service.rybbit-integration.ts:227,286</code> &mdash; <code>saveIntegration</code> / <code>getStatus</code>; the admin-set entry point.</li>
+        <li><code>src/controllers/admin-websites/WebsiteIntegrationsController.ts:782</code> &mdash; endpoint <code>POST /admin/websites/:projectId/integrations/rybbit</code>.</li>
+        <li><code>frontend/src/api/integrations.ts</code> (save payload + <code>RybbitStatus</code> type) and <code>frontend/src/components/Admin/integrations/RybbitTab.tsx</code> (the input).</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Knex-TS migration via <code>.withSchema("website_builder").alterTable("projects")</code> with a nullable string column.</li>
+        <li>IANA-zone formatting already exists: <code>getDateInTimeZone</code> in <code>service.rybbit-history.ts</code> &mdash; reuse the <code>Intl.DateTimeFormat</code> approach for validation; no new dependency.</li>
+        <li>Single source of truth mirrors the existing <code>rybbit_site_id</code>-on-<code>projects</code> convention.</li>
+        <li>At execution, invoke the <code>alloro-conventions</code> skill (backend) and <code>alloro-frontend</code> skill (T9) before writing code.</li>
+      </ul>
+      <p><strong>Reference files:</strong> migration analog <code>src/database/migrations/20260312000001_add_rybbit_site_id_to_projects.ts</code>; save-flow analog <code>service.rybbit-integration.ts</code> + <code>ProjectModel.updateRybbitSiteId</code>.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Single source of truth: <code>projects.rybbit_time_zone</code> (nullable IANA string).</li>
+            <li>One shared default constant <code>RYBBIT_DEFAULT_TIME_ZONE = "America/New_York"</code>; every path falls back to it when the column is null.</li>
+            <li>Additive, nullable migration &mdash; no backfill, no default value at the DB level.</li>
+            <li>Validate the admin-supplied IANA zone via <code>Intl</code> before persisting; reject invalid.</li>
+            <li>Update every enumerated caller in the same task that changes a signature (no broken builds mid-plan).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No new npm dependencies &mdash; use the platform <code>Intl</code> API, never a geo/tz library.</li>
+            <li>No automatic re-backfill on TZ change; no geo/GBP auto-derivation.</li>
+            <li>Do not store the zone in <code>website_integrations.metadata</code> (avoids a second source of truth).</li>
+            <li>Do not touch clarity / gsc / hubspot integrations, harvest payload shapes, or unrelated code.</li>
+            <li>No drive-by refactors.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Auto-deriving timezone from GBP <code>business_data</code> / address (possible future prefill, not now).</li>
+        <li>Automatic historic re-harvest when a site's zone changes (manual backfill is the documented op step).</li>
+        <li>Capturing timezone in the onboarding wizard; per-viewer/browser-zone display.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 (Concern). Additive nullable migration + ET fallback = zero regression for existing Eastern practices; the only real edges are a few signature changes and a data-continuity caveat.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Stored-data discontinuity.</strong> Changing a site's zone after history is harvested re-buckets <em>new</em> daily rows differently from existing ET rows. <strong>Mitigation:</strong> after setting a non-Eastern zone, run the existing historic backfill (<code>POST /admin/websites/:projectId/integrations/:id/rybbit/backfill</code>), which clears + re-harvests under the new zone. The live overview / monthly-uniques queries are computed on the fly and need no backfill.</li>
+        <li><strong>Signature changes.</strong> <code>getLatestCompleteRybbitReportDate(now, timeZone)</code>, <code>fetchRybbitOverview</code>/<code>fetchRybbitMonthlyUniques</code> gain a <code>timeZone</code> param, and <code>getRybbitSiteId</code> changes return shape to <code>{ siteId, timeZone }</code>. <strong>Mitigation:</strong> all callers are enumerated below and updated in the same task.</li>
+        <li><strong>Extra read in harvest adapter.</strong> The adapter must look up the project zone by <code>project_id</code> (the generic interface gives it only the integration). <strong>Mitigation:</strong> one indexed PK read per daily harvest job &mdash; negligible; not a hot path.</li>
+        <li><strong>Inert until set.</strong> Non-Eastern practices stay on ET until an admin enters their zone. <strong>Mitigation:</strong> accepted (status quo until then); surface the current zone in <code>getStatus</code> so it is visible.</li>
+      </ul>
+      <p><strong>Blast radius (consumers of changed signatures):</strong> <code>workers/processors/dataHarvest.processor.ts</code>, <code>WebsiteIntegrationsController.ts</code>, <code>UserWebsiteController.ts</code>, <code>controllers/agents/feature-services/service.agent-orchestrator.ts</code> (unchanged &mdash; resolves internally), and frontend <code>RybbitTab.tsx</code>. No other consumers found.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>The measured impact is ~0.3%. This spec is deliberately the lightest correct fix; a geo&rarr;TZ library, a mandatory backfill, or auto-derivation would be gold-plating disproportionate to the gap. Recommended alternative: ship light, revisit auto-prefill only if non-Eastern volume grows.</li>
+        <li>"Admin set" introduces a human dependency (someone must know and enter each non-Eastern practice's zone). The cleaner-feeling auto-derive from GBP was rejected as unreliable (<code>business_data</code> is nullable) and heavier. If that becomes painful, a future task can prefill the field from GBP when present &mdash; without changing this source of truth.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Migration &mdash; add <code>rybbit_time_zone</code> to projects</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Knex-TS migration adding nullable <code>rybbit_time_zone VARCHAR(64)</code> to <code>website_builder.projects</code>. No default, no backfill.</dd></div>
+          <div><dt>Files</dt><dd><code>src/database/migrations/{ts}_add_rybbit_time_zone_to_projects.ts</code> (analog: <code>20260312000001_add_rybbit_site_id_to_projects.ts</code>)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx knex migrate:latest</code> runs clean; column present &amp; nullable</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Shared timezone resolver util</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New <code>src/utils/rybbit/rybbit-time-zone.ts</code> exporting <code>RYBBIT_DEFAULT_TIME_ZONE = "America/New_York"</code>, <code>isValidIanaTimeZone(tz): boolean</code> (try/catch over <code>Intl.DateTimeFormat</code>), and <code>resolveRybbitTimeZone(value): string</code> (valid &rarr; value, else default). This becomes the only literal home for the default zone.</dd></div>
+          <div><dt>Files</dt><dd><code>src/utils/rybbit/rybbit-time-zone.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>; unit sanity (valid zone passes, garbage falls back)</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: ProjectModel &mdash; TZ field + accessors</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>rybbit_time_zone?: string | null</code> to <code>IProject</code>; add <code>getRybbitTimeZone(projectId): Promise&lt;string | null&gt;</code>; persist the zone (extend <code>updateRybbitSiteId</code> to optionally also set it, or add <code>updateRybbitTimeZone</code>).</dd></div>
+          <div><dt>Files</dt><dd><code>src/models/website-builder/ProjectModel.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code></dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Harvest adapter &mdash; per-site zone</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>RybbitHarvestAdapter.fetchData</code>, resolve <code>resolveRybbitTimeZone(await ProjectModel.getRybbitTimeZone(integration.project_id))</code> and use it for <code>time_zone</code>. Remove the hardcoded literal.</dd></div>
+          <div><dt>Files</dt><dd><code>src/services/integrations/rybbitHarvestAdapter.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc --noEmit</code>; Manual: harvest a non-ET probe day, confirm zone in request</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: History service &mdash; per-site latest-complete-date</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Change <code>getLatestCompleteRybbitReportDate(now, timeZone)</code> to take the zone; in <code>queueHistoricBackfill</code> resolve the project zone and pass it; delete the module <code>RYBBIT_REPORT_TIME_ZONE</code> const (use the shared default).</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.rybbit-history.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc --noEmit</code>; backfill bounds correct for a non-ET site near midnight</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Performance live queries &mdash; per-site zone</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>fetchRybbitOverview</code> / <code>fetchRybbitMonthlyUniques</code> take a <code>timeZone: string</code> param; drop the module const. In <code>UserWebsiteController.ts</code> resolve the project zone once and pass it to both calls (701-706).</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.rybbit-performance.ts</code>, <code>src/controllers/user-website/UserWebsiteController.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc --noEmit</code>; live overview/monthly-uniques reflect the site's zone</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: Org-path agents &mdash; per-site zone</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>service.rybbit-data.ts</code>: <code>getRybbitSiteId</code> returns <code>{ siteId, timeZone }</code> (add <code>rybbit_time_zone</code> to the SELECT, resolve via default); <code>fetchRybbitOverview(siteId, start, end, timeZone)</code>; thread the zone through the daily/monthly comparison internals; drop the module const. <code>service.agent-orchestrator.ts</code> callers need no change (resolution stays internal).</dd></div>
+          <div><dt>Files</dt><dd><code>src/utils/rybbit/service.rybbit-data.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc --noEmit</code>; Proofline/Summary comparison output shape unchanged</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T8: Admin set &mdash; backend</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>saveIntegration</code> accepts optional <code>timeZone</code>, validates with <code>isValidIanaTimeZone</code> (reject invalid), persists to <code>projects.rybbit_time_zone</code> in the existing transaction; <code>getStatus</code> surfaces <code>projectTimeZone</code>. <code>WebsiteIntegrationsController.ts:782</code> reads <code>timeZone</code> from the request body and forwards it.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.rybbit-integration.ts</code>, <code>src/controllers/admin-websites/WebsiteIntegrationsController.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc --noEmit</code>; endpoint sets a valid zone, rejects an invalid one, status echoes it</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T9: Admin set &mdash; frontend field</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>api/integrations.ts</code>: add <code>timeZone?</code> to the Rybbit save payload and <code>projectTimeZone</code> to the <code>RybbitStatus</code> type. <code>RybbitTab.tsx</code>: add a timezone input (datalist of common US IANA zones) showing the current value (placeholder "America/New_York" when unset) and send it on save. Invoke the <code>alloro-frontend</code> skill first.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/api/integrations.ts</code>, <code>frontend/src/components/Admin/integrations/RybbitTab.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T8</dd></div>
+          <div><dt>Verify</dt><dd>frontend <code>tsc -b</code> clean; Manual: set a non-ET zone in the Rybbit tab, confirm persisted</dd></div>
+        </dl>
+      </article>
+
+      <p><strong>Parallelization:</strong> T1 &amp; T2 are independent foundation. T3 depends on T1. T4&ndash;T8 depend on T2+T3 and touch disjoint files &mdash; run as parallel sub-agents. T9 depends on T8.</p>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled checked> <code>npx tsc --noEmit</code> (backend) &mdash; zero new errors</li>
+        <li><input type="checkbox" disabled checked> frontend <code>tsc -b</code> clean; eslint clean on changed files</li>
+        <li><input type="checkbox" disabled> <code>npm run db:migrate</code> applies the migration &mdash; <strong>pending: operational, run before go-live</strong></li>
+        <li><input type="checkbox" disabled checked> <code>grep -rn "America/New_York" src</code> over Rybbit code returns only the single default constant in <code>rybbit-time-zone.ts</code></li>
+        <li><input type="checkbox" disabled checked> ET fallback proven: null/invalid zone &rarr; <code>America/New_York</code> (resolver verified); existing Eastern practices unchanged</li>
+        <li><input type="checkbox" disabled checked> Admin set wired end-to-end (validate + persist + surface in status), type-clean &mdash; <em>live UI check pending DB apply</em></li>
+        <li><input type="checkbox" disabled> Manual: set a non-Eastern zone on a probe site, run backfill &rarr; daily buckets shift; live overview &amp; monthly-uniques reflect the new zone &mdash; <strong>pending: needs migrated DB + live Rybbit</strong></li>
+        <li><input type="checkbox" disabled checked> No regression in Proofline daily / Summary monthly agent output shape</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

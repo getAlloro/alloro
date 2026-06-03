@@ -8,8 +8,6 @@ const MAX_ROWS_LIMIT = 100;
 
 const RYBBIT_API_URL = process.env.RYBBIT_API_URL || "";
 const RYBBIT_API_KEY = process.env.RYBBIT_API_KEY || "";
-// Rybbit reports/buckets in this zone (matches the harvest + history services).
-const RYBBIT_REPORT_TIME_ZONE = "America/New_York";
 const LIVE_FETCH_TIMEOUT_MS = 6000;
 
 export interface RybbitMetricSummary {
@@ -285,13 +283,14 @@ export async function fetchRybbitOverview(
   integration: IWebsiteIntegrationSafe,
   startDate: string,
   endDate: string,
+  timeZone: string,
 ): Promise<RybbitMetricSummary | null> {
   const siteId = getSiteId(integration);
   if (!siteId) return null;
   const params = new URLSearchParams({
     start_date: startDate,
     end_date: endDate,
-    time_zone: RYBBIT_REPORT_TIME_ZONE,
+    time_zone: timeZone,
   });
   const payload = await rybbitGet(`/api/sites/${siteId}/overview?${params}`);
   return payload ? metricsFromPayload(payload) : null;
@@ -307,13 +306,14 @@ export async function fetchRybbitMonthlyUniques(
   integration: IWebsiteIntegrationSafe,
   startDate: string,
   endDate: string,
+  timeZone: string,
 ): Promise<RybbitMonthlyPoint[] | null> {
   const siteId = getSiteId(integration);
   if (!siteId) return null;
   const params = new URLSearchParams({
     start_date: startDate,
     end_date: endDate,
-    time_zone: RYBBIT_REPORT_TIME_ZONE,
+    time_zone: timeZone,
     bucket: "month",
   });
   const payload = await rybbitGet(

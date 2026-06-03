@@ -2,6 +2,30 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.100] - June 2026
+
+### Per-Site Rybbit Reporting Timezone
+
+Rybbit analytics day/month buckets were computed in a hardcoded Eastern timezone for every practice, so practices outside Eastern time saw boundaries that didn't match their own Rybbit dashboard (a small ~0.3% near-boundary shift, but a real correctness gap that also touched the new live unique-visitor queries). Practices can now carry their own IANA reporting timezone, threaded through every Rybbit query, with Eastern as the fallback so existing sites are unchanged.
+
+**Key Changes:**
+- Added a per-practice `rybbit_time_zone` (nullable IANA string) on `website_builder.projects`, settable from the admin Rybbit integration tab, falling back to `America/New_York` when unset — zero change for existing Eastern practices.
+- Replaced the hardcoded `America/New_York` in all four Rybbit `time_zone` call sites — daily harvest, historic-backfill date bounds, live unique-visitor queries, and the Proofline/Summary agent comparisons — with the per-site zone resolved through one shared helper.
+- Confirmed Rybbit exposes no per-site timezone of its own (it buckets by the `time_zone` query parameter), so the zone is sourced from our records; admin input is validated against the platform `Intl` API with no new dependency.
+
+**Follow-ups (operational, outside this commit's runtime):**
+- Apply the migration (`npm run db:migrate`) before the feature is active.
+- After setting a non-Eastern zone on an existing site, run the Rybbit historic backfill to re-bucket stored daily rows; live overview/monthly-unique queries need no backfill.
+
+**Commits:**
+- `src/database/migrations/20260603000000_add_rybbit_time_zone_to_projects.ts`, `src/utils/rybbit/rybbit-time-zone.ts` - schema column + shared default/resolver/validator
+- `src/models/website-builder/ProjectModel.ts` - `rybbit_time_zone` field, `getRybbitTimeZone` / `updateRybbitTimeZone`
+- `src/services/integrations/rybbitHarvestAdapter.ts`, `service.rybbit-history.ts`, `service.rybbit-performance.ts`, `src/utils/rybbit/service.rybbit-data.ts` - the four call sites now resolve the per-site zone
+- `src/controllers/user-website/UserWebsiteController.ts` - resolves the zone once for the live unique-visitor queries
+- `service.rybbit-integration.ts`, `WebsiteIntegrationsController.ts` - admin set: validate, persist, surface in status
+- `frontend/src/api/integrations.ts`, `frontend/src/components/Admin/integrations/RybbitTab.tsx` - timezone field + status type
+- `plans/06032026-rybbit-per-site-report-timezone/*` - execution spec
+
 ## [0.0.99] - June 2026
 
 ### Local Rankings Competitor Address Labels

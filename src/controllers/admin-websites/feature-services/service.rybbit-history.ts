@@ -5,10 +5,11 @@ import {
 import { RybbitDataModel } from "../../../models/website-builder/RybbitDataModel";
 import { IntegrationHarvestLogModel } from "../../../models/website-builder/IntegrationHarvestLogModel";
 import { getHarvestQueue } from "../../../workers/queues";
+import { ProjectModel } from "../../../models/website-builder/ProjectModel";
+import { resolveRybbitTimeZone } from "../../../utils/rybbit/rybbit-time-zone";
 
 const RYBBIT_API_URL = process.env.RYBBIT_API_URL || "";
 const RYBBIT_API_KEY = process.env.RYBBIT_API_KEY || "";
-const RYBBIT_REPORT_TIME_ZONE = "America/New_York";
 
 type RybbitSiteMetadata = {
   id?: string;
@@ -95,8 +96,11 @@ function getDateInTimeZone(date: Date, timeZone: string): string {
   return `${lookup.year}-${lookup.month}-${lookup.day}`;
 }
 
-export function getLatestCompleteRybbitReportDate(now: Date = new Date()): string {
-  const todayInRybbitZone = getDateInTimeZone(now, RYBBIT_REPORT_TIME_ZONE);
+export function getLatestCompleteRybbitReportDate(
+  timeZone: string,
+  now: Date = new Date(),
+): string {
+  const todayInRybbitZone = getDateInTimeZone(now, timeZone);
   return addUtcDays(todayInRybbitZone, -1);
 }
 
@@ -209,7 +213,10 @@ export async function queueHistoricBackfill(
 
   const site = await fetchSiteMetadata(siteId);
   const fromDate = getCreatedDate(site);
-  const toDate = getLatestCompleteRybbitReportDate();
+  const timeZone = resolveRybbitTimeZone(
+    await ProjectModel.getRybbitTimeZone(integration.project_id),
+  );
+  const toDate = getLatestCompleteRybbitReportDate(timeZone);
   if (fromDate > toDate) {
     const cleared = await clearExistingHistory(integration);
     return {
