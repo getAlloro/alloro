@@ -8,6 +8,7 @@ import { applyMapping } from "../../../utils/pms/applyColumnMapping";
 import type { MonthlyRollupForJob } from "../../../utils/pms/applyColumnMapping";
 import { signHeaders } from "../../../utils/pms/headerSignature";
 import { finalizePmsJob } from "./pms-finalize.service";
+import { OrganizationLifecycleService } from "../../../services/OrganizationLifecycleService";
 import { uploadToS3, deleteFromS3 } from "../../../utils/core/s3";
 import { buildPmsFileS3Key } from "../pms-utils/pms-file-storage.util";
 import { PmsJobEventModel } from "../../../models/PmsJobEventModel";
@@ -32,6 +33,14 @@ export async function processManualEntry(
   if (!organizationId) {
     const org = await OrganizationModel.findByDomain(domain);
     organizationId = org?.id ?? null;
+  }
+
+  console.log(
+    `[PMS] Manual entry received for domain: ${domain}, orgId: ${organizationId}, months: ${parsedManualData.length}`
+  );
+
+  if (organizationId) {
+    await OrganizationLifecycleService.assertActive(organizationId);
   }
 
   // Use passed locationId if available, otherwise resolve from org
@@ -145,6 +154,10 @@ export async function processFileUpload(
     throw Object.assign(new Error("Uploaded file produced no rows"), {
       statusCode: 400,
     });
+  }
+
+  if (organizationId) {
+    await OrganizationLifecycleService.assertActive(organizationId);
   }
 
   await assertNoActivePmsAutomation(organizationId, locationId);

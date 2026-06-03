@@ -1,6 +1,7 @@
 import axios from "axios";
 import db from "../../../database/connection";
 import { GoogleConnectionModel } from "../../../models/GoogleConnectionModel";
+import { OrganizationLifecycleService } from "../../../services/OrganizationLifecycleService";
 import {
   resetToStep,
   updateAutomationStatus,
@@ -326,6 +327,8 @@ async function retryMonthlyAgents(jobId: number, job: any) {
     );
   }
 
+  await OrganizationLifecycleService.assertActive(job.organization_id);
+
   const account = await GoogleConnectionModel.findOneByOrganization(job.organization_id);
 
   if (!account) {
@@ -434,6 +437,8 @@ export async function restartMonthlyAgents(jobId: number) {
       { statusCode: 400 }
     );
   }
+
+  await OrganizationLifecycleService.assertActive(job.organization_id);
 
   // 2. Get Google account for re-trigger
   const account = await GoogleConnectionModel.findOneByOrganization(

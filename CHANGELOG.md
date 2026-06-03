@@ -50,48 +50,43 @@ Added a location-scoped PMS File Manager for Referrals Hub data so admins and ma
 
 ## [0.0.96] - June 2026
 
-### Spectral Serif Typography Standardization
+### PMS File Manager
 
-Standardized the active frontend serif/display typography on the Google Font Spectral so dashboard, editorial, and chat surfaces no longer mix Fraunces and Literata.
+Added a location-scoped PMS File Manager for Referrals Hub data so admins and managers can upload, inspect, edit, download, overwrite, and soft-delete monthly PMS files without leaving the PMS Statistics workflow.
 
 **Key Changes:**
-- Replaced the SPA Google Fonts serif families with Spectral while preserving Plus Jakarta Sans, Inter, and JetBrains Mono
-- Updated the shared `--font-display` token and hardcoded frontend serif stacks used by dashboard metric cards, Minds chat surfaces, and the Local Rankings health gauge
-- Updated Alloro Docs' display font token and font notes so visual replicas stay aligned with the app
-- Added a completed HTML/CSS plan spec for the typography change
+- Added a compact Manage Data side panel with a latest-completed-month data window, month-specific upload/edit/overwrite actions, file cards, original parsed-data review, download, delete confirmation, and edit history.
+- Replaced the ingestion-card availability grid with a production/referral trend graph; plot points are hoverable/focusable and open the same month-scoped edit or upload flow.
+- Added authenticated PMS file-manager API endpoints with admin/manager write controls, location scoping, processing guards, original-file downloads, edit-event history, and soft-delete handling.
+- Persisted original upload metadata, original parsed PMS snapshots, response-log diffs, uploader/editor/delete attribution, and mutation events while keeping the existing aggregator behavior intact.
+- Removed `.txt` PMS upload support and kept PMS uploads limited to CSV, XLS, and XLSX files.
+- Updated the Referrals Hub docs replica and page guidance for Upload New Data, Manage Data, trend graph interactions, monthly file management, and history/download behavior.
 
 **Commits:**
-- `frontend/index.html` and `frontend/src/index.css` - Spectral loader and display font token
-- `frontend/src/components/dashboard/focus/*`, `frontend/src/components/dashboard/RankingsDashboard.tsx`, and `frontend/src/components/Admin/minds/*` - direct serif stack replacements
-- `/Users/rustinedave/Desktop/alloro-docs/index.html`, `/Users/rustinedave/Desktop/alloro-docs/src/index.css`, and `/Users/rustinedave/Desktop/alloro-docs/CLAUDE.md` - docs parity for the display font
-- `plans/06032026-replace-serif-with-spectral/*` - completed execution spec
+- `frontend/src/components/PMS/dashboard/*`, `frontend/src/components/PMS/file-manager/*`, and `frontend/src/hooks/queries/usePmsFileManagerQueries.ts` - side panel, trend graph, month-slot interactions, file list, history panel, and query wiring
+- `frontend/src/components/PMS/*` and `frontend/src/api/pms.ts` - upload/edit modal reuse, file-type handling, month-scoped upload behavior, and typed PMS API helpers
+- `src/controllers/pms/*`, `src/models/PmsJobModel.ts`, `src/models/PmsJobEventModel.ts`, and `src/routes/pms.ts` - PMS file-manager controllers, services, presenters, storage helpers, mutation guards, event history, and route registration
+- `src/database/migrations/20260602010000_add_pms_file_manager_metadata.ts` - PMS file-manager metadata and event-history schema
+- `/Users/rustinedave/Desktop/alloro-docs/src/components/replicas/ReferralsHubReplica.tsx` and `/Users/rustinedave/Desktop/alloro-docs/src/data/pages/referrals-hub.ts` - documentation parity for the updated Referrals Hub data workflow
+- `plans/06022026-pms-file-manager/*` - completed execution spec and migration notes
 
 ## [0.0.95] - June 2026
 
-### Websites Tab — Cards-First Performance Overview
+### Spectral Serif Typography Standardization
 
-Reworked the DFY Websites tab (`/dfy/website`) from an editor-first landing into an owner-readable performance dashboard, matching the Local Rankings / PMS Statistics pattern. It now opens on a cards overview that leads with the website's conversion story — visitors turning into leads — with the page editor demoted to a focused mode reached from the Pages tab.
+Standardized the active frontend serif/display typography on the Google Font Spectral so dashboard, editorial, and chat surfaces no longer mix older serif stacks.
 
 **Key Changes:**
-- New cards-first **overview** as the default `/dfy/website` view; the page **editor lazy-mounts** behind the Pages tab as a focused editing mode (with a "Back to pages" toolbar), so the dashboard no longer pays the editor's bootstrap cost.
-- New user-facing **Rybbit analytics endpoint** (`GET /api/user/website/analytics`) that reuses the admin Rybbit dashboard service — no new service, model, or migration.
-- **Performance-first layout:** a cream insight hero ("turned X visitors into Y leads — Z% conversion rate") with a Visitors→Leads funnel, a visitor-trend sparkline, and month-over-month delta pills; plus **Traffic** and **Leads** trend cards that open detail modals.
-- **Conversion rate** (verified leads ÷ unique visitors) and month-over-month/pacing deltas computed entirely client-side from existing endpoints — no backend.
-- **Local-Rankings-style pill tab nav** (Overview · Pages · Submissions · Posts · Menus) beneath a "Web presence / Website" heading, scrolling with the content instead of pinned to the top; Connect Domain + View Live moved into the header; the editor-era page selector and edits/storage readout removed.
-- New **Pages list** view; a shared house-style **TrendSparkline**; a **view-aware loading skeleton** (overview shape, not the editor 3-pane) shared by the route guard and the page; sidebar auto-collapses only for the editor.
-- **Owner-readable metrics:** plain-English stat labels with the technical term as a muted parenthetical (e.g. "Left right away (bounce rate)"), and (i) tooltips on every modal metric.
-- Onboarding wizard kept working via tab-aware steps and demo data.
+- Removed the remaining Literata fallback from the SPA font loader, dashboard display token, and Local Rankings gauge stack
+- Updated hardcoded frontend serif stacks used by dashboard metric cards and Minds chat surfaces to Spectral
+- Added the current-week Feature Friyay package and completed HTML/CSS plan spec for the typography change
+- Kept Alloro Docs aligned through a separate docs parity commit
 
 **Commits:**
-- `frontend/src/pages/DFYWebsite.tsx` - overview-default routing, lazy editor + focused-mode toolbar, pill-tab dashboard header, view-aware skeleton, editor-only sidebar collapse, wizard tab-sync
-- `frontend/src/components/website/overview/*` - `WebsiteOverview` (hero + Traffic/Leads cards + drill-in modals + content strip), `websiteMetrics` (conversion + deltas), `OverviewCard`/`TrendPill` shells
-- `frontend/src/components/website/{WebsiteDashboardTabs,WebsitePagesTab,WebsiteLoadingSkeleton}.tsx` - pill tabs, pages list, shared loading skeleton
-- `frontend/src/components/dashboard/shared/TrendSparkline.tsx` - house-style sparkline primitive (orange line, `.pm-light` tokens)
-- `frontend/src/api/websiteAnalytics.ts` - analytics API client
-- `frontend/src/components/DFYRoute.tsx` - overview-shaped tier-check skeleton
-- `frontend/src/components/onboarding-wizard/wizardConfig.ts` - tab-aware website steps + demo analytics
-- `src/controllers/user-website/UserWebsiteController.ts`, `src/routes/user/website.ts` - `GET /user/website/analytics` endpoint
-- `plans/05312026-no-ticket-websites-tab-cards-overview/spec.md` - spec + 6 revision logs
+- `frontend/index.html` and `frontend/src/index.css` - final Spectral loader and display font token cleanup
+- `frontend/src/components/dashboard/focus/*`, `frontend/src/components/dashboard/RankingsDashboard.tsx`, and `frontend/src/components/Admin/minds/*` - direct serif stack replacements
+- `friyays/06-01-2026/*` - current-week Feature Friyay draft package
+- `plans/06032026-replace-serif-with-spectral/*` - completed execution spec
 
 ## [0.0.94] - May 2026
 

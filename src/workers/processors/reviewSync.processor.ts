@@ -93,8 +93,10 @@ export async function processReviewSync(job: Job<ReviewSyncData>): Promise<void>
     // Get all selected GBP properties with their connections
     let query = db("google_properties as gp")
       .join("google_connections as gc", "gp.google_connection_id", "gc.id")
+      .join("organizations as o", "gc.organization_id", "o.id")
       .where("gp.type", "gbp")
       .where("gp.selected", true)
+      .whereNull("o.archived_at")
       .select(
         "gp.id as google_property_id",
         "gp.location_id",

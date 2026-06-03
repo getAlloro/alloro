@@ -9,7 +9,10 @@ import { Response } from "express";
 import { AuthRequest } from "../../middleware/auth";
 import { db } from "../../database/connection";
 import bcrypt from "bcrypt";
-import { OrganizationModel } from "../../models/OrganizationModel";
+import {
+  OrganizationListView,
+  OrganizationModel,
+} from "../../models/OrganizationModel";
 import { OrganizationUserModel } from "../../models/OrganizationUserModel";
 import { UserModel } from "../../models/UserModel";
 import { GoogleConnectionModel } from "../../models/GoogleConnectionModel";
@@ -28,6 +31,13 @@ import {
   previewResetCounts,
   resetOrgData as resetOrgDataService,
 } from "./feature-services/service.reset-org-data";
+import {
+  archiveOrganization as archiveOrganizationService,
+  unarchiveOrganization as unarchiveOrganizationService,
+} from "./feature-services/OrganizationArchiveService";
+import {
+  getOrganizationLifecycleErrorStatus,
+} from "../../services/OrganizationLifecycleService";
 import {
   RESET_GROUP_KEYS,
   ResetGroupKey,
@@ -57,6 +67,14 @@ function handleError(res: Response, error: any, operation: string): Response {
   });
 }
 
+function parseOrganizationListView(value: unknown): OrganizationListView | null {
+  if (value === undefined || value === null || value === "") return "active";
+  if (value === "active" || value === "archived" || value === "all") {
+    return value;
+  }
+  return null;
+}
+
 // =====================================================================
 // Handlers
 // =====================================================================
@@ -70,17 +88,101 @@ export async function listAll(
   res: Response
 ): Promise<Response> {
   try {
-    const organizations = await OrganizationModel.listAll();
+    const view = parseOrganizationListView(req.query.view);
+    if (!view) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid organization view. Use active, archived, or all.",
+      });
+    }
+
+    const organizations = await OrganizationModel.listAll({ view });
 
     const enrichedOrgs =
       await OrganizationEnrichmentService.enrichWithMetadata(organizations);
 
     return res.json({
       success: true,
+      view,
       organizations: enrichedOrgs,
     });
   } catch (error) {
     return handleError(res, error, "Fetch all organizations");
+  }
+}
+
+/**
+ * PATCH /api/admin/organizations/:id/archive
+ * Archive organization and connected operational surfaces.
+ */
+export async function archiveOrganization(
+  req: AuthRequest,
+  res: Response
+): Promise<Response> {
+  try {
+    const orgId = parseInt(req.params.id);
+    if (isNaN(orgId)) {
+      return res.status(400).json({ error: "Invalid organization ID" });
+    }
+
+    const reason =
+      typeof req.body?.reason === "string" ? req.body.reason.trim() : null;
+    const data = await archiveOrganizationService({
+      organizationId: orgId,
+      archivedByUserId: req.user?.userId ?? null,
+      reason,
+    });
+
+    return res.json({
+      success: true,
+      data,
+    });
+  } catch (error: any) {
+    const status = getOrganizationLifecycleErrorStatus(error) ?? error?.statusCode;
+    if (status) {
+      return res.status(status).json({
+        success: false,
+        error: error?.code ?? "ORGANIZATION_ARCHIVE_FAILED",
+        message: error?.message ?? "Failed to archive organization",
+      });
+    }
+    return handleError(res, error, "Archive organization");
+  }
+}
+
+/**
+ * PATCH /api/admin/organizations/:id/unarchive
+ * Restore organization visibility without reconnecting custom domains.
+ */
+export async function unarchiveOrganization(
+  req: AuthRequest,
+  res: Response
+): Promise<Response> {
+  try {
+    const orgId = parseInt(req.params.id);
+    if (isNaN(orgId)) {
+      return res.status(400).json({ error: "Invalid organization ID" });
+    }
+
+    const data = await unarchiveOrganizationService({
+      organizationId: orgId,
+      unarchivedByUserId: req.user?.userId ?? null,
+    });
+
+    return res.json({
+      success: true,
+      data,
+    });
+  } catch (error: any) {
+    const status = getOrganizationLifecycleErrorStatus(error) ?? error?.statusCode;
+    if (status) {
+      return res.status(status).json({
+        success: false,
+        error: error?.code ?? "ORGANIZATION_UNARCHIVE_FAILED",
+        message: error?.message ?? "Failed to unarchive organization",
+      });
+    }
+    return handleError(res, error, "Unarchive organization");
   }
 }
 
@@ -738,6 +840,14 @@ export async function createProject(
       return res.status(404).json({ error: "Organization not found" });
     }
 
+    if (organization.archived_at) {
+      return res.status(423).json({
+        success: false,
+        error: "ORGANIZATION_ARCHIVED",
+        message: "Archived organizations cannot create new website projects.",
+      });
+    }
+
     // Check if project already exists
     const existingProject = await ProjectModel.findByOrganizationId(orgId);
     if (existingProject) {
@@ -933,7 +1043,15 @@ export async function refreshBusinessData(
     );
 
     return res.json({ success: true, business_data: businessData });
-  } catch (error) {
+  } catch (error: any) {
+    const status = getOrganizationLifecycleErrorStatus(error);
+    if (status) {
+      return res.status(status).json({
+        success: false,
+        error: error?.code ?? "ORGANIZATION_UNAVAILABLE",
+        message: error?.message ?? "Organization is unavailable",
+      });
+    }
     return handleError(res, error, "Refresh business data");
   }
 }

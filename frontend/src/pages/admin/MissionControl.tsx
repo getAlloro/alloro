@@ -23,6 +23,10 @@ export default function MissionControl() {
   const missionControlQuery = useAdminMissionControl();
   const refreshMutation = useRefreshAdminMissionControl();
   const data = missionControlQuery.data;
+  const activeOrganizations = useMemo(() => {
+    if (!data) return [];
+    return data.organizations.filter((organization) => !organization.archivedAt);
+  }, [data]);
 
   const organizations = useMemo(() => {
     if (!data) return [];
@@ -80,7 +84,7 @@ export default function MissionControl() {
     <div className="-m-6 min-h-screen bg-[#f6f8fb] px-4 pb-12 pt-6 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-[1600px] flex-col gap-5">
         <MissionControlHeader
-          organizationCount={data.organizations.length}
+          organizationCount={activeOrganizations.length}
           search={search}
           filter={filter}
           isRefreshing={
@@ -146,7 +150,7 @@ export default function MissionControl() {
 
           <aside className="space-y-5">
             <MissionControlRevenueTrend data={data.revenueTrend} />
-            <MissionControlPaymentWatch organizations={data.organizations} />
+            <MissionControlPaymentWatch organizations={activeOrganizations} />
             <MissionControlInsightPanel data={data} />
           </aside>
         </div>
@@ -177,6 +181,8 @@ function filterOrganizations(
         .includes(normalizedSearch);
     })
     .filter((organization) => {
+      if (filter === "archived") return Boolean(organization.archivedAt);
+      if (organization.archivedAt) return false;
       if (filter === "all") return true;
       if (filter === "payment-risk") return organization.riskFlags.length > 0;
       if (filter === "no-payment-method") {

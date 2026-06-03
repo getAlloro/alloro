@@ -46,6 +46,7 @@ export async function executeProoflineAgent(referenceDate?: string): Promise<Pro
   const accounts = await db("google_connections as gc")
     .join("organizations as o", "gc.organization_id", "o.id")
     .where("o.onboarding_completed", true)
+    .whereNull("o.archived_at")
     .select("gc.*", "o.domain as domain_name", "o.name as practice_name");
 
   if (!accounts || accounts.length === 0) {

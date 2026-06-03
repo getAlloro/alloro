@@ -9,6 +9,10 @@ import { getGbpAutomationQueue } from "../../../workers/queues";
 import { GbpAutomationError } from "../feature-utils/GbpAutomationError";
 import { sanitizeGbpUrl } from "../feature-utils/GbpInputSanitizer";
 import { GbpReadinessService } from "./GbpReadinessService";
+import {
+  OrganizationArchivedError,
+  OrganizationLifecycleService,
+} from "../../../services/OrganizationLifecycleService";
 
 const LOCAL_POST_INTERVAL_DAYS = 14;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -47,6 +51,18 @@ function requirePostImageUrl(value: unknown): string {
   return imageUrl;
 }
 
+async function assertOrganizationActive(organizationId: number): Promise<void> {
+  try {
+    await OrganizationLifecycleService.assertActive(organizationId);
+  } catch (error) {
+    if (!(error instanceof OrganizationArchivedError)) throw error;
+    throw new GbpAutomationError(
+      "ORGANIZATION_ARCHIVED",
+      "Archived organizations cannot create GBP post drafts."
+    );
+  }
+}
+
 export class GbpLocalPostScheduleService {
   static async generateNow(params: {
     organizationId: number;
@@ -62,6 +78,7 @@ export class GbpLocalPostScheduleService {
     ) {
       throw new GbpAutomationError("LOCATION_ACCESS_DENIED", "No access to this location.");
     }
+    await assertOrganizationActive(params.organizationId);
     const featuredImageUrl = requirePostImageUrl(params.featuredImageUrl);
     const running = await GbpWorkItemModel.findRunningLocalPostGeneration(
       params.organizationId,

@@ -244,9 +244,9 @@ export async function handleFormSubmission(req: Request, res: Response): Promise
 
     let project;
     if (projectId) {
-      project = await ProjectModel.findById(String(projectId));
+      project = await ProjectModel.findPublicActiveById(String(projectId));
     } else if (hostname) {
-      project = await ProjectModel.findByHostnameOrDomain(String(hostname));
+      project = await ProjectModel.findActiveByHostnameOrDomain(String(hostname));
       if (project) {
         projectId = project.id;
       }

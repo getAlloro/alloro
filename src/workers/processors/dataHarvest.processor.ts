@@ -85,9 +85,9 @@ export async function processDataHarvest(job: Job<DataHarvestJobData>): Promise<
 }
 
 async function harvestSingle(integrationId: string, date: string): Promise<void> {
-  const integration = await WebsiteIntegrationModel.findById(integrationId);
+  const integration = await WebsiteIntegrationModel.findActiveById(integrationId);
   if (!integration || integration.status !== "active") {
-    console.warn(`${LOG_PREFIX} Integration ${integrationId} not found or not active — skipping`);
+    console.warn(`${LOG_PREFIX} Integration ${integrationId} not active or archived — skipping`);
     return;
   }
 

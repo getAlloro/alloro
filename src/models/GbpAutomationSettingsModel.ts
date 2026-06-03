@@ -97,18 +97,31 @@ export class GbpAutomationSettingsModel extends BaseModel {
     limit = 25,
     trx?: QueryContext
   ): Promise<IGbpAutomationSettings[]> {
-    const rows = await this.table(trx)
-      .where({ local_post_generation_enabled: true })
-      .whereNotNull("location_id")
+    const rows = await (trx || db)(`${this.tableName} as gas`)
+      .join("organizations as o", "gas.organization_id", "o.id")
+      .select("gas.*")
+      .where({ "gas.local_post_generation_enabled": true })
+      .whereNotNull("gas.location_id")
+      .whereNull("o.archived_at")
       .where(function () {
-        this.whereNull("next_post_generation_at").orWhere(
-          "next_post_generation_at",
+        this.whereNull("gas.next_post_generation_at").orWhere(
+          "gas.next_post_generation_at",
           "<=",
           now
         );
       })
-      .orderByRaw("next_post_generation_at ASC NULLS FIRST")
+      .orderByRaw("gas.next_post_generation_at ASC NULLS FIRST")
       .limit(Math.min(Math.max(limit, 1), 100));
+    return rows.map((row: IGbpAutomationSettings) => this.deserializeJsonFields(row));
+  }
+
+  static async listByOrganizationId(
+    organizationId: number,
+    trx?: QueryContext
+  ): Promise<IGbpAutomationSettings[]> {
+    const rows = await this.table(trx)
+      .where({ organization_id: organizationId })
+      .orderBy("created_at", "asc");
     return rows.map((row: IGbpAutomationSettings) => this.deserializeJsonFields(row));
   }
 
