@@ -19,9 +19,18 @@ import * as gscIntegration from "../admin-websites/feature-services/service.gsc-
 import * as postManager from "../admin-websites/feature-services/service.post-manager";
 import * as postTypeManager from "../admin-websites/feature-services/service.post-type-manager";
 import * as menuManager from "../admin-websites/feature-services/service.menu-manager";
+import {
+  getDashboard as getRybbitDashboard,
+  fetchRybbitMonthlyUniques,
+  fetchRybbitOverview,
+  type RybbitMonthlyPoint,
+  type RybbitMetricSummary,
+} from "../admin-websites/feature-services/service.rybbit-performance";
 import { resolveShortcodes } from "./user-website-services/shortcodeResolver.service";
 import { ProjectModel } from "../../models/website-builder/ProjectModel";
+import { resolveRybbitTimeZone } from "../../utils/rybbit/rybbit-time-zone";
 import { FormSubmissionModel } from "../../models/website-builder/FormSubmissionModel";
+import { WebsiteIntegrationModel } from "../../models/website-builder/WebsiteIntegrationModel";
 import { db } from "../../database/connection";
 import * as formDetection from "../admin-websites/feature-services/service.form-detection";
 import { upsertFormCatalogPreferences } from "../../services/formCatalogPreferenceService";
@@ -634,6 +643,93 @@ export async function getFormSubmissionStats(
     });
   } catch (error) {
     return handleError(res, error, "Fetch submission stats");
+  }
+}
+
+/** GET /api/user/website/analytics — owner-facing Rybbit performance (slim) */
+export async function getWebsiteAnalytics(
+  req: RBACRequest,
+  res: Response
+): Promise<Response> {
+  try {
+    const orgId = req.organizationId;
+    if (!orgId) return res.status(400).json({ error: "No organization found" });
+
+    const project = await ProjectModel.findByOrganizationId(orgId);
+    if (!project) return res.status(404).json({ error: "No website found" });
+
+    const emptyTotals = {
+      sessions: 0,
+      pageviews: 0,
+      users: 0,
+      bounceRate: 0,
+      pagesPerSession: 0,
+      sessionDuration: 0,
+    };
+
+    const integration = await WebsiteIntegrationModel.findByProjectAndPlatform(
+      project.id,
+      "rybbit"
+    );
+    if (!integration) {
+      return res.json({
+        success: true,
+        hasIntegration: false,
+        latestReportDate: null,
+        dataDays: 0,
+        totals: emptyTotals,
+        daily: [],
+        monthly: [],
+      });
+    }
+
+    // Stored daily series powers the daily traffic modal + is a safe fallback.
+    const dashboard = await getRybbitDashboard(
+      integration,
+      req.query.rangeDays,
+      0,
+      0
+    );
+
+    // TRUE unique visitors come from live Rybbit queries (deduped per period) —
+    // summing the stored daily `users` over-counts repeat visitors by ~10%.
+    // Sessions/pageviews are additive, so the stored daily series stays correct.
+    // Both live calls fall back to stored values on any failure (see helpers).
+    let monthly: RybbitMonthlyPoint[] = [];
+    let liveTotals: RybbitMetricSummary | null = null;
+    if (dashboard.fromDate && dashboard.latestReportDate) {
+      const timeZone = resolveRybbitTimeZone(
+        await ProjectModel.getRybbitTimeZone(integration.project_id),
+      );
+      const [monthlyResult, totalsResult] = await Promise.all([
+        fetchRybbitMonthlyUniques(
+          integration,
+          dashboard.fromDate,
+          dashboard.latestReportDate,
+          timeZone
+        ),
+        fetchRybbitOverview(
+          integration,
+          dashboard.fromDate,
+          dashboard.latestReportDate,
+          timeZone
+        ),
+      ]);
+      monthly = monthlyResult ?? [];
+      liveTotals = totalsResult;
+    }
+
+    return res.json({
+      success: true,
+      hasIntegration: true,
+      latestReportDate: dashboard.latestReportDate,
+      dataDays: dashboard.dataDays,
+      totals: liveTotals ?? dashboard.totals,
+      daily: dashboard.daily,
+      monthly,
+    });
+  } catch (error) {
+    return handleError(res, error, "Fetch website analytics");
   }
 }
 

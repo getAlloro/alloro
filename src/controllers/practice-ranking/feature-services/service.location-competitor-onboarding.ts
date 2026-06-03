@@ -143,6 +143,7 @@ interface CompetitorSnapshot {
   competitors: Array<{
     placeId: string;
     name: string;
+    address: string | null;
     rating: number | null;
     reviewCount: number | null;
     discoveryPosition: number | null;
@@ -511,6 +512,7 @@ function buildSnapshot(
     competitors: competitors.map((competitor) => ({
       placeId: competitor.place_id,
       name: competitor.name,
+      address: competitor.address,
       rating:
         competitor.rating === null || competitor.rating === undefined
           ? null

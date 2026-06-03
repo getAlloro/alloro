@@ -977,33 +977,61 @@ export async function retryBatch(
 
 type CompetitorAddressLookup = Map<string, string | null>;
 
+function getNonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0
+    ? value
+    : null;
+}
+
+function getCompetitorPlaceId(competitor: any): string | null {
+  return (
+    getNonEmptyString(competitor?.placeId) ??
+    getNonEmptyString(competitor?.place_id)
+  );
+}
+
+function getCompetitorAddress(
+  competitor: any,
+  addressesByPlaceId: CompetitorAddressLookup,
+): string | null {
+  const existingAddress = getNonEmptyString(competitor?.address);
+  if (existingAddress) return existingAddress;
+
+  const placeId = getCompetitorPlaceId(competitor);
+  return placeId ? getNonEmptyString(addressesByPlaceId.get(placeId)) : null;
+}
+
 function addCompetitorAddressesToSnapshot(
   ranking: any,
   addressesByPlaceId?: CompetitorAddressLookup,
 ) {
-  if (!addressesByPlaceId || !ranking.competitor_snapshot) return ranking;
+  if (!addressesByPlaceId) return ranking;
 
   const snapshot = parseJsonField(ranking.competitor_snapshot);
-  if (!Array.isArray(snapshot?.competitors)) return ranking;
+  const rawData = parseJsonField(ranking.raw_data);
+  const competitorSnapshot = Array.isArray(snapshot?.competitors)
+    ? {
+        ...snapshot,
+        competitors: snapshot.competitors.map((competitor: any) => ({
+          ...competitor,
+          address: getCompetitorAddress(competitor, addressesByPlaceId),
+        })),
+      }
+    : snapshot;
+  const rawDataWithCompetitorAddresses = Array.isArray(rawData?.competitors)
+    ? {
+        ...rawData,
+        competitors: rawData.competitors.map((competitor: any) => ({
+          ...competitor,
+          address: getCompetitorAddress(competitor, addressesByPlaceId),
+        })),
+      }
+    : rawData;
 
   return {
     ...ranking,
-    competitor_snapshot: {
-      ...snapshot,
-      competitors: snapshot.competitors.map((competitor: any) => {
-        const address =
-          competitor.address ??
-          (typeof competitor.placeId === "string"
-            ? addressesByPlaceId.get(competitor.placeId)
-            : null) ??
-          null;
-
-        return {
-          ...competitor,
-          address,
-        };
-      }),
-    },
+    competitor_snapshot: competitorSnapshot,
+    raw_data: rawDataWithCompetitorAddresses,
   };
 }
 

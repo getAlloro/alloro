@@ -2,6 +2,17 @@
 
 These are repo-local operating notes for `/Users/rustinedave/Desktop/alloro`. They intentionally include only Alloro-specific context. Broader workflow rules can live in `~/.codex/AGENTS.md`.
 
+## Plan Specs
+
+All Alloro plan folders must use the global HTML/CSS spec artifact format:
+
+- Create `spec.html` for the consolidated plan/spec content and `spec.css` for styling.
+- Do not create new `spec.md` files. Legacy `spec.md` files may be read for historical context, but active continued work must be migrated to `spec.html` and `spec.css` before execution.
+- Use `plans/{MMDDYYYY}-{feature-slug}/` for plan folder names. Do not include ticket numbers or placeholder ticket segments.
+- Preserve the old spec structure: Why, What, Context, Constraints, Risk, Tasks, Done, and Revision Log when needed.
+- Use a modern black-and-white visual design with clear cards, strong type hierarchy, restrained borders, and no decorative color palettes.
+- Show the current execution status in the first hero viewport. Default new plans to `Pending Execution`, then update to `In Progress`, `Needs Revision`, `Blocked`, or `Completed` when the work state changes.
+
 ## Deployment Path
 
 Standard promotion path:

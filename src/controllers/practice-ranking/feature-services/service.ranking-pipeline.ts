@@ -1693,6 +1693,7 @@ export async function processLocationRanking(
         return {
           name: details?.name || "Unknown",
           placeId: p.id,
+          address: details?.address || null,
           rankScore: p.competitiveScore,
           rankPosition: p.rankPosition,
           totalReviews: details?.totalReviews || 0,

@@ -1,11 +1,30 @@
-import { AlertCircle, Lock, PenLine, ShieldCheck } from "lucide-react";
+import {
+  AlertCircle,
+  Database,
+  Lock,
+  PenLine,
+} from "lucide-react";
+import { PmsDataTrendGraph } from "./PmsDataTrendGraph";
+
+export type PmsDataAvailabilityMonth = {
+  month: string;
+  label: string;
+  status: "active" | "missing" | "ready";
+  isLatest: boolean;
+  productionTotal: number | null;
+  totalReferrals: number | null;
+};
 
 export type PmsIngestionCardProps = {
   canUploadPMS: boolean;
   hasProperties: boolean;
   isWizardActive: boolean;
   isHighlighted: boolean;
+  canOpenDataManager?: boolean;
+  availabilityMonths?: PmsDataAvailabilityMonth[];
   onOpenManualEntry: () => void;
+  onOpenDataManager?: () => void;
+  onSelectDataMonth?: (month: string) => void;
   onOpenSettings: () => void;
 };
 
@@ -14,7 +33,11 @@ export function PmsIngestionCard({
   hasProperties,
   isWizardActive,
   isHighlighted,
+  canOpenDataManager = false,
+  availabilityMonths = [],
   onOpenManualEntry,
+  onOpenDataManager,
+  onSelectDataMonth,
   onOpenSettings,
 }: PmsIngestionCardProps) {
   const needsProperties = !hasProperties && !isWizardActive;
@@ -23,14 +46,14 @@ export function PmsIngestionCard({
     <section
       id="data-ingestion-hub"
       data-wizard-target="pms-upload"
-      className={`rounded-2xl bg-white p-6 shadow-premium transition-all duration-300 sm:p-8 lg:p-10 ${
+      className={`rounded-[14px] bg-white p-6 shadow-premium transition-all duration-300 sm:p-8 lg:p-10 ${
         isHighlighted
           ? "border-2 border-alloro-orange ring-8 ring-alloro-orange/30"
-          : "border border-slate-200"
+          : "border border-line-soft"
       }`}
     >
       {canUploadPMS ? (
-        <div className="flex flex-col items-center justify-between gap-8 text-center lg:flex-row lg:text-left">
+        <div className="grid gap-8 text-center lg:grid-cols-[minmax(0,1fr)_minmax(380px,520px)] lg:items-start lg:text-left">
           <div className="max-w-2xl">
             <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-alloro-orange/10 text-alloro-orange">
               <PenLine className="h-6 w-6" />
@@ -41,31 +64,40 @@ export function PmsIngestionCard({
             <h2 className="mt-2 font-display text-3xl font-medium tracking-tight text-alloro-navy">
               Update your referral data
             </h2>
-            <p className="mt-3 text-base font-medium leading-7 text-slate-500">
-              Keep this month’s referral and production numbers current. The
-              existing entry flow stays unchanged.
+            <p className="mt-3 text-base font-medium leading-7 text-[color:var(--color-pm-text-secondary)]">
+              Upload your latest month’s referral and production numbers. Re-upload
+              a month you’ve already saved to overwrite its existing entry.
             </p>
           </div>
 
-          <div className="flex shrink-0 flex-col items-center gap-3">
-            <button
-              type="button"
-              onClick={onOpenManualEntry}
-              className="inline-flex items-center gap-3 rounded-2xl bg-alloro-orange px-8 py-4 text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-alloro-orange/20 transition-all duration-200 hover:scale-[1.02] hover:brightness-110 focus:outline-none focus:ring-4 focus:ring-alloro-teal/30"
-            >
-              <PenLine className="h-5 w-5" />
-              Upload month&apos;s data
-            </button>
-            <div className="flex flex-wrap justify-center gap-4 text-[9px] font-black uppercase tracking-widest text-slate-400">
-              <span className="inline-flex items-center gap-2">
-                <Lock className="h-3.5 w-3.5" />
-                HIPAA secure
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <ShieldCheck className="h-3.5 w-3.5 text-green-600" />
-                Encrypted
-              </span>
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={onOpenManualEntry}
+                className="inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-alloro-orange px-5 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-alloro-orange/20 transition-all duration-200 hover:scale-[1.02] hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-alloro-orange/30"
+              >
+                <PenLine className="h-4 w-4" />
+                Upload New Data
+              </button>
+              {canOpenDataManager && onOpenDataManager && (
+                <button
+                  type="button"
+                  onClick={onOpenDataManager}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-line-soft bg-white px-5 py-3 text-xs font-black uppercase tracking-widest text-alloro-navy shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-alloro-orange/40 hover:bg-alloro-orange/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-alloro-orange/25"
+                >
+                  <Database className="h-4 w-4 text-alloro-orange" />
+                  Manage Data
+                </button>
+              )}
             </div>
+
+            {availabilityMonths.length > 0 && (
+              <PmsDataTrendGraph
+                months={availabilityMonths}
+                onSelectMonth={onSelectDataMonth}
+              />
+            )}
           </div>
         </div>
       ) : (
@@ -77,7 +109,7 @@ export function PmsIngestionCard({
             <h2 className="font-display text-2xl font-medium tracking-tight text-alloro-navy">
               {needsProperties ? "Connect properties first" : "Upload restricted"}
             </h2>
-            <p className="mt-2 max-w-md text-sm font-medium leading-6 text-slate-500">
+            <p className="mt-2 max-w-md text-sm font-medium leading-6 text-[color:var(--color-pm-text-secondary)]">
               {needsProperties
                 ? "Connect your Google Business Profile before updating PMS data."
                 : "Only admins and managers can upload PMS data."}

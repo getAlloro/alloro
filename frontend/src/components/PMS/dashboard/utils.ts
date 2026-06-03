@@ -45,3 +45,58 @@ export const getLastMonths = (
   months: PmsDashboardMonth[],
   count: number,
 ): PmsDashboardMonth[] => months.slice(Math.max(months.length - count, 0));
+
+export const PMS_DATA_TREND_GRAPH = {
+  width: 520,
+  height: 178,
+  padX: 26,
+  padY: 18,
+} as const;
+
+export type PmsDataTrendValueKey = "productionTotal" | "totalReferrals";
+
+export type PmsDataTrendValueMonth = Record<PmsDataTrendValueKey, number | null>;
+
+export function getDataTrendGraphX(index: number, count: number) {
+  const { width, padX } = PMS_DATA_TREND_GRAPH;
+  return count <= 1 ? width / 2 : padX + (index / (count - 1)) * (width - 2 * padX);
+}
+
+export function getDataTrendGraphY(value: number | null, max: number) {
+  const { height, padY } = PMS_DATA_TREND_GRAPH;
+  return padY + (1 - (value ?? 0) / Math.max(max * 1.15, 1)) * (height - 2 * padY);
+}
+
+export function getMaxNullableValue(values: Array<number | null>) {
+  return Math.max(...values.filter((value): value is number => value !== null), 0);
+}
+
+export function buildDataTrendGraphSegments<T extends PmsDataTrendValueMonth>(
+  months: T[],
+  key: PmsDataTrendValueKey,
+  max: number
+) {
+  const segments: string[] = [];
+  let current: string[] = [];
+
+  months.forEach((month, index) => {
+    const value = month[key];
+    if (value !== null && value > 0) {
+      current.push(`${getDataTrendGraphX(index, months.length)},${getDataTrendGraphY(value, max)}`);
+    } else if (current.length > 0) {
+      segments.push(current.join(" "));
+      current = [];
+    }
+  });
+
+  if (current.length > 0) segments.push(current.join(" "));
+  return segments;
+}
+
+export function formatDataTrendProduction(value: number | null) {
+  return value === null ? "no production saved" : `${formatCurrency(value)} production`;
+}
+
+export function formatDataTrendReferrals(value: number | null) {
+  return value === null ? "no referrals saved" : `${value.toLocaleString("en-US")} referrals`;
+}

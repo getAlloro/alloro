@@ -1,5 +1,7 @@
 import type { IDataHarvestAdapter, ValidateHarvestResult, HarvestResult } from "./harvest-types";
 import type { IWebsiteIntegrationSafe } from "../../models/website-builder/WebsiteIntegrationModel";
+import { ProjectModel } from "../../models/website-builder/ProjectModel";
+import { resolveRybbitTimeZone } from "../../utils/rybbit/rybbit-time-zone";
 
 const RYBBIT_API_URL = process.env.RYBBIT_API_URL || "";
 const RYBBIT_API_KEY = process.env.RYBBIT_API_KEY || "";
@@ -34,10 +36,13 @@ export class RybbitHarvestAdapter implements IDataHarvestAdapter {
     }
 
     try {
+      const timeZone = resolveRybbitTimeZone(
+        await ProjectModel.getRybbitTimeZone(integration.project_id),
+      );
       const params = new URLSearchParams({
         start_date: date,
         end_date: date,
-        time_zone: "America/New_York",
+        time_zone: timeZone,
       });
       const url = `${RYBBIT_API_URL}/api/sites/${siteId}/overview?${params.toString()}`;
       const resp = await fetch(url, {

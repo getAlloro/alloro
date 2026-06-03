@@ -10,33 +10,43 @@
  */
 
 import { db } from "../../database/connection";
+import { resolveRybbitTimeZone } from "./rybbit-time-zone";
 
 const PROJECTS_TABLE = "website_builder.projects";
 
 const RYBBIT_API_URL = process.env.RYBBIT_API_URL || "";
 const RYBBIT_API_KEY = process.env.RYBBIT_API_KEY || "";
-const RYBBIT_TIME_ZONE = "America/New_York";
 
 // =====================================================================
 // SITE ID LOOKUP
 // =====================================================================
 
+export interface RybbitSiteConfig {
+  siteId: string;
+  /** IANA reporting timezone; falls back to Eastern when unset. */
+  timeZone: string;
+}
+
 /**
- * Look up the Rybbit site ID for an organization.
+ * Look up the Rybbit site ID and reporting timezone for an organization.
  * Returns null if the org has no project or no rybbit_site_id.
  */
-export async function getRybbitSiteId(
+export async function getRybbitSiteConfig(
   organizationId: number
-): Promise<string | null> {
+): Promise<RybbitSiteConfig | null> {
   try {
     const project = await db(PROJECTS_TABLE)
-      .select("rybbit_site_id")
+      .select("rybbit_site_id", "rybbit_time_zone")
       .where("organization_id", organizationId)
       .first();
 
-    return project?.rybbit_site_id || null;
+    if (!project?.rybbit_site_id) return null;
+    return {
+      siteId: project.rybbit_site_id,
+      timeZone: resolveRybbitTimeZone(project.rybbit_time_zone),
+    };
   } catch (err: any) {
-    console.error(`[Rybbit] Error looking up site ID for org ${organizationId}:`, err?.message || err);
+    console.error(`[Rybbit] Error looking up site config for org ${organizationId}:`, err?.message || err);
     return null;
   }
 }
@@ -52,7 +62,8 @@ export async function getRybbitSiteId(
 export async function fetchRybbitOverview(
   siteId: string,
   startDate: string,
-  endDate: string
+  endDate: string,
+  timeZone: string
 ): Promise<any | null> {
   if (!RYBBIT_API_URL || !RYBBIT_API_KEY) {
     console.warn("[Rybbit] Skipping fetch — missing RYBBIT_API_URL or RYBBIT_API_KEY");
@@ -60,7 +71,7 @@ export async function fetchRybbitOverview(
   }
 
   try {
-    const url = `${RYBBIT_API_URL}/api/sites/${siteId}/overview?start_date=${startDate}&end_date=${endDate}&time_zone=${RYBBIT_TIME_ZONE}`;
+    const url = `${RYBBIT_API_URL}/api/sites/${siteId}/overview?start_date=${startDate}&end_date=${endDate}&time_zone=${encodeURIComponent(timeZone)}`;
 
     const response = await fetch(url, {
       headers: {
@@ -108,18 +119,19 @@ export async function fetchRybbitDailyComparison(
   yesterday: string,
   dayBefore: string
 ): Promise<RybbitDailyComparison | null> {
-  const siteId = await getRybbitSiteId(organizationId);
+  const config = await getRybbitSiteConfig(organizationId);
 
-  if (!siteId) {
+  if (!config) {
     console.log(`[Rybbit] No rybbit_site_id for org ${organizationId}, skipping website analytics`);
     return null;
   }
 
+  const { siteId, timeZone } = config;
   console.log(`[Rybbit] Fetching daily comparison for site ${siteId} (${dayBefore} vs ${yesterday})`);
 
   const [yesterdayData, dayBeforeData] = await Promise.all([
-    fetchRybbitOverview(siteId, yesterday, yesterday),
-    fetchRybbitOverview(siteId, dayBefore, dayBefore),
+    fetchRybbitOverview(siteId, yesterday, yesterday, timeZone),
+    fetchRybbitOverview(siteId, dayBefore, dayBefore, timeZone),
   ]);
 
   if (!yesterdayData && !dayBeforeData) {
@@ -153,18 +165,19 @@ export async function fetchRybbitMonthlyComparison(
   previousStart: string,
   previousEnd: string
 ): Promise<RybbitMonthlyComparison | null> {
-  const siteId = await getRybbitSiteId(organizationId);
+  const config = await getRybbitSiteConfig(organizationId);
 
-  if (!siteId) {
+  if (!config) {
     console.log(`[Rybbit] No rybbit_site_id for org ${organizationId}, skipping website analytics`);
     return null;
   }
 
+  const { siteId, timeZone } = config;
   console.log(`[Rybbit] Fetching monthly comparison for site ${siteId} (${previousStart}–${previousEnd} vs ${currentStart}–${currentEnd})`);
 
   const [currentData, previousData] = await Promise.all([
-    fetchRybbitOverview(siteId, currentStart, currentEnd),
-    fetchRybbitOverview(siteId, previousStart, previousEnd),
+    fetchRybbitOverview(siteId, currentStart, currentEnd, timeZone),
+    fetchRybbitOverview(siteId, previousStart, previousEnd, timeZone),
   ]);
 
   if (!currentData && !previousData) {

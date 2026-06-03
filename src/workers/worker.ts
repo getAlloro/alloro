@@ -15,6 +15,7 @@ import { processSeoBulkGenerate } from "./processors/seoBulkGenerate.processor";
 import { processReviewSync } from "./processors/reviewSync.processor";
 import { processApifyReviewFetch } from "./processors/reviewApifyFetch.processor";
 import { processSchedulerTick } from "./processors/scheduler.processor";
+import { processScheduleExec } from "./processors/scheduleExec.processor";
 import { processWebsiteBackup } from "./processors/websiteBackup.processor";
 import { processWebsiteRestore } from "./processors/websiteRestore.processor";
 import { processAuditLeadgen } from "./processors/auditLeadgen.processor";
@@ -38,12 +39,21 @@ const REDIS_PORT = parseInt(process.env.REDIS_PORT || "6379", 10);
 console.log("[MINDS-WORKER] Starting Minds worker process...");
 console.log(`[MINDS-WORKER] Connecting to Redis at ${REDIS_HOST}:${REDIS_PORT}`);
 
-const connection = new IORedis({
-  host: REDIS_HOST,
-  port: REDIS_PORT,
-  maxRetriesPerRequest: null,
-  ...(process.env.REDIS_TLS === "true" && { tls: {} }),
-});
+// Each Worker gets its own Redis connection via makeConnection(). Sharing a single
+// ioredis instance across all ~20 workers funnels every lock-renewal command through
+// one connection; under load those renewals get delayed and surface as
+// "could not renew lock". One connection per worker removes that contention.
+const connections: IORedis[] = [];
+function makeConnection(): IORedis {
+  const conn = new IORedis({
+    host: REDIS_HOST,
+    port: REDIS_PORT,
+    maxRetriesPerRequest: null,
+    ...(process.env.REDIS_TLS === "true" && { tls: {} }),
+  });
+  connections.push(conn);
+  return conn;
+}
 
 // Scrape & Compare worker
 const scrapeCompareWorker = new Worker(
@@ -52,7 +62,7 @@ const scrapeCompareWorker = new Worker(
     await processScrapeCompare(job);
   },
   {
-    connection,
+    connection: makeConnection(),
     concurrency: 1,
     prefix: '{minds}',
   }
@@ -65,7 +75,7 @@ const compilePublishWorker = new Worker(
     await processCompilePublish(job);
   },
   {
-    connection,
+    connection: makeConnection(),
     concurrency: 1,
     prefix: '{minds}',
   }
@@ -78,7 +88,7 @@ const discoveryWorker = new Worker(
     await processDiscovery(job);
   },
   {
-    connection,
+    connection: makeConnection(),
     concurrency: 1,
     prefix: '{minds}',
   }
@@ -95,8 +105,9 @@ const skillTriggerWorker = new Worker(
     }
   },
   {
-    connection,
+    connection: makeConnection(),
     concurrency: 1,
+    lockDuration: 300000, // 5 min — fires a webhook to n8n per due skill; batched but bounded
     prefix: '{minds}',
   }
 );
@@ -108,7 +119,7 @@ const worksDigestWorker = new Worker(
     await processWorksDigest(job);
   },
   {
-    connection,
+    connection: makeConnection(),
     concurrency: 1,
     prefix: '{minds}',
   }
@@ -121,7 +132,7 @@ const seoBulkGenerateWorker = new Worker(
     await processSeoBulkGenerate(job);
   },
   {
-    connection,
+    connection: makeConnection(),
     concurrency: 1,
     prefix: '{minds}',
   }
@@ -191,22 +202,40 @@ const reviewSyncWorker = new Worker(
     }
   },
   {
-    connection,
+    connection: makeConnection(),
     concurrency: 1,
     prefix: '{minds}',
   }
 );
 
-// Scheduler worker (ticks every 60s, checks DB for due schedules)
+// Scheduler worker (ticks every 60s, dispatches due schedules to minds-schedule-exec)
 const schedulerWorker = new Worker(
   "minds-scheduler",
   async (job) => {
     await processSchedulerTick(job);
   },
   {
-    connection,
+    connection: makeConnection(),
     concurrency: 1,
     prefix: '{minds}',
+  }
+);
+
+// Schedule Exec worker — runs a single due schedule's agent handler off the tick.
+// Long lock + parallelism: agent handlers (proofline/ranking over all locations)
+// are multi-minute, so they must not run inside the 60s scheduler tick.
+const scheduleExecWorker = new Worker(
+  "minds-schedule-exec",
+  async (job) => {
+    await processScheduleExec(job);
+  },
+  {
+    connection: makeConnection(),
+    concurrency: 2,
+    lockDuration: 900000, // 15 min — covers worst-case agent run
+    prefix: '{minds}',
+    removeOnComplete: { count: 50 },
+    removeOnFail: { count: 25 },
   }
 );
 
@@ -217,7 +246,7 @@ const wbBackupWorker = new Worker(
     await processWebsiteBackup(job);
   },
   {
-    connection,
+    connection: makeConnection(),
     concurrency: 1,
     prefix: '{wb}',
   }
@@ -230,7 +259,7 @@ const wbRestoreWorker = new Worker(
     await processWebsiteRestore(job);
   },
   {
-    connection,
+    connection: makeConnection(),
     concurrency: 1,
     prefix: '{wb}',
   }
@@ -243,7 +272,7 @@ const wbLayoutsWorker = new Worker(
     await processLayoutGenerate(job);
   },
   {
-    connection,
+    connection: makeConnection(),
     concurrency: 1,
     lockDuration: 600000, // 10 min — 3 Claude calls with tool loops
     prefix: '{wb}',
@@ -259,7 +288,7 @@ const wbIdentityWarmupWorker = new Worker(
     await processIdentityWarmup(job);
   },
   {
-    connection,
+    connection: makeConnection(),
     concurrency: 1,
     lockDuration: 600000, // 10 min — Apify + Claude calls can take a while
     prefix: '{wb}',
@@ -275,7 +304,7 @@ const wbProjectScrapeWorker = new Worker(
     await processProjectScrape(job);
   },
   {
-    connection,
+    connection: makeConnection(),
     concurrency: 1,
     lockDuration: 600000, // 10 min — Apify polling can be slow
     prefix: '{wb}',
@@ -291,7 +320,7 @@ const wbPageGenerateWorker = new Worker(
     await processPageGenerate(job);
   },
   {
-    connection,
+    connection: makeConnection(),
     concurrency: 2,
     lockDuration: 300000, // 5 min per page
     prefix: '{wb}',
@@ -307,7 +336,7 @@ const wbPostImportWorker = new Worker(
     return await processPostImport(job);
   },
   {
-    connection,
+    connection: makeConnection(),
     concurrency: 1,
     lockDuration: 600000, // 10 min — sequential URL scrapes can stack up
     prefix: '{wb}',
@@ -323,7 +352,7 @@ const auditLeadgenWorker = new Worker(
     await processAuditLeadgen(job);
   },
   {
-    connection,
+    connection: makeConnection(),
     concurrency: 3,
     lockDuration: 600000, // 10 min
     prefix: '{audit}',
@@ -340,7 +369,7 @@ const crmHubspotPushWorker = new Worker(
     await processCrmPush(job);
   },
   {
-    connection,
+    connection: makeConnection(),
     concurrency: 3,
     lockDuration: 30000, // 30s — submission pushes are sub-second normally
     prefix: '{crm}',
@@ -356,7 +385,7 @@ const crmMappingValidationWorker = new Worker(
     await processCrmMappingValidation(job);
   },
   {
-    connection,
+    connection: makeConnection(),
     concurrency: 1,
     lockDuration: 600000, // 10 min — could iterate many integrations
     prefix: '{crm}',
@@ -372,7 +401,7 @@ const dataHarvestWorker = new Worker(
     await processDataHarvest(job);
   },
   {
-    connection,
+    connection: makeConnection(),
     concurrency: 1,
     lockDuration: 600000, // 10 min — iterates all active harvest integrations
     prefix: '{harvest}',
@@ -387,9 +416,9 @@ const gbpAutomationWorker = new Worker(
     await processGbpAutomationJob(job);
   },
   {
-    connection,
+    connection: makeConnection(),
     concurrency: 1,
-    lockDuration: 300000,
+    lockDuration: 1200000, // 20 min — sync-local-posts iterates all locations (Google API each); daily cadence, no overlap risk. See spec T4 for the per-location dispatch follow-up.
     prefix: '{gbp}',
     removeOnComplete: { count: 100 },
     removeOnFail: { count: 50 },
@@ -397,7 +426,7 @@ const gbpAutomationWorker = new Worker(
 );
 
 // Event handlers
-for (const worker of [scrapeCompareWorker, compilePublishWorker, discoveryWorker, skillTriggerWorker, worksDigestWorker, seoBulkGenerateWorker, reviewSyncWorker, schedulerWorker, wbBackupWorker, wbRestoreWorker, wbIdentityWarmupWorker, wbLayoutsWorker, wbProjectScrapeWorker, wbPageGenerateWorker, wbPostImportWorker, auditLeadgenWorker, crmHubspotPushWorker, crmMappingValidationWorker, dataHarvestWorker, gbpAutomationWorker]) {
+for (const worker of [scrapeCompareWorker, compilePublishWorker, discoveryWorker, skillTriggerWorker, worksDigestWorker, seoBulkGenerateWorker, reviewSyncWorker, schedulerWorker, scheduleExecWorker, wbBackupWorker, wbRestoreWorker, wbIdentityWarmupWorker, wbLayoutsWorker, wbProjectScrapeWorker, wbPageGenerateWorker, wbPostImportWorker, auditLeadgenWorker, crmHubspotPushWorker, crmMappingValidationWorker, dataHarvestWorker, gbpAutomationWorker]) {
   worker.on("completed", (job) => {
     console.log(`[MINDS-WORKER] Job ${job?.id} completed on queue ${worker.name}`);
   });
@@ -422,6 +451,7 @@ async function shutdown(): Promise<void> {
   await seoBulkGenerateWorker.close();
   await reviewSyncWorker.close();
   await schedulerWorker.close();
+  await scheduleExecWorker.close();
   await wbBackupWorker.close();
   await wbRestoreWorker.close();
   await wbIdentityWarmupWorker.close();
@@ -434,7 +464,7 @@ async function shutdown(): Promise<void> {
   await crmMappingValidationWorker.close();
   await closeWbQueues();
   await gbpAutomationWorker.close();
-  await connection.quit();
+  await Promise.all(connections.map((c) => c.quit()));
   console.log("[MINDS-WORKER] Workers shut down");
   process.exit(0);
 }

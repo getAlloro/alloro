@@ -2,21 +2,16 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ExternalLink,
   AlertCircle,
   Sparkles,
   Link as LinkIcon,
-  Inbox,
+  ExternalLink,
+  ArrowLeft,
   Monitor,
   Smartphone,
-  ChevronDown,
   Undo2,
   Redo2,
   RotateCcw,
-  Check,
-  FileText,
-  Menu as MenuIcon,
-  Pencil,
   Loader2,
   Save,
 } from "lucide-react";
@@ -28,6 +23,13 @@ import FormSubmissionsTab from "../components/Admin/FormSubmissionsTab";
 import PostsTab from "../components/Admin/PostsTab";
 import MenusTab from "../components/Admin/MenusTab";
 import RecipientsConfig from "../components/Admin/RecipientsConfig";
+import { WebsiteOverview } from "../components/website/overview/WebsiteOverview";
+import { WebsitePagesTab } from "../components/website/WebsitePagesTab";
+import { WebsiteLoadingSkeleton } from "../components/website/WebsiteLoadingSkeleton";
+import {
+  WebsiteDashboardTabs,
+  type WebsiteDashboardView,
+} from "../components/website/WebsiteDashboardTabs";
 import {
   renderPage as assemblePageHtml,
   normalizeSections,
@@ -55,7 +57,11 @@ import type { ChatMessage } from "../components/PageEditor/ChatPanel";
 import type { PageVersion } from "../components/PageEditor/VersionHistoryTab";
 import type { Section } from "../api/templates";
 import { useSidebar } from "../components/Admin/SidebarContext";
-import { useIsWizardActive, useWizardDemoData } from "../contexts/OnboardingWizardContext";
+import {
+  useIsWizardActive,
+  useWizardDemoData,
+  useOnboardingWizard,
+} from "../contexts/OnboardingWizardContext";
 
 interface Page {
   id: string;
@@ -82,16 +88,8 @@ interface Project {
   accent_color: string | null;
 }
 
-interface Usage {
-  storage_used: number;
-  storage_limit: number;
-  storage_percentage: number;
-  edits_today: number;
-  edits_limit: number;
-}
-
 const DESKTOP_SCALE = 0.7;
-const WEBSITE_TABS = ["editor", "submissions", "posts", "menus"] as const;
+const WEBSITE_TABS = ["overview", "editor", "submissions", "posts", "menus", "pages"] as const;
 type WebsiteTab = typeof WEBSITE_TABS[number];
 
 function parseWebsiteTab(value: string | null): WebsiteTab | null {
@@ -104,7 +102,7 @@ function getWebsiteTabFromParams(searchParams: URLSearchParams): WebsiteTab {
   return (
     parseWebsiteTab(searchParams.get("tab")) ||
     parseWebsiteTab(searchParams.get("view")) ||
-    "editor"
+    "overview"
   );
 }
 
@@ -117,13 +115,11 @@ export function DFYWebsite() {
   const [project, setProject] = useState<Project | null>(null);
   const [pages, setPages] = useState<Page[]>([]);
   const [selectedPage, setSelectedPage] = useState<Page | null>(null);
-  const [usage, setUsage] = useState<Usage | null>(null);
   const [showDomainModal, setShowDomainModal] = useState(false);
   const activeView = getWebsiteTabFromParams(searchParams);
   const [viewportMode, setViewportMode] = useState<"desktop" | "mobile">(
     "desktop",
   );
-  const [isPageDropdownOpen, setIsPageDropdownOpen] = useState(false);
 
   // Version preview state
   const [previewVersion, setPreviewVersion] = useState<PageVersion | null>(null);
@@ -154,7 +150,7 @@ export function DFYWebsite() {
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.delete("view");
-        if (tab === "editor") {
+        if (tab === "overview") {
           next.delete("tab");
         } else {
           next.set("tab", tab);
@@ -165,16 +161,31 @@ export function DFYWebsite() {
     [setSearchParams],
   );
 
+  // Wizard: drive the active tab so each website tour step spotlights a mounted
+  // view. The editor/submissions targets don't exist on the default overview,
+  // and the editor lazy-mounts — so force the matching tab while the tour runs.
+  const { currentStep: wizardStep } = useOnboardingWizard();
+  useEffect(() => {
+    if (!isWizardActive || !wizardStep || wizardStep.page !== "website") return;
+    if (wizardStep.id === "website-editor") setWebsiteTab("editor");
+    else if (wizardStep.id === "website-submissions") setWebsiteTab("submissions");
+    else if (wizardStep.id === "website-overview") setWebsiteTab("overview");
+  }, [isWizardActive, wizardStep, setWebsiteTab]);
+
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const sectionsRef = useRef(sections);
   sectionsRef.current = sections;
   const deferredEditRef = useRef<DirectEditorOperation | null>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  // Tracks the page whose editor HTML is already assembled, so re-entering the
+  // editor tab (e.g. from the overview) doesn't rebuild and clobber unsaved edits.
+  const assembledPageIdRef = useRef<string | null>(null);
 
-  // Auto-collapse sidebar when entering website editor (like admin PageEditor)
+  // Collapse the sidebar only while the page editor is open; expand it for the
+  // overview and every other (non-editor) view. Restore on unmount.
   useEffect(() => {
-    setCollapsed(true);
-  }, [setCollapsed]);
+    setCollapsed(activeView === "editor");
+    return () => setCollapsed(false);
+  }, [activeView, setCollapsed]);
 
   // Normalize legacy links like ?view=submissions to the new ?tab= permalink.
   useEffect(() => {
@@ -501,17 +512,6 @@ export function DFYWebsite() {
     }
   };
 
-  // Close dropdown on click outside
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setIsPageDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
   // --- Load website data (skip API when wizard is active) ---
   useEffect(() => {
     if (isWizardActive && wizardDemoData) {
@@ -530,6 +530,13 @@ export function DFYWebsite() {
   // --- Assemble preview when page or project changes ---
   useEffect(() => {
     if (!selectedPage || !project) return;
+    // Lazy editor: only build the heavy preview HTML (which also triggers
+    // shortcode resolution) when the editor tab is active. Skip re-assembly for
+    // a page that's already built so returning from the overview/other tabs
+    // preserves unsaved edits.
+    if (activeView !== "editor") return;
+    if (assembledPageIdRef.current === selectedPage.id) return;
+    assembledPageIdRef.current = selectedPage.id;
 
     const pageSections = normalizeSections(selectedPage.sections);
     setSections(pageSections);
@@ -552,7 +559,7 @@ export function DFYWebsite() {
     setRedoStack([]);
     setEditError(null);
     setIsDirty(false);
-  }, [selectedPage, project]);
+  }, [selectedPage, project, activeView]);
 
   const fetchWebsite = async () => {
     try {
@@ -563,7 +570,6 @@ export function DFYWebsite() {
       } else if (data.project) {
         setProject(data.project);
         setPages(data.pages || []);
-        setUsage(data.usage);
 
         if (data.project.is_read_only) {
           setStatus("READ_ONLY");
@@ -935,38 +941,9 @@ export function DFYWebsite() {
     ? chatMap.get(selectedInfo.alloroClass) || []
     : [];
 
-  // --- Loading skeleton ---
+  // --- Loading skeleton (matches the view being loaded) ---
   if (loading) {
-    return (
-      <div className="flex flex-col h-screen bg-alloro-bg animate-pulse">
-        <div className="bg-white border-b border-black/5 px-4 py-3 flex items-center gap-4">
-          <div className="h-6 w-32 bg-slate-200 rounded" />
-          <div className="flex gap-2">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-8 w-20 bg-slate-100 rounded-lg" />
-            ))}
-          </div>
-        </div>
-        <div className="flex flex-1 min-h-0">
-          <div className="flex-1 p-6">
-            <div className="h-full bg-slate-100 rounded-2xl" />
-          </div>
-          <div className="w-96 bg-white border-l border-black/5 p-4 space-y-4">
-            <div className="h-6 w-24 bg-slate-200 rounded" />
-            <div className="h-4 w-48 bg-slate-100 rounded" />
-            <div className="mt-8 space-y-3">
-              {[...Array(3)].map((_, i) => (
-                <div
-                  key={i}
-                  className="h-4 bg-slate-100 rounded"
-                  style={{ width: `${80 - i * 15}%` }}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <WebsiteLoadingSkeleton editor={activeView === "editor"} />;
   }
 
   if (status === "PREPARING") {
@@ -1061,211 +1038,27 @@ export function DFYWebsite() {
         ? `https://${project.hostname}.sites.getalloro.com`
         : null;
 
-  return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      {/* Top Bar */}
-      <div className="bg-white border-b border-gray-200 px-4 py-0 flex items-center gap-0">
-        {/* Left: Editing Page + page selector */}
-        <div className="flex items-center gap-2 shrink-0 mr-3">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-gray-400">
-            <Pencil className="h-3 w-3" />
-            Editing Page:
+  // Shared dashboard header (intro heading + pill tabs + site actions). Rendered
+  // INSIDE each non-editor view's scroll area so it scrolls instead of sticking.
+  const dashboardHeader = (
+    <div className="mx-auto w-full max-w-[1320px] px-4 pt-8 sm:px-6 lg:px-8 lg:pt-10">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-alloro-navy/45">
+            Web presence
           </div>
-          <div className="relative" ref={dropdownRef}>
-            <button
-              onClick={() => setIsPageDropdownOpen((prev) => !prev)}
-              className="flex items-center gap-1.5 pl-2.5 pr-2 py-1 rounded-md text-sm font-semibold text-gray-800 hover:bg-gray-50 focus:outline-none cursor-pointer transition-colors"
-            >
-              <span className="truncate max-w-[140px]">
-                {selectedPage
-                  ? selectedPage.path === "/"
-                    ? "Home"
-                    : selectedPage.path
-                  : "Select page"}
-              </span>
-              <motion.span
-                animate={{ rotate: isPageDropdownOpen ? 180 : 0 }}
-                transition={{ duration: 0.2 }}
-                className="shrink-0"
-              >
-                <ChevronDown size={12} className="text-gray-400" />
-              </motion.span>
-            </button>
-
-            <AnimatePresence>
-              {isPageDropdownOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: -4, scale: 0.97 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -4, scale: 0.97 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute top-full left-0 mt-1 min-w-[180px] bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-50"
-                >
-                  {pages.map((page) => {
-                    const isActive = selectedPage?.id === page.id;
-                    return (
-                      <button
-                        key={page.id}
-                        onClick={() => {
-                          setSelectedPage(page);
-                          setWebsiteTab("editor");
-                          setIsPageDropdownOpen(false);
-                          setPreviewVersion(null);
-                          setPreviewHtmlContent("");
-                        }}
-                        className={`w-full text-left px-3 py-2 text-sm transition-colors flex items-center justify-between ${
-                          isActive
-                            ? "bg-alloro-orange/5 text-alloro-orange font-medium"
-                            : "text-gray-700 hover:bg-gray-50"
-                        }`}
-                      >
-                        <span>{page.path === "/" ? "Home" : page.path}</span>
-                        {isActive && <Check size={14} className="text-alloro-orange shrink-0" />}
-                      </button>
-                    );
-                  })}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+          <h1 className="font-display text-[28px] font-medium tracking-tight text-alloro-navy">
+            Website
+          </h1>
+          <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-alloro-navy/55">
+            Traffic, leads, posts, and pages — manage it all in one place.
+          </p>
         </div>
-
-        <div className="w-px h-5 bg-gray-200 mr-1" />
-
-        {/* Animated View Tabs */}
-        <nav className="flex items-center shrink-0">
-          {(
-            [
-              { key: "editor", icon: Pencil, label: "Editor" },
-              { key: "submissions", icon: Inbox, label: "Submissions" },
-              ...(project?.template_id
-                ? [{ key: "posts" as const, icon: FileText, label: "Posts" }]
-                : []),
-              { key: "menus", icon: MenuIcon, label: "Menus" },
-            ] as const
-          ).map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeView === tab.key;
-            return (
-              <button
-                key={tab.key}
-                onClick={() => setWebsiteTab(tab.key)}
-                className={`relative px-3 py-2.5 text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${
-                  isActive ? "text-alloro-orange" : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                <Icon size={13} />
-                {tab.label}
-                {isActive && (
-                  <motion.div
-                    layoutId="activeTab"
-                    className="absolute bottom-0 left-2 right-2 h-[2px] bg-alloro-orange rounded-full"
-                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                  />
-                )}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Viewport toggle — slides in when on editor tab */}
-        <AnimatePresence>
-          {activeView === "editor" && (
-            <motion.div
-              initial={{ opacity: 0, width: 0 }}
-              animate={{ opacity: 1, width: "auto" }}
-              exit={{ opacity: 0, width: 0 }}
-              transition={{ duration: 0.2 }}
-              className="overflow-hidden flex items-center ml-1"
-            >
-              <div className="flex items-center bg-gray-100 rounded-lg p-0.5 shrink-0">
-                <button
-                  onClick={() => setViewportMode("desktop")}
-                  className={`p-1.5 rounded-md transition-colors ${
-                    viewportMode === "desktop"
-                      ? "bg-white text-gray-900 shadow-sm"
-                      : "text-gray-400 hover:text-gray-600"
-                  }`}
-                  title="Desktop view"
-                >
-                  <Monitor size={13} />
-                </button>
-                <button
-                  onClick={() => setViewportMode("mobile")}
-                  className={`p-1.5 rounded-md transition-colors ${
-                    viewportMode === "mobile"
-                      ? "bg-white text-gray-900 shadow-sm"
-                      : "text-gray-400 hover:text-gray-600"
-                  }`}
-                  title="Mobile view"
-                >
-                  <Smartphone size={13} />
-                </button>
-              </div>
-
-              {/* Undo / Redo */}
-              {(undoStack.length > 0 || redoStack.length > 0) && (
-                <div className="flex items-center gap-0.5 ml-1">
-                  <button
-                    onClick={handleUndo}
-                    disabled={undoStack.length === 0}
-                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                    title="Undo"
-                  >
-                    <Undo2 size={13} />
-                  </button>
-                  <button
-                    onClick={handleRedo}
-                    disabled={redoStack.length === 0}
-                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                    title="Redo"
-                  >
-                    <Redo2 size={13} />
-                  </button>
-                </div>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Spacer */}
-        <div className="flex-1" />
-
-        {/* Right section: save, usage, domain, view live */}
-        <div className="flex items-center gap-2.5 shrink-0">
-          {/* Save button — only visible when dirty */}
-          <AnimatePresence>
-            {isDirty && activeView === "editor" && (
-              <motion.button
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                onClick={handleSave}
-                disabled={isSaving}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-alloro-orange text-white hover:bg-alloro-orange/90 transition-colors disabled:opacity-60 shadow-sm shadow-alloro-orange/20"
-              >
-                {isSaving ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Save className="w-3.5 h-3.5" />
-                )}
-                {isSaving ? "Saving..." : "Save & Publish"}
-              </motion.button>
-            )}
-          </AnimatePresence>
-
-          {usage && (
-            <div className="flex items-center gap-2.5 text-[11px] text-gray-400">
-              <span>
-                {usage.edits_today}/{usage.edits_limit} edits
-              </span>
-              <span>{Math.round(usage.storage_percentage)}% storage</span>
-            </div>
-          )}
-
+        <div className="flex items-center gap-2">
           <button
+            type="button"
             onClick={() => setShowDomainModal(true)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
               project?.custom_domain && project?.domain_verified_at
                 ? "bg-green-50 text-green-700 hover:bg-green-100"
                 : project?.custom_domain
@@ -1273,23 +1066,114 @@ export function DFYWebsite() {
                   : "bg-alloro-orange/10 text-alloro-orange hover:bg-alloro-orange/20"
             }`}
           >
-            <LinkIcon className="w-3 h-3" />
+            <LinkIcon className="h-3.5 w-3.5" />
             {project?.custom_domain || "Connect Domain"}
           </button>
-
           {liveUrl && (
             <a
-              href={`${liveUrl}${selectedPage?.path || ""}`}
+              href={liveUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-alloro-orange transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-line-soft bg-white px-3 py-1.5 text-xs font-semibold text-alloro-navy/70 transition-colors hover:text-alloro-orange"
             >
-              <ExternalLink className="w-3 h-3" />
+              <ExternalLink className="h-3.5 w-3.5" />
               View Live
             </a>
           )}
         </div>
       </div>
+      <div className="mt-6">
+        <WebsiteDashboardTabs
+          activeView={activeView as WebsiteDashboardView}
+          hasPosts={!!project?.template_id}
+          onViewChange={(v) => setWebsiteTab(v)}
+        />
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col h-screen bg-gray-50">
+      {/* Editor toolbar — focused editing mode (reached from the Pages tab) */}
+      {activeView === "editor" && (
+        <div className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-2">
+          <button
+            type="button"
+            onClick={() => setWebsiteTab("pages")}
+            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50 hover:text-alloro-navy"
+          >
+            <ArrowLeft size={15} />
+            Back to pages
+          </button>
+          {selectedPage && (
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="text-gray-400">Editing</span>
+              <span className="font-semibold text-gray-800">
+                {selectedPage.path === "/" ? "Home" : selectedPage.path}
+              </span>
+            </div>
+          )}
+          <div className="flex-1" />
+          <div className="flex items-center rounded-lg bg-gray-100 p-0.5">
+            <button
+              onClick={() => setViewportMode("desktop")}
+              className={`rounded-md p-1.5 transition-colors ${
+                viewportMode === "desktop"
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-400 hover:text-gray-600"
+              }`}
+              title="Desktop view"
+            >
+              <Monitor size={13} />
+            </button>
+            <button
+              onClick={() => setViewportMode("mobile")}
+              className={`rounded-md p-1.5 transition-colors ${
+                viewportMode === "mobile"
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-400 hover:text-gray-600"
+              }`}
+              title="Mobile view"
+            >
+              <Smartphone size={13} />
+            </button>
+          </div>
+          {(undoStack.length > 0 || redoStack.length > 0) && (
+            <div className="flex items-center gap-0.5">
+              <button
+                onClick={handleUndo}
+                disabled={undoStack.length === 0}
+                className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-30"
+                title="Undo"
+              >
+                <Undo2 size={13} />
+              </button>
+              <button
+                onClick={handleRedo}
+                disabled={redoStack.length === 0}
+                className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-30"
+                title="Redo"
+              >
+                <Redo2 size={13} />
+              </button>
+            </div>
+          )}
+          {isDirty && (
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="flex items-center gap-1.5 rounded-lg bg-alloro-orange px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-alloro-orange/20 transition-colors hover:bg-alloro-orange/90 disabled:opacity-60"
+            >
+              {isSaving ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )}
+              {isSaving ? "Saving..." : "Save & Publish"}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Error banner */}
       {editError && (
@@ -1305,8 +1189,33 @@ export function DFYWebsite() {
       )}
 
       {/* Main Content */}
-      {activeView === "submissions" ? (
-        <div className="flex-1 overflow-y-auto p-6 space-y-6" data-wizard-target="website-submissions">
+      {activeView === "overview" ? (
+        <div className="flex-1 overflow-y-auto bg-alloro-bg">
+          {dashboardHeader}
+          <WebsiteOverview
+            pageCount={pages.length}
+            templateId={project?.template_id ?? null}
+            onOpenTab={(tab) => setWebsiteTab(tab)}
+          />
+        </div>
+      ) : activeView === "pages" ? (
+        <div className="flex-1 overflow-y-auto bg-alloro-bg">
+          {dashboardHeader}
+          <WebsitePagesTab
+            pages={pages}
+            onOpenPage={(pageId) => {
+              const target = pages.find((p) => p.id === pageId);
+              if (target) setSelectedPage(target);
+              setPreviewVersion(null);
+              setPreviewHtmlContent("");
+              setWebsiteTab("editor");
+            }}
+          />
+        </div>
+      ) : activeView === "submissions" ? (
+        <div className="flex-1 overflow-y-auto bg-alloro-bg" data-wizard-target="website-submissions">
+          {dashboardHeader}
+          <div className="mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-6 lg:px-8">
           {project && (
             <>
               <FormSubmissionsTab
@@ -1338,9 +1247,12 @@ export function DFYWebsite() {
 	              />
             </>
           )}
+          </div>
         </div>
       ) : activeView === "posts" ? (
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto bg-alloro-bg">
+          {dashboardHeader}
+          <div className="mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-6 lg:px-8">
           {project && project.template_id && (
             <PostsTab
               projectId={project.id}
@@ -1359,9 +1271,12 @@ export function DFYWebsite() {
               updatePostSeoFn={userUpdatePostSeo}
             />
           )}
+          </div>
         </div>
       ) : activeView === "menus" ? (
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto bg-alloro-bg">
+          {dashboardHeader}
+          <div className="mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-6 lg:px-8">
           {project && (
             <MenusTab
               projectId={project.id}
@@ -1380,6 +1295,7 @@ export function DFYWebsite() {
               fetchPostTypesFn={userFetchPostTypes}
             />
           )}
+          </div>
         </div>
       ) : (
         <div className="flex flex-1 min-h-0 overflow-hidden" data-wizard-target="website-editor">

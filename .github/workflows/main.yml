@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
 
+# Serialize deploys so overlapping runs never race on TARGET_DIR (the cause of
+# intermittent "rm: ... Directory not empty" failures in the clean step).
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -14,10 +20,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
 
@@ -126,8 +132,16 @@ jobs:
           key: ${{ secrets.EC2_KEY }}
           script: |
             set -euo pipefail
-            rm -rf "${{ env.TARGET_DIR }}"/*
             mkdir -p "${{ env.TARGET_DIR }}"
+            # Atomically move the previous release aside, then delete it best-effort.
+            # A direct `rm -rf "$TARGET_DIR"/*` races with the live app / overlapping
+            # deploys and intermittently dies with "Directory not empty"; renaming the
+            # top-level entries is atomic and never blocks the deploy on deleting a
+            # deep, possibly root-owned node_modules tree before the new release lands.
+            TRASH="${{ env.TARGET_DIR }}/.trash-$$"
+            mkdir -p "$TRASH"
+            find "${{ env.TARGET_DIR }}" -mindepth 1 -maxdepth 1 ! -name '.trash-*' -exec mv -t "$TRASH" {} +
+            rm -rf "${{ env.TARGET_DIR }}"/.trash-* 2>/dev/null || echo "WARN: some leftover files could not be removed; they will be swept on the next deploy"
 
       # 🚀 Upload backend with frontend included
       - name: Upload bundle to EC2

@@ -49,11 +49,56 @@ function calculateNextRunAt(
   }
 }
 
+type DueSkill = Awaited<ReturnType<typeof MindSkillModel.findDueSkills>>[number];
+
+// How many skills to fire concurrently. Each fires a webhook to n8n, so bound
+// concurrency rather than running fully sequential (slow) or unbounded (thundering herd).
+const SKILL_TRIGGER_CONCURRENCY = 5;
+
+/**
+ * Create the work run + fire the webhook for a single due skill.
+ * Self-contained error handling so one bad skill never blocks the others.
+ */
+async function processSingleSkill(skill: DueSkill): Promise<void> {
+  try {
+    // Create work run
+    const workRun = await SkillWorkRunModel.create({
+      skill_id: skill.id,
+      triggered_by: "schedule",
+      status: "pending",
+      artifact_type: skill.work_creation_type,
+      artifact_attachment_type: skill.artifact_attachment_type || null,
+    });
+
+    console.log(
+      `[SKILL-TRIGGER] Created work run ${workRun.id} for skill "${skill.name}"`
+    );
+
+    // Fire webhook
+    await fireWorkCreationWebhook(workRun.id, skill);
+
+    // Update run timestamps
+    const now = new Date();
+    const nextRunAt = calculateNextRunAt(
+      skill.trigger_type,
+      skill.trigger_config
+    );
+    await MindSkillModel.updateRunTimestamps(skill.id, now, nextRunAt);
+  } catch (err: any) {
+    console.error(
+      `[SKILL-TRIGGER] Error processing skill "${skill.name}":`,
+      err
+    );
+    // Don't stop processing other skills
+  }
+}
+
 /**
  * Skill Trigger Processor — runs every 5 minutes.
- * Checks for skills due to fire and creates work runs.
+ * Checks for skills due to fire and creates work runs. Fires in bounded batches so
+ * total wall-time doesn't scale linearly with due-skill count and blow the lock.
  */
-export async function processSkillTrigger(job: Job): Promise<void> {
+export async function processSkillTrigger(_job: Job): Promise<void> {
   console.log("[SKILL-TRIGGER] Checking for due skills...");
 
   try {
@@ -66,38 +111,9 @@ export async function processSkillTrigger(job: Job): Promise<void> {
 
     console.log(`[SKILL-TRIGGER] Found ${dueSkills.length} due skill(s).`);
 
-    for (const skill of dueSkills) {
-      try {
-        // Create work run
-        const workRun = await SkillWorkRunModel.create({
-          skill_id: skill.id,
-          triggered_by: "schedule",
-          status: "pending",
-          artifact_type: skill.work_creation_type,
-          artifact_attachment_type: skill.artifact_attachment_type || null,
-        });
-
-        console.log(
-          `[SKILL-TRIGGER] Created work run ${workRun.id} for skill "${skill.name}"`
-        );
-
-        // Fire webhook
-        await fireWorkCreationWebhook(workRun.id, skill);
-
-        // Update run timestamps
-        const now = new Date();
-        const nextRunAt = calculateNextRunAt(
-          skill.trigger_type,
-          skill.trigger_config
-        );
-        await MindSkillModel.updateRunTimestamps(skill.id, now, nextRunAt);
-      } catch (err: any) {
-        console.error(
-          `[SKILL-TRIGGER] Error processing skill "${skill.name}":`,
-          err
-        );
-        // Don't stop processing other skills
-      }
+    for (let i = 0; i < dueSkills.length; i += SKILL_TRIGGER_CONCURRENCY) {
+      const batch = dueSkills.slice(i, i + SKILL_TRIGGER_CONCURRENCY);
+      await Promise.allSettled(batch.map((skill) => processSingleSkill(skill)));
     }
   } catch (err: any) {
     console.error("[SKILL-TRIGGER] Fatal error:", err);

@@ -10,7 +10,9 @@ import { parseJsonField } from "./util.json-parser";
 
 type SearchResultEntry = {
   placeId?: string;
+  place_id?: string;
   name?: string;
+  address?: string | null;
   position?: number;
   rating?: number;
   reviewCount?: number;
@@ -21,6 +23,7 @@ type SearchResultEntry = {
 
 type CompetitorSnapshotEntry = {
   placeId?: string;
+  place_id?: string;
   name?: string;
   address?: string | null;
   rating?: number | null;
@@ -38,6 +41,14 @@ type CompetitorSnapshotEntry = {
 type CompetitorSnapshot = {
   competitors?: CompetitorSnapshotEntry[];
 };
+
+function getStringValue(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function getPlaceId(value: { placeId?: string; place_id?: string }): string | null {
+  return getStringValue(value.placeId) ?? getStringValue(value.place_id);
+}
 
 function haversineMiles(
   from: { lat: number; lng: number },
@@ -69,8 +80,9 @@ function buildSelectedCompetitorSearchResults(ranking: any) {
   const searchByPlaceId = new Map<string, SearchResultEntry>();
   if (Array.isArray(searchResults)) {
     for (const result of searchResults as SearchResultEntry[]) {
-      if (typeof result?.placeId === "string") {
-        searchByPlaceId.set(result.placeId, result);
+      const placeId = getPlaceId(result);
+      if (placeId) {
+        searchByPlaceId.set(placeId, result);
       }
     }
   }
@@ -89,10 +101,9 @@ function buildSelectedCompetitorSearchResults(ranking: any) {
       : Number(ranking.search_lng);
 
   const mapped = selected.map((competitor, index) => {
+    const competitorPlaceId = getPlaceId(competitor);
     const match =
-      typeof competitor.placeId === "string"
-        ? searchByPlaceId.get(competitor.placeId)
-        : undefined;
+      competitorPlaceId !== null ? searchByPlaceId.get(competitorPlaceId) : undefined;
     const measuredPosition =
       typeof match?.position === "number" && Number.isFinite(match.position)
         ? match.position
@@ -117,7 +128,7 @@ function buildSelectedCompetitorSearchResults(ranking: any) {
         : null;
 
     return {
-      placeId: competitor.placeId ?? null,
+      placeId: competitorPlaceId,
       name: match?.name ?? competitor.name ?? "Selected competitor",
       position: measuredPosition,
       status: measuredPosition
@@ -134,7 +145,7 @@ function buildSelectedCompetitorSearchResults(ranking: any) {
           ? match.reviewCount
           : competitor.reviewCount ?? null,
       primaryType: match?.primaryType ?? null,
-      address: competitor.address ?? null,
+      address: getStringValue(competitor.address) ?? getStringValue(match?.address),
       discoveryPosition: competitor.discoveryPosition ?? null,
       distanceMiles,
       profileStrengthScore: competitor.profileStrengthScore ?? null,

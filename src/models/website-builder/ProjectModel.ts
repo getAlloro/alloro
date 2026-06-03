@@ -19,6 +19,7 @@ export interface IProject {
   template_id: string | null;
   status: string;
   rybbit_site_id?: string | null;
+  rybbit_time_zone?: string | null;
   domain_verified_at?: Date | null;
   settings: Record<string, unknown> | null;
   primary_color: string | null;
@@ -104,6 +105,30 @@ export class ProjectModel extends BaseModel {
       .where({ id: projectId })
       .update({
         rybbit_site_id: siteId,
+        updated_at: new Date(),
+      });
+  }
+
+  static async getRybbitTimeZone(
+    projectId: string,
+    trx?: QueryContext,
+  ): Promise<string | null> {
+    const row = await this.table(trx)
+      .select("rybbit_time_zone")
+      .where({ id: projectId })
+      .first();
+    return row?.rybbit_time_zone ?? null;
+  }
+
+  static async updateRybbitTimeZone(
+    projectId: string,
+    timeZone: string | null,
+    trx?: QueryContext,
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id: projectId })
+      .update({
+        rybbit_time_zone: timeZone,
         updated_at: new Date(),
       });
   }

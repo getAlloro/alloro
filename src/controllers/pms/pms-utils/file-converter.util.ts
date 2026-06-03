@@ -25,13 +25,13 @@ export async function convertCsvToJson(csvData: string): Promise<any[]> {
 
 /**
  * Convert a multer file buffer to JSON array.
- * Handles CSV, TXT, XLSX, and XLS formats.
+ * Handles CSV, XLSX, and XLS formats.
  */
 export async function convertFileToJson(file: Express.Multer.File): Promise<any[]> {
   const fileName = file.originalname.toLowerCase();
   let csvData: string;
 
-  if (fileName.endsWith(".csv") || fileName.endsWith(".txt")) {
+  if (fileName.endsWith(".csv")) {
     csvData = file.buffer.toString("utf-8");
   } else if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
     csvData = convertExcelToCsv(file.buffer);

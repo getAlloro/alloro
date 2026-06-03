@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Local Rankings Competitor Address Labels Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-completed">Completed</span>
+      </div>
+      <h1>Local Rankings Competitor Address Labels</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06032026-local-rankings-competitor-address-labels</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Falls Church Local Rankings shows repeated competitor names like "Dominion Endodontics" without enough context, making distinct GBP or Maps locations look like duplicate rows. The ranking is not necessarily wrong; the identity label is incomplete.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Show competitor addresses as the secondary identity line in the Local Rankings competitor comparison table, including rows inside the Practice Health comparison modal/table. Keep ranking order, scores, and inclusion unchanged. Category remains a fallback only when no address is available.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/components/dashboard/RankingsDashboard.tsx</code> - owns the Local Rankings dashboard and renders the competitor comparison section.</li>
+        <li><code>frontend/src/components/dashboard/rankings/competitorComparison.ts</code> - builds comparison rows and needs address propagation from every source path.</li>
+        <li><code>frontend/src/components/dashboard/rankings/CompetitorComparisonTable.tsx</code> - renders the Practice column and already supports truncated secondary text with a tooltip.</li>
+        <li><code>frontend/src/api/practiceRanking.ts</code> - frontend response types for selected and raw competitor payloads.</li>
+        <li><code>src/controllers/practice-ranking/feature-utils/util.ranking-formatter.ts</code> - formats latest ranking responses and selected competitor search results.</li>
+        <li><code>src/controllers/practice-ranking/PracticeRankingController.ts</code> - enriches latest ranking snapshots from active <code>location_competitors</code>.</li>
+        <li><code>src/controllers/practice-ranking/feature-services/service.ranking-pipeline.ts</code> - persists future <code>raw_data.competitors</code>.</li>
+        <li><code>src/controllers/practice-ranking/feature-services/service.location-competitor-onboarding.ts</code> - freezes selected competitor snapshots.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Treat addresses as display-only metadata.</li>
+        <li>Prefer existing <code>placeId</code>-keyed enrichment from <code>location_competitors</code> over rerunning discovery or scraping.</li>
+        <li>Keep table truncation plus full-value tooltip behavior from the existing comparison table.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>frontend/src/components/dashboard/rankings/CompetitorComparisonTable.tsx</code> - closest display analog for row structure and tooltip behavior.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Show a full-width truncated address under the practice name where available.</li>
+            <li>Preserve the full address in the tooltip/title for truncated text.</li>
+            <li>Keep category as fallback only when address is missing.</li>
+            <li>Support existing latest snapshots by enriching from active <code>location_competitors</code> where possible.</li>
+            <li>Persist address in future snapshots/raw data so the UI does not depend on fragile fallback paths.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not de-dupe, hide, merge, or reorder competitors by name.</li>
+            <li>Do not trigger ranking reruns.</li>
+            <li>Do not mutate historical ranking math.</li>
+            <li>Do not alter competitor search or selector logic.</li>
+            <li>Do not touch unrelated dirty files beyond the planned scope.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Fixing bad or missing addresses at source if Google Places or SerpApi did not provide them.</li>
+        <li>Reranking Falls Church.</li>
+        <li>Changing competitor caps, sort defaults, comparison metrics, or modal layout.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 - low behavioral risk, but this touches shared ranking response/display code and the current worktree is already dirty.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><code>RankingsDashboard.tsx</code> is already modified in the working tree. <strong>Mitigation:</strong> avoid editing it unless necessary and keep any changes tightly scoped.</li>
+        <li>Existing rows may lack addresses in <code>competitor_snapshot</code> and <code>raw_data.competitors</code>. <strong>Mitigation:</strong> enrich the latest response from <code>location_competitors</code> by place id and preserve fallback category.</li>
+        <li>Adding address to future <code>raw_data.competitors</code> could be mistaken as a scoring change. <strong>Mitigation:</strong> keep it as display metadata only; no scoring inputs, sorting, or LLM prompt behavior changes.</li>
+        <li>Snapshot shapes may contain either <code>placeId</code> or <code>place_id</code>. <strong>Mitigation:</strong> normalize both keys while enriching and building display rows.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> Local Rankings comparison table, Practice Health comparison modal/table, latest rankings API response shape, future ranking run <code>raw_data.competitors</code> payload shape.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>De-duping Dominion by name would be wrong. These are real distinct locations, and hiding them would damage accuracy.</li>
+        <li>A pure CSS/text tweak is not enough if the address is dropped before the table receives it.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Preserve Competitor Addresses In Ranking Data</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>address</code> to future persisted competitor entries in <code>raw_data.competitors</code> and competitor snapshots where the source already has an address.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/practice-ranking/feature-services/service.ranking-pipeline.ts</code>, <code>src/controllers/practice-ranking/feature-services/service.location-competitor-onboarding.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Inspect a newly formatted competitor row shape and confirm <code>address</code> is present when source data has it.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Enrich Latest Responses For Existing Snapshots</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Normalize <code>placeId</code> and <code>place_id</code>, enrich both <code>competitor_snapshot.competitors</code> and <code>raw_data.competitors</code> from active <code>location_competitors</code> by place id, and keep null when no address exists.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/practice-ranking/PracticeRankingController.ts</code>, <code>src/controllers/practice-ranking/feature-utils/util.ranking-formatter.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Latest Falls Church ranking response includes address for repeated Dominion rows when active competitors have addresses.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: Render Address As The Comparison Identity Line</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Extend comparison row types to carry address from selected search results and raw competitor fallback. Ensure the Practice column shows address first, category only as fallback, with truncation and full-address tooltip intact.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/dashboard/rankings/competitorComparison.ts</code>, <code>frontend/src/components/dashboard/rankings/CompetitorComparisonTable.tsx</code>, <code>frontend/src/api/practiceRanking.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>Repeated Dominion rows in Falls Church show different address lines under the practice name.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T4: Verification</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Run focused type/build checks and manually inspect the Local Rankings view if the app is running.</dd></div>
+          <div><dt>Files</dt><dd>No production file changes.</dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2, T3</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>; <code>cd frontend &amp;&amp; npm run build</code>; manual screenshot check for Falls Church repeated Dominion rows.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> passes.</li>
+        <li><input type="checkbox" checked disabled> <code>cd frontend &amp;&amp; npm run build</code> passes.</li>
+        <li><input type="checkbox" checked disabled> Manual/code-path: Falls Church competitor comparison table receives address under repeated Dominion rows when active competitors have addresses.</li>
+        <li><input type="checkbox" checked disabled> Manual/code-path: full address remains in tooltip/title when the address is truncated.</li>
+        <li><input type="checkbox" checked disabled> Manual/code-path: rows without address still show category fallback.</li>
+        <li><input type="checkbox" checked disabled> No competitor rows are removed, merged, or reordered except by existing selected sort.</li>
+        <li><input type="checkbox" checked disabled> No ranking rerun or ranking math change is introduced.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

@@ -133,9 +133,10 @@ const SYSTEM_PROMPT = `You are an expert SEO and local search analyst specializi
 - When mentioning the Local Search Score, use only \`client.visible_local_search_score\` and write it as \`N/100\`. Do not calculate, round differently, or use any other score field in narrative copy.
 - Treat \`client.visible_local_search_score\` as the exact number the user sees in the main card. The persisted competitive score may differ and should not be mentioned in owner-facing copy.
 - Do not use the words "estimated" or "estimate" in owner-facing narrative fields. Use "ranked #N" or "sampled at #N" instead.
-- For \`overview_card.text\`, use this format: "[Client or location name] holds a dominant #N Local Search Ranking with a X Alloro Health Score. Recommended Action: [one direct action]."
+- For \`overview_card.text\`, use this format when the sampled rank is #1: "[Client or location name] holds a dominant #1 Local Search Ranking with a X Alloro Health Score. Recommended Action: [one direct action]."
+- For \`overview_card.text\`, use this format when the sampled rank is not #1: "[Client or location name] is currently #N in Local Search with a X Alloro Health Score. Recommended Action: [one direct action]."
 - In \`overview_card.text\`, use the practice or location name, the sampled local rank, and the rounded owner-visible score. Use "Alloro Health Score" in this field instead of "Local Search Score".
-- The \`overview_card.text\` recommended action should point to the clearest owner action, usually "Start posting to Google Business Profile weekly to protect the lead" when GBP activity is the main gap.
+- The \`overview_card.text\` recommended action should point to the clearest owner action. Use "protect the lead" only when the sampled rank is #1. For any lower rank, use plain language like "improve the position", "move closer to the top 3", or "close the ranking gap".
 - Use \`engagement_summary\` for review reply and Google post language. This is a compact summary, not the full review dataset.
 - If \`engagement_summary.all_reviews_replied\` is true or \`unanswered_reviews_total\` is 0, do not mention unanswered reviews, pending review replies, or review cleanup.
 - If \`engagement_summary.has_recent_post_15d\` is true, do not mention stale or missing Google posts as a problem.
@@ -177,7 +178,7 @@ You MUST respond with valid JSON matching this exact structure:
   "client_summary": "<plain text non-tech-readable format of above render text>",
   "one_line_summary": "<very short, plain 1-2 sentences summary of everything including the top proper next step>",
   "overview_card": {
-    "text": "<owner-readable main card copy in this exact pattern: '[Client or location name] holds a dominant #N Local Search Ranking with a X Alloro Health Score. Recommended Action: [one direct action].' Include review reply context only when engagement_summary says unanswered reviews exist.>",
+    "text": "<owner-readable main card copy. If rank is #1, use: '[Client or location name] holds a dominant #1 Local Search Ranking with a X Alloro Health Score. Recommended Action: [one direct action].' If rank is not #1, use: '[Client or location name] is currently #N in Local Search with a X Alloro Health Score. Recommended Action: [one direct action].' Include review reply context only when engagement_summary says unanswered reviews exist.>",
     "highlights": ["<exact short phrase from text to highlight>"]
   },
   "engagement_card": {
@@ -438,6 +439,7 @@ export async function runRankingAnalysis(
 
     const llmAnalysis = sanitizeRankingLlmAnalysis(result.parsed, {
       visibleScore: leanInput.client?.visible_local_search_score,
+      searchPosition: leanInput.search_position?.position,
     });
 
     // Ensure practice_ranking_id is set correctly

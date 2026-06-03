@@ -1165,7 +1165,7 @@ function HealthGauge({
           x="90"
           y="76"
           textAnchor="middle"
-          fontFamily="Spectral, Literata, Georgia, serif"
+          fontFamily="Spectral, Georgia, serif"
           fontWeight="500"
           fontSize="34"
           fill="#11151C"
@@ -1412,34 +1412,43 @@ function getOverviewRecommendedAction(result: RankingResult): string {
     result.llmAnalysis?.top_recommendations?.map((rec) =>
       `${rec.title} ${rec.description ?? ""}`.toLowerCase(),
     ) ?? [];
+  const isLocalSearchLeader =
+    (result.searchStatus ?? "ok") === "ok" && result.searchPosition === 1;
+  const postingOutcome = isLocalSearchLeader
+    ? "protect the lead"
+    : "improve the position";
 
   if (recommendations.some((rec) => rec.includes("post"))) {
-    return "Start posting to Google Business Profile weekly to protect the lead";
+    return `Start posting to Google Business Profile weekly to ${postingOutcome}`;
   }
 
   if (recommendations.some((rec) => rec.includes("review"))) {
-    return "Reply to unanswered Google reviews to strengthen the profile";
+    return isLocalSearchLeader
+      ? "Reply to unanswered Google reviews to protect trust signals"
+      : "Reply to unanswered Google reviews to close the review gap";
   }
 
   if (recommendations.some((rec) => rec.includes("photo"))) {
     return "Add fresh Google Business Profile photos to strengthen the profile";
   }
 
-  return "Start posting to Google Business Profile weekly to protect the lead";
+  return `Start posting to Google Business Profile weekly to ${postingOutcome}`;
 }
 
 function getStructuredOverviewInsight(
   result: RankingResult,
   score: number,
 ): string {
-  const rankLabel =
-    (result.searchStatus ?? "ok") === "ok" && result.searchPosition
-      ? `#${result.searchPosition}`
-      : "tracked";
-  const rankTone = result.searchPosition === 1 ? "dominant" : "current";
+  const hasMeasuredRank =
+    (result.searchStatus ?? "ok") === "ok" && result.searchPosition;
+  const rankingStatement = hasMeasuredRank
+    ? result.searchPosition === 1
+      ? `${getPracticeDisplayName(result)} holds a dominant #1 Local Search Ranking`
+      : `${getPracticeDisplayName(result)} is currently #${result.searchPosition} in Local Search`
+    : `${getPracticeDisplayName(result)} has a tracked Local Search Ranking`;
   const roundedScore = Math.round(score);
 
-  return `${getPracticeDisplayName(result)} holds a ${rankTone} ${rankLabel} Local Search Ranking with a ${roundedScore} Alloro Health Score. Recommended Action: ${getOverviewRecommendedAction(result)}.`;
+  return `${rankingStatement} with a ${roundedScore} Alloro Health Score. Recommended Action: ${getOverviewRecommendedAction(result)}.`;
 }
 
 function getOverviewDisplayInsight(

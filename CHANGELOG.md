@@ -2,6 +2,170 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.100] - June 2026
+
+### Per-Site Rybbit Reporting Timezone
+
+Rybbit analytics day/month buckets were computed in a hardcoded Eastern timezone for every practice, so practices outside Eastern time saw boundaries that didn't match their own Rybbit dashboard (a small ~0.3% near-boundary shift, but a real correctness gap that also touched the new live unique-visitor queries). Practices can now carry their own IANA reporting timezone, threaded through every Rybbit query, with Eastern as the fallback so existing sites are unchanged.
+
+**Key Changes:**
+- Added a per-practice `rybbit_time_zone` (nullable IANA string) on `website_builder.projects`, settable from the admin Rybbit integration tab, falling back to `America/New_York` when unset — zero change for existing Eastern practices.
+- Replaced the hardcoded `America/New_York` in all four Rybbit `time_zone` call sites — daily harvest, historic-backfill date bounds, live unique-visitor queries, and the Proofline/Summary agent comparisons — with the per-site zone resolved through one shared helper.
+- Confirmed Rybbit exposes no per-site timezone of its own (it buckets by the `time_zone` query parameter), so the zone is sourced from our records; admin input is validated against the platform `Intl` API with no new dependency.
+
+**Follow-ups (operational, outside this commit's runtime):**
+- Apply the migration (`npm run db:migrate`) before the feature is active.
+- After setting a non-Eastern zone on an existing site, run the Rybbit historic backfill to re-bucket stored daily rows; live overview/monthly-unique queries need no backfill.
+
+**Commits:**
+- `src/database/migrations/20260603000000_add_rybbit_time_zone_to_projects.ts`, `src/utils/rybbit/rybbit-time-zone.ts` - schema column + shared default/resolver/validator
+- `src/models/website-builder/ProjectModel.ts` - `rybbit_time_zone` field, `getRybbitTimeZone` / `updateRybbitTimeZone`
+- `src/services/integrations/rybbitHarvestAdapter.ts`, `service.rybbit-history.ts`, `service.rybbit-performance.ts`, `src/utils/rybbit/service.rybbit-data.ts` - the four call sites now resolve the per-site zone
+- `src/controllers/user-website/UserWebsiteController.ts` - resolves the zone once for the live unique-visitor queries
+- `service.rybbit-integration.ts`, `WebsiteIntegrationsController.ts` - admin set: validate, persist, surface in status
+- `frontend/src/api/integrations.ts`, `frontend/src/components/Admin/integrations/RybbitTab.tsx` - timezone field + status type
+- `plans/06032026-rybbit-per-site-report-timezone/*` - execution spec
+
+## [0.0.99] - June 2026
+
+### Local Rankings Competitor Address Labels
+
+Improved the Local Rankings competitor comparison table so same-name practices, such as multiple Dominion Endodontics locations, are distinguished by address instead of looking like duplicate rows.
+
+**Key Changes:**
+- Preserved competitor addresses in future ranking snapshots and raw competitor payloads.
+- Enriched existing latest-ranking responses with saved `location_competitors` addresses by place ID.
+- Updated comparison row matching to prefer place ID before name, avoiding same-name metric mismatches.
+- Kept category as a fallback when an address is unavailable and preserved the full address tooltip behavior.
+
+**Commits:**
+- `src/controllers/practice-ranking/PracticeRankingController.ts` and `util.ranking-formatter.ts` - latest-response address enrichment and `placeId` / `place_id` normalization
+- `src/controllers/practice-ranking/feature-services/service.ranking-pipeline.ts` and `service.location-competitor-onboarding.ts` - future snapshot/raw-data address preservation
+- `frontend/src/components/dashboard/rankings/competitorComparison.ts` - address-aware comparison rows and place-ID-first raw metric matching
+- `/Users/rustinedave/Desktop/alloro-docs/src/data/pages/local-rankings.ts` and `LocalRankingsReplica.tsx` - documentation parity for address sublines
+- `plans/06032026-local-rankings-competitor-address-labels/*` - completed execution spec
+
+## [0.0.98] - June 2026
+
+### Website Overview Refinements
+
+Refined the Websites tab cards-first overview (added in 0.0.95) for clarity and accuracy: hover-driven chart readouts, a monthly visitor cadence, a daily traffic drill-down that honestly marks gaps, clearer "Leads = form submissions" labeling, a three-column hero funnel, and a fix for an inflated unique-visitor count.
+
+**Key Changes:**
+- Hovering a chart point now updates that card's own headline number and period label (e.g. "Apr 2026") instead of a floating tooltip; month-over-month deltas hide while hovering.
+- Reworked the hero funnel into three columns — Unique visitors, Leads (form submissions), and Conversion rate — that all update on hover, with a three-line trend chart (visitors, submissions, conversion) and color-matched dots.
+- Switched the visitor/traffic cards to a monthly cadence (last 12 months) to match the leads chart; the Traffic detail modal keeps daily resolution and marks days with no data as gaps rather than zeros.
+- Conversion rate is shown as a clear month-to-date figure ("so far this month") with a note that it updates daily; removed the earlier blended "typical" rate.
+- Labeled "Leads" as "(form submissions)" across the funnel and cards so the metric's source is explicit.
+- Filtered no-data months out of the overview cards so charts start at the first month with real data.
+- Fixed an inflated unique-visitor count: monthly/period visitor totals are now fetched as true deduped uniques from Rybbit (a single bucketed query) instead of summing daily uniques, which over-counted repeat visitors by ~10%. Sessions and page views were already accurate. This also corrects (raises) the conversion rate.
+- Form submissions catalog: click any row to open it and drag-and-drop to reorder (replacing the up/down arrows).
+
+**Commits:**
+- `frontend/src/components/website/overview/WebsiteOverview.tsx`, `websiteMetrics.ts`, `OverviewCard.tsx` - 3-column funnel, monthly cadence, no-data filtering, hover readouts, conversion framing, labeling
+- `frontend/src/components/dashboard/shared/TrendSparkline.tsx` - hover-driven headlines, null-gap support, optional third line + area toggle
+- `frontend/src/api/websiteAnalytics.ts` - true per-month unique-visitor field
+- `src/controllers/admin-websites/feature-services/service.rybbit-performance.ts`, `src/controllers/user-website/UserWebsiteController.ts` - live Rybbit per-month/window true-unique queries with stored-data fallback
+- `frontend/src/components/Admin/FormSubmissionsSidebar.tsx`, `FormSubmissionsTab.tsx` - click-to-open + drag-and-drop reorder
+- `plans/05312026-no-ticket-websites-tab-cards-overview/spec.md` - Rev 7–13 plus the data-accuracy finding
+
+## [0.0.97] - June 2026
+
+### PMS File Manager
+
+Added a location-scoped PMS File Manager for Referrals Hub data so admins and managers can upload, inspect, edit, download, overwrite, and soft-delete monthly PMS files without leaving the PMS Statistics workflow.
+
+**Key Changes:**
+- Added a compact Manage Data side panel with a latest-completed-month data window, month-specific upload/edit/overwrite actions, file cards, original parsed-data review, download, delete confirmation, and edit history.
+- Replaced the ingestion-card availability grid with a production/referral trend graph; plot points are hoverable/focusable and open the same month-scoped edit or upload flow.
+- Added authenticated PMS file-manager API endpoints with admin/manager write controls, location scoping, processing guards, original-file downloads, edit-event history, and soft-delete handling.
+- Persisted original upload metadata, original parsed PMS snapshots, response-log diffs, uploader/editor/delete attribution, and mutation events while keeping the existing aggregator behavior intact.
+- Removed `.txt` PMS upload support and kept PMS uploads limited to CSV, XLS, and XLSX files.
+- Updated the Referrals Hub docs replica and page guidance for Upload New Data, Manage Data, trend graph interactions, monthly file management, and history/download behavior.
+
+**Commits:**
+- `frontend/src/components/PMS/dashboard/*`, `frontend/src/components/PMS/file-manager/*`, and `frontend/src/hooks/queries/usePmsFileManagerQueries.ts` - side panel, trend graph, month-slot interactions, file list, history panel, and query wiring
+- `frontend/src/components/PMS/*` and `frontend/src/api/pms.ts` - upload/edit modal reuse, file-type handling, month-scoped upload behavior, and typed PMS API helpers
+- `src/controllers/pms/*`, `src/models/PmsJobModel.ts`, `src/models/PmsJobEventModel.ts`, and `src/routes/pms.ts` - PMS file-manager controllers, services, presenters, storage helpers, mutation guards, event history, and route registration
+- `src/database/migrations/20260602010000_add_pms_file_manager_metadata.ts` - PMS file-manager metadata and event-history schema
+- `/Users/rustinedave/Desktop/alloro-docs/src/components/replicas/ReferralsHubReplica.tsx` and `/Users/rustinedave/Desktop/alloro-docs/src/data/pages/referrals-hub.ts` - documentation parity for the updated Referrals Hub data workflow
+- `plans/06022026-pms-file-manager/*` - completed execution spec and migration notes
+
+## [0.0.96] - June 2026
+
+### PMS File Manager
+
+Added a location-scoped PMS File Manager for Referrals Hub data so admins and managers can upload, inspect, edit, download, overwrite, and soft-delete monthly PMS files without leaving the PMS Statistics workflow.
+
+**Key Changes:**
+- Added a compact Manage Data side panel with a latest-completed-month data window, month-specific upload/edit/overwrite actions, file cards, original parsed-data review, download, delete confirmation, and edit history.
+- Replaced the ingestion-card availability grid with a production/referral trend graph; plot points are hoverable/focusable and open the same month-scoped edit or upload flow.
+- Added authenticated PMS file-manager API endpoints with admin/manager write controls, location scoping, processing guards, original-file downloads, edit-event history, and soft-delete handling.
+- Persisted original upload metadata, original parsed PMS snapshots, response-log diffs, uploader/editor/delete attribution, and mutation events while keeping the existing aggregator behavior intact.
+- Removed `.txt` PMS upload support and kept PMS uploads limited to CSV, XLS, and XLSX files.
+- Updated the Referrals Hub docs replica and page guidance for Upload New Data, Manage Data, trend graph interactions, monthly file management, and history/download behavior.
+
+**Commits:**
+- `frontend/src/components/PMS/dashboard/*`, `frontend/src/components/PMS/file-manager/*`, and `frontend/src/hooks/queries/usePmsFileManagerQueries.ts` - side panel, trend graph, month-slot interactions, file list, history panel, and query wiring
+- `frontend/src/components/PMS/*` and `frontend/src/api/pms.ts` - upload/edit modal reuse, file-type handling, month-scoped upload behavior, and typed PMS API helpers
+- `src/controllers/pms/*`, `src/models/PmsJobModel.ts`, `src/models/PmsJobEventModel.ts`, and `src/routes/pms.ts` - PMS file-manager controllers, services, presenters, storage helpers, mutation guards, event history, and route registration
+- `src/database/migrations/20260602010000_add_pms_file_manager_metadata.ts` - PMS file-manager metadata and event-history schema
+- `/Users/rustinedave/Desktop/alloro-docs/src/components/replicas/ReferralsHubReplica.tsx` and `/Users/rustinedave/Desktop/alloro-docs/src/data/pages/referrals-hub.ts` - documentation parity for the updated Referrals Hub data workflow
+- `plans/06022026-pms-file-manager/*` - completed execution spec and migration notes
+
+## [0.0.95] - June 2026
+
+### Spectral Serif Typography Standardization
+
+Standardized the active frontend serif/display typography on the Google Font Spectral so dashboard, editorial, and chat surfaces no longer mix older serif stacks.
+
+**Key Changes:**
+- Removed the remaining Literata fallback from the SPA font loader, dashboard display token, and Local Rankings gauge stack
+- Updated hardcoded frontend serif stacks used by dashboard metric cards and Minds chat surfaces to Spectral
+- Added the current-week Feature Friyay package and completed HTML/CSS plan spec for the typography change
+- Kept Alloro Docs aligned through a separate docs parity commit
+
+**Commits:**
+- `frontend/index.html` and `frontend/src/index.css` - final Spectral loader and display font token cleanup
+- `frontend/src/components/dashboard/focus/*`, `frontend/src/components/dashboard/RankingsDashboard.tsx`, and `frontend/src/components/Admin/minds/*` - direct serif stack replacements
+- `friyays/06-01-2026/*` - current-week Feature Friyay draft package
+- `plans/06032026-replace-serif-with-spectral/*` - completed execution spec
+
+## [0.0.94] - May 2026
+
+### Review Sync OAuth Refresh Hardening
+
+Hardened the Google Business Profile review sync worker after Garrison Orthodontics showed stale-token `401` failures in the daily Reviews sync status. The worker now uses the existing refresh-aware OAuth path and records fresh health rows when connection auth fails before location sync begins.
+
+**Key Changes:**
+- Switched OAuth review sync from raw stored-token client creation to the existing refresh-aware Google connection helper
+- Added a one-time forced token refresh retry for Google unauthorized responses, reusing the refreshed client for later locations on the same connection
+- Added current failed `gbp_sync_health` rows for connection-level auth failures so the dashboard does not keep showing stale status
+- Verified production state for Garrison Orthodontics, including one `minds-worker`, one `daily-review-sync` repeatable job, and latest successful sync rows with 90 reviews synced
+
+**Commits:**
+- `src/workers/processors/reviewSync.processor.ts` - refresh-aware auth setup, bounded unauthorized retry, refreshed-client reuse, safe sync-health failure rows, and sync metadata cleanup
+- `plans/05312026-no-ticket-fix-review-sync-oauth-refresh/spec.md` - execution spec, risk notes, and verification checklist
+
+## [0.0.93] - May 2026
+
+### Background Worker Lock-Renewal Stability Fix
+
+Eliminated the `could not renew lock for job repeat:...` error flood on the `minds-scheduler`, `minds-skill-triggers`, and `gbp-automation-deployment` BullMQ workers. Root cause: tick processors awaited multi-minute work (AI agent runs, per-location Google syncs) inline while holding a short 30-second lock, so the lock expired mid-run, the stalled-job checker requeued the job, the orphaned attempt's renewal failed, and the repeatable iteration never reached a terminal state — looping forever.
+
+**Key Changes:**
+- Split the scheduler tick into a lightweight dispatcher plus a dedicated execution worker: the `minds-scheduler` tick now only finds due schedules and enqueues one job per schedule onto a new `minds-schedule-exec` queue, so the 60-second tick always finishes sub-second and never holds a lock through long-running agent work
+- Added an execution-half processor that owns the agent-run lifecycle (run record, handler execution, `next_run_at` advance) under a 15-minute lock with bounded concurrency, guarded by `hasActiveRun` in both dispatcher and executor for at-most-one active run per schedule
+- Gave every BullMQ worker its own Redis connection via a `makeConnection()` factory instead of sharing a single ioredis instance, removing the lock-renewal starvation amplifier
+- Set realistic explicit lock durations on the previously default-locked workers (skill-triggers 5 minutes, gbp-automation-deployment 20 minutes) and switched skill-trigger webhook fires to bounded-concurrency batches so tick wall-time no longer scales linearly with due-skill count
+
+**Commits:**
+- `src/workers/processors/scheduler.processor.ts` - rewrote `processSchedulerTick` as a dispatcher that enqueues per-schedule exec jobs with an idempotent due-window `jobId`; removed the inline `agent.handler()` call
+- `src/workers/processors/scheduleExec.processor.ts` - new execution-half processor: re-checks active run, creates the run record, runs the agent handler, completes/fails the run, and advances `next_run_at` once per execution
+- `src/workers/processors/skillTrigger.processor.ts` - extracted `processSingleSkill` and fired due-skill webhooks in bounded `Promise.allSettled` batches with per-skill error isolation
+- `src/workers/worker.ts` - added a `makeConnection()` per-worker connection factory and tracked-connection shutdown, registered the new `minds-schedule-exec` worker, and set explicit lock durations on the skill-triggers and gbp-automation-deployment workers
+- `plans/05302026-no-ticket-fix-scheduler-worker-lock-loop/*` - executed spec and revision history (T4 gbp lock-duration resolution plus the deferred per-location dispatch follow-up)
+
 ## [0.0.92] - May 2026
 
 ### Local Rankings And Support Workflow Polish

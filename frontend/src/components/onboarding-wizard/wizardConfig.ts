@@ -568,6 +568,37 @@ export const WIZARD_DEMO_DATA = {
       { month: "2026-05", verified: 18, unread: 1, flagged: 1 },
       { month: "2026-06", verified: 16, unread: 5, flagged: 2 },
     ],
+    // Shape: WebsiteAnalytics (from /user/website/analytics) — demo Rybbit data
+    // so the overview Analytics card has a trend during the wizard tour.
+    analytics: {
+      hasIntegration: true,
+      latestReportDate: "2026-05-30",
+      dataDays: 14,
+      totals: {
+        sessions: 1840,
+        pageviews: 5210,
+        users: 1490,
+        bounceRate: 0.42,
+        pagesPerSession: 2.8,
+        sessionDuration: 96,
+      },
+      daily: [
+        { date: "2026-05-17", sessions: 110, pageviews: 300, users: 92 },
+        { date: "2026-05-18", sessions: 128, pageviews: 352, users: 104 },
+        { date: "2026-05-19", sessions: 142, pageviews: 401, users: 118 },
+        { date: "2026-05-20", sessions: 121, pageviews: 338, users: 99 },
+        { date: "2026-05-21", sessions: 155, pageviews: 442, users: 126 },
+        { date: "2026-05-22", sessions: 168, pageviews: 470, users: 137 },
+        { date: "2026-05-23", sessions: 133, pageviews: 366, users: 108 },
+        { date: "2026-05-24", sessions: 119, pageviews: 321, users: 95 },
+        { date: "2026-05-25", sessions: 147, pageviews: 418, users: 122 },
+        { date: "2026-05-26", sessions: 162, pageviews: 455, users: 131 },
+        { date: "2026-05-27", sessions: 175, pageviews: 489, users: 142 },
+        { date: "2026-05-28", sessions: 158, pageviews: 431, users: 124 },
+        { date: "2026-05-29", sessions: 171, pageviews: 478, users: 139 },
+        { date: "2026-05-30", sessions: 181, pageviews: 498, users: 146 },
+      ],
+    },
   },
 
   // ───────────────────────── Dashboard — Local Ranking Card ─────────────────────────

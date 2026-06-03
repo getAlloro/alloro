@@ -220,7 +220,7 @@ export const DirectUploadModal: React.FC<DirectUploadModalProps> = ({
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".csv,.txt,.xlsx,.xls"
+                      accept=".csv,.xlsx,.xls"
                       onChange={handleFileInputChange}
                       className="hidden"
                     />
@@ -246,7 +246,7 @@ export const DirectUploadModal: React.FC<DirectUploadModalProps> = ({
 
                     {!file && (
                       <p className="text-xs text-slate-400">
-                        Accepts .csv and .xlsx files
+                        Accepts .csv, .xls, and .xlsx files
                       </p>
                     )}
                   </motion.div>

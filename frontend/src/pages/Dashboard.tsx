@@ -294,7 +294,7 @@ export default function Dashboard() {
 
               {/* Help text */}
               <p className="text-center text-sm text-slate-400 mt-8">
-                Need help? <a href="mailto:support@alloro.io" className="text-alloro-orange font-semibold hover:underline">Contact Support</a>
+                Having trouble? <button type="button" onClick={() => navigate("/help?newTicket=bug_report")} className="text-alloro-orange font-semibold hover:underline">Submit a ticket</button>
               </p>
             </div>
           </div>

@@ -40,6 +40,7 @@ export default function RybbitTab({
   const [saving, setSaving] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
   const [siteId, setSiteId] = useState("");
+  const [timeZone, setTimeZone] = useState("");
 
   const loadStatus = async () => {
     setLoading(true);
@@ -47,6 +48,7 @@ export default function RybbitTab({
       const result = await fetchRybbitStatus(projectId);
       setStatus(result.data);
       setSiteId((current) => current || result.data.suggestedSiteId || "");
+      setTimeZone((current) => current || result.data.projectTimeZone || "");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to load Rybbit status");
     } finally {
@@ -107,6 +109,7 @@ export default function RybbitTab({
     try {
       const result = await createRybbitIntegration(projectId, {
         siteId: siteId.trim(),
+        timeZone: timeZone.trim(),
       });
       setStatus(result.data.status);
       toast.success("Rybbit integration connected");
@@ -160,6 +163,10 @@ export default function RybbitTab({
   const connectedSiteId = activeIntegration?.metadata?.siteId
     ? String(activeIntegration.metadata.siteId)
     : null;
+
+  const isDirty =
+    siteId.trim() !== (connectedSiteId ?? "") ||
+    timeZone.trim() !== (status?.projectTimeZone ?? "");
 
   const renderLegacyWarning = () => {
     const blockers = status?.blockingLegacySnippets ?? [];
@@ -242,6 +249,26 @@ export default function RybbitTab({
                 className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-900 outline-none transition focus:border-purple-300 focus:ring-2 focus:ring-purple-100"
               />
             </div>
+            <div className="mx-auto mt-3 max-w-md text-left">
+              <label
+                htmlFor="rybbit-connect-timezone"
+                className="text-xs font-semibold uppercase tracking-wide text-gray-400"
+              >
+                Reporting timezone
+              </label>
+              <input
+                id="rybbit-connect-timezone"
+                value={timeZone}
+                onChange={(event) => setTimeZone(event.target.value)}
+                list="rybbit-timezones"
+                placeholder="America/New_York"
+                className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-900 outline-none transition focus:border-purple-300 focus:ring-2 focus:ring-purple-100"
+              />
+              <p className="mt-1 text-[11px] leading-relaxed text-gray-400">
+                Buckets days and months to the practice's local zone. Defaults to America/New_York.
+              </p>
+              <TimezoneDatalist />
+            </div>
             <button
               type="button"
               onClick={handleConnect}
@@ -290,13 +317,25 @@ export default function RybbitTab({
                 <button
                   type="button"
                   onClick={handleConnect}
-                  disabled={saving || isBlocked || siteId.trim() === connectedSiteId}
+                  disabled={saving || isBlocked || !isDirty}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-xs font-semibold text-purple-700 transition hover:bg-purple-100 disabled:opacity-50"
                 >
                   {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plug className="h-3.5 w-3.5" />}
                   Save
                 </button>
               </div>
+              <div className="mt-2 text-gray-400 uppercase tracking-wide font-semibold mb-0.5">
+                Reporting timezone
+              </div>
+              <input
+                aria-label="Rybbit reporting timezone"
+                value={timeZone}
+                onChange={(event) => setTimeZone(event.target.value)}
+                list="rybbit-timezones"
+                placeholder="America/New_York"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-xs font-medium text-gray-900 outline-none transition focus:border-purple-300 focus:ring-2 focus:ring-purple-100"
+              />
+              <TimezoneDatalist />
             </div>
             <div>
               <div className="text-gray-400 uppercase tracking-wide font-semibold mb-0.5">
@@ -322,6 +361,26 @@ export default function RybbitTab({
         </motion.div>
       </IntegrationPanel>
     </div>
+  );
+}
+
+const RYBBIT_TIMEZONES = [
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Phoenix",
+  "America/Los_Angeles",
+  "America/Anchorage",
+  "Pacific/Honolulu",
+];
+
+function TimezoneDatalist() {
+  return (
+    <datalist id="rybbit-timezones">
+      {RYBBIT_TIMEZONES.map((zone) => (
+        <option key={zone} value={zone} />
+      ))}
+    </datalist>
   );
 }
 

@@ -83,8 +83,7 @@ const BRAND_ORANGE = "#D66853";
 const MUTED = "#8E8579";
 const INK = "#1F1B16";
 
-const SPECTRAL =
-  "'Spectral', ui-serif, Georgia, Cambria, 'Times New Roman', serif";
+const SPECTRAL = "'Spectral', Georgia, Cambria, 'Times New Roman', serif";
 
 function CardShell({ children }: { children: React.ReactNode }) {
   return (

@@ -77,8 +77,7 @@ const INK = "#1F1B16";
 const INK_SOFT = "#3A342B";
 const LINE_SOFT = "#F0ECE5";
 
-const SPECTRAL =
-  "'Spectral', ui-serif, Georgia, Cambria, 'Times New Roman', serif";
+const SPECTRAL = "'Spectral', Georgia, Cambria, 'Times New Roman', serif";
 const MONO =
   "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
 
