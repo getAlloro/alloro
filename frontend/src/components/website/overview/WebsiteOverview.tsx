@@ -196,7 +196,10 @@ export function WebsiteOverview({
         <ArrowRight className="h-5 w-5 shrink-0 text-alloro-navy/25" />
         <div className="text-right">
           <div className="font-mono-display text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--color-pm-text-secondary)]">
-            Leads
+            Leads{" "}
+            <span className="font-medium normal-case tracking-normal opacity-60">
+              (form submissions)
+            </span>
           </div>
           <div className="mt-1.5 flex items-baseline justify-end gap-2">
             <span className="font-display text-[30px] font-medium leading-none tracking-tight text-alloro-navy tabular-nums">
@@ -333,7 +336,7 @@ export function WebsiteOverview({
         </OverviewCard>
 
         <OverviewCard
-          eyebrow="Leads · Last 12 mo"
+          eyebrow="Leads (form submissions) · Last 12 mo"
           infoTip="Verified form submissions from your website."
           onOpen={() => setModal("leads")}
           openLabel="Leads detail"
