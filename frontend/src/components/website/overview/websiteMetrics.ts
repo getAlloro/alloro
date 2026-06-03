@@ -34,9 +34,13 @@ export interface WebsiteMetrics {
     visitors: number;
     sessions: number;
     pageviews: number;
+    month: string;
+    monthName: string;
   }>;
   /** monthly leads series for the sparkline */
   leadSeries: Array<{ label: string; leads: number }>;
+  /** YYYY-MM → verified leads that month (to show leads for a hovered day's month) */
+  leadsByMonth: Record<string, number>;
   /** totals over the analytics window (for the traffic modal) */
   totals: WebsiteAnalytics["totals"] | null;
   rangeDays: number;
@@ -148,11 +152,16 @@ export function computeWebsiteMetrics(
       visitors: p.users,
       sessions: p.sessions,
       pageviews: p.pageviews,
+      month: p.date.slice(0, 7),
+      monthName: monthLabel(p.date.slice(0, 7)),
     })),
     leadSeries: timeseries.map((p) => ({
       label: monthLabel(p.month),
       leads: p.verified,
     })),
+    leadsByMonth: Object.fromEntries(
+      timeseries.map((p) => [p.month, p.verified]),
+    ),
     totals: analytics?.totals ?? null,
     rangeDays: analytics?.dataDays ?? 0,
   };

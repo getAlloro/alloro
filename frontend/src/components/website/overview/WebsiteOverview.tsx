@@ -195,9 +195,17 @@ export function WebsiteOverview({
           </div>
           <div className="mt-1.5 flex items-baseline justify-end gap-2">
             <span className="font-display text-[30px] font-medium leading-none tracking-tight text-alloro-navy tabular-nums">
-              {m.monthLeads}
+              {funnelPoint
+                ? m.leadsByMonth[funnelPoint.month] ?? 0
+                : m.monthLeads}
             </span>
-            <TrendPill deltaPct={m.leadsPaceDeltaPct} />
+            {funnelPoint ? (
+              <span className="text-[10px] font-semibold text-[color:var(--color-pm-text-secondary)]">
+                {funnelPoint.monthName}
+              </span>
+            ) : (
+              <TrendPill deltaPct={m.leadsPaceDeltaPct} />
+            )}
           </div>
         </div>
       </div>
