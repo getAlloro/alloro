@@ -2,6 +2,14 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "alloro-frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5173,
+      "autoPort": true,
+      "cwd": "frontend"
+    },
+    {
       "name": "alloro-docs",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
