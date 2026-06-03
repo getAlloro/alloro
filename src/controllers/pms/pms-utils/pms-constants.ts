@@ -11,9 +11,8 @@ export const ALLOWED_MIME_TYPES = [
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "text/csv",
-  "text/plain",
 ];
 
-export const ALLOWED_EXTENSIONS = [".csv", ".xls", ".xlsx", ".txt"];
+export const ALLOWED_EXTENSIONS = [".csv", ".xls", ".xlsx"];
 
 export type PmsStatus = "pending" | "error" | "completed" | string;

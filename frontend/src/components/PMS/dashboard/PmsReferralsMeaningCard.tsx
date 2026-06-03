@@ -38,13 +38,13 @@ function MeaningMetric({
   isAccent?: boolean;
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
+    <div className="flex min-w-0 flex-col gap-2 rounded-xl border border-[#EDE5C0]/70 bg-white/70 p-4">
       <span className="font-mono-display text-[10px] font-bold uppercase tracking-[0.18em] text-[#6F664A]">
         {label}
       </span>
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         <span
-          className={`font-display text-[18px] font-medium tabular-nums leading-none tracking-tight ${
+          className={`font-display text-[24px] font-medium tabular-nums leading-none tracking-tight md:text-[28px] ${
             isAccent ? "text-alloro-orange" : "text-alloro-navy"
           }`}
         >
@@ -53,7 +53,7 @@ function MeaningMetric({
         {change !== undefined && <PmsTrendPill change={change} />}
       </div>
       {sub && (
-        <span className="text-[11px] font-semibold text-[#6F664A]/70 tabular-nums">
+        <span className="text-[13px] font-semibold text-[#6F664A]/70 tabular-nums">
           {sub}
         </span>
       )}
@@ -138,19 +138,19 @@ export function PmsReferralsMeaningCard({
             </div>
 
             {/* Key metrics inset */}
-            <div className="flex flex-1 items-center rounded-[14px] border border-[#EDE5C0] bg-white/75 p-5">
+            <div className="flex flex-1 items-stretch rounded-[14px] border border-[#EDE5C0] bg-white/75 p-5 lg:p-6">
               {isProcessingInsights ? (
-                <div className="grid w-full grid-cols-1 gap-x-5 gap-y-6 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
                   {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="space-y-2">
+                    <div key={i} className="space-y-3 rounded-xl border border-[#EDE5C0]/70 bg-white/70 p-4">
                       <SkeletonBlock className="h-3 w-20" />
-                      <SkeletonBlock className="h-8 w-24" />
+                      <SkeletonBlock className="h-9 w-28" />
                       <SkeletonBlock className="h-3 w-28" />
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="grid w-full grid-cols-1 gap-x-5 gap-y-6 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
                   <MeaningMetric
                     label="Production this month"
                     value={

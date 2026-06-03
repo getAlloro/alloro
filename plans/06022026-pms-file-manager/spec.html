@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PMS File Manager Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-completed">Completed</span>
+      </div>
+      <h1>PMS File Manager</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06022026-pms-file-manager</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 4</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The Referrals Hub needs a location-specific PMS file manager so managers can see what PMS data exists, upload corrected monthly files, inspect original parsed data, edit current parsed data, download original files, and understand which months will become active before they save.</p>
+      <p>The current PMS upload path creates approved <code>pms_jobs</code> and the aggregator already applies the right non-destructive rule: latest approved data wins per month, capped to the latest 12 months for agent analysis. This feature should expose and manage that model instead of replacing it.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Add a customer-facing PMS File Manager inside <code>/pmsStatistics</code>, scoped to the selected location. Admins and managers can upload, edit, soft-delete, inspect, and download PMS files. Viewers can see data if the page already allows it, but cannot mutate it.</p>
+      <p>Uploads support <code>.csv</code>, <code>.xls</code>, and <code>.xlsx</code>. <code>.txt</code> support is removed from PMS upload paths. Upload preview must show incoming months and the active months that will be superseded by the new upload. Edits and deletes must append history and trigger a controlled monthly-agent rerun after blocking any active run for the location.</p>
+    </section>
+
+    <section class="spec-card" id="scope-ledger">
+      <h2>Scope Ledger</h2>
+      <dl class="detail-list">
+        <div><dt>Objective</dt><dd>Location-specific PMS file manager with original-file downloads, original parsed snapshots, editable current parsed data, edit history, conflict preview, soft delete, and rerun-on-change.</dd></div>
+        <div><dt>Intended user</dt><dd>Customer admin and manager users on the Referrals Hub.</dd></div>
+        <div><dt>Surface</dt><dd><code>/pmsStatistics</code> in the client dashboard, plus authenticated PMS APIs.</dd></div>
+        <div><dt>System of record</dt><dd><code>pms_jobs</code> remains the PMS data record. New metadata and event rows extend it.</dd></div>
+        <div><dt>Out of scope</dt><dd>Queueing PMS mutations during active runs, changing the agent 12-month data cap, destructive hard delete, replacing the aggregator, changing ranking agents, or exposing unauthenticated admin PMS endpoints to customers.</dd></div>
+      </dl>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/App.tsx</code> - routes <code>/pmsStatistics</code> to the dashboard shell.</li>
+        <li><code>frontend/src/pages/Dashboard.tsx</code> - maps <code>/pmsStatistics</code> to the PMS Statistics tab.</li>
+        <li><code>frontend/src/components/PMS/PMSVisualPillars.tsx</code> - owns current Referrals Hub state, data loading, automation polling, and PMS modals.</li>
+        <li><code>frontend/src/components/PMS/dashboard/PmsDashboardSurface.tsx</code> - renders the current PMS dashboard surface and ingestion card.</li>
+        <li><code>frontend/src/components/PMS/PMSManualEntryModal.tsx</code> - current manual/file parsing modal with local-only month conflict handling.</li>
+        <li><code>frontend/src/components/PMS/PMSLatestJobEditor.tsx</code> - current latest-job-only edit modal.</li>
+        <li><code>frontend/src/components/PMS/PMSDataViewer.tsx</code> - existing generic-ish data viewer/editor analog that overlaps with <code>PMSLatestJobEditor</code>.</li>
+        <li><code>frontend/src/api/pms.ts</code> - current PMS API client functions and types.</li>
+        <li><code>frontend/src/lib/queryClient.ts</code> and <code>frontend/src/hooks/queries/</code> - React Query key and hook locations required by frontend conventions.</li>
+        <li><code>src/routes/pms.ts</code> - current PMS route mount. Client routes use auth/RBAC; admin job routes are currently unauthenticated and must not be expanded for this feature.</li>
+        <li><code>src/controllers/pms/PmsController.ts</code> - current PMS controller methods for upload, mapping preview, job list/update/delete/retry/restart.</li>
+        <li><code>src/controllers/pms/pms-services/pms-upload.service.ts</code> - current file/manual upload service that creates approved <code>pms_jobs</code>.</li>
+        <li><code>src/controllers/pms/pms-services/pms-finalize.service.ts</code> - single source of truth for new upload to monthly-agent trigger.</li>
+        <li><code>src/controllers/pms/pms-services/pms-retry.service.ts</code> - existing monthly-agent cleanup and restart path.</li>
+        <li><code>src/controllers/pms/pms-services/pms-data.service.ts</code> - current admin job listing and key-data aggregation service.</li>
+        <li><code>src/controllers/pms/pms-utils/pms-constants.ts</code> and <code>file-upload.config.ts</code> - current upload limits, MIME types, and extension allow-list.</li>
+        <li><code>src/models/PmsJobModel.ts</code> - current PMS job model and aggregation fetch query.</li>
+        <li><code>src/utils/pms/pmsAggregator.ts</code> - existing latest-wins and 12-month cap aggregation logic.</li>
+        <li><code>src/utils/core/s3.ts</code> - shared S3 upload, delete, and presigned URL helper.</li>
+        <li><code>src/controllers/support/support-services/SupportTicketAttachmentService.ts</code> - best analog for authenticated S3-backed attachments, DB metadata, signed URLs, and events.</li>
+        <li><code>src/database/migrations/20260508000000_support_feedback_alignment.ts</code> - migration analog for attachment metadata table.</li>
+        <li><code>/Users/rustinedave/Desktop/alloro-docs/src/data/pages/referrals-hub.ts</code> - docs page that must change with the new visible controls.</li>
+        <li><code>/Users/rustinedave/Desktop/alloro-docs/src/components/replicas/ReferralsHubReplica.tsx</code> - docs visual replica that must reflect the file manager.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Use authenticated customer endpoints with <code>authenticateToken</code>, <code>rbacMiddleware</code>, <code>locationScopeMiddleware</code>, and <code>requireRole("admin", "manager")</code> for writes.</li>
+        <li>Use S3 object storage for original files. Store metadata in Postgres and return short-lived signed download URLs.</li>
+        <li>Keep <code>pms_jobs.response_log</code> as the active parsed data used by aggregation.</li>
+        <li>Keep <code>pms_jobs.raw_input_data</code> as parsed raw rows and add an immutable original parsed snapshot for the initial monthly rollup.</li>
+        <li>Record edits and deletes in an append-only events table with actor user id, event type, metadata, and timestamp.</li>
+        <li>Use React Query hooks for new server state. Do not add more direct API calls inside <code>PMSVisualPillars</code>.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/controllers/support/support-services/SupportTicketAttachmentService.ts</code> - closest backend analog for upload validation, S3 write, DB row creation, event creation, and signed download URLs.</p>
+      <p><strong>Reference file:</strong> <code>src/database/migrations/20260508000000_support_feedback_alignment.ts</code> - closest migration analog for file metadata, user ownership, and indexes.</p>
+      <p><strong>Reference file:</strong> <code>frontend/src/components/PMS/dashboard/PmsDashboardSurface.tsx</code> - closest UI placement analog for adding the file-manager surface to the Referrals Hub.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Preserve non-destructive aggregation: latest approved, non-deleted job wins per month.</li>
+            <li>Preserve the latest 12-month cap before agent analysis.</li>
+            <li>Store original uploaded file bytes in S3 under a PMS-specific upload folder.</li>
+            <li>Expose downloads through signed URLs only.</li>
+            <li>Store original parsed monthly rollup separately from the current edited rollup.</li>
+            <li>Track edit history with actor name/id, timestamp, touched months, fields, and before/after values.</li>
+            <li>Soft-delete PMS jobs so they are excluded from aggregation but remain auditable and downloadable.</li>
+            <li>Block upload/edit/delete while an active PMS/monthly-agent run exists for the selected org/location.</li>
+            <li>Show active missing-month slots inside the contiguous active window from first available active month through latest active month, capped to 12 months.</li>
+            <li>Show incoming months and active months that will be superseded before upload submit.</li>
+            <li>Update Alloro Docs and the Referrals Hub replica before finalization.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not hard-delete PMS jobs or original files from the user-facing delete flow.</li>
+            <li>Do not queue PMS mutations in v1.</li>
+            <li>Do not reuse unauthenticated admin PMS job endpoints for customer file-manager actions.</li>
+            <li>Do not trust <code>organization_id</code> from the frontend for customer endpoints.</li>
+            <li>Do not change ranking behavior, agent prompts, or the core 12-month cap.</li>
+            <li>Do not store permanent public URLs for original PMS files.</li>
+            <li>Do not keep supporting <code>.txt</code> PMS uploads.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Mutation queueing, multi-file batch upload, hard purge tooling, admin PMS endpoint hardening beyond avoiding those endpoints, and production data cleanup for historical PMS jobs.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 4 - schema changes, original-file storage, customer write APIs, and monthly-agent reruns can affect production data and downstream tasks.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Production migration and storage risk.</strong> New nullable columns and event table affect <code>pms_jobs</code>. <strong>Mitigation:</strong> additive-only migration, no destructive backfill, indexes on filter paths, reversible down migration that drops only new objects.</li>
+        <li><strong>Auth and location-scope risk.</strong> Existing admin PMS job endpoints are unauthenticated. <strong>Mitigation:</strong> create separate client file-manager endpoints under authenticated RBAC and location scope; writes require admin/manager.</li>
+        <li><strong>Stale agent output risk.</strong> Edits/deletes can make existing Summary/Referral Engine output stale. <strong>Mitigation:</strong> centralize PMS mutations in one service that records history, blocks active runs, and uses the existing cleanup/restart trigger path.</li>
+        <li><strong>Soft-delete aggregation drift.</strong> Aggregator currently reads all approved jobs. <strong>Mitigation:</strong> update model query to exclude <code>deleted_at IS NOT NULL</code> and ensure key-data/list views label deleted rows correctly.</li>
+        <li><strong>File privacy risk.</strong> PMS files can contain patient-adjacent data. <strong>Mitigation:</strong> S3 keys only in DB, signed URLs, auth check before URL generation, no permanent public URLs, no file contents in logs.</li>
+        <li><strong>Editor duplication risk.</strong> PMS edit modals are already overlapping. <strong>Mitigation:</strong> create or refactor to a single reusable <code>PmsJobDataEditorModal</code> used by file manager and latest-job review paths.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> Referrals Hub customer page, PMS upload/mapping paths, PMS aggregation, PMS automation status, monthly-agent cleanup/restart, S3 storage helpers, Alloro Docs Referrals Hub docs and replica, and any admin PMS job list that reads <code>pms_jobs</code>.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>This does not belong on the existing unauthenticated admin PMS job endpoints. Future-us will hate that. Customer file management needs its own authenticated, location-scoped API surface.</li>
+        <li>Hard delete is the wrong backend primitive. The UI can say delete, but the backend should soft-delete and preserve audit/file history.</li>
+        <li>Do not add a separate PMS-files source of truth. <code>pms_jobs</code> already is the upload/run record; extend it with metadata and events.</li>
+      </ul>
+      <h3>Production Migration Safety</h3>
+      <p>The migration will run first on <code>dev/dave</code> against the dev database, then on <code>main</code> against production after merge. It is additive but still production-sensitive because <code>pms_jobs</code> is used by live aggregation. The migration must not rewrite existing PMS payloads or delete any rows. Existing jobs should remain active with null file metadata and no event history.</p>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: PMS Metadata And Audit Schema</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add nullable PMS file metadata and soft-delete fields to <code>pms_jobs</code>; add <code>original_response_log</code>; add append-only <code>pms_job_events</code> table with actor, event type, metadata, and timestamp; add indexes for org/location/deleted/month-manager lists.</dd></div>
+          <div><dt>Files</dt><dd><code>src/database/migrations/20260602010000_add_pms_file_manager_metadata.ts</code>, <code>src/models/PmsJobModel.ts</code>, <code>src/models/PmsJobEventModel.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>None</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run db:migrate</code> on dev database, <code>npm run db:rollback</code> locally if safe, model type-check.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: PMS File Storage And Upload Rules</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create PMS S3 key helper using a PMS-specific <code>uploads/pms-files/{organizationId}/{locationId}/...</code> folder; store original file in S3 during file upload; save file metadata and immutable original parsed rollup; remove <code>.txt</code> support while keeping <code>.csv</code>, <code>.xls</code>, and <code>.xlsx</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/pms/pms-utils/pms-file-storage.util.ts</code>, <code>src/controllers/pms/pms-utils/pms-constants.ts</code>, <code>src/controllers/pms/pms-utils/file-upload.config.ts</code>, <code>src/controllers/pms/pms-utils/file-converter.util.ts</code>, <code>src/controllers/pms/pms-services/pms-upload.service.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Upload CSV/XLS/XLSX succeeds, TXT is rejected, S3 key and metadata persist, original parsed rollup is immutable after edits.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Authenticated File Manager API</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add customer-safe PMS file manager endpoints for list, detail, conflict preview, signed download URL, edit current parsed data, and soft-delete. Use RBAC org context, location scope, and admin/manager write permissions. Return active automation blockers with enough detail for UI loading state.</dd></div>
+          <div><dt>Files</dt><dd><code>src/routes/pms.ts</code>, <code>src/controllers/pms/PmsFileManagerController.ts</code>, <code>src/controllers/pms/pms-services/PmsFileManagerService.ts</code>, <code>src/controllers/pms/pms-utils/pms-file-manager-presenter.ts</code>, <code>src/models/PmsJobModel.ts</code>, <code>src/models/PmsJobEventModel.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2</dd></div>
+          <div><dt>Verify</dt><dd>Admin/manager writes allowed, viewer writes rejected, wrong-location access rejected, download URL requires access, active automation blocks mutation with 409 and active job details.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Aggregation, Missing Slots, And Rerun Contract</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Exclude soft-deleted jobs from active aggregation and key-data stats; preserve latest-wins and 12-month cap; derive file-manager month slots from active data; detect active-month conflicts for upload preview; after edit/delete, append event then trigger monthly-agent cleanup/restart using the established PMS automation path.</dd></div>
+          <div><dt>Files</dt><dd><code>src/utils/pms/pmsAggregator.ts</code>, <code>src/models/PmsJobModel.ts</code>, <code>src/controllers/pms/pms-services/pms-data.service.ts</code>, <code>src/controllers/pms/pms-services/pms-retry.service.ts</code>, <code>src/controllers/pms/pms-services/PmsFileManagerService.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1, T3</dd></div>
+          <div><dt>Verify</dt><dd>Deleted jobs no longer affect aggregation, previous month data can become active through latest-wins when a newer job is removed, missing slots render from first active month through latest active month, rerun status flips to processing.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Referrals Hub File Manager UI</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a location-specific PMS File Manager surface to the Referrals Hub with active 12-month slots, missing-month slots, uploaded file list, conflict preview, signed download action, original parsed/current edited views, edit history, edit modal, and disabled write controls during active processing. Use React Query hooks and typed API helpers.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/api/pms.ts</code>, <code>frontend/src/lib/queryClient.ts</code>, <code>frontend/src/hooks/queries/usePmsFileManagerQueries.ts</code>, <code>frontend/src/components/PMS/file-manager/PmsFileManager.tsx</code>, <code>frontend/src/components/PMS/file-manager/PmsFileList.tsx</code>, <code>frontend/src/components/PMS/file-manager/PmsMonthSlotGrid.tsx</code>, <code>frontend/src/components/PMS/file-manager/PmsUploadConflictPreview.tsx</code>, <code>frontend/src/components/PMS/PmsJobDataEditorModal.tsx</code>, <code>frontend/src/components/PMS/PMSVisualPillars.tsx</code>, <code>frontend/src/components/PMS/dashboard/PmsDashboardSurface.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3, T4</dd></div>
+          <div><dt>Verify</dt><dd><code>cd frontend &amp;&amp; npm run build</code>, manual browser check at <code>/pmsStatistics</code> for location switching, blocked mutation state, conflict preview, edit history, and download flow.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Docs Parity And Final Verification</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Update Alloro Docs Referrals Hub page, hotspots, steps, changelog, and visual replica to include the PMS File Manager. Run backend/frontend build gates and targeted API/manual checks.</dd></div>
+          <div><dt>Files</dt><dd><code>/Users/rustinedave/Desktop/alloro-docs/src/data/pages/referrals-hub.ts</code>, <code>/Users/rustinedave/Desktop/alloro-docs/src/components/replicas/ReferralsHubReplica.tsx</code>, relevant docs styles if the replica needs new layout support.</dd></div>
+          <div><dt>Depends on</dt><dd>T5</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>, <code>npm run build</code>, <code>cd frontend &amp;&amp; npm run build</code>, docs build command if configured, and manual inspection of docs replica.</dd></div>
+        </dl>
+      </article>
+
+      <h3>Dependency Chain</h3>
+      <p>T1 must happen first. T2 and parts of T3 can follow T1. T4 depends on T3 for mutation semantics. T5 depends on the API contract from T3/T4. T6 is last. Because this is large, backend schema/storage/API work and frontend component scaffolding may be parallelized after T1, but integration must be sequential before verification.</p>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="task-card">
+        <h3>Rev 1 - June 3, 2026</h3>
+        <p><strong>Change:</strong> Move the PMS File Manager from an inline dashboard section into a side panel opened by a new <code>Manage Data</code> control below the Data Ingestion upload action.</p>
+        <p><strong>Reason:</strong> The full manager made the dashboard feel heavy. A drawer keeps the primary dashboard focused while preserving access to file history, month slots, downloads, edits, and deletes.</p>
+        <p><strong>Updated Done criteria:</strong> The Data Ingestion CTA reads <code>Upload New Data</code>, the manager opens as a side panel, and the file manager no longer renders inline under the Referrals Hub content.</p>
+      </article>
+      <article class="task-card">
+        <h3>Rev 2 - June 3, 2026</h3>
+        <p><strong>Change:</strong> Make the file manager compact with a horizontally scrollable 12-month calendar, filter file rows and editor data by the selected month, lock empty-month uploads to the selected calendar month, and portal PMS data modals so they center over the main content instead of rendering beneath the sidebar/drawer.</p>
+        <p><strong>Reason:</strong> The first drawer version was too visually heavy, month cards did not make the data window clear enough, empty-month uploads could accidentally include unrelated months, and nested fixed-position modals were clipped by the transformed side panel.</p>
+        <p><strong>Updated Done criteria:</strong> The calendar shows the latest month plus the prior 11 months, active months are highlighted, selecting a month filters visible file data, selecting an empty month opens upload restricted to that month, parsed months outside that target are discarded, and original parsed views fall back to saved parsed PMS data when legacy rows lack an immutable original snapshot.</p>
+      </article>
+      <article class="task-card">
+        <h3>Rev 3 - June 3, 2026</h3>
+        <p><strong>Change:</strong> Treat the latest PMS month as the last completed month, label the latest missing month as <code>READY</code>, remove the current in-progress month from the calendar, default the drawer calendar to the right edge, add month action popovers, compact the upload controls, convert delete confirmation into a tooltip, and add the 12-month availability grid to the Data Ingestion card.</p>
+        <p><strong>Reason:</strong> PMS data should not ask for the current partial month, and the UI needed clearer month-scoped actions instead of immediate mutation on month selection.</p>
+        <p><strong>Updated Done criteria:</strong> On June 3, 2026, May 2026 is the latest/ready month and June 2026 is absent. Month clicks reveal Upload Data, Overwrite Data, or Edit Data actions; the ingestion card shows equal inline buttons above a 12-month availability grid; and focus styling does not show the previous blue outline.</p>
+      </article>
+      <article class="task-card">
+        <h3>Rev 4 - June 3, 2026</h3>
+        <p><strong>Change:</strong> Replace the hero <code>Update Data</code> shortcut with direct <code>Upload New Data</code> and <code>Manage Data</code> buttons, remove status text headers from month tiles, use compact status icons, and replace the side-panel month strip with a 4-by-3 navigable analysis-window grid.</p>
+        <p><strong>Reason:</strong> The shortcut duplicated the ingestion card while adding an extra scroll step, and the month cards were still too tall/noisy. The side panel needed a fixed grid that represents the 12-month analysis window without reserving space for hover actions.</p>
+        <p><strong>Updated Done criteria:</strong> Month tiles show icons plus month labels only; empty/ready tiles expose contextual hover tooltips; action buttons float over tiles on hover/focus; the side panel has Previous, Current, and Next navigation; and <code>Current</code> returns to the latest completed-month window plus the prior 11 months.</p>
+      </article>
+      <article class="task-card">
+        <h3>Rev 5 - June 3, 2026</h3>
+        <p><strong>Change:</strong> Make selected month state an outline-only treatment, pin right-edge floating actions inward, and enlarge the Referral Intelligence metric panel into a 2-by-2 grid.</p>
+        <p><strong>Reason:</strong> Filled selected tiles confused selection with data status, rightmost hover actions could overflow the drawer, and the four-column metric row looked too small for the primary insight card.</p>
+        <p><strong>Updated Done criteria:</strong> Data month selection uses green outline on data cards and orange outline on ready/empty cards; hover actions/tooltips stay inside the visible panel edge; and the main metrics render as larger 2-by-2 stat cards in both the app and docs replica.</p>
+      </article>
+      <article class="task-card">
+        <h3>Rev 6 - June 3, 2026</h3>
+        <p><strong>Change:</strong> Replace the Data Ingestion availability calendar with a dual-line data trend graph for the same 12-month window, showing monthly production and monthly referral totals.</p>
+        <p><strong>Reason:</strong> The calendar repeated the side-panel manager. A graph gives the upload area useful context while still making each month selectable for edit or upload flow.</p>
+        <p><strong>Updated Done criteria:</strong> The ingestion card renders production and referral trend lines for the latest completed month plus the prior 11 months; active plot points open the month management/edit path; missing and ready markers open the month upload path through the same manager; and the docs replica matches the new graph view.</p>
+      </article>
+      <article class="task-card">
+        <h3>Rev 7 - June 3, 2026</h3>
+        <p><strong>Change:</strong> Add hover and keyboard-focus data callouts to the ingestion trend graph plot points.</p>
+        <p><strong>Reason:</strong> The graph needed to expose the exact month, production, referral count, and edit/upload action without forcing the user to click first.</p>
+        <p><strong>Updated Done criteria:</strong> Hovering or focusing a plot point shows a visible callout with month data, a vertical guide, and the relevant action label; clicking still opens the same month-specific edit/upload flow; and the docs replica reflects the hoverable plot behavior.</p>
+      </article>
+      <article class="task-card">
+        <h3>Rev 8 - June 3, 2026</h3>
+        <p><strong>Change:</strong> Remove the standalone <code>Upload New Data</code> button from the PMS File Manager side panel intro.</p>
+        <p><strong>Reason:</strong> The global side-panel upload button duplicated the month-specific upload actions and made the panel header feel heavy.</p>
+        <p><strong>Updated Done criteria:</strong> The side panel keeps only the intro copy above the month grid; uploads are still available through empty/ready month actions, active-month overwrite actions, and the dashboard ingestion upload button.</p>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> <code>src/database/migrations/20260602010000_add_pms_file_manager_metadata.ts</code> is additive, reversible, and documented for prod risk.</li>
+        <li><input type="checkbox" checked disabled> PMS upload accepts <code>.csv</code>, <code>.xls</code>, <code>.xlsx</code> and rejects <code>.txt</code>.</li>
+        <li><input type="checkbox" checked disabled> Original PMS files upload to S3 and can be downloaded through access-checked signed URLs.</li>
+        <li><input type="checkbox" checked disabled> Original parsed data, current edited data, and month/field-level edit history are visible in the file manager.</li>
+        <li><input type="checkbox" checked disabled> Upload preview shows incoming months and active months that will be superseded.</li>
+        <li><input type="checkbox" checked disabled> Soft-deleted PMS jobs are excluded from active aggregation but remain visible as deleted/auditable records.</li>
+        <li><input type="checkbox" checked disabled> Upload/edit/delete are blocked during active automation for the selected location with a clear active-job message and refresh behavior.</li>
+        <li><input type="checkbox" checked disabled> Any successful upload/edit/delete triggers the appropriate monthly-agent rerun path.</li>
+        <li><input type="checkbox" checked disabled> Missing month slots show inside the active contiguous month window.</li>
+        <li><input type="checkbox" checked disabled> Customer write APIs derive org from auth, enforce location scope, and require admin/manager.</li>
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> has no errors caused by this work.</li>
+        <li><input type="checkbox" checked disabled> <code>npm run build</code> and <code>cd frontend &amp;&amp; npm run build</code> pass or only unrelated pre-existing issues are documented.</li>
+        <li><input type="checkbox" checked disabled> Alloro Docs Referrals Hub page and replica are updated in <code>/Users/rustinedave/Desktop/alloro-docs</code>.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

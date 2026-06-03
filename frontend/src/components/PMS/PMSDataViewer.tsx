@@ -10,6 +10,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "../../lib/toast";
 import {
@@ -45,6 +46,8 @@ interface PMSDataViewerProps {
   title?: string;
   subtitle?: string;
   initialData: unknown;
+  initialMonth?: string | null;
+  centerInMainView?: boolean;
   onClose: () => void;
   onSave?: (data: MonthEntryForm[]) => Promise<void>;
   readOnly?: boolean;
@@ -66,10 +69,24 @@ const normaliseMonthEntries = (raw: unknown): MonthEntryForm[] => {
 
   if (typeof raw === "object" && raw !== null && !Array.isArray(raw)) {
     const container = raw as Record<string, unknown>;
+    const nestedData =
+      container.data && typeof container.data === "object"
+        ? (container.data as Record<string, unknown>)
+        : null;
     if (Array.isArray(container.monthly_rollup)) {
       dataArray = container.monthly_rollup;
+    } else if (Array.isArray(container.monthlyRollup)) {
+      dataArray = container.monthlyRollup;
     } else if (Array.isArray(container.report_data)) {
       dataArray = container.report_data;
+    } else if (Array.isArray(container.reportData)) {
+      dataArray = container.reportData;
+    } else if (Array.isArray(nestedData?.monthly_rollup)) {
+      dataArray = nestedData.monthly_rollup;
+    } else if (Array.isArray(nestedData?.monthlyRollup)) {
+      dataArray = nestedData.monthlyRollup;
+    } else if (Array.isArray(nestedData?.report_data)) {
+      dataArray = nestedData.report_data;
     }
   }
 
@@ -87,28 +104,45 @@ const normaliseMonthEntries = (raw: unknown): MonthEntryForm[] => {
 
     const sources: SourceEntryForm[] = sourcesRaw.map((source) => {
       const src = typeof source === "object" && source !== null ? source : {};
+      const sourceRecord = src as Record<string, unknown>;
       return {
-        name: String((src as Record<string, unknown>).name ?? ""),
-        referrals: toNumber((src as Record<string, unknown>).referrals),
-        production: toNumber((src as Record<string, unknown>).production),
-        inferred_referral_type: (src as Record<string, unknown>)
-          .inferred_referral_type as "self" | "doctor" | undefined,
+        name: String(
+          sourceRecord.name ??
+            sourceRecord.source ??
+            sourceRecord.referring_practice ??
+            sourceRecord.referringPractice ??
+            ""
+        ),
+        referrals: toNumber(
+          sourceRecord.referrals ??
+            sourceRecord.referral_count ??
+            sourceRecord.referralCount
+        ),
+        production: toNumber(
+          sourceRecord.production ??
+            sourceRecord.production_total ??
+            sourceRecord.productionTotal
+        ),
+        inferred_referral_type: (sourceRecord.inferred_referral_type ??
+          sourceRecord.type ??
+          sourceRecord.referral_type) as "self" | "doctor" | undefined,
       };
     });
+    const monthRecord = monthEntry as Record<string, unknown>;
 
     return {
-      month: String((monthEntry as Record<string, unknown>).month ?? ""),
+      month: String(monthRecord.month ?? ""),
       self_referrals: toNumber(
-        (monthEntry as Record<string, unknown>).self_referrals
+        monthRecord.self_referrals ?? monthRecord.selfReferrals
       ),
       doctor_referrals: toNumber(
-        (monthEntry as Record<string, unknown>).doctor_referrals
+        monthRecord.doctor_referrals ?? monthRecord.doctorReferrals
       ),
       total_referrals: toNumber(
-        (monthEntry as Record<string, unknown>).total_referrals
+        monthRecord.total_referrals ?? monthRecord.totalReferrals
       ),
       production_total: toNumber(
-        (monthEntry as Record<string, unknown>).production_total
+        monthRecord.production_total ?? monthRecord.productionTotal
       ),
       sources,
     };
@@ -165,6 +199,8 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
   title = "View PMS Data",
   subtitle = "Review referral and production data",
   initialData,
+  initialMonth,
+  centerInMainView = false,
   onClose,
   onSave,
   readOnly = false,
@@ -184,13 +220,17 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
   // Only initialize on first open, not on data changes (prevents resetting during polling)
   useEffect(() => {
     if (isOpen && months.length === 0) {
-      const normalized = normaliseMonthEntries(initialData);
+      const normalized = initialMonth
+        ? normaliseMonthEntries(initialData).filter(
+            (entry) => entry.month === initialMonth
+          )
+        : normaliseMonthEntries(initialData);
       const uiMonths = transformBackendToUI(normalized);
       setMonths(uiMonths);
       setActiveMonthId(uiMonths[0]?.id ?? null);
       setError(null);
     }
-  }, [isOpen]);
+  }, [initialData, initialMonth, isOpen, months.length]);
 
   // Reset on close
   useEffect(() => {
@@ -213,7 +253,7 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
     return found;
   }, [months, activeMonthId, sortedMonths]);
 
-  const rows = activeMonth?.rows ?? [];
+  const rows = useMemo(() => activeMonth?.rows ?? [], [activeMonth?.rows]);
   const totals = useMemo(() => calculateTotals(rows), [rows]);
 
   useEffect(() => {
@@ -309,10 +349,6 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
 
     try {
       const backendData = transformUIToBackend(months);
-      console.log(
-        "[PMSDataViewer] Sending transformed data to backend:",
-        backendData
-      );
       await onSave(backendData);
       toast.success("Changes saved successfully");
       // Close modal after successful save
@@ -331,13 +367,15 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
 
   if (!isOpen) return null;
 
-  return (
+  const overlay = (
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto"
+        className={`fixed inset-y-0 right-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm ${
+          centerInMainView ? "left-0 lg:left-72" : "left-0"
+        }`}
         onClick={onClose}
       >
         <motion.div
@@ -777,4 +815,10 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
       </motion.div>
     </AnimatePresence>
   );
+
+  if (typeof document === "undefined") {
+    return overlay;
+  }
+
+  return createPortal(overlay, document.body);
 };

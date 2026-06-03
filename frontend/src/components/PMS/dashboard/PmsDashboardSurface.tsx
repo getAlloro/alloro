@@ -3,7 +3,10 @@ import { motion } from "framer-motion";
 import { PmsDashboardHero } from "./PmsDashboardHero";
 import { PmsEmptyDashboardState } from "./PmsEmptyDashboardState";
 import { PmsGrowthOpportunities } from "./PmsGrowthOpportunities";
-import { PmsIngestionCard } from "./PmsIngestionCard";
+import {
+  PmsIngestionCard,
+  type PmsDataAvailabilityMonth,
+} from "./PmsIngestionCard";
 import { PmsProductionChart } from "./PmsProductionChart";
 import { PmsProcessingStatusCard } from "./PmsProcessingStatusCard";
 import { PmsReferralMixCard } from "./PmsReferralMixCard";
@@ -16,8 +19,10 @@ import type { PmsDashboardData } from "./types";
 type DetailModal = "sources" | "trends" | null;
 
 export type PmsDashboardSurfaceProps = PmsDashboardData & {
-  onJumpToIngestion: () => void;
+  canOpenDataManager?: boolean;
   onOpenManualEntry: () => void;
+  onOpenDataManager?: () => void;
+  onSelectDataMonth?: (month: string) => void;
   onOpenSettings: () => void;
 };
 
@@ -35,11 +40,14 @@ export function PmsDashboardSurface({
   canUploadPMS,
   hasProperties,
   isIngestionHighlighted,
-  onJumpToIngestion,
+  canOpenDataManager,
   onOpenManualEntry,
+  onOpenDataManager,
+  onSelectDataMonth,
   onOpenSettings,
 }: PmsDashboardSurfaceProps) {
   const [detailModal, setDetailModal] = useState<DetailModal>(null);
+  const availabilityMonths = buildAvailabilityMonths(monthlyData);
 
   const hasExistingData =
     monthlyData.length > 0 ||
@@ -57,7 +65,10 @@ export function PmsDashboardSurface({
     >
       <PmsDashboardHero
         showUpdateData={!shouldShowUnifiedEmptyState}
-        onJumpToIngestion={onJumpToIngestion}
+        canUploadPMS={canUploadPMS}
+        canOpenDataManager={canOpenDataManager}
+        onOpenManualEntry={onOpenManualEntry}
+        onOpenDataManager={onOpenDataManager}
       />
 
       {isProcessingInsights && (
@@ -95,7 +106,11 @@ export function PmsDashboardSurface({
             hasProperties={hasProperties}
             isWizardActive={isWizardActive}
             isHighlighted={isIngestionHighlighted}
+            canOpenDataManager={canOpenDataManager}
+            availabilityMonths={availabilityMonths}
             onOpenManualEntry={onOpenManualEntry}
+            onOpenDataManager={onOpenDataManager}
+            onSelectDataMonth={onSelectDataMonth}
             onOpenSettings={onOpenSettings}
           />
         </>
@@ -141,4 +156,62 @@ export function PmsDashboardSurface({
       </DetailsModal>
     </motion.div>
   );
+}
+
+function buildAvailabilityMonths(
+  monthlyData: PmsDashboardData["monthlyData"]
+): PmsDataAvailabilityMonth[] {
+  const activeMonthData = new Map<string, PmsDashboardData["monthlyData"][number]>();
+  monthlyData.forEach((entry) => {
+    const month = normalizeMonthKey(entry.month);
+    if (month) activeMonthData.set(month, entry);
+  });
+  const latestMonth = addMonths(currentMonth(), -1);
+  const firstMonth = addMonths(latestMonth, -11);
+  const months: PmsDataAvailabilityMonth[] = [];
+
+  for (let month = firstMonth; month <= latestMonth; month = addMonths(month, 1)) {
+    const activeMonth = activeMonthData.get(month);
+    const isActive = Boolean(activeMonth);
+    const isLatest = month === latestMonth;
+    months.push({
+      month,
+      label: formatMonth(month),
+      status: isActive ? "active" : isLatest ? "ready" : "missing",
+      isLatest,
+      productionTotal: activeMonth?.productionTotal ?? null,
+      totalReferrals: activeMonth?.totalReferrals ?? null,
+    });
+  }
+
+  return months;
+}
+
+function normalizeMonthKey(value: string): string | null {
+  if (/^\d{4}-\d{2}$/.test(value)) return value;
+  const parsed = new Date(`${value} 1`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function currentMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function addMonths(ym: string, delta: number): string {
+  const [year, month] = ym.split("-").map(Number);
+  const totalMonths = year * 12 + (month - 1) + delta;
+  const nextYear = Math.floor(totalMonths / 12);
+  const nextMonth = (totalMonths % 12) + 1;
+  return `${nextYear}-${String(nextMonth).padStart(2, "0")}`;
+}
+
+function formatMonth(month: string) {
+  const parsed = new Date(`${month}-01T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return month;
+  return parsed.toLocaleDateString("en-US", {
+    month: "short",
+    year: "numeric",
+  });
 }

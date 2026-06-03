@@ -1,5 +1,6 @@
 import { Knex } from "knex";
 import { BaseModel, PaginatedResult, PaginationParams, QueryContext } from "./BaseModel";
+import { db } from "../database/connection";
 
 export interface IPmsJob {
   id: number;
@@ -10,9 +11,22 @@ export interface IPmsJob {
   is_approved: boolean;
   is_client_approved: boolean;
   response_log: Record<string, unknown> | null;
+  original_response_log: Record<string, unknown> | null;
   raw_input_data: Record<string, unknown> | null;
   automation_status_detail: Record<string, unknown> | null;
   column_mapping_id?: number | null;
+  original_file_name?: string | null;
+  original_file_mime_type?: string | null;
+  original_file_size_bytes?: number | string | null;
+  original_file_s3_key?: string | null;
+  uploaded_by_user_id?: number | null;
+  uploaded_by_name?: string | null;
+  uploaded_by_email?: string | null;
+  deleted_at?: Date | string | null;
+  deleted_by_user_id?: number | null;
+  deleted_by_name?: string | null;
+  deleted_by_email?: string | null;
+  deleted_reason?: string | null;
   timestamp: Date;
 }
 
@@ -27,6 +41,7 @@ export class PmsJobModel extends BaseModel {
   protected static tableName = "pms_jobs";
   protected static jsonFields = [
     "response_log",
+    "original_response_log",
     "raw_input_data",
     "automation_status_detail",
   ];
@@ -140,6 +155,7 @@ export class PmsJobModel extends BaseModel {
       .select(
         "id",
         "organization_id",
+        "location_id",
         "status",
         "is_approved",
         "is_client_approved",
@@ -206,6 +222,7 @@ export class PmsJobModel extends BaseModel {
         "is_client_approved"
       )
       .where("organization_id", organizationId)
+      .whereNull("deleted_at")
       .orderBy("timestamp", "asc");
 
     if (locationId) {
@@ -231,6 +248,7 @@ export class PmsJobModel extends BaseModel {
         "response_log"
       )
       .where("organization_id", organizationId)
+      .whereNull("deleted_at")
       .orderBy("timestamp", "desc");
 
     if (locationId) {
@@ -255,10 +273,67 @@ export class PmsJobModel extends BaseModel {
         "column_mapping_id"
       )
       .where({ organization_id: organizationId, is_approved: 1 })
+      .whereNull("deleted_at")
       .orderBy("timestamp", "asc");
 
     if (locationId) {
       query = query.where("location_id", locationId);
+    }
+
+    const rows = await query;
+    return rows.map((row: IPmsJob) => this.deserializeJsonFields(row));
+  }
+
+  static async findForOrganizationLocation(
+    id: number,
+    organizationId: number,
+    locationId?: number | null,
+    trx?: QueryContext
+  ): Promise<IPmsJob | undefined> {
+    let query = this.table(trx)
+      .where("id", id)
+      .where("organization_id", organizationId);
+
+    if (locationId) {
+      query = query.where("location_id", locationId);
+    }
+
+    const row = await query.first();
+    return row ? this.deserializeJsonFields(row) : undefined;
+  }
+
+  static async listForFileManager(
+    organizationId: number,
+    locationId?: number | null,
+    trx?: QueryContext
+  ): Promise<IPmsJob[]> {
+    let query = this.table(trx)
+      .leftJoin(
+        "users as uploaded_users",
+        "uploaded_users.id",
+        "pms_jobs.uploaded_by_user_id"
+      )
+      .leftJoin(
+        "users as deleted_users",
+        "deleted_users.id",
+        "pms_jobs.deleted_by_user_id"
+      )
+      .where("pms_jobs.organization_id", organizationId)
+      .orderBy("pms_jobs.timestamp", "desc")
+      .select(
+        "pms_jobs.*",
+        "uploaded_users.email as uploaded_by_email",
+        "deleted_users.email as deleted_by_email",
+        db.raw(
+          "COALESCE(uploaded_users.name, NULLIF(CONCAT_WS(' ', uploaded_users.first_name, uploaded_users.last_name), ''), uploaded_users.email) AS uploaded_by_name"
+        ),
+        db.raw(
+          "COALESCE(deleted_users.name, NULLIF(CONCAT_WS(' ', deleted_users.first_name, deleted_users.last_name), ''), deleted_users.email) AS deleted_by_name"
+        )
+      );
+
+    if (locationId) {
+      query = query.where("pms_jobs.location_id", locationId);
     }
 
     const rows = await query;

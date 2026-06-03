@@ -263,7 +263,7 @@ export const PMSUploadModal: React.FC<PMSUploadModalProps> = ({
                           <input
                             ref={fileInputRef}
                             type="file"
-                            accept=".csv,.txt,.xlsx,.xls"
+                            accept=".csv,.xlsx,.xls"
                             onChange={handleFileInputChange}
                             className="hidden"
                           />

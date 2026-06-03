@@ -1,14 +1,20 @@
 import { motion } from "framer-motion";
-import { ArrowRight } from "lucide-react";
+import { Database, PenLine } from "lucide-react";
 
 export type PmsDashboardHeroProps = {
   showUpdateData: boolean;
-  onJumpToIngestion: () => void;
+  canUploadPMS: boolean;
+  canOpenDataManager?: boolean;
+  onOpenManualEntry: () => void;
+  onOpenDataManager?: () => void;
 };
 
 export function PmsDashboardHero({
   showUpdateData,
-  onJumpToIngestion,
+  canUploadPMS,
+  canOpenDataManager = false,
+  onOpenManualEntry,
+  onOpenDataManager,
 }: PmsDashboardHeroProps) {
   return (
     <motion.section
@@ -31,14 +37,27 @@ export function PmsDashboardHero({
       </div>
 
       {showUpdateData && (
-        <button
-          type="button"
-          onClick={onJumpToIngestion}
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-alloro-orange px-5 py-3 text-[11px] font-black uppercase tracking-widest text-white shadow-lg shadow-alloro-orange/25 transition-all duration-200 hover:scale-[1.02] hover:brightness-110 focus:outline-none focus-visible:ring-4 focus-visible:ring-alloro-orange/40"
-        >
-          Update data
-          <ArrowRight className="h-4 w-4" />
-        </button>
+        <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={onOpenManualEntry}
+            disabled={!canUploadPMS}
+            className="inline-flex min-h-11 min-w-[168px] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-alloro-orange px-4 py-3 text-[11px] font-black uppercase tracking-widest text-white shadow-lg shadow-alloro-orange/25 transition-all duration-200 hover:scale-[1.02] hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-alloro-orange/35 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <PenLine className="h-4 w-4" />
+            Upload New Data
+          </button>
+          {canOpenDataManager && onOpenDataManager && (
+            <button
+              type="button"
+              onClick={onOpenDataManager}
+              className="inline-flex min-h-11 min-w-[168px] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-line-soft bg-white px-4 py-3 text-[11px] font-black uppercase tracking-widest text-alloro-navy shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-alloro-orange/40 hover:bg-alloro-orange/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-alloro-orange/25"
+            >
+              <Database className="h-4 w-4 text-alloro-orange" />
+              Manage Data
+            </button>
+          )}
+        </div>
       )}
     </motion.section>
   );
