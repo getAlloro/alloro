@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, ArrowRight, BarChart3, Inbox } from "lucide-react";
+import { ChevronRight, BarChart3, Inbox } from "lucide-react";
 import { apiGet } from "../../../api";
 import { InfoTip } from "../../dashboard/shared/InfoTip";
 import {
@@ -34,6 +34,15 @@ export type WebsiteOverviewProps = {
 
 const numberFmt = new Intl.NumberFormat("en-US");
 const fmt = (n: number) => numberFmt.format(Math.round(n));
+
+// Line + column-dot colors for the hero funnel: visitors (orange) → leads
+// (navy) → conversion (green). Visitors must match TrendSparkline's hardcoded
+// primary; leads/conversion are passed as the secondary/tertiary line colors.
+const FUNNEL_COLORS = {
+  visitors: "var(--color-alloro-orange)",
+  leads: "var(--color-alloro-navy)",
+  conversion: "#4F8A5B",
+} as const;
 
 interface ListResponse {
   success: boolean;
@@ -133,7 +142,7 @@ export function WebsiteOverview({
   const [leadsHover, setLeadsHover] = useState<number | null>(null);
   const [trafficModalHover, setTrafficModalHover] = useState<number | null>(null);
   const [leadsModalHover, setLeadsModalHover] = useState<number | null>(null);
-  const funnelPoint = funnelHover !== null ? m.visitorSeries[funnelHover] : null;
+  const funnelPoint = funnelHover !== null ? m.funnelSeries[funnelHover] : null;
   const trafficPoint = trafficHover !== null ? m.visitorSeries[trafficHover] : null;
   const leadsPoint = leadsHover !== null ? m.leadSeriesCompact[leadsHover] : null;
   const trafficModalPoint =
@@ -143,103 +152,101 @@ export function WebsiteOverview({
 
   const leadWord = m.monthLeads === 1 ? "lead" : "leads";
   const insight = m.hasAnalytics
-    ? `Your website turned ${fmt(m.monthVisitors)} visitors into ${m.monthLeads} ${leadWord} this month. Typically about ${formatConversion(m.typicalConversionRate)} of visitors become leads.`
+    ? `Your website turned ${fmt(m.monthVisitors)} visitors into ${m.monthLeads} ${leadWord} this month.`
     : `${m.monthLeads} ${leadWord} came in through your website forms this month. Connect web analytics to see how many visitors that took.`;
   const insightHighlights = m.hasAnalytics
-    ? [
-        `${fmt(m.monthVisitors)} visitors`,
-        `${m.monthLeads} ${leadWord}`,
-        formatConversion(m.typicalConversionRate),
-      ]
+    ? [`${fmt(m.monthVisitors)} visitors`, `${m.monthLeads} ${leadWord}`]
     : [`${m.monthLeads} ${leadWord}`];
 
   const score = (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center text-center">
       <span className="font-display text-[52px] font-medium leading-none tracking-tight text-alloro-navy tabular-nums">
-        {m.hasAnalytics ? formatConversion(m.typicalConversionRate) : m.monthLeads}
+        {m.hasAnalytics ? formatConversion(m.conversionRate) : m.monthLeads}
       </span>
       <span className="mt-2 text-[11px] font-semibold text-[color:var(--color-pm-text-secondary)]">
-        {m.hasAnalytics ? "of visitors, typically" : "leads this month"}
+        {m.hasAnalytics ? "so far this month" : "leads this month"}
       </span>
       {m.hasAnalytics && (
-        <span className="mt-1 text-[10px] font-medium tabular-nums text-[color:var(--color-pm-text-secondary)]/70">
-          {formatConversion(m.conversionRate)} so far this month
+        <span className="mt-2 max-w-[210px] text-[10px] font-medium leading-snug text-[color:var(--color-pm-text-secondary)]/70">
+          Calculated from this month's data so far — updates daily.
         </span>
       )}
     </div>
   );
 
+  const funnelCols = [
+    {
+      key: "visitors",
+      label: "Unique visitors",
+      color: FUNNEL_COLORS.visitors,
+      value: funnelPoint
+        ? fmt(funnelPoint.visitors)
+        : m.hasAnalytics
+          ? fmt(m.monthVisitors)
+          : "—",
+    },
+    {
+      key: "leads",
+      label: (
+        <>
+          Leads{" "}
+          <span className="font-medium normal-case tracking-normal opacity-60">
+            (form submissions)
+          </span>
+        </>
+      ),
+      color: FUNNEL_COLORS.leads,
+      value: String(funnelPoint ? funnelPoint.leads : m.monthLeads),
+    },
+    {
+      key: "conversion",
+      label: "Conversion rate",
+      color: FUNNEL_COLORS.conversion,
+      value: m.hasAnalytics
+        ? formatConversion(funnelPoint ? funnelPoint.conversion : m.conversionRate)
+        : "—",
+    },
+  ];
+
   const estimateSummary = (
     <div className="flex h-full flex-col justify-between gap-4">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <div className="font-mono-display text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--color-pm-text-secondary)]">
-            Visitors
-          </div>
-          <div className="mt-1.5 flex items-baseline gap-2">
-            <span className="font-display text-[30px] font-medium leading-none tracking-tight text-alloro-navy tabular-nums">
-              {funnelPoint
-                ? fmt(funnelPoint.visitors)
-                : m.hasAnalytics
-                  ? fmt(m.monthVisitors)
-                  : "—"}
-            </span>
-            {funnelPoint ? (
-              <span className="text-[10px] font-semibold text-[color:var(--color-pm-text-secondary)]">
-                {funnelPoint.label}
+      <div className="grid grid-cols-3 gap-3">
+        {funnelCols.map((col) => (
+          <div key={col.key}>
+            <div className="flex items-center gap-1.5">
+              <span
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{ backgroundColor: col.color }}
+              />
+              <span className="font-mono-display text-[10px] font-bold uppercase tracking-[0.1em] text-[color:var(--color-pm-text-secondary)]">
+                {col.label}
               </span>
-            ) : (
-              <TrendPill deltaPct={m.visitorsDeltaPct} />
-            )}
+            </div>
+            <div className="mt-1.5 font-display text-[28px] font-medium leading-none tracking-tight text-alloro-navy tabular-nums">
+              {col.value}
+            </div>
           </div>
-        </div>
-        <ArrowRight className="h-5 w-5 shrink-0 text-alloro-navy/25" />
-        <div className="text-right">
-          <div className="font-mono-display text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--color-pm-text-secondary)]">
-            Leads{" "}
-            <span className="font-medium normal-case tracking-normal opacity-60">
-              (form submissions)
-            </span>
-          </div>
-          <div className="mt-1.5 flex items-baseline justify-end gap-2">
-            <span className="font-display text-[30px] font-medium leading-none tracking-tight text-alloro-navy tabular-nums">
-              {funnelPoint
-                ? m.leadsByMonth[funnelPoint.month] ?? 0
-                : m.monthLeads}
-            </span>
-            {funnelPoint ? (
-              <span className="text-[10px] font-semibold text-[color:var(--color-pm-text-secondary)]">
-                {funnelPoint.monthName}
-              </span>
-            ) : (
-              <TrendPill deltaPct={m.leadsPaceDeltaPct} />
-            )}
-          </div>
-        </div>
+        ))}
       </div>
       {m.hasAnalytics && (
         <div className="-mx-1">
           <TrendSparkline
-            data={m.visitorSeries}
-            valueKey="visitors"
-            labelKey="label"
-            height={84}
-            showLabels={false}
+            data={m.funnelSeries}
+            valueKey="visitorsN"
+            secondaryKey="leadsN"
+            tertiaryKey="conversionN"
+            secondaryColor={FUNNEL_COLORS.leads}
+            tertiaryColor={FUNNEL_COLORS.conversion}
+            labelKey="monthName"
+            height={110}
+            showArea={false}
             onActiveIndexChange={setFunnelHover}
           />
         </div>
       )}
       {m.hasAnalytics && (
-        <div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-alloro-navy/10">
-            <div
-              className="h-full rounded-full bg-alloro-orange"
-              style={{ width: `${Math.min(100, Math.max(3, m.conversionRate * 100))}%` }}
-            />
-          </div>
-          <div className="mt-2 text-[11px] font-medium text-[color:var(--color-pm-text-secondary)]">
-            {formatConversion(m.conversionRate)} of visitors became leads so far this month
-          </div>
+        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--color-pm-text-secondary)]">
+          {funnelPoint ? funnelPoint.monthName : "This month · to date"}
         </div>
       )}
     </div>
@@ -288,7 +295,7 @@ export function WebsiteOverview({
         insightHighlights={insightHighlights}
         score={score}
         scoreLabel="Conversion rate"
-        scoreTooltip="Share of visitors who became leads, blended across the months we have data so a partial month or a one-off traffic spike doesn't skew it. The smaller figure is this month so far."
+        scoreTooltip="Verified leads ÷ unique visitors so far this month. It's partial early-month data and updates every day as more visitors and leads come in."
         estimateSummary={estimateSummary}
         actions={actions}
       />
@@ -478,10 +485,10 @@ export function WebsiteOverview({
               tip="Verified leads in the previous full month."
             />
             <ModalStat
-              label="Typical conv."
-              sub="blended"
-              value={m.hasAnalytics ? formatConversion(m.typicalConversionRate) : "—"}
-              tip={`Verified leads ÷ visitors blended across the ${m.typicalMonths} month${m.typicalMonths === 1 ? "" : "s"} with data — steadier than a single partial month.`}
+              label="Conversion"
+              sub="this month"
+              value={m.hasAnalytics ? formatConversion(m.conversionRate) : "—"}
+              tip="Verified leads ÷ unique visitors so far this month."
             />
             <ModalStat
               label="All time"

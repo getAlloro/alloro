@@ -10,9 +10,8 @@ import type { TimeseriesPoint } from "../../../api/formSubmissionsTimeseries";
  * - Leads delta: this month is projected to full-month "pace" and compared to
  *   last month's full total (leads only arrive monthly, so pacing keeps the
  *   partial-month comparison honest).
- * - Conversion: headline is the "typical" blended rate (leads ÷ visitors across
- *   all months with data) so a partial month or a one-off traffic spike doesn't
- *   deflate it; MTD conversion is kept as a smaller secondary figure.
+ * - Conversion: month-to-date (verified leads ÷ unique visitors this month).
+ *   The hero funnel also exposes a per-month conversion series for its chart.
  *
  * Card charts are MONTHLY (daily series aggregated into month buckets, leading
  * no-data months trimmed) so the traffic cards share the leads cadence. The
@@ -31,10 +30,6 @@ export interface WebsiteMetrics {
   prevConversionRate: number;
   /** percentage points (this month − last month) */
   conversionDeltaPp: number | null;
-  /** blended verified-leads ÷ visitors across months with data — the "typical" rate */
-  typicalConversionRate: number;
-  /** how many months the typical rate is blended over */
-  typicalMonths: number;
   /** % change, MTD vs same day-range last month */
   visitorsDeltaPct: number | null;
   /** % change, projected full-month leads vs last month full */
@@ -48,6 +43,22 @@ export interface WebsiteMetrics {
     pageviews: number;
     month: string;
     monthName: string;
+  }>;
+  /**
+   * Combined per-month funnel series for the hero: visitors + leads + conversion
+   * on one monthly axis. Each is also normalized to its own peak (…N fields) so
+   * the 3-line chart is legible despite the very different scales.
+   */
+  funnelSeries: Array<{
+    label: string;
+    monthName: string;
+    month: string;
+    visitors: number;
+    leads: number;
+    conversion: number;
+    visitorsN: number;
+    leadsN: number;
+    conversionN: number;
   }>;
   /** daily visitor series for the traffic modal; absent days are no-data (null) */
   visitorDaily: Array<{
@@ -269,20 +280,33 @@ export function computeWebsiteMetrics(
         })
       : [];
 
-  // "Typical" conversion: verified leads ÷ visitors blended across the months we
-  // actually have visitor data for. Steadier than a single partial month — it is
-  // not deflated by a month-to-date window or a one-off traffic spike.
-  let blendLeads = 0;
-  let blendVisitors = 0;
-  let typicalMonths = 0;
-  for (const point of visitorSeriesTrimmed) {
-    if (point.visitors <= 0) continue;
-    blendVisitors += point.visitors;
-    blendLeads += tsByMonth.get(point.month)?.verified ?? 0;
-    typicalMonths += 1;
-  }
-  const typicalConversionRate =
-    blendVisitors > 0 ? blendLeads / blendVisitors : conversionRate;
+  // Combined per-month funnel series for the hero: visitors, leads, and the
+  // conversion rate on one monthly axis. The chart plots all three as trend
+  // lines — they live on very different scales (visitors in the hundreds, leads
+  // in single digits, conversion a few percent), so each is also normalized to
+  // its own peak (…N) so every line is legible; the hero columns show the real
+  // values on hover.
+  const funnelRaw = visitorSeriesTrimmed.map((p) => {
+    const leads = tsByMonth.get(p.month)?.verified ?? 0;
+    const conversion = p.visitors > 0 ? leads / p.visitors : 0;
+    return {
+      label: p.label,
+      monthName: p.monthName,
+      month: p.month,
+      visitors: p.visitors,
+      leads,
+      conversion,
+    };
+  });
+  const maxVisitors = Math.max(1, ...funnelRaw.map((p) => p.visitors));
+  const maxLeads = Math.max(1, ...funnelRaw.map((p) => p.leads));
+  const maxConversion = Math.max(0, ...funnelRaw.map((p) => p.conversion));
+  const funnelSeries = funnelRaw.map((p) => ({
+    ...p,
+    visitorsN: p.visitors / maxVisitors,
+    leadsN: p.leads / maxLeads,
+    conversionN: maxConversion > 0 ? p.conversion / maxConversion : 0,
+  }));
 
   return {
     hasAnalytics,
@@ -299,9 +323,8 @@ export function computeWebsiteMetrics(
     visitorsDeltaPct: meaningfulDelta(dailyCurUsers, prevVisitorsMtd, 10),
     leadsPaceDeltaPct: meaningfulDelta(leadsPace, prevMonthLeads, 3),
     prevMonthLeads,
-    typicalConversionRate,
-    typicalMonths,
     visitorSeries: visitorSeriesTrimmed,
+    funnelSeries,
     visitorDaily,
     leadSeries: leadSeriesFull,
     leadSeriesCompact,

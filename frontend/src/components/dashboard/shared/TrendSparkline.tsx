@@ -34,6 +34,11 @@ export type TrendSparklineProps = {
   /** Optional secondary numeric series (defaults to navy). */
   secondaryKey?: string;
   secondaryColor?: string;
+  /** Optional tertiary numeric series (defaults to green). */
+  tertiaryKey?: string;
+  tertiaryColor?: string;
+  /** Render the gradient wash under the primary line (default true). */
+  showArea?: boolean;
   /** Chart body height in px (default 144 → h-36). */
   height?: number;
   /** Called with the hovered point index, or null on leave. */
@@ -55,6 +60,9 @@ export function TrendSparkline({
   labelKey,
   secondaryKey,
   secondaryColor = "var(--color-alloro-navy)",
+  tertiaryKey,
+  tertiaryColor = "#4F8A5B",
+  showArea = true,
   height = 144,
   onActiveIndexChange,
   showLabels = true,
@@ -63,16 +71,15 @@ export function TrendSparkline({
 
   const domain = useMemo(() => {
     const nums: number[] = [];
+    const keys = [valueKey, secondaryKey, tertiaryKey].filter(Boolean) as string[];
     data.forEach((point) => {
-      const primary = Number(point[valueKey]);
-      if (Number.isFinite(primary)) nums.push(primary);
-      if (secondaryKey) {
-        const secondary = Number(point[secondaryKey]);
-        if (Number.isFinite(secondary)) nums.push(secondary);
-      }
+      keys.forEach((key) => {
+        const value = Number(point[key]);
+        if (Number.isFinite(value)) nums.push(value);
+      });
     });
     return paddedDomain(nums);
-  }, [data, valueKey, secondaryKey]);
+  }, [data, valueKey, secondaryKey, tertiaryKey]);
 
   const firstLabel = String(data[0]?.[labelKey] ?? "—");
   const middleLabel = String(data[Math.floor(data.length / 2)]?.[labelKey] ?? "—");
@@ -125,15 +132,17 @@ export function TrendSparkline({
               content={() => null}
               cursor={{ stroke: "var(--color-pm-border)", strokeDasharray: "4 4" }}
             />
-            <Area
-              type="monotone"
-              dataKey={valueKey}
-              stroke="none"
-              fill={`url(#${gradientId})`}
-              isAnimationActive
-              animationDuration={700}
-              animationEasing="ease-out"
-            />
+            {showArea ? (
+              <Area
+                type="monotone"
+                dataKey={valueKey}
+                stroke="none"
+                fill={`url(#${gradientId})`}
+                isAnimationActive
+                animationDuration={700}
+                animationEasing="ease-out"
+              />
+            ) : null}
             {secondaryKey ? (
               <Line
                 type="monotone"
@@ -146,6 +155,21 @@ export function TrendSparkline({
                 isAnimationActive
                 animationDuration={700}
                 animationBegin={120}
+                animationEasing="ease-out"
+              />
+            ) : null}
+            {tertiaryKey ? (
+              <Line
+                type="monotone"
+                dataKey={tertiaryKey}
+                stroke={tertiaryColor}
+                strokeWidth={2.5}
+                connectNulls={false}
+                dot={showDots ? { r: 3.5, fill: tertiaryColor, stroke: "var(--color-pm-bg-secondary)", strokeWidth: 2 } : false}
+                activeDot={{ r: 4.5, fill: tertiaryColor, stroke: "var(--color-pm-bg-secondary)", strokeWidth: 2 }}
+                isAnimationActive
+                animationDuration={700}
+                animationBegin={200}
                 animationEasing="ease-out"
               />
             ) : null}
