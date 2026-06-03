@@ -48,9 +48,22 @@ function shortDate(value: string): string {
     : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function pctChange(current: number, prior: number): number | null {
-  if (prior <= 0) return null;
-  return ((current - prior) / prior) * 100;
+/**
+ * Month-over-month % change, shown only when it's MEANINGFUL. Early in a month
+ * (or for low-traffic sites) the prior baseline is tiny, which turns normal
+ * swings into absurd percentages (e.g. 813 visitors vs a 3-visitor baseline =
+ * +27000%). Suppress (return null) when the baseline is below `minBase` or the
+ * swing is extreme enough to be noise rather than a trend.
+ */
+function meaningfulDelta(
+  current: number,
+  prior: number,
+  minBase: number,
+): number | null {
+  if (prior < minBase) return null;
+  const pct = ((current - prior) / prior) * 100;
+  if (Math.abs(pct) > 500) return null;
+  return pct;
 }
 
 export function computeWebsiteMetrics(
@@ -113,8 +126,8 @@ export function computeWebsiteMetrics(
       prevMonthVisitorsFull > 0 && monthVisitors > 0
         ? (conversionRate - prevConversionRate) * 100
         : null,
-    visitorsDeltaPct: pctChange(monthVisitors, prevVisitorsMtd),
-    leadsPaceDeltaPct: pctChange(leadsPace, prevMonthLeads),
+    visitorsDeltaPct: meaningfulDelta(monthVisitors, prevVisitorsMtd, 10),
+    leadsPaceDeltaPct: meaningfulDelta(leadsPace, prevMonthLeads, 3),
     prevMonthLeads,
     visitorSeries: daily.map((p) => ({ label: shortDate(p.date), visitors: p.users })),
     leadSeries: timeseries.map((p) => ({ label: p.month, leads: p.verified })),

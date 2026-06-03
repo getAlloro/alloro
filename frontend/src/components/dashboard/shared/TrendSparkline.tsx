@@ -1,4 +1,4 @@
-import { useId, useMemo } from "react";
+import { useId, useMemo, useState } from "react";
 import {
   Area,
   CartesianGrid,
@@ -9,6 +9,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+
+const numberFormat = new Intl.NumberFormat("en-US");
 
 /**
  * Shared trend sparkline in the Alloro house chart style (matches
@@ -35,6 +37,8 @@ export type TrendSparklineProps = {
   onActiveIndexChange?: (index: number | null) => void;
   /** Render the first/middle/last label row beneath the chart (default true). */
   showLabels?: boolean;
+  /** Formats the value shown in the hover readout (default: comma number). */
+  valueFormatter?: (value: number) => string;
 };
 
 function paddedDomain(values: number[]): [number, number] {
@@ -53,8 +57,12 @@ export function TrendSparkline({
   height = 144,
   onActiveIndexChange,
   showLabels = true,
+  valueFormatter,
 }: TrendSparklineProps) {
   const gradientId = useId().replaceAll(":", "");
+  const [active, setActive] = useState<number | null>(null);
+  const fmtValue =
+    valueFormatter ?? ((v: number) => numberFormat.format(Math.round(v)));
 
   const domain = useMemo(() => {
     const nums: number[] = [];
@@ -74,10 +82,17 @@ export function TrendSparkline({
   const lastLabel = String(data[data.length - 1]?.[labelKey] ?? "—");
 
   const handleHover = (state?: { activeTooltipIndex?: number | string | null }) => {
-    if (!onActiveIndexChange) return;
     const nextIndex = Number(state?.activeTooltipIndex);
-    if (Number.isInteger(nextIndex)) onActiveIndexChange(nextIndex);
+    if (Number.isInteger(nextIndex)) {
+      setActive(nextIndex);
+      onActiveIndexChange?.(nextIndex);
+    }
   };
+  const handleLeave = () => {
+    setActive(null);
+    onActiveIndexChange?.(null);
+  };
+  const activePoint = active !== null ? data[active] : null;
 
   if (data.length === 0) {
     return (
@@ -91,13 +106,18 @@ export function TrendSparkline({
 
   return (
     <div>
-      <div className="w-full cursor-crosshair" style={{ height }}>
+      <div className="relative w-full cursor-crosshair" style={{ height }}>
+        {activePoint ? (
+          <div className="pointer-events-none absolute right-1 top-0 z-10 rounded-md bg-alloro-navy px-2 py-0.5 text-[10px] font-bold tabular-nums text-white shadow-sm">
+            {String(activePoint[labelKey])} · {fmtValue(Number(activePoint[valueKey]))}
+          </div>
+        ) : null}
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={data}
             margin={{ top: 8, right: 8, bottom: 4, left: 8 }}
             onMouseMove={handleHover}
-            onMouseLeave={() => onActiveIndexChange?.(null)}
+            onMouseLeave={handleLeave}
           >
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">

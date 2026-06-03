@@ -145,20 +145,13 @@ export function WebsiteOverview({
         {m.hasAnalytics ? formatConversion(m.conversionRate) : m.monthLeads}
       </span>
       <span className="mt-2 text-[11px] font-semibold text-[color:var(--color-pm-text-secondary)]">
-        {m.hasAnalytics
-          ? m.conversionDeltaPp !== null
-            ? `vs ${formatConversion(m.prevConversionRate)} last month`
-            : "this month"
-          : "leads this month"}
+        {m.hasAnalytics ? "of visitors this month" : "leads this month"}
       </span>
     </div>
   );
 
   const estimateSummary = (
     <div className="flex h-full flex-col justify-between gap-4">
-      <div className="font-mono-display text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--color-pm-text-secondary)]">
-        This month
-      </div>
       <div className="flex items-center justify-between gap-4">
         <div>
           <div className="font-mono-display text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--color-pm-text-secondary)]">
