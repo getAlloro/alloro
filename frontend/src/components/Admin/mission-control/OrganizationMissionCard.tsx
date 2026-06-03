@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
 import {
   AlertTriangle,
+  Archive,
   Bell,
   Building2,
   ChevronDown,
@@ -191,6 +192,9 @@ function MoneyStat({ label, value }: { label: string; value: number }) {
 }
 
 function StatusChip({ organization }: { organization: MissionControlOrganization }) {
+  if (organization.archivedAt) {
+    return <Chip label="Archived" tone="gray" icon={<Archive className="h-3 w-3" />} />;
+  }
   if (organization.stripeStatus === "active") {
     return <Chip label="Stripe active" tone="green" icon={<CheckCircle2 className="h-3 w-3" />} />;
   }

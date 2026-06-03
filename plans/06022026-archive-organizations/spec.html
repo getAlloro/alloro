@@ -95,6 +95,7 @@
             <h3>Admin Organization UI</h3>
             <p><code>frontend/src/components/Admin/OrgSettingsSection.tsx</code> contains the current Delete Organization danger zone.</p>
             <p><code>frontend/src/pages/admin/OrganizationManagement.tsx</code> lists all organizations without lifecycle filtering today.</p>
+            <p><code>frontend/src/pages/admin/MissionControl.tsx</code> shows the admin client grid and must hide archived organizations unless the Archived filter is selected.</p>
             <p><code>frontend/src/api/admin-organizations.ts</code> and <code>frontend/src/hooks/queries/useAdminQueries.ts</code> own typed admin org API access.</p>
           </article>
           <article>
@@ -203,6 +204,7 @@
         <h2>Blast Radius</h2>
         <ul>
           <li>Admin organization management and organization detail settings.</li>
+          <li>Mission Control client grid, revenue summary, payment watch, and filter chips.</li>
           <li>Website project list/archive state and custom domain connection state.</li>
           <li>Public website contact/newsletter submission paths and CRM push queueing.</li>
           <li>GBP review sync, GBP local post sync/generation, review replies, and local post publishing.</li>
@@ -234,10 +236,10 @@
 
           <article>
             <h3>T3: Admin UI List, Filter, And Settings Controls</h3>
-            <p><strong>Do:</strong> Add Active/Archived organization filtering, archived badge/banner, archive button above Danger Zone, confirmation modal, and unarchive affordance for archived organizations.</p>
-            <p><strong>Files:</strong> <code>frontend/src/pages/admin/OrganizationManagement.tsx</code>, <code>frontend/src/components/Admin/OrgSettingsSection.tsx</code>, <code>frontend/src/pages/admin/OrganizationDetail.tsx</code>, <code>frontend/src/api/admin-organizations.ts</code>, <code>frontend/src/hooks/queries/useAdminQueries.ts</code>, <code>frontend/src/lib/queryClient.ts</code>.</p>
+            <p><strong>Do:</strong> Add Active/Archived organization filtering, archived badge/banner, archive button above Danger Zone, confirmation modal, and unarchive affordance for archived organizations. Mission Control must exclude archived organizations from default/admin-granted views and show them only under an Archived filter chip after Admin Granted.</p>
+            <p><strong>Files:</strong> <code>frontend/src/pages/admin/OrganizationManagement.tsx</code>, <code>frontend/src/components/Admin/OrgSettingsSection.tsx</code>, <code>frontend/src/pages/admin/OrganizationDetail.tsx</code>, <code>frontend/src/pages/admin/MissionControl.tsx</code>, <code>frontend/src/components/Admin/mission-control/*</code>, <code>frontend/src/api/admin-organizations.ts</code>, <code>frontend/src/api/admin-mission-control.ts</code>, <code>frontend/src/hooks/queries/useAdminQueries.ts</code>, <code>frontend/src/lib/queryClient.ts</code>.</p>
             <p><strong>Depends on:</strong> T2.</p>
-            <p><strong>Verify:</strong> Browser: admin org list defaults to active, Archived tab only shows archived orgs, direct archived org URL shows banner and disabled operational actions.</p>
+            <p><strong>Verify:</strong> Browser: admin org list defaults to active, Archived tab only shows archived orgs, direct archived org URL shows banner and disabled operational actions, Mission Control default filters hide archived orgs and Archived shows only archived orgs.</p>
           </article>
 
           <article>
@@ -282,6 +284,7 @@
         <ul class="checklist">
           <li>Archive columns exist on organizations and rollback works locally/dev.</li>
           <li>Admin organization list defaults to non-archived organizations and has an Archived tab/filter.</li>
+          <li>Mission Control excludes archived organizations from All, Risk, No Method, Stripe Active, and Admin Granted filters; the Archived filter shows only archived organizations.</li>
           <li>Archive action lives above Delete Organization in Organization Settings.</li>
           <li>Archived org details show an archived banner and preserve historical read access for admins.</li>
           <li>Archiving an org archives all connected projects and disconnects custom domains.</li>
@@ -296,7 +299,12 @@
 
       <section class="card">
         <h2>Revision Log</h2>
-        <p>No revisions yet.</p>
+        <article>
+          <h3>Rev 1 - June 3, 2026</h3>
+          <p><strong>Change:</strong> Add Mission Control archive filtering to the admin UI contract.</p>
+          <p><strong>Reason:</strong> Archived organizations were still visible in the Mission Control client grid unless the page explicitly filtered them out.</p>
+          <p><strong>Updated Done criteria:</strong> Mission Control default filters hide archived organizations; the Archived filter chip after Admin Granted shows only archived organizations.</p>
+        </article>
       </section>
     </main>
   </body>

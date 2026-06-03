@@ -52,6 +52,7 @@ export type MissionControlOrganization = {
   organizationType: "health" | "saas" | null;
   subscriptionTier: "DWY" | "DFY" | null;
   subscriptionStatus: "active" | "inactive" | "trial" | "cancelled";
+  archivedAt: string | null;
   stripeStatus: MissionControlStripeStatus;
   paymentMethod: MissionControlPaymentMethod | null;
   expectedMonthlyAmount: number;
