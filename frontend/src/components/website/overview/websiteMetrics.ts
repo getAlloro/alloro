@@ -114,6 +114,29 @@ function enumerateDays(firstISO: string, lastISO: string): string[] {
 }
 
 /**
+ * Fallback monthly visitor buckets aggregated from the daily series. Used only
+ * when the live per-month uniques aren't available — note this SUMS daily
+ * `users`, which slightly over-counts true monthly uniques (repeat visitors).
+ */
+function aggregateMonthlyFromDaily(
+  daily: WebsiteAnalytics["daily"],
+): Array<{ month: string; visitors: number; sessions: number; pageviews: number }> {
+  const map = new Map<
+    string,
+    { month: string; visitors: number; sessions: number; pageviews: number }
+  >();
+  for (const point of daily) {
+    const month = point.date.slice(0, 7);
+    const bucket = map.get(month) ?? { month, visitors: 0, sessions: 0, pageviews: 0 };
+    bucket.visitors += point.users;
+    bucket.sessions += point.sessions;
+    bucket.pageviews += point.pageviews;
+    map.set(month, bucket);
+  }
+  return Array.from(map.values());
+}
+
+/**
  * Month-over-month % change, shown only when it's MEANINGFUL. Early in a month
  * (or for low-traffic sites) the prior baseline is tiny, which turns normal
  * swings into absurd percentages (e.g. 813 visitors vs a 3-visitor baseline =
@@ -146,20 +169,28 @@ export function computeWebsiteMetrics(
   const daily = analytics?.daily ?? [];
   const hasAnalytics = !!analytics?.hasIntegration && (analytics?.dataDays ?? 0) > 0;
 
-  // Visitors: sum unique users by calendar window from the daily series.
-  let monthVisitors = 0;
-  let monthSessions = 0;
-  let monthPageviews = 0;
+  const monthlyTrue = analytics?.monthly ?? [];
+  const hasMonthly = monthlyTrue.length > 0;
+  const trueByMonth = new Map(monthlyTrue.map((p) => [p.month, p]));
+
+  // Daily sums (month-to-date) from the stored daily series — used for the fair
+  // MTD-vs-MTD visitor delta, and as the fallback for the headline counts when
+  // the live monthly series is unavailable.
+  let dailyCurUsers = 0;
+  let dailyCurSessions = 0;
+  let dailyCurPageviews = 0;
   let prevVisitorsMtd = 0; // last month, days 1..today
+  let dailyPrevFull = 0;
   for (const point of daily) {
     const key = point.date.slice(0, 7);
     const day = Number(point.date.slice(8, 10));
     if (key === curKey) {
-      monthVisitors += point.users;
-      monthSessions += point.sessions;
-      monthPageviews += point.pageviews;
-    } else if (key === prevKey && day <= today) {
-      prevVisitorsMtd += point.users;
+      dailyCurUsers += point.users;
+      dailyCurSessions += point.sessions;
+      dailyCurPageviews += point.pageviews;
+    } else if (key === prevKey) {
+      dailyPrevFull += point.users;
+      if (day <= today) prevVisitorsMtd += point.users;
     }
   }
 
@@ -167,39 +198,36 @@ export function computeWebsiteMetrics(
   const monthLeads = tsByMonth.get(curKey)?.verified ?? 0;
   const prevMonthLeads = tsByMonth.get(prevKey)?.verified ?? 0;
 
-  // Prior-month full visitors for the prior conversion rate.
-  let prevMonthVisitorsFull = 0;
-  for (const point of daily) {
-    if (point.date.slice(0, 7) === prevKey) prevMonthVisitorsFull += point.users;
-  }
+  // Headline counts prefer TRUE uniques (deduped per period by Rybbit) — summing
+  // daily `users` over-counts repeat visitors ~10%. Sessions/pageviews are
+  // additive so they match either way. Fall back to the daily sums when the live
+  // monthly series isn't available (e.g. the live fetch failed, or wizard demo).
+  const trueCur = trueByMonth.get(curKey);
+  const truePrev = trueByMonth.get(prevKey);
+  const monthVisitors = trueCur ? trueCur.users : dailyCurUsers;
+  const monthSessions = trueCur ? trueCur.sessions : dailyCurSessions;
+  const monthPageviews = trueCur ? trueCur.pageviews : dailyCurPageviews;
+  const prevMonthVisitorsFull = truePrev ? truePrev.users : dailyPrevFull;
 
-  // Monthly visitor buckets aggregated from the daily series so the traffic
-  // charts share the leads chart's monthly cadence. Only months that actually
-  // have data appear — visitors are NOT zero-filled (a missing month means
-  // "not tracked yet", not "zero visitors"). Keep the most recent 12.
-  const monthlyVisitors = new Map<
-    string,
-    { visitors: number; sessions: number; pageviews: number }
-  >();
-  for (const point of daily) {
-    const key = point.date.slice(0, 7);
-    const bucket = monthlyVisitors.get(key) ?? {
-      visitors: 0,
-      sessions: 0,
-      pageviews: 0,
-    };
-    bucket.visitors += point.users;
-    bucket.sessions += point.sessions;
-    bucket.pageviews += point.pageviews;
-    monthlyVisitors.set(key, bucket);
-  }
-  const visitorSeries = Array.from(monthlyVisitors.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
+  // Monthly visitor series for the cards: TRUE per-month uniques when available,
+  // else aggregated from the daily series. Most recent 12 months; the leading
+  // no-data run is trimmed downstream (visitorSeriesTrimmed).
+  const visitorSeries = (
+    hasMonthly
+      ? monthlyTrue.map((p) => ({
+          month: p.month,
+          visitors: p.users,
+          sessions: p.sessions,
+          pageviews: p.pageviews,
+        }))
+      : aggregateMonthlyFromDaily(daily)
+  )
+    .sort((a, b) => a.month.localeCompare(b.month))
     .slice(-12)
-    .map(([month, bucket]) => ({
-      label: monthLabel(month),
-      monthName: monthLabel(month),
-      month,
+    .map((bucket) => ({
+      label: monthLabel(bucket.month),
+      monthName: monthLabel(bucket.month),
+      month: bucket.month,
       visitors: bucket.visitors,
       sessions: bucket.sessions,
       pageviews: bucket.pageviews,
@@ -268,7 +296,7 @@ export function computeWebsiteMetrics(
       prevMonthVisitorsFull > 0 && monthVisitors > 0
         ? (conversionRate - prevConversionRate) * 100
         : null,
-    visitorsDeltaPct: meaningfulDelta(monthVisitors, prevVisitorsMtd, 10),
+    visitorsDeltaPct: meaningfulDelta(dailyCurUsers, prevVisitorsMtd, 10),
     leadsPaceDeltaPct: meaningfulDelta(leadsPace, prevMonthLeads, 3),
     prevMonthLeads,
     typicalConversionRate,

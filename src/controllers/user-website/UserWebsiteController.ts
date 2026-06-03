@@ -19,7 +19,13 @@ import * as gscIntegration from "../admin-websites/feature-services/service.gsc-
 import * as postManager from "../admin-websites/feature-services/service.post-manager";
 import * as postTypeManager from "../admin-websites/feature-services/service.post-type-manager";
 import * as menuManager from "../admin-websites/feature-services/service.menu-manager";
-import { getDashboard as getRybbitDashboard } from "../admin-websites/feature-services/service.rybbit-performance";
+import {
+  getDashboard as getRybbitDashboard,
+  fetchRybbitMonthlyUniques,
+  fetchRybbitOverview,
+  type RybbitMonthlyPoint,
+  type RybbitMetricSummary,
+} from "../admin-websites/feature-services/service.rybbit-performance";
 import { resolveShortcodes } from "./user-website-services/shortcodeResolver.service";
 import { ProjectModel } from "../../models/website-builder/ProjectModel";
 import { FormSubmissionModel } from "../../models/website-builder/FormSubmissionModel";
@@ -672,24 +678,49 @@ export async function getWebsiteAnalytics(
         dataDays: 0,
         totals: emptyTotals,
         daily: [],
+        monthly: [],
       });
     }
 
-    // Reuse the admin Rybbit dashboard service; request 0 raw rows (card only
-    // needs totals + the daily sparkline series).
+    // Stored daily series powers the daily traffic modal + is a safe fallback.
     const dashboard = await getRybbitDashboard(
       integration,
       req.query.rangeDays,
       0,
       0
     );
+
+    // TRUE unique visitors come from live Rybbit queries (deduped per period) —
+    // summing the stored daily `users` over-counts repeat visitors by ~10%.
+    // Sessions/pageviews are additive, so the stored daily series stays correct.
+    // Both live calls fall back to stored values on any failure (see helpers).
+    let monthly: RybbitMonthlyPoint[] = [];
+    let liveTotals: RybbitMetricSummary | null = null;
+    if (dashboard.fromDate && dashboard.latestReportDate) {
+      const [monthlyResult, totalsResult] = await Promise.all([
+        fetchRybbitMonthlyUniques(
+          integration,
+          dashboard.fromDate,
+          dashboard.latestReportDate
+        ),
+        fetchRybbitOverview(
+          integration,
+          dashboard.fromDate,
+          dashboard.latestReportDate
+        ),
+      ]);
+      monthly = monthlyResult ?? [];
+      liveTotals = totalsResult;
+    }
+
     return res.json({
       success: true,
       hasIntegration: true,
       latestReportDate: dashboard.latestReportDate,
       dataDays: dashboard.dataDays,
-      totals: dashboard.totals,
+      totals: liveTotals ?? dashboard.totals,
       daily: dashboard.daily,
+      monthly,
     });
   } catch (error) {
     return handleError(res, error, "Fetch website analytics");

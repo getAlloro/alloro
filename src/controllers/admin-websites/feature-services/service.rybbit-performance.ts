@@ -6,6 +6,12 @@ const MAX_RANGE_DAYS = 365;
 const DEFAULT_ROWS_LIMIT = 20;
 const MAX_ROWS_LIMIT = 100;
 
+const RYBBIT_API_URL = process.env.RYBBIT_API_URL || "";
+const RYBBIT_API_KEY = process.env.RYBBIT_API_KEY || "";
+// Rybbit reports/buckets in this zone (matches the harvest + history services).
+const RYBBIT_REPORT_TIME_ZONE = "America/New_York";
+const LIVE_FETCH_TIMEOUT_MS = 6000;
+
 export interface RybbitMetricSummary {
   sessions: number;
   pageviews: number;
@@ -17,6 +23,11 @@ export interface RybbitMetricSummary {
 
 export interface RybbitDailyPoint extends RybbitMetricSummary {
   date: string;
+}
+
+export interface RybbitMonthlyPoint extends RybbitMetricSummary {
+  /** YYYY-MM */
+  month: string;
 }
 
 export interface RybbitRawRow extends RybbitDailyPoint {
@@ -238,4 +249,84 @@ export async function getDashboard(
     rowsOffset,
     limitations: [],
   };
+}
+
+function getSiteId(integration: IWebsiteIntegrationSafe): string | null {
+  const value = (integration.metadata as { siteId?: string } | null)?.siteId;
+  const siteId = typeof value === "string" ? value.trim() : "";
+  return /^[A-Za-z0-9_-]{1,128}$/.test(siteId) ? siteId : null;
+}
+
+async function rybbitGet(path: string): Promise<unknown | null> {
+  if (!RYBBIT_API_URL || !RYBBIT_API_KEY) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), LIVE_FETCH_TIMEOUT_MS);
+  try {
+    const resp = await fetch(`${RYBBIT_API_URL}${path}`, {
+      headers: { Authorization: `Bearer ${RYBBIT_API_KEY}` },
+      signal: controller.signal,
+    });
+    if (!resp.ok) return null;
+    return await resp.json();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Live TRUE unique-visitor totals for a period, deduped by Rybbit in a single
+ * `/overview` query. Summing the stored daily `users` over-counts repeat
+ * visitors (~10%); sessions/pageviews are additive so the stored sum is fine.
+ * Returns null on any failure so callers fall back to the stored totals.
+ */
+export async function fetchRybbitOverview(
+  integration: IWebsiteIntegrationSafe,
+  startDate: string,
+  endDate: string,
+): Promise<RybbitMetricSummary | null> {
+  const siteId = getSiteId(integration);
+  if (!siteId) return null;
+  const params = new URLSearchParams({
+    start_date: startDate,
+    end_date: endDate,
+    time_zone: RYBBIT_REPORT_TIME_ZONE,
+  });
+  const payload = await rybbitGet(`/api/sites/${siteId}/overview?${params}`);
+  return payload ? metricsFromPayload(payload) : null;
+}
+
+/**
+ * Live per-MONTH series with TRUE unique visitors — one `overview-bucketed`
+ * call (Rybbit dedupes uniques within each month bucket). Months with no data
+ * come back zero-filled. Returns null on failure so callers fall back to
+ * aggregating the stored daily rows.
+ */
+export async function fetchRybbitMonthlyUniques(
+  integration: IWebsiteIntegrationSafe,
+  startDate: string,
+  endDate: string,
+): Promise<RybbitMonthlyPoint[] | null> {
+  const siteId = getSiteId(integration);
+  if (!siteId) return null;
+  const params = new URLSearchParams({
+    start_date: startDate,
+    end_date: endDate,
+    time_zone: RYBBIT_REPORT_TIME_ZONE,
+    bucket: "month",
+  });
+  const payload = await rybbitGet(
+    `/api/sites/${siteId}/overview-bucketed?${params}`,
+  );
+  const outer =
+    payload && typeof payload === "object" && !Array.isArray(payload)
+      ? (payload as { data?: unknown }).data
+      : payload;
+  if (!Array.isArray(outer)) return null;
+  return outer.map((bucket) => {
+    const time = (bucket as { time?: unknown }).time;
+    const month = typeof time === "string" ? time.slice(0, 7) : "";
+    return { month, ...metricsFromPayload(bucket) };
+  });
 }

@@ -24,12 +24,19 @@ export interface WebsiteAnalyticsDailyPoint extends WebsiteAnalyticsTotals {
   date: string;
 }
 
+/** Per-month metrics with TRUE unique visitors (deduped by Rybbit, not summed). */
+export interface WebsiteAnalyticsMonthlyPoint extends WebsiteAnalyticsTotals {
+  month: string;
+}
+
 export interface WebsiteAnalytics {
   hasIntegration: boolean;
   latestReportDate: string | null;
   dataDays: number;
   totals: WebsiteAnalyticsTotals;
   daily: WebsiteAnalyticsDailyPoint[];
+  /** True per-month uniques for cards/headline; empty if the live fetch failed. */
+  monthly: WebsiteAnalyticsMonthlyPoint[];
 }
 
 interface WebsiteAnalyticsResponse extends WebsiteAnalytics {
@@ -56,5 +63,6 @@ export async function fetchWebsiteAnalytics(
     dataDays: response.dataDays,
     totals: response.totals,
     daily: response.daily,
+    monthly: response.monthly ?? [],
   };
 }
