@@ -20,9 +20,13 @@ import {
  *
  * Must be rendered inside a `.pm-light` wrapper — the `--color-pm-*` tokens used
  * for the grid, dot halos, and labels are dark by default.
+ *
+ * A `null` value for the primary/secondary key renders as a GAP (no-data) — the
+ * line breaks there rather than dropping to zero. Per-point dots are hidden once
+ * the series is dense (> 40 points) so daily views don't turn into a dot soup.
  */
 export type TrendSparklineProps = {
-  data: Array<Record<string, number | string>>;
+  data: Array<Record<string, unknown>>;
   /** Key of the primary (orange) numeric series. */
   valueKey: string;
   /** Key of the short x-axis label rendered in the first/middle/last row. */
@@ -73,6 +77,10 @@ export function TrendSparkline({
   const firstLabel = String(data[0]?.[labelKey] ?? "—");
   const middleLabel = String(data[Math.floor(data.length / 2)]?.[labelKey] ?? "—");
   const lastLabel = String(data[data.length - 1]?.[labelKey] ?? "—");
+
+  // Dense series (daily) would render an unreadable wall of dots — hide them and
+  // keep only the active (hover) dot. Sparse series (monthly) keep their dots.
+  const showDots = data.length <= 40;
 
   const handleHover = (state?: { activeTooltipIndex?: number | string | null }) => {
     const nextIndex = Number(state?.activeTooltipIndex);
@@ -132,7 +140,8 @@ export function TrendSparkline({
                 dataKey={secondaryKey}
                 stroke={secondaryColor}
                 strokeWidth={2.5}
-                dot={{ r: 3.5, fill: secondaryColor, stroke: "var(--color-pm-bg-secondary)", strokeWidth: 2 }}
+                connectNulls={false}
+                dot={showDots ? { r: 3.5, fill: secondaryColor, stroke: "var(--color-pm-bg-secondary)", strokeWidth: 2 } : false}
                 activeDot={{ r: 4.5, fill: secondaryColor, stroke: "var(--color-pm-bg-secondary)", strokeWidth: 2 }}
                 isAnimationActive
                 animationDuration={700}
@@ -145,7 +154,8 @@ export function TrendSparkline({
               dataKey={valueKey}
               stroke="var(--color-alloro-orange)"
               strokeWidth={3}
-              dot={{ r: 4, fill: "var(--color-alloro-orange)", stroke: "var(--color-pm-bg-secondary)", strokeWidth: 2 }}
+              connectNulls={false}
+              dot={showDots ? { r: 4, fill: "var(--color-alloro-orange)", stroke: "var(--color-pm-bg-secondary)", strokeWidth: 2 } : false}
               activeDot={{ r: 5, fill: "var(--color-alloro-orange)", stroke: "var(--color-pm-bg-secondary)", strokeWidth: 2 }}
               isAnimationActive
               animationDuration={700}

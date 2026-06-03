@@ -10,11 +10,15 @@ import type { TimeseriesPoint } from "../../../api/formSubmissionsTimeseries";
  * - Leads delta: this month is projected to full-month "pace" and compared to
  *   last month's full total (leads only arrive monthly, so pacing keeps the
  *   partial-month comparison honest).
- * - Conversion = verified leads ÷ unique visitors, this month.
+ * - Conversion: headline is the "typical" blended rate (leads ÷ visitors across
+ *   all months with data) so a partial month or a one-off traffic spike doesn't
+ *   deflate it; MTD conversion is kept as a smaller secondary figure.
  *
- * Trend charts are MONTHLY (visitor daily series aggregated into month buckets)
- * so the traffic charts share the leads chart's cadence. Visitor months are not
- * zero-filled — a missing month means Rybbit wasn't tracking yet, not zero.
+ * Card charts are MONTHLY (daily series aggregated into month buckets, leading
+ * no-data months trimmed) so the traffic cards share the leads cadence. The
+ * traffic modal uses the DAILY series with absent days marked no-data (gaps).
+ * Visitor months are never zero-filled — a missing month means Rybbit wasn't
+ * tracking yet, not zero.
  */
 export interface WebsiteMetrics {
   hasAnalytics: boolean;
@@ -27,12 +31,16 @@ export interface WebsiteMetrics {
   prevConversionRate: number;
   /** percentage points (this month − last month) */
   conversionDeltaPp: number | null;
+  /** blended verified-leads ÷ visitors across months with data — the "typical" rate */
+  typicalConversionRate: number;
+  /** how many months the typical rate is blended over */
+  typicalMonths: number;
   /** % change, MTD vs same day-range last month */
   visitorsDeltaPct: number | null;
   /** % change, projected full-month leads vs last month full */
   leadsPaceDeltaPct: number | null;
   prevMonthLeads: number;
-  /** monthly visitor series for the sparkline (aggregated from daily), last 12 months */
+  /** monthly visitor series for the cards (aggregated, trimmed, last 12 months) */
   visitorSeries: Array<{
     label: string;
     visitors: number;
@@ -41,8 +49,19 @@ export interface WebsiteMetrics {
     month: string;
     monthName: string;
   }>;
-  /** monthly leads series for the sparkline */
+  /** daily visitor series for the traffic modal; absent days are no-data (null) */
+  visitorDaily: Array<{
+    date: string;
+    label: string;
+    visitors: number | null;
+    sessions: number | null;
+    pageviews: number | null;
+    noData: boolean;
+  }>;
+  /** monthly leads series, full window (for the modal) */
   leadSeries: Array<{ label: string; leads: number }>;
+  /** monthly leads series with the leading no-data run trimmed (for the card) */
+  leadSeriesCompact: Array<{ label: string; leads: number }>;
   /** YYYY-MM → verified leads that month (to show leads for a hovered day's month) */
   leadsByMonth: Record<string, number>;
   /** totals over the analytics window (for the traffic modal) */
@@ -61,6 +80,37 @@ function monthLabel(ym: string): string {
     month: "short",
     year: "numeric",
   });
+}
+
+function shortDate(value: string): string {
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+/**
+ * Drop the leading run of zero-value points — the "no data / pre-launch" stretch
+ * (e.g. a flat zero line before the practice's first lead). Interior zeros are
+ * kept (a real dip between active periods). An all-zero series is returned
+ * unchanged so the caller still has something to render.
+ */
+function trimLeadingZeros<T>(items: T[], getValue: (item: T) => number): T[] {
+  const firstActive = items.findIndex((item) => getValue(item) > 0);
+  return firstActive > 0 ? items.slice(firstActive) : items;
+}
+
+/** Every ISO date (YYYY-MM-DD) from `firstISO` to `lastISO`, inclusive. */
+function enumerateDays(firstISO: string, lastISO: string): string[] {
+  const out: string[] = [];
+  const start = Date.parse(`${firstISO}T00:00:00Z`);
+  const end = Date.parse(`${lastISO}T00:00:00Z`);
+  if (Number.isNaN(start) || Number.isNaN(end) || end < start) return out;
+  const DAY_MS = 86_400_000;
+  for (let t = start; t <= end; t += DAY_MS) {
+    out.push(new Date(t).toISOString().slice(0, 10));
+  }
+  return out;
 }
 
 /**
@@ -161,6 +211,51 @@ export function computeWebsiteMetrics(
 
   const leadsPace = today > 0 ? monthLeads * (daysInMonth / today) : monthLeads;
 
+  // Cards drop the leading no-data run; the leads modal keeps the full window.
+  const visitorSeriesTrimmed = trimLeadingZeros(visitorSeries, (p) => p.visitors);
+  const leadSeriesFull = timeseries.map((p) => ({
+    label: monthLabel(p.month),
+    leads: p.verified,
+  }));
+  const leadSeriesCompact = trimLeadingZeros(leadSeriesFull, (p) => p.leads);
+
+  // Continuous DAILY visitor series for the traffic detail modal. Rybbit stores
+  // a row only for days that have data, so walk every calendar day from the
+  // first to the last data day and mark absent days as no-data (null → the line
+  // breaks at the gap instead of implying zero traffic).
+  const dailyByDate = new Map(daily.map((p) => [p.date, p]));
+  const firstDay = daily[0]?.date;
+  const lastDay = daily[daily.length - 1]?.date;
+  const visitorDaily =
+    firstDay && lastDay
+      ? enumerateDays(firstDay, lastDay).map((date) => {
+          const point = dailyByDate.get(date);
+          return {
+            date,
+            label: shortDate(date),
+            visitors: point ? point.users : null,
+            sessions: point ? point.sessions : null,
+            pageviews: point ? point.pageviews : null,
+            noData: !point,
+          };
+        })
+      : [];
+
+  // "Typical" conversion: verified leads ÷ visitors blended across the months we
+  // actually have visitor data for. Steadier than a single partial month — it is
+  // not deflated by a month-to-date window or a one-off traffic spike.
+  let blendLeads = 0;
+  let blendVisitors = 0;
+  let typicalMonths = 0;
+  for (const point of visitorSeriesTrimmed) {
+    if (point.visitors <= 0) continue;
+    blendVisitors += point.visitors;
+    blendLeads += tsByMonth.get(point.month)?.verified ?? 0;
+    typicalMonths += 1;
+  }
+  const typicalConversionRate =
+    blendVisitors > 0 ? blendLeads / blendVisitors : conversionRate;
+
   return {
     hasAnalytics,
     monthVisitors,
@@ -176,11 +271,12 @@ export function computeWebsiteMetrics(
     visitorsDeltaPct: meaningfulDelta(monthVisitors, prevVisitorsMtd, 10),
     leadsPaceDeltaPct: meaningfulDelta(leadsPace, prevMonthLeads, 3),
     prevMonthLeads,
-    visitorSeries,
-    leadSeries: timeseries.map((p) => ({
-      label: monthLabel(p.month),
-      leads: p.verified,
-    })),
+    typicalConversionRate,
+    typicalMonths,
+    visitorSeries: visitorSeriesTrimmed,
+    visitorDaily,
+    leadSeries: leadSeriesFull,
+    leadSeriesCompact,
     leadsByMonth: Object.fromEntries(
       timeseries.map((p) => [p.month, p.verified]),
     ),

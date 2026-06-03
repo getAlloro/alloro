@@ -135,32 +135,37 @@ export function WebsiteOverview({
   const [leadsModalHover, setLeadsModalHover] = useState<number | null>(null);
   const funnelPoint = funnelHover !== null ? m.visitorSeries[funnelHover] : null;
   const trafficPoint = trafficHover !== null ? m.visitorSeries[trafficHover] : null;
-  const leadsPoint = leadsHover !== null ? m.leadSeries[leadsHover] : null;
+  const leadsPoint = leadsHover !== null ? m.leadSeriesCompact[leadsHover] : null;
   const trafficModalPoint =
-    trafficModalHover !== null ? m.visitorSeries[trafficModalHover] : null;
+    trafficModalHover !== null ? m.visitorDaily[trafficModalHover] : null;
   const leadsModalPoint =
     leadsModalHover !== null ? m.leadSeries[leadsModalHover] : null;
 
   const leadWord = m.monthLeads === 1 ? "lead" : "leads";
   const insight = m.hasAnalytics
-    ? `Your website turned ${fmt(m.monthVisitors)} visitors into ${m.monthLeads} ${leadWord} this month — a ${formatConversion(m.conversionRate)} conversion rate.`
+    ? `Your website turned ${fmt(m.monthVisitors)} visitors into ${m.monthLeads} ${leadWord} this month. Typically about ${formatConversion(m.typicalConversionRate)} of visitors become leads.`
     : `${m.monthLeads} ${leadWord} came in through your website forms this month. Connect web analytics to see how many visitors that took.`;
   const insightHighlights = m.hasAnalytics
     ? [
         `${fmt(m.monthVisitors)} visitors`,
         `${m.monthLeads} ${leadWord}`,
-        `${formatConversion(m.conversionRate)} conversion rate`,
+        formatConversion(m.typicalConversionRate),
       ]
     : [`${m.monthLeads} ${leadWord}`];
 
   const score = (
     <div className="flex flex-col items-center">
       <span className="font-display text-[52px] font-medium leading-none tracking-tight text-alloro-navy tabular-nums">
-        {m.hasAnalytics ? formatConversion(m.conversionRate) : m.monthLeads}
+        {m.hasAnalytics ? formatConversion(m.typicalConversionRate) : m.monthLeads}
       </span>
       <span className="mt-2 text-[11px] font-semibold text-[color:var(--color-pm-text-secondary)]">
-        {m.hasAnalytics ? "of visitors this month" : "leads this month"}
+        {m.hasAnalytics ? "of visitors, typically" : "leads this month"}
       </span>
+      {m.hasAnalytics && (
+        <span className="mt-1 text-[10px] font-medium tabular-nums text-[color:var(--color-pm-text-secondary)]/70">
+          {formatConversion(m.conversionRate)} so far this month
+        </span>
+      )}
     </div>
   );
 
@@ -230,7 +235,7 @@ export function WebsiteOverview({
             />
           </div>
           <div className="mt-2 text-[11px] font-medium text-[color:var(--color-pm-text-secondary)]">
-            {formatConversion(m.conversionRate)} of visitors became leads
+            {formatConversion(m.conversionRate)} of visitors became leads so far this month
           </div>
         </div>
       )}
@@ -280,7 +285,7 @@ export function WebsiteOverview({
         insightHighlights={insightHighlights}
         score={score}
         scoreLabel="Conversion rate"
-        scoreTooltip="Share of unique visitors who submitted a form on your site this month."
+        scoreTooltip="Share of visitors who became leads, blended across the months we have data so a partial month or a one-off traffic spike doesn't skew it. The smaller figure is this month so far."
         estimateSummary={estimateSummary}
         actions={actions}
       />
@@ -352,12 +357,12 @@ export function WebsiteOverview({
               </div>
               <div className="mt-1 text-xs text-[color:var(--color-pm-text-secondary)]">
                 {m.hasAnalytics
-                  ? `${formatConversion(m.conversionRate)} of visitors converted`
+                  ? `${formatConversion(m.conversionRate)} of visitors converted this month`
                   : `${fmt(stats?.allCount ?? 0)} all-time`}
               </div>
               <div className="mt-4">
                 <TrendSparkline
-                  data={m.leadSeries}
+                  data={m.leadSeriesCompact}
                   valueKey="leads"
                   labelKey="label"
                   height={140}
@@ -435,11 +440,13 @@ export function WebsiteOverview({
           <div className="rounded-[14px] border border-line-soft bg-white p-4 shadow-premium">
             <div className="mb-3 font-mono-display text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--color-pm-text-secondary)]">
               {trafficModalPoint
-                ? `Monthly visitors · ${trafficModalPoint.label}: ${fmt(trafficModalPoint.visitors)}`
-                : "Monthly visitors · last 12 months"}
+                ? trafficModalPoint.noData
+                  ? `No data · ${trafficModalPoint.label}`
+                  : `${trafficModalPoint.label}: ${fmt(trafficModalPoint.visitors ?? 0)} visitors`
+                : "Daily visitors · last 12 months"}
             </div>
             <TrendSparkline
-              data={m.visitorSeries}
+              data={m.visitorDaily}
               valueKey="visitors"
               labelKey="label"
               height={220}
@@ -468,10 +475,10 @@ export function WebsiteOverview({
               tip="Verified leads in the previous full month."
             />
             <ModalStat
-              label="Conversion"
-              sub="rate"
-              value={m.hasAnalytics ? formatConversion(m.conversionRate) : "—"}
-              tip="Share of unique visitors who submitted a form this month."
+              label="Typical conv."
+              sub="blended"
+              value={m.hasAnalytics ? formatConversion(m.typicalConversionRate) : "—"}
+              tip={`Verified leads ÷ visitors blended across the ${m.typicalMonths} month${m.typicalMonths === 1 ? "" : "s"} with data — steadier than a single partial month.`}
             />
             <ModalStat
               label="All time"
