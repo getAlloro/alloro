@@ -9,6 +9,7 @@ import { TaskCard } from "./TaskCard";
 import type { TaskContextAction } from "./TaskCard";
 import { QuickAddTask } from "./QuickAddTask";
 import { NoTasksInColumn } from "./EmptyStates";
+import { DoneWeekGroups } from "./DoneWeekGroups";
 
 const COLUMN_ACCENTS: Record<string, string> = {
   "Backlog": "var(--color-pm-text-muted)",
@@ -44,6 +45,7 @@ export function KanbanColumn({
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
   const accent = COLUMN_ACCENTS[column.name] || "var(--color-pm-text-muted)";
   const isBacklog = column.is_backlog;
+  const isDone = column.name === "Done";
 
   return (
     <div
@@ -93,21 +95,44 @@ export function KanbanColumn({
           items={column.tasks.map((t) => t.id)}
           strategy={verticalListSortingStrategy}
         >
-          {column.tasks.length === 0 && !isOver && <NoTasksInColumn />}
-          {column.tasks.map((task) => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              onClick={() => onTaskClick(task)}
-              onDelete={onDeleteTask}
-              isBacklog={isBacklog}
-              isSelected={selectedTaskIds?.has(task.id) ?? false}
-              selectionActive={selectionActive}
-              onToggleSelect={onToggleSelect}
-              onContextAction={onContextAction}
-              siblingColumns={siblingColumns}
+          {isDone ? (
+            <DoneWeekGroups
+              tasks={column.tasks}
+              emptyState={!isOver ? <NoTasksInColumn /> : null}
+              renderTask={(task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  onClick={() => onTaskClick(task)}
+                  onDelete={onDeleteTask}
+                  isBacklog={isBacklog}
+                  isSelected={selectedTaskIds?.has(task.id) ?? false}
+                  selectionActive={selectionActive}
+                  onToggleSelect={onToggleSelect}
+                  onContextAction={onContextAction}
+                  siblingColumns={siblingColumns}
+                />
+              )}
             />
-          ))}
+          ) : (
+            <>
+              {column.tasks.length === 0 && !isOver && <NoTasksInColumn />}
+              {column.tasks.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  onClick={() => onTaskClick(task)}
+                  onDelete={onDeleteTask}
+                  isBacklog={isBacklog}
+                  isSelected={selectedTaskIds?.has(task.id) ?? false}
+                  selectionActive={selectionActive}
+                  onToggleSelect={onToggleSelect}
+                  onContextAction={onContextAction}
+                  siblingColumns={siblingColumns}
+                />
+              ))}
+            </>
+          )}
         </SortableContext>
       </div>
     </div>

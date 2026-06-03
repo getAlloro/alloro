@@ -17,6 +17,7 @@ import { usePmStore } from "../../stores/pmStore";
 import type { PmMyTask, PmMyTasksResponse } from "../../types/pm";
 import { MeTaskCard } from "./MeTaskCard";
 import type { TaskContextAction } from "./TaskCard";
+import { DoneWeekGroups } from "./DoneWeekGroups";
 
 interface MeKanbanBoardProps {
   tasks: PmMyTasksResponse;
@@ -60,6 +61,12 @@ function DroppableColumn({
   onContextAction?: (action: TaskContextAction, taskId: string) => void;
 }) {
   const { setNodeRef } = useDroppable({ id: columnKey });
+  const isDone = columnKey === "done";
+  const emptyState = (
+    <p className="text-center text-[11px] py-6" style={{ color: "var(--color-pm-text-muted)" }}>
+      —
+    </p>
+  );
 
   return (
     <div>
@@ -81,10 +88,25 @@ function DroppableColumn({
           transform: isDraggingOver ? "scale(1.01)" : "scale(1)",
         }}
       >
-        {tasks.length === 0 ? (
-          <p className="text-center text-[11px] py-6" style={{ color: "var(--color-pm-text-muted)" }}>
-            —
-          </p>
+        {isDone ? (
+          <DoneWeekGroups
+            tasks={tasks}
+            emptyState={emptyState}
+            renderTask={(task) => (
+              <DraggableCard
+                key={task.id}
+                task={task}
+                isHighlighted={highlightedTaskId === task.id}
+                onCardClick={onCardClick}
+                isSelected={selectedTaskIds?.has(task.id) ?? false}
+                selectionActive={selectionActive ?? false}
+                onToggleSelect={onToggleSelect}
+                onContextAction={onContextAction}
+              />
+            )}
+          />
+        ) : tasks.length === 0 ? (
+          emptyState
         ) : (
           tasks.map((task) => (
             <DraggableCard
@@ -238,7 +260,12 @@ export function MeKanbanBoard({
     if (!targetColId || task.column_id === targetColId) return;
 
     // Optimistic update — move card immediately in local state
-    const updatedTask: PmMyTask = { ...task, column_id: targetColId };
+    const updatedTask: PmMyTask = {
+      ...task,
+      column_id: targetColId,
+      completed_at:
+        targetKey === "done" ? task.completed_at ?? new Date().toISOString() : null,
+    };
     setLocalTasks((prev) => {
       const sourceKey = COLUMNS.find((c) => c.key !== targetKey && prev[c.key].some((t) => t.id === task.id))?.key;
       if (!sourceKey) return prev;
