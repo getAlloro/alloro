@@ -311,21 +311,12 @@ export default function FormSubmissionsTab({
     }
   };
 
-  const handleMoveForm = async (
-    formKey: string,
-    direction: "up" | "down",
-  ) => {
-    const currentIndex = forms.findIndex((form) => form.form_key === formKey);
-    if (currentIndex < 0) return;
-
-    const nextIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
-    if (nextIndex < 0 || nextIndex >= forms.length) return;
-
-    const nextForms = [...forms];
-    [nextForms[currentIndex], nextForms[nextIndex]] = [
-      nextForms[nextIndex],
-      nextForms[currentIndex],
-    ];
+  const handleReorderForms = async (orderedKeys: string[]) => {
+    const byKey = new Map(forms.map((form) => [form.form_key, form]));
+    const nextForms = orderedKeys
+      .map((key) => byKey.get(key))
+      .filter((form): form is (typeof forms)[number] => Boolean(form));
+    if (nextForms.length !== forms.length) return;
 
     try {
       await updateFormPreferences.mutateAsync(
@@ -627,7 +618,7 @@ export default function FormSubmissionsTab({
           }}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onRenameForm={handleRenameForm}
-          onMoveForm={handleMoveForm}
+          onReorderForms={handleReorderForms}
           isUpdatingPreferences={updateFormPreferences.isPending}
         />
 
