@@ -35,6 +35,8 @@ type ClientGbpLike = {
 
 type CompetitorLike = {
   name: string;
+  placeId?: string | null;
+  address?: string | null;
   rankScore?: number;
   rankPosition?: number;
   totalReviews?: number;
@@ -101,6 +103,19 @@ function matchRawCompetitor(
   competitors: CompetitorLike[],
   usedIndexes: Set<number>,
 ): CompetitorLike | undefined {
+  const placeIdIndex =
+    selected.placeId !== null
+      ? competitors.findIndex(
+          (competitor, competitorIndex) =>
+            !usedIndexes.has(competitorIndex) &&
+            competitor.placeId === selected.placeId,
+        )
+      : -1;
+  if (placeIdIndex >= 0) {
+    usedIndexes.add(placeIdIndex);
+    return competitors[placeIdIndex];
+  }
+
   const selectedName = normalizeName(selected.name);
   const namedIndex = competitors.findIndex(
     (competitor, competitorIndex) =>
@@ -176,9 +191,9 @@ export function buildCompetitorComparisonRows(
           };
         })
       : competitors.map((competitor, index) => ({
-          id: `cohort-${index}-${competitor.name}`,
+          id: competitor.placeId || `cohort-${index}-${competitor.name}`,
           name: competitor.name,
-          address: null,
+          address: competitor.address ?? null,
           category: competitor.primaryCategory ?? null,
           isYou: false,
           source: "cohort" as const,

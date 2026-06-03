@@ -2,6 +2,25 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.99] - June 2026
+
+### Local Rankings Competitor Address Labels
+
+Improved the Local Rankings competitor comparison table so same-name practices, such as multiple Dominion Endodontics locations, are distinguished by address instead of looking like duplicate rows.
+
+**Key Changes:**
+- Preserved competitor addresses in future ranking snapshots and raw competitor payloads.
+- Enriched existing latest-ranking responses with saved `location_competitors` addresses by place ID.
+- Updated comparison row matching to prefer place ID before name, avoiding same-name metric mismatches.
+- Kept category as a fallback when an address is unavailable and preserved the full address tooltip behavior.
+
+**Commits:**
+- `src/controllers/practice-ranking/PracticeRankingController.ts` and `util.ranking-formatter.ts` - latest-response address enrichment and `placeId` / `place_id` normalization
+- `src/controllers/practice-ranking/feature-services/service.ranking-pipeline.ts` and `service.location-competitor-onboarding.ts` - future snapshot/raw-data address preservation
+- `frontend/src/components/dashboard/rankings/competitorComparison.ts` - address-aware comparison rows and place-ID-first raw metric matching
+- `/Users/rustinedave/Desktop/alloro-docs/src/data/pages/local-rankings.ts` and `LocalRankingsReplica.tsx` - documentation parity for address sublines
+- `plans/06032026-local-rankings-competitor-address-labels/*` - completed execution spec
+
 ## [0.0.98] - June 2026
 
 ### Website Overview Refinements
