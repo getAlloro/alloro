@@ -44,12 +44,14 @@ export async function generateMissionControlInsight(
 }
 
 function buildSanitizedPayload(data: MissionControlData) {
+  const activeOrganizations = data.organizations.filter((org) => !org.archivedAt);
+
   return {
     generatedAt: data.generatedAt,
     stripeFreshness: data.stripeFreshness,
     summary: data.summary,
     revenueTrend: data.revenueTrend,
-    organizationCount: data.organizations.length,
+    organizationCount: activeOrganizations.length,
     movementSignals: data.movementSignals,
     riskMix: {
       noPaymentMethod: data.summary.noPaymentMethodCount,
@@ -57,7 +59,7 @@ function buildSanitizedPayload(data: MissionControlData) {
       canceling: data.summary.cancelingCount,
       adminGrantedActive: data.summary.adminGrantedActiveCount,
     },
-    revenueDistribution: data.organizations
+    revenueDistribution: activeOrganizations
       .map((org) => ({
         expectedMonthlyAmount: org.expectedMonthlyAmount,
         monthToDatePaid: org.monthToDatePaid,
