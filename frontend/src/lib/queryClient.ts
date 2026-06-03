@@ -38,7 +38,9 @@ export const persistOptions = {
 // ─── Query Key Factory ───────────────────────────────────────────
 export const QUERY_KEYS = {
   // Admin — organizations
-  organizations: ["admin", "organizations"] as const,
+  organizations: (view: "active" | "archived" | "all" = "active") =>
+    ["admin", "organizations", view] as const,
+  organizationsAll: ["admin", "organizations"] as const,
   organization: (id: number) => ["admin", "organization", id] as const,
   organizationLocations: (id: number) =>
     ["admin", "organization", id, "locations"] as const,
@@ -184,6 +186,13 @@ export const QUERY_KEYS = {
     ["tasks", orgId, locationId] as const,
   pmsFocusPeriod: (orgId: number | null, locationId?: number | null) =>
     ["pms-focus-period", orgId, locationId] as const,
+  pmsFileManager: (orgId: number | null, locationId?: number | null) =>
+    ["pms-file-manager", orgId, locationId] as const,
+  pmsFileDetail: (
+    orgId: number | null,
+    locationId: number | null,
+    jobId: number | null,
+  ) => ["pms-file-detail", orgId, locationId, jobId] as const,
   gbpAutomation: (
     orgId: number | null,
     locationId?: number | null,

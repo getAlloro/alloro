@@ -39,11 +39,16 @@ import {
 import type { MonthBucket, SourceRow } from "./types";
 import {
   submitManualPMSData,
+  uploadPMSData,
   previewMapping,
+  previewPmsUploadFile,
   uploadWithMapping,
   type ColumnMapping,
+  type ManualMonthEntry,
   type MappingSource,
+  type MonthlyRollupMonth,
   type MonthlyRollupForJob,
+  type PmsUploadPreviewResponse,
 } from "../../api/pms";
 import { usePasteHandler } from "./usePasteHandler";
 import { PasteConfirmDialog } from "./PasteConfirmDialog";
@@ -55,11 +60,13 @@ interface PMSManualEntryModalProps {
   clientId: string; // domain
   locationId?: number | null;
   locationName?: string | null;
+  targetMonth?: string | null;
   onSuccess?: () => void;
 }
 
 const ALORO_ORANGE = "#C9765E";
 const ALORO_ORANGE_DARK = "#D66853";
+type PmsUploadPreviewData = NonNullable<PmsUploadPreviewResponse["data"]>;
 
 /**
  * State-machine CSV/TSV parser for the mapping-preview path.
@@ -158,6 +165,36 @@ const getPreviousMonth = (): string => {
   return toYm(prevMonth.getFullYear(), prevMonth.getMonth() + 1);
 };
 
+const formatMonthLabel = (month: string): string => {
+  const parsed = new Date(`${month}-01T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return month;
+  return parsed.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+};
+
+const formatMonthList = (months: string[]): string => {
+  if (months.length === 0) return "none";
+  return months.map(formatMonthLabel).join(", ");
+};
+
+const monthlyRollupToBuckets = (
+  rows: Array<MonthlyRollupMonth | ManualMonthEntry>
+): MonthBucket[] => {
+  return rows.map((m, i) => ({
+    id: Date.now() + i,
+    month: m.month,
+    rows: m.sources.map((s, j) => ({
+      id: Date.now() + i * 1000 + j,
+      source: s.name,
+      type: (s.inferred_referral_type as "self" | "doctor") || "self",
+      referrals: String(s.referrals),
+      production: String(s.production),
+    })),
+  }));
+};
+
 /**
  * Animated odometer for summary cards
  */
@@ -211,6 +248,7 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
   clientId,
   locationId,
   locationName,
+  targetMonth,
   onSuccess,
 }) => {
   // Initialize with previous month and empty sources
@@ -250,9 +288,14 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
   // Drag & drop state
   const [isDragging, setIsDragging] = useState(false);
   const dragCounter = useRef(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   // Set when the user dropped a file (vs pasting). Drives the
   // PasteConfirmDialog wording ("File detected" vs "Paste detected").
   const [droppedFileName, setDroppedFileName] = useState<string | null>(null);
+  const [selectedUploadFile, setSelectedUploadFile] = useState<File | null>(null);
+  const [uploadPreview, setUploadPreview] =
+    useState<PmsUploadPreviewData | null>(null);
+  const [isPreviewingUpload, setIsPreviewingUpload] = useState(false);
 
   // Column-mapping state (T18/T19)
   const [mappingHeaders, setMappingHeaders] = useState<string[]>([]);
@@ -284,14 +327,48 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
   const runMappingPreviewRef = useRef<(rawText: string) => void>(() => {});
 
   // ─── Month merge helpers ────────────────────────────────────────
+  const createEmptyMonthBucket = useCallback(
+    (month: string): MonthBucket => ({
+      id: Date.now(),
+      month,
+      rows: [],
+    }),
+    []
+  );
+
+  const scopeMonthsToTarget = useCallback(
+    (incomingMonths: MonthBucket[]) => {
+      if (!targetMonth) return incomingMonths;
+      return incomingMonths.filter((month) => month.month === targetMonth);
+    },
+    [targetMonth]
+  );
+
+  const getSubmitMonths = useCallback(() => {
+    const backendData = transformUIToBackend(months);
+    if (!targetMonth) return backendData;
+    return backendData.filter((month) => month.month === targetMonth);
+  }, [months, targetMonth]);
+
   const applyMerge = useCallback(
     (incomingMonths: MonthBucket[]) => {
-      const incomingKeys = new Set(incomingMonths.map((m) => m.month));
+      const scopedIncoming = scopeMonthsToTarget(incomingMonths);
+      if (targetMonth && scopedIncoming.length === 0) {
+        const emptyTarget = createEmptyMonthBucket(targetMonth);
+        setMonths([emptyTarget]);
+        setActiveMonthId(emptyTarget.id);
+        setError(
+          `This data does not include ${formatMonthLabel(targetMonth)}. Only that selected month can be uploaded from this slot.`
+        );
+        return;
+      }
+
+      const incomingKeys = new Set(scopedIncoming.map((m) => m.month));
       setMonths((prev) => [
         ...prev.filter((m) => !incomingKeys.has(m.month)),
-        ...incomingMonths,
+        ...scopedIncoming,
       ]);
-      const sorted = [...incomingMonths].sort((a, b) =>
+      const sorted = [...scopedIncoming].sort((a, b) =>
         a.month.localeCompare(b.month)
       );
       const first = sorted.find((m) => m.rows.length > 0) || sorted[0];
@@ -299,17 +376,22 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
       setPendingMonths(null);
       setMonthConflicts(null);
     },
-    []
+    [createEmptyMonthBucket, scopeMonthsToTarget, targetMonth]
   );
 
   const mergeOrConfirm = useCallback(
     (incomingMonths: MonthBucket[]) => {
+      const scopedIncoming = scopeMonthsToTarget(incomingMonths);
+      if (targetMonth && scopedIncoming.length === 0) {
+        applyMerge(incomingMonths);
+        return;
+      }
       const existingMap = new Map(
         months
           .filter((m) => m.rows.length > 0)
           .map((m) => [m.month, m])
       );
-      const conflicts = incomingMonths.map((incoming) => ({
+      const conflicts = scopedIncoming.map((incoming) => ({
         month: incoming.month,
         status: (existingMap.has(incoming.month) ? "conflict" : "new") as
           | "new"
@@ -318,17 +400,17 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
       }));
       const hasConflicts = conflicts.some((c) => c.status === "conflict");
       if (!hasConflicts) {
-        applyMerge(incomingMonths);
+        applyMerge(scopedIncoming);
         showUploadToast(
           "Data parsed!",
-          `${incomingMonths.reduce((s, m) => s + m.rows.length, 0)} rows added across ${incomingMonths.length} month(s).`
+          `${scopedIncoming.reduce((s, m) => s + m.rows.length, 0)} rows added for ${formatMonthList(scopedIncoming.map((m) => m.month))}.`
         );
       } else {
-        setPendingMonths(incomingMonths);
+        setPendingMonths(scopedIncoming);
         setMonthConflicts(conflicts);
       }
     },
-    [months, applyMerge]
+    [applyMerge, months, scopeMonthsToTarget, targetMonth]
   );
 
   const confirmMerge = useCallback(() => {
@@ -366,7 +448,7 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
 
   const handlePasteWarnings = useCallback((warnings: string[]) => {
     if (warnings.length > 0) {
-      console.warn("[PMSManualEntry] Paste warnings:", warnings);
+      setError(warnings[0]);
     }
   }, []);
 
@@ -431,12 +513,13 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
           // a "verify or adjust" prompt, not a blocking question.
           setDrawerOpen(resp.data.source !== "org-cache");
         } else {
-          console.warn("[PMSManualEntry] previewMapping failed:", resp.error);
+          setError(resp.error || "Could not preview this file mapping.");
         }
       } catch (err) {
-        console.warn(
-          "[PMSManualEntry] previewMapping unexpected error:",
-          err
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Could not preview this file mapping."
         );
       } finally {
         setIsResolvingMapping(false);
@@ -466,6 +549,11 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
       } catch {
         // ignore — not all synthetic events expose clipboardData
       }
+      setSelectedUploadFile(null);
+      setUploadPreview(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
       pastedRawTextRef.current = text;
       legacyHandlePasteEvent(e);
     },
@@ -477,8 +565,15 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
     if (isOpen) {
       setSubmitStatus("idle");
       setError(null);
+      if (targetMonth) {
+        const targetBucket = createEmptyMonthBucket(targetMonth);
+        setMonths([targetBucket]);
+        setActiveMonthId(targetBucket.id);
+        setPendingMonths(null);
+        setMonthConflicts(null);
+      }
     }
-  }, [isOpen]);
+  }, [createEmptyMonthBucket, isOpen, targetMonth]);
 
   // ─── Column-mapping pipeline ─────────────────────────────────────
   // When the mapping pipeline produces a parsedPreview, hydrate the existing
@@ -491,18 +586,7 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
     if (!parsedPreview || monthConflicts) return;
     const rows = parsedPreview.monthly_rollup;
     if (!rows?.length) return;
-    const buckets: MonthBucket[] = rows.map((m, i) => ({
-      id: Date.now() + i,
-      month: m.month,
-      rows: m.sources.map((s, j) => ({
-        id: Date.now() + i * 1000 + j,
-        source: s.name,
-        type: (s.inferred_referral_type as "self" | "doctor") || "self",
-        referrals: String(s.referrals),
-        production: String(s.production),
-      })),
-    }));
-    applyMerge(buckets);
+    applyMerge(monthlyRollupToBuckets(rows));
   }, [parsedPreview, applyMerge, monthConflicts]);
 
   // Reset mapping state on modal close so re-opens get a clean slate.
@@ -517,6 +601,12 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
       setDrawerOpen(false);
       setIsResolvingMapping(false);
       setIsReprocessing(false);
+      setSelectedUploadFile(null);
+      setUploadPreview(null);
+      setIsPreviewingUpload(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   }, [isOpen]);
 
@@ -566,14 +656,124 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
 
   // Clear all data and reset to empty state
   const clearAllData = useCallback(() => {
-    const initialMonth = getPreviousMonth();
-    const initialId = Date.now();
-    setMonths([{ id: initialId, month: initialMonth, rows: [] }]);
-    setActiveMonthId(initialId);
+    const initialMonth = targetMonth ?? getPreviousMonth();
+    const initialBucket = createEmptyMonthBucket(initialMonth);
+    setMonths([initialBucket]);
+    setActiveMonthId(initialBucket.id);
     setError(null);
-  }, []);
+    setSelectedUploadFile(null);
+    setUploadPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }, [createEmptyMonthBucket, targetMonth]);
 
-  // Drag & drop handlers for CSV files
+  const replaceMonthsFromRollup = useCallback(
+    (rollup: Array<MonthlyRollupMonth | ManualMonthEntry>) => {
+      const buckets = scopeMonthsToTarget(monthlyRollupToBuckets(rollup));
+      if (targetMonth && buckets.length === 0) {
+        const emptyTarget = createEmptyMonthBucket(targetMonth);
+        setMonths([emptyTarget]);
+        setActiveMonthId(emptyTarget.id);
+        setError(
+          `This file does not include ${formatMonthLabel(targetMonth)}. Choose a file with that month or enter it manually.`
+        );
+        return;
+      }
+      if (buckets.length === 0) return;
+      setMonths(buckets);
+      setActiveMonthId(buckets[0]?.id ?? null);
+    },
+    [createEmptyMonthBucket, scopeMonthsToTarget, targetMonth]
+  );
+
+  const handleSelectedUploadFile = useCallback(
+    async (file: File) => {
+      const validExts = [".csv", ".xls", ".xlsx"];
+      const isValid = validExts.some((ext) =>
+        file.name.toLowerCase().endsWith(ext)
+      );
+
+      if (!isValid) {
+        setError(
+          `"${file.name}" is not supported. Please choose a CSV, XLS, or XLSX file.`
+        );
+        return;
+      }
+
+      if (!locationId) {
+        setError("Choose a location before uploading PMS data.");
+        return;
+      }
+
+      setError(null);
+      setDroppedFileName(file.name);
+      setSelectedUploadFile(file);
+      setUploadPreview(null);
+      setIsPreviewingUpload(true);
+      setCurrentMapping(null);
+      setMappingSource(null);
+      setMappingAllRows([]);
+      setParsedPreview(null);
+      setDrawerOpen(false);
+
+      try {
+        const response = await previewPmsUploadFile(file, locationId);
+        if (!response.success || !response.data) {
+          throw new Error(response.error || "Could not preview this PMS file.");
+        }
+
+        const scopedRollup = targetMonth
+          ? response.data.monthlyRollup.filter(
+              (month) => month.month === targetMonth
+            )
+          : response.data.monthlyRollup;
+        const scopedIncomingMonths = targetMonth
+          ? response.data.incomingMonths.filter((month) => month === targetMonth)
+          : response.data.incomingMonths;
+        const scopedSupersededMonths = targetMonth
+          ? response.data.supersededMonths.filter(
+              (month) => month.month === targetMonth
+            )
+          : response.data.supersededMonths;
+        setUploadPreview({
+          ...response.data,
+          monthlyRollup: scopedRollup,
+          incomingMonths: scopedIncomingMonths,
+          supersededMonths: scopedSupersededMonths,
+        });
+        replaceMonthsFromRollup(scopedRollup);
+        showUploadToast(
+          "PMS file parsed",
+          scopedSupersededMonths.length > 0
+            ? `${scopedSupersededMonths.length} month(s) will be overwritten.`
+            : targetMonth
+              ? `Only ${formatMonthLabel(targetMonth)} will be uploaded.`
+              : "No saved months will be overwritten."
+        );
+      } catch (err) {
+        setSelectedUploadFile(null);
+        setUploadPreview(null);
+        setDroppedFileName(null);
+        setError(
+          err instanceof Error ? err.message : "Could not preview this PMS file."
+        );
+      } finally {
+        setIsPreviewingUpload(false);
+      }
+    },
+    [locationId, replaceMonthsFromRollup, targetMonth]
+  );
+
+  const handleFileInputChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (file) void handleSelectedUploadFile(file);
+    },
+    [handleSelectedUploadFile]
+  );
+
+  // Drag & drop handlers for PMS files
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -607,56 +807,14 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
       const files = Array.from(e.dataTransfer.files ?? []);
       if (files.length === 0) return;
 
-      const validExts = [".csv", ".tsv", ".txt"];
-      const invalid = files.find(
-        (f) => !validExts.some((ext) => f.name.toLowerCase().endsWith(ext))
-      );
-      if (invalid) {
-        setError(
-          `"${invalid.name}" is not a supported file. Please drop CSV, TSV, or TXT files.`
-        );
+      if (files.length > 1) {
+        setError("Upload one PMS file at a time so overwrite checks stay clear.");
         return;
       }
 
-      // Read all files in parallel, concatenate text, feed as one paste.
-      // Same column format assumed across files (same practice → same PMS).
-      // Header line from files 2+ is stripped so embedded headers don't
-      // become garbage data rows.
-      Promise.all(
-        files.map(
-          (file) =>
-            new Promise<string>((resolve) => {
-              const reader = new FileReader();
-              reader.onload = (evt) =>
-                resolve((evt.target?.result as string) || "");
-              reader.readAsText(file);
-            })
-        )
-      ).then((texts) => {
-        const nonEmpty = texts.filter(Boolean);
-        const combined = nonEmpty
-          .map((text, i) => {
-            if (i === 0) return text;
-            const firstNewline = text.indexOf("\n");
-            return firstNewline === -1 ? "" : text.slice(firstNewline + 1);
-          })
-          .filter(Boolean)
-          .join("\n");
-        if (!combined) return;
-        setDroppedFileName(
-          files.length === 1
-            ? files[0].name
-            : `${files.length} files`
-        );
-        const fakeEvent = {
-          clipboardData: { getData: () => combined },
-          target: document.body,
-          preventDefault: () => {},
-        } as unknown as React.ClipboardEvent;
-        handlePasteEvent(fakeEvent);
-      });
+      void handleSelectedUploadFile(files[0]);
     },
-    [handlePasteEvent, setError]
+    [handleSelectedUploadFile]
   );
 
   // Download CSV template with the expected headers
@@ -686,7 +844,7 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
     return found;
   }, [months, activeMonthId, sortedMonths]);
 
-  const rows = activeMonth?.rows ?? [];
+  const rows = useMemo(() => activeMonth?.rows ?? [], [activeMonth?.rows]);
   const totals = useMemo(() => calculateTotals(rows), [rows]);
 
   // Keep active ID valid
@@ -708,6 +866,7 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
   );
 
   const addMonthBucket = useCallback(() => {
+    if (targetMonth) return;
     const latest =
       sortedMonths[sortedMonths.length - 1]?.month ?? getPreviousMonth();
     let candidate = addMonths(latest, 1);
@@ -721,10 +880,11 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
     const newId = Date.now();
     setMonths((prev) => [...prev, { id: newId, month: candidate, rows: [] }]);
     setActiveMonthId(newId);
-  }, [months, sortedMonths]);
+  }, [months, sortedMonths, targetMonth]);
 
   const deleteMonth = useCallback(
     (id: number) => {
+      if (targetMonth) return;
       if (months.length === 1) {
         setError("At least one month is required");
         return;
@@ -741,7 +901,7 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
         setActiveMonthId(nextSorted[0].id);
       }
     },
-    [months]
+    [months, targetMonth]
   );
 
   const requestDeleteMonth = (id: number) => {
@@ -824,6 +984,7 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
 
   // Month picker handlers
   const openMonthPicker = () => {
+    if (targetMonth) return;
     if (!activeMonth) return;
     setShowMonthPicker(true);
     setPickerStep("month");
@@ -831,6 +992,7 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
   };
 
   const commitMonthChange = (ym: string) => {
+    if (targetMonth) return;
     // Check if month already exists
     const existing = months.find(
       (m) => m.month === ym && m.id !== activeMonth?.id
@@ -847,10 +1009,63 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
 
   // Submit handler
   const handleSubmit = async () => {
+    if (selectedUploadFile) {
+      setIsSubmitting(true);
+      setError(null);
+      try {
+        const backendData = getSubmitMonths();
+        if (
+          targetMonth &&
+          !backendData.some(
+            (month) => month.month === targetMonth && month.sources.length > 0
+          )
+        ) {
+          throw new Error(
+            `Add data for ${formatMonthLabel(targetMonth)} before uploading.`
+          );
+        }
+        const result = await uploadPMSData({
+          domain: clientId,
+          file: selectedUploadFile,
+          pmsType: "auto-detect",
+          locationId,
+          monthlyDataOverride: backendData,
+        });
+
+        if (result.success) {
+          setSubmitStatus("success");
+          showUploadToast(
+            "PMS file received!",
+            "Processing your insights now..."
+          );
+
+          if (typeof window !== "undefined") {
+            const event = new CustomEvent("pms:job-uploaded", {
+              detail: { clientId, entryType: "file", locationId },
+            });
+            window.dispatchEvent(event);
+          }
+
+          setTimeout(() => {
+            onSuccess?.();
+            onClose();
+          }, 2000);
+          return;
+        }
+        throw new Error(result.error || "Upload failed");
+      } catch (err) {
+        setSubmitStatus("error");
+        setError(err instanceof Error ? err.message : "Upload failed");
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
     // ── Mapping path: when the user pasted a non-template file and we
     // resolved a mapping, submit via uploadWithMapping so the backend's
     // parsing pipeline (and clone-on-confirm cache write) runs end-to-end.
-    if (currentMapping && mappingAllRows.length > 0) {
+    if (!targetMonth && currentMapping && mappingAllRows.length > 0) {
       setIsSubmitting(true);
       setError(null);
       try {
@@ -883,7 +1098,6 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
         }
         throw new Error(result.error || "Submission failed");
       } catch (err) {
-        console.error("[PMSManualEntryModal] uploadWithMapping error:", err);
         setSubmitStatus("error");
         setError(err instanceof Error ? err.message : "Submission failed");
         setIsSubmitting(false);
@@ -924,8 +1138,17 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
     setError(null);
 
     try {
-      const backendData = transformUIToBackend(months);
-      console.log("[PMSManualEntryModal] Submitting manual data:", backendData);
+      const backendData = getSubmitMonths();
+      if (
+        targetMonth &&
+        !backendData.some(
+          (month) => month.month === targetMonth && month.sources.length > 0
+        )
+      ) {
+        throw new Error(
+          `Add data for ${formatMonthLabel(targetMonth)} before submitting.`
+        );
+      }
 
       const result = await submitManualPMSData({
         domain: clientId,
@@ -955,7 +1178,6 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
         throw new Error(result.error || "Submission failed");
       }
     } catch (err) {
-      console.error("[PMSManualEntryModal] Submit error:", err);
       setSubmitStatus("error");
       setError(err instanceof Error ? err.message : "Submission failed");
     } finally {
@@ -1000,7 +1222,7 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
                 <div className="flex flex-col items-center gap-2">
                   <Upload size={32} style={{ color: ALORO_ORANGE }} />
                   <span className="text-sm font-medium" style={{ color: ALORO_ORANGE }}>
-                    Drop your CSV file here
+                    Drop your CSV, XLS, or XLSX file here
                   </span>
                 </div>
               </motion.div>
@@ -1013,7 +1235,9 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
                 Enter PMS Data{locationName ? ` for ${locationName}` : ""}
               </h2>
               <p className="text-xs text-gray-500 mt-1">
-                Add your referral and production data for {clientId}
+                {targetMonth
+                  ? `Only ${formatMonthLabel(targetMonth)} will be saved from this upload.`
+                  : `Add your referral and production data for ${clientId}`}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -1094,6 +1318,64 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
               </motion.div>
             ) : (
               <div className="space-y-6">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,.xls,.xlsx"
+                  onChange={handleFileInputChange}
+                  className="hidden"
+                />
+
+                {targetMonth && (
+                  <div className="rounded-xl border border-alloro-orange/25 bg-alloro-orange/10 px-4 py-3">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-alloro-orange">
+                      Calendar month selected
+                    </p>
+                    <p className="mt-1 text-sm font-bold text-gray-900">
+                      Uploads, pasted rows, and parsed file data are restricted to{" "}
+                      {formatMonthLabel(targetMonth)}. Other months will be discarded.
+                    </p>
+                  </div>
+                )}
+
+                {selectedUploadFile && (
+                  <div className="rounded-xl border border-alloro-orange/30 bg-alloro-orange/10 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-widest text-alloro-orange">
+                          {isPreviewingUpload ? "Previewing file" : "File ready"}
+                        </p>
+                        <p className="mt-1 text-sm font-bold text-gray-900">
+                          {selectedUploadFile.name}
+                        </p>
+                      </div>
+                      {isPreviewingUpload && (
+                        <span className="inline-flex items-center gap-2 text-xs font-bold text-gray-600">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Checking months
+                        </span>
+                      )}
+                    </div>
+                    {uploadPreview && (
+                      <div className="mt-3 rounded-lg bg-white/80 p-3 text-xs font-semibold text-gray-700">
+                        <p>
+                          Parsed months:{" "}
+                          {formatMonthList(uploadPreview.incomingMonths)}
+                        </p>
+                        <p className="mt-1">
+                          {uploadPreview.supersededMonths.length > 0
+                            ? `Will overwrite: ${formatMonthList(
+                                uploadPreview.supersededMonths.map(
+                                  (month) => month.month
+                                )
+                              )}`
+                            : "No existing months will be overwritten."}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Month Tabs */}
                 <div className="flex items-center gap-2 flex-wrap">
                   {sortedMonths.map((m) => {
@@ -1119,7 +1401,7 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
                         </motion.button>
 
                         {/* Delete icon per tab */}
-                        {months.length > 1 && (
+                        {months.length > 1 && !targetMonth && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1173,14 +1455,15 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
                     );
                   })}
 
-                  {/* Add month button */}
-                  <button
-                    onClick={addMonthBucket}
-                    className="p-2 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition"
-                    title="Add month"
-                  >
-                    <Plus size={14} />
-                  </button>
+                  {!targetMonth && (
+                    <button
+                      onClick={addMonthBucket}
+                      className="p-2 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition"
+                      title="Add month"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  )}
                 </div>
 
                 {/* Summary Cards */}
@@ -1189,7 +1472,11 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
                     {/* Month card - clickable */}
                     <motion.div
                       layout
-                      className="rounded-2xl border bg-white p-4 flex flex-col justify-center cursor-pointer hover:border-gray-300 transition"
+                      className={`rounded-2xl border bg-white p-4 flex flex-col justify-center transition ${
+                        targetMonth
+                          ? "cursor-default"
+                          : "cursor-pointer hover:border-gray-300"
+                      }`}
                       onClick={openMonthPicker}
                     >
                       <div className="flex items-center justify-center gap-2 text-xs font-bold text-gray-400 uppercase mb-2">
@@ -1271,7 +1558,7 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
                       <p className="text-sm">No sources added yet</p>
                       <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
                         Copy your cells from a spreadsheet and paste here, or drag
-                        and drop a CSV file. Alloro will parse and clean your data
+                        and drop a CSV, XLS, or XLSX file. Alloro will parse and clean your data
                         automatically.
                       </p>
                     </motion.div>
@@ -1458,6 +1745,14 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
 
                 {/* Action Buttons: Download Template | Paste Data | Add Source */}
                 <div className="flex justify-end gap-3 px-2">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center gap-2 border rounded-full px-5 py-2 text-xs font-semibold transition-colors hover:bg-gray-50"
+                    style={{ color: ALORO_ORANGE, borderColor: ALORO_ORANGE }}
+                  >
+                    <Upload size={16} />
+                    <span>Choose File</span>
+                  </button>
                   <button
                     onClick={downloadTemplate}
                     className="flex items-center gap-2 border rounded-full px-5 py-2 text-xs font-semibold transition-colors hover:bg-gray-50"
@@ -1759,16 +2054,22 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || isPreviewingUpload}
                   className="inline-flex items-center gap-2 rounded-full px-6 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                   style={{ backgroundColor: ALORO_ORANGE }}
                 >
-                  {isSubmitting ? (
+                  {isSubmitting || isPreviewingUpload ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <Save className="h-4 w-4" />
                   )}
-                  {isSubmitting ? "Submitting..." : "Submit & Get Insights"}
+                  {isPreviewingUpload
+                    ? "Previewing..."
+                    : isSubmitting
+                      ? "Submitting..."
+                      : selectedUploadFile
+                        ? "Upload File & Get Insights"
+                        : "Submit & Get Insights"}
                 </button>
               </div>
             </div>

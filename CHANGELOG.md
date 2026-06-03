@@ -2,6 +2,28 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.97] - June 2026
+
+### PMS File Manager
+
+Added a location-scoped PMS File Manager for Referrals Hub data so admins and managers can upload, inspect, edit, download, overwrite, and soft-delete monthly PMS files without leaving the PMS Statistics workflow.
+
+**Key Changes:**
+- Added a compact Manage Data side panel with a latest-completed-month data window, month-specific upload/edit/overwrite actions, file cards, original parsed-data review, download, delete confirmation, and edit history.
+- Replaced the ingestion-card availability grid with a production/referral trend graph; plot points are hoverable/focusable and open the same month-scoped edit or upload flow.
+- Added authenticated PMS file-manager API endpoints with admin/manager write controls, location scoping, processing guards, original-file downloads, edit-event history, and soft-delete handling.
+- Persisted original upload metadata, original parsed PMS snapshots, response-log diffs, uploader/editor/delete attribution, and mutation events while keeping the existing aggregator behavior intact.
+- Removed `.txt` PMS upload support and kept PMS uploads limited to CSV, XLS, and XLSX files.
+- Updated the Referrals Hub docs replica and page guidance for Upload New Data, Manage Data, trend graph interactions, monthly file management, and history/download behavior.
+
+**Commits:**
+- `frontend/src/components/PMS/dashboard/*`, `frontend/src/components/PMS/file-manager/*`, and `frontend/src/hooks/queries/usePmsFileManagerQueries.ts` - side panel, trend graph, month-slot interactions, file list, history panel, and query wiring
+- `frontend/src/components/PMS/*` and `frontend/src/api/pms.ts` - upload/edit modal reuse, file-type handling, month-scoped upload behavior, and typed PMS API helpers
+- `src/controllers/pms/*`, `src/models/PmsJobModel.ts`, `src/models/PmsJobEventModel.ts`, and `src/routes/pms.ts` - PMS file-manager controllers, services, presenters, storage helpers, mutation guards, event history, and route registration
+- `src/database/migrations/20260602010000_add_pms_file_manager_metadata.ts` - PMS file-manager metadata and event-history schema
+- `/Users/rustinedave/Desktop/alloro-docs/src/components/replicas/ReferralsHubReplica.tsx` and `/Users/rustinedave/Desktop/alloro-docs/src/data/pages/referrals-hub.ts` - documentation parity for the updated Referrals Hub data workflow
+- `plans/06022026-pms-file-manager/*` - completed execution spec and migration notes
+
 ## [0.0.96] - June 2026
 
 ### Spectral Serif Typography Standardization

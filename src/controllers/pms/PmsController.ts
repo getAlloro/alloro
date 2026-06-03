@@ -12,6 +12,7 @@ import { validateJobId } from "./pms-utils/pms-validator.util";
 import { PmsStatus } from "./pms-utils/pms-constants";
 import { RBACRequest } from "../../middleware/rbac";
 import { PmsJobModel } from "../../models/PmsJobModel";
+import { PmsJobEventModel } from "../../models/PmsJobEventModel";
 import { PmsColumnMappingModel } from "../../models/PmsColumnMappingModel";
 import { resolveMapping } from "../../utils/pms/resolveColumnMapping";
 import {
@@ -21,6 +22,8 @@ import {
 import { signHeaders } from "../../utils/pms/headerSignature";
 import type { ColumnMapping } from "../../types/pmsMapping";
 import { resolveLocationId } from "../../utils/locationResolver";
+import { db } from "../../database/connection";
+import { assertNoActivePmsAutomation } from "./pms-services/pms-mutation-guard.service";
 
 function handleError(res: Response, error: any, operation: string): Response {
   const statusCode = error.statusCode || 500;
@@ -32,9 +35,29 @@ function handleError(res: Response, error: any, operation: string): Response {
   });
 }
 
+function parseMonthlyRollupPayload(
+  value: unknown,
+  fieldName: string
+): MonthlyRollupForJob {
+  let parsed = value;
+  if (typeof parsed === "string") {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      throw new Error(`Invalid ${fieldName} format - must be valid JSON`);
+    }
+  }
+
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new Error(`${fieldName} must be a non-empty array of month entries`);
+  }
+
+  return parsed as MonthlyRollupForJob;
+}
+
 /**
  * POST /pms/upload
- * Upload and process PMS data from CSV, XLS, XLSX, or TXT files
+ * Upload and process PMS data from CSV, XLS, or XLSX files
  * OR accept manually entered data (JSON body with entryType: 'manual')
  */
 export async function uploadPmsData(req: Request, res: Response) {
@@ -42,6 +65,7 @@ export async function uploadPmsData(req: Request, res: Response) {
     const { domain, pmsType, manualData, entryType, locationId: reqLocationId } = req.body;
     const rbacReq = req as RBACRequest;
     const organizationId = rbacReq.organizationId ?? null;
+    const actorUserId = rbacReq.userId ?? rbacReq.user?.userId ?? null;
     const locationId = reqLocationId ? Number(reqLocationId) : null;
 
     if (!domain) {
@@ -53,23 +77,16 @@ export async function uploadPmsData(req: Request, res: Response) {
 
     // MANUAL ENTRY PATH
     if (entryType === "manual" && manualData) {
-      // Parse manualData if it's a string
-      let parsedManualData = manualData;
-      if (typeof manualData === "string") {
-        try {
-          parsedManualData = JSON.parse(manualData);
-        } catch (parseError) {
-          return res.status(400).json({
-            success: false,
-            error: "Invalid manualData format - must be valid JSON",
-          });
-        }
-      }
-
-      if (!Array.isArray(parsedManualData) || parsedManualData.length === 0) {
+      let parsedManualData: MonthlyRollupForJob;
+      try {
+        parsedManualData = parseMonthlyRollupPayload(manualData, "manualData");
+      } catch (parseError) {
         return res.status(400).json({
           success: false,
-          error: "manualData must be a non-empty array of month entries",
+          error:
+            parseError instanceof Error
+              ? parseError.message
+              : "Invalid manualData format",
         });
       }
 
@@ -77,7 +94,8 @@ export async function uploadPmsData(req: Request, res: Response) {
         domain,
         parsedManualData,
         organizationId,
-        locationId
+        locationId,
+        actorUserId
       );
 
       return res.json({
@@ -100,7 +118,32 @@ export async function uploadPmsData(req: Request, res: Response) {
       });
     }
 
-    const result = await uploadService.processFileUpload(req.file, domain, organizationId, locationId);
+    let overrideMonthlyRollup: MonthlyRollupForJob | null = null;
+    if (manualData) {
+      try {
+        overrideMonthlyRollup = parseMonthlyRollupPayload(
+          manualData,
+          "manualData"
+        );
+      } catch (parseError) {
+        return res.status(400).json({
+          success: false,
+          error:
+            parseError instanceof Error
+              ? parseError.message
+              : "Invalid manualData format",
+        });
+      }
+    }
+
+    const result = await uploadService.processFileUpload(
+      req.file,
+      domain,
+      organizationId,
+      locationId,
+      actorUserId,
+      overrideMonthlyRollup
+    );
 
     return res.json({
       success: true,
@@ -117,6 +160,8 @@ export async function uploadPmsData(req: Request, res: Response) {
     return res.status(error.statusCode || 500).json({
       success: false,
       error: `Failed to process PMS upload: ${error.message}`,
+      code: error.code,
+      data: error.activeJob ? { activeJob: error.activeJob } : undefined,
     });
   }
 }
@@ -875,26 +920,55 @@ export async function uploadWithMapping(req: Request, res: Response) {
         ? passedLocationId
         : await resolveLocationId(orgId);
 
-    const job = await PmsJobModel.create({
-      time_elapsed: 0,
-      status: "approved",
-      organization_id: orgId,
-      location_id: locationId,
-      is_approved: true,
-      is_client_approved: true,
-      raw_input_data: {
-        rows,
-        headers,
-        signature,
-        ...(month ? { month } : {}),
-      } as Record<string, unknown>,
-      response_log: {
-        monthly_rollup: monthlyRollup,
-        mapping_source: "user-confirmed",
-        header_signature: signature,
-      },
-      column_mapping_id: mappingId,
-    } as any);
+    await assertNoActivePmsAutomation(orgId, locationId);
+
+    const responseLog = {
+      monthly_rollup: monthlyRollup,
+      mapping_source: "user-confirmed",
+      header_signature: signature,
+    };
+    const actorUserId = rbacReq.userId ?? rbacReq.user?.userId ?? null;
+
+    const job = await db.transaction(async (trx) => {
+      const created = await PmsJobModel.create(
+        {
+          time_elapsed: 0,
+          status: "approved",
+          organization_id: orgId,
+          location_id: locationId,
+          is_approved: true,
+          is_client_approved: true,
+          uploaded_by_user_id: actorUserId,
+          raw_input_data: {
+            rows,
+            headers,
+            signature,
+            ...(month ? { month } : {}),
+          } as Record<string, unknown>,
+          response_log: responseLog,
+          original_response_log: responseLog,
+          column_mapping_id: mappingId,
+        } as any,
+        trx
+      );
+
+      await PmsJobEventModel.create(
+        {
+          pms_job_id: created.id,
+          actor_user_id: actorUserId,
+          event_type: "mapped_upload_created",
+          metadata: {
+            months: monthlyRollup.map((entry) => entry.month).filter(Boolean),
+            monthCount: monthlyRollup.length,
+            mappingSource: "user-confirmed",
+            headerSignature: signature,
+          },
+        },
+        trx
+      );
+
+      return created;
+    });
 
     if (!job.id) {
       throw new Error("Failed to create PMS job record");
@@ -923,6 +997,8 @@ export async function uploadWithMapping(req: Request, res: Response) {
     return res.status(error.statusCode || 500).json({
       success: false,
       error: error?.message || "Failed to process mapped upload",
+      code: error.code,
+      data: error.activeJob ? { activeJob: error.activeJob } : undefined,
     });
   }
 }

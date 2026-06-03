@@ -41,6 +41,7 @@ import { useLocationContext } from "../../contexts/locationContext";
 import { apiGet } from "../../api";
 import { getPriorityItem } from "../../hooks/useLocalStorage";
 import { PmsDashboardSurface } from "./dashboard/PmsDashboardSurface";
+import { PmsFileManager } from "./file-manager/PmsFileManager";
 import { derivePmsFocusPeriod } from "../../utils/pmsFocusPeriod";
 
 const COGITATING_PHRASES = [
@@ -164,6 +165,13 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
   const [showTemplateUpload, setShowTemplateUpload] = useState(false);
   const [showDirectUpload, setShowDirectUpload] = useState(false);
   const [showManualEntry, setShowManualEntry] = useState(false);
+  const [showFileManager, setShowFileManager] = useState(false);
+  const [fileManagerInitialMonth, setFileManagerInitialMonth] = useState<
+    string | null
+  >(null);
+  const [manualEntryTargetMonth, setManualEntryTargetMonth] = useState<
+    string | null
+  >(null);
   // Start with loading false if wizard is active (we'll show demo data immediately)
   const [isLoading, setIsLoading] = useState(!isWizardActive);
   const [keyDataLoaded, setKeyDataLoaded] = useState(false);
@@ -1343,9 +1351,45 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
           canUploadPMS={canUploadPMS}
           hasProperties={hasProperties}
           isIngestionHighlighted={isIngestionHighlighted}
-          onJumpToIngestion={scrollToIngestionHub}
-          onOpenManualEntry={() => { if (locationId) setShowManualEntry(true); }}
+          canOpenDataManager={Boolean(organizationId && locationId)}
+          onOpenManualEntry={() => {
+            if (locationId) {
+              setManualEntryTargetMonth(null);
+              setShowManualEntry(true);
+            }
+          }}
+          onOpenDataManager={() => {
+            setFileManagerInitialMonth(null);
+            setShowFileManager(true);
+          }}
+          onSelectDataMonth={(month) => {
+            setFileManagerInitialMonth(month);
+            setShowFileManager(true);
+          }}
           onOpenSettings={() => navigate('/settings/integrations')}
+        />
+      )}
+
+      {organizationId && locationId && (
+        <PmsFileManager
+          organizationId={organizationId}
+          locationId={locationId}
+          locationName={locationName}
+          canManage={hasRolePermission}
+          isProcessing={showDashboardProcessingStatus || localProcessing || referralPending}
+          isOpen={showFileManager}
+          initialMonth={fileManagerInitialMonth}
+          onClose={() => {
+            setShowFileManager(false);
+            setFileManagerInitialMonth(null);
+          }}
+          onUploadClick={(targetMonth) => {
+            setShowFileManager(false);
+            setFileManagerInitialMonth(null);
+            setManualEntryTargetMonth(targetMonth ?? null);
+            setShowManualEntry(true);
+          }}
+          onDataChanged={handleUploadWizardSuccess}
         />
       )}
 
@@ -1391,10 +1435,14 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
       {/* Manual Entry Modal */}
       <PMSManualEntryModal
         isOpen={showManualEntry}
-        onClose={() => setShowManualEntry(false)}
+        onClose={() => {
+          setShowManualEntry(false);
+          setManualEntryTargetMonth(null);
+        }}
         clientId={domain || ""}
         locationId={locationId}
         locationName={locationName}
+        targetMonth={manualEntryTargetMonth}
         onSuccess={handleUploadWizardSuccess}
       />
     </div>
