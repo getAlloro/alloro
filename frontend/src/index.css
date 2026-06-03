@@ -270,7 +270,7 @@ h1, h2, h3, h4, h5, h6, .font-heading {
    --font-sans: 'Plus Jakarta Sans', sans-serif;
    --font-body: 'Plus Jakarta Sans', sans-serif;
    /* Plan 2 (Focus dashboard redesign): new font stack for the dashboard surface */
-   --font-display: 'Fraunces', 'Literata', serif;
+   --font-display: 'Spectral', 'Literata', serif;
    --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
    --font-inter: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   
