@@ -6,7 +6,8 @@ export type MissionControlFilter =
   | "payment-risk"
   | "no-payment-method"
   | "active-stripe"
-  | "admin-granted";
+  | "admin-granted"
+  | "archived";
 
 export type MissionControlHeaderProps = {
   organizationCount: number;
@@ -25,6 +26,7 @@ const FILTERS: Array<{ value: MissionControlFilter; label: string }> = [
   { value: "no-payment-method", label: "No Method" },
   { value: "active-stripe", label: "Stripe Active" },
   { value: "admin-granted", label: "Admin Granted" },
+  { value: "archived", label: "Archived" },
 ];
 
 export function MissionControlHeader({

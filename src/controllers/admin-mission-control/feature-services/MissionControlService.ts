@@ -37,6 +37,7 @@ export interface MissionControlOrganization {
   organizationType: "health" | "saas" | null;
   subscriptionTier: "DWY" | "DFY" | null;
   subscriptionStatus: MissionControlOrgBase["subscription_status"];
+  archivedAt: string | null;
   stripeStatus: StripeStatus;
   paymentMethod: MissionControlPaymentMethodSummary | null;
   expectedMonthlyAmount: number;
@@ -110,6 +111,7 @@ export async function getMissionControlData(): Promise<MissionControlData> {
       organizationType: org.organization_type,
       subscriptionTier: org.subscription_tier,
       subscriptionStatus: org.subscription_status,
+      archivedAt: org.archived_at ? org.archived_at.toISOString() : null,
       stripeStatus: stripeResult.stripeStatus,
       paymentMethod: stripeResult.paymentMethod,
       expectedMonthlyAmount: stripeResult.expectedMonthlyAmount,
@@ -146,13 +148,18 @@ export async function getMissionControlData(): Promise<MissionControlData> {
     };
   }).sort(compareRevenueFirst);
 
+  const activeOrganizations = organizations.filter((org) => !org.archivedAt);
+  const activeBaseOrganizations = baseData.organizations.filter(
+    (org) => !org.archived_at,
+  );
+
   const data: MissionControlData = {
     generatedAt: now.toISOString(),
     stripeFreshness: isStripeConfigured() ? "fresh" : "unavailable",
-    summary: summarize(organizations, stripeResults, baseData.organizations),
-    revenueTrend: buildRevenueTrend(organizations, now),
+    summary: summarize(activeOrganizations, stripeResults, activeBaseOrganizations),
+    revenueTrend: buildRevenueTrend(activeOrganizations, now),
     organizations,
-    movementSignals: buildMovementSignals(organizations),
+    movementSignals: buildMovementSignals(activeOrganizations),
   };
 
   return data;
@@ -185,8 +192,9 @@ function summarize(
       organizations.reduce((sum, org) => sum + org.monthToDatePaid, 0),
     ),
     previousMonthPaid: roundCurrency(
-      Array.from(stripeResults.values()).reduce(
-        (sum, result) => sum + result.previousMonthPaid,
+      organizations.reduce(
+        (sum, org) =>
+          sum + (stripeResults.get(org.id)?.previousMonthPaid ?? 0),
         0,
       ),
     ),
