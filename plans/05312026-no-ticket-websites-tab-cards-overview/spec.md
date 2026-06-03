@@ -184,3 +184,14 @@ The editor is demoted to `?tab=editor` and lazy-mounts. A new `?tab=pages` list 
 **Change:** (1) Added (i) `InfoTip` tooltips to every overview-modal stat card (Traffic: visitors, visits, page views, bounce, pages-per-visit, time-on-site; Leads: this/last month, conversion, all-time). (2) Plain-English stat labels with the technical term as a smaller, muted parenthetical — "Left right away (bounce rate)", "Pages per visit (pages/session)", "Time on site (avg. visit)", "Visits (sessions)". (3) Reworked the hero Visitors→Leads funnel (This-month header + arrow + conversion progress bar + "X% of visitors became leads" caption) to fill the dead whitespace.
 **Reason:** Owner-readable metrics (jargon explained), less empty hero.
 **Verified live (Garrison):** all 6 Traffic stats relabeled with 6 (i) tooltips; hero funnel filled. My files type-clean (the only `tsc` errors remain the unrelated `PMSManualEntryModal` WIP).
+
+### Rev 7 — 2026-06-03 (live-review fixes)
+**Change:**
+- **Chart hover:** `TrendSparkline` now renders the hovered point's label + value in a small readout chip — fixes "numbers don't update on hover" on the overview cards AND the detail modals (the parents never wired `onActiveIndexChange`; centralised it in the sparkline instead).
+- **Conversion honesty (Dave flagged):** dropped the "vs X% last month" line on the conversion score — it compared this-month-to-date (a rate) to last month's FULL-month rate, reading as a false decline. Now shows the current rate only.
+- **Absurd deltas:** month-over-month deltas are suppressed when the prior baseline is below a floor (visitors <10, leads <3) or the swing exceeds ±500% — kills values like "+27000%".
+- **Funnel:** removed the redundant "This month" header from the hero funnel box.
+- **Submissions form list:** clicking anywhere in a form row opens it (not just the title); the up/down arrows are replaced by a drag handle (`@dnd-kit/sortable`, already a dep) with a 5px activation threshold so clicks still select. Reorder persists via the existing form-preferences `sortOrder`. Touches the shared `FormSubmissionsSidebar` + `FormSubmissionsTab` (admin + user).
+**Reason:** owner-readable, honest comparisons; smoother form management.
+**Verified:** type-clean (only the unrelated `PMSManualEntryModal` WIP keeps `tsc -b` red). Browser verification deferred this round — the local preview server was unstable; changes confirmed at type/logic level and surfaced for live review.
+**Known follow-up:** a *fair* MTD conversion (and MTD leads delta) needs a daily-granularity form-submissions endpoint — small backend add, deferred.
