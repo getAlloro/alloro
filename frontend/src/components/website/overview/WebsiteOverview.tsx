@@ -78,8 +78,8 @@ export function WebsiteOverview({
   const [modal, setModal] = useState<"traffic" | "leads" | null>(null);
 
   const analyticsQuery = useQuery<WebsiteAnalytics>({
-    queryKey: ["websiteAnalytics", 90],
-    queryFn: () => fetchWebsiteAnalytics(90),
+    queryKey: ["websiteAnalytics", 365],
+    queryFn: () => fetchWebsiteAnalytics(365),
     enabled: !isWizardActive,
     staleTime: 5 * 60 * 1000,
   });
@@ -287,8 +287,8 @@ export function WebsiteOverview({
 
       <div className="grid gap-5 md:grid-cols-2">
         <OverviewCard
-          eyebrow="Traffic · This month"
-          infoTip="Unique visitors to your website, month to date."
+          eyebrow="Traffic · Last 12 mo"
+          infoTip="Unique visitors to your website. The headline is this month to date; the chart shows monthly visitors."
           onOpen={m.hasAnalytics ? () => setModal("traffic") : undefined}
           openLabel="Traffic detail"
         >
@@ -435,8 +435,8 @@ export function WebsiteOverview({
           <div className="rounded-[14px] border border-line-soft bg-white p-4 shadow-premium">
             <div className="mb-3 font-mono-display text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--color-pm-text-secondary)]">
               {trafficModalPoint
-                ? `Daily visitors · ${trafficModalPoint.label}: ${fmt(trafficModalPoint.visitors)}`
-                : `Daily visitors · last ${m.rangeDays} days`}
+                ? `Monthly visitors · ${trafficModalPoint.label}: ${fmt(trafficModalPoint.visitors)}`
+                : "Monthly visitors · last 12 months"}
             </div>
             <TrendSparkline
               data={m.visitorSeries}

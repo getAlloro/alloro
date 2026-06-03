@@ -11,6 +11,10 @@ import type { TimeseriesPoint } from "../../../api/formSubmissionsTimeseries";
  *   last month's full total (leads only arrive monthly, so pacing keeps the
  *   partial-month comparison honest).
  * - Conversion = verified leads ÷ unique visitors, this month.
+ *
+ * Trend charts are MONTHLY (visitor daily series aggregated into month buckets)
+ * so the traffic charts share the leads chart's cadence. Visitor months are not
+ * zero-filled — a missing month means Rybbit wasn't tracking yet, not zero.
  */
 export interface WebsiteMetrics {
   hasAnalytics: boolean;
@@ -28,7 +32,7 @@ export interface WebsiteMetrics {
   /** % change, projected full-month leads vs last month full */
   leadsPaceDeltaPct: number | null;
   prevMonthLeads: number;
-  /** daily visitor series for the sparkline, with per-day breakdown for hover */
+  /** monthly visitor series for the sparkline (aggregated from daily), last 12 months */
   visitorSeries: Array<{
     label: string;
     visitors: number;
@@ -48,13 +52,6 @@ export interface WebsiteMetrics {
 
 function monthKey(year: number, monthIndex: number): string {
   return `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
-}
-
-function shortDate(value: string): string {
-  const date = new Date(`${value}T00:00:00`);
-  return Number.isNaN(date.getTime())
-    ? value
-    : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 function monthLabel(ym: string): string {
@@ -126,6 +123,38 @@ export function computeWebsiteMetrics(
     if (point.date.slice(0, 7) === prevKey) prevMonthVisitorsFull += point.users;
   }
 
+  // Monthly visitor buckets aggregated from the daily series so the traffic
+  // charts share the leads chart's monthly cadence. Only months that actually
+  // have data appear — visitors are NOT zero-filled (a missing month means
+  // "not tracked yet", not "zero visitors"). Keep the most recent 12.
+  const monthlyVisitors = new Map<
+    string,
+    { visitors: number; sessions: number; pageviews: number }
+  >();
+  for (const point of daily) {
+    const key = point.date.slice(0, 7);
+    const bucket = monthlyVisitors.get(key) ?? {
+      visitors: 0,
+      sessions: 0,
+      pageviews: 0,
+    };
+    bucket.visitors += point.users;
+    bucket.sessions += point.sessions;
+    bucket.pageviews += point.pageviews;
+    monthlyVisitors.set(key, bucket);
+  }
+  const visitorSeries = Array.from(monthlyVisitors.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-12)
+    .map(([month, bucket]) => ({
+      label: monthLabel(month),
+      monthName: monthLabel(month),
+      month,
+      visitors: bucket.visitors,
+      sessions: bucket.sessions,
+      pageviews: bucket.pageviews,
+    }));
+
   const conversionRate = monthVisitors > 0 ? monthLeads / monthVisitors : 0;
   const prevConversionRate =
     prevMonthVisitorsFull > 0 ? prevMonthLeads / prevMonthVisitorsFull : 0;
@@ -147,14 +176,7 @@ export function computeWebsiteMetrics(
     visitorsDeltaPct: meaningfulDelta(monthVisitors, prevVisitorsMtd, 10),
     leadsPaceDeltaPct: meaningfulDelta(leadsPace, prevMonthLeads, 3),
     prevMonthLeads,
-    visitorSeries: daily.map((p) => ({
-      label: shortDate(p.date),
-      visitors: p.users,
-      sessions: p.sessions,
-      pageviews: p.pageviews,
-      month: p.date.slice(0, 7),
-      monthName: monthLabel(p.date.slice(0, 7)),
-    })),
+    visitorSeries,
     leadSeries: timeseries.map((p) => ({
       label: monthLabel(p.month),
       leads: p.verified,
