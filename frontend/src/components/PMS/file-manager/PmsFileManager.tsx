@@ -184,7 +184,8 @@ export function PmsFileManager({
     if (!response.success) {
       throw new Error(response.error || "Failed to update PMS file.");
     }
-    showSuccessToast("PMS data updated", "The agent is rerunning with the change.");
+    // The editor (PMSDataViewer) shows its own "saved" confirmation. We no
+    // longer claim the agent is rerunning — edits surface a stale-data alert.
     onDataChanged?.();
   };
 
@@ -195,7 +196,10 @@ export function PmsFileManager({
       return;
     }
     setPendingDeleteId(null);
-    showSuccessToast("PMS file deleted", "The agent is rerunning without that month data.");
+    showSuccessToast(
+      "PMS file deleted",
+      "Removed from active reporting. Use Get updated insights to refresh."
+    );
     onDataChanged?.();
   };
 
@@ -291,6 +295,7 @@ export function PmsFileManager({
                   canManage={canManage}
                   isProcessing={actionsBlocked}
                   pendingDeleteId={pendingDeleteId}
+                  isDeleting={deleteMutation.isPending}
                   onEdit={(jobId) => openEditor(jobId, "current")}
                   onViewOriginal={(jobId) => openEditor(jobId, "original")}
                   onHistory={(jobId) => {

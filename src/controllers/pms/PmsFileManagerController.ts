@@ -122,6 +122,15 @@ export async function softDeleteFile(req: LocationScopedRequest, res: Response) 
   }
 }
 
+export async function rerunInsights(req: LocationScopedRequest, res: Response) {
+  try {
+    const data = await fileManagerService.rerunInsights(contextFromRequest(req));
+    return res.json({ success: true, data });
+  } catch (error) {
+    return sendError(res, error, "Failed to start insights refresh.");
+  }
+}
+
 function sendError(res: Response, error: unknown, fallback: string) {
   const err = error as { statusCode?: number; message?: string; code?: string; activeJob?: unknown };
   return res.status(err.statusCode || 500).json({

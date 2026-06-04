@@ -339,4 +339,66 @@ export class PmsJobModel extends BaseModel {
     const rows = await query;
     return rows.map((row: IPmsJob) => this.deserializeJsonFields(row));
   }
+
+  /**
+   * Latest approved, non-deleted job for a location. Used as the trigger job
+   * when a user explicitly re-runs insights from the file manager.
+   */
+  static async findLatestActiveJobForLocation(
+    organizationId: number,
+    locationId: number,
+    trx?: QueryContext
+  ): Promise<IPmsJob | undefined> {
+    const row = await this.table(trx)
+      .select(
+        "id",
+        "organization_id",
+        "location_id",
+        "timestamp",
+        "status",
+        "is_approved",
+        "automation_status_detail"
+      )
+      .where("organization_id", organizationId)
+      .where("location_id", locationId)
+      .where("is_approved", 1)
+      .whereNull("deleted_at")
+      .orderBy("timestamp", "desc")
+      .first();
+
+    return row ? this.deserializeJsonFields(row) : undefined;
+  }
+
+  /**
+   * Summarize the monthly-agent run state for a location: when the most recent
+   * run completed, and whether any run is currently active. Used to detect
+   * whether displayed insights are stale relative to the underlying PMS data.
+   */
+  static async getInsightsRunSummaryForLocation(
+    organizationId: number,
+    locationId: number,
+    trx?: QueryContext
+  ): Promise<{ lastCompletedAt: string | null; hasActiveRun: boolean }> {
+    const row = await this.table(trx)
+      .where("organization_id", organizationId)
+      .where("location_id", locationId)
+      .whereNull("deleted_at")
+      .whereNotNull("automation_status_detail")
+      .select(
+        db.raw(
+          "MAX((automation_status_detail::jsonb->>'completedAt')::timestamptz) FILTER (WHERE automation_status_detail::jsonb->>'status' = 'completed') AS last_completed_at"
+        ),
+        db.raw(
+          "BOOL_OR(automation_status_detail::jsonb->>'status' IN ('pending', 'processing', 'awaiting_approval')) AS has_active_run"
+        )
+      )
+      .first();
+
+    return {
+      lastCompletedAt: row?.last_completed_at
+        ? new Date(row.last_completed_at).toISOString()
+        : null,
+      hasActiveRun: Boolean(row?.has_active_run),
+    };
+  }
 }

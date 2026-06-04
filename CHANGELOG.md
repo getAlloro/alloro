@@ -2,6 +2,37 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.101] - June 2026
+
+### PMS Updated-Data Alert & Sidebar Event Feedback
+
+Editing or deleting PMS data in the Referrals Hub File Manager used to silently kick off a multi-minute monthly-agent rerun, flipping the dashboard into a processing state unexpectedly. Edits and deletes are now cheap and reversible: they record the change and surface a prioritized "Updated data detected" alert, and the rerun is an explicit "Get updated insights" action. Uploads (new month or overwrite) still run automatically. The same alert renders on both the main dashboard and the Referrals Hub through one shared, cascaded alert component, and the File Manager now responds optimistically instead of waiting on a full surface refetch.
+
+**Key Changes:**
+- Edit and delete no longer auto-trigger the monthly agent; they record an event and mark insights stale. Uploads keep auto-running through the existing finalize path.
+- Staleness is computed server-side with no migration: key-data `stats` now returns `insightsStale`, `lastDataChangeAt`, and `lastInsightsRunAt`, derived from PMS edit/delete events versus the latest completed run.
+- New authenticated, location-scoped `POST /pms/file-manager/rerun` (admin/manager, 409 while a run is active) backs the "Get updated insights" CTA, which immediately reveals the animated processing card on the Referrals Hub.
+- Introduced a shared `DashboardAlert` + cascaded `DashboardAlertStack` (top alert full-size, others scaled behind, prev/next arrows) used on both the main dashboard and `/pmsStatistics`; removed the previously duplicated upload-nudge markup.
+- File Manager delete is now optimistic with rollback, the delete confirm shows an in-flight state, the `agentData`/`tasks` refetch cascade was dropped, and the misleading "the agent is rerunning" toasts were removed.
+- Updated Alloro Docs (Referrals Hub page + visual replica) to document the alert and the explicit-rerun behavior.
+
+**Commits:**
+- `src/controllers/pms/pms-services/PmsFileManagerService.ts` - removed auto-rerun from edit/delete; added `rerunInsights`
+- `src/controllers/pms/PmsFileManagerController.ts`, `src/routes/pms.ts` - authenticated `POST /pms/file-manager/rerun`
+- `src/controllers/pms/pms-services/pms-data.service.ts`, `src/controllers/pms/pms-utils/pms-insights-freshness.util.ts` - server-side staleness detection on key-data `stats`
+- `src/models/PmsJobModel.ts`, `src/models/PmsJobEventModel.ts` - latest-change and run-summary queries; latest-active-job lookup
+- `frontend/src/components/dashboard/alerts/*`, `frontend/src/utils/dashboardAlerts.ts` - shared cascaded alert component + builder
+- `frontend/src/components/PMS/PMSVisualPillars.tsx`, `frontend/src/components/dashboard/DashboardOverview.tsx` - wired the alert stack and "Get updated insights" on both surfaces
+- `frontend/src/hooks/queries/usePmsFileManagerQueries.ts` - optimistic delete + rerun hook + trimmed invalidation
+- `frontend/src/hooks/queries/usePmsFocusPeriod.ts`, `frontend/src/api/pms.ts` - `insightsStale` plumbing + rerun client
+- `frontend/src/components/PMS/file-manager/PmsFileManager.tsx`, `PmsFileList.tsx` - in-flight delete state, corrected toasts
+- `plans/06042026-pms-updated-data-alert-and-sidebar-feedback/*` - execution spec
+
+**Follow-ups (outside this commit):**
+- Manual browser verification at `/pmsStatistics` (edit → alert → Get updated insights → animation).
+- Remove the now-unused `frontend/src/components/dashboard/focus/SetupProgressBanner.tsx`.
+- Alloro Docs changes live in the separate `alloro-docs` repo and are committed/pushed there separately.
+
 ## [0.0.100] - June 2026
 
 ### Per-Site Rybbit Reporting Timezone

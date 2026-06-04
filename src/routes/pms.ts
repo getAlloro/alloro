@@ -82,6 +82,11 @@ pmsRoutes.delete(
   ...canManagePmsFiles,
   fileManagerController.softDeleteFile
 );
+pmsRoutes.post(
+  "/file-manager/rerun",
+  ...canManagePmsFiles,
+  fileManagerController.rerunInsights
+);
 
 // Client approval
 pmsRoutes.patch("/jobs/:id/client-approval", authenticateToken, rbacMiddleware, controller.clientApproveJob);

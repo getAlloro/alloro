@@ -8,7 +8,7 @@ import React, {
 import Lottie from "lottie-react";
 import cogitatingSpinner from "../../assets/cogitating-spinner.json";
 import { motion } from "framer-motion";
-import { showSparkleToast } from "../../lib/toast";
+import { showErrorToast, showSparkleToast } from "../../lib/toast";
 import {
   AlertCircle,
   CheckCircle2,
@@ -43,6 +43,9 @@ import { getPriorityItem } from "../../hooks/useLocalStorage";
 import { PmsDashboardSurface } from "./dashboard/PmsDashboardSurface";
 import { PmsFileManager } from "./file-manager/PmsFileManager";
 import { derivePmsFocusPeriod } from "../../utils/pmsFocusPeriod";
+import { DashboardAlertStack } from "../dashboard/alerts/DashboardAlertStack";
+import { buildDashboardAlerts } from "../../utils/dashboardAlerts";
+import { useRerunPmsInsights } from "../../hooks/queries/usePmsFileManagerQueries";
 
 const COGITATING_PHRASES = [
   "Reading the leaves", "Turning over new leaves", "Tending the garden",
@@ -1093,6 +1096,45 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
     await loadAutomationStatus();
   }, [loadKeyData, loadAutomationStatus]);
 
+  const rerunInsights = useRerunPmsInsights(
+    organizationId ?? null,
+    locationId ?? null,
+  );
+
+  // Edit/delete no longer auto-rerun. This just refreshes key data so the
+  // "Updated data detected" alert can surface — no processing state is set.
+  const handleDataEdited = useCallback(async () => {
+    await loadKeyData({ silent: true });
+  }, [loadKeyData]);
+
+  // "Get updated insights" CTA: start the rerun and immediately show the
+  // animated processing card (mirrors handleConfirmApproval).
+  const handleGetUpdatedInsights = useCallback(async () => {
+    if (!locationId) return;
+    setReferralPending(true);
+    setReferralData(null);
+    try {
+      const response = await rerunInsights.mutateAsync();
+      if (!response.success) {
+        setReferralPending(false);
+        showErrorToast(
+          "Couldn't refresh insights",
+          response.error || "Please try again.",
+        );
+        return;
+      }
+      showSparkleToast(
+        "Refreshing insights",
+        "We're re-running the analysis with your latest data.",
+      );
+      await loadKeyData({ silent: true });
+      await loadAutomationStatus();
+    } catch {
+      setReferralPending(false);
+      showErrorToast("Couldn't refresh insights", "Please try again.");
+    }
+  }, [locationId, rerunInsights, loadKeyData, loadAutomationStatus]);
+
   // Scroll to Data Ingestion Hub section with highlight animation
   const scrollToIngestionHub = useCallback(() => {
     const ingestionSection = document.getElementById("data-ingestion-hub");
@@ -1249,31 +1291,26 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
     );
   }
 
+  const insightsStale = Boolean(keyData?.stats?.insightsStale);
+  const dashboardAlerts = buildDashboardAlerts({
+    // Hidden while a run is processing — the processing card owns that state.
+    insightsStale: insightsStale && !showDashboardProcessingStatus,
+    focusPeriod,
+    actions: {
+      getUpdatedInsights: {
+        onClick: handleGetUpdatedInsights,
+        loading: rerunInsights.isPending || referralPending,
+      },
+      uploadData: { onClick: scrollToIngestionHub },
+    },
+  });
+
   return (
     <div className="pm-light min-h-screen bg-[var(--color-pm-bg-primary)] font-body text-alloro-navy">
       <main className="mx-auto w-full max-w-[1320px] space-y-4 px-4 pb-6 sm:px-6 lg:px-8">
-        {/* Upload nudge — shown when PMS data is stale */}
-        {!isLoading && !error && keyData && focusPeriod.isStale && (
-          <section className="flex flex-col gap-4 rounded-[14px] border border-[#E8E4DD] bg-[#FDFDFD] px-6 py-5 shadow-[0_14px_35px_rgba(17,21,28,0.06)] md:flex-row md:items-center md:justify-between">
-            <div>
-              <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-alloro-orange">
-                Ready for the next focus?
-              </div>
-              <h3 className="font-display text-[22px] font-medium tracking-tight text-[#1A1A1A]">
-                {focusPeriod.nudgeTitle}
-              </h3>
-              <p className="mt-1 max-w-[640px] text-[13px] leading-relaxed text-[#6B7280]">
-                {focusPeriod.nudgeBody}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={scrollToIngestionHub}
-              className="inline-flex items-center justify-center rounded-full bg-alloro-orange px-5 py-3 text-[12px] font-bold uppercase tracking-[0.12em] text-white shadow-[0_8px_20px_rgba(214,104,83,0.28)] transition-all hover:-translate-y-px hover:bg-[#B86650]"
-            >
-              Upload PMS data
-            </button>
-          </section>
+        {/* Cascaded dashboard alerts — stale-data alert (top) + upload nudge */}
+        {!isLoading && !error && keyData && dashboardAlerts.length > 0 && (
+          <DashboardAlertStack alerts={dashboardAlerts} />
         )}
 
         {/* Client Approval Banner */}
@@ -1389,7 +1426,7 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
             setManualEntryTargetMonth(targetMonth ?? null);
             setShowManualEntry(true);
           }}
-          onDataChanged={handleUploadWizardSuccess}
+          onDataChanged={handleDataEdited}
         />
       )}
 

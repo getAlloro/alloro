@@ -3,6 +3,7 @@ import {
   Eye,
   FileSpreadsheet,
   History,
+  Loader2,
   Pencil,
   Trash2,
 } from "lucide-react";
@@ -15,6 +16,7 @@ export type PmsFileListProps = {
   canManage: boolean;
   isProcessing: boolean;
   pendingDeleteId: number | null;
+  isDeleting: boolean;
   onEdit: (jobId: number) => void;
   onViewOriginal: (jobId: number) => void;
   onDownload: (jobId: number) => void;
@@ -30,6 +32,7 @@ export function PmsFileList({
   canManage,
   isProcessing,
   pendingDeleteId,
+  isDeleting,
   onEdit,
   onViewOriginal,
   onDownload,
@@ -120,14 +123,17 @@ export function PmsFileList({
                         <button
                           type="button"
                           onClick={() => onConfirmDelete(file.id)}
-                          className="rounded-lg bg-red-600 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white transition hover:brightness-110"
+                          disabled={isDeleting}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          Delete
+                          {isDeleting && <Loader2 className="h-3 w-3 animate-spin" />}
+                          {isDeleting ? "Deleting" : "Delete"}
                         </button>
                         <button
                           type="button"
                           onClick={onCancelDelete}
-                          className="rounded-lg border border-red-200 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-widest text-red-700 transition hover:bg-red-50"
+                          disabled={isDeleting}
+                          className="rounded-lg border border-red-200 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-widest text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           Cancel
                         </button>

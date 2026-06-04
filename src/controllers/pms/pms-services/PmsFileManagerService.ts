@@ -167,7 +167,9 @@ export async function updateFileData(
     );
   });
 
-  await rerunMonthlyAgents(job);
+  // Edits no longer auto-trigger a monthly-agent run. The change is recorded as
+  // an event and surfaced as a "data updated" alert; the user reruns explicitly
+  // through rerunInsights ("Get updated insights").
   return getFileDetail(jobId, context);
 }
 
@@ -200,8 +202,35 @@ export async function softDeleteFile(
     );
   });
 
-  await rerunMonthlyAgents({ ...job, deleted_at: new Date() });
+  // Deletes no longer auto-trigger a monthly-agent run (see updateFileData).
   return { deleted: true };
+}
+
+/**
+ * Explicitly re-run the monthly agent for a location's latest active job.
+ * Backs the "Get updated insights" CTA shown when insights are stale relative
+ * to edited/deleted PMS data. Blocked while a run is already active.
+ */
+export async function rerunInsights(context: FileManagerContext) {
+  if (!context.locationId) {
+    throw Object.assign(new Error("Location context required."), {
+      statusCode: 400,
+    });
+  }
+  await assertNoActivePmsAutomation(context.organizationId, context.locationId);
+
+  const job = await PmsJobModel.findLatestActiveJobForLocation(
+    context.organizationId,
+    context.locationId
+  );
+  if (!job) {
+    throw Object.assign(new Error("No PMS data available to analyze."), {
+      statusCode: 404,
+    });
+  }
+
+  await rerunMonthlyAgents(job);
+  return { rerunning: true, jobId: job.id };
 }
 
 async function findScopedJob(jobId: number, context: FileManagerContext) {

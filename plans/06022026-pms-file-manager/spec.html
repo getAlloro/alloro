@@ -264,6 +264,12 @@
         <p><strong>Reason:</strong> The global side-panel upload button duplicated the month-specific upload actions and made the panel header feel heavy.</p>
         <p><strong>Updated Done criteria:</strong> The side panel keeps only the intro copy above the month grid; uploads are still available through empty/ready month actions, active-month overwrite actions, and the dashboard ingestion upload button.</p>
       </article>
+      <article class="task-card">
+        <h3>Rev 9 - June 4, 2026 (superseded by a later plan)</h3>
+        <p><strong>Change:</strong> The "edit/delete triggers a controlled monthly-agent rerun" behavior from T4 was intentionally removed. Edit and delete now only record their event and mark insights stale; uploads still auto-run.</p>
+        <p><strong>Reason:</strong> Auto-rerunning on a single-cell edit was surprising and expensive. The rerun is now explicit via a prioritized "Updated data detected" alert and a "Get updated insights" CTA.</p>
+        <p><strong>Where:</strong> See <code>plans/06042026-pms-updated-data-alert-and-sidebar-feedback</code>. This is not a regression of this plan — it is a deliberate follow-up.</p>
+      </article>
     </section>
 
     <section class="spec-card" id="done">
