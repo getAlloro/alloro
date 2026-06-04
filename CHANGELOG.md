@@ -2,6 +2,31 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.102] - June 2026
+
+### Mission Control — Test Org Filter Pill (De-Hardcoded Sandbox Hiding)
+
+Mission Control used to hide "sandbox" orgs by excluding any whose name matched a hardcoded list (`test`, Hamilton Wise, Alloro Team) inside `MissionControlModel`, so a rename silently changed visibility and the orgs were unreachable from the admin view. Sandbox status now lives on a real `organizations.is_sandbox` column: test orgs flow through the API tagged with `isTest`, stay out of every default view and all revenue/summary/count aggregates, and are reachable through a new **Test** filter pill. The unused **Risk** (`payment-risk`) pill was removed; `riskFlags` data is unchanged and still powers the org-card chips, the No Method pill, and the Payment Attention panel.
+
+**Key Changes:**
+- New `organizations.is_sandbox` boolean (idempotent, `hasColumn`-guarded migration; backfilled for the three existing test orgs — Hamilton Wise #36, Test #41, Alloro Team #45). The hardcoded name list now exists only in the one-time migration backfill.
+- Backend no longer excludes sandbox orgs from the Mission Control payload; each org carries `isTest`, and test orgs are excluded from the headline count, summary, revenue trend, and movement signals (headline count stays at 9).
+- Frontend adds a **Test** filter pill that reveals only test orgs and hides them from every other view; removed the **Risk** pill (data retained).
+- Verified against live: API returns `isTest` on orgs 36/41/45; backend + frontend `tsc` clean; eslint clean.
+
+**Commits:**
+- `src/database/migrations/20260604000005_add_is_sandbox_to_organizations.ts` - adds `is_sandbox` + one-time name-based backfill
+- `src/models/MissionControlModel.ts` - select `is_sandbox`, return all orgs, removed `isSandboxOrganization`
+- `src/controllers/admin-mission-control/feature-services/MissionControlService.ts` - expose `isTest`; exclude test orgs from aggregates
+- `frontend/src/api/admin-mission-control.ts` - `isTest` on the org type
+- `frontend/src/components/Admin/mission-control/MissionControlHeader.tsx` - Test pill in, Risk pill out
+- `frontend/src/pages/admin/MissionControl.tsx` - Test-pill filter logic; count excludes test orgs
+- `plans/06042026-mission-control-test-pill/*` - execution spec
+
+**Follow-ups (outside this commit):**
+- The frontend served on `:3000` (built bundle) needs a rebuild to show the Test pill; the change is live on the `:5174` vite dev server. The backend (`isTest`) is already live.
+- Migration `20260604000005` was applied to live surgically (column added directly), not yet recorded in `knex_migrations`; the next `npm run db:migrate` records it (idempotent) and will also apply the other currently-pending migrations (Rybbit `20260603000000`, Email Manager `…004000`/`…004004`/seed).
+
 ## [0.0.101] - June 2026
 
 ### PMS Updated-Data Alert & Sidebar Event Feedback

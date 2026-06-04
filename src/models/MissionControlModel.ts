@@ -18,6 +18,7 @@ export interface MissionControlOrgBase {
   stripe_price_id: string | null;
   billing_quantity_override: number | null;
   archived_at: Date | null;
+  is_sandbox: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -119,12 +120,13 @@ export class MissionControlModel {
         "stripe_price_id",
         "billing_quantity_override",
         "archived_at",
+        "is_sandbox",
         "created_at",
         "updated_at",
       )
       .orderBy("created_at", "desc");
 
-    return rows.filter((org) => !isSandboxOrganization(org.name));
+    return rows;
   }
 
   private static async countByOrganization(
@@ -304,15 +306,5 @@ function rowsToCountMap(
 ): Record<number, number> {
   return Object.fromEntries(
     rows.map((row) => [Number(row.organization_id), Number(row.count) || 0]),
-  );
-}
-
-function isSandboxOrganization(name: string): boolean {
-  const normalized = name.trim().toLowerCase().replace(/\s+/g, " ");
-  const compact = normalized.replace(/\s+/g, "");
-  return (
-    normalized === "test" ||
-    compact === "hamiltonwise'sorganization" ||
-    compact === "alloroteam'sorganization"
   );
 }

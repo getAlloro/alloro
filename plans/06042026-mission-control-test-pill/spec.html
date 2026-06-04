@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mission Control — Test Filter Pill &amp; De-Hardcode Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-completed">Completed</span>
+      </div>
+      <h1>Mission Control: Test Filter Pill &amp; De-Hardcode</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06042026-mission-control-test-pill</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Mission Control currently hides "sandbox" orgs by <strong>excluding them from the org list based on a hardcoded name match</strong> (<code>isSandboxOrganization</code> in <code>MissionControlModel.ts</code>). That means a rename silently flips visibility, new test orgs aren't caught without a code edit, and the orgs vanish with no way to inspect them. We want to stop hard-excluding them: keep them in the data, mark them with a real DB flag, and surface them behind a new <strong>Test</strong> filter pill. While here, remove the unused <strong>Risk</strong> filter pill.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Two user-visible changes to the admin Mission Control page (<code>/admin/mission-control</code>):</p>
+      <ul>
+        <li><strong>Test pill added.</strong> Test orgs are hidden from every default view (All, No Method, Stripe Active, Admin Granted, Archived) and from the "N Alloro Clients" count, revenue, summary, and movement metrics — and appear <em>only</em> when the new <strong>Test</strong> pill is selected.</li>
+        <li><strong>Risk pill removed.</strong> The <code>payment-risk</code> pill and its filter branch are deleted. <code>riskFlags</code> data is untouched — it still powers the org-card risk chips, the "No Method" pill, and the Payment Attention panel.</li>
+      </ul>
+      <p><strong>Done when:</strong> a new <code>organizations.is_sandbox</code> column drives membership (backfilled from the old name list as a one-time migration); the runtime no longer contains the hardcoded sandbox name list; the Test pill shows exactly the backfilled orgs; the headline count is unchanged; <code>tsc</code> and builds are clean.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/models/MissionControlModel.ts</code> — <code>listOrganizations()</code> (L108-128) selects all orgs then drops sandbox by name (L127); <code>isSandboxOrganization()</code> (L310-318); <code>MissionControlOrgBase</code> type (L12-28).</li>
+        <li><code>src/controllers/admin-mission-control/feature-services/MissionControlService.ts</code> — <code>MissionControlOrganization</code> interface (L30-79); org mapping (L106-148); <code>activeOrganizations</code>/<code>activeBaseOrganizations</code> drive summary/revenue/movement (L151-162).</li>
+        <li><code>frontend/src/api/admin-mission-control.ts</code> — <code>MissionControlOrganization</code> type (L47-85, has <code>archivedAt</code> L55, <code>riskFlags</code> L84).</li>
+        <li><code>frontend/src/components/Admin/mission-control/MissionControlHeader.tsx</code> — <code>MissionControlFilter</code> union (L4-10); <code>FILTERS</code> pill array (L23-30, Risk = L25); renders "{count} Alloro Clients" (L55).</li>
+        <li><code>frontend/src/pages/admin/MissionControl.tsx</code> — headline count memo (L26-29, <code>organizationCount={activeOrganizations.length}</code> L87); <code>filterOrganizations()</code> (L168-199, search filter L176-182, pill filter L183-198, <code>payment-risk</code> L187).</li>
+        <li><code>src/database/migrations/</code> — new timestamped knex migration goes here.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Column-add + data-backfill migration: match <code>src/database/migrations/20260323000001_add_billing_quantity_override.ts</code> (adds a nullable column on <code>organizations</code>, then backfills specific orgs in <code>up()</code>). Use the same shape.</li>
+        <li>Filter pills are data-driven from the <code>FILTERS</code> array + a string union + a branch in <code>filterOrganizations</code> — add/remove all three in lockstep.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/database/migrations/20260323000001_add_billing_quantity_override.ts</code> — closest analog for the migration structure.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Add <code>organizations.is_sandbox boolean NOT NULL DEFAULT false</code>; backfill orgs whose normalized name ∈ {<code>test</code>, <code>hamiltonwise'sorganization</code>, <code>alloroteam'sorganization</code>} to <code>true</code>.</li>
+            <li>Surface the flag as <code>isTest</code> on the API org object (backend interface + frontend type).</li>
+            <li>Exclude test orgs from: the card list (all non-Test filters), the headline count memo (<code>MissionControl.tsx</code> L28), and backend <code>activeOrganizations</code>/<code>activeBaseOrganizations</code> (summary, revenue, movement).</li>
+            <li>Show test orgs only under the new <code>test</code> pill.</li>
+            <li>Remove the hardcoded sandbox name list from runtime code (<code>isSandboxOrganization</code>); names survive only inside the one-time migration backfill.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not remove or alter <code>riskFlags</code> data, the "No Method" pill, the org-card risk chips, or the Payment Attention panel.</li>
+            <li>Do not change <code>organization_type</code> (it stays the business vertical: health/saas).</li>
+            <li>No new dependencies. Do not refactor unrelated Mission Control code.</li>
+            <li>Do not let a test org leak into any default view, count, or revenue/summary aggregate.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>UI to toggle <code>is_sandbox</code> (e.g., a "test org" checkbox on Create Org, or an admin toggle) — future enhancement.</li>
+        <li>Archiving/deleting the existing test orgs (Hamilton Wise org 36, etc.) — they stay, just relabeled.</li>
+        <li>Changing what <code>riskFlags</code> means or how risk is computed.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 (Concern)</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Leak risk:</strong> backend now returns test orgs (previously excluded), so any consumer that doesn't filter <code>isTest</code> will surface or count them. <strong>Mitigation:</strong> the only aggregate consumers are <code>activeOrganizations</code>/<code>activeBaseOrganizations</code> (summary, revenue, movement) and the frontend count memo + card filter — all enumerated in Tasks. Verify the count stays at its current value after the change.</li>
+        <li><strong>Migration on a live DB:</strong> active environment is <code>live</code>. <strong>Mitigation:</strong> column is additive, <code>NOT NULL DEFAULT false</code>, no destructive change; backfill touches only name-matched rows. Confirm the migration has not been applied before running; run via the project's knex migrate command.</li>
+        <li><strong>Minor perf (Level 1):</strong> Stripe revenue lookup (<code>getStripeRevenueByOrg</code>, Service L93) now also runs for test orgs. <strong>Mitigation:</strong> accept it — Test-pill cards need real Stripe data; the test-org count is tiny.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> consumers of the Mission Control payload — <code>MissionControl.tsx</code> (count, card list), <code>MissionControlSummary</code>, <code>MissionControlRevenueTrend</code>, <code>MissionControlPaymentWatch</code>, <code>OrganizationMissionCard</code>. All read from the same payload; only the count memo and <code>filterOrganizations</code> need new <code>isTest</code> handling. Removing <code>payment-risk</code> touches exactly 3 lines (Header union L6, FILTERS L25, filter branch L187) — confirmed no other references.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>The migration backfill still hardcodes the three names — but that is correct: seeding existing data is a one-time act. The durable mechanism becomes the column. If you would rather not enumerate names even once, the alternative is to flag them by hand in the DB; the migration is the reproducible path and is recommended.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Add is_sandbox column + backfill (migration)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create a timestamped knex migration that adds <code>organizations.is_sandbox boolean NOT NULL DEFAULT false</code> and backfills <code>true</code> for orgs whose lower/space-stripped name ∈ {test, hamiltonwise'sorganization, alloroteam'sorganization}. <code>down()</code> drops the column. Mirror the analog migration's structure.</dd></div>
+          <div><dt>Files</dt><dd><code>src/database/migrations/20260604000000_add_is_sandbox_to_organizations.ts</code> (new); plan scaffolds in <code>migrations/</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx knex migrate:latest</code> applies clean; <code>SELECT id,name,is_sandbox FROM organizations WHERE is_sandbox</code> returns exactly the test orgs (incl. org 36 Hamilton Wise).</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Backend — surface isTest, stop excluding, keep aggregates clean</h3>
+        <dl>
+          <div><dt>Do</dt><dd>(a) Add <code>is_sandbox: boolean</code> to <code>MissionControlOrgBase</code>; add <code>"is_sandbox"</code> to the <code>listOrganizations</code> select; delete the <code>.filter(!isSandboxOrganization)</code> exclusion (return all rows); delete the <code>isSandboxOrganization</code> function. (b) Add <code>isTest: boolean</code> to the service <code>MissionControlOrganization</code> interface and map <code>isTest: org.is_sandbox</code>. (c) Exclude test orgs from <code>activeOrganizations</code> (<code>!org.archivedAt &amp;&amp; !org.isTest</code>) and <code>activeBaseOrganizations</code> (<code>!org.archived_at &amp;&amp; !org.is_sandbox</code>).</dd></div>
+          <div><dt>Files</dt><dd><code>src/models/MissionControlModel.ts</code>, <code>src/controllers/admin-mission-control/feature-services/MissionControlService.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1 (column must exist at runtime)</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> (root) clean; API payload includes <code>isTest</code>; summary/revenue counts unchanged vs. before.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: Frontend — Test pill in, Risk pill out, default-hide test orgs</h3>
+        <dl>
+          <div><dt>Do</dt><dd>(a) <code>admin-mission-control.ts</code>: add <code>isTest: boolean</code> to <code>MissionControlOrganization</code>. (b) <code>MissionControlHeader.tsx</code>: in the union, remove <code>"payment-risk"</code>, add <code>"test"</code>; in <code>FILTERS</code>, remove the Risk entry, add <code>{ value: "test", label: "Test" }</code>. (c) <code>MissionControl.tsx</code>: in the count memo (L28) add <code>&amp;&amp; !organization.isTest</code>; in <code>filterOrganizations</code> add at the top of the pill filter <code>if (filter === "test") return organization.isTest;</code> then <code>if (organization.isTest) return false;</code>, and delete the <code>payment-risk</code> branch (L187).</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/api/admin-mission-control.ts</code>, <code>frontend/src/components/Admin/mission-control/MissionControlHeader.tsx</code>, <code>frontend/src/pages/admin/MissionControl.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2 (API contract carries <code>isTest</code>)</dd></div>
+          <div><dt>Verify</dt><dd><code>cd frontend &amp;&amp; npx tsc --noEmit</code> clean; manual checks below.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> (backend root) — zero new errors</li>
+        <li><input type="checkbox" disabled> <code>cd frontend &amp;&amp; npx tsc --noEmit</code> — zero new errors</li>
+        <li><input type="checkbox" disabled> Migration applied; <code>is_sandbox = true</code> for the test orgs only (incl. org 36)</li>
+        <li><input type="checkbox" disabled> Manual: <strong>Test</strong> pill shows the test orgs (Hamilton Wise, Alloro Team, any "test"); they appear nowhere else</li>
+        <li><input type="checkbox" disabled> Manual: "N Alloro Clients" count is unchanged from before the change</li>
+        <li><input type="checkbox" disabled> Manual: <strong>Risk</strong> pill is gone; org cards still show risk chips; No Method pill + Payment Attention panel still work</li>
+        <li><input type="checkbox" disabled> No hardcoded sandbox names remain in runtime code (only in the migration backfill)</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 — 2026-06-04 (execution)</h3>
+        <p><strong>Change:</strong> Migration timestamp bumped from <code>20260604000000</code> to <code>20260604000005</code>.</p>
+        <p><strong>Reason:</strong> <code>20260604000000</code>–<code>000004</code> were already taken by the in-flight Email Manager migrations on this branch.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 — 2026-06-04 (execution)</h3>
+        <p><strong>Change:</strong> Applied the column to live surgically (idempotent <code>ALTER</code> + backfill) instead of <code>npm run db:migrate</code> / <code>migrate:latest</code>.</p>
+        <p><strong>Reason:</strong> The live ledger had unrelated pending migrations (Rybbit <code>20260603000000</code>, Email Manager <code>004000</code>/<code>004004</code>); <code>migrate:latest</code> would have applied those too. The idempotent, <code>hasColumn</code>-guarded migration file self-reconciles on the next normal <code>db:migrate</code>. Verified: 3 orgs flagged (36/41/45), headline count unchanged at 9.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

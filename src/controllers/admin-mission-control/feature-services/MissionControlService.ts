@@ -38,6 +38,7 @@ export interface MissionControlOrganization {
   subscriptionTier: "DWY" | "DFY" | null;
   subscriptionStatus: MissionControlOrgBase["subscription_status"];
   archivedAt: string | null;
+  isTest: boolean;
   stripeStatus: StripeStatus;
   paymentMethod: MissionControlPaymentMethodSummary | null;
   expectedMonthlyAmount: number;
@@ -112,6 +113,7 @@ export async function getMissionControlData(): Promise<MissionControlData> {
       subscriptionTier: org.subscription_tier,
       subscriptionStatus: org.subscription_status,
       archivedAt: org.archived_at ? org.archived_at.toISOString() : null,
+      isTest: org.is_sandbox,
       stripeStatus: stripeResult.stripeStatus,
       paymentMethod: stripeResult.paymentMethod,
       expectedMonthlyAmount: stripeResult.expectedMonthlyAmount,
@@ -148,9 +150,11 @@ export async function getMissionControlData(): Promise<MissionControlData> {
     };
   }).sort(compareRevenueFirst);
 
-  const activeOrganizations = organizations.filter((org) => !org.archivedAt);
+  const activeOrganizations = organizations.filter(
+    (org) => !org.archivedAt && !org.isTest,
+  );
   const activeBaseOrganizations = baseData.organizations.filter(
-    (org) => !org.archived_at,
+    (org) => !org.archived_at && !org.is_sandbox,
   );
 
   const data: MissionControlData = {

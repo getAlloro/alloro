@@ -3,11 +3,11 @@ import { motion } from "framer-motion";
 
 export type MissionControlFilter =
   | "all"
-  | "payment-risk"
   | "no-payment-method"
   | "active-stripe"
   | "admin-granted"
-  | "archived";
+  | "archived"
+  | "test";
 
 export type MissionControlHeaderProps = {
   organizationCount: number;
@@ -22,11 +22,11 @@ export type MissionControlHeaderProps = {
 
 const FILTERS: Array<{ value: MissionControlFilter; label: string }> = [
   { value: "all", label: "All" },
-  { value: "payment-risk", label: "Risk" },
   { value: "no-payment-method", label: "No Method" },
   { value: "active-stripe", label: "Stripe Active" },
   { value: "admin-granted", label: "Admin Granted" },
   { value: "archived", label: "Archived" },
+  { value: "test", label: "Test" },
 ];
 
 export function MissionControlHeader({
