@@ -2,6 +2,19 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.103] - June 2026
+
+### Remove Unused SetupProgressBanner Component
+
+Cleanup tail of the 0.0.101 PMS Updated-Data Alert work. The `SetupProgressBanner` focus-dashboard component was superseded by the shared `DashboardAlertStack` "setup" alert variant and had no remaining importers. Removed the dead file; no behavioral or UI change.
+
+**Key Changes:**
+- Deleted `frontend/src/components/dashboard/focus/SetupProgressBanner.tsx` (zero importers; replaced by the setup variant in `frontend/src/utils/dashboardAlerts.ts`).
+- Verified: exact-name `grep` shows no references, frontend `npx tsc --noEmit` clean, `npm run build` passes.
+
+**Commits:**
+- `frontend/src/components/dashboard/focus/SetupProgressBanner.tsx` - removed unused component
+
 ## [0.0.102] - June 2026
 
 ### Mission Control — Test Org Filter Pill (De-Hardcoded Sandbox Hiding)
