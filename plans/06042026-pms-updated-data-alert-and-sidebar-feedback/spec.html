@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PMS Updated-Data Alert &amp; Sidebar Event Feedback Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-completed">Completed</span>
+      </div>
+      <h1>PMS Updated-Data Alert &amp; Sidebar Event Feedback</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06042026-pms-updated-data-alert-and-sidebar-feedback</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The PMS File Manager drawer (shipped 06/02/2026) mutates data but its UI waits on the server with no optimistic feedback: delete shows no in-flight state, edit-save has no clear confirmation, and every mutation fires a full 5-key surface refetch that reads as a page reload or "redirect to the dashboard."</p>
+      <p>Worse, edit and delete currently <strong>auto-rerun the monthly agent</strong>. That is the wrong default: a manager correcting one cell silently kicks off a multi-minute analysis run, and the dashboard behind the drawer flips into the processing state unexpectedly. We want edit/delete to be cheap and reversible, and the expensive rerun to be an explicit, user-initiated choice — surfaced through a prioritized "Updated data detected" alert with a single "Get updated insights" action.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Three coordinated changes on <code>/pmsStatistics</code> and the main dashboard Focus tab:</p>
+      <ul>
+        <li><strong>Stop auto-rerun on edit/delete.</strong> Uploads (new month and overwrite) keep auto-running. Edit and delete only record their event and mark insights stale.</li>
+        <li><strong>Detect staleness and surface it.</strong> When an active month's data was edited/deleted after the most recent completed insights run for that location, show one location-level <em>"Updated data detected"</em> alert whose CTA, <em>"Get updated insights,"</em> triggers the rerun and immediately flips the dashboard into the existing animated processing card.</li>
+        <li><strong>Make the sidebar feel instant.</strong> Optimistic edit/delete with rollback, in-flight states on the delete confirm and the editor Save button, and removal of the now-unnecessary <code>agentData</code>/<code>tasks</code> invalidations.</li>
+      </ul>
+      <p>The alert is rendered by a new <strong>shared</strong> <code>DashboardAlert</code> + <code>DashboardAlertStack</code> component used on both the main dashboard and the PMS surface. The stack cascades multiple alerts: the highest-priority alert is full-size on top, lower ones are scaled down behind it, with left/right arrows to cycle. The existing "PMS data ready?" calendar nudge and the setup-progress banner are refactored onto this same component.</p>
+    </section>
+
+    <section class="spec-card" id="scope-ledger">
+      <h2>Scope Ledger</h2>
+      <dl class="detail-list">
+        <div><dt>Objective</dt><dd>Replace silent auto-rerun on PMS edit/delete with an explicit, prioritized "Updated data detected" alert, on a shared cascaded-alert component reused across the main dashboard and the Referrals Hub, plus optimistic sidebar feedback.</dd></div>
+        <div><dt>Intended user</dt><dd>Customer admin and manager users managing PMS data on the Referrals Hub.</dd></div>
+        <div><dt>Surfaces</dt><dd><code>/pmsStatistics</code> (PMS dashboard surface + File Manager drawer) and the main dashboard Focus tab.</dd></div>
+        <div><dt>Staleness definition</dt><dd>Per location. Stale = the latest <code>data_edited</code>/<code>file_deleted</code> event across the location's active jobs is newer than the most recent completed monthly-agent run, and no run is currently in progress. Derived, auto-clearing — no stored/dismiss state, no migration.</dd></div>
+        <div><dt>System of record</dt><dd>Existing <code>pms_jobs</code> + <code>pms_job_events</code> + <code>automation_status_detail</code> JSONB. No schema change.</dd></div>
+        <div><dt>Out of scope</dt><dd>Changing the 12-month cap or aggregation, per-month stale alerts, dismiss/snooze persistence, queueing reruns, new DB tables/columns, touching ranking agents, and changing upload auto-run behavior.</dd></div>
+      </dl>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files — Backend</h3>
+      <ul>
+        <li><code>src/controllers/pms/pms-services/PmsFileManagerService.ts</code> - <code>updateFileData</code> (line ~170) and <code>softDeleteFile</code> (line ~203) each call <code>rerunMonthlyAgents</code>; the <code>rerunMonthlyAgents</code> helper (~275) is kept and reused by the new CTA.</li>
+        <li><code>src/controllers/pms/PmsFileManagerController.ts</code> - authenticated, location-scoped customer controller; new <code>rerunInsights</code> action lands here.</li>
+        <li><code>src/routes/pms.ts</code> - mounts customer file-manager routes under auth/RBAC/location scope; new rerun route added here (not on the unauthenticated admin job routes).</li>
+        <li><code>src/controllers/pms/pms-services/pms-data.service.ts</code> - builds PMS key-data; the stale-insights detection + new stats fields are computed here.</li>
+        <li><code>src/controllers/pms/pms-services/pms-finalize.service.ts</code>, <code>pms-retry.service.ts</code> - the canonical monthly-agent trigger/cleanup-restart path the CTA reuses. Unchanged behavior.</li>
+        <li><code>src/controllers/pms/pms-services/pms-mutation-guard.service.ts</code> - <code>assertNoActivePmsAutomation</code>; stays in place for edit/delete and the new rerun.</li>
+        <li><code>src/models/PmsJobModel.ts</code>, <code>src/models/PmsJobEventModel.ts</code> - query helpers for latest event time and latest completed-run time per location.</li>
+        <li><code>src/controllers/pms/pms-services/pms-upload.service.ts</code> - upload auto-run path; <strong>not modified</strong> (uploads keep auto-running).</li>
+      </ul>
+      <h3>Relevant Files — Frontend</h3>
+      <ul>
+        <li><code>frontend/src/components/PMS/file-manager/PmsFileManager.tsx</code> - <code>handleSave</code>/<code>handleDelete</code> toasts ("the agent is rerunning…") must change; wires optimistic mutations.</li>
+        <li><code>frontend/src/components/PMS/file-manager/PmsFileList.tsx</code> - delete confirm button needs an in-flight (deleting) state.</li>
+        <li><code>frontend/src/components/PMS/PmsJobDataEditorModal.tsx</code> - editor Save button needs saving/saved states.</li>
+        <li><code>frontend/src/hooks/queries/usePmsFileManagerQueries.ts</code> - add <code>onMutate</code>/<code>onError</code> optimistic update + rollback; drop <code>agentData</code> and <code>tasks</code> from the invalidation set; add the rerun mutation hook.</li>
+        <li><code>frontend/src/api/pms.ts</code> - add stale-insights fields to <code>PmsKeyDataResponse.data.stats</code> and a typed <code>rerunPmsInsights(locationId)</code> client.</li>
+        <li><code>frontend/src/utils/pmsFocusPeriod.ts</code> - extend to expose a typed alert model (calendar nudge) so both surfaces build alerts the same way.</li>
+        <li><code>frontend/src/components/PMS/PMSVisualPillars.tsx</code> - owns key-data load, automation polling, <code>setReferralPending</code>; builds the alert list, renders the stack, and wires "Get updated insights" using the existing <code>handleConfirmApproval</code> instant-processing pattern (~line 1022).</li>
+        <li><code>frontend/src/components/dashboard/DashboardOverview.tsx</code> - main dashboard Focus tab; replace the hand-coded <code>PmsUploadNudge</code> (~line 79) and the inline <code>SetupProgressBanner</code> with the shared stack.</li>
+        <li><code>frontend/src/components/PMS/dashboard/PmsDashboardSurface.tsx</code> - renders the alert stack above the surface; keeps <code>PmsProcessingStatusCard</code> as the running-state view.</li>
+        <li><code>frontend/src/components/dashboard/focus/SetupProgressBanner.tsx</code> - folded into the stack as one alert variant.</li>
+      </ul>
+      <h3>Relevant Files — Docs (parity)</h3>
+      <ul>
+        <li><code>/Users/rustinedave/Desktop/alloro-docs/src/data/pages/referrals-hub.ts</code> and <code>/Users/rustinedave/Desktop/alloro-docs/src/components/replicas/ReferralsHubReplica.tsx</code> - must reflect the new alert + the edit/delete no-longer-auto-runs behavior.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Customer rerun endpoint uses <code>authenticateToken</code> + <code>rbacMiddleware</code> + <code>locationScopeMiddleware</code> + <code>requireRole("admin", "manager")</code>; org derived from auth, never the request body.</li>
+        <li>Optimistic mutations follow TanStack Query <code>onMutate</code> (snapshot + cache write) / <code>onError</code> (rollback) / <code>onSettled</code> (targeted invalidate), using <code>QUERY_KEYS</code> from <code>frontend/src/lib/queryClient.ts</code>.</li>
+        <li>Alert visuals reuse the existing design system (alloro-orange accent, <code>shadow-premium</code>, rounded cards, uppercase eyebrow). The cascade motion matches the card-deck pattern already in the codebase.</li>
+        <li>The CTA reuses the existing instant-processing transition: <code>setReferralPending(true)</code> + <code>setReferralData(null)</code> before the await, letting the existing 5s automation poll drive the rest.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>frontend/src/components/dashboard/GbpLatestReviewCardDeck.tsx</code> - closest analog for the cascaded/stacked card motion (initial/animate/exit + AnimatePresence).</p>
+      <p><strong>Reference file:</strong> <code>frontend/src/components/dashboard/NotificationWidget.tsx</code> - closest analog for per-type/variant alert styling and the icon + title + body + CTA layout.</p>
+      <p><strong>Reference file:</strong> <code>frontend/src/components/PMS/dashboard/PmsProcessingStatusCard.tsx</code> - the animated processing card the CTA must reveal immediately.</p>
+      <p><strong>Reference file:</strong> <code>src/controllers/pms/pms-services/PmsFileManagerService.ts</code> - existing authenticated, location-scoped service the rerun action and stale detection extend.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Keep upload (new month + overwrite) auto-running through the existing finalize path.</li>
+            <li>Keep <code>assertNoActivePmsAutomation</code> guarding edit, delete, and the new rerun.</li>
+            <li>Compute staleness server-side from existing data; expose it as boolean + timestamps on the key-data <code>stats</code>.</li>
+            <li>Make the stale alert derived and auto-clearing (clears when a run completes after the change).</li>
+            <li>Build one shared <code>DashboardAlert</code>/<code>DashboardAlertStack</code> and use it on both the main dashboard and <code>/pmsStatistics</code>.</li>
+            <li>Order the stack by priority: Updated-data (highest) → calendar upload nudge → setup progress.</li>
+            <li>Provide left/right navigation when more than one alert is active; degrade to a single card when only one is active.</li>
+            <li>Optimistically reflect edit/delete in the file list with rollback on error.</li>
+            <li>Give the delete confirm and the editor Save visible in-flight + success states.</li>
+            <li>Update the edit/delete toasts so they no longer claim the agent is rerunning.</li>
+            <li>Hide the stale alert while a run is processing (the processing card owns that state).</li>
+            <li>Update Alloro Docs Referrals Hub page + replica before finalization.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not auto-rerun the monthly agent on edit or delete.</li>
+            <li>Do not add DB tables, columns, or a migration.</li>
+            <li>Do not reuse the unauthenticated admin PMS job endpoints for the customer rerun.</li>
+            <li>Do not trust <code>organization_id</code> from the frontend on the rerun endpoint.</li>
+            <li>Do not change the 12-month cap, aggregation rules, agent prompts, or ranking agents.</li>
+            <li>Do not introduce per-month stale alerts or dismiss/snooze persistence in v1.</li>
+            <li>Do not leave the main dashboard nudge hand-coded in parallel with the shared component.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Mutation queueing during active runs, per-month rerun, alert dismissal memory, notification-center integration for the new alert, and reworking the editor's data grid beyond its Save affordance.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 - reverses behavior shipped two days ago, refactors a main-dashboard surface, and adds a correctness-sensitive staleness comparison. No migration, no auth-model change, no destructive data operations, so it is not Level 4.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Reversing just-shipped auto-rerun.</strong> Edit/delete stop triggering runs. <strong>Mitigation:</strong> remove only the two <code>rerunMonthlyAgents</code> calls, keep the event writes and the active-run guard, and change the toasts in the same change so the UI stops lying.</li>
+        <li><strong>Main-dashboard blast radius.</strong> The shared component replaces the duplicated nudge on the Focus tab. <strong>Mitigation:</strong> extract a purely presentational component; keep alert-data derivation in each surface's existing owner; snapshot both surfaces before/after.</li>
+        <li><strong>Staleness correctness.</strong> Comparing event time vs per-job JSONB <code>completedAt</code> is easy to get subtly wrong (which job, soft-deleted rows, timezone, "never run yet"). <strong>Mitigation:</strong> one server-side method with explicit rules — ignore deleted/unapproved jobs, treat "no completed run" as not-stale, compare in UTC — covered by unit tests on the comparison.</li>
+        <li><strong>Stale-insight viewing window.</strong> Between an edit and clicking the CTA, the cards show data that no longer matches. <strong>Mitigation:</strong> the alert is the explicit signal; copy makes clear insights reflect prior data until refreshed.</li>
+        <li><strong>Optimistic rollback drift.</strong> A failed edit/delete must restore the exact prior cache. <strong>Mitigation:</strong> snapshot the file-manager query in <code>onMutate</code>, restore in <code>onError</code>, reconcile in <code>onSettled</code>; never optimistically mutate while a run is active (guard returns 409).</li>
+        <li><strong>Cascade UX regression.</strong> A carousel can hide important alerts behind arrows. <strong>Mitigation:</strong> always render the highest-priority alert on top; show a count/indicator; collapse to a single card when only one alert is active.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> PMS File Manager drawer, PMS key-data response contract (<code>stats</code>), main dashboard Focus tab, PMS dashboard surface, the existing calendar nudge (both copies), the setup-progress banner, the monthly-agent rerun trigger path, automation polling/processing state, and the Alloro Docs Referrals Hub page + replica.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Auto-rerunning on a single-cell edit was never the right default — it makes a cheap correction expensive and surprising. Making the rerun explicit is the correct model; this spec treats that as settled, not optional.</li>
+        <li>Do not solve "show on both surfaces" by copying the alert markup a third time. The duplication that exists today is the bug; the shared component is the point.</li>
+        <li>Resist storing alert/dismiss state. A derived, auto-clearing signal cannot drift out of sync with the data; a stored flag will.</li>
+        <li>Keep the staleness math on the backend. The frontend should receive a boolean and timestamps, not reconstruct the comparison from per-month rows.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Stop auto-rerun, expose explicit location rerun</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Remove the <code>rerunMonthlyAgents</code> calls from <code>updateFileData</code> and <code>softDeleteFile</code> (keep the event writes + guard). Add an authenticated, location-scoped <code>rerunInsights</code> action that resolves the location's latest active job and runs it through the existing <code>rerunMonthlyAgents</code>/finalize path, returning the new processing status.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/pms/pms-services/PmsFileManagerService.ts</code>, <code>src/controllers/pms/PmsFileManagerController.ts</code>, <code>src/routes/pms.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>None</dd></div>
+          <div><dt>Verify</dt><dd>Edit/delete no longer start a run (status stays completed); rerun endpoint requires admin/manager + correct location, returns 409 when a run is active, flips status to processing on success.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Stale-insights detection in key-data</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a helper computing, per location: <code>lastDataChangeAt</code> (latest <code>data_edited</code>/<code>file_deleted</code> event over active jobs), <code>lastInsightsRunAt</code> (latest completed monthly run), and <code>insightsStale</code> (change newer than run, no active run). Surface these on <code>PmsKeyDataResponse.data.stats</code>. Unit-test the comparison edge cases.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/pms/pms-services/pms-data.service.ts</code>, <code>src/models/PmsJobModel.ts</code>, <code>src/models/PmsJobEventModel.ts</code>, <code>frontend/src/api/pms.ts</code> (type only)</dd></div>
+          <div><dt>Depends on</dt><dd>None (parallel with T1)</dd></div>
+          <div><dt>Verify</dt><dd>Fresh location → not stale; edit then no rerun → stale; rerun completes → not stale; never-run location → not stale; deleted/unapproved jobs ignored.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Optimistic + instant sidebar mutations</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>onMutate</code>/<code>onError</code> optimistic update + rollback to <code>useUpdatePmsFile</code> and <code>useDeletePmsFile</code>; drop <code>agentData</code> and <code>tasks</code> from the invalidation set. Give the delete confirm button an in-flight state and the editor Save a saving/saved state. Rewrite the edit/delete toasts to drop "the agent is rerunning."</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/hooks/queries/usePmsFileManagerQueries.ts</code>, <code>frontend/src/components/PMS/file-manager/PmsFileManager.tsx</code>, <code>frontend/src/components/PMS/file-manager/PmsFileList.tsx</code>, <code>frontend/src/components/PMS/PmsJobDataEditorModal.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>None (parallel with T1/T2/T4)</dd></div>
+          <div><dt>Verify</dt><dd>Delete removes the row instantly and restores on simulated error; edit shows saving→saved; no full-surface reload flash; no rerun side effects.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Shared DashboardAlert + cascaded DashboardAlertStack</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create a presentational <code>DashboardAlert</code> (variant, priority, eyebrow, title, body, optional icon, CTA) and a <code>DashboardAlertStack</code> that renders the top alert full-size, lower alerts scaled/offset behind, with prev/next arrows + position indicator and card-deck motion. Define a typed alert model.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/dashboard/alerts/DashboardAlert.tsx</code>, <code>frontend/src/components/dashboard/alerts/DashboardAlertStack.tsx</code>, <code>frontend/src/components/dashboard/alerts/types.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>None (parallel with T1/T2/T3)</dd></div>
+          <div><dt>Verify</dt><dd>Storybook-less manual check: 1 alert renders flat (no arrows), 2–3 cascade and cycle, keyboard + arrow nav works, matches design system.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Wire alerts + CTA on both surfaces</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Build the alert list (stale → calendar nudge → setup) in both surfaces and render <code>DashboardAlertStack</code>. Refactor the hand-coded nudge and <code>SetupProgressBanner</code> onto the shared component. Wire "Get updated insights" to <code>rerunPmsInsights</code> + the instant-processing transition; hide the stale alert while processing.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/api/pms.ts</code> (rerun client), <code>frontend/src/utils/pmsFocusPeriod.ts</code>, <code>frontend/src/components/PMS/PMSVisualPillars.tsx</code>, <code>frontend/src/components/PMS/dashboard/PmsDashboardSurface.tsx</code>, <code>frontend/src/components/dashboard/DashboardOverview.tsx</code>, <code>frontend/src/components/dashboard/focus/SetupProgressBanner.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2, T4</dd></div>
+          <div><dt>Verify</dt><dd>Edit a month → stale alert appears on both surfaces on top of the calendar nudge; CTA shows the animated processing card immediately and clears the alert when the run completes; upload still auto-runs with no stale alert.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Docs parity + final verification</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Update the Alloro Docs Referrals Hub page, hotspots/steps, changelog, and the visual replica to show the cascaded alert and the explicit-rerun behavior. Run all build/type gates.</dd></div>
+          <div><dt>Files</dt><dd><code>/Users/rustinedave/Desktop/alloro-docs/src/data/pages/referrals-hub.ts</code>, <code>/Users/rustinedave/Desktop/alloro-docs/src/components/replicas/ReferralsHubReplica.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T5</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>, <code>npm run build</code>, <code>cd frontend &amp;&amp; npm run build</code>, docs build, manual replica inspection.</dd></div>
+        </dl>
+      </article>
+
+      <h3>Dependency Chain</h3>
+      <p>T1, T2, T3, and T4 are independent and parallelizable (two backend, two frontend). T5 is the integration point and depends on T1 (rerun endpoint), T2 (stats contract), and T4 (components). T6 is last. Suggested split: one agent on T1+T2 (backend), one on T3 (sidebar feedback), one on T4 (shared component); converge on T5 sequentially, then T6.</p>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> Editing or deleting a PMS file no longer starts a monthly-agent run; uploads still auto-run.</li>
+        <li><input type="checkbox" checked disabled> Key-data <code>stats</code> returns <code>insightsStale</code>, <code>lastDataChangeAt</code>, and <code>lastInsightsRunAt</code>, computed server-side. Comparison logic is isolated in a unit-testable util (<code>pms-insights-freshness.util.ts</code>); no test runner exists in the repo, so executable tests are deferred.</li>
+        <li><input type="checkbox" checked disabled> A single location-level "Updated data detected" alert appears on both the main dashboard and <code>/pmsStatistics</code> when data drifts past the last run.</li>
+        <li><input type="checkbox" checked disabled> "Get updated insights" triggers the rerun (auth + location scoped, 409 while active) and reveals the animated processing card immediately.</li>
+        <li><input type="checkbox" checked disabled> The alert auto-clears once a run completes after the change; it is hidden while processing.</li>
+        <li><input type="checkbox" checked disabled> One shared <code>DashboardAlert</code>/<code>DashboardAlertStack</code> drives the stale alert, the calendar nudge, and the setup banner; no duplicated nudge markup remains.</li>
+        <li><input type="checkbox" checked disabled> The stack cascades with prev/next arrows for 2+ alerts and collapses to a single card for one.</li>
+        <li><input type="checkbox" checked disabled> Delete removes the row optimistically with rollback on error; edit shows saving→saved; no full-surface reload flash.</li>
+        <li><input type="checkbox" checked disabled> Edit/delete toasts no longer claim the agent is rerunning.</li>
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> has no errors caused by this work.</li>
+        <li><input type="checkbox" checked disabled> <code>npm run build</code> and <code>cd frontend &amp;&amp; npm run build</code> pass or only document unrelated pre-existing issues.</li>
+        <li><input type="checkbox" checked disabled> Alloro Docs Referrals Hub page and replica reflect the alert + explicit-rerun behavior.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

@@ -10,7 +10,7 @@
  * Plan: plans/04282026-no-ticket-focus-dashboard-frontend/spec.md (T20)
  *
  * Layout:
- *   <SetupProgressBanner />          (only when org incomplete)
+ *   <DashboardAlertStack />          (cascaded alerts: stale-data, upload nudge, setup)
  *   <FocusHeader />                  (small "Focus — {Month YYYY}" eyebrow)
  *   <Hero />                         (top_actions[0] from Summary v2)
  *   <Trajectory /> | <ActionQueue /> (2/1 grid)
@@ -24,10 +24,14 @@
  * pms/keyData (PMS card), practice-ranking/latest (Ranking card).
  */
 
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { useLocationContext } from "../../contexts/locationContext";
 import { usePmsFocusPeriod } from "../../hooks/queries/usePmsFocusPeriod";
+import { useRerunPmsInsights } from "../../hooks/queries/usePmsFileManagerQueries";
+import { buildDashboardAlerts } from "../../utils/dashboardAlerts";
+import { DashboardAlertStack } from "./alerts/DashboardAlertStack";
+import { showErrorToast, showSparkleToast } from "../../lib/toast";
 import type { PmsFocusPeriod } from "../../utils/pmsFocusPeriod";
 import { Hero } from "./focus/Hero";
 import { Trajectory } from "./focus/Trajectory";
@@ -35,7 +39,6 @@ import { ActionQueue } from "./focus/ActionQueue";
 import WebsiteCard from "./focus/WebsiteCard";
 import LocalRankingCard from "./focus/LocalRankingCard";
 import PMSCard from "./focus/PMSCard";
-import { SetupProgressBanner } from "./focus/SetupProgressBanner";
 import { useIsWizardActive } from "../../contexts/OnboardingWizardContext";
 
 interface DashboardOverviewProps {
@@ -76,53 +79,65 @@ function FocusHeader({ period }: FocusHeaderProps) {
   );
 }
 
-function PmsUploadNudge({ period }: { period: PmsFocusPeriod }) {
-  if (!period.isStale) return null;
-
-  return (
-    <section className="flex flex-col gap-4 rounded-[14px] border border-[#E8E4DD] bg-[#FDFDFD] px-6 py-5 shadow-[0_14px_35px_rgba(17,21,28,0.06)] md:flex-row md:items-center md:justify-between">
-      <div>
-        <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-alloro-orange">
-          Ready for the next focus?
-        </div>
-        <h3 className="font-display text-[22px] font-medium tracking-tight text-[#1A1A1A]">
-          {period.nudgeTitle}
-        </h3>
-        <p className="mt-1 max-w-[640px] text-[13px] leading-relaxed text-[#6B7280]">
-          {period.nudgeBody}
-        </p>
-      </div>
-      <Link
-        to="/pmsStatistics"
-        className="inline-flex items-center justify-center rounded-full bg-alloro-orange px-5 py-3 text-[12px] font-bold uppercase tracking-[0.12em] text-white shadow-[0_8px_20px_rgba(214,104,83,0.28)] transition-all hover:-translate-y-px hover:bg-[#B86650]"
-      >
-        Upload PMS data
-      </Link>
-    </section>
-  );
-}
-
 export function DashboardOverview(props: DashboardOverviewProps) {
   const isWizardActive = useIsWizardActive();
-  const { userProfile } = useAuth();
+  const navigate = useNavigate();
+  const { userProfile, onboardingCompleted } = useAuth();
   const { selectedLocation } = useLocationContext();
   const organizationId =
     props.organizationId ?? userProfile?.organizationId ?? null;
   const locationId = props.locationId ?? selectedLocation?.id ?? null;
-  const { period, isLoading } = usePmsFocusPeriod(
+  const { period, insightsStale, isLoading } = usePmsFocusPeriod(
     organizationId,
     locationId,
   );
+  const rerunInsights = useRerunPmsInsights(organizationId, locationId);
   const hasPmsData = isWizardActive
     ? true
     : isLoading || !organizationId
       ? true
       : period.hasPmsData;
 
+  // "Get updated insights" on the dashboard kicks off the rerun, then routes to
+  // the Referrals Hub where the animated processing card lives.
+  const handleGetUpdatedInsights = async () => {
+    if (!locationId) return;
+    try {
+      const response = await rerunInsights.mutateAsync();
+      if (!response.success) {
+        showErrorToast(
+          "Couldn't refresh insights",
+          response.error || "Please try again.",
+        );
+        return;
+      }
+      showSparkleToast(
+        "Refreshing insights",
+        "We're re-running the analysis with your latest data.",
+      );
+      navigate("/pmsStatistics");
+    } catch {
+      showErrorToast("Couldn't refresh insights", "Please try again.");
+    }
+  };
+
+  const alerts = buildDashboardAlerts({
+    insightsStale,
+    focusPeriod: period,
+    isOnboardingIncomplete: onboardingCompleted === false,
+    actions: {
+      // Stale + upload alerts are suppressed during the onboarding wizard.
+      getUpdatedInsights: isWizardActive
+        ? undefined
+        : { onClick: handleGetUpdatedInsights, loading: rerunInsights.isPending },
+      uploadData: isWizardActive ? undefined : { to: "/pmsStatistics" },
+      continueSetup: { to: "/new-account-onboarding" },
+    },
+  });
+
   return (
     <div className="max-w-[1320px] mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-16 space-y-6">
-      <SetupProgressBanner />
-      {!isWizardActive && <PmsUploadNudge period={period} />}
+      {alerts.length > 0 && <DashboardAlertStack alerts={alerts} />}
       <FocusHeader period={period} />
 
       <Hero hasPmsData={hasPmsData} />

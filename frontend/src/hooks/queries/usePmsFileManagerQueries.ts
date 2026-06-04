@@ -4,6 +4,7 @@ import {
   fetchPmsFileDetail,
   fetchPmsFileManager,
   fetchPmsOriginalFileUrl,
+  rerunPmsInsights,
   updatePmsFileManagerFile,
   type PmsFileDetailResponse,
   type PmsFileManagerResponse,
@@ -26,12 +27,9 @@ function useInvalidatePmsFileSurfaces(
     void queryClient.invalidateQueries({
       queryKey: QUERY_KEYS.pmsFocusPeriod(orgId, locationId),
     });
-    void queryClient.invalidateQueries({
-      queryKey: QUERY_KEYS.agentData(orgId, locationId),
-    });
-    void queryClient.invalidateQueries({
-      queryKey: QUERY_KEYS.tasks(orgId, locationId),
-    });
+    // agentData/tasks are intentionally NOT invalidated here: edit/delete no
+    // longer trigger a rerun, so analysis output is unchanged until the user
+    // explicitly reruns via "Get updated insights".
   };
 }
 
@@ -81,9 +79,60 @@ export function useDeletePmsFile(
   orgId: number | null,
   locationId: number | null
 ) {
+  const queryClient = useQueryClient();
   const invalidate = useInvalidatePmsFileSurfaces(orgId, locationId);
+  const key = QUERY_KEYS.pmsFileManager(orgId, locationId);
+
   return useMutation({
     mutationFn: (jobId: number) => deletePmsFileManagerFile(jobId, locationId!),
+    // Optimistically mark the file deleted and free its month slots so the
+    // panel reflects the change instantly; roll back if the request fails.
+    onMutate: async (jobId: number) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<PmsFileManagerResponse>(key);
+      if (previous?.data) {
+        queryClient.setQueryData<PmsFileManagerResponse>(key, {
+          ...previous,
+          data: {
+            ...previous.data,
+            files: previous.data.files.map((file) =>
+              file.id === jobId
+                ? { ...file, is_deleted: true, active_months: [] }
+                : file
+            ),
+            monthSlots: previous.data.monthSlots.map((slot) =>
+              slot.jobId === jobId
+                ? { ...slot, status: "missing" as const, jobId: null, fileName: null }
+                : slot
+            ),
+          },
+        });
+      }
+      return { previous };
+    },
+    // Roll back when the request rejects (thrown error)...
+    onError: (_error, _jobId, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(key, context.previous);
+      }
+    },
+    // ...or resolves with a failure shape (e.g. 409 while a run is active).
+    onSuccess: (response, _jobId, context) => {
+      if (!response.success && context?.previous) {
+        queryClient.setQueryData(key, context.previous);
+      }
+    },
+    onSettled: invalidate,
+  });
+}
+
+export function useRerunPmsInsights(
+  orgId: number | null,
+  locationId: number | null
+) {
+  const invalidate = useInvalidatePmsFileSurfaces(orgId, locationId);
+  return useMutation({
+    mutationFn: () => rerunPmsInsights(locationId!),
     onSuccess: invalidate,
   });
 }

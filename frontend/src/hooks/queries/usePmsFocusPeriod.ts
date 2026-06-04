@@ -22,6 +22,8 @@ export function usePmsFocusPeriod(
   locationId: number | null,
 ): {
   period: PmsFocusPeriod;
+  /** Server-computed: PMS data was edited/deleted after the last completed run. */
+  insightsStale: boolean;
   isLoading: boolean;
   isError: boolean;
   error: Error | null;
@@ -38,6 +40,7 @@ export function usePmsFocusPeriod(
 
   return {
     period,
+    insightsStale: Boolean(query.data?.stats?.insightsStale),
     isLoading: query.isLoading,
     isError: query.isError,
     error: (query.error as Error | null) ?? null,

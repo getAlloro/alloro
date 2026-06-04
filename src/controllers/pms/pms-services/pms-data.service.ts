@@ -1,5 +1,6 @@
 import db from "../../../database/connection";
 import { PmsJobModel } from "../../../models/PmsJobModel";
+import { PmsJobEventModel } from "../../../models/PmsJobEventModel";
 import { aggregatePmsData } from "../../../utils/pms/pmsAggregator";
 import {
   parseResponseLog,
@@ -7,6 +8,44 @@ import {
 } from "../pms-utils/pms-normalizer.util";
 import { coerceBoolean } from "../pms-utils/pms-validator.util";
 import { PAGE_SIZE, PmsStatus } from "../pms-utils/pms-constants";
+import { computeInsightsStale } from "../pms-utils/pms-insights-freshness.util";
+
+/**
+ * Resolve whether displayed insights are stale relative to PMS data for a
+ * location: stale when the latest edit/delete is newer than the latest
+ * completed run and no run is active. Returns inert values when unscoped.
+ */
+async function buildInsightsFreshness(
+  organizationId: number,
+  locationId?: number
+): Promise<{
+  insightsStale: boolean;
+  lastDataChangeAt: string | null;
+  lastInsightsRunAt: string | null;
+}> {
+  if (!locationId) {
+    return {
+      insightsStale: false,
+      lastDataChangeAt: null,
+      lastInsightsRunAt: null,
+    };
+  }
+
+  const [lastDataChangeAt, runSummary] = await Promise.all([
+    PmsJobEventModel.getLatestDataChangeForLocation(organizationId, locationId),
+    PmsJobModel.getInsightsRunSummaryForLocation(organizationId, locationId),
+  ]);
+
+  return {
+    insightsStale: computeInsightsStale({
+      lastDataChangeAt,
+      lastInsightsRunAt: runSummary.lastCompletedAt,
+      hasActiveRun: runSummary.hasActiveRun,
+    }),
+    lastDataChangeAt,
+    lastInsightsRunAt: runSummary.lastCompletedAt,
+  };
+}
 
 /**
  * Aggregate PMS key metrics for an organization across all processed jobs.
@@ -29,6 +68,8 @@ export async function aggregateKeyData(
     (job: any) => normalizeApproval(job.is_approved) === true
   );
 
+  const freshness = await buildInsightsFreshness(organizationId, locationId);
+
   if (!approvedJobs.length) {
     return {
       organizationId,
@@ -50,6 +91,7 @@ export async function aggregateKeyData(
           latestJob?.is_client_approved
         ),
         latestJobId: latestJob?.id ?? null,
+        ...freshness,
       },
       latestJobRaw:
         latestJob?.response_log !== undefined &&
@@ -75,6 +117,7 @@ export async function aggregateKeyData(
       latestJob?.is_client_approved
     ),
     latestJobId: latestJob?.id ?? null,
+    ...freshness,
   };
 
   return {

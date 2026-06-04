@@ -53,6 +53,7 @@ export type MissionControlOrganization = {
   subscriptionTier: "DWY" | "DFY" | null;
   subscriptionStatus: "active" | "inactive" | "trial" | "cancelled";
   archivedAt: string | null;
+  isTest: boolean;
   stripeStatus: MissionControlStripeStatus;
   paymentMethod: MissionControlPaymentMethod | null;
   expectedMonthlyAmount: number;

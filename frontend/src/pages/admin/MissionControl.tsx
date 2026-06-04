@@ -25,7 +25,9 @@ export default function MissionControl() {
   const data = missionControlQuery.data;
   const activeOrganizations = useMemo(() => {
     if (!data) return [];
-    return data.organizations.filter((organization) => !organization.archivedAt);
+    return data.organizations.filter(
+      (organization) => !organization.archivedAt && !organization.isTest,
+    );
   }, [data]);
 
   const organizations = useMemo(() => {
@@ -181,10 +183,11 @@ function filterOrganizations(
         .includes(normalizedSearch);
     })
     .filter((organization) => {
+      if (filter === "test") return organization.isTest;
+      if (organization.isTest) return false;
       if (filter === "archived") return Boolean(organization.archivedAt);
       if (organization.archivedAt) return false;
       if (filter === "all") return true;
-      if (filter === "payment-risk") return organization.riskFlags.length > 0;
       if (filter === "no-payment-method") {
         return organization.riskFlags.includes("no_payment_method");
       }

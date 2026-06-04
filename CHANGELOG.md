@@ -2,6 +2,75 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.103] - June 2026
+
+### Remove Unused SetupProgressBanner Component
+
+Cleanup tail of the 0.0.101 PMS Updated-Data Alert work. The `SetupProgressBanner` focus-dashboard component was superseded by the shared `DashboardAlertStack` "setup" alert variant and had no remaining importers. Removed the dead file; no behavioral or UI change.
+
+**Key Changes:**
+- Deleted `frontend/src/components/dashboard/focus/SetupProgressBanner.tsx` (zero importers; replaced by the setup variant in `frontend/src/utils/dashboardAlerts.ts`).
+- Verified: exact-name `grep` shows no references, frontend `npx tsc --noEmit` clean, `npm run build` passes.
+
+**Commits:**
+- `frontend/src/components/dashboard/focus/SetupProgressBanner.tsx` - removed unused component
+
+## [0.0.102] - June 2026
+
+### Mission Control — Test Org Filter Pill (De-Hardcoded Sandbox Hiding)
+
+Mission Control used to hide "sandbox" orgs by excluding any whose name matched a hardcoded list (`test`, Hamilton Wise, Alloro Team) inside `MissionControlModel`, so a rename silently changed visibility and the orgs were unreachable from the admin view. Sandbox status now lives on a real `organizations.is_sandbox` column: test orgs flow through the API tagged with `isTest`, stay out of every default view and all revenue/summary/count aggregates, and are reachable through a new **Test** filter pill. The unused **Risk** (`payment-risk`) pill was removed; `riskFlags` data is unchanged and still powers the org-card chips, the No Method pill, and the Payment Attention panel.
+
+**Key Changes:**
+- New `organizations.is_sandbox` boolean (idempotent, `hasColumn`-guarded migration; backfilled for the three existing test orgs — Hamilton Wise #36, Test #41, Alloro Team #45). The hardcoded name list now exists only in the one-time migration backfill.
+- Backend no longer excludes sandbox orgs from the Mission Control payload; each org carries `isTest`, and test orgs are excluded from the headline count, summary, revenue trend, and movement signals (headline count stays at 9).
+- Frontend adds a **Test** filter pill that reveals only test orgs and hides them from every other view; removed the **Risk** pill (data retained).
+- Verified against live: API returns `isTest` on orgs 36/41/45; backend + frontend `tsc` clean; eslint clean.
+
+**Commits:**
+- `src/database/migrations/20260604000005_add_is_sandbox_to_organizations.ts` - adds `is_sandbox` + one-time name-based backfill
+- `src/models/MissionControlModel.ts` - select `is_sandbox`, return all orgs, removed `isSandboxOrganization`
+- `src/controllers/admin-mission-control/feature-services/MissionControlService.ts` - expose `isTest`; exclude test orgs from aggregates
+- `frontend/src/api/admin-mission-control.ts` - `isTest` on the org type
+- `frontend/src/components/Admin/mission-control/MissionControlHeader.tsx` - Test pill in, Risk pill out
+- `frontend/src/pages/admin/MissionControl.tsx` - Test-pill filter logic; count excludes test orgs
+- `plans/06042026-mission-control-test-pill/*` - execution spec
+
+**Follow-ups (outside this commit):**
+- The frontend served on `:3000` (built bundle) needs a rebuild to show the Test pill; the change is live on the `:5174` vite dev server. The backend (`isTest`) is already live.
+- Migration `20260604000005` was applied to live surgically (column added directly), not yet recorded in `knex_migrations`; the next `npm run db:migrate` records it (idempotent) and will also apply the other currently-pending migrations (Rybbit `20260603000000`, Email Manager `…004000`/`…004004`/seed).
+
+## [0.0.101] - June 2026
+
+### PMS Updated-Data Alert & Sidebar Event Feedback
+
+Editing or deleting PMS data in the Referrals Hub File Manager used to silently kick off a multi-minute monthly-agent rerun, flipping the dashboard into a processing state unexpectedly. Edits and deletes are now cheap and reversible: they record the change and surface a prioritized "Updated data detected" alert, and the rerun is an explicit "Get updated insights" action. Uploads (new month or overwrite) still run automatically. The same alert renders on both the main dashboard and the Referrals Hub through one shared, cascaded alert component, and the File Manager now responds optimistically instead of waiting on a full surface refetch.
+
+**Key Changes:**
+- Edit and delete no longer auto-trigger the monthly agent; they record an event and mark insights stale. Uploads keep auto-running through the existing finalize path.
+- Staleness is computed server-side with no migration: key-data `stats` now returns `insightsStale`, `lastDataChangeAt`, and `lastInsightsRunAt`, derived from PMS edit/delete events versus the latest completed run.
+- New authenticated, location-scoped `POST /pms/file-manager/rerun` (admin/manager, 409 while a run is active) backs the "Get updated insights" CTA, which immediately reveals the animated processing card on the Referrals Hub.
+- Introduced a shared `DashboardAlert` + cascaded `DashboardAlertStack` (top alert full-size, others scaled behind, prev/next arrows) used on both the main dashboard and `/pmsStatistics`; removed the previously duplicated upload-nudge markup.
+- File Manager delete is now optimistic with rollback, the delete confirm shows an in-flight state, the `agentData`/`tasks` refetch cascade was dropped, and the misleading "the agent is rerunning" toasts were removed.
+- Updated Alloro Docs (Referrals Hub page + visual replica) to document the alert and the explicit-rerun behavior.
+
+**Commits:**
+- `src/controllers/pms/pms-services/PmsFileManagerService.ts` - removed auto-rerun from edit/delete; added `rerunInsights`
+- `src/controllers/pms/PmsFileManagerController.ts`, `src/routes/pms.ts` - authenticated `POST /pms/file-manager/rerun`
+- `src/controllers/pms/pms-services/pms-data.service.ts`, `src/controllers/pms/pms-utils/pms-insights-freshness.util.ts` - server-side staleness detection on key-data `stats`
+- `src/models/PmsJobModel.ts`, `src/models/PmsJobEventModel.ts` - latest-change and run-summary queries; latest-active-job lookup
+- `frontend/src/components/dashboard/alerts/*`, `frontend/src/utils/dashboardAlerts.ts` - shared cascaded alert component + builder
+- `frontend/src/components/PMS/PMSVisualPillars.tsx`, `frontend/src/components/dashboard/DashboardOverview.tsx` - wired the alert stack and "Get updated insights" on both surfaces
+- `frontend/src/hooks/queries/usePmsFileManagerQueries.ts` - optimistic delete + rerun hook + trimmed invalidation
+- `frontend/src/hooks/queries/usePmsFocusPeriod.ts`, `frontend/src/api/pms.ts` - `insightsStale` plumbing + rerun client
+- `frontend/src/components/PMS/file-manager/PmsFileManager.tsx`, `PmsFileList.tsx` - in-flight delete state, corrected toasts
+- `plans/06042026-pms-updated-data-alert-and-sidebar-feedback/*` - execution spec
+
+**Follow-ups (outside this commit):**
+- Manual browser verification at `/pmsStatistics` (edit → alert → Get updated insights → animation).
+- Remove the now-unused `frontend/src/components/dashboard/focus/SetupProgressBanner.tsx`.
+- Alloro Docs changes live in the separate `alloro-docs` repo and are committed/pushed there separately.
+
 ## [0.0.100] - June 2026
 
 ### Per-Site Rybbit Reporting Timezone

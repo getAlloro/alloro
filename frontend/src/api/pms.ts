@@ -290,6 +290,12 @@ export interface PmsKeyDataResponse {
       latestJobIsApproved: boolean | null;
       latestJobIsClientApproved: boolean | null;
       latestJobId: number | null;
+      /** True when PMS data was edited/deleted after the last completed run. */
+      insightsStale: boolean;
+      /** ISO timestamp of the latest edit/delete event, or null. */
+      lastDataChangeAt: string | null;
+      /** ISO timestamp of the latest completed monthly-agent run, or null. */
+      lastInsightsRunAt: string | null;
     };
     latestJobRaw: unknown;
   };
@@ -828,6 +834,26 @@ export async function deletePmsFileManagerFile(
   return apiDelete({
     path: `/pms/file-manager/jobs/${jobId}?locationId=${encodeURIComponent(locationId)}`,
   }) as Promise<{ success: boolean; data?: { deleted: boolean }; error?: string; code?: string }>;
+}
+
+export type PmsRerunInsightsResponse = {
+  success: boolean;
+  data?: { rerunning: boolean; jobId: number };
+  error?: string;
+  code?: string;
+};
+
+/**
+ * Explicitly re-run the monthly agent for the location's latest active job.
+ * Backs the "Get updated insights" CTA on the stale-data alert.
+ */
+export async function rerunPmsInsights(
+  locationId: number
+): Promise<PmsRerunInsightsResponse> {
+  return apiPost({
+    path: `/pms/file-manager/rerun?locationId=${encodeURIComponent(locationId)}`,
+    passedData: {},
+  }) as Promise<PmsRerunInsightsResponse>;
 }
 
 // =====================================================================

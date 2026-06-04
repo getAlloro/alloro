@@ -43,4 +43,26 @@ export class PmsJobEventModel extends BaseModel {
 
     return rows.map((row: unknown) => this.deserializeJsonFields(row));
   }
+
+  /**
+   * Most recent data-change event (edit or delete) across all of a location's
+   * jobs. Used to detect whether insights are stale relative to PMS data.
+   */
+  static async getLatestDataChangeForLocation(
+    organizationId: number,
+    locationId: number,
+    trx?: QueryContext
+  ): Promise<string | null> {
+    const row = await this.table(trx)
+      .join("pms_jobs", "pms_jobs.id", "pms_job_events.pms_job_id")
+      .where("pms_jobs.organization_id", organizationId)
+      .where("pms_jobs.location_id", locationId)
+      .whereIn("pms_job_events.event_type", ["data_edited", "file_deleted"])
+      .max("pms_job_events.created_at as last_change_at")
+      .first();
+
+    return row?.last_change_at
+      ? new Date(row.last_change_at).toISOString()
+      : null;
+  }
 }
