@@ -761,6 +761,16 @@ export async function disableClarityLegacySnippets(req: Request, res: Response):
   }
 }
 
+export async function validateClarityInstallation(req: Request, res: Response): Promise<Response> {
+  try {
+    const projectId = String(req.params.id);
+    const result = await clarityIntegration.validateInstallation(projectId);
+    return ok(res, result);
+  } catch (error) {
+    return failClarityError(res, error, "Failed to validate Clarity installation");
+  }
+}
+
 export async function getRybbitStatus(req: Request, res: Response): Promise<Response> {
   try {
     const projectId = String(req.params.id);

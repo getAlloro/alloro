@@ -6,6 +6,8 @@ import {
   disableClarityLegacySnippets,
   fetchClarityStatus,
   saveClarityIntegration,
+  validateClarityIntegration,
+  type ClarityCompleteness,
   type ClarityStatus,
   type Integration,
 } from "../../../api/integrations";
@@ -29,6 +31,7 @@ export default function ClarityTab({
   const [status, setStatus] = useState<ClarityStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [validating, setValidating] = useState(false);
   const [clarityProjectId, setClarityProjectId] = useState("");
   const [apiToken, setApiToken] = useState("");
 
@@ -65,6 +68,12 @@ export default function ClarityTab({
     (snippet) => !snippet.canDisable,
   );
   const isBlocked = (status?.blockingLegacySnippets.length ?? 0) > 0;
+  const completeness: ClarityCompleteness = status?.completeness ?? {
+    hasProjectId: false,
+    hasToken: false,
+    lastValidation: null,
+    isComplete: false,
+  };
 
   const handleDisableLegacy = async () => {
     if (blockingProjectSnippets.length === 0) return;
@@ -120,6 +129,39 @@ export default function ClarityTab({
     }
   };
 
+  const handleValidate = async () => {
+    setValidating(true);
+    try {
+      const result = await validateClarityIntegration(projectId);
+      await loadStatus();
+      const v = result.data;
+      if (v.isComplete) {
+        toast.success("Clarity is fully configured and live");
+      } else if (v.liveTag.status === "mismatch") {
+        toast.error(
+          `Live page serves a different Clarity project${
+            v.liveTag.foundProjectIds.length ? `: ${v.liveTag.foundProjectIds.join(", ")}` : ""
+          }`,
+        );
+      } else if (v.liveTag.status === "absent") {
+        toast.error("Clarity tag not found on the live site yet");
+      } else if (v.liveTag.status === "error") {
+        toast.error(v.liveTag.message ?? "Couldn't reach the site to validate");
+      } else if (v.token === "invalid") {
+        toast.error("Clarity API token is invalid or expired");
+      } else if (v.token === "missing") {
+        toast.error("Add a valid API token to complete the integration");
+      } else {
+        toast("Validation finished");
+      }
+      onRefresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Validation failed");
+    } finally {
+      setValidating(false);
+    }
+  };
+
   if (loading && !status) {
     return (
       <div className="flex items-center justify-center py-20 text-sm text-gray-400">
@@ -146,9 +188,12 @@ export default function ClarityTab({
       isBlocked={isBlocked}
       isSaving={saving}
       apiToken={apiToken}
+      completeness={completeness}
+      validating={validating}
       onApiTokenChange={setApiToken}
       onProjectIdChange={setClarityProjectId}
       onSave={handleSave}
+      onValidate={handleValidate}
     />
   );
 
