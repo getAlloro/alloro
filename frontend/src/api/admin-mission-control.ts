@@ -1,4 +1,5 @@
 import { apiGet, apiPost } from "./index";
+import type { ActiveIntegration } from "../components/Admin/integrations/ActiveIntegrationLogos";
 
 export type StripeFreshness = "fresh" | "unavailable";
 
@@ -67,6 +68,7 @@ export type MissionControlOrganization = {
   locationCount: number;
   hasGbpConnection: boolean;
   websiteStatus: string | null;
+  activeIntegrations: ActiveIntegration[];
   pendingTaskCount: number;
   unreadNotificationCount: number;
   latestPms: {

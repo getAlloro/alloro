@@ -2,6 +2,44 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.105] - June 2026
+
+### Integration Logos — Single Source of Truth Across the Provider Sidebar
+
+Follow-up refactor to 0.0.104. The four brand SVGs (HubSpot, Rybbit, Clarity, Search Console) were still defined a second time inside `IntegrationProviderList` (the larger sidebar variants), so 0.0.104's dedup was only partial. Extracted the raw SVGs into a dedicated shared module; every consumer now renders from one definition and passes its own size via `className`. Pure refactor — no behavior or visual change.
+
+**Key Changes:**
+- New `frontend/src/components/Admin/integrations/integrationLogos.tsx` — the four brand SVGs defined exactly once as named components (`HubSpotLogo`/`RybbitLogo`/`ClarityLogo`/`GoogleLogo`), each accepting `className` so the caller owns sizing.
+- `ActiveIntegrationLogos.tsx` (compact badge row) and `IntegrationProviderList.tsx` (provider sidebar) drop their inline SVG copies and import the shared components — ~64 lines of duplication removed. Sizes preserved verbatim: badge row `h-3.5`/`h-4`, sidebar `w-4.5`/`w-5`/`w-4`.
+- All existing exports (`ActiveIntegrationLogos`, `IntegrationPlatform`, `ActiveIntegration`) and the three external consumers (`WebsitesList`, `OrganizationMissionCard`, `admin-mission-control`) are unchanged.
+- Verified: `npx tsc -b frontend` clean; eslint clean on all three touched files; rendered output identical by construction (verbatim geometry + size classes). `IntegrationPlatform` remains separately duplicated in `api/integrations.ts` — left untouched as a distinct concern.
+
+**Commits:**
+- `frontend/src/components/Admin/integrations/integrationLogos.tsx` - new shared raw-SVG logo module (caller-sized)
+- `frontend/src/components/Admin/integrations/ActiveIntegrationLogos.tsx` - consume shared logos at compact sizes
+- `frontend/src/components/Admin/integrations/IntegrationProviderList.tsx` - consume shared logos at larger sizes; remove duplicate defs
+
+## [0.0.104] - June 2026
+
+### Mission Control — Integration Icons Inline With Website Pill
+
+Mission Control org cards now show each practice's active analytics/integration logos (HubSpot, Rybbit, Clarity, Search Console) inline to the right of the green Website pill, mirroring the Websites tab. The four SVG logos plus the badge-row component were extracted into a single shared `ActiveIntegrationLogos` module so the Websites tab and the Mission Control card render from one source instead of duplicated copies.
+
+**Key Changes:**
+- New shared `frontend/src/components/Admin/integrations/ActiveIntegrationLogos.tsx` (logos, platform order/labels, and the compact badge row). `WebsitesList` imports it and its local duplicate was removed (−79 lines).
+- Backend: `MissionControlModel.getLatestWebsiteSummaries` joins `website_builder.website_integrations` for each org's latest project (`status='active'`, deduped — mirrors the Websites tab query) and surfaces it as `activeIntegrations` on each Mission Control org. No schema change (table already existed).
+- The card renders the logos inside the existing stop-propagation row; the row shows when a website pill OR active integrations exist, and logos stay display-only (no card navigation).
+- Null-safe: `ActiveIntegrationLogos` tolerates a missing `integrations` array and the card guards `activeIntegrations?.length`, preventing a crash when a persisted react-query cache rehydrates org data from before the backend change.
+- Verified against live: `/admin/mission-control` returns `activeIntegrations` for all orgs (Garrison = Rybbit + Search Console); browser-verified render (9 cards, icons inline, empty org shows none, no error boundary); backend + frontend `tsc` clean; eslint clean.
+
+**Commits:**
+- `src/models/MissionControlModel.ts` - join active integrations for each org's latest project
+- `src/controllers/admin-mission-control/feature-services/MissionControlService.ts` - expose `activeIntegrations` on the org payload
+- `frontend/src/components/Admin/integrations/ActiveIntegrationLogos.tsx` - new shared logo/badge component (null-safe)
+- `frontend/src/pages/admin/WebsitesList.tsx` - consume shared component, remove duplicated logos
+- `frontend/src/api/admin-mission-control.ts` - `activeIntegrations` on `MissionControlOrganization`
+- `frontend/src/components/Admin/mission-control/OrganizationMissionCard.tsx` - render logos inline with the Website pill
+
 ## [0.0.103] - June 2026
 
 ### Remove Unused SetupProgressBanner Component

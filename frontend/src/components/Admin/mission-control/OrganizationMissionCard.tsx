@@ -19,6 +19,7 @@ import {
 import type { MissionControlOrganization } from "../../../api/admin-mission-control";
 import { MissionControlSparkline } from "./MissionControlSparkline";
 import { MissionControlPilotMenu } from "./MissionControlPilotMenu";
+import { ActiveIntegrationLogos } from "../integrations/ActiveIntegrationLogos";
 
 export type OrganizationMissionCardProps = {
   organization: MissionControlOrganization;
@@ -92,21 +93,24 @@ export function OrganizationMissionCard({
           />
         </div>
       </div>
-      {hasConnectedWebsite && (
+      {(hasConnectedWebsite || (organization.activeIntegrations?.length ?? 0) > 0) && (
         <div
           className="mt-3 flex flex-wrap items-center gap-2"
           onClick={(event) => event.stopPropagation()}
           onKeyDown={(event) => event.stopPropagation()}
         >
-          <button
-            type="button"
-            onClick={openWebsite}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-2.5 py-1.5 text-xs font-bold text-green-700 transition-all hover:border-green-300 hover:bg-green-100"
-            aria-label={`Open website for ${organization.name}`}
-          >
-            <FileCode className="h-3.5 w-3.5" />
-            Website
-          </button>
+          {hasConnectedWebsite && (
+            <button
+              type="button"
+              onClick={openWebsite}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-2.5 py-1.5 text-xs font-bold text-green-700 transition-all hover:border-green-300 hover:bg-green-100"
+              aria-label={`Open website for ${organization.name}`}
+            >
+              <FileCode className="h-3.5 w-3.5" />
+              Website
+            </button>
+          )}
+          <ActiveIntegrationLogos integrations={organization.activeIntegrations} />
         </div>
       )}
 
