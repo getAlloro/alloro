@@ -22,7 +22,7 @@
     {{ menu id='main-menu' template='main-menu-template' }}
   </div>
 
-  <div class="hidden md:block">
+  <div class="hidden md:flex items-center gap-6">
     <!-- AI-CONTENT: nav-cta | Replace button text with the business's primary call-to-action. -->
 
     <!-- AI-CONTENT: cta-label | Choose label by business.category:
@@ -32,6 +32,15 @@
        Apply the same label consistently across header, body, and footer CTAs for this site. -->
 
     <a href="/consultation" class="alloro-tpl-v1-release-header-component-cta-button px-6 py-3 rounded-full font-medium transition-colors duration-200 flex items-center justify-center text-sm md:text-base bg-primary text-white">Request a Consultation</a>
+
+    <!-- AI-CONTENT: header-phone | Replace href with tel:{business phone digits} and visible text with the formatted business phone. Default helper text must be "Call us today" unless the business identity explicitly says otherwise. -->
+    <a href="tel:" class="alloro-tpl-v1-release-header-component-phone-link flex flex-col items-start leading-tight font-sans no-underline">
+      <span class="flex items-center gap-2 text-primary font-semibold text-base">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        (555) 123-4567
+      </span>
+      <span class="alloro-tpl-v1-release-header-component-phone-helper text-xs text-gray-500 mt-1 pl-6">Call us today</span>
+    </a>
   </div>
 
   <!-- Mobile Menu Button -->

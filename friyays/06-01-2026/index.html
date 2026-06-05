@@ -15,7 +15,7 @@
         <div>
           <div class="brand-mark"><span class="brand-dot"></span> Alloro Feature Friyay</div>
           <h1 id="page-title">This week's Alloro feature roundup</h1>
-          <p>Coverage window: Monday, June 1, 2026 through Sunday, June 7, 2026. This folder starts the week with verified local build evidence for the Spectral typography standardization.</p>
+          <p>Coverage window: Monday, June 1, 2026 through Sunday, June 7, 2026. This folder tracks verified local build evidence plus deployment follow-ups for the week's Alloro polish and website improvements.</p>
         </div>
         <aside class="hero-panel" aria-label="Release state summary">
           <p class="eyebrow">06-01-2026 edition</p>
@@ -29,12 +29,17 @@
 
       <section class="section" aria-labelledby="customer-highlights">
         <p class="eyebrow">Customer-facing highlights</p>
-        <h2 id="customer-highlights">Typography polish</h2>
+        <h2 id="customer-highlights">Typography polish and clearer calls</h2>
         <div class="grid">
           <article class="highlight-card">
             <h3>Cleaner serif typography across Alloro</h3>
             <p>Alloro's active frontend serif/display surfaces now use Spectral instead of mixing Fraunces and Literata, keeping dashboard metrics, editorial text, rankings gauge numbers, and chat reading surfaces more consistent.</p>
             <div class="meta"><span class="tag good">Build verified</span><span class="tag">UI polish</span></div>
+          </article>
+          <article class="highlight-card">
+            <h3>Phone CTAs prepared for Alloro-built websites</h3>
+            <p>Website headers now have a standard place for the practice phone number and a simple "Call us today" helper line, making the primary contact action easier to find once the migration is deployed.</p>
+            <div class="meta"><span class="tag good">Locally verified</span><span class="tag warn">Deployment verification pending</span></div>
           </article>
         </div>
       </section>
@@ -61,6 +66,13 @@
                 <td>Maybe</td>
                 <td>Sources: changelog 0.0.96, <code>plans/06032026-replace-serif-with-spectral</code>, frontend build, and Alloro Docs font-token parity.</td>
               </tr>
+              <tr>
+                <td>Website header phone CTAs</td>
+                <td>Website visitors, practice teams, Alloro operators</td>
+                <td><span class="tag warn">Implemented locally; migration deployment pending</span></td>
+                <td>Maybe</td>
+                <td>Sources: changelog 0.0.107, <code>plans/06052026-website-header-phone-cta</code>, local migration up/down smoke test, and TypeScript verification.</td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -79,6 +91,8 @@
           <li><span class="box done">x</span><span>Spectral is loaded by the active frontend app.</span></li>
           <li><span class="box done">x</span><span>Alloro Docs display font token matches the app typography change.</span></li>
           <li><span class="box done">x</span><span>Frontend TypeScript and production build passed locally.</span></li>
+          <li><span class="box done">x</span><span>Website header phone CTA migration passed local up/down smoke verification.</span></li>
+          <li><span class="box done">x</span><span>Website builder template prompt and preview artifact include the header phone CTA default.</span></li>
           <li><span class="box"></span><span>Dev workflow completes after push to <code>dev/dave</code>.</span></li>
           <li><span class="box"></span><span>Production behavior is verified before any live customer announcement.</span></li>
         </ul>

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Website Header Phone CTA Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>Website Header Phone CTA</h1>
+      <dl class="meta-grid">
+        <div><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06052026-website-header-phone-cta</dd></div>
+        <div><dt>Size</dt><dd>Small</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Most live website projects have verified phone data, but only TriCity renders a phone CTA in the header. New templates should not inherit TriCity's Spanish helper text as the default.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Add a reusable header phone CTA pattern with <code>Call us today</code> as the default helper line. Apply it to the published templates and the existing live headers for Artful Orthodontics, One Endodontics, Garrison Orthodontics, TriCity Endodontics, and Surf City Endodontics.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/database/migrations/20260421000006_dental_seo_refresh_rev_5.ts</code> - closest reversible template data-migration analog.</li>
+        <li><code>src/agents/websiteAgents/builder/LayoutGenerator.md</code> - layout agent rules for future generated headers.</li>
+        <li><code>plans/04212026-no-ticket-dental-seo-template-visual-refresh/preview/template.header.html</code> - local preview artifact for the active dental header template.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Use a Knex migration with backup tables and a transaction before changing production-stored HTML.</li>
+        <li>Preserve existing CTA labels, menu shortcodes, logo markup, and mobile-menu mechanics.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/database/migrations/20260421000006_dental_seo_refresh_rev_5.ts</code> - latest template refresh migration pattern.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Use phone from <code>project_identity.business.phone</code> with primary location fallback.</li>
+            <li>Use <code>Call us today</code> as the default helper line.</li>
+            <li>Skip projects without phone data.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not invent phone numbers.</li>
+            <li>Do not copy TriCity's Spanish helper text into other projects.</li>
+            <li>Do not rewrite unrelated layout HTML.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul><li>Footer cleanup and full layout regeneration are not included.</li></ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 - stored production HTML data changes.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li>Stored header markup varies by project. <strong>Mitigation:</strong> use guarded insertion patterns and back up target rows before updating.</li>
+        <li>Migration affects production rows after merge to <code>main</code>. <strong>Mitigation:</strong> reversible backup tables and a narrow host allowlist.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> published website-builder templates and project headers for Artful Orthodontics, One Endodontics, Garrison Orthodontics, TriCity Endodontics, and Surf City Endodontics.</p>
+      <h3>Pushback</h3>
+      <ul><li>This belongs in the layout/template layer, not page sections. Patching pages would create drift because headers are stored separately and reused across pages.</li></ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Header Phone CTA Migration</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a reversible data migration for published templates and the five target project headers.</dd></div>
+          <div><dt>Files</dt><dd><code>src/database/migrations/20260605000000_add_website_header_phone_ctas.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>None</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>, migration helper smoke checks.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Future Generation Guardrails</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Update the layout agent prompt and preview header template so future headers preserve the phone CTA pattern.</dd></div>
+          <div><dt>Files</dt><dd><code>src/agents/websiteAgents/builder/LayoutGenerator.md</code>, <code>plans/04212026-no-ticket-dental-seo-template-visual-refresh/preview/template.header.html</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Search for the phone CTA comments and default helper copy.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled checked> <code>npx tsc --noEmit</code> has no errors caused by this change.</li>
+        <li><input type="checkbox" disabled checked> Migration has backup/rollback behavior.</li>
+        <li><input type="checkbox" disabled checked> Template and project header phone CTA defaults to <code>Call us today</code>.</li>
+        <li><input type="checkbox" disabled checked> No docs parity required because this changes public website templates, not dashboard controls or docs-visible UI.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

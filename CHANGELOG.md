@@ -2,6 +2,26 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.107] - June 2026
+
+### Website Headers - Phone CTA Defaults
+
+Adds a standard phone CTA to Alloro-built website headers so published website visitors can quickly call the practice from the top navigation. The template now expects a formatted phone number with a `tel:` link and defaults the helper line to `Call us today`, including the previous TriCity-style Spanish helper slot.
+
+**Key Changes:**
+- Migration backfills header phone CTAs for the confirmed target sites: Artful Orthodontics, One Endodontics, Garrison Orthodontics, TriCity Endodontics, and Surf City Endodontics.
+- Phone values are sourced from each project's `project_identity.business.phone`, with a primary-location fallback when needed.
+- Published website templates get the same header phone block so future generated websites inherit the behavior by default.
+- The website builder prompt now instructs generated layouts to render a phone number in the header, use a digits-only `tel:` href, and default helper copy to `Call us today`.
+- Migration is reversible and creates backup tables before mutating template/project JSON. It should run on dev first through `dev/dave`, then production only after promotion to `main`.
+- Verified: `npx tsc --noEmit` clean; local migration up/down smoke test passed; `git diff --check` clean.
+
+**Commits:**
+- `src/database/migrations/20260605000000_add_website_header_phone_ctas.ts` - reversible JSON backfill for target project headers and published templates
+- `src/agents/websiteAgents/builder/LayoutGenerator.md` - builder instruction for header phone CTA defaults
+- `plans/04212026-no-ticket-dental-seo-template-visual-refresh/preview/template.header.html` - preview header phone CTA block
+- `plans/06052026-website-header-phone-cta/` - completed execution spec
+
 ## [0.0.106] - June 2026
 
 ### Clarity Integration — Installation Validation & Completeness Gate

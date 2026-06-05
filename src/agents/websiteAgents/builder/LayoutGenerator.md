@@ -87,6 +87,7 @@ The `.bg-gradient-brand *` rule forces descendants to inherit the chosen text co
 - If `logo_url` slot value is provided, use it as the `<img>` src in the nav logo
 - Business name as fallback text when no logo
 - Nav CTA button text: use `nav_cta_text` slot or default to "Book Appointment"
+- If the header template includes a phone CTA, populate it from the business Phone context. Use a `tel:` href with digits and display the formatted phone number. The helper line defaults to "Call us today"; only replace that helper text when the business context explicitly states a different language/service note.
 - Keep navigation structure from the template — customize labels if needed but preserve links
 
 ## Footer Rules (when name is "footer")
