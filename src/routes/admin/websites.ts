@@ -426,6 +426,11 @@ router.post(
   ...adminGscAuth,
   integrationsController.disableClarityLegacySnippets,
 );
+router.post(
+  "/:id/integrations/clarity/validate",
+  ...adminGscAuth,
+  integrationsController.validateClarityInstallation,
+);
 
 // Rybbit-specific routes (must be before /:integrationId params)
 router.get(

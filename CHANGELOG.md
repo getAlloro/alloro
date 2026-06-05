@@ -2,6 +2,31 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.106] - June 2026
+
+### Clarity Integration — Installation Validation & Completeness Gate
+
+Adds a **Validate installation** action and a completeness gate to the Clarity integration page. The token + Project ID fields only cover the inbound Data Export (fetch) direction; there was no way to confirm the outbound tracking tag is actually live on the published site. Validation now checks three things server-side and marks the integration **Complete** only when all pass: the Project ID is valid, the stored API token still authenticates, and the live published page serves the Clarity tag for that Project ID (flagging a mismatched/legacy tag). The tracking script is **derived** from the Project ID (shown read-only/copyable), never stored, and pasting a full snippet auto-extracts the Project ID. No renderer changes — `website-builder-rebuild` already injects Clarity from `website_integrations`.
+
+**Key Changes:**
+- Backend: new `validateInstallation` in `service.clarity-integration.ts` — validates the Project ID format, re-checks the decrypted token against the Clarity API (non-throwing: 401/403 → invalid, 429 → valid, else unconfirmed), and fetches the project's own published URL to detect every Clarity Project ID on the page (`present` / `mismatch` / `absent` / `error`). Persists a snapshot to `metadata.validation` + `last_validated_at` + `last_error`.
+- Guardrail: validation **never mutates the integration `status` column** — the renderer injects only `status='active'` rows, so flipping to `broken` on a failed check would silently stop live tracking. Documented in code.
+- `getStatus` now returns a `completeness` summary (`hasProjectId`, `hasToken`, `lastValidation`, `isComplete`) computed from stored data only; the live probe runs solely on the explicit Validate action, never on load.
+- New endpoint `POST /admin/websites/:id/integrations/clarity/validate`.
+- Frontend: `ClaritySettingsCard` gains a derived-tag block (copyable), paste-to-extract, a three-row installation checklist with a mismatch warning, a Validate button, and a Complete badge. New `clarity-snippet.ts` util mirrors the backend tag derivation/extraction.
+- Per decision, the API token is **required** for "Complete" (tracking-only setups stay incomplete).
+- Verified: backend + frontend `tsc --noEmit` clean; eslint clean on all changed frontend files. Manual QA against live data (Garrison → mismatch, Caswell → absent, a good site → all green) still pending.
+
+**Commits:**
+- `src/controllers/admin-websites/feature-services/service.clarity-integration.ts` - validateInstallation + token re-check + live-tag probe; completeness in getStatus; never mutates status
+- `src/controllers/admin-websites/WebsiteIntegrationsController.ts` - validateClarityInstallation handler
+- `src/routes/admin/websites.ts` - POST /clarity/validate route
+- `frontend/src/api/integrations.ts` - validation types, completeness on ClarityStatus, validateClarityIntegration client
+- `frontend/src/components/Admin/integrations/ClaritySettingsCard.tsx` - derived tag, paste-to-extract, checklist, Validate button, Complete badge
+- `frontend/src/components/Admin/integrations/ClarityTab.tsx` - validate handler + completeness wiring
+- `frontend/src/components/Admin/integrations/clarity-snippet.ts` - new derive/extract util
+- `plans/06052026-clarity-integration-validation/` - spec (spec.html + spec.css)
+
 ## [0.0.105] - June 2026
 
 ### Integration Logos — Single Source of Truth Across the Provider Sidebar

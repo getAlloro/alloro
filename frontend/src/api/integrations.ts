@@ -132,6 +132,32 @@ export interface ClarityLegacySnippet {
   canDisable: boolean;
 }
 
+export type ClarityTokenState = "valid" | "invalid" | "missing" | "error";
+export type ClarityLiveTagState = "present" | "mismatch" | "absent" | "error";
+
+export interface ClarityLiveTagCheck {
+  status: ClarityLiveTagState;
+  url: string | null;
+  foundProjectIds: string[];
+  message: string | null;
+}
+
+export interface ClarityValidationResult {
+  projectIdValid: boolean;
+  projectId: string | null;
+  token: ClarityTokenState;
+  liveTag: ClarityLiveTagCheck;
+  isComplete: boolean;
+  checkedAt: string;
+}
+
+export interface ClarityCompleteness {
+  hasProjectId: boolean;
+  hasToken: boolean;
+  lastValidation: ClarityValidationResult | null;
+  isComplete: boolean;
+}
+
 export interface ClarityStatus {
   integration: Integration | null;
   suggestedProjectId: string | null;
@@ -139,6 +165,7 @@ export interface ClarityStatus {
   legacySnippets: ClarityLegacySnippet[];
   blockingLegacySnippets: ClarityLegacySnippet[];
   canConnect: boolean;
+  completeness: ClarityCompleteness;
 }
 
 export interface RybbitMetricSummary {
@@ -602,6 +629,12 @@ export const disableClarityLegacySnippets = (
   authedPost<Envelope<ClarityStatus>>(
     `/admin/websites/${projectId}/integrations/clarity/legacy-snippets/disable`,
     { snippetIds },
+  );
+
+export const validateClarityIntegration = (projectId: string) =>
+  authedPost<Envelope<ClarityValidationResult>>(
+    `/admin/websites/${projectId}/integrations/clarity/validate`,
+    {},
   );
 
 // =====================================================================

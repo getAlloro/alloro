@@ -29,6 +29,32 @@ export interface LegacyClaritySnippet {
   canDisable: boolean;
 }
 
+export type ClarityTokenState = "valid" | "invalid" | "missing" | "error";
+export type ClarityLiveTagState = "present" | "mismatch" | "absent" | "error";
+
+export interface ClarityLiveTagCheck {
+  status: ClarityLiveTagState;
+  url: string | null;
+  foundProjectIds: string[];
+  message: string | null;
+}
+
+export interface ClarityValidationResult {
+  projectIdValid: boolean;
+  projectId: string | null;
+  token: ClarityTokenState;
+  liveTag: ClarityLiveTagCheck;
+  isComplete: boolean;
+  checkedAt: string;
+}
+
+export interface ClarityCompleteness {
+  hasProjectId: boolean;
+  hasToken: boolean;
+  lastValidation: ClarityValidationResult | null;
+  isComplete: boolean;
+}
+
 export interface ClarityStatus {
   integration: IWebsiteIntegrationSafe | null;
   suggestedProjectId: string | null;
@@ -36,6 +62,7 @@ export interface ClarityStatus {
   legacySnippets: LegacyClaritySnippet[];
   blockingLegacySnippets: LegacyClaritySnippet[];
   canConnect: boolean;
+  completeness: ClarityCompleteness;
 }
 
 export class ClarityIntegrationError extends Error {
@@ -218,6 +245,17 @@ export async function getStatus(projectId: string): Promise<ClarityStatus> {
     ? await WebsiteIntegrationModel.hasCredentials(integration.id)
     : false;
 
+  const lastValidation = readStoredValidation(integration);
+  const completeness: ClarityCompleteness = {
+    hasProjectId: !!getMetadataProjectId(integration),
+    hasToken: hasDataExportToken,
+    lastValidation,
+    // Completeness is driven by the last live validation snapshot, never
+    // recomputed here (the live probe is network-bound and only runs on the
+    // explicit Validate action).
+    isComplete: lastValidation?.isComplete === true,
+  };
+
   return {
     integration: integration ?? null,
     suggestedProjectId: getSuggestedProjectId(integration, legacySnippets),
@@ -225,6 +263,7 @@ export async function getStatus(projectId: string): Promise<ClarityStatus> {
     legacySnippets,
     blockingLegacySnippets,
     canConnect: blockingLegacySnippets.length === 0,
+    completeness,
   };
 }
 
@@ -323,4 +362,206 @@ export async function saveIntegration(
     integration,
     status: await getStatus(projectId),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Validation
+// ---------------------------------------------------------------------------
+
+function readStoredValidation(
+  integration: IWebsiteIntegrationSafe | undefined | null,
+): ClarityValidationResult | null {
+  const stored = integration?.metadata?.validation;
+  if (!stored || typeof stored !== "object") return null;
+  return stored as ClarityValidationResult;
+}
+
+/**
+ * Collects every distinct Clarity Project ID present in a page's HTML, covering
+ * both the direct `clarity.ms/tag/{id}` form and the IIFE bootstrap argument.
+ * Mirrors the patterns in util.clarity-snippet (the source of truth) but returns
+ * all matches instead of the first.
+ */
+function collectClarityProjectIds(html: string): string[] {
+  const ids = new Set<string>();
+  const patterns = [
+    /clarity\.ms\/tag\/([A-Za-z0-9_-]+)/gi,
+    /["']clarity["']\s*,\s*["']script["']\s*,\s*["']([A-Za-z0-9_-]+)["']/gi,
+  ];
+  for (const pattern of patterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(html)) !== null) {
+      if (match[1]) ids.add(match[1]);
+    }
+  }
+  return Array.from(ids);
+}
+
+/**
+ * Re-checks the stored Data Export token against the Clarity API WITHOUT
+ * throwing — returns a state instead. A 401/403 means the token is bad; a 429
+ * (daily limit) still proves the credentials authenticated, so it counts as
+ * valid; anything else is unconfirmable ("error"), never "invalid".
+ */
+async function validateStoredToken(
+  integrationId: string,
+  clarityProjectId: string | null,
+): Promise<ClarityTokenState> {
+  if (!clarityProjectId) return "error";
+  const token = await WebsiteIntegrationModel.getDecryptedCredentials(integrationId);
+  if (!token) return "missing";
+  try {
+    await axios.get(CLARITY_API_BASE_URL, {
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      params: { projectId: clarityProjectId, numOfDays: "1" },
+      timeout: 10000,
+    });
+    return "valid";
+  } catch (error: any) {
+    const status = error?.response?.status;
+    if (status === 401 || status === 403) return "invalid";
+    if (status === 429) return "valid";
+    return "error";
+  }
+}
+
+function resolvePublishedUrl(project: IProject): string | null {
+  const host =
+    project.custom_domain ||
+    project.custom_domain_alt ||
+    project.generated_hostname ||
+    project.hostname ||
+    null;
+  if (!host) return null;
+  return /^https?:\/\//i.test(host) ? host : `https://${host}`;
+}
+
+/**
+ * Fetches the project's published page and checks whether the renderer-injected
+ * Clarity tag for THIS integration's Project ID is live. Read-only network probe
+ * against the project's own stored hostnames only.
+ */
+async function probeLiveTag(
+  project: IProject,
+  recordProjectId: string | null,
+): Promise<ClarityLiveTagCheck> {
+  const url = resolvePublishedUrl(project);
+  if (!url) {
+    return {
+      status: "error",
+      url: null,
+      foundProjectIds: [],
+      message: "This project has no published URL to probe",
+    };
+  }
+
+  let html = "";
+  try {
+    const response = await axios.get(url, {
+      timeout: 12000,
+      maxContentLength: 5 * 1024 * 1024,
+      maxRedirects: 3,
+      responseType: "text",
+      transformResponse: (data) => data,
+      headers: { "User-Agent": "AlloroClarityValidator/1.0" },
+      validateStatus: (statusCode) => statusCode >= 200 && statusCode < 400,
+    });
+    html = typeof response.data === "string" ? response.data : String(response.data ?? "");
+  } catch (error: any) {
+    return {
+      status: "error",
+      url,
+      foundProjectIds: [],
+      message: error?.message ? `Failed to fetch site: ${error.message}` : "Failed to fetch site",
+    };
+  }
+
+  const foundProjectIds = collectClarityProjectIds(html);
+  if (!recordProjectId) {
+    return {
+      status: "error",
+      url,
+      foundProjectIds,
+      message: "Integration has no Project ID",
+    };
+  }
+  if (foundProjectIds.includes(recordProjectId)) {
+    return { status: "present", url, foundProjectIds, message: null };
+  }
+  if (foundProjectIds.length > 0) {
+    return {
+      status: "mismatch",
+      url,
+      foundProjectIds,
+      message: `Live page serves a different Clarity project: ${foundProjectIds.join(", ")}`,
+    };
+  }
+  return {
+    status: "absent",
+    url,
+    foundProjectIds,
+    message: "No Clarity tag detected on the published page",
+  };
+}
+
+/**
+ * Runs the three completeness checks (Project ID valid, token authenticates,
+ * live tag present) and persists a snapshot. IMPORTANT: this never mutates the
+ * integration `status` column — the renderer injects only `status='active'`
+ * rows, so flipping to `broken`/`revoked` on a failed check would silently stop
+ * live tracking. Only metadata.validation / last_validated_at / last_error move.
+ */
+export async function validateInstallation(
+  projectId: string,
+): Promise<ClarityValidationResult> {
+  const project = await requireProject(projectId);
+  const integration = await WebsiteIntegrationModel.findByProjectAndPlatform(
+    projectId,
+    "clarity",
+  );
+  if (!integration) {
+    throw new ClarityIntegrationError(
+      404,
+      "NOT_CONNECTED",
+      "Connect Clarity before validating the installation",
+    );
+  }
+
+  const recordProjectId = getMetadataProjectId(integration);
+  const projectIdValid = !!recordProjectId && /^[A-Za-z0-9_-]{4,64}$/.test(recordProjectId);
+
+  const [token, liveTag] = await Promise.all([
+    validateStoredToken(integration.id, recordProjectId),
+    probeLiveTag(project, recordProjectId),
+  ]);
+
+  const isComplete = projectIdValid && token === "valid" && liveTag.status === "present";
+  const result: ClarityValidationResult = {
+    projectIdValid,
+    projectId: recordProjectId,
+    token,
+    liveTag,
+    isComplete,
+    checkedAt: new Date().toISOString(),
+  };
+
+  const lastError = !projectIdValid
+    ? "Integration is missing a valid Clarity Project ID"
+    : token === "invalid"
+      ? "Clarity API token is invalid or expired"
+      : token === "missing"
+        ? "Clarity API token not set"
+        : liveTag.status === "mismatch"
+          ? liveTag.message
+          : liveTag.status === "absent"
+            ? "Clarity tag not detected on the published site"
+            : null;
+
+  await WebsiteIntegrationModel.update(integration.id, {
+    metadata: { ...(integration.metadata ?? {}), validation: result },
+    last_validated_at: new Date(),
+    last_error: lastError,
+  });
+
+  return result;
 }

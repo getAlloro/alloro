@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clarity Integration Validation Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Implemented · Pending Manual QA</span>
+      </div>
+      <h1>Clarity Integration Validation &amp; Completeness</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Implemented · Pending Manual QA</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06052026-clarity-integration-validation</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>
+        The Clarity integration UI collects a Project ID (outbound tracking) and an optional API token
+        (inbound Data Export). Admins have no way to confirm the tracking tag is <em>actually live</em> on the
+        published site, and the integration can sit in a connected-but-not-working state. Live evidence:
+        Caswell has an active Clarity record but no tag on the page; Garrison's live tag is a legacy snippet
+        whose Project ID (<code>x27lax5nj4</code>) does not match the record (<code>r9diusipt9</code>). The pipe
+        is connected but unfed, and nothing surfaces it.
+      </p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>
+        Add a <strong>Validate installation</strong> action and a <strong>completeness</strong> gate to the
+        Clarity integration page. Validation checks three things server-side: (1) Project ID is valid, (2) the
+        stored API token still authenticates against Clarity, and (3) the live published page actually serves the
+        Clarity tag for the record's Project ID (flagging a mismatched/legacy tag). The integration is marked
+        <strong>Complete</strong> only when all three pass. The script tag itself is <strong>derived</strong> from
+        the Project ID (shown read-only/copyable) — never stored — and admins may paste a full snippet to
+        auto-extract the Project ID.
+      </p>
+      <p>
+        <strong>Done when:</strong> clicking Validate on a properly connected site shows all three checks green and
+        a "Complete" badge; validating Garrison surfaces a Project ID mismatch; validating Caswell surfaces "tag
+        not found"; and no renderer changes are required.
+      </p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/controllers/admin-websites/feature-services/service.clarity-integration.ts</code> - owns Clarity connect/status logic. Already has <code>getStatus</code>, <code>saveIntegration</code>, <code>validateApiToken</code> (token check, reusable), <code>requireProject</code>, and the <code>ClarityStatus</code> type. Add <code>validateInstallation</code> + completeness here.</li>
+        <li><code>src/controllers/admin-websites/feature-utils/util.clarity-snippet.ts</code> - <code>extractClarityProjectId</code> + <code>isClaritySnippetCode</code> (detector). Reuse to parse the fetched live HTML.</li>
+        <li><code>src/controllers/admin-websites/WebsiteIntegrationsController.ts</code> - HTTP handlers for the clarity endpoints. Add a <code>validateClarity</code> handler mirroring the existing ones (envelope response shape).</li>
+        <li><code>src/routes/admin/websites.ts</code> - clarity routes at lines 415-425 (<code>/clarity/status</code>, <code>/clarity</code>, <code>/clarity/legacy-snippets/disable</code>). Add <code>POST /:id/integrations/clarity/validate</code>.</li>
+        <li><code>src/models/website-builder/ProjectModel.ts</code> - <code>IProject</code> exposes <code>custom_domain</code>, <code>custom_domain_alt</code>, <code>generated_hostname</code>, <code>hostname</code>. Source of the probe URL.</li>
+        <li><code>src/models/website-builder/WebsiteIntegrationModel.ts</code> - <code>getDecryptedCredentials</code> (internal token read), <code>hasCredentials</code>, <code>update</code> (persist <code>metadata</code> + <code>last_validated_at</code> + <code>last_error</code>). Status column must NOT be touched (see Risk).</li>
+        <li><code>frontend/src/api/integrations.ts</code> - <code>ClarityStatus</code> (L135) + clarity clients (L580-603). Extend with completeness + a <code>validateClarityIntegration</code> client.</li>
+        <li><code>frontend/src/components/Admin/integrations/ClaritySettingsCard.tsx</code> - the form. Add derived-tag display, paste-to-extract, validation checklist, Validate button, Complete badge.</li>
+        <li><code>frontend/src/components/Admin/integrations/ClarityTab.tsx</code> - wires status + handlers. Add the validate handler and pass new props down.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Token validation already exists as <code>validateApiToken(projectId, token)</code> — reuse it; classify the result into <code>valid | invalid | error</code>. Do not write a second Clarity API client.</li>
+        <li>HTTP handler + envelope response shape: mirror the existing clarity handlers in <code>WebsiteIntegrationsController.ts</code> and the <code>Envelope&lt;T&gt;</code> client funcs in <code>api/integrations.ts</code>.</li>
+        <li>UI status chips: reuse the <code>StatusPill</code> pattern already in <code>ClaritySettingsCard.tsx</code>.</li>
+        <li>Live-HTML parsing: reuse <code>isClaritySnippetCode</code> / <code>extractClarityProjectId</code> logic — collect <em>all</em> Clarity Project IDs found on the page, not just the first.</li>
+      </ul>
+      <p><strong>Reference file (backend):</strong> <code>src/controllers/admin-websites/feature-services/service.gsc-integration.ts</code> - closest analog for an integration service that validates against a live external surface. <strong>Reference file (frontend):</strong> the existing <code>ClaritySettingsCard.tsx</code> StatusPill block for chip styling.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Derive the script tag from the Project ID (canonical <code>clarity.ms/tag/{projectId}</code> bootstrap). Show read-only + copyable. Never persist a tag string.</li>
+            <li>Mark Complete only when: Project ID valid AND token authenticates AND live tag present for the record's Project ID.</li>
+            <li>Probe ONLY the project's own stored hostnames (<code>custom_domain</code> &rarr; <code>custom_domain_alt</code> &rarr; <code>generated_hostname</code> &rarr; <code>hostname</code>), over HTTPS, with a timeout and response-size cap.</li>
+            <li>Use the decrypted token internally only; the API must never return the token. Surface only <code>valid | invalid | missing | error</code>.</li>
+            <li>Distinguish live-tag outcomes: <code>present</code> (record ID found), <code>mismatch</code> (only other Clarity IDs found — return them), <code>absent</code> (no Clarity tag), <code>error</code> (fetch failed / no URL).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li><strong>Never mutate the integration <code>status</code> column during validation.</strong> The renderer injects only <code>status='active'</code> rows; flipping to <code>broken</code> on a token/probe failure would stop live tracking. Write only <code>metadata.validation</code>, <code>last_validated_at</code>, <code>last_error</code>.</li>
+            <li>No renderer changes (<code>website-builder-rebuild</code> already injects Clarity).</li>
+            <li>No DB schema change / no migration — persist the validation snapshot in the existing <code>metadata</code> JSONB.</li>
+            <li>No new dependencies. Use the HTTP client already in the service (<code>axios</code>).</li>
+            <li>Do not run the live probe on every <code>getStatus</code> load (network cost) — only on explicit Validate.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Reconciling the live data itself (deciding Garrison's correct Project ID, applying the backfill migration in prod). Validation will <em>surface</em> these; fixing the data is a follow-up operational task.</li>
+        <li>The Data Export "sample harvest" check (not selected). Validation does not run a harvest.</li>
+        <li>Surfacing "Complete" on the Mission Control card (separate feature: mission-control-integration-icons).</li>
+        <li>Rybbit/HubSpot/GSC validation parity (Clarity only for now).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 (Structural Risk — a naive implementation can silently disable live tracking)</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Status-flip kills tracking (L3).</strong> If validation sets <code>status='broken'</code> on a failed token/probe, the renderer stops injecting Clarity for that project. <strong>Mitigation:</strong> validation is read-only w.r.t. <code>status</code>; it writes only <code>metadata.validation</code> + <code>last_validated_at</code> + <code>last_error</code>. Add an explicit code comment stating why.</li>
+        <li><strong>Server-side fetch abuse / SSRF (L2).</strong> The probe fetches a URL. <strong>Mitigation:</strong> URL is built only from the project's own stored hostnames (never free user input); enforce HTTPS, a short timeout, a max-content cap, and minimal redirects; admin-only route.</li>
+        <li><strong>Token leakage (L2).</strong> <strong>Mitigation:</strong> decrypt internally via <code>getDecryptedCredentials</code>; return only a status enum; never echo the token or full credentials.</li>
+        <li><strong>Token-mandatory Complete blocks tracking-only setups (L2, accepted).</strong> Per decision, Complete requires a valid token even though injection works without one. <strong>Mitigation:</strong> document in the UI ("API token required to complete"); the separate Data Export pill still communicates the token's real purpose.</li>
+        <li><strong>CDN/cache lag &amp; client-only quirks (L2).</strong> A freshly saved tag may not appear immediately if the page is cached; the probe reads server-rendered HTML (renderer injects server-side, so normally fine). <strong>Mitigation:</strong> treat <code>absent</code> as "not detected yet," not "broken"; surface the probed URL + timestamp so admins can recheck.</li>
+        <li><strong>Frontend/backend snippet-util duplication (L1).</strong> The derive/extract helpers exist in the backend util and will be mirrored in a small frontend util (cross-runtime). <strong>Mitigation:</strong> keep the frontend copy minimal and reference the backend util in comments.</li>
+      </ul>
+      <p><strong>Blast radius:</strong></p>
+      <ul>
+        <li><code>service.clarity-integration.ts</code> / <code>ClarityStatus</code> - consumed by <code>WebsiteIntegrationsController.ts</code> (clarity handlers) and, via the API, by <code>api/integrations.ts</code> &rarr; <code>ClarityTab</code> / <code>ClaritySettingsCard</code>. The <code>completeness</code> field is additive.</li>
+        <li>New route + handler - additive; no existing endpoint changes.</li>
+        <li><code>ClaritySettingsCard</code> props - additive (<code>onValidate</code>, <code>completeness</code>, <code>validating</code>); update the single call site in <code>ClarityTab</code>.</li>
+        <li><code>website_integrations.metadata</code> - additive <code>validation</code> key; renderer ignores unknown metadata keys.</li>
+      </ul>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Requiring the API token for "Complete" conflates outbound tracking with inbound Data Export. Recommended alternative was "Project ID + live tag" with the token as a separate capability. Proceeding token-mandatory per decision; revisit if practices that only need tracking get stuck "incomplete."</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Backend — validateInstallation in the Clarity service</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>validateInstallation(projectId)</code> to <code>service.clarity-integration.ts</code>. Load the project + the clarity integration. (a) <strong>Project ID</strong>: read <code>metadata.projectId</code>, validate format &rarr; <code>projectIdValid</code>. (b) <strong>Token</strong>: <code>getDecryptedCredentials(integration.id)</code>; if none &rarr; <code>missing</code>; else call <code>validateApiToken</code> and map to <code>valid | invalid | error</code>. (c) <strong>Live tag</strong>: derive the URL (<code>custom_domain</code> &rarr; <code>custom_domain_alt</code> &rarr; <code>generated_hostname</code> &rarr; <code>hostname</code>, HTTPS); fetch with timeout + size cap; collect ALL Clarity Project IDs in the HTML via the snippet util; return <code>present</code> (record ID in set), <code>mismatch</code> (set non-empty, record ID absent — include <code>foundProjectIds</code>), <code>absent</code> (empty), or <code>error</code> (fetch failed / no URL). Compute <code>isComplete = projectIdValid &amp;&amp; tokenValid==='valid' &amp;&amp; liveTag.status==='present'</code>. Persist a snapshot via <code>WebsiteIntegrationModel.update</code> to <code>metadata.validation</code> + set <code>last_validated_at</code> + <code>last_error</code> (short message or null). <strong>Do NOT touch <code>status</code></strong> (comment why). Export <code>ClarityValidationResult</code> + <code>LiveTagCheck</code> types.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.clarity-integration.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Backend type-check passes; unit-trace the four <code>liveTag</code> branches against Garrison (mismatch), Caswell (absent), a good site (present).</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Backend — completeness in getStatus + controller + route</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Extend <code>ClarityStatus</code> with <code>completeness: { hasProjectId: boolean; hasToken: boolean; lastValidation: ClarityValidationSnapshot | null; isComplete: boolean }</code>, computed from stored data only (<code>hasCredentials</code> for the token; <code>metadata.validation</code> for the snapshot). <code>isComplete</code> derives from the last snapshot (Project ID valid + token valid + tag present); false when never validated. Add a <code>validateClarity</code> handler to <code>WebsiteIntegrationsController.ts</code> (envelope: returns the fresh <code>ClarityValidationResult</code> and/or refreshed <code>ClarityStatus</code>). Register <code>POST /:id/integrations/clarity/validate</code> in <code>src/routes/admin/websites.ts</code> alongside lines 415-425.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.clarity-integration.ts</code>, <code>src/controllers/admin-websites/WebsiteIntegrationsController.ts</code>, <code>src/routes/admin/websites.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Backend type-check passes; <code>GET .../clarity/status</code> includes <code>completeness</code>; <code>POST .../clarity/validate</code> returns the three checks + <code>isComplete</code> and persists the snapshot without altering <code>status</code>.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Frontend — API client + types</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>frontend/src/api/integrations.ts</code>: extend <code>ClarityStatus</code> with the <code>completeness</code> shape; add <code>ClarityValidationResult</code> / <code>ClarityValidationSnapshot</code> types; add <code>validateClarityIntegration(projectId)</code> as a <code>POST</code> to <code>/admin/websites/{projectId}/integrations/clarity/validate</code> mirroring the existing clarity clients (L580-603).</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/api/integrations.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2 (contract)</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> (frontend)</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Frontend — derive/extract snippet util</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>frontend/src/components/Admin/integrations/clarity-snippet.ts</code> with <code>deriveClarityTag(projectId): string</code> (the canonical bootstrap, identical to what the renderer emits) and <code>extractClarityProjectId(code): string | null</code> (mirror of the backend util's three patterns). Keep minimal; comment that the backend <code>util.clarity-snippet.ts</code> is the source of truth.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/Admin/integrations/clarity-snippet.ts</code> (new)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>; <code>extractClarityProjectId(deriveClarityTag('abc123'))==='abc123'</code>.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Frontend — validation UX in ClaritySettingsCard</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add to <code>ClaritySettingsCard.tsx</code>: (1) a read-only, copyable derived script-tag block via <code>deriveClarityTag(clarityProjectId)</code> (hidden until a valid-looking ID is present); (2) paste-to-extract — when the Project ID input contains a full snippet, run <code>extractClarityProjectId</code> and replace with the ID; (3) a completeness checklist using <code>StatusPill</code> — Project ID ✓/✗, API token valid ✓/✗, Live tag ✓/✗ (with a mismatch line showing <code>foundProjectIds</code> + the probed URL/timestamp); (4) a <strong>Validate installation</strong> button (calls <code>onValidate</code>, shows a spinner via a <code>validating</code> prop); (5) a "Complete" badge when <code>completeness.isComplete</code>. New props: <code>completeness</code>, <code>onValidate</code>, <code>validating</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/Admin/integrations/ClaritySettingsCard.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3, T4</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>; Manual: derived tag shows + copies; pasting a snippet fills the ID; checklist renders all three states.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Frontend — wire Validate in ClarityTab</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>ClarityTab.tsx</code>: add a <code>handleValidate</code> that calls <code>validateClarityIntegration(projectId)</code>, toasts the outcome (complete / token invalid / tag not found / mismatch), updates <code>status</code>, and calls <code>onRefresh</code>; add a <code>validating</code> state. Pass <code>completeness</code> (from <code>status</code>), <code>onValidate</code>, and <code>validating</code> into <code>ClaritySettingsCard</code> at both render sites (connected + not-yet-connected).</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/Admin/integrations/ClarityTab.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3, T5</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>; Manual: Validate runs, checklist + Complete badge update; Garrison &rarr; mismatch, Caswell &rarr; absent.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> (frontend) — zero new errors</li>
+        <li><input type="checkbox" checked disabled> Backend type-check / build passes — zero new errors</li>
+        <li><input type="checkbox" disabled> <code>POST /admin/websites/:id/integrations/clarity/validate</code> returns Project ID / token / live-tag checks + <code>isComplete</code>, and persists <code>metadata.validation</code></li>
+        <li><input type="checkbox" disabled> Validation never mutates the integration <code>status</code> column (verified by reading the row before/after a failing validate)</li>
+        <li><input type="checkbox" disabled> <code>GET .../clarity/status</code> returns <code>completeness</code>; "Complete" badge shows only with Project ID + valid token + live tag</li>
+        <li><input type="checkbox" disabled> Derived script tag shows read-only + copyable; pasting a full snippet auto-extracts the Project ID; no tag string is stored</li>
+        <li><input type="checkbox" disabled> Manual: Garrison validate &rarr; "mismatch" (shows legacy ID); Caswell validate &rarr; "tag not found"; a known-good site &rarr; all green + Complete</li>
+        <li><input type="checkbox" checked disabled> No changes in <code>website-builder-rebuild</code></li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
