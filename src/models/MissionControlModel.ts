@@ -28,6 +28,7 @@ export interface MissionControlProjectSummary {
   generated_hostname: string | null;
   custom_domain: string | null;
   updated_at: Date | null;
+  activeIntegrations: Array<{ platform: string; status: string }>;
 }
 
 export interface MissionControlPmsSummary {
@@ -189,6 +190,7 @@ export class MissionControlModel {
   > {
     const rows = await db("website_builder.projects")
       .select(
+        "id",
         "organization_id",
         "status",
         "generated_hostname",
@@ -200,6 +202,7 @@ export class MissionControlModel {
       .orderBy("updated_at", "desc");
 
     const summaries: Record<number, MissionControlProjectSummary> = {};
+    const latestProjectIdByOrg: Record<number, string> = {};
     for (const row of rows) {
       const orgId = Number(row.organization_id);
       if (summaries[orgId]) continue;
@@ -208,8 +211,43 @@ export class MissionControlModel {
         generated_hostname: row.generated_hostname ?? null,
         custom_domain: row.custom_domain ?? null,
         updated_at: row.updated_at ?? null,
+        activeIntegrations: [],
       };
+      latestProjectIdByOrg[orgId] = row.id;
     }
+
+    // Attach active integrations for each org's latest project only, mirroring
+    // the Websites tab query (service.project-manager.ts).
+    const latestProjectIds = Object.values(latestProjectIdByOrg);
+    if (latestProjectIds.length > 0) {
+      const integrationRows = await db("website_builder.website_integrations")
+        .select("project_id", "platform", "status")
+        .whereIn("project_id", latestProjectIds)
+        .where("status", "active");
+
+      const integrationsByProject = new Map<
+        string,
+        Array<{ platform: string; status: string }>
+      >();
+      for (const integration of integrationRows) {
+        const existing = integrationsByProject.get(integration.project_id) ?? [];
+        if (!existing.some((item) => item.platform === integration.platform)) {
+          existing.push({
+            platform: integration.platform,
+            status: integration.status,
+          });
+        }
+        integrationsByProject.set(integration.project_id, existing);
+      }
+
+      for (const [orgId, projectId] of Object.entries(latestProjectIdByOrg)) {
+        const integrations = integrationsByProject.get(projectId);
+        if (integrations) {
+          summaries[Number(orgId)].activeIntegrations = integrations;
+        }
+      }
+    }
+
     return summaries;
   }
 
