@@ -118,6 +118,23 @@ export const QUERY_KEYS = {
   adminActionItemOrgs: ["admin", "action-item-orgs"] as const,
   adminMissionControl: ["admin", "mission-control"] as const,
   adminMissionControlInsight: ["admin", "mission-control", "insight"] as const,
+  adminMissionControlTelemetry: (range: string, includePilot: boolean) =>
+    ["admin", "mission-control", "telemetry", range, includePilot] as const,
+  adminMissionControlTelemetryUsers: (
+    orgId: number | null,
+    range: string,
+    includePilot: boolean,
+  ) =>
+    [
+      "admin",
+      "mission-control",
+      "telemetry",
+      "organizations",
+      orgId,
+      "users",
+      range,
+      includePilot,
+    ] as const,
   adminInsightsSummary: (page: number, month: string) =>
     ["admin", "insights-summary", page, month] as const,
   adminInsightsSummaryAll: ["admin", "insights-summary"] as const,

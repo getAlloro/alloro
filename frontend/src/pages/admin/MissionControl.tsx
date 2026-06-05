@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { AlertCircle, Loader2, SatelliteDish } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { CreateOrganizationModal } from "../../components/Admin/CreateOrganizationModal";
 import { MissionControlHeader } from "../../components/Admin/mission-control/MissionControlHeader";
@@ -9,6 +10,11 @@ import { MissionControlInsightPanel } from "../../components/Admin/mission-contr
 import { MissionControlPaymentWatch } from "../../components/Admin/mission-control/MissionControlPaymentWatch";
 import { MissionControlRevenueTrend } from "../../components/Admin/mission-control/MissionControlRevenueTrend";
 import { MissionControlSummary } from "../../components/Admin/mission-control/MissionControlSummary";
+import {
+  MissionControlViewTabs,
+  type MissionControlView,
+} from "../../components/Admin/mission-control/MissionControlViewTabs";
+import { MissionControlTelemetryTab } from "../../components/Admin/mission-control/telemetry/MissionControlTelemetryTab";
 import { OrganizationMissionCard } from "../../components/Admin/mission-control/OrganizationMissionCard";
 import {
   useAdminMissionControl,
@@ -17,9 +23,12 @@ import {
 import type { MissionControlOrganization } from "../../api/admin-mission-control";
 
 export default function MissionControl() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<MissionControlFilter>("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const activeView: MissionControlView =
+    searchParams.get("tab") === "telemetry" ? "telemetry" : "overview";
   const missionControlQuery = useAdminMissionControl();
   const refreshMutation = useRefreshAdminMissionControl();
   const data = missionControlQuery.data;
@@ -48,7 +57,14 @@ export default function MissionControl() {
     await refreshMutation.mutateAsync();
   };
 
-  if (missionControlQuery.isLoading && !data) {
+  const handleViewChange = (view: MissionControlView) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (view === "telemetry") nextParams.set("tab", "telemetry");
+    else nextParams.delete("tab");
+    setSearchParams(nextParams);
+  };
+
+  if (activeView === "overview" && missionControlQuery.isLoading && !data) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-5 py-4 text-sm font-bold text-alloro-navy shadow-sm">
@@ -59,7 +75,7 @@ export default function MissionControl() {
     );
   }
 
-  if (missionControlQuery.isError || !data) {
+  if (activeView === "overview" && (missionControlQuery.isError || !data)) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center px-6">
         <div className="max-w-md rounded-xl border border-red-200 bg-red-50 p-6 text-center shadow-sm">
@@ -92,70 +108,87 @@ export default function MissionControl() {
           isRefreshing={
             refreshMutation.isPending || missionControlQuery.isFetching
           }
+          subtitle={
+            activeView === "telemetry"
+              ? "First-party product usage across organizations, users, pages, and sessions."
+              : undefined
+          }
+          showOrganizationControls={activeView === "overview"}
           onSearchChange={setSearch}
           onFilterChange={setFilter}
           onRefresh={handleRefresh}
           onCreate={() => setShowCreateModal(true)}
         />
 
-        <MissionControlSummary summary={data.summary} />
+        <MissionControlViewTabs
+          activeView={activeView}
+          onChange={handleViewChange}
+        />
 
-        {data.stripeFreshness === "unavailable" && (
-          <div className="rounded-xl border border-alloro-orange/25 bg-alloro-orange/10 px-4 py-3 text-sm font-semibold text-alloro-navy">
-            Stripe is unavailable. Revenue values are shown in degraded mode until
-            Stripe can be reached.
-          </div>
-        )}
+        {activeView === "telemetry" ? (
+          <MissionControlTelemetryTab />
+        ) : (
+          <>
+            <MissionControlSummary summary={data!.summary} />
 
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <section className="min-w-0">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-base font-black text-alloro-navy">
-                  Client Grid
-                </h2>
-                <p className="mt-1 text-xs font-medium text-gray-500">
-                  {organizations.length} clients shown
-                </p>
+            {data!.stripeFreshness === "unavailable" && (
+              <div className="rounded-xl border border-alloro-orange/25 bg-alloro-orange/10 px-4 py-3 text-sm font-semibold text-alloro-navy">
+                Stripe is unavailable. Revenue values are shown in degraded mode until
+                Stripe can be reached.
               </div>
-            </div>
-
-            {organizations.length === 0 ? (
-              <div className="flex min-h-[320px] items-center justify-center rounded-xl border border-dashed border-gray-300 bg-white">
-                <div className="text-center">
-                  <SatelliteDish className="mx-auto h-8 w-8 text-gray-300" />
-                  <p className="mt-3 text-sm font-bold text-gray-600">
-                    No organizations match this view.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <motion.div
-                initial="hidden"
-                animate="show"
-                variants={{
-                  hidden: {},
-                  show: { transition: { staggerChildren: 0.03 } },
-                }}
-                className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3"
-              >
-                {organizations.map((organization, index) => (
-                  <OrganizationMissionCard
-                    key={organization.id}
-                    organization={organization}
-                    index={index}
-                  />
-                ))}
-              </motion.div>
             )}
-          </section>
 
-          <aside className="space-y-5">
-            <MissionControlRevenueTrend data={data.revenueTrend} />
-            <MissionControlPaymentWatch organizations={activeOrganizations} />
-            <MissionControlInsightPanel data={data} />
-          </aside>
-        </div>
+            <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+              <section className="min-w-0">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-base font-black text-alloro-navy">
+                      Client Grid
+                    </h2>
+                    <p className="mt-1 text-xs font-medium text-gray-500">
+                      {organizations.length} clients shown
+                    </p>
+                  </div>
+                </div>
+
+                {organizations.length === 0 ? (
+                  <div className="flex min-h-[320px] items-center justify-center rounded-xl border border-dashed border-gray-300 bg-white">
+                    <div className="text-center">
+                      <SatelliteDish className="mx-auto h-8 w-8 text-gray-300" />
+                      <p className="mt-3 text-sm font-bold text-gray-600">
+                        No organizations match this view.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <motion.div
+                    initial="hidden"
+                    animate="show"
+                    variants={{
+                      hidden: {},
+                      show: { transition: { staggerChildren: 0.03 } },
+                    }}
+                    className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3"
+                  >
+                    {organizations.map((organization, index) => (
+                      <OrganizationMissionCard
+                        key={organization.id}
+                        organization={organization}
+                        index={index}
+                      />
+                    ))}
+                  </motion.div>
+                )}
+              </section>
+
+              <aside className="space-y-5">
+                <MissionControlRevenueTrend data={data!.revenueTrend} />
+                <MissionControlPaymentWatch organizations={activeOrganizations} />
+                <MissionControlInsightPanel data={data!} />
+              </aside>
+            </div>
+          </>
+        )}
       </div>
 
       <CreateOrganizationModal

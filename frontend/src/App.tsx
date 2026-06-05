@@ -49,6 +49,7 @@ import { SessionExpiredModal } from "./components/SessionExpiredModal";
 import { GlobalSupportAction } from "./components/support/GlobalSupportAction";
 import { SupportQuickActionProvider } from "./contexts/SupportQuickActionContext";
 import LocationCompetitorOnboarding from "./pages/competitor-onboarding/LocationCompetitorOnboarding";
+import { AppTelemetryTracker } from "./components/telemetry/AppTelemetryTracker";
 
 void _SetupProgressWizard;
 
@@ -98,6 +99,7 @@ function App() {
       <BrowserRouter>
         <PilotHandler />
         <AuthProvider>
+          <AppTelemetryTracker />
           <SupportQuickActionProvider>
             <OnboardingWizardProvider>
               <SetupProgressProvider>

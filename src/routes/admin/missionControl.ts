@@ -7,6 +7,20 @@ const router = express.Router();
 
 router.get("/", authenticateToken, superAdminMiddleware, controller.getOverview);
 
+router.get(
+  "/telemetry",
+  authenticateToken,
+  superAdminMiddleware,
+  controller.getTelemetry,
+);
+
+router.get(
+  "/telemetry/organizations/:organizationId/users",
+  authenticateToken,
+  superAdminMiddleware,
+  controller.getTelemetryUsers,
+);
+
 router.post(
   "/insight",
   authenticateToken,

@@ -103,6 +103,85 @@ export type MissionControlInsight = {
   source: "ai" | "deterministic";
 };
 
+export type MissionControlTelemetryRange = "7d" | "30d" | "90d";
+
+export type MissionControlTelemetrySummary = {
+  activeOrganizations: number;
+  activeUsers: number;
+  totalSessions: number;
+  totalPageViews: number;
+  totalActiveMinutes: number;
+  averageActiveMinutesPerUser: number;
+  inactivePaidOrganizations: number;
+};
+
+export type MissionControlTelemetryDailyPoint = {
+  date: string;
+  activeUsers: number;
+  pageViews: number;
+  activeMinutes: number;
+};
+
+export type MissionControlTelemetrySurfaceRow = {
+  surface: string;
+  pageViews: number;
+  activeUsers: number;
+  activeOrganizations: number;
+  activeMinutes: number;
+};
+
+export type MissionControlTelemetryPageRow = {
+  routeTemplate: string;
+  pageLabel: string | null;
+  surface: string | null;
+  pageViews: number;
+  activeUsers: number;
+  activeMinutes: number;
+};
+
+export type MissionControlTelemetryOrganizationRow = {
+  organizationId: number;
+  organizationName: string;
+  domain: string | null;
+  activeUsers: number;
+  sessions: number;
+  pageViews: number;
+  activeMinutes: number;
+  lastActiveAt: string | null;
+  topSurface: string | null;
+};
+
+export type MissionControlTelemetryUserRow = {
+  userId: number;
+  name: string | null;
+  email: string;
+  role: string | null;
+  sessions: number;
+  pageViews: number;
+  activeMinutes: number;
+  lastActiveAt: string | null;
+  topSurface: string | null;
+};
+
+export type MissionControlTelemetryData = {
+  generatedAt: string;
+  range: MissionControlTelemetryRange;
+  includePilot: boolean;
+  summary: MissionControlTelemetrySummary;
+  dailyUsage: MissionControlTelemetryDailyPoint[];
+  surfaceUsage: MissionControlTelemetrySurfaceRow[];
+  pageUsage: MissionControlTelemetryPageRow[];
+  organizationUsage: MissionControlTelemetryOrganizationRow[];
+};
+
+export type MissionControlTelemetryUsersData = {
+  generatedAt: string;
+  range: MissionControlTelemetryRange;
+  includePilot: boolean;
+  organizationId: number;
+  users: MissionControlTelemetryUserRow[];
+};
+
 type ApiEnvelope<T> = {
   success: boolean;
   data: T | null;
@@ -138,6 +217,49 @@ export async function adminGetMissionControlInsight(): Promise<{
   if (!response.success || !response.data) {
     throw new Error(
       response.error?.message || "Failed to generate Mission Control insight",
+    );
+  }
+
+  return response.data;
+}
+
+export async function adminGetMissionControlTelemetry(
+  range: MissionControlTelemetryRange,
+  includePilot = false,
+): Promise<MissionControlTelemetryData> {
+  const query = new URLSearchParams({
+    range,
+    includePilot: String(includePilot),
+  });
+  const response: ApiEnvelope<MissionControlTelemetryData> = await apiGet({
+    path: `/admin/mission-control/telemetry?${query.toString()}`,
+  });
+
+  if (!response.success || !response.data) {
+    throw new Error(
+      response.error?.message || "Failed to load Mission Control telemetry",
+    );
+  }
+
+  return response.data;
+}
+
+export async function adminGetMissionControlTelemetryUsers(
+  organizationId: number,
+  range: MissionControlTelemetryRange,
+  includePilot = false,
+): Promise<MissionControlTelemetryUsersData> {
+  const query = new URLSearchParams({
+    range,
+    includePilot: String(includePilot),
+  });
+  const response: ApiEnvelope<MissionControlTelemetryUsersData> = await apiGet({
+    path: `/admin/mission-control/telemetry/organizations/${organizationId}/users?${query.toString()}`,
+  });
+
+  if (!response.success || !response.data) {
+    throw new Error(
+      response.error?.message || "Failed to load organization telemetry users",
     );
   }
 

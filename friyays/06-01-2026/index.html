@@ -44,6 +44,18 @@
         </div>
       </section>
 
+      <section class="section" aria-labelledby="internal-highlights">
+        <p class="eyebrow">Internal/admin highlights</p>
+        <h2 id="internal-highlights">Usage visibility for Mission Control</h2>
+        <div class="grid">
+          <article class="highlight-card">
+            <h3>Mission Control product telemetry</h3>
+            <p>Mission Control now has a dedicated Telemetry tab for first-party app usage: active organizations, active users, page views, active-time heartbeats, surface adoption, organization rows, and user drilldown.</p>
+            <div class="meta"><span class="tag good">Build verified</span><span class="tag warn">Dev visual QA pending</span><span class="tag">Internal admin</span></div>
+          </article>
+        </div>
+      </section>
+
       <section class="section" aria-labelledby="inventory">
         <p class="eyebrow">Feature inventory</p>
         <h2 id="inventory">All candidates, including uncertain items</h2>
@@ -73,6 +85,13 @@
                 <td>Maybe</td>
                 <td>Sources: changelog 0.0.107, <code>plans/06052026-website-header-phone-cta</code>, local migration up/down smoke test, and TypeScript verification.</td>
               </tr>
+              <tr>
+                <td>Mission Control product telemetry</td>
+                <td>Alloro admins and operators</td>
+                <td><span class="tag warn">Implemented and build verified; dev visual QA pending</span></td>
+                <td>No</td>
+                <td>Sources: changelog 0.0.108, <code>plans/06052026-mission-control-product-telemetry</code>, backend/frontend builds, scoped ESLint, and docs parity check. Local migration is blocked by pre-existing missing email migration files.</td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -93,7 +112,9 @@
           <li><span class="box done">x</span><span>Frontend TypeScript and production build passed locally.</span></li>
           <li><span class="box done">x</span><span>Website header phone CTA migration passed local up/down smoke verification.</span></li>
           <li><span class="box done">x</span><span>Website builder template prompt and preview artifact include the header phone CTA default.</span></li>
+          <li><span class="box done">x</span><span>Mission Control telemetry backend/frontend builds and touched-file ESLint passed locally.</span></li>
           <li><span class="box"></span><span>Dev workflow completes after push to <code>dev/dave</code>.</span></li>
+          <li><span class="box"></span><span>Mission Control Telemetry tab receives authenticated visual QA on dev.</span></li>
           <li><span class="box"></span><span>Production behavior is verified before any live customer announcement.</span></li>
         </ul>
       </section>

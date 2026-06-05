@@ -2,6 +2,34 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.108] - June 2026
+
+### Mission Control Product Telemetry
+
+Adds first-party product telemetry to Mission Control so Alloro can see actual authenticated app usage by organization, user, page, feature surface, session, and active-time heartbeat. This is intentionally not a replay or heatmap system: V1 tracks route/session/activity facts with server-derived identity and strict allowlists so we can answer usage questions without collecting sensitive payloads.
+
+**Key Changes:**
+- New additive `app_usage_events` table captures allowlisted app telemetry events with server-derived `user_id`, `organization_id`, `user_role`, session id, route template, surface, page label, active seconds, pilot-session flag, timestamps, and compact allowlisted properties.
+- New authenticated `POST /api/telemetry/events` endpoint validates batch size, event names, route templates, surfaces, and property keys; heartbeat durations are clamped server-side.
+- App-level route tracker records session start, page views, visible-tab active-time heartbeats, and Mission Control Telemetry tab opens without sending full URLs or sensitive query strings.
+- Mission Control gains an `Overview` / `Telemetry` tab switch; the existing revenue/client grid stays intact and telemetry renders in its own admin surface.
+- Telemetry tab includes summary KPIs, daily usage trend, surface/page adoption, organization usage rows, date-range filters, pilot-session exclusion, and per-organization user drilldown.
+- Docs parity checked against `alloro-docs`; no Mission Control docs exist there, so no docs edit was made.
+- Verified: `npx tsc --noEmit`, backend `npm run build`, frontend `npm run build`, `git diff --check`, and scoped frontend ESLint on touched files passed.
+
+**Known Follow-ups:**
+- Local `npm run db:migrate` is currently blocked by a pre-existing Knex migration-history mismatch for missing `2026060400000*_email_*` migrations in the local DB.
+- Authenticated visual QA for `/admin/mission-control?tab=telemetry` still needs to run on dev after deployment or with an admin browser session.
+
+**Commits:**
+- `src/database/migrations/20260605010000_create_app_usage_events.ts` - additive telemetry event table and dashboard query indexes
+- `src/controllers/app-telemetry/*`, `src/routes/appTelemetry.ts` - authenticated first-party telemetry ingestion and event catalog
+- `src/models/AppUsageEventModel.ts` - insert and aggregate query model for telemetry dashboards
+- `src/controllers/admin-mission-control/feature-services/MissionControlTelemetryService.ts` - Mission Control telemetry aggregate service
+- `frontend/src/hooks/useAppTelemetry.ts`, `frontend/src/api/app-telemetry.ts`, `frontend/src/utils/telemetry/routeTelemetry.ts` - frontend route/session/heartbeat tracker
+- `frontend/src/components/Admin/mission-control/telemetry/*` - Mission Control Telemetry tab UI
+- `plans/06052026-mission-control-product-telemetry/` - completed HTML/CSS spec and migration review artifacts
+
 ## [0.0.107] - June 2026
 
 ### Website Headers - Phone CTA Defaults

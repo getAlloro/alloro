@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mission Control Product Telemetry Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-completed">Completed</span>
+      </div>
+      <h1>Mission Control Product Telemetry</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06052026-mission-control-product-telemetry</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 4</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Alloro needs first-party product telemetry to understand which organizations and users are actually using the dashboard, how often they return, which pages hold attention, and which paid accounts are going quiet. Third-party replay tools can help with qualitative behavior, but Mission Control needs operational facts owned by Alloro.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Create a dedicated app-usage event layer and a new <strong>Telemetry</strong> tab inside <code>/admin/mission-control</code>. V1 tracks authenticated app sessions, route/page views, focused active-time heartbeats, and aggregated usage by organization, user, page, feature surface, and date range.</p>
+      <p>The tab must show overall usage first, then narrow down to per-organization and per-user usage without mixing product telemetry into the existing revenue/client grid view.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/pages/admin/MissionControl.tsx</code> - current Mission Control shell, loading/error states, revenue overview layout, and client grid.</li>
+        <li><code>frontend/src/components/Admin/mission-control/MissionControlHeader.tsx</code> - dark navy header and existing filter/search controls.</li>
+        <li><code>frontend/src/components/Admin/mission-control/MissionControlSummary.tsx</code> - stat-card pattern for top-line KPIs.</li>
+        <li><code>frontend/src/components/Admin/mission-control/MissionControlRevenueTrend.tsx</code> - Recharts pattern for compact trend cards.</li>
+        <li><code>frontend/src/components/ui/DesignSystem.tsx</code> - existing <code>TabBar</code> pattern used by admin pages.</li>
+        <li><code>frontend/src/lib/queryClient.ts</code> - query key factory; new telemetry query keys must be added here.</li>
+        <li><code>frontend/src/api/admin-mission-control.ts</code> - typed Mission Control API module; add telemetry response types and functions here or in a focused adjacent API module if the file grows too large.</li>
+        <li><code>frontend/src/hooks/queries/useAdminMissionControlQueries.ts</code> - existing React Query hooks; add telemetry query hooks here only if it stays focused, otherwise split to <code>useAdminMissionControlTelemetryQueries.ts</code>.</li>
+        <li><code>frontend/src/contexts/AuthContext.tsx</code> and <code>frontend/src/contexts/authContext.ts</code> - current user profile and organization context exposed to the app. Do not trust this for authoritative telemetry identity.</li>
+        <li><code>src/routes/admin/missionControl.ts</code> - super-admin Mission Control route module.</li>
+        <li><code>src/controllers/admin-mission-control/AdminMissionControlController.ts</code> - existing controller response shape for Mission Control.</li>
+        <li><code>src/controllers/admin-mission-control/feature-services/MissionControlService.ts</code> - existing backend aggregate service pattern.</li>
+        <li><code>src/models/MissionControlModel.ts</code> - existing Mission Control aggregate query model. Do not overload it with telemetry-specific raw event logic; create a focused model.</li>
+        <li><code>src/middleware/auth.ts</code> and <code>src/middleware/rbac.ts</code> - JWT identity and organization-role derivation patterns.</li>
+        <li><code>src/models/BehavioralEventModel.ts</code> and <code>src/database/migrations/20260324000002_create_behavioral_events.ts</code> - existing behavioral event system. This is a cautionary analog, not the target table.</li>
+        <li><code>src/routes/leadgenTracking.ts</code> and <code>src/controllers/leadgen-tracking/LeadgenTrackingController.ts</code> - useful analog for event allowlists and beacon-safe ingestion, but public leadgen routing is not the app telemetry architecture.</li>
+      </ul>
+
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Backend flow must remain <code>Routes -> Controllers -> Services -> Models</code>; all Knex queries live in model files.</li>
+        <li>API responses must use <code>{ success, data, error }</code>, matching Mission Control controller responses.</li>
+        <li>Frontend server state must use typed API functions plus React Query hooks and <code>QUERY_KEYS</code>, not raw string keys or component-level fetch calls.</li>
+        <li>UI should reuse the current Mission Control visual language: compact stat cards, white cards on the light admin canvas, navy text, orange/teal accents, tabular numbers, and Recharts for trends.</li>
+      </ul>
+      <p><strong>Reference files:</strong> <code>MissionControlService.ts</code> for aggregate service shape, <code>MissionControlSummary.tsx</code> for KPI cards, <code>MissionControlRevenueTrend.tsx</code> for chart behavior, and <code>LeadgenTrackingController.ts</code> only for strict event-name validation concepts.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Create a dedicated <code>app_usage_events</code> table instead of expanding <code>behavioral_events</code>.</li>
+            <li>Derive <code>user_id</code>, <code>organization_id</code>, and <code>user_role</code> server-side from JWT/RBAC context.</li>
+            <li>Use a strict allowlist for event names, route templates, feature surfaces, and property keys.</li>
+            <li>Record active time only while the browser tab is visible/focused; clamp heartbeat durations server-side.</li>
+            <li>Separate normal user sessions from admin pilot sessions so internal activity does not distort client usage.</li>
+            <li>Support aggregate, per-organization, and per-user drilldown in Mission Control.</li>
+            <li>Keep the Telemetry tab visually consistent with the existing Mission Control page.</li>
+            <li>Index every admin query path used by the telemetry dashboard.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not track keystrokes, hover/mouse movement, raw form values, PMS row contents, patient names, emails in event properties, or full URLs with sensitive query strings.</li>
+            <li>Do not ingest arbitrary frontend-provided event names or arbitrary JSON blobs.</li>
+            <li>Do not build a replay/heatmap tool or a PostHog clone in V1.</li>
+            <li>Do not mix product telemetry cards into the existing revenue overview grid.</li>
+            <li>Do not introduce a new analytics dependency unless explicitly approved later.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Session replay, heatmaps, dead/rage click detection, screen recordings, and external Clarity/PostHog installation.</li>
+        <li>Historical backfill before deployment. V1 starts collecting from deployment forward.</li>
+        <li>Full funnel-builder UI. V1 may show basic route/surface adoption, not arbitrary funnel construction.</li>
+        <li>Detailed workflow event instrumentation across every feature surface. The event contract should support it, but broad action tracking is a follow-up.</li>
+        <li>Client-facing documentation changes unless we choose to document internal admin tooling. A docs parity check is still required at finalization.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="data-contract">
+      <h2>Data Contract</h2>
+      <h3>V1 Event Catalog</h3>
+      <ul>
+        <li><code>app.session_started</code> - first event for a generated browser session id.</li>
+        <li><code>app.page_viewed</code> - route template, feature surface, and page label when a route becomes active.</li>
+        <li><code>app.page_active_heartbeat</code> - active seconds for the current route while the tab is visible and focused.</li>
+        <li><code>mission_control.telemetry_viewed</code> - optional explicit tab view event when the Telemetry tab opens.</li>
+      </ul>
+      <h3>Allowed Route Surfaces</h3>
+      <ul>
+        <li><code>/dashboard</code> -> <code>practice_hub</code></li>
+        <li><code>/pmsStatistics</code> -> <code>referrals_hub</code></li>
+        <li><code>/referralEngine</code> -> <code>referral_engine</code></li>
+        <li><code>/patientJourneyInsights</code> -> <code>patient_journey</code></li>
+        <li><code>/rankings</code> -> <code>local_rankings</code></li>
+        <li><code>/tasks</code> -> <code>tasks</code></li>
+        <li><code>/dfy/website</code> -> <code>website</code></li>
+        <li><code>/settings/*</code> -> <code>settings</code></li>
+        <li><code>/notifications</code> -> <code>notifications</code></li>
+        <li><code>/help</code> -> <code>help</code></li>
+        <li><code>/admin/mission-control</code> -> <code>mission_control</code> with <code>is_admin_surface=true</code></li>
+        <li><code>/dashboard/competitors/:locationId/onboarding</code> -> <code>local_rankings</code></li>
+      </ul>
+      <h3>Storage Shape</h3>
+      <p>The table should store one row per accepted event with server-derived identity and compact event metadata: <code>id</code>, <code>event_name</code>, <code>event_category</code>, <code>source</code>, <code>user_id</code>, <code>organization_id</code>, <code>user_role</code>, <code>session_id</code>, <code>route_template</code>, <code>surface</code>, <code>page_label</code>, <code>active_seconds</code>, <code>is_pilot_session</code>, <code>properties</code>, <code>occurred_at</code>, <code>created_at</code>.</p>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 4 - database migration, cross-cutting frontend tracker, production data growth, privacy implications, and admin dashboard changes.</p>
+      <h3>Risks Identified</h3>
+      <article class="risk-item">
+        <h3>R1: Privacy and sensitive data capture</h3>
+        <p><strong>Risk:</strong> Product telemetry can accidentally collect patient-adjacent data, emails, PMS values, or sensitive URLs if the frontend sends arbitrary payloads.</p>
+        <p><strong>Mitigation:</strong> Server-side event allowlist, property allowlist, no raw URL query strings, no free-form text values, no emails in properties, and server-derived identity only.</p>
+      </article>
+      <article class="risk-item">
+        <h3>R2: Production data volume</h3>
+        <p><strong>Risk:</strong> Heartbeats and page views can grow quickly and slow Mission Control if unindexed or queried naively.</p>
+        <p><strong>Mitigation:</strong> Batch ingestion, heartbeat interval no shorter than 30 seconds, server clamps, indexed queries, date-range filters, aggregate SQL in model methods, and no raw event table rendering in V1.</p>
+      </article>
+      <article class="risk-item">
+        <h3>R3: Misleading duration metrics</h3>
+        <p><strong>Risk:</strong> Browser exit events are unreliable. Exact time spent claims would be false precision.</p>
+        <p><strong>Mitigation:</strong> Use visible/focused heartbeat totals and label UI metrics as active time or estimated active minutes, not exact dwell time.</p>
+      </article>
+      <article class="risk-item">
+        <h3>R4: Admin pilot pollution</h3>
+        <p><strong>Risk:</strong> Super-admin pilot sessions may look like client usage and distort account health.</p>
+        <p><strong>Mitigation:</strong> Send a client-side pilot-mode marker, persist <code>is_pilot_session</code>, and default Mission Control Telemetry aggregates to exclude pilot traffic while making that filter explicit.</p>
+      </article>
+      <article class="risk-item">
+        <h3>R5: Scope creep into product analytics platform</h3>
+        <p><strong>Risk:</strong> Adding funnels, replay, action taxonomy across every page, and arbitrary drilldowns turns this into an analytics product.</p>
+        <p><strong>Mitigation:</strong> V1 stops at route/session/heartbeat usage plus aggregate/org/user drilldown. Workflow event instrumentation is backlog unless the spec is revised.</p>
+      </article>
+      <h3>Production Migration Safety</h3>
+      <p>The migration is additive: it creates a new append-only telemetry table and indexes. It does not rewrite or delete existing production rows. Production risk is storage growth and index creation time, not data mutation. Rollback drops the telemetry table and loses collected telemetry; there is no business-data recovery risk, but there is analytics-data loss.</p>
+      <p><strong>Deployment path:</strong> migration runs on <code>dev/dave</code> first through the dev workflow, then production after merge to <code>main</code>.</p>
+      <h3>Blast Radius</h3>
+      <p>Known consumers touched or affected: authenticated app routes mounted under <code>App.tsx</code>, Mission Control page/components, Mission Control API/query hooks, admin Mission Control route/controller, a new telemetry model/service, and the database migration pipeline. Existing revenue overview payload should remain compatible.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>Do not reuse <code>behavioral_events</code>.</strong> It already carries checkup, referral, engagement-score, and agent-finding concepts. Product telemetry belongs in its own table.</li>
+        <li><strong>Do not build broad click tracking now.</strong> Track intent-bearing route/session/activity facts first, then add explicit workflow events where the product questions justify them.</li>
+        <li><strong>Do not present time spent as exact.</strong> The honest metric is active seconds from visible/focused heartbeats.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Telemetry schema and model</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add the Knex migration for <code>app_usage_events</code> and create <code>AppUsageEventModel</code> with insert-batch and aggregate query methods. Include indexes for <code>organization_id</code>, <code>user_id</code>, <code>event_name</code>, <code>surface</code>, <code>route_template</code>, <code>created_at</code>, and dashboard composite query paths.</dd></div>
+          <div><dt>Files</dt><dd><code>src/database/migrations/20260605010000_create_app_usage_events.ts</code>, <code>src/models/AppUsageEventModel.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>None</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run db:migrate</code> on dev/local target only after confirming DB env; <code>npx tsc --noEmit</code></dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Authenticated event ingestion</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>POST /api/telemetry/events</code> with auth/RBAC middleware, request size limits, event batch cap, strict event/route/property validation, server-derived identity, heartbeat clamping, and standard response shape. Add a focused service for validation and normalization before the model insert.</dd></div>
+          <div><dt>Files</dt><dd><code>src/routes/appTelemetry.ts</code>, <code>src/controllers/app-telemetry/AppTelemetryController.ts</code>, <code>src/controllers/app-telemetry/feature-services/AppTelemetryIngestionService.ts</code>, <code>src/controllers/app-telemetry/feature-utils/appTelemetryCatalog.ts</code>, <code>src/index.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Manual API calls for accepted/rejected events; auth required; invalid event names rejected; <code>npx tsc --noEmit</code></dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Frontend telemetry tracker</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a typed frontend telemetry API, a route mapping catalog, a focused hook/tracker mounted inside the authenticated app tree, session id management, page-view events on route change, and visible/focused heartbeat events every 30 seconds. Exclude sensitive query strings and mark pilot sessions separately.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/api/app-telemetry.ts</code>, <code>frontend/src/hooks/useAppTelemetry.ts</code>, <code>frontend/src/utils/telemetry/routeTelemetry.ts</code>, <code>frontend/src/components/telemetry/AppTelemetryTracker.tsx</code>, <code>frontend/src/App.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>Browser: route changes emit one page event; heartbeat pauses when hidden; no auth errors; no sensitive URL data; <code>cd frontend &amp;&amp; npm run build</code></dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Mission Control telemetry aggregate API</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add admin-only telemetry aggregate endpoints under Mission Control: overview by date range and per-org user drilldown. Return overall KPIs, daily trend, feature/page adoption, organization usage rows, and user usage rows for the selected organization.</dd></div>
+          <div><dt>Files</dt><dd><code>src/routes/admin/missionControl.ts</code>, <code>src/controllers/admin-mission-control/AdminMissionControlController.ts</code>, <code>src/controllers/admin-mission-control/feature-services/MissionControlTelemetryService.ts</code>, <code>src/models/AppUsageEventModel.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>GET /api/admin/mission-control/telemetry?range=30d</code> returns aggregates; super-admin required; non-super-admin blocked.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Mission Control Telemetry tab UI</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add an <code>Overview</code>/<code>Telemetry</code> tab control to Mission Control using query-param state. Build telemetry summary cards, daily trend chart, feature/page adoption list, organization usage table, range selector, and per-org user drilldown drawer/modal. Keep components under size limits by splitting focused telemetry subcomponents.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/admin/MissionControl.tsx</code>, <code>frontend/src/components/Admin/mission-control/MissionControlViewTabs.tsx</code>, <code>frontend/src/components/Admin/mission-control/telemetry/*</code>, <code>frontend/src/api/admin-mission-control.ts</code>, <code>frontend/src/hooks/queries/useAdminMissionControlTelemetryQueries.ts</code>, <code>frontend/src/lib/queryClient.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T4</dd></div>
+          <div><dt>Verify</dt><dd>Manual: <code>/admin/mission-control?tab=telemetry</code> renders matching Mission Control styling; tables and cards handle empty data; range changes refetch; org drilldown opens user rows.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Documentation parity decision and verification</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Check <code>/Users/rustinedave/Desktop/alloro-docs</code> for any internal-admin documentation surface. If none exists, record why no docs change is needed. If we choose to document Mission Control internal tooling, add the docs change in the docs repo as a separate scoped follow-up.</dd></div>
+          <div><dt>Files</dt><dd><code>/Users/rustinedave/Desktop/alloro-docs</code> status/search only unless docs scope is explicitly added.</dd></div>
+          <div><dt>Depends on</dt><dd>T5</dd></div>
+          <div><dt>Verify</dt><dd>Docs parity statement included in execution summary and <code>--done</code> finalization.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="dependency-chain">
+      <h2>Dependency Chain</h2>
+      <ul>
+        <li><strong>Sequential core:</strong> T1 -> T2 -> T3 for event collection.</li>
+        <li><strong>Parallelizable after T1:</strong> T2 ingestion and T4 aggregate read models can proceed in parallel if boundaries are respected.</li>
+        <li><strong>UI after backend contracts:</strong> T5 depends on T4 response types and T3 only for live data generation during manual QA.</li>
+        <li><strong>Finalization:</strong> T6 runs after UI behavior is known.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> Migration creates <code>app_usage_events</code> and indexes without changing existing production data.</li>
+        <li><input type="checkbox" checked disabled> <code>POST /api/telemetry/events</code> accepts only allowlisted authenticated events and derives identity server-side.</li>
+        <li><input type="checkbox" checked disabled> Frontend route tracker records page views and active-time heartbeats without sensitive payloads.</li>
+        <li><input type="checkbox" checked disabled> Mission Control Telemetry tab shows overall aggregate, feature/page usage, per-org table, and per-org user drilldown.</li>
+        <li><input type="checkbox" checked disabled> Pilot/admin activity can be excluded from client usage aggregates.</li>
+        <li><input type="checkbox" checked disabled> Empty/loading/error states render cleanly and match Mission Control visual patterns.</li>
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> has zero errors caused by this work.</li>
+        <li><input type="checkbox" checked disabled> <code>cd frontend &amp;&amp; npm run build</code> passes or only pre-existing issues are documented.</li>
+        <li><input type="checkbox" disabled> Manual: <code>/admin/mission-control?tab=telemetry</code> renders, range selector refetches, org drilldown opens, and non-super-admin access is blocked.</li>
+        <li><input type="checkbox" checked disabled> Docs parity checked against <code>/Users/rustinedave/Desktop/alloro-docs</code>.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="verification-notes">
+      <h2>Verification Notes</h2>
+      <ul>
+        <li><code>npx tsc --noEmit</code>, backend <code>npm run build</code>, frontend <code>npm run build</code>, <code>git diff --check</code>, and scoped frontend ESLint passed for files touched by this work.</li>
+        <li>Full frontend ESLint still fails on pre-existing repo-wide issues. The only new lint issue was fixed, then the touched-file ESLint pass succeeded.</li>
+        <li><code>npm run db:migrate</code> did not apply locally because Knex reports a pre-existing corrupt migration directory: the local database references nine missing <code>2026060400000*_email_*</code> migrations that are not present in this checkout.</li>
+        <li>Browser smoke test reached <code>/admin/mission-control?tab=telemetry</code>, but the in-app browser had no admin token and displayed the admin sign-in gate. Authenticated visual QA remains for dev after deployment or with an admin session.</li>
+        <li>Docs parity was checked in <code>/Users/rustinedave/Desktop/alloro-docs</code>. No Mission Control documentation exists there, and the docs repo already had unrelated Referrals Hub edits, so no docs change was made.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
