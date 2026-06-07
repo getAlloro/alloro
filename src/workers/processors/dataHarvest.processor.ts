@@ -9,6 +9,7 @@ import { ClarityDataModelV2 } from "../../models/website-builder/ClarityDataMode
 import { RybbitDataModel } from "../../models/website-builder/RybbitDataModel";
 import { GscDataModel } from "../../models/website-builder/GscDataModel";
 import { getHarvestAdapter } from "../../services/integrations/harvest-registry";
+import { recordHarvestComplete } from "../workerHealth";
 
 export interface DataHarvestJobData {
   integrationId?: string;
@@ -82,6 +83,7 @@ export async function processDataHarvest(job: Job<DataHarvestJobData>): Promise<
   }
 
   console.log(`${LOG_PREFIX} Daily harvest complete`);
+  recordHarvestComplete();
 }
 
 async function harvestSingle(integrationId: string, date: string): Promise<void> {

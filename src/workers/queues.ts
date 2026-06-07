@@ -12,8 +12,21 @@ export function getRedisConnection(): IORedis {
       host: REDIS_HOST,
       port: REDIS_PORT,
       maxRetriesPerRequest: null,
+      retryStrategy: (times) => Math.min(times * 200, 5000),
       ...(process.env.REDIS_TLS === "true" && { tls: {} }),
     });
+    connection.on("error", (err) =>
+      console.error("[QUEUES][redis] connection error:", err?.message),
+    );
+    connection.on("close", () =>
+      console.warn("[QUEUES][redis] connection closed"),
+    );
+    connection.on("reconnecting", () =>
+      console.warn("[QUEUES][redis] reconnecting..."),
+    );
+    connection.on("end", () =>
+      console.warn("[QUEUES][redis] connection ended"),
+    );
   }
   return connection;
 }

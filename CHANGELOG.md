@@ -2,6 +2,28 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.109] - June 2026
+
+### Worker Stall Watchdog & Redis Connection Hardening
+
+After `minds-worker` silently wedged on 2026-06-07 (pm2 reported `online`, idle CPU, but zero jobs processed for ~42h — so the 5 AM data harvest missed two days with no alert), added an out-of-process watchdog plus Redis-connection resilience. Alert-only, no auto-restart (per decision). Harvest cadence is unchanged — it is already correct for the Clarity API, which only serves a last-1-to-3-day aggregate (no historical/per-day fetch).
+
+**Key Changes:**
+- New `src/workers/workerHealth.ts` — file-based processing heartbeat (chosen over Redis so detection survives a Redis outage). Records `schedulerTickAt` on each scheduler tick and `harvestCompletedAt` on each completed daily harvest; writes never throw into the caller.
+- Heartbeats emitted from `scheduler.processor.ts` (at the top of the tick, before its no-due-schedules early-return) and `dataHarvest.processor.ts` (after "Daily harvest complete").
+- New `src/scripts/worker-watchdog.ts` — runs via system cron, OUTSIDE the worker (pm2 reports "online" while wedged, so an in-process check is useless). Emails dave@getalloro.com via the existing n8n `emailService` webhook when the scheduler tick is stale (>5m) or a daily harvest is missed (>26h). De-duped via a state file: alerts on the healthy→unhealthy transition, then at most once per 6h.
+- Redis hardening: `makeConnection()` (worker.ts) and `getRedisConnection()` (queues.ts) now attach `error`/`close`/`reconnecting`/`end` handlers and a bounded `retryStrategy` (kept `maxRetriesPerRequest: null` for BullMQ). Previously these events were unhandled, so a dropped/hung connection froze the worker with zero log output.
+- Verified: `tsc --noEmit` clean. Deploy (env in `/etc/alloro/app.env` + a 5-min crontab running `dist/scripts/worker-watchdog.js`) and live QA are pending — see `plans/06072026-worker-harvest-watchdog`.
+
+**Commits:**
+- `src/workers/workerHealth.ts` - new file-based heartbeat helper
+- `src/scripts/worker-watchdog.ts` - new out-of-process watchdog (n8n email alert, de-duped)
+- `src/workers/processors/scheduler.processor.ts` - emit tick heartbeat before the early-return
+- `src/workers/processors/dataHarvest.processor.ts` - emit heartbeat on harvest completion
+- `src/workers/worker.ts` - Redis connection error/reconnect handlers + retryStrategy
+- `src/workers/queues.ts` - same Redis hardening on the producer connection
+- `plans/06072026-worker-harvest-watchdog/` - spec
+
 ## [0.0.108] - June 2026
 
 ### Mission Control Product Telemetry
