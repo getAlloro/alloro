@@ -18,7 +18,10 @@ export type CompetitorComparisonModalProps = {
   factorBreakdown?: ReactNode;
 };
 
-const DEFAULT_SORT: ComparisonSortKey = "reviewCount";
+// Default to maps position: the comparison set is already specialty- and
+// maps-curated, so opening in Google Maps rank order is the honest default.
+// Positions are SerpApi-sourced (service.serpapi-maps.ts); unmeasured rows sort last.
+const DEFAULT_SORT: ComparisonSortKey = "mapsPosition";
 
 export function CompetitorComparisonModal({
   open,
