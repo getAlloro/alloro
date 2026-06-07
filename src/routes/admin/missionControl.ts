@@ -5,7 +5,12 @@ import * as controller from "../../controllers/admin-mission-control/AdminMissio
 
 const router = express.Router();
 
-router.get("/", authenticateToken, superAdminMiddleware, controller.getOverview);
+router.get(
+  "/",
+  authenticateToken,
+  superAdminMiddleware,
+  controller.getOverview,
+);
 
 router.get(
   "/telemetry",
@@ -19,6 +24,20 @@ router.get(
   authenticateToken,
   superAdminMiddleware,
   controller.getTelemetryUsers,
+);
+
+router.get(
+  "/telemetry/organizations/:organizationId/detail",
+  authenticateToken,
+  superAdminMiddleware,
+  controller.getTelemetryOrganizationDetail,
+);
+
+router.get(
+  "/telemetry/organizations/:organizationId/users/:userId/detail",
+  authenticateToken,
+  superAdminMiddleware,
+  controller.getTelemetryUserDetail,
 );
 
 router.post(

@@ -60,7 +60,11 @@ export default function MissionControl() {
   const handleViewChange = (view: MissionControlView) => {
     const nextParams = new URLSearchParams(searchParams);
     if (view === "telemetry") nextParams.set("tab", "telemetry");
-    else nextParams.delete("tab");
+    else {
+      nextParams.delete("tab");
+      nextParams.delete("org");
+      nextParams.delete("user");
+    }
     setSearchParams(nextParams);
   };
 
@@ -133,8 +137,8 @@ export default function MissionControl() {
 
             {data!.stripeFreshness === "unavailable" && (
               <div className="rounded-xl border border-alloro-orange/25 bg-alloro-orange/10 px-4 py-3 text-sm font-semibold text-alloro-navy">
-                Stripe is unavailable. Revenue values are shown in degraded mode until
-                Stripe can be reached.
+                Stripe is unavailable. Revenue values are shown in degraded mode
+                until Stripe can be reached.
               </div>
             )}
 
@@ -183,7 +187,9 @@ export default function MissionControl() {
 
               <aside className="space-y-5">
                 <MissionControlRevenueTrend data={data!.revenueTrend} />
-                <MissionControlPaymentWatch organizations={activeOrganizations} />
+                <MissionControlPaymentWatch
+                  organizations={activeOrganizations}
+                />
                 <MissionControlInsightPanel data={data!} />
               </aside>
             </div>

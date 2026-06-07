@@ -4,6 +4,7 @@ import {
   type AppTelemetryEvent,
   recordAppTelemetryEvents,
 } from "../api/app-telemetry";
+import { getCommonHeaders } from "../api";
 import { useAuth } from "./useAuth";
 import { getRouteTelemetryDescriptor } from "../utils/telemetry/routeTelemetry";
 
@@ -27,6 +28,10 @@ export function useAppTelemetry(): void {
 
   useEffect(() => {
     if (isLoadingUserProperties) return;
+    if (!hasTelemetryAuth()) {
+      currentRoute.current = null;
+      return;
+    }
     const descriptor = getRouteTelemetryDescriptor(location.pathname);
     if (!descriptor) return;
 
@@ -60,6 +65,7 @@ export function useAppTelemetry(): void {
 
   useEffect(() => {
     const flushHeartbeat = () => {
+      if (!hasTelemetryAuth()) return;
       if (document.visibilityState !== "visible") return;
       const route = currentRoute.current;
       if (!route) return;
@@ -139,4 +145,8 @@ function isPilotSession(): boolean {
     window.sessionStorage.getItem("pilot_mode") === "true" ||
     Boolean(window.sessionStorage.getItem("token"))
   );
+}
+
+function hasTelemetryAuth(): boolean {
+  return Boolean(getCommonHeaders().Authorization);
 }

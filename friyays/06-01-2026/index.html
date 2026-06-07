@@ -1,21 +1,30 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Feature Friyay - 06-01-2026</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="./styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <main class="page-shell">
       <section class="hero" aria-labelledby="page-title">
         <div>
-          <div class="brand-mark"><span class="brand-dot"></span> Alloro Feature Friyay</div>
+          <div class="brand-mark">
+            <span class="brand-dot"></span> Alloro Feature Friyay
+          </div>
           <h1 id="page-title">This week's Alloro feature roundup</h1>
-          <p>Coverage window: Monday, June 1, 2026 through Sunday, June 7, 2026. This folder tracks verified local build evidence plus deployment follow-ups for the week's Alloro polish and website improvements.</p>
+          <p>
+            Coverage window: Monday, June 1, 2026 through Sunday, June 7, 2026.
+            This folder tracks verified local build evidence plus deployment
+            follow-ups for the week's Alloro polish and website improvements.
+          </p>
         </div>
         <aside class="hero-panel" aria-label="Release state summary">
           <p class="eyebrow">06-01-2026 edition</p>
@@ -33,13 +42,29 @@
         <div class="grid">
           <article class="highlight-card">
             <h3>Cleaner serif typography across Alloro</h3>
-            <p>Alloro's active frontend serif/display surfaces now use Spectral instead of mixing Fraunces and Literata, keeping dashboard metrics, editorial text, rankings gauge numbers, and chat reading surfaces more consistent.</p>
-            <div class="meta"><span class="tag good">Build verified</span><span class="tag">UI polish</span></div>
+            <p>
+              Alloro's active frontend serif/display surfaces now use Spectral
+              instead of mixing Fraunces and Literata, keeping dashboard
+              metrics, editorial text, rankings gauge numbers, and chat reading
+              surfaces more consistent.
+            </p>
+            <div class="meta">
+              <span class="tag good">Build verified</span
+              ><span class="tag">UI polish</span>
+            </div>
           </article>
           <article class="highlight-card">
             <h3>Phone CTAs prepared for Alloro-built websites</h3>
-            <p>Website headers now have a standard place for the practice phone number and a simple "Call us today" helper line, making the primary contact action easier to find once the migration is deployed.</p>
-            <div class="meta"><span class="tag good">Locally verified</span><span class="tag warn">Deployment verification pending</span></div>
+            <p>
+              Website headers now have a standard place for the practice phone
+              number and a simple "Call us today" helper line, making the
+              primary contact action easier to find once the migration is
+              deployed.
+            </p>
+            <div class="meta">
+              <span class="tag good">Locally verified</span
+              ><span class="tag warn">Deployment verification pending</span>
+            </div>
           </article>
         </div>
       </section>
@@ -49,9 +74,18 @@
         <h2 id="internal-highlights">Usage visibility for Mission Control</h2>
         <div class="grid">
           <article class="highlight-card">
-            <h3>Mission Control product telemetry</h3>
-            <p>Mission Control now has a dedicated Telemetry tab for first-party app usage: active organizations, active users, page views, active-time heartbeats, surface adoption, organization rows, and user drilldown.</p>
-            <div class="meta"><span class="tag good">Build verified</span><span class="tag warn">Dev visual QA pending</span><span class="tag">Internal admin</span></div>
+            <h3>Mission Control product telemetry refinements</h3>
+            <p>
+              Mission Control's Telemetry tab now defaults to client usage, adds
+              explicit admin/pilot filters, links out to Clarity for replay and
+              heatmap review, and supports organization and user drilldowns with
+              breadcrumb navigation.
+            </p>
+            <div class="meta">
+              <span class="tag good">Build verified</span
+              ><span class="tag good">Playwright smoke verified</span
+              ><span class="tag">Internal admin</span>
+            </div>
           </article>
         </div>
       </section>
@@ -74,23 +108,46 @@
               <tr>
                 <td>Spectral serif typography standardization</td>
                 <td>Client dashboard users, admins, docs readers</td>
-                <td><span class="tag good">Implemented and build verified</span></td>
+                <td>
+                  <span class="tag good">Implemented and build verified</span>
+                </td>
                 <td>Maybe</td>
-                <td>Sources: changelog 0.0.96, <code>plans/06032026-replace-serif-with-spectral</code>, frontend build, and Alloro Docs font-token parity.</td>
+                <td>
+                  Sources: changelog 0.0.96,
+                  <code>plans/06032026-replace-serif-with-spectral</code>,
+                  frontend build, and Alloro Docs font-token parity.
+                </td>
               </tr>
               <tr>
                 <td>Website header phone CTAs</td>
                 <td>Website visitors, practice teams, Alloro operators</td>
-                <td><span class="tag warn">Implemented locally; migration deployment pending</span></td>
+                <td>
+                  <span class="tag warn"
+                    >Implemented locally; migration deployment pending</span
+                  >
+                </td>
                 <td>Maybe</td>
-                <td>Sources: changelog 0.0.107, <code>plans/06052026-website-header-phone-cta</code>, local migration up/down smoke test, and TypeScript verification.</td>
+                <td>
+                  Sources: changelog 0.0.107,
+                  <code>plans/06052026-website-header-phone-cta</code>, local
+                  migration up/down smoke test, and TypeScript verification.
+                </td>
               </tr>
               <tr>
-                <td>Mission Control product telemetry</td>
+                <td>Mission Control product telemetry and drilldowns</td>
                 <td>Alloro admins and operators</td>
-                <td><span class="tag warn">Implemented and build verified; dev visual QA pending</span></td>
+                <td>
+                  <span class="tag good"
+                    >Implemented, build verified, and smoke verified</span
+                  >
+                </td>
                 <td>No</td>
-                <td>Sources: changelog 0.0.108, <code>plans/06052026-mission-control-product-telemetry</code>, backend/frontend builds, scoped ESLint, and docs parity check. Local migration is blocked by pre-existing missing email migration files.</td>
+                <td>
+                  Sources: changelog 0.0.108 and 0.0.110,
+                  <code>plans/06052026-mission-control-product-telemetry</code>,
+                  backend/frontend builds, scoped ESLint, Playwright
+                  telemetry/breadcrumb smoke checks, and docs parity check.
+                </td>
               </tr>
             </tbody>
           </table>
@@ -100,22 +157,81 @@
       <section class="section" aria-labelledby="email-draft">
         <p class="eyebrow">Email draft</p>
         <h2 id="email-draft">Customer-ready shape, still draft</h2>
-        <p class="section-subtitle">Open <a href="./email.html">email.html</a> for the standalone email version. Keep this as draft until deployment verification is complete.</p>
+        <p class="section-subtitle">
+          Open <a href="./email.html">email.html</a> for the standalone email
+          version. Keep this as draft until deployment verification is complete.
+        </p>
       </section>
 
       <section class="section" aria-labelledby="checklist">
         <p class="eyebrow">Ship checklist</p>
         <h2 id="checklist">What is done and what still needs verification</h2>
         <ul class="checklist">
-          <li><span class="box done">x</span><span>Spectral is loaded by the active frontend app.</span></li>
-          <li><span class="box done">x</span><span>Alloro Docs display font token matches the app typography change.</span></li>
-          <li><span class="box done">x</span><span>Frontend TypeScript and production build passed locally.</span></li>
-          <li><span class="box done">x</span><span>Website header phone CTA migration passed local up/down smoke verification.</span></li>
-          <li><span class="box done">x</span><span>Website builder template prompt and preview artifact include the header phone CTA default.</span></li>
-          <li><span class="box done">x</span><span>Mission Control telemetry backend/frontend builds and touched-file ESLint passed locally.</span></li>
-          <li><span class="box"></span><span>Dev workflow completes after push to <code>dev/dave</code>.</span></li>
-          <li><span class="box"></span><span>Mission Control Telemetry tab receives authenticated visual QA on dev.</span></li>
-          <li><span class="box"></span><span>Production behavior is verified before any live customer announcement.</span></li>
+          <li>
+            <span class="box done">x</span
+            ><span>Spectral is loaded by the active frontend app.</span>
+          </li>
+          <li>
+            <span class="box done">x</span
+            ><span
+              >Alloro Docs display font token matches the app typography
+              change.</span
+            >
+          </li>
+          <li>
+            <span class="box done">x</span
+            ><span
+              >Frontend TypeScript and production build passed locally.</span
+            >
+          </li>
+          <li>
+            <span class="box done">x</span
+            ><span
+              >Website header phone CTA migration passed local up/down smoke
+              verification.</span
+            >
+          </li>
+          <li>
+            <span class="box done">x</span
+            ><span
+              >Website builder template prompt and preview artifact include the
+              header phone CTA default.</span
+            >
+          </li>
+          <li>
+            <span class="box done">x</span
+            ><span
+              >Mission Control telemetry backend/frontend builds and
+              touched-file ESLint passed locally.</span
+            >
+          </li>
+          <li>
+            <span class="box done">x</span
+            ><span
+              >Mission Control telemetry drilldowns and breadcrumbs passed
+              Playwright smoke verification.</span
+            >
+          </li>
+          <li>
+            <span class="box"></span
+            ><span
+              >Dev workflow completes after push to <code>dev/dave</code>.</span
+            >
+          </li>
+          <li>
+            <span class="box"></span
+            ><span
+              >Mission Control Telemetry tab receives authenticated visual QA on
+              dev.</span
+            >
+          </li>
+          <li>
+            <span class="box"></span
+            ><span
+              >Production behavior is verified before any live customer
+              announcement.</span
+            >
+          </li>
         </ul>
       </section>
     </main>

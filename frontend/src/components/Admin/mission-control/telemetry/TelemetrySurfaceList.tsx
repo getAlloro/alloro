@@ -35,9 +35,14 @@ export function TelemetrySurfaceList({
         {surfaces.slice(0, 8).map((surface) => (
           <div key={surface.surface}>
             <div className="flex items-center justify-between gap-3 text-xs">
-              <span className="font-black text-alloro-navy">
-                {formatSurface(surface.surface)}
-              </span>
+              <div className="min-w-0">
+                <span className="font-black text-alloro-navy">
+                  {formatSurface(surface.surface)}
+                </span>
+                <p className="mt-0.5 truncate text-[11px] font-semibold text-gray-400">
+                  {formatAccessContext(surface)}
+                </p>
+              </div>
               <span className="font-bold tabular-nums text-gray-500">
                 {surface.pageViews} views · {surface.activeMinutes}m
               </span>
@@ -59,12 +64,17 @@ export function TelemetrySurfaceList({
         <div className="mt-3 space-y-2">
           {pages.slice(0, 6).map((page) => (
             <div
-              key={page.routeTemplate}
-              className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2"
+              key={buildPageKey(page)}
+              className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2.5"
             >
-              <span className="truncate text-xs font-bold text-alloro-navy">
-                {page.pageLabel || page.routeTemplate}
-              </span>
+              <div className="min-w-0">
+                <span className="block truncate text-xs font-bold text-alloro-navy">
+                  {page.pageLabel || page.routeTemplate}
+                </span>
+                <span className="mt-0.5 block truncate text-[11px] font-semibold text-gray-400">
+                  {formatAccessContext(page)}
+                </span>
+              </div>
               <span className="shrink-0 text-xs font-black tabular-nums text-gray-500">
                 {page.pageViews} views
               </span>
@@ -81,4 +91,21 @@ function formatSurface(value: string): string {
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function formatAccessContext(
+  row: MissionControlTelemetryPageRow | MissionControlTelemetrySurfaceRow,
+): string {
+  const user = row.lastUserName || row.lastUserEmail || null;
+  const org = row.lastOrganizationName || null;
+  if (user && org) return `Last: ${user} · ${org}`;
+  if (user) return `Last: ${user} · no org attached`;
+  if (org) return `Last org: ${org}`;
+  return `${row.activeUsers} users · ${row.activeOrganizations} orgs`;
+}
+
+function buildPageKey(page: MissionControlTelemetryPageRow): string {
+  return [page.routeTemplate, page.pageLabel ?? "", page.surface ?? ""].join(
+    "::",
+  );
 }

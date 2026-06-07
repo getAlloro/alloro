@@ -1,28 +1,32 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
-import type {
-  MissionControlTelemetryOrganizationRow,
-  MissionControlTelemetryRange,
-} from "../../../../api/admin-mission-control";
+import { useSearchParams } from "react-router-dom";
+import type { MissionControlTelemetryRange } from "../../../../api/admin-mission-control";
 import {
   useAdminMissionControlTelemetry,
+  useAdminMissionControlTelemetryOrganizationDetail,
+  useAdminMissionControlTelemetryUserDetail,
   useAdminMissionControlTelemetryUsers,
 } from "../../../../hooks/queries/useAdminMissionControlTelemetryQueries";
-import { TelemetryOrganizationTable } from "./TelemetryOrganizationTable";
-import { TelemetrySummaryCards } from "./TelemetrySummaryCards";
-import { TelemetrySurfaceList } from "./TelemetrySurfaceList";
-import { TelemetryTrendChart } from "./TelemetryTrendChart";
-import { TelemetryUserDrilldown } from "./TelemetryUserDrilldown";
-
-const RANGES: MissionControlTelemetryRange[] = ["7d", "30d", "90d"];
+import { TelemetryContentSwitch } from "./TelemetryContentSwitch";
+import { TelemetryErrorState } from "./TelemetryErrorState";
+import { TelemetryLoadingState } from "./TelemetryLoadingState";
+import { TelemetryToolbar } from "./TelemetryToolbar";
 
 export function MissionControlTelemetryTab() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [range, setRange] = useState<MissionControlTelemetryRange>("30d");
   const [includePilot, setIncludePilot] = useState(false);
+  const [includeAdmin, setIncludeAdmin] = useState(false);
+  const detailOrganizationId = parseDetailId(searchParams.get("org"));
+  const detailUserId = parseDetailId(searchParams.get("user"));
   const [selectedOrganizationId, setSelectedOrganizationId] = useState<
     number | null
   >(null);
-  const telemetryQuery = useAdminMissionControlTelemetry(range, includePilot);
+  const telemetryQuery = useAdminMissionControlTelemetry(
+    range,
+    includePilot,
+    includeAdmin,
+  );
   const data = telemetryQuery.data;
   const organizations = useMemo(
     () => data?.organizationUsage ?? [],
@@ -30,6 +34,13 @@ export function MissionControlTelemetryTab() {
   );
 
   useEffect(() => {
+    if (detailOrganizationId) {
+      setSelectedOrganizationId(detailOrganizationId);
+    }
+  }, [detailOrganizationId]);
+
+  useEffect(() => {
+    if (detailOrganizationId) return;
     if (organizations.length === 0) {
       setSelectedOrganizationId(null);
       return;
@@ -40,121 +51,144 @@ export function MissionControlTelemetryTab() {
     if (!stillPresent) {
       setSelectedOrganizationId(organizations[0].organizationId);
     }
-  }, [organizations, selectedOrganizationId]);
+  }, [detailOrganizationId, organizations, selectedOrganizationId]);
 
-  const usersQuery = useAdminMissionControlTelemetryUsers(
-    selectedOrganizationId,
+  const detailQuery = useAdminMissionControlTelemetryOrganizationDetail(
+    detailOrganizationId,
     range,
     includePilot,
+    includeAdmin,
+  );
+
+  const userDetailQuery = useAdminMissionControlTelemetryUserDetail(
+    detailOrganizationId,
+    detailUserId,
+    range,
+    includePilot,
+    includeAdmin,
+  );
+
+  const usersQuery = useAdminMissionControlTelemetryUsers(
+    detailOrganizationId ? null : selectedOrganizationId,
+    range,
+    includePilot,
+    includeAdmin,
   );
   const selectedOrganization =
     organizations.find(
       (organization) => organization.organizationId === selectedOrganizationId,
     ) ?? null;
 
-  if (telemetryQuery.isLoading && !data) {
-    return (
-      <div className="flex min-h-[420px] items-center justify-center rounded-xl border border-gray-200 bg-white">
-        <div className="flex items-center gap-3 text-sm font-bold text-alloro-navy">
-          <Loader2 className="h-4 w-4 animate-spin text-alloro-orange" />
-          Loading telemetry
-        </div>
-      </div>
-    );
+  const handleOpenOrganizationDetail = (organizationId: number) => {
+    setSelectedOrganizationId(organizationId);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("tab", "telemetry");
+    nextParams.set("org", String(organizationId));
+    setSearchParams(nextParams);
+  };
+
+  const handleOpenUserDetail = (userId: number) => {
+    const organizationId = detailOrganizationId ?? selectedOrganizationId;
+    if (!organizationId) return;
+    setSelectedOrganizationId(organizationId);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("tab", "telemetry");
+    nextParams.set("org", String(organizationId));
+    nextParams.set("user", String(userId));
+    setSearchParams(nextParams);
+  };
+
+  const handleBackToOrganizations = () => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("org");
+    nextParams.delete("user");
+    setSearchParams(nextParams);
+  };
+
+  const handleBackToOrganizationDetail = () => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("user");
+    setSearchParams(nextParams);
+  };
+
+  const handleRefreshTelemetry = () => {
+    void telemetryQuery.refetch();
+    if (detailUserId) {
+      void userDetailQuery.refetch();
+      return;
+    }
+    if (detailOrganizationId) {
+      void detailQuery.refetch();
+      return;
+    }
+    void usersQuery.refetch();
+  };
+
+  if (!detailOrganizationId && telemetryQuery.isLoading && !data) {
+    return <TelemetryLoadingState label="Loading telemetry" />;
   }
 
-  if (telemetryQuery.isError || !data) {
+  if (!detailOrganizationId && (telemetryQuery.isError || !data)) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
-        <AlertCircle className="mx-auto h-8 w-8 text-red-600" />
-        <h2 className="mt-3 text-lg font-black text-red-900">
-          Telemetry did not load
-        </h2>
-        <p className="mt-2 text-sm font-medium text-red-700">
-          {telemetryQuery.error?.message ||
-            "The telemetry aggregate endpoint returned an error."}
-        </p>
-      </div>
+      <TelemetryErrorState
+        title="Telemetry did not load"
+        message={
+          telemetryQuery.error?.message ||
+          "The telemetry aggregate endpoint returned an error."
+        }
+      />
     );
   }
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h2 className="text-base font-black text-alloro-navy">
-            Product Telemetry
-          </h2>
-          <p className="mt-1 text-xs font-medium text-gray-500">
-            First-party app usage by organization, user, page, and surface.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {RANGES.map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => setRange(option)}
-              className={`rounded-lg px-3 py-2 text-[11px] font-black uppercase tracking-wider transition-all ${
-                range === option
-                  ? "bg-alloro-navy text-white"
-                  : "bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-alloro-navy"
-              }`}
-            >
-              {option}
-            </button>
-          ))}
-          <label className="inline-flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-gray-500">
-            <input
-              type="checkbox"
-              checked={includePilot}
-              onChange={(event) => setIncludePilot(event.target.checked)}
-              className="h-3.5 w-3.5 rounded border-gray-300 text-alloro-teal focus:ring-alloro-teal"
-            />
-            Pilot
-          </label>
-          <button
-            type="button"
-            onClick={() => {
-              void telemetryQuery.refetch();
-              void usersQuery.refetch();
-            }}
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-gray-500 transition-all hover:border-alloro-teal/40 hover:text-alloro-navy"
-          >
-            <RefreshCw
-              className={`h-3.5 w-3.5 ${
-                telemetryQuery.isFetching ? "animate-spin" : ""
-              }`}
-            />
-            Refresh
-          </button>
-        </div>
-      </div>
+      <TelemetryToolbar
+        range={range}
+        includeAdmin={includeAdmin}
+        includePilot={includePilot}
+        isFetching={
+          telemetryQuery.isFetching ||
+          detailQuery.isFetching ||
+          userDetailQuery.isFetching
+        }
+        onRangeChange={setRange}
+        onIncludeAdminChange={setIncludeAdmin}
+        onIncludePilotChange={setIncludePilot}
+        onRefresh={handleRefreshTelemetry}
+      />
 
-      <TelemetrySummaryCards summary={data.summary} />
-
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <TelemetryTrendChart data={data.dailyUsage} />
-        <TelemetrySurfaceList
-          surfaces={data.surfaceUsage}
-          pages={data.pageUsage}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <TelemetryOrganizationTable
-          organizations={organizations}
-          selectedOrganizationId={selectedOrganizationId}
-          onSelectOrganization={setSelectedOrganizationId}
-        />
-        <TelemetryUserDrilldown
-          organization={
-            selectedOrganization as MissionControlTelemetryOrganizationRow | null
-          }
-          users={usersQuery.data?.users ?? []}
-          isLoading={usersQuery.isLoading || usersQuery.isFetching}
-        />
-      </div>
+      <TelemetryContentSwitch
+        detailOrganizationId={detailOrganizationId}
+        detailUserId={detailUserId}
+        aggregateData={data}
+        organizations={organizations}
+        selectedOrganization={selectedOrganization}
+        selectedOrganizationId={selectedOrganizationId}
+        users={usersQuery.data?.users ?? []}
+        isUsersLoading={usersQuery.isLoading || usersQuery.isFetching}
+        organizationDetailData={detailQuery.data}
+        isOrganizationDetailError={detailQuery.isError}
+        organizationDetailErrorMessage={detailQuery.error?.message}
+        isOrganizationDetailLoading={
+          detailQuery.isLoading || detailQuery.isFetching
+        }
+        userDetailData={userDetailQuery.data}
+        isUserDetailError={userDetailQuery.isError}
+        userDetailErrorMessage={userDetailQuery.error?.message}
+        isUserDetailLoading={
+          userDetailQuery.isLoading || userDetailQuery.isFetching
+        }
+        onBackToOrganizations={handleBackToOrganizations}
+        onBackToOrganization={handleBackToOrganizationDetail}
+        onSelectOrganization={handleOpenOrganizationDetail}
+        onSelectUser={handleOpenUserDetail}
+      />
     </div>
   );
+}
+
+function parseDetailId(value: string | null): number | null {
+  if (!value) return null;
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
 }

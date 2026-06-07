@@ -7,13 +7,35 @@ import {
   AppUsageSurfaceRow,
   AppUsageUserRow,
 } from "../../../models/AppUsageEventModel";
+import {
+  AppUsageOrganizationMovementModel,
+  AppUsageOrganizationMovementRow,
+} from "../../../models/AppUsageOrganizationMovementModel";
+import {
+  AppUsageOrganizationSummary,
+  AppUsageOrganizationTelemetryModel,
+} from "../../../models/AppUsageOrganizationTelemetryModel";
+import {
+  AppUsageUserTelemetryModel,
+  AppUsageUserTelemetryRow,
+} from "../../../models/AppUsageUserTelemetryModel";
+import {
+  buildRangeParams,
+  fillDailyUsage,
+  parseBoolean,
+  parseOrganizationId,
+  parseRange,
+  parseUserId,
+  type MissionControlTelemetryRange,
+} from "./MissionControlTelemetryRangeUtils";
 
-export type MissionControlTelemetryRange = "7d" | "30d" | "90d";
+export type { MissionControlTelemetryRange } from "./MissionControlTelemetryRangeUtils";
 
 export interface MissionControlTelemetryData {
   generatedAt: string;
   range: MissionControlTelemetryRange;
   includePilot: boolean;
+  includeAdmin: boolean;
   summary: AppUsageSummary;
   dailyUsage: AppUsageDailyPoint[];
   surfaceUsage: AppUsageSurfaceRow[];
@@ -25,17 +47,47 @@ export interface MissionControlTelemetryUsersData {
   generatedAt: string;
   range: MissionControlTelemetryRange;
   includePilot: boolean;
+  includeAdmin: boolean;
   organizationId: number;
   users: AppUsageUserRow[];
+}
+
+export interface MissionControlTelemetryOrganizationDetailData {
+  generatedAt: string;
+  range: MissionControlTelemetryRange;
+  includePilot: boolean;
+  includeAdmin: boolean;
+  organization: AppUsageOrganizationRow;
+  summary: AppUsageOrganizationSummary;
+  dailyUsage: AppUsageDailyPoint[];
+  surfaceUsage: AppUsageSurfaceRow[];
+  pageUsage: AppUsagePageRow[];
+  users: AppUsageUserRow[];
+  recentMovements: AppUsageOrganizationMovementRow[];
+}
+
+export interface MissionControlTelemetryUserDetailData {
+  generatedAt: string;
+  range: MissionControlTelemetryRange;
+  includePilot: boolean;
+  includeAdmin: boolean;
+  organization: AppUsageOrganizationRow;
+  user: AppUsageUserTelemetryRow;
+  dailyUsage: AppUsageDailyPoint[];
+  surfaceUsage: AppUsageSurfaceRow[];
+  pageUsage: AppUsagePageRow[];
+  recentMovements: AppUsageOrganizationMovementRow[];
 }
 
 export async function getMissionControlTelemetryData(input: {
   range?: unknown;
   includePilot?: unknown;
+  includeAdmin?: unknown;
 }): Promise<MissionControlTelemetryData> {
   const range = parseRange(input.range);
   const includePilot = parseBoolean(input.includePilot);
-  const params = buildRangeParams(range, includePilot);
+  const includeAdmin = parseBoolean(input.includeAdmin);
+  const params = buildRangeParams(range, includePilot, includeAdmin);
   const [summary, dailyUsage, surfaceUsage, pageUsage, organizationUsage] =
     await Promise.all([
       AppUsageEventModel.getSummary(params),
@@ -49,6 +101,7 @@ export async function getMissionControlTelemetryData(input: {
     generatedAt: new Date().toISOString(),
     range,
     includePilot,
+    includeAdmin,
     summary,
     dailyUsage: fillDailyUsage(dailyUsage, params.startDate, params.endDate),
     surfaceUsage,
@@ -57,18 +110,85 @@ export async function getMissionControlTelemetryData(input: {
   };
 }
 
+export async function getMissionControlTelemetryOrganizationDetail(input: {
+  organizationId: unknown;
+  range?: unknown;
+  includePilot?: unknown;
+  includeAdmin?: unknown;
+}): Promise<MissionControlTelemetryOrganizationDetailData> {
+  const organizationId = parseOrganizationId(input.organizationId);
+  const range = parseRange(input.range);
+  const includePilot = parseBoolean(input.includePilot);
+  const includeAdmin = parseBoolean(input.includeAdmin);
+  const params = buildRangeParams(range, includePilot, includeAdmin);
+  const organization =
+    await AppUsageOrganizationTelemetryModel.getOrganization(organizationId);
+  if (!organization) throw new Error("Organization not found");
+
+  const [summary, dailyUsage, surfaceUsage, pageUsage, users, recentMovements] =
+    await Promise.all([
+      AppUsageOrganizationTelemetryModel.getSummary(organizationId, params),
+      AppUsageOrganizationTelemetryModel.getDailyUsage(organizationId, params),
+      AppUsageOrganizationTelemetryModel.getSurfaceUsage(
+        organizationId,
+        params,
+      ),
+      AppUsageOrganizationTelemetryModel.getPageUsage(organizationId, params),
+      AppUsageOrganizationTelemetryModel.getUserUsage(organizationId, params),
+      AppUsageOrganizationMovementModel.getRecentMovements(
+        organizationId,
+        params,
+      ),
+    ]);
+
+  return {
+    generatedAt: new Date().toISOString(),
+    range,
+    includePilot,
+    includeAdmin,
+    organization: {
+      ...organization,
+      activeUsers: summary.activeUsers,
+      sessions: summary.totalSessions,
+      pageViews: summary.totalPageViews,
+      activeMinutes: summary.totalActiveMinutes,
+      lastActiveAt: summary.lastActiveAt,
+      topSurface: summary.topSurface,
+    },
+    summary,
+    dailyUsage: fillDailyUsage(dailyUsage, params.startDate, params.endDate),
+    surfaceUsage: surfaceUsage.map((row) => ({
+      ...row,
+      lastOrganizationId: organization.organizationId,
+      lastOrganizationName: organization.organizationName,
+      lastUserId: null,
+      lastUserName: null,
+      lastUserEmail: null,
+    })),
+    pageUsage: pageUsage.map((row) => ({
+      ...row,
+      lastOrganizationId: organization.organizationId,
+      lastOrganizationName: organization.organizationName,
+      lastUserId: null,
+      lastUserName: null,
+      lastUserEmail: null,
+    })),
+    users,
+    recentMovements,
+  };
+}
+
 export async function getMissionControlTelemetryUsers(input: {
   organizationId: unknown;
   range?: unknown;
   includePilot?: unknown;
+  includeAdmin?: unknown;
 }): Promise<MissionControlTelemetryUsersData> {
-  const organizationId = Number(input.organizationId);
-  if (!Number.isInteger(organizationId) || organizationId <= 0) {
-    throw new Error("Invalid organization id");
-  }
+  const organizationId = parseOrganizationId(input.organizationId);
   const range = parseRange(input.range);
   const includePilot = parseBoolean(input.includePilot);
-  const params = buildRangeParams(range, includePilot);
+  const includeAdmin = parseBoolean(input.includeAdmin);
+  const params = buildRangeParams(range, includePilot, includeAdmin);
   const users = await AppUsageEventModel.getUserUsageForOrganization(
     organizationId,
     params,
@@ -78,52 +198,79 @@ export async function getMissionControlTelemetryUsers(input: {
     generatedAt: new Date().toISOString(),
     range,
     includePilot,
+    includeAdmin,
     organizationId,
     users,
   };
 }
 
-function buildRangeParams(range: MissionControlTelemetryRange, includePilot: boolean) {
-  const endDate = new Date();
-  const startDate = new Date(endDate);
-  startDate.setDate(endDate.getDate() - rangeToDays(range) + 1);
-  startDate.setHours(0, 0, 0, 0);
-  return { startDate, endDate, includePilot };
-}
+export async function getMissionControlTelemetryUserDetail(input: {
+  organizationId: unknown;
+  userId: unknown;
+  range?: unknown;
+  includePilot?: unknown;
+  includeAdmin?: unknown;
+}): Promise<MissionControlTelemetryUserDetailData> {
+  const organizationId = parseOrganizationId(input.organizationId);
+  const userId = parseUserId(input.userId);
+  const range = parseRange(input.range);
+  const includePilot = parseBoolean(input.includePilot);
+  const includeAdmin = parseBoolean(input.includeAdmin);
+  const params = buildRangeParams(range, includePilot, includeAdmin);
+  const organization =
+    await AppUsageOrganizationTelemetryModel.getOrganization(organizationId);
+  if (!organization) throw new Error("Organization not found");
 
-function parseRange(value: unknown): MissionControlTelemetryRange {
-  return value === "7d" || value === "90d" ? value : "30d";
-}
+  const [user, dailyUsage, surfaceUsage, pageUsage, recentMovements] =
+    await Promise.all([
+      AppUsageUserTelemetryModel.getUser(organizationId, userId, params),
+      AppUsageUserTelemetryModel.getDailyUsage(organizationId, userId, params),
+      AppUsageUserTelemetryModel.getSurfaceUsage(
+        organizationId,
+        userId,
+        params,
+      ),
+      AppUsageUserTelemetryModel.getPageUsage(organizationId, userId, params),
+      AppUsageOrganizationMovementModel.getRecentMovements(
+        organizationId,
+        params,
+        userId,
+      ),
+    ]);
+  if (!user) throw new Error("User telemetry not found");
 
-function parseBoolean(value: unknown): boolean {
-  return value === true || value === "true";
-}
-
-function rangeToDays(range: MissionControlTelemetryRange): number {
-  if (range === "7d") return 7;
-  if (range === "90d") return 90;
-  return 30;
-}
-
-function fillDailyUsage(
-  rows: AppUsageDailyPoint[],
-  startDate: Date,
-  endDate: Date,
-): AppUsageDailyPoint[] {
-  const byDate = new Map(rows.map((row) => [row.date, row]));
-  const days: AppUsageDailyPoint[] = [];
-  const cursor = new Date(startDate);
-  while (cursor <= endDate) {
-    const date = cursor.toISOString().slice(0, 10);
-    days.push(
-      byDate.get(date) ?? {
-        date,
-        activeUsers: 0,
-        pageViews: 0,
-        activeMinutes: 0,
-      },
-    );
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return days;
+  return {
+    generatedAt: new Date().toISOString(),
+    range,
+    includePilot,
+    includeAdmin,
+    organization: {
+      ...organization,
+      activeUsers: 1,
+      sessions: user.sessions,
+      pageViews: user.pageViews,
+      activeMinutes: user.activeMinutes,
+      lastActiveAt: user.lastActiveAt,
+      topSurface: user.topSurface,
+    },
+    user,
+    dailyUsage: fillDailyUsage(dailyUsage, params.startDate, params.endDate),
+    surfaceUsage: surfaceUsage.map((row) => ({
+      ...row,
+      lastOrganizationId: organization.organizationId,
+      lastOrganizationName: organization.organizationName,
+      lastUserId: user.userId,
+      lastUserName: user.name,
+      lastUserEmail: user.email,
+    })),
+    pageUsage: pageUsage.map((row) => ({
+      ...row,
+      lastOrganizationId: organization.organizationId,
+      lastOrganizationName: organization.organizationName,
+      lastUserId: user.userId,
+      lastUserName: user.name,
+      lastUserEmail: user.email,
+    })),
+    recentMovements,
+  };
 }

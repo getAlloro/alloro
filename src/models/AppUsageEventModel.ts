@@ -26,6 +26,7 @@ export interface AppUsageRangeParams {
   startDate: Date;
   endDate: Date;
   includePilot: boolean;
+  includeAdmin: boolean;
 }
 
 export interface AppUsageSummary {
@@ -51,6 +52,11 @@ export interface AppUsageSurfaceRow {
   activeUsers: number;
   activeOrganizations: number;
   activeMinutes: number;
+  lastOrganizationId: number | null;
+  lastOrganizationName: string | null;
+  lastUserId: number | null;
+  lastUserName: string | null;
+  lastUserEmail: string | null;
 }
 
 export interface AppUsagePageRow {
@@ -59,7 +65,13 @@ export interface AppUsagePageRow {
   surface: string | null;
   pageViews: number;
   activeUsers: number;
+  activeOrganizations: number;
   activeMinutes: number;
+  lastOrganizationId: number | null;
+  lastOrganizationName: string | null;
+  lastUserId: number | null;
+  lastUserName: string | null;
+  lastUserEmail: string | null;
 }
 
 export interface AppUsageOrganizationRow {
@@ -155,18 +167,21 @@ export class AppUsageEventModel {
     params: AppUsageRangeParams,
   ): Promise<AppUsageSurfaceRow[]> {
     const rows = (await this.base(params)
+      .leftJoin("users as u", `${TABLE}.user_id`, "u.id")
+      .leftJoin("organizations as o", `${TABLE}.organization_id`, "o.id")
       .whereNotNull("surface")
-      .select("surface")
-      .countDistinct("user_id as active_users")
-      .countDistinct("organization_id as active_organizations")
+      .select(`${TABLE}.surface`)
+      .countDistinct(`${TABLE}.user_id as active_users`)
+      .countDistinct(`${TABLE}.organization_id as active_organizations`)
       .select(
         db.raw(
           "COUNT(*) FILTER (WHERE event_name = ?)::int as page_views",
           [PAGE_VIEW_EVENT],
         ),
       )
-      .sum("active_seconds as active_seconds")
-      .groupBy("surface")
+      .select(latestActorSelects())
+      .sum(`${TABLE}.active_seconds as active_seconds`)
+      .groupBy(`${TABLE}.surface`)
       .orderBy("page_views", "desc")) as QueryRow[];
 
     return rows.map((row) => ({
@@ -175,6 +190,7 @@ export class AppUsageEventModel {
       activeUsers: Number(row.active_users ?? 0),
       activeOrganizations: Number(row.active_organizations ?? 0),
       activeMinutes: roundMinutes(Number(row.active_seconds ?? 0)),
+      ...mapLatestActor(row),
     }));
   }
 
@@ -182,23 +198,29 @@ export class AppUsageEventModel {
     params: AppUsageRangeParams,
   ): Promise<AppUsagePageRow[]> {
     const rows = (await this.base(params)
-      .where("event_name", PAGE_VIEW_EVENT)
-      .whereNotNull("route_template")
-      .select("route_template", "page_label", "surface")
-      .count("id as page_views")
-      .countDistinct("user_id as active_users")
-      .groupBy("route_template", "page_label", "surface")
+      .leftJoin("users as u", `${TABLE}.user_id`, "u.id")
+      .leftJoin("organizations as o", `${TABLE}.organization_id`, "o.id")
+      .where(`${TABLE}.event_name`, PAGE_VIEW_EVENT)
+      .whereNotNull(`${TABLE}.route_template`)
+      .select(`${TABLE}.route_template`, `${TABLE}.page_label`, `${TABLE}.surface`)
+      .count(`${TABLE}.id as page_views`)
+      .countDistinct(`${TABLE}.user_id as active_users`)
+      .countDistinct(`${TABLE}.organization_id as active_organizations`)
+      .select(latestActorSelects())
+      .groupBy(`${TABLE}.route_template`, `${TABLE}.page_label`, `${TABLE}.surface`)
       .orderBy("page_views", "desc")
       .limit(12)) as QueryRow[];
 
-    const activeMinutesByRoute = await this.getActiveMinutesByRoute(params);
+    const activeMinutesByPage = await this.getActiveMinutesByPage(params);
     return rows.map((row) => ({
       routeTemplate: row.route_template,
       pageLabel: row.page_label,
       surface: row.surface,
       pageViews: Number(row.page_views ?? 0),
       activeUsers: Number(row.active_users ?? 0),
-      activeMinutes: activeMinutesByRoute.get(row.route_template) ?? 0,
+      activeOrganizations: Number(row.active_organizations ?? 0),
+      activeMinutes: activeMinutesByPage.get(buildPageUsageKey(row)) ?? 0,
+      ...mapLatestActor(row),
     }));
   }
 
@@ -271,6 +293,17 @@ export class AppUsageEventModel {
       .where(`${TABLE}.created_at`, ">=", params.startDate)
       .where(`${TABLE}.created_at`, "<=", params.endDate);
     if (!params.includePilot) query.where(`${TABLE}.is_pilot_session`, false);
+    if (!params.includeAdmin) {
+      query
+        .where((builder) => {
+          builder
+            .whereNull(`${TABLE}.surface`)
+            .orWhere(`${TABLE}.surface`, "<>", "mission_control");
+        })
+        .whereRaw(
+          `COALESCE((${TABLE}.properties->>'is_admin_surface')::boolean, false) = false`,
+        );
+    }
     return query;
   }
 
@@ -293,15 +326,15 @@ export class AppUsageEventModel {
       .first();
   }
 
-  private static async getActiveMinutesByRoute(params: AppUsageRangeParams) {
+  private static async getActiveMinutesByPage(params: AppUsageRangeParams) {
     const rows = (await this.base(params)
       .whereNotNull("route_template")
-      .select("route_template")
+      .select("route_template", "page_label", "surface")
       .sum("active_seconds as active_seconds")
-      .groupBy("route_template")) as QueryRow[];
+      .groupBy("route_template", "page_label", "surface")) as QueryRow[];
     return new Map(
       rows.map((row) => [
-        row.route_template,
+        buildPageUsageKey(row),
         roundMinutes(Number(row.active_seconds ?? 0)),
       ]),
     );
@@ -343,6 +376,47 @@ function pickTopSurface(rows: QueryRow[], key: "organization_id" | "user_id") {
     if (!top.has(id)) top.set(id, row.surface);
   }
   return top;
+}
+
+function latestActorSelects() {
+  const orderedByCreatedAt = `ORDER BY ${TABLE}.created_at DESC`;
+  return [
+    db.raw(
+      `(ARRAY_AGG(o.id ${orderedByCreatedAt}) FILTER (WHERE o.id IS NOT NULL))[1]::int as last_organization_id`,
+    ),
+    db.raw(
+      `(ARRAY_AGG(o.name ${orderedByCreatedAt}) FILTER (WHERE o.name IS NOT NULL))[1] as last_organization_name`,
+    ),
+    db.raw(
+      `(ARRAY_AGG(u.id ${orderedByCreatedAt}) FILTER (WHERE u.id IS NOT NULL))[1]::int as last_user_id`,
+    ),
+    db.raw(
+      `(ARRAY_AGG(u.name ${orderedByCreatedAt}) FILTER (WHERE u.name IS NOT NULL))[1] as last_user_name`,
+    ),
+    db.raw(
+      `(ARRAY_AGG(u.email ${orderedByCreatedAt}) FILTER (WHERE u.email IS NOT NULL))[1] as last_user_email`,
+    ),
+  ];
+}
+
+function mapLatestActor(row: QueryRow) {
+  return {
+    lastOrganizationId: row.last_organization_id
+      ? Number(row.last_organization_id)
+      : null,
+    lastOrganizationName: row.last_organization_name ?? null,
+    lastUserId: row.last_user_id ? Number(row.last_user_id) : null,
+    lastUserName: row.last_user_name ?? null,
+    lastUserEmail: row.last_user_email ?? null,
+  };
+}
+
+function buildPageUsageKey(row: QueryRow): string {
+  return [
+    row.route_template ?? "",
+    row.page_label ?? "",
+    row.surface ?? "",
+  ].join("::");
 }
 
 function roundMinutes(seconds: number): number {

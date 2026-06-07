@@ -12,7 +12,7 @@ export function TelemetrySummaryCards({ summary }: TelemetrySummaryCardsProps) {
       <MetricCard
         label="Active Orgs"
         value={summary.activeOrganizations}
-        hint={`${summary.inactivePaidOrganizations} paid orgs quiet`}
+        hint="Tracked client organizations"
         icon={<Building2 className="h-4.5 w-4.5" />}
         tone="teal"
       />

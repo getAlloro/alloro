@@ -23,7 +23,7 @@ export function TelemetryOrganizationTable({
             Organization Usage
           </h2>
           <p className="mt-1 text-xs font-medium text-gray-500">
-            Select a row for user-level detail.
+            Open a row for organization-level detail.
           </p>
         </div>
       </div>
@@ -47,12 +47,18 @@ export function TelemetryOrganizationTable({
               return (
                 <tr
                   key={organization.organizationId}
+                  tabIndex={0}
                   onClick={() =>
                     onSelectOrganization(organization.organizationId)
                   }
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    onSelectOrganization(organization.organizationId);
+                  }}
                   className={`cursor-pointer transition-colors ${
                     selected ? "bg-alloro-teal/10" : "hover:bg-gray-50"
-                  }`}
+                  } focus:outline-none focus:ring-2 focus:ring-inset focus:ring-alloro-teal/40`}
                 >
                   <td className="px-4 py-3">
                     <p className="font-black text-alloro-navy">

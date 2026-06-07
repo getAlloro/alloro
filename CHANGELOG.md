@@ -2,6 +2,33 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.110] - June 2026
+
+### Mission Control Telemetry Refinements
+
+Refines the Mission Control Telemetry rollout so the default view reflects client usage, admin/pilot activity is explicitly filterable, Clarity is linked for qualitative replay review, and telemetry drilldowns are navigable by organization and user.
+
+**Key Changes:**
+
+- Telemetry defaults to client usage, with animated Admin and Pilot toggles for explicitly including internal or pilot activity.
+- Summary/page/surface rows now avoid duplicate rendered items and include latest organization/user attribution where available.
+- The frontend tracker avoids unauthenticated telemetry attempts on sign-in-gated routes.
+- Added the Clarity project link for external replays and heatmaps while keeping Alloro's first-party telemetry dashboard focused on operational usage facts.
+- Organization rows open a detail view with org-scoped cards, trends, surfaces/pages, user breakdown, and recent movement timeline.
+- User rows open a user detail view with user-scoped KPIs, trends, pages, and movement timeline.
+- Detail headers now use clickable breadcrumbs: `Overview > Organization > User`.
+- Fixed daily trend date rendering so local June 7 activity appears on June 7 instead of shifting through UTC.
+- Docs parity checked against `alloro-docs`; no Mission Control docs exist there, and existing docs changes are unrelated Referrals Hub edits.
+- Verified: `npx tsc --noEmit`, backend `npm run build`, frontend `npm run build`, `git diff --check`, focused frontend ESLint, and Playwright telemetry/breadcrumb smoke checks passed.
+
+**Commits:**
+
+- `frontend/src/components/Admin/mission-control/telemetry/*` - refined telemetry tab, filters, org/user drilldowns, breadcrumbs, loading/error states, Clarity link, and trend/surface/page display
+- `frontend/src/api/admin-mission-control.ts`, `frontend/src/hooks/queries/useAdminMissionControlTelemetryQueries.ts`, `frontend/src/lib/queryClient.ts` - telemetry response types, query hooks, and cache keys for aggregate/org/user detail data
+- `frontend/src/components/telemetry/AppTelemetryTracker.tsx`, `frontend/src/hooks/useAppTelemetry.ts`, `frontend/src/hooks/useClarityMonitoring.ts`, `frontend/src/utils/telemetry/clarityMonitoring.ts` - authenticated telemetry hardening and Clarity client-app tagging
+- `src/controllers/admin-mission-control/*`, `src/models/AppUsage*`, `src/routes/admin/missionControl.ts` - admin telemetry aggregate, organization detail, user detail, and movement query support
+- `plans/06052026-mission-control-product-telemetry/` - updated execution spec and verification notes
+
 ## [0.0.109] - June 2026
 
 ### Worker Stall Watchdog & Redis Connection Hardening
@@ -9,6 +36,7 @@ All notable changes to Alloro App are documented here.
 After `minds-worker` silently wedged on 2026-06-07 (pm2 reported `online`, idle CPU, but zero jobs processed for ~42h — so the 5 AM data harvest missed two days with no alert), added an out-of-process watchdog plus Redis-connection resilience. Alert-only, no auto-restart (per decision). Harvest cadence is unchanged — it is already correct for the Clarity API, which only serves a last-1-to-3-day aggregate (no historical/per-day fetch).
 
 **Key Changes:**
+
 - New `src/workers/workerHealth.ts` — file-based processing heartbeat (chosen over Redis so detection survives a Redis outage). Records `schedulerTickAt` on each scheduler tick and `harvestCompletedAt` on each completed daily harvest; writes never throw into the caller.
 - Heartbeats emitted from `scheduler.processor.ts` (at the top of the tick, before its no-due-schedules early-return) and `dataHarvest.processor.ts` (after "Daily harvest complete").
 - New `src/scripts/worker-watchdog.ts` — runs via system cron, OUTSIDE the worker (pm2 reports "online" while wedged, so an in-process check is useless). Emails dave@getalloro.com via the existing n8n `emailService` webhook when the scheduler tick is stale (>5m) or a daily harvest is missed (>26h). De-duped via a state file: alerts on the healthy→unhealthy transition, then at most once per 6h.
@@ -16,6 +44,7 @@ After `minds-worker` silently wedged on 2026-06-07 (pm2 reported `online`, idle 
 - Verified: `tsc --noEmit` clean. Deploy (env in `/etc/alloro/app.env` + a 5-min crontab running `dist/scripts/worker-watchdog.js`) and live QA are pending — see `plans/06072026-worker-harvest-watchdog`.
 
 **Commits:**
+
 - `src/workers/workerHealth.ts` - new file-based heartbeat helper
 - `src/scripts/worker-watchdog.ts` - new out-of-process watchdog (n8n email alert, de-duped)
 - `src/workers/processors/scheduler.processor.ts` - emit tick heartbeat before the early-return
@@ -31,6 +60,7 @@ After `minds-worker` silently wedged on 2026-06-07 (pm2 reported `online`, idle 
 Adds first-party product telemetry to Mission Control so Alloro can see actual authenticated app usage by organization, user, page, feature surface, session, and active-time heartbeat. This is intentionally not a replay or heatmap system: V1 tracks route/session/activity facts with server-derived identity and strict allowlists so we can answer usage questions without collecting sensitive payloads.
 
 **Key Changes:**
+
 - New additive `app_usage_events` table captures allowlisted app telemetry events with server-derived `user_id`, `organization_id`, `user_role`, session id, route template, surface, page label, active seconds, pilot-session flag, timestamps, and compact allowlisted properties.
 - New authenticated `POST /api/telemetry/events` endpoint validates batch size, event names, route templates, surfaces, and property keys; heartbeat durations are clamped server-side.
 - App-level route tracker records session start, page views, visible-tab active-time heartbeats, and Mission Control Telemetry tab opens without sending full URLs or sensitive query strings.
@@ -40,10 +70,12 @@ Adds first-party product telemetry to Mission Control so Alloro can see actual a
 - Verified: `npx tsc --noEmit`, backend `npm run build`, frontend `npm run build`, `git diff --check`, and scoped frontend ESLint on touched files passed.
 
 **Known Follow-ups:**
+
 - Local `npm run db:migrate` is currently blocked by a pre-existing Knex migration-history mismatch for missing `2026060400000*_email_*` migrations in the local DB.
 - Authenticated visual QA for `/admin/mission-control?tab=telemetry` still needs to run on dev after deployment or with an admin browser session.
 
 **Commits:**
+
 - `src/database/migrations/20260605010000_create_app_usage_events.ts` - additive telemetry event table and dashboard query indexes
 - `src/controllers/app-telemetry/*`, `src/routes/appTelemetry.ts` - authenticated first-party telemetry ingestion and event catalog
 - `src/models/AppUsageEventModel.ts` - insert and aggregate query model for telemetry dashboards
@@ -59,6 +91,7 @@ Adds first-party product telemetry to Mission Control so Alloro can see actual a
 Adds a standard phone CTA to Alloro-built website headers so published website visitors can quickly call the practice from the top navigation. The template now expects a formatted phone number with a `tel:` link and defaults the helper line to `Call us today`, including the previous TriCity-style Spanish helper slot.
 
 **Key Changes:**
+
 - Migration backfills header phone CTAs for the confirmed target sites: Artful Orthodontics, One Endodontics, Garrison Orthodontics, TriCity Endodontics, and Surf City Endodontics.
 - Phone values are sourced from each project's `project_identity.business.phone`, with a primary-location fallback when needed.
 - Published website templates get the same header phone block so future generated websites inherit the behavior by default.
@@ -67,6 +100,7 @@ Adds a standard phone CTA to Alloro-built website headers so published website v
 - Verified: `npx tsc --noEmit` clean; local migration up/down smoke test passed; `git diff --check` clean.
 
 **Commits:**
+
 - `src/database/migrations/20260605000000_add_website_header_phone_ctas.ts` - reversible JSON backfill for target project headers and published templates
 - `src/agents/websiteAgents/builder/LayoutGenerator.md` - builder instruction for header phone CTA defaults
 - `plans/04212026-no-ticket-dental-seo-template-visual-refresh/preview/template.header.html` - preview header phone CTA block
@@ -79,6 +113,7 @@ Adds a standard phone CTA to Alloro-built website headers so published website v
 Adds a **Validate installation** action and a completeness gate to the Clarity integration page. The token + Project ID fields only cover the inbound Data Export (fetch) direction; there was no way to confirm the outbound tracking tag is actually live on the published site. Validation now checks three things server-side and marks the integration **Complete** only when all pass: the Project ID is valid, the stored API token still authenticates, and the live published page serves the Clarity tag for that Project ID (flagging a mismatched/legacy tag). The tracking script is **derived** from the Project ID (shown read-only/copyable), never stored, and pasting a full snippet auto-extracts the Project ID. No renderer changes — `website-builder-rebuild` already injects Clarity from `website_integrations`.
 
 **Key Changes:**
+
 - Backend: new `validateInstallation` in `service.clarity-integration.ts` — validates the Project ID format, re-checks the decrypted token against the Clarity API (non-throwing: 401/403 → invalid, 429 → valid, else unconfirmed), and fetches the project's own published URL to detect every Clarity Project ID on the page (`present` / `mismatch` / `absent` / `error`). Persists a snapshot to `metadata.validation` + `last_validated_at` + `last_error`.
 - Guardrail: validation **never mutates the integration `status` column** — the renderer injects only `status='active'` rows, so flipping to `broken` on a failed check would silently stop live tracking. Documented in code.
 - `getStatus` now returns a `completeness` summary (`hasProjectId`, `hasToken`, `lastValidation`, `isComplete`) computed from stored data only; the live probe runs solely on the explicit Validate action, never on load.
@@ -88,6 +123,7 @@ Adds a **Validate installation** action and a completeness gate to the Clarity i
 - Verified: backend + frontend `tsc --noEmit` clean; eslint clean on all changed frontend files. Manual QA against live data (Garrison → mismatch, Caswell → absent, a good site → all green) still pending.
 
 **Commits:**
+
 - `src/controllers/admin-websites/feature-services/service.clarity-integration.ts` - validateInstallation + token re-check + live-tag probe; completeness in getStatus; never mutates status
 - `src/controllers/admin-websites/WebsiteIntegrationsController.ts` - validateClarityInstallation handler
 - `src/routes/admin/websites.ts` - POST /clarity/validate route
@@ -104,12 +140,14 @@ Adds a **Validate installation** action and a completeness gate to the Clarity i
 Follow-up refactor to 0.0.104. The four brand SVGs (HubSpot, Rybbit, Clarity, Search Console) were still defined a second time inside `IntegrationProviderList` (the larger sidebar variants), so 0.0.104's dedup was only partial. Extracted the raw SVGs into a dedicated shared module; every consumer now renders from one definition and passes its own size via `className`. Pure refactor — no behavior or visual change.
 
 **Key Changes:**
+
 - New `frontend/src/components/Admin/integrations/integrationLogos.tsx` — the four brand SVGs defined exactly once as named components (`HubSpotLogo`/`RybbitLogo`/`ClarityLogo`/`GoogleLogo`), each accepting `className` so the caller owns sizing.
 - `ActiveIntegrationLogos.tsx` (compact badge row) and `IntegrationProviderList.tsx` (provider sidebar) drop their inline SVG copies and import the shared components — ~64 lines of duplication removed. Sizes preserved verbatim: badge row `h-3.5`/`h-4`, sidebar `w-4.5`/`w-5`/`w-4`.
 - All existing exports (`ActiveIntegrationLogos`, `IntegrationPlatform`, `ActiveIntegration`) and the three external consumers (`WebsitesList`, `OrganizationMissionCard`, `admin-mission-control`) are unchanged.
 - Verified: `npx tsc -b frontend` clean; eslint clean on all three touched files; rendered output identical by construction (verbatim geometry + size classes). `IntegrationPlatform` remains separately duplicated in `api/integrations.ts` — left untouched as a distinct concern.
 
 **Commits:**
+
 - `frontend/src/components/Admin/integrations/integrationLogos.tsx` - new shared raw-SVG logo module (caller-sized)
 - `frontend/src/components/Admin/integrations/ActiveIntegrationLogos.tsx` - consume shared logos at compact sizes
 - `frontend/src/components/Admin/integrations/IntegrationProviderList.tsx` - consume shared logos at larger sizes; remove duplicate defs
@@ -121,6 +159,7 @@ Follow-up refactor to 0.0.104. The four brand SVGs (HubSpot, Rybbit, Clarity, Se
 Mission Control org cards now show each practice's active analytics/integration logos (HubSpot, Rybbit, Clarity, Search Console) inline to the right of the green Website pill, mirroring the Websites tab. The four SVG logos plus the badge-row component were extracted into a single shared `ActiveIntegrationLogos` module so the Websites tab and the Mission Control card render from one source instead of duplicated copies.
 
 **Key Changes:**
+
 - New shared `frontend/src/components/Admin/integrations/ActiveIntegrationLogos.tsx` (logos, platform order/labels, and the compact badge row). `WebsitesList` imports it and its local duplicate was removed (−79 lines).
 - Backend: `MissionControlModel.getLatestWebsiteSummaries` joins `website_builder.website_integrations` for each org's latest project (`status='active'`, deduped — mirrors the Websites tab query) and surfaces it as `activeIntegrations` on each Mission Control org. No schema change (table already existed).
 - The card renders the logos inside the existing stop-propagation row; the row shows when a website pill OR active integrations exist, and logos stay display-only (no card navigation).
@@ -128,6 +167,7 @@ Mission Control org cards now show each practice's active analytics/integration 
 - Verified against live: `/admin/mission-control` returns `activeIntegrations` for all orgs (Garrison = Rybbit + Search Console); browser-verified render (9 cards, icons inline, empty org shows none, no error boundary); backend + frontend `tsc` clean; eslint clean.
 
 **Commits:**
+
 - `src/models/MissionControlModel.ts` - join active integrations for each org's latest project
 - `src/controllers/admin-mission-control/feature-services/MissionControlService.ts` - expose `activeIntegrations` on the org payload
 - `frontend/src/components/Admin/integrations/ActiveIntegrationLogos.tsx` - new shared logo/badge component (null-safe)
@@ -142,10 +182,12 @@ Mission Control org cards now show each practice's active analytics/integration 
 Cleanup tail of the 0.0.101 PMS Updated-Data Alert work. The `SetupProgressBanner` focus-dashboard component was superseded by the shared `DashboardAlertStack` "setup" alert variant and had no remaining importers. Removed the dead file; no behavioral or UI change.
 
 **Key Changes:**
+
 - Deleted `frontend/src/components/dashboard/focus/SetupProgressBanner.tsx` (zero importers; replaced by the setup variant in `frontend/src/utils/dashboardAlerts.ts`).
 - Verified: exact-name `grep` shows no references, frontend `npx tsc --noEmit` clean, `npm run build` passes.
 
 **Commits:**
+
 - `frontend/src/components/dashboard/focus/SetupProgressBanner.tsx` - removed unused component
 
 ## [0.0.102] - June 2026
@@ -155,12 +197,14 @@ Cleanup tail of the 0.0.101 PMS Updated-Data Alert work. The `SetupProgressBanne
 Mission Control used to hide "sandbox" orgs by excluding any whose name matched a hardcoded list (`test`, Hamilton Wise, Alloro Team) inside `MissionControlModel`, so a rename silently changed visibility and the orgs were unreachable from the admin view. Sandbox status now lives on a real `organizations.is_sandbox` column: test orgs flow through the API tagged with `isTest`, stay out of every default view and all revenue/summary/count aggregates, and are reachable through a new **Test** filter pill. The unused **Risk** (`payment-risk`) pill was removed; `riskFlags` data is unchanged and still powers the org-card chips, the No Method pill, and the Payment Attention panel.
 
 **Key Changes:**
+
 - New `organizations.is_sandbox` boolean (idempotent, `hasColumn`-guarded migration; backfilled for the three existing test orgs — Hamilton Wise #36, Test #41, Alloro Team #45). The hardcoded name list now exists only in the one-time migration backfill.
 - Backend no longer excludes sandbox orgs from the Mission Control payload; each org carries `isTest`, and test orgs are excluded from the headline count, summary, revenue trend, and movement signals (headline count stays at 9).
 - Frontend adds a **Test** filter pill that reveals only test orgs and hides them from every other view; removed the **Risk** pill (data retained).
 - Verified against live: API returns `isTest` on orgs 36/41/45; backend + frontend `tsc` clean; eslint clean.
 
 **Commits:**
+
 - `src/database/migrations/20260604000005_add_is_sandbox_to_organizations.ts` - adds `is_sandbox` + one-time name-based backfill
 - `src/models/MissionControlModel.ts` - select `is_sandbox`, return all orgs, removed `isSandboxOrganization`
 - `src/controllers/admin-mission-control/feature-services/MissionControlService.ts` - expose `isTest`; exclude test orgs from aggregates
@@ -170,6 +214,7 @@ Mission Control used to hide "sandbox" orgs by excluding any whose name matched 
 - `plans/06042026-mission-control-test-pill/*` - execution spec
 
 **Follow-ups (outside this commit):**
+
 - The frontend served on `:3000` (built bundle) needs a rebuild to show the Test pill; the change is live on the `:5174` vite dev server. The backend (`isTest`) is already live.
 - Migration `20260604000005` was applied to live surgically (column added directly), not yet recorded in `knex_migrations`; the next `npm run db:migrate` records it (idempotent) and will also apply the other currently-pending migrations (Rybbit `20260603000000`, Email Manager `…004000`/`…004004`/seed).
 
@@ -180,6 +225,7 @@ Mission Control used to hide "sandbox" orgs by excluding any whose name matched 
 Editing or deleting PMS data in the Referrals Hub File Manager used to silently kick off a multi-minute monthly-agent rerun, flipping the dashboard into a processing state unexpectedly. Edits and deletes are now cheap and reversible: they record the change and surface a prioritized "Updated data detected" alert, and the rerun is an explicit "Get updated insights" action. Uploads (new month or overwrite) still run automatically. The same alert renders on both the main dashboard and the Referrals Hub through one shared, cascaded alert component, and the File Manager now responds optimistically instead of waiting on a full surface refetch.
 
 **Key Changes:**
+
 - Edit and delete no longer auto-trigger the monthly agent; they record an event and mark insights stale. Uploads keep auto-running through the existing finalize path.
 - Staleness is computed server-side with no migration: key-data `stats` now returns `insightsStale`, `lastDataChangeAt`, and `lastInsightsRunAt`, derived from PMS edit/delete events versus the latest completed run.
 - New authenticated, location-scoped `POST /pms/file-manager/rerun` (admin/manager, 409 while a run is active) backs the "Get updated insights" CTA, which immediately reveals the animated processing card on the Referrals Hub.
@@ -188,6 +234,7 @@ Editing or deleting PMS data in the Referrals Hub File Manager used to silently 
 - Updated Alloro Docs (Referrals Hub page + visual replica) to document the alert and the explicit-rerun behavior.
 
 **Commits:**
+
 - `src/controllers/pms/pms-services/PmsFileManagerService.ts` - removed auto-rerun from edit/delete; added `rerunInsights`
 - `src/controllers/pms/PmsFileManagerController.ts`, `src/routes/pms.ts` - authenticated `POST /pms/file-manager/rerun`
 - `src/controllers/pms/pms-services/pms-data.service.ts`, `src/controllers/pms/pms-utils/pms-insights-freshness.util.ts` - server-side staleness detection on key-data `stats`
@@ -200,6 +247,7 @@ Editing or deleting PMS data in the Referrals Hub File Manager used to silently 
 - `plans/06042026-pms-updated-data-alert-and-sidebar-feedback/*` - execution spec
 
 **Follow-ups (outside this commit):**
+
 - Manual browser verification at `/pmsStatistics` (edit → alert → Get updated insights → animation).
 - Remove the now-unused `frontend/src/components/dashboard/focus/SetupProgressBanner.tsx`.
 - Alloro Docs changes live in the separate `alloro-docs` repo and are committed/pushed there separately.
@@ -211,15 +259,18 @@ Editing or deleting PMS data in the Referrals Hub File Manager used to silently 
 Rybbit analytics day/month buckets were computed in a hardcoded Eastern timezone for every practice, so practices outside Eastern time saw boundaries that didn't match their own Rybbit dashboard (a small ~0.3% near-boundary shift, but a real correctness gap that also touched the new live unique-visitor queries). Practices can now carry their own IANA reporting timezone, threaded through every Rybbit query, with Eastern as the fallback so existing sites are unchanged.
 
 **Key Changes:**
+
 - Added a per-practice `rybbit_time_zone` (nullable IANA string) on `website_builder.projects`, settable from the admin Rybbit integration tab, falling back to `America/New_York` when unset — zero change for existing Eastern practices.
 - Replaced the hardcoded `America/New_York` in all four Rybbit `time_zone` call sites — daily harvest, historic-backfill date bounds, live unique-visitor queries, and the Proofline/Summary agent comparisons — with the per-site zone resolved through one shared helper.
 - Confirmed Rybbit exposes no per-site timezone of its own (it buckets by the `time_zone` query parameter), so the zone is sourced from our records; admin input is validated against the platform `Intl` API with no new dependency.
 
 **Follow-ups (operational, outside this commit's runtime):**
+
 - Apply the migration (`npm run db:migrate`) before the feature is active.
 - After setting a non-Eastern zone on an existing site, run the Rybbit historic backfill to re-bucket stored daily rows; live overview/monthly-unique queries need no backfill.
 
 **Commits:**
+
 - `src/database/migrations/20260603000000_add_rybbit_time_zone_to_projects.ts`, `src/utils/rybbit/rybbit-time-zone.ts` - schema column + shared default/resolver/validator
 - `src/models/website-builder/ProjectModel.ts` - `rybbit_time_zone` field, `getRybbitTimeZone` / `updateRybbitTimeZone`
 - `src/services/integrations/rybbitHarvestAdapter.ts`, `service.rybbit-history.ts`, `service.rybbit-performance.ts`, `src/utils/rybbit/service.rybbit-data.ts` - the four call sites now resolve the per-site zone
@@ -235,12 +286,14 @@ Rybbit analytics day/month buckets were computed in a hardcoded Eastern timezone
 Improved the Local Rankings competitor comparison table so same-name practices, such as multiple Dominion Endodontics locations, are distinguished by address instead of looking like duplicate rows.
 
 **Key Changes:**
+
 - Preserved competitor addresses in future ranking snapshots and raw competitor payloads.
 - Enriched existing latest-ranking responses with saved `location_competitors` addresses by place ID.
 - Updated comparison row matching to prefer place ID before name, avoiding same-name metric mismatches.
 - Kept category as a fallback when an address is unavailable and preserved the full address tooltip behavior.
 
 **Commits:**
+
 - `src/controllers/practice-ranking/PracticeRankingController.ts` and `util.ranking-formatter.ts` - latest-response address enrichment and `placeId` / `place_id` normalization
 - `src/controllers/practice-ranking/feature-services/service.ranking-pipeline.ts` and `service.location-competitor-onboarding.ts` - future snapshot/raw-data address preservation
 - `frontend/src/components/dashboard/rankings/competitorComparison.ts` - address-aware comparison rows and place-ID-first raw metric matching
@@ -254,6 +307,7 @@ Improved the Local Rankings competitor comparison table so same-name practices, 
 Refined the Websites tab cards-first overview (added in 0.0.95) for clarity and accuracy: hover-driven chart readouts, a monthly visitor cadence, a daily traffic drill-down that honestly marks gaps, clearer "Leads = form submissions" labeling, a three-column hero funnel, and a fix for an inflated unique-visitor count.
 
 **Key Changes:**
+
 - Hovering a chart point now updates that card's own headline number and period label (e.g. "Apr 2026") instead of a floating tooltip; month-over-month deltas hide while hovering.
 - Reworked the hero funnel into three columns — Unique visitors, Leads (form submissions), and Conversion rate — that all update on hover, with a three-line trend chart (visitors, submissions, conversion) and color-matched dots.
 - Switched the visitor/traffic cards to a monthly cadence (last 12 months) to match the leads chart; the Traffic detail modal keeps daily resolution and marks days with no data as gaps rather than zeros.
@@ -264,6 +318,7 @@ Refined the Websites tab cards-first overview (added in 0.0.95) for clarity and 
 - Form submissions catalog: click any row to open it and drag-and-drop to reorder (replacing the up/down arrows).
 
 **Commits:**
+
 - `frontend/src/components/website/overview/WebsiteOverview.tsx`, `websiteMetrics.ts`, `OverviewCard.tsx` - 3-column funnel, monthly cadence, no-data filtering, hover readouts, conversion framing, labeling
 - `frontend/src/components/dashboard/shared/TrendSparkline.tsx` - hover-driven headlines, null-gap support, optional third line + area toggle
 - `frontend/src/api/websiteAnalytics.ts` - true per-month unique-visitor field
@@ -278,6 +333,7 @@ Refined the Websites tab cards-first overview (added in 0.0.95) for clarity and 
 Added a location-scoped PMS File Manager for Referrals Hub data so admins and managers can upload, inspect, edit, download, overwrite, and soft-delete monthly PMS files without leaving the PMS Statistics workflow.
 
 **Key Changes:**
+
 - Added a compact Manage Data side panel with a latest-completed-month data window, month-specific upload/edit/overwrite actions, file cards, original parsed-data review, download, delete confirmation, and edit history.
 - Replaced the ingestion-card availability grid with a production/referral trend graph; plot points are hoverable/focusable and open the same month-scoped edit or upload flow.
 - Added authenticated PMS file-manager API endpoints with admin/manager write controls, location scoping, processing guards, original-file downloads, edit-event history, and soft-delete handling.
@@ -286,6 +342,7 @@ Added a location-scoped PMS File Manager for Referrals Hub data so admins and ma
 - Updated the Referrals Hub docs replica and page guidance for Upload New Data, Manage Data, trend graph interactions, monthly file management, and history/download behavior.
 
 **Commits:**
+
 - `frontend/src/components/PMS/dashboard/*`, `frontend/src/components/PMS/file-manager/*`, and `frontend/src/hooks/queries/usePmsFileManagerQueries.ts` - side panel, trend graph, month-slot interactions, file list, history panel, and query wiring
 - `frontend/src/components/PMS/*` and `frontend/src/api/pms.ts` - upload/edit modal reuse, file-type handling, month-scoped upload behavior, and typed PMS API helpers
 - `src/controllers/pms/*`, `src/models/PmsJobModel.ts`, `src/models/PmsJobEventModel.ts`, and `src/routes/pms.ts` - PMS file-manager controllers, services, presenters, storage helpers, mutation guards, event history, and route registration
@@ -300,6 +357,7 @@ Added a location-scoped PMS File Manager for Referrals Hub data so admins and ma
 Added a location-scoped PMS File Manager for Referrals Hub data so admins and managers can upload, inspect, edit, download, overwrite, and soft-delete monthly PMS files without leaving the PMS Statistics workflow.
 
 **Key Changes:**
+
 - Added a compact Manage Data side panel with a latest-completed-month data window, month-specific upload/edit/overwrite actions, file cards, original parsed-data review, download, delete confirmation, and edit history.
 - Replaced the ingestion-card availability grid with a production/referral trend graph; plot points are hoverable/focusable and open the same month-scoped edit or upload flow.
 - Added authenticated PMS file-manager API endpoints with admin/manager write controls, location scoping, processing guards, original-file downloads, edit-event history, and soft-delete handling.
@@ -308,6 +366,7 @@ Added a location-scoped PMS File Manager for Referrals Hub data so admins and ma
 - Updated the Referrals Hub docs replica and page guidance for Upload New Data, Manage Data, trend graph interactions, monthly file management, and history/download behavior.
 
 **Commits:**
+
 - `frontend/src/components/PMS/dashboard/*`, `frontend/src/components/PMS/file-manager/*`, and `frontend/src/hooks/queries/usePmsFileManagerQueries.ts` - side panel, trend graph, month-slot interactions, file list, history panel, and query wiring
 - `frontend/src/components/PMS/*` and `frontend/src/api/pms.ts` - upload/edit modal reuse, file-type handling, month-scoped upload behavior, and typed PMS API helpers
 - `src/controllers/pms/*`, `src/models/PmsJobModel.ts`, `src/models/PmsJobEventModel.ts`, and `src/routes/pms.ts` - PMS file-manager controllers, services, presenters, storage helpers, mutation guards, event history, and route registration
@@ -322,12 +381,14 @@ Added a location-scoped PMS File Manager for Referrals Hub data so admins and ma
 Standardized the active frontend serif/display typography on the Google Font Spectral so dashboard, editorial, and chat surfaces no longer mix older serif stacks.
 
 **Key Changes:**
+
 - Removed the remaining Literata fallback from the SPA font loader, dashboard display token, and Local Rankings gauge stack
 - Updated hardcoded frontend serif stacks used by dashboard metric cards and Minds chat surfaces to Spectral
 - Added the current-week Feature Friyay package and completed HTML/CSS plan spec for the typography change
 - Kept Alloro Docs aligned through a separate docs parity commit
 
 **Commits:**
+
 - `frontend/index.html` and `frontend/src/index.css` - final Spectral loader and display font token cleanup
 - `frontend/src/components/dashboard/focus/*`, `frontend/src/components/dashboard/RankingsDashboard.tsx`, and `frontend/src/components/Admin/minds/*` - direct serif stack replacements
 - `friyays/06-01-2026/*` - current-week Feature Friyay draft package
@@ -340,12 +401,14 @@ Standardized the active frontend serif/display typography on the Google Font Spe
 Hardened the Google Business Profile review sync worker after Garrison Orthodontics showed stale-token `401` failures in the daily Reviews sync status. The worker now uses the existing refresh-aware OAuth path and records fresh health rows when connection auth fails before location sync begins.
 
 **Key Changes:**
+
 - Switched OAuth review sync from raw stored-token client creation to the existing refresh-aware Google connection helper
 - Added a one-time forced token refresh retry for Google unauthorized responses, reusing the refreshed client for later locations on the same connection
 - Added current failed `gbp_sync_health` rows for connection-level auth failures so the dashboard does not keep showing stale status
 - Verified production state for Garrison Orthodontics, including one `minds-worker`, one `daily-review-sync` repeatable job, and latest successful sync rows with 90 reviews synced
 
 **Commits:**
+
 - `src/workers/processors/reviewSync.processor.ts` - refresh-aware auth setup, bounded unauthorized retry, refreshed-client reuse, safe sync-health failure rows, and sync metadata cleanup
 - `plans/05312026-no-ticket-fix-review-sync-oauth-refresh/spec.md` - execution spec, risk notes, and verification checklist
 
@@ -356,12 +419,14 @@ Hardened the Google Business Profile review sync worker after Garrison Orthodont
 Eliminated the `could not renew lock for job repeat:...` error flood on the `minds-scheduler`, `minds-skill-triggers`, and `gbp-automation-deployment` BullMQ workers. Root cause: tick processors awaited multi-minute work (AI agent runs, per-location Google syncs) inline while holding a short 30-second lock, so the lock expired mid-run, the stalled-job checker requeued the job, the orphaned attempt's renewal failed, and the repeatable iteration never reached a terminal state — looping forever.
 
 **Key Changes:**
+
 - Split the scheduler tick into a lightweight dispatcher plus a dedicated execution worker: the `minds-scheduler` tick now only finds due schedules and enqueues one job per schedule onto a new `minds-schedule-exec` queue, so the 60-second tick always finishes sub-second and never holds a lock through long-running agent work
 - Added an execution-half processor that owns the agent-run lifecycle (run record, handler execution, `next_run_at` advance) under a 15-minute lock with bounded concurrency, guarded by `hasActiveRun` in both dispatcher and executor for at-most-one active run per schedule
 - Gave every BullMQ worker its own Redis connection via a `makeConnection()` factory instead of sharing a single ioredis instance, removing the lock-renewal starvation amplifier
 - Set realistic explicit lock durations on the previously default-locked workers (skill-triggers 5 minutes, gbp-automation-deployment 20 minutes) and switched skill-trigger webhook fires to bounded-concurrency batches so tick wall-time no longer scales linearly with due-skill count
 
 **Commits:**
+
 - `src/workers/processors/scheduler.processor.ts` - rewrote `processSchedulerTick` as a dispatcher that enqueues per-schedule exec jobs with an idempotent due-window `jobId`; removed the inline `agent.handler()` call
 - `src/workers/processors/scheduleExec.processor.ts` - new execution-half processor: re-checks active run, creates the run record, runs the agent handler, completes/fails the run, and advances `next_run_at` once per execution
 - `src/workers/processors/skillTrigger.processor.ts` - extracted `processSingleSkill` and fired due-skill webhooks in bounded `Promise.allSettled` batches with per-skill error isolation
@@ -375,6 +440,7 @@ Eliminated the `could not renew lock for job repeat:...` error flood on the `min
 Redesigned the client Local Rankings experience around a clearer owner-readable story, upgraded Alloro Engage with review-reply quick actions, and added faster support reporting from anywhere in the app.
 
 **Key Changes:**
+
 - Rebuilt `/rankings` so the first screen leads with a plain-English ranking summary, Local Search Estimate, Local Search Score, owner-friendly next actions, Alloro Engage, and a sortable competitor table
 - Moved Practice Health details into secondary score/gap modals, removed estimated/filler copy, defaulted competitor sorting to Local Search, and blocked website-speed recommendations from ranking outputs
 - Added Alloro Engage review/post narrative cards, compact metric tooltips, latest-review reply drafting, deploy success toasts, card-deck transitions, and optimistic reply-count decrement animations
@@ -384,6 +450,7 @@ Redesigned the client Local Rankings experience around a clearer owner-readable 
 - Updated Alloro Docs replicas and page guidance for Local Rankings, Alloro Engage, global support, and Website Edit support-copy parity
 
 **Commits:**
+
 - `frontend/src/components/dashboard/RankingsDashboard.tsx` and `frontend/src/components/dashboard/rankings/*` - owner-readable Local Rankings layout, Local Search Estimate/Score cards, inline competitor table, detail modals, loaders, and copy cleanup
 - `src/controllers/practice-ranking/feature-services/*` - ranking output guardrails, review/post engagement payload context, score alignment, and website-speed recommendation filtering
 - `frontend/src/components/dashboard/gbp-automation/*` - Alloro Engage card narrative, metric cards, latest-review quick action, queue progress, deck animation, and deploy feedback
@@ -400,12 +467,14 @@ Redesigned the client Local Rankings experience around a clearer owner-readable 
 Added the inaugural Feature Friyay release package so weekly shipped work can be compiled into a branded shareable roundup and customer email draft.
 
 **Key Changes:**
+
 - Added repo-local Feature Friyay workflow rules, including `--done friyay`, plain `--done` inference, and ask-when-unsure classification behavior
 - Added the inaugural `friyays/05-25-2026` static HTML/CSS package with a branded roundup page, email draft, evidence-backed inventory, release-state notes, and ship checklist
 - Switched Friyay artifacts from standalone Markdown drafts to `index.html`, `email.html`, and `styles.css` so the weekly roundup is presentable without extra tooling
 - Preserved release-state distinctions between production workflow evidence, dev workflow evidence, needs verification, and internal-only items
 
 **Commits:**
+
 - `AGENTS.md` - Feature Friyay folder contract, `--done friyay` behavior, inference rules, and HTML/CSS artifact requirements
 - `friyays/05-25-2026/*` - inaugural branded Feature Friyay page, email draft, and shared Alloro styling
 - `plans/05282026-no-ticket-feature-friyays-inaugural-roundup/spec.md` - execution spec and revision log for the Markdown-to-HTML conversion
@@ -417,6 +486,7 @@ Added the inaugural Feature Friyay release package so weekly shipped work can be
 Expanded GBP Automation into a fuller posts manager while tightening the admin and client workflows around Local Rankings, organization detail, and Mission Control.
 
 **Key Changes:**
+
 - Added draft-first GBP local post generation with required per-post image upload, background generation jobs, safety checks, editable drafts, explicit deploy, and delete flows
 - Added published GBP post sync, pagination, image previews, edit/delete actions, Google open links, and manual/automatic sync health labels
 - Added client and admin GBP Posts tabs with Published/Drafts separation and a create-post modal instead of an always-visible generation form
@@ -427,6 +497,7 @@ Expanded GBP Automation into a fuller posts manager while tightening the admin a
 - Updated Local Rankings docs replica and walkthrough copy for the simplified Alloro Engage client flow
 
 **Commits:**
+
 - `src/controllers/gbp-automation/*`, `src/models/GbpLocalPostModel.ts`, `src/models/GbpWorkItemModel.ts`, `src/routes/gbpAutomation.ts`, and `src/routes/admin/gbpAutomation.ts` - local post draft generation, media upload, published post sync, deployment, and API surfaces
 - `src/controllers/gbp/gbp-services/gbp-write.service.ts`, `src/workers/processors/gbpAutomation.processor.ts`, and `src/workers/worker.ts` - Google local post write/update/delete/sync helpers and scheduled worker wiring
 - `frontend/src/components/dashboard/gbp-automation/*`, `frontend/src/api/gbpAutomation.ts`, and `frontend/src/hooks/queries/useGbpAutomationQueries.ts` - client Alloro Engage reviews, reply drafts, GBP posts manager, image upload, and settings flow
@@ -443,6 +514,7 @@ Expanded GBP Automation into a fuller posts manager while tightening the admin a
 Added the GBP review-reply automation foundation, client-facing Alloro Engage experience, admin controls, review intelligence metrics, and production hardening for Google write actions.
 
 **Key Changes:**
+
 - Added GBP Automation admin and client surfaces for review queues, reply drafts, replied reviews, settings, diagnostics, and draft deletion
 - Added Alloro Engage to Local Rankings with an Overview card, engagement metrics, monthly review map, and a dedicated reply workflow tab
 - Added review-reply work items, audit events, deployment attempts, automation settings, review insights, escalation tracking, and sync-health persistence
@@ -452,6 +524,7 @@ Added the GBP review-reply automation foundation, client-facing Alloro Engage ex
 - Updated Alloro Docs replicas and page copy for the new Local Rankings / Alloro Engage workflow
 
 **Commits:**
+
 - `src/controllers/gbp-automation/*`, `src/routes/gbpAutomation.ts`, and `src/routes/admin/gbpAutomation.ts` - GBP automation controllers, services, client/admin routes, deploy previews, draft generation, settings, published-reply management, and hardening utilities
 - `src/models/Gbp*Model.ts`, `src/database/migrations/20260524*.ts`, and `src/database/migrations/20260525*.ts` - GBP work item, event, attempt, settings, insight, escalation, and sync-health schema/model support
 - `src/controllers/gbp/gbp-services/gbp-write.service.ts`, `src/workers/processors/gbpAutomation.processor.ts`, and worker queue wiring - Google write helpers and queued deployment processing
@@ -469,6 +542,7 @@ Added the GBP review-reply automation foundation, client-facing Alloro Engage ex
 Added a super-admin Mission Control dashboard for revenue visibility, organization health, payment watchlists, and concise movement insight.
 
 **Key Changes:**
+
 - Added a Mission Control admin route with Stripe-backed expected MRR, paid revenue, lifetime revenue, and payment-risk summaries
 - Added organization grid cards with Recharts paid-invoice movement charts, billing flags, admin-role pilot shortcuts, and click-through to existing organization detail pages
 - Added a 12-month recurring revenue trend, Payment Watch lifetime/billing flag views, and on-demand sanitized movement insight
@@ -476,6 +550,7 @@ Added a super-admin Mission Control dashboard for revenue visibility, organizati
 - Kept the legacy Organizations management route available and extracted create-organization behavior for reuse
 
 **Commits:**
+
 - `src/controllers/admin-mission-control/*`, `src/models/MissionControlModel.ts`, and `src/routes/admin/missionControl.ts` - aggregate Mission Control API, Stripe revenue reads, sanitized insight generation, and admin route protection
 - `frontend/src/pages/admin/MissionControl.tsx` and `frontend/src/components/Admin/mission-control/*` - Mission Control dashboard UI, revenue charts, organization cards, Payment Watch, pilot menu, and insight panel
 - `frontend/src/api/admin-mission-control.ts`, `frontend/src/hooks/queries/useAdminMissionControlQueries.ts`, and `frontend/src/lib/queryClient.ts` - typed frontend API, React Query hooks, and cache keys
@@ -489,12 +564,14 @@ Added a super-admin Mission Control dashboard for revenue visibility, organizati
 Made website form emails send recipients directly to the Website submissions tab when uploaded files or photos are present, without exposing patient images in the email itself.
 
 **Key Changes:**
+
 - Updated uploaded-file email copy to point to the Alloro submissions dashboard for clearer previews and full-size downloads
 - Added `?tab=` permalink support to the DFY Website page for Editor, Submissions, Posts, and Menus
 - Preserved legacy `?view=` website tab links by normalizing them to the new `?tab=` parameter
 - Updated Alloro Docs Website guidance to mention direct tab links
 
 **Commits:**
+
 - `src/controllers/websiteContact/websiteContact-services/emailBodyBuilder.ts` - uploaded-file email note now links to `/dfy/website?tab=submissions`
 - `frontend/src/pages/DFYWebsite.tsx` - URL-backed Website tab selection and legacy `?view=` compatibility
 - `/Users/rustinedave/Desktop/alloro-docs/src/data/pages/website.ts` - Website docs walkthrough copy for `?tab=` links
@@ -507,6 +584,7 @@ Made website form emails send recipients directly to the Website submissions tab
 Consolidated Caswell Orthodontics operational ownership onto the canonical org `43` while preserving the live website project and stable location IDs.
 
 **Key Changes:**
+
 - Kept org `43` as the canonical Caswell organization and left org `25` undeleted for a separate cleanup decision
 - Moved the three real Caswell locations, Google connection, and user membership from org `25` to org `43`
 - Rehomed Caswell ranking, task, agent result, PMS, notification, and Google data history to org `43`
@@ -514,6 +592,7 @@ Consolidated Caswell Orthodontics operational ownership onto the canonical org `
 - Verified org `43` owns one primary location, both Caswell user memberships, and the live website project after the transfer
 
 **Commits:**
+
 - `plans/05232026-no-ticket-migrate-caswell-org-data/spec.md` - executed data-migration spec, risk notes, and verified checklist
 - Live database rows - transactional org ownership transfer for Caswell locations, Google connection, users, and operational history
 
@@ -524,6 +603,7 @@ Consolidated Caswell Orthodontics operational ownership onto the canonical org `
 Made routine website text edits feel more like a real page editor by allowing safe direct typing on selected canvas text while keeping structure-changing operations out of scope.
 
 **Key Changes:**
+
 - Added plain-text canvas editing for safe selected headings, paragraphs, links, list items, captions, and button labels
 - Made selected text open a focused on-canvas textarea at the selected element so typing happens in place with a real caret
 - Replaced the right-sidebar single-line text input with a multi-line textarea and visible font-size controls
@@ -534,6 +614,7 @@ Made routine website text edits feel more like a real page editor by allowing sa
 - Preserved the no-reorder, no-delete, no-drag/drop, no-arbitrary-HTML, and no-new-storage-path boundaries
 
 **Commits:**
+
 - `frontend/src/utils/canvasTextEditing.ts` - safe on-canvas textarea edit session lifecycle, paste sanitization, commit, and cancel behavior
 - `frontend/src/hooks/useIframeSelector.ts` - selected-element editability metadata, canvas textarea pointer handling, and iframe editing-state handling
 - `frontend/src/utils/editorDirectOperations.ts` - no-op detection and canvas edit availability in direct operation results
@@ -549,6 +630,7 @@ Made routine website text edits feel more like a real page editor by allowing sa
 Hardened the website editor media boundary and moved routine page-editor operations off AI prompts into deterministic editor controls across admin and client-facing surfaces.
 
 **Key Changes:**
+
 - Added authenticated, user-scoped DFY media list/upload endpoints and guarded admin media/editor routes
 - Routed shared media browser/upload UI through explicit admin or user media adapters
 - Added direct editor operations for text replacement, link updates, media replacement, font-size stepping, and hide/show
@@ -556,6 +638,7 @@ Hardened the website editor media boundary and moved routine page-editor operati
 - Kept freeform AI editing available for non-basic edits
 
 **Commits:**
+
 - `src/routes/admin/media.ts`, `src/routes/admin/websites.ts`, and `src/routes/user/website.ts` - media/editor route protection and user media routes
 - `src/controllers/user-website/*` - org-scoped DFY media list/upload handling
 - `frontend/src/api/websiteMedia.ts`, `frontend/src/api/websites.ts`, and shared media components - admin/user media adapter wiring
@@ -569,6 +652,7 @@ Hardened the website editor media boundary and moved routine page-editor operati
 Updated website form-submission emails so recipient inboxes show the client organization context and use the project's brand accent color in the email header.
 
 **Key Changes:**
+
 - Changed form-submission sender names to use `[{organization name}] Alloro Forms` when organization context is available
 - Added a shared email context resolver for inbound sends and admin manual resends
 - Updated the form-submission email header to use project accent color with contrast-safe header text
@@ -576,6 +660,7 @@ Updated website form-submission emails so recipient inboxes show the client orga
 - Kept recipient routing, saved recipients, and subject text unchanged
 
 **Commits:**
+
 - `src/controllers/websiteContact/websiteContact-services/emailBodyBuilder.ts` - branded header rendering, logo mark, contrast logic, and serif field labels
 - `src/controllers/websiteContact/websiteContact-services/formSubmissionEmailContextService.ts` - organization sender name and project color context resolution
 - `src/controllers/websiteContact/formSubmissionController.ts` and `src/controllers/admin-websites/AdminWebsitesController.ts` - shared context wiring for inbound sends and manual resends
@@ -588,6 +673,7 @@ Updated website form-submission emails so recipient inboxes show the client orga
 Moved the Local Rankings headline Google Maps estimate from the legacy Apify Maps actor to SerpApi Google Maps search centered on the client's saved GBP coordinates, making the sampled rank closer to the visible Maps result set for cases like One Endodontics-Fredericksburg.
 
 **Key Changes:**
+
 - Added a SerpApi Maps search-position wrapper with retry handling, place-id matching, and ordered result normalization
 - Wired ranking Step 0 to persist `serpapi_maps` results and avoid silently falling back to Apify for the headline estimate
 - Added a reversible migration allowing `serpapi_maps` in `practice_rankings.search_position_source`
@@ -595,6 +681,7 @@ Moved the Local Rankings headline Google Maps estimate from the legacy Apify Map
 - Verified SerpApi returns One Endodontics-Fredericksburg as `#1` for `endodontist in Fredericksburg, VA` at `ll=@38.2238985,-77.5053993,15z`
 
 **Commits:**
+
 - `src/controllers/practice-ranking/feature-services/service.serpapi-maps.ts` - SerpApi Maps lookup wrapper and ordered result normalization
 - `src/controllers/practice-ranking/feature-services/service.ranking-pipeline.ts` - Step 0 SerpApi integration, Places-only fallback, and timing/source metadata
 - `src/database/migrations/20260514000001_allow_serpapi_search_position_source.ts` and `src/models/PracticeRankingModel.ts` - persisted source support for `serpapi_maps`
@@ -608,11 +695,13 @@ Moved the Local Rankings headline Google Maps estimate from the legacy Apify Map
 Stopped the CRM mapping validation worker from applying HubSpot-style credential validation to analytics integrations, preventing Rybbit and GSC rows from being incorrectly marked revoked.
 
 **Key Changes:**
+
 - Scoped daily CRM mapping validation to active `crm_push` integrations only
 - Reused the existing integration model helper instead of maintaining a broad inline query
 - Verified the erroneous Rybbit/GSC revocation condition is cleared in live data
 
 **Commits:**
+
 - `src/workers/processors/crmMappingValidation.processor.ts` - CRM validation now selects only CRM push integrations
 - `plans/05142026-no-ticket-integration-revocation-repair/spec.md` - executed spec and verification checklist
 
@@ -623,6 +712,7 @@ Stopped the CRM mapping validation worker from applying HubSpot-style credential
 Added an admin-only Archive view for website projects so staff can move projects out of the normal Active and Inactive lists without changing live status, organization links, or custom domains.
 
 **Key Changes:**
+
 - Added `archived_at` metadata to website projects instead of overloading the lifecycle `status` enum
 - Added server-backed Active, Inactive, and Archive filters for the admin website projects list
 - Kept archived projects visible in Archive regardless of organization attachment or custom domain state
@@ -630,6 +720,7 @@ Added an admin-only Archive view for website projects so staff can move projects
 - Preserved lifecycle status, organization links, generated hostnames, and custom domains when archiving
 
 **Commits:**
+
 - `src/database/migrations/20260514000000_add_website_project_archived_at.ts` - archive metadata column and lookup index
 - `src/controllers/admin-websites/AdminWebsitesController.ts` and `service.project-manager.ts` - project list view filtering and safe `archived_at` update handling
 - `frontend/src/api/websites.ts`, `frontend/src/lib/queryClient.ts`, and `frontend/src/pages/admin/WebsitesList.tsx` - typed Archive tab, cache key, and Archive row action
@@ -642,6 +733,7 @@ Added an admin-only Archive view for website projects so staff can move projects
 Added a lazy JSON inspector for integration harvest rows so admins can inspect the stored raw analytics payload for one GSC, Rybbit, or Clarity run without loading heavy JSON into the Harvest Activity table.
 
 **Key Changes:**
+
 - Added a project-scoped harvest payload endpoint guarded by integration id and log id
 - Added stored payload lookup helpers for GSC, Rybbit, and Clarity daily data rows
 - Added log/error JSON fallback for failed harvest rows without stored analytics data
@@ -649,6 +741,7 @@ Added a lazy JSON inspector for integration harvest rows so admins can inspect t
 - Kept the harvest log list response lightweight by fetching raw JSON only on demand
 
 **Commits:**
+
 - `src/controllers/admin-websites/WebsiteIntegrationsController.ts`, `src/routes/admin/websites.ts`, and `src/controllers/admin-websites/feature-services/service.harvest-log-inspector.ts` - project-scoped harvest payload endpoint and platform payload resolver
 - `src/models/website-builder/*DataModel.ts` and `IntegrationHarvestLogModel.ts` - single-date stored payload and log lookup helpers
 - `frontend/src/api/integrations.ts` and `frontend/src/components/Admin/integrations/*` - typed payload API client, Inspect action, and read-only JSON drawer
@@ -661,12 +754,14 @@ Added a lazy JSON inspector for integration harvest rows so admins can inspect t
 Made the Local Rankings selected competitors card easier to read by removing the user's own practice from the comparison list and grouping lower-visibility selected competitors behind a clear disclosure.
 
 **Key Changes:**
+
 - Replaced exact orange `Est. #n` labels with `EST IN TOP 10` for selected competitors that are in the sampled Google Maps top 10
 - Removed the user's own practice from the selected competitor list so the card always focuses on competitors
 - Moved selected competitors outside the sampled top 10, not in the top 20, or not measured into a collapsible gray section with query context
 - Preserved selected competitor ordering and kept review/rating/address rows unchanged
 
 **Commits:**
+
 - `frontend/src/components/dashboard/RankingsDashboard.tsx` - selected competitors card top-10 label and outside-top-10 disclosure
 - `plans/05142026-no-ticket-ranking-competitor-comparison-modal/spec.md` - Rev 3 selected competitor card contract
 
@@ -677,12 +772,14 @@ Made the Local Rankings selected competitors card easier to read by removing the
 Cleaned up the Local Rankings dashboard Maps estimate card and made recommended-radius competitor refresh trust the local Google Maps query order first.
 
 **Key Changes:**
+
 - Removed the legacy red trend pill from the Google Maps estimate hero card
 - Tightened the Maps query label alignment without changing the rank, rating, or review typography sizes
 - Updated local specialist competitor discovery to keep exact Google Places query order before lower-level specialty filtering
 - Added spec revisions for the dashboard card cleanup and competitor refresh ordering behavior
 
 **Commits:**
+
 - `frontend/src/components/dashboard/RankingsDashboard.tsx` - Maps estimate hero card trend-pill removal and layout cleanup
 - `src/controllers/practice-ranking/feature-services/service.location-competitor-onboarding.ts` - local specialist refresh now preserves exact Google Places order
 - `plans/05142026-no-ticket-ranking-competitor-comparison-modal/spec.md` and `plans/05102026-no-ticket-selected-competitor-maps-radius/spec.md` - Rev 2/Rev 5 verification notes
@@ -694,12 +791,14 @@ Cleaned up the Local Rankings dashboard Maps estimate card and made recommended-
 Made the competitor reselector default to a tighter, explainable 25-mile market radius so the default comparison set better matches the sampled Google Maps top results.
 
 **Key Changes:**
+
 - Marked `25 mi` as the recommended competitor suggestion radius with a hover/focus tooltip
 - Opened competitor reselection on the 25-mile default instead of inheriting prior wide-radius test selections
 - Filtered Google Places discovery results to the selected radius while preserving sampled Maps result order
 - Updated the selected competitor radius spec with the recommendation and verification contract
 
 **Commits:**
+
 - `frontend/src/pages/competitor-onboarding/LocationCompetitorOnboarding.tsx` - 25-mile recommended badge, tooltip, and reselection default
 - `src/controllers/practice-ranking/feature-services/service.places-competitor-discovery.ts` - radius-bounded Places discovery while keeping Maps estimate ordering
 - `plans/05102026-no-ticket-selected-competitor-maps-radius/spec.md` - Rev 4 recommendation and done criteria
@@ -711,6 +810,7 @@ Made the competitor reselector default to a tighter, explainable 25-mile market 
 Added a richer Practice Health competitor comparison modal, made selected competitor review velocity honest and measurable, and added an admin-triggered Rybbit historic data rebuild path.
 
 **Key Changes:**
+
 - Replaced the Practice Health cohort sentence with a competitor comparison action and modal
 - Added sortable competitor factor rows for review count, measured review velocity, rating, Maps estimate, and Practice Health
 - Highlighted the user's own practice inside the selected competitors Google Maps list
@@ -720,6 +820,7 @@ Added a richer Practice Health competitor comparison modal, made selected compet
 - Added an admin all-active Rybbit historic backfill runner with skip reporting
 
 **Commits:**
+
 - `frontend/src/components/dashboard/RankingsDashboard.tsx` and `frontend/src/components/dashboard/rankings/*` - Practice Health comparison modal, selected Maps list self-highlight, sorting, and honest velocity display
 - `src/controllers/practice-ranking/feature-services/service.ranking-pipeline.ts` - selected-competitor velocity enrichment, measured source metadata, cache reuse, and timing telemetry
 - `src/controllers/admin-websites/feature-services/service.rybbit-history.ts`, `WebsiteIntegrationsController.ts`, and `src/routes/admin/websites.ts` - Rybbit historic backfill service and admin routes
@@ -734,6 +835,7 @@ Added a richer Practice Health competitor comparison modal, made selected compet
 Separated Microsoft Clarity tracking installation from Data Export credentials so the Integrations screen can manage script ownership without requiring an API token.
 
 **Key Changes:**
+
 - Added Clarity-specific status, save, and legacy-snippet disable routes instead of routing Clarity through the HubSpot-shaped generic integration endpoint
 - Added Project ID-only Clarity installs as `script_injection` rows and API-token-backed installs as `hybrid` rows
 - Reworked the Clarity admin UI around tracking status, optional Data Export token state, and legacy script blockers
@@ -742,6 +844,7 @@ Separated Microsoft Clarity tracking installation from Data Export credentials s
 - Hardened renderer Clarity duplicate detection to avoid duplicate tracking scripts
 
 **Commits:**
+
 - `src/controllers/admin-websites/*`, `src/models/website-builder/WebsiteIntegrationModel.ts`, and `src/workers/processors/dataHarvest.processor.ts` - Clarity-specific integration service, routes, credentials checks, and harvest-window behavior
 - `frontend/src/components/Admin/integrations/*` and `frontend/src/api/integrations.ts` - Clarity install/export management UI and typed API helpers
 - `/Users/rustinedave/Desktop/website-builder-rebuild/src/routes/site.ts` - renderer Clarity script dedupe hardening
@@ -754,12 +857,14 @@ Separated Microsoft Clarity tracking installation from Data Export credentials s
 Separated website projects by organization attachment so admins can focus on assigned client sites while still keeping unassigned drafts accessible.
 
 **Key Changes:**
+
 - Added Active and Inactive tabs to the admin website projects list
 - Defined Active as projects attached to an organization and Inactive as projects with no organization yet
 - Added a server-backed `organizationStatus` list filter so pagination totals match the selected tab
 - Kept the existing website status dropdown independent from the new organization attachment tabs
 
 **Commits:**
+
 - `src/controllers/admin-websites/AdminWebsitesController.ts` and `service.project-manager.ts` — parse and apply the organization attachment filter
 - `frontend/src/api/websites.ts` and `frontend/src/lib/queryClient.ts` — type and cache the new list filter
 - `frontend/src/pages/admin/WebsitesList.tsx` — Active/Inactive tab state, default Active view, scoped empty copy, and tab-aware counts
@@ -772,6 +877,7 @@ Separated website projects by organization attachment so admins can focus on ass
 Closed out remaining dashboard and website-admin polish by clarifying selected competitor labels, improving large media upload handling, and surfacing active integrations in the admin websites list.
 
 **Key Changes:**
+
 - Added selected competitor address metadata to latest ranking responses and rendered truncated address labels with full-address tooltips
 - Increased admin website media upload handling to 500 MB per file with readable client and server error messages
 - Replaced noisy page-editor media upload alerts with inline upload errors
@@ -780,6 +886,7 @@ Closed out remaining dashboard and website-admin polish by clarifying selected c
 - Added missing plan specs for selected competitor address labels, media upload handling, and GBP-less identity generation
 
 **Commits:**
+
 - `src/controllers/practice-ranking/*` and `frontend/src/components/dashboard/RankingsDashboard.tsx` — selected competitor address enrichment and display
 - `src/routes/admin/media.ts`, `frontend/src/components/Admin/MediaTab.tsx`, and `frontend/src/components/PageEditor/ChatPanel.tsx` — 500 MB upload limit and safer upload errors
 - `src/controllers/admin-websites/feature-services/service.project-manager.ts`, `frontend/src/api/websites.ts`, and `frontend/src/pages/admin/WebsitesList.tsx` — active integration metadata and badges
@@ -792,6 +899,7 @@ Closed out remaining dashboard and website-admin polish by clarifying selected c
 Refreshed recent analytics windows for scheduled harvests and normalized GSC date-only fields so admin tables and charts stop drifting a day early.
 
 **Key Changes:**
+
 - Added provider-specific daily harvest freshness windows: four recent UTC dates for GSC and three for Rybbit and Clarity
 - Preserved explicit manual and historic harvest jobs as one-date jobs
 - Returned GSC harvest and report dates as plain `YYYY-MM-DD` strings from the model/API boundary
@@ -799,6 +907,7 @@ Refreshed recent analytics windows for scheduled harvests and normalized GSC dat
 - Verified stored GSC log and dashboard payloads keep dates such as `2026-05-12` unchanged
 
 **Commits:**
+
 - `src/workers/processors/dataHarvest.processor.ts` — provider-specific rolling harvest windows
 - `src/models/website-builder/IntegrationHarvestLogModel.ts` and `GscDataModel.ts` — date-only API serialization
 - `src/controllers/admin-websites/feature-services/service.gsc-performance.ts` — dashboard date normalization fallback
@@ -812,6 +921,7 @@ Refreshed recent analytics windows for scheduled harvests and normalized GSC dat
 Hardened the local ranking pipeline so transient failures retry safely, permanent failures fail clearly, and website audit outages no longer create fake zero-score recommendations.
 
 **Key Changes:**
+
 - Added classified max-3 retry handling for ranking LLM, Identifier, GBP fetches, Apify Maps, and competitor detail scrape boundaries
 - Replaced the broken Apify Lighthouse dependency with an internal website basics check that records reachability, HTTPS, metadata, schema, robots, sitemap, and NAP hints
 - Changed website audit failure semantics from fake zero scores to `failed`, `skipped`, `unknown`, or nullable measured fields
@@ -819,6 +929,7 @@ Hardened the local ranking pipeline so transient failures retry safely, permanen
 - Added retry evidence to ranking pipeline timing details for observability
 
 **Commits:**
+
 - `src/controllers/practice-ranking/feature-services/service.ranking-resilience.ts` — shared classified retry helper and attempt summaries
 - `src/controllers/practice-ranking/feature-services/service.website-audit.ts` and `service.website-audit-parser.ts` — custom single-URL website basics audit
 - `src/controllers/practice-ranking/feature-services/service.ranking-pipeline.ts`, `service.apify.ts`, and `service.ranking-llm.ts` — retry telemetry, Apify retry boundaries, and safe LLM audit compaction
@@ -832,6 +943,7 @@ Hardened the local ranking pipeline so transient failures retry safely, permanen
 Moved Rybbit toward a single integration-owned tracking path with legacy script detection, safer connect management, renderer injection, and stored analytics visibility in the website Integrations screen.
 
 **Key Changes:**
+
 - Added Rybbit legacy header/footer script detection by script content and parsed `data-site-id`
 - Blocked Rybbit connect/reconnect while enabled legacy scripts would create duplicate tracking
 - Added Rybbit site ID management, stored analytics cards, daily trend, and latest-first raw rows
@@ -840,6 +952,7 @@ Moved Rybbit toward a single integration-owned tracking path with legacy script 
 - Added a dry-run inventory command for legacy Rybbit snippets and data coverage
 
 **Commits:**
+
 - `src/controllers/admin-websites/*`, `src/models/website-builder/*`, and `src/services/integrations/rybbitHarvestAdapter.ts` — Rybbit status, connect, analytics, and harvest plumbing
 - `frontend/src/components/Admin/integrations/*` and `frontend/src/api/integrations.ts` — Rybbit management UI and dashboard
 - `scripts/rybbit-legacy-inventory.ts` — dry-run inventory for legacy Rybbit scripts
@@ -853,6 +966,7 @@ Moved Rybbit toward a single integration-owned tracking path with legacy script 
 Reduced local ranking runtime while preserving the client-facing analysis contract by reusing GBP data, avoiding unnecessary competitor scrapes, and recording structured step timings.
 
 **Key Changes:**
+
 - Reused the pre-identification Google Business Profile payload in scheduled-style ranking runs when account, location, and date window match
 - Added `raw_data.pipeline_timings` records for search position, competitor resolution, GBP, competitor details, website audit, posts, score calculation, and LLM
 - Skipped full Apify competitor detail scraping when finalized curated competitors already have fresh Google Places metadata
@@ -861,6 +975,7 @@ Reduced local ranking runtime while preserving the client-facing analysis contra
 - Compacted the ranking LLM input and tightened prose length guidance while preserving the existing JSON schema
 
 **Commits:**
+
 - `src/controllers/agents/feature-services/service.ranking-executor.ts` — pass pre-fetched GBP profile data into the ranking pipeline
 - `src/controllers/practice-ranking/feature-services/service.ranking-pipeline.ts` — GBP reuse, timing telemetry, curated competitor fast path, and GBP website audit URL
 - `src/controllers/practice-ranking/feature-services/service.ranking-llm.ts` — compact LLM input packet, output-length guidance, and timing success/failure return
@@ -874,6 +989,7 @@ Reduced local ranking runtime while preserving the client-facing analysis contra
 Added a first-class No GBP path for website identity warmup so new projects can provide structured business and location basics without pretending they have Google Business Profile data.
 
 **Key Changes:**
+
 - Added a No GBP yet mode to the Project Identity modal with business basics, hours, and repeatable manual locations
 - Required either a selected GBP profile or complete No GBP manual data before warmup can start
 - Stored manual locations with explicit manual source metadata and no fake Google place IDs
@@ -881,6 +997,7 @@ Added a first-class No GBP path for website identity warmup so new projects can 
 - Kept layout/page generation blocked when identity only has raw URL/text scrape evidence and no structured business or location anchor
 
 **Commits:**
+
 - `frontend/src/components/Admin/IdentityModal.tsx` — No GBP mode, manual fields, rerun rehydration, and source-aware location rows
 - `frontend/src/api/websites.ts` — manual identity payload and nullable/manual location types
 - `src/controllers/admin-websites/AdminWebsitesController.ts` — hard source gate and stale GBP selection clearing
@@ -896,6 +1013,7 @@ Added a first-class No GBP path for website identity warmup so new projects can 
 Prevented ranking reruns from publishing bad Practice Health scores when Google Business Profile requests reject a stale access token. GBP fetches now retry once with a forced refresh, and required ranking GBP data fails safely instead of being scored as an empty profile.
 
 **Key Changes:**
+
 - Added force-refresh support to Google OAuth client resolution
 - Added a shared one-time 401 retry path for GBP data aggregation
 - Blocked ranking completion when required client GBP data is still unavailable after retry
@@ -903,6 +1021,7 @@ Prevented ranking reruns from publishing bad Practice Health scores when Google 
 - Extended the retry path to scheduled ranking identification and competitor onboarding specialty fallback
 
 **Commits:**
+
 - `src/auth/oauth2Helper.ts` — optional forced OAuth refresh for connection and organization lookups
 - `src/utils/dataAggregation/dataAggregator.ts` — one-time GBP 401 retry with shared refreshed client
 - `src/controllers/practice-ranking/feature-services/service.ranking-pipeline.ts` — fail-safe ranking guardrail for missing client GBP data
@@ -917,6 +1036,7 @@ Prevented ranking reruns from publishing bad Practice Health scores when Google 
 Rebuilt the Forms submissions workflow around detected forms, with form-scoped inbox filtering, safer per-form routing settings, visual-only form labels, and persistent form ordering for admin and client website users.
 
 **Key Changes:**
+
 - Grouped submissions by detected form with a left sidebar and selected-form submissions pane
 - Moved per-form routing into a selected-form Settings tab while keeping global Form Settings focused on default fallback recipients
 - Added form-scoped `All`, `Verified`, and `Flagged` filters plus a scoped `Mark all as read` action
@@ -925,6 +1045,7 @@ Rebuilt the Forms submissions workflow around detected forms, with form-scoped i
 - Added user-scoped form catalog, routing, and preference endpoints for the client-facing website tab
 
 **Commits:**
+
 - `src/database/migrations/20260511000000_create_form_recipient_rules.ts` and `src/database/migrations/20260512000000_create_form_catalog_preferences.ts` — schema support for per-form recipient overrides and visual form labels/order
 - `src/models/website-builder/FormSubmissionModel.ts`, `FormRecipientRuleModel.ts`, and `FormCatalogPreferenceModel.ts` — form stats, unread counts, form-scoped mark-all-read, routing rules, and catalog preferences
 - `src/controllers/admin-websites/*`, `src/controllers/user-website/UserWebsiteController.ts`, `src/routes/admin/websites.ts`, and `src/routes/user/website.ts` — admin and user-scoped APIs for catalog, routing, preferences, submissions, and read state
@@ -940,6 +1061,7 @@ Rebuilt the Forms submissions workflow around detected forms, with form-scoped i
 Completed the end-to-end Google Search Console connect flow so the daily harvest worker can start pulling search performance data. The backend plumbing (adapter, worker, data storage) was already functional — this fills the missing connection UI, scope detection, and admin endpoints.
 
 **Key Changes:**
+
 - Added GSC to the scope parser so the settings page correctly detects when Search Console access is missing
 - Fixed the reconnect endpoint to encode auth context in OAuth state, ensuring callbacks link connections to the correct organization
 - Added admin GSC endpoints: list Google connections with GSC scope, list available Search Console sites, create GSC integration for a project
@@ -948,6 +1070,7 @@ Completed the end-to-end Google Search Console connect flow so the daily harvest
 - Supports separate admin Google account for GSC (admin's connection referenced by ID across all client projects)
 
 **Commits:**
+
 - `src/controllers/settings/feature-utils/util.scope-parser.ts` — added GSC to SCOPE_MAP and buildScopeStatus
 - `src/controllers/auth/AuthController.ts` — reconnect endpoint encodes auth context in OAuth state
 - `src/controllers/admin-websites/WebsiteIntegrationsController.ts` — listGscConnections, listGscSites, createGscIntegration
@@ -966,6 +1089,7 @@ Completed the end-to-end Google Search Console connect flow so the daily harvest
 Redesigned the client rankings experience around defensible Google Maps estimates, Practice Health scoring, and an explicit comparison-set workflow that lets users refresh, curate, save, and rerank competitors without creating tasks.
 
 **Key Changes:**
+
 - Reworked `/rankings` labels, cards, loading state, and competitor list copy to avoid implying exact personalized Google rankings
 - Added selected-competitor Maps projection so the dashboard shows only the saved comparison set with `Est. #`, `Not in top 20`, or `Not measured yet`
 - Added comparison-set reselection with rerank-only save behavior and 5-10 minute expectation copy
@@ -974,6 +1098,7 @@ Redesigned the client rankings experience around defensible Google Maps estimate
 - Added migration support for competitor discovery metadata, selected-set snapshots, rerun reason, radius metadata, and Summary task guardrails
 
 **Commits:**
+
 - `frontend/src/components/dashboard/RankingsDashboard.tsx` and `frontend/src/components/dashboard/rankings/RankingsLoadingState.tsx` — redesigned rankings surface, selected-competitor Maps list, and dashboard loading behavior
 - `frontend/src/pages/competitor-onboarding/LocationCompetitorOnboarding.tsx` — comparison-set reselection, radius UI, map pins, manual add measurement, and specialty control
 - `src/controllers/practice-ranking/*` and `src/models/*Ranking*` — ranking response contract, competitor snapshots, radius-aware discovery, rerank-only persistence, and selected-competitor projection
@@ -988,6 +1113,7 @@ Redesigned the client rankings experience around defensible Google Maps estimate
 Aligned the client and admin support-ticketing system with the latest Alloro review feedback, including warmer client language, screenshot/file attachments, required website edit approval details, clearer internal triage semantics, and safer client/admin response contracts.
 
 **Key Changes:**
+
 - Rewrote client ticket prompts to use client-facing language instead of developer terms
 - Added S3-backed support ticket attachments with image/PDF restrictions, size limits, and scoped client/admin access
 - Required website edit approval notes and requested completion date in UI and backend validation
@@ -997,6 +1123,7 @@ Aligned the client and admin support-ticketing system with the latest Alloro rev
 - Split client-safe and admin-full support presenters so internal fields are not exposed to client ticket APIs
 
 **Commits:**
+
 - `src/database/migrations/20260508000000_support_feedback_alignment.ts` — priority/severity enum migration and support attachment metadata table
 - `src/controllers/support/*` and `src/models/SupportTicketAttachmentModel.ts` — support attachment upload/list/signing flow and client-safe ticket presentation
 - `src/routes/support.ts` and `src/routes/admin/support.ts` — client/admin attachment endpoints
@@ -1012,6 +1139,7 @@ Aligned the client and admin support-ticketing system with the latest Alloro rev
 Added cross-project PM triage views so admins can inspect backlog work without opening every project and review workload for Dave or any other PM assignee without hardcoding a person.
 
 **Key Changes:**
+
 - Added a clickable Backlog metric tile that opens `/admin/pm?view=backlog`
 - Added a global backlog view grouped by project with assignment and real project-column move controls
 - Added a reusable assignee workload view with `Me` preserved as the current-user shortcut
@@ -1020,6 +1148,7 @@ Added cross-project PM triage views so admins can inspect backlog work without o
 - Normalized PM user IDs to numeric values so URL params and picker state agree
 
 **Commits:**
+
 - `src/models/PmTaskModel.ts` and `src/models/PmColumnModel.ts` — aggregate backlog, assigned-task, velocity, and project-column map helpers
 - `src/controllers/pm/PmTaskViewsController.ts`, `src/controllers/pm/PmStatsController.ts`, and `src/routes/pm/*` — new backlog, assigned-user, and shared `mine` task routes
 - `src/controllers/pm/PmController.ts` — numeric PM user IDs for assignee picker contracts
@@ -1035,6 +1164,7 @@ Added cross-project PM triage views so admins can inspect backlog work without o
 Added API-backed pagination support across article grids and compact review lists, then migrated existing active page content so long article and review pages load incrementally instead of relying on fixed limits or client-side reveal scripts.
 
 **Key Changes:**
+
 - Updated admin shortcode previews so paginated post and review blocks render the correct first page using `per_page`
 - Added post-block docs and AI-command guidance for `paginate='load-more'`, `paginate='numbered'`, `paginate='infinite'`, and `per_page`
 - Migrated active `articles-grid` page shortcodes from fixed `limit='12'` to API-backed Load More pagination
@@ -1043,6 +1173,7 @@ Added API-backed pagination support across article grids and compact review list
 - Fixed the live renderer pagination client so the Load More loading state is centered and newly loaded cards receive the same truncation/tooltip behavior as initial cards
 
 **Commits:**
+
 - `src/controllers/user-website/user-website-services/shortcodeResolver.service.ts` — admin preview parity for paginated post/review shortcodes
 - `src/database/migrations/20260507000000_article_review_shortcode_pagination.ts` — reversible DB content/template migration for article and compact review pagination
 - `frontend/src/pages/admin/AlloroPostsDocs.tsx` and `frontend/src/components/Admin/ReviewBlocksTab.tsx` — shortcode docs and compact review copy helper
@@ -1056,6 +1187,7 @@ Added API-backed pagination support across article grids and compact review list
 Fixed the admin Reviews tab so review stats, distribution, and rows now come from one project review scope, failed review loads show real errors, and Google Maps fetching happens through an explicit animated modal instead of an inline selector.
 
 **Key Changes:**
+
 - Unified initial Reviews loading into one skeleton state and removed the competing loading indicators
 - Added project-scoped review stats/list handling so totals, rows, hidden filtering, and distribution agree
 - Replaced the collapsed distribution display with count-based 5-to-1 star rows and percentages
@@ -1065,6 +1197,7 @@ Fixed the admin Reviews tab so review stats, distribution, and rows now come fro
 - Preserved OAuth review rows and fixed OAuth upsert conflict handling against the new partial unique index
 
 **Commits:**
+
 - `frontend/src/components/Admin/ReviewsTab.tsx` — unified state orchestration, modal entry point, job banner, filters, and review list wiring
 - `frontend/src/components/Admin/reviews/*` — extracted loading, stats, filters, rows, empty states, modal, error, and job banner components
 - `frontend/src/hooks/queries/useAdminReviewQueries.ts` — React Query hooks and invalidation for review stats/list/job actions
@@ -1079,12 +1212,14 @@ Fixed the admin Reviews tab so review stats, distribution, and rows now come fro
 The `/pmsStatistics` page was rendering a standalone `<PMSCard />` that duplicated the production and referral data already shown in the PMS Vitals section below. Replaced it with the "Ready for the next focus?" upload nudge (matching the main dashboard's design) that only appears when PMS data is stale, with a CTA that scrolls to the ingestion hub.
 
 **Key Changes:**
+
 - Removed duplicate `<PMSCard />` rendering and import
 - Added `derivePmsFocusPeriod` memo using existing `keyData.months` — no new API call
 - Upload nudge card shown conditionally when `focusPeriod.isStale`, styled identically to the dashboard's `PmsUploadNudge`
 - CTA button scrolls to ingestion hub instead of linking back to `/pmsStatistics`
 
 **Commits:**
+
 - `frontend/src/components/PMS/PMSVisualPillars.tsx` — swapped PMSCard for inline upload nudge with stale-data condition
 
 ## [0.0.56] - May 2026
@@ -1094,11 +1229,13 @@ The `/pmsStatistics` page was rendering a standalone `<PMSCard />` that duplicat
 The guided onboarding wizard tour is disabled while dashboard and settings components are being rebuilt. The wizard context provider still mounts (no breaking changes to consumers), but both activation paths — initial status check and `recheckWizardStatus` — are stubbed as no-ops. Original logic is preserved inline with `TODO: RESTORE` markers for re-enablement once the new components are finalized.
 
 **Key Changes:**
+
 - Auto-start `useEffect` replaced with no-op that immediately clears loading state
 - `recheckWizardStatus` callback replaced with no-op stub
 - Original code preserved as commented-out blocks for easy restoration
 
 **Commits:**
+
 - `frontend/src/contexts/OnboardingWizardContext.tsx` — no-op stubs for wizard activation, original logic commented with restoration markers
 
 ## [0.0.55] - May 2026
@@ -1108,9 +1245,11 @@ The guided onboarding wizard tour is disabled while dashboard and settings compo
 After connecting a custom domain, the modal showed a success toast but stayed on the input form instead of transitioning to the DNS verification view. The `onDomainChange()` callback was not awaited, so the parent's state hadn't updated before the modal re-rendered.
 
 **Key Changes:**
+
 - `await onDomainChange()` in `handleConnect` so the parent refetches the project before the loading state clears
 
 **Commits:**
+
 - `frontend/src/components/Admin/ConnectDomainModal.tsx` — await onDomainChange so currentDomain prop is set before re-render
 
 ## [0.0.54] - May 2026
@@ -1120,12 +1259,14 @@ After connecting a custom domain, the modal showed a success toast but stayed on
 The Focus dashboard PMS card was showing total production across all months ($1.97M for a 10-month practice) labeled as "production this month." Now shows the latest month's production as "current period" and renders the headline immediately while the sparkline and top sources load progressively. Same card also added to the PMS Statistics page.
 
 **Key Changes:**
+
 - PMSCard uses `production_this_month`, `doctor_referrals_this_month`, `total_referrals_this_month` instead of aggregate totals
 - Frontend `PmsMetrics` type updated with `_this_month` fields
 - Card renders headline from `useDashboardMetrics` immediately — sparkline/sources section shows skeleton while `usePmsKeyData` loads
 - PMSCard added to PMS Statistics page (`PMSVisualPillars`) when data is available
 
 **Commits:**
+
 - `frontend/src/components/dashboard/focus/PMSCard.tsx` — current period data + progressive loading
 - `frontend/src/types/dashboardMetrics.ts` — added `_this_month` PMS fields
 - `frontend/src/components/PMS/PMSVisualPillars.tsx` — render PMSCard at top of PMS Statistics page
@@ -1137,6 +1278,7 @@ The Focus dashboard PMS card was showing total production across all months ($1.
 Three reliability fixes that eliminated all agent retry failures and unblocked Falls Church (310 referral sources). Validated in production: Gainesville ($1.16), Sterling ($1.29), and Falls Church ($1.65) — all passed RE + Summary on attempt 1, zero retries. Previous Sterling runs failed 3/3 Summary attempts; previous Falls Church RE truncated entirely.
 
 **Key Changes:**
+
 - `getLatestReferralEngineOutput` pending check now scoped by `location_id` — stops false "pending" for unrelated locations in the same org
 - Poll interval in `PMSVisualPillars` increased from 1s to 5s — eliminates polling storm during agent runs
 - Referral Engine `maxTokens` bumped from 32768 to 65536 — Falls Church (310 sources) no longer truncates
@@ -1144,6 +1286,7 @@ Three reliability fixes that eliminated all agent retry failures and unblocked F
 - New startup zombie cleanup: scans for `pms_jobs` stuck in "processing" > 30 minutes on server boot and resets them to "failed"
 
 **Commits:**
+
 - `src/controllers/agents/AgentsController.ts` — location-scoped pending query
 - `frontend/src/components/PMS/PMSVisualPillars.tsx` — poll interval 1s → 5s
 - `src/controllers/agents/feature-services/service.agent-orchestrator.ts` — RE maxTokens 65536
@@ -1157,6 +1300,7 @@ Three reliability fixes that eliminated all agent retry failures and unblocked F
 Added canonical organization-level recipient settings for website form emails and monthly agent notification emails. Admins can now manage Website Form Recipients and Agent Notification Recipients from Organization Settings, while the existing Website Detail recipient editor remains a shortcut to the same website form recipient source.
 
 **Key Changes:**
+
 - Added `organization_recipient_settings` with `website_form` and `agent_notifications` channels
 - Backfilled website form recipients from existing website projects during migration
 - Routed website submissions and confirmed newsletter owner notifications through the canonical `website_form` resolver
@@ -1165,6 +1309,7 @@ Added canonical organization-level recipient settings for website form emails an
 - Preserved legacy website project recipient mirroring for compatibility
 
 **Commits:**
+
 - `src/database/migrations/20260501000000_create_organization_recipient_settings.ts` — recipient settings table, channel constraint, index, and website form backfill
 - `src/models/OrganizationRecipientSettingsModel.ts` — model for channel recipient lookup and upsert
 - `src/services/recipientSettingsService.ts` — normalization, validation, explicit/fallback resolution, and legacy mirror update
@@ -1183,6 +1328,7 @@ Added canonical organization-level recipient settings for website form emails an
 The Summary agent was telling practices "You have 26 unanswered reviews" — but that was only reviews from the current month window, not a total backlog. Practices with deliberately-skipped older reviews were seeing misleading counts. The agent now qualifies every review count with the month name, names specific reviewers, and states sentiment. Additionally, a new `domain_summaries` output section provides at-a-glance strips for each data domain (reviews, GBP, ranking, referrals) rendered as expandable rows inside the Hero dashboard card.
 
 **Key Changes:**
+
 - `ReviewsMetrics` enriched with `unanswered_reviewer_names` (up to 5) and `avg_rating_this_month` for agent grounding
 - Summary prompt enforces month-scoped review language ("26 March reviews without a reply", never generic "unanswered reviews")
 - Summary prompt instructs agent to name up to 3 reviewers with "and N more", plus sentiment read (all 5-star / mixed / needs attention)
@@ -1191,6 +1337,7 @@ The Summary agent was telling practices "You have 26 unanswered reviews" — but
 - Frontend `DomainStrips` component renders expandable domain rows inside the Hero card; hides gracefully when data is absent
 
 **Commits:**
+
 - `src/utils/dashboard-metrics/types.ts` — added `unanswered_reviewer_names`, `avg_rating_this_month` to `ReviewsMetrics`
 - `src/utils/dashboard-metrics/service.dashboard-metrics.ts` — pass reviewer names through `extractReviewSummary`, collect names + compute avg in `buildReviewsMetrics`
 - `src/agents/monthlyAgents/Summary.md` — REVIEW VERBIAGE RULES + DOMAIN SUMMARIES sections
@@ -1206,6 +1353,7 @@ The Summary agent was telling practices "You have 26 unanswered reviews" — but
 Fixed a chain of multi-location bugs where PMS uploads via the mapping path (`uploadWithMapping`) always attributed data to the primary location, processing cards appeared on all locations during any upload, and the main dashboard PMS card flashed org-wide totals before the location selector loaded.
 
 **Key Changes:**
+
 - Backend `uploadWithMapping` now reads `body.locationId` before falling back to `resolveLocationId()` — uploads land on the correct location
 - `pms:job-uploaded` event includes `locationId`; `PMSVisualPillars` only shows processing card for the matching location
 - Automation status polling (`fetchActiveAutomationJobs`) gated on `locationId` being available — no more org-wide active job leaks
@@ -1215,6 +1363,7 @@ Fixed a chain of multi-location bugs where PMS uploads via the mapping path (`up
 - PMSVisualPillars shows cogitating spinner until both key data and automation status have completed initial fetch
 
 **Commits:**
+
 - `src/controllers/pms/PmsController.ts` — read `body.locationId` in `uploadWithMapping`
 - `frontend/src/components/PMS/PMSManualEntryModal.tsx` — location name header, locationId in event
 - `frontend/src/components/PMS/PMSVisualPillars.tsx` — initial load gate, event scoping, automation fetch guards, cogitating spinner
@@ -1229,12 +1378,14 @@ Fixed a chain of multi-location bugs where PMS uploads via the mapping path (`up
 Retired the dead `PMSUploadModal` from Dashboard (no trigger ever opened it) — `PMSManualEntryModal` now handles all PMS upload paths with multi-file drag-and-drop and column mapping. Added a 12-month sliding window to `aggregatePmsData()` so sources, totals, and trends are computed from the most recent 12 months only, preventing unbounded payload growth for the RE and Summary agents.
 
 **Key Changes:**
+
 - Removed `PMSUploadModal` import, state, and render from `Dashboard.tsx`
 - Added `@deprecated` comment to `PMSUploadModal.tsx` (file preserved for git history)
 - `aggregatePmsData()` now sorts all months, slices to last 12, then computes source aggregation and trends from the capped window
 - Data quality flag added when months are capped: "Capped to most recent 12 months of data (N months total available)"
 
 **Commits:**
+
 - `frontend/src/pages/Dashboard.tsx` — removed PMSUploadModal dead code
 - `frontend/src/components/PMS/PMSUploadModal.tsx` — deprecation notice
 - `src/utils/pms/pmsAggregator.ts` — 12-month sliding window before source/trend computation
@@ -1246,12 +1397,14 @@ Retired the dead `PMSUploadModal` from Dashboard (no trigger ever opened it) —
 Fixed a bug where selecting one doctor/service checkbox in the Import from Identity modal would visually check all entries — but only count as 1 selected — when multiple entries shared the same source URL (e.g. all doctors listed on a single /our-team page). Each entry now gets a unique composite key (`url#name-slug`) throughout the full pipeline so checkboxes work independently, each creates a separate draft post, and shared URLs are scraped only once.
 
 **Key Changes:**
+
 - Frontend modal uses composite key (`source_url#slugified-name`) per entry instead of bare URL
 - API transport sends `{ source_url, name }` objects for doctor/service entries
 - Backend normalizes entries, builds composite dedup keys, and caches scrape results per URL
 - Retry flow resolves entries back to `{ source_url, name }` objects for correct identity lookup
 
 **Commits:**
+
 - `frontend/src/components/Admin/ImportFromIdentityModal.tsx` — composite keys, entry resolution, external link fix
 - `frontend/src/api/websites.ts` — entries type widened
 - `src/controllers/admin-websites/feature-services/service.post-importer.ts` — entry normalizer, scrape cache, name-based identity lookup
@@ -1264,6 +1417,7 @@ Fixed a bug where selecting one doctor/service checkbox in the Import from Ident
 Centralized website-builder identity parsing/persistence and made page/layout generation depend on `project_identity` as the explicit source-of-truth contract. This removes redundant scrape fallback behavior from active generation paths while preserving the existing bulk endpoint for external compatibility.
 
 **Key Changes:**
+
 - Added `ProjectIdentityModel` plus shared identity helpers for parsing, saving, warmup status, brand-column mirroring, and generation readiness checks
 - Migrated identity endpoints, identity warmup, slot prefill, and slot generation away from local JSON parsing/update helpers
 - Updated single-page generation start to block with `IDENTITY_NOT_READY` instead of falling back to `project-scrape`
@@ -1272,6 +1426,7 @@ Centralized website-builder identity parsing/persistence and made page/layout ge
 - Aligned layout generation with the same identity model/readiness path
 
 **Commits:**
+
 - `src/models/website-builder/ProjectIdentityModel.ts` — model-owned `project_identity` reads, writes, warmup status, patching, and brand mirroring
 - `src/controllers/admin-websites/feature-utils/util.project-identity.ts` — shared identity parse/save/readiness helpers
 - `src/controllers/admin-websites/AdminWebsitesController.ts` — identity endpoints and page creation flows now use the identity model and readiness checks
@@ -1285,6 +1440,7 @@ Centralized website-builder identity parsing/persistence and made page/layout ge
 Fixed Referral Engine agent failing on orgs with large referral networks (60+ sources) due to output hitting the 16K max_tokens ceiling. JSON was truncated mid-stream, causing parse failures and unnecessary retries. Also added structured error logging across the entire monthly agent pipeline so failures are diagnosable from the log file without needing server console access.
 
 **Key Changes:**
+
 - RE agent maxTokens bumped from 16,384 → 32,768 to accommodate large referral matrices
 - `runMonthlyAgent` now accepts per-agent `maxTokens` override instead of hardcoding
 - LLM runner returns `stopReason` ("end_turn" / "max_tokens") — truncation detected and warned explicitly
@@ -1293,6 +1449,7 @@ Fixed Referral Engine agent failing on orgs with large referral networks (60+ so
 - Timing instrumentation added: data fetch phase, RE duration, Summary duration, total pipeline
 
 **Commits:**
+
 - `src/agents/service.llm-runner.ts` — `stopReason` in result interface, truncation warning on max_tokens + null parse
 - `src/controllers/agents/feature-services/service.agent-orchestrator.ts` — RE maxTokens=32768, per-agent maxTokens param, structured error logging, timing, API error classification
 
@@ -1303,11 +1460,13 @@ Fixed Referral Engine agent failing on orgs with large referral networks (60+ so
 Unified visual consistency between the main dashboard and PMS statistics page.
 
 **Key Changes:**
+
 - Background color changed from cool gray (`#F3F4F6`) to warm parchment (`#F7F5F3`) across both pages
 - Top padding aligned so headings sit at the same vertical position on both pages
 - PMS processing status card: "Background PMS Processing" label replaced with "Est. 3-5 minutes" in muted gray; animated typewriter text thinned from black to normal weight while keeping the orange/dark gradient
 
 **Commits:**
+
 - `frontend/src/pages/Dashboard.tsx` — warm parchment background + content top padding
 - `frontend/src/components/dashboard/DashboardOverview.tsx` — matching padding
 - `frontend/src/components/PMS/PMSVisualPillars.tsx` — removed duplicate top padding (inherits from parent)
@@ -1320,10 +1479,12 @@ Unified visual consistency between the main dashboard and PMS statistics page.
 Fixed a bug where dropping multiple CSV files (e.g. Jan + Feb + Mar) onto the PMS modal produced incorrect per-month production and referral counts. Patients visiting the same referring practice across different months were collapsed into a single referral because the dedup key lacked a month component. Mar showed $167,692 instead of the correct $193,763.
 
 **Key Changes:**
+
 - Backend: procedure log adapter dedup key changed from `patient::practice` to `patient::month::practice`, making cross-month visits count as separate referral events
 - Frontend: multi-file drop now strips header lines from files 2+ before concatenating, preventing embedded CSV headers from becoming garbage data rows
 
 **Commits:**
+
 - `src/utils/pms/adapters/procedureLogAdapter.ts` — month-aware dedup grouping key
 - `frontend/src/components/PMS/PMSManualEntryModal.tsx` — header-stripping in multi-file concatenation
 
@@ -1389,11 +1550,11 @@ Bundle of five changes that reduce RE latency, clean up the FE progress UI, and 
 
 **Measured impact (org-36, 1 month PMS, same org+location+date_range across runs):**
 
-| Metric | Sonnet + GBP (baseline) | Sonnet + no GBP + Haiku RE | Change |
-|---|---|---|---|
-| RE input tokens | 18,283 | 7,161–7,510 | -60% |
-| RE call duration | 105.1s | 42–46s | -58% |
-| Total run duration | 217.2s | 172–182s | -18–21% |
+| Metric             | Sonnet + GBP (baseline) | Sonnet + no GBP + Haiku RE | Change  |
+| ------------------ | ----------------------- | -------------------------- | ------- |
+| RE input tokens    | 18,283                  | 7,161–7,510                | -60%    |
+| RE call duration   | 105.1s                  | 42–46s                     | -58%    |
+| Total run duration | 217.2s                  | 172–182s                   | -18–21% |
 
 **Verification:** `tsc --noEmit` clean (backend + frontend). Multiple end-to-end runs verified — Summary v2 passes validator attempt 1, tasks created cleanly, Pipeline modal renders correctly, FE pills show only active agents with proper checkmarks.
 
@@ -1407,7 +1568,7 @@ The proximate failures all lived in three different places, but they shared one 
 
 **Key Changes:**
 
-1. **`Summary.md` — GROUNDING RULES + PASSTHROUGH RULE rewrite.** The previous PASSTHROUGH RULE explicitly told Summary to cite `referral_engine_output.practice_action_plan[N].title` in `supporting_metrics[*].source_field`, which the validator then rejected because that field is restricted to `dashboard_metrics` paths. An earlier in-session attempt to fix this (using the phrase *"pick at least one deterministic dashboard_metrics path"*) accidentally caused the model to literally prefix every path with `"dashboard_metrics."` (e.g. `"dashboard_metrics.ranking.position"`), which the validator also rejected because it walks the dashboard_metrics object as root.
+1. **`Summary.md` — GROUNDING RULES + PASSTHROUGH RULE rewrite.** The previous PASSTHROUGH RULE explicitly told Summary to cite `referral_engine_output.practice_action_plan[N].title` in `supporting_metrics[*].source_field`, which the validator then rejected because that field is restricted to `dashboard_metrics` paths. An earlier in-session attempt to fix this (using the phrase _"pick at least one deterministic dashboard_metrics path"_) accidentally caused the model to literally prefix every path with `"dashboard_metrics."` (e.g. `"dashboard_metrics.ranking.position"`), which the validator also rejected because it walks the dashboard_metrics object as root.
 
    The rewrite makes the contract crystal clear:
    - Lists valid top-level keys explicitly: `reviews, gbp, ranking, form_submissions, pms, referral`
@@ -1418,7 +1579,7 @@ The proximate failures all lived in three different places, but they shared one 
 
 2. **`service.prompt-loader.ts` — cache bypass in dev.** `loadPrompt()` had an in-memory `Map<string, string>` cache that, once populated, never re-read from disk. This made prompt iteration in dev impossible: every Summary.md edit required a full server restart to take effect. The fix gates the cache on `NODE_ENV === "production"`. In dev (tsx) every `loadPrompt()` call re-reads the file; in prod the cache stays on for performance. This was the silent reason multiple prompt-fix attempts during the session appeared to do nothing — the dev server was serving the prompt content from server-start time regardless of disk edits.
 
-3. **`service.agent-orchestrator.ts` — `metricValuesMatch` tolerance and normalization.** The validator's prior implementation only stripped non-numeric characters from the *metric* side (the model's value), not from the *dict* side. So `"$365,747"` reduced to `365747` and was strict-`===`-compared against `365747.01` (which carried two decimals from `.toFixed(2)` rounding of summed monthly production), and failed. The Summary prompt explicitly promised "*Numeric equivalence counts (`$48,420 == 48420`)*" — the validator was breaking that promise on any decimal residue. Same shape for strings: case-sensitive substring fallback rejected `"GBP activity"` ≈ `"gbp_activity"`. The new implementation:
+3. **`service.agent-orchestrator.ts` — `metricValuesMatch` tolerance and normalization.** The validator's prior implementation only stripped non-numeric characters from the _metric_ side (the model's value), not from the _dict_ side. So `"$365,747"` reduced to `365747` and was strict-`===`-compared against `365747.01` (which carried two decimals from `.toFixed(2)` rounding of summed monthly production), and failed. The Summary prompt explicitly promised "_Numeric equivalence counts (`$48,420 == 48420`)_" — the validator was breaking that promise on any decimal residue. Same shape for strings: case-sensitive substring fallback rejected `"GBP activity"` ≈ `"gbp_activity"`. The new implementation:
    - Strips non-numeric from BOTH sides before numeric comparison
    - Adds 1% relative-tolerance check (`Math.max(|a|,|b|,1)` denominator avoids div-by-zero and asymmetric tolerance)
    - Adds string normalization layer (lowercase, `_-` ↔ space, whitespace collapse) for both exact-and-substring fallbacks
@@ -1433,12 +1594,14 @@ The proximate failures all lived in three different places, but they shared one 
 
 ### Fix: Monthly Agents No Longer Crash Between Referral Engine and Summary
 
-Pre-existing bug from the Plan 1 "Summary as Chief-of-Staff" refactor (commit `35a54b50`). The orchestrator wrote a progress notification for `subStep="dashboard_metrics"` between Referral Engine and Summary, but `dashboard_metrics` was never added to `MonthlyAgentKey` / `MONTHLY_AGENT_CONFIG` — so `calculateProgress()` looked up `undefined` and threw `Cannot read properties of undefined (reading 'progressOffset')`. Every monthly run since the refactor has been crashing at the same spot, with the failure surfacing in the UI as a stuck "Referral Engine" badge (RE had completed; the crash was on the *next* progress write).
+Pre-existing bug from the Plan 1 "Summary as Chief-of-Staff" refactor (commit `35a54b50`). The orchestrator wrote a progress notification for `subStep="dashboard_metrics"` between Referral Engine and Summary, but `dashboard_metrics` was never added to `MonthlyAgentKey` / `MONTHLY_AGENT_CONFIG` — so `calculateProgress()` looked up `undefined` and threw `Cannot read properties of undefined (reading 'progressOffset')`. Every monthly run since the refactor has been crashing at the same spot, with the failure surfacing in the UI as a stuck "Referral Engine" badge (RE had completed; the crash was on the _next_ progress write).
 
 **Key Changes:**
+
 - `service.agent-orchestrator.ts` — deleted the broken `onProgress("dashboard_metrics", ...)` call. `dashboard_metrics` is a sub-second deterministic compute, not a real agent step worth surfacing in the agent-progress UI; the backend `log(...)` line one over still records it for server observability.
 
 **Commits:**
+
 - `fix: monthly agents crash between RE and Summary on dashboard_metrics progress write`
 
 **Verification:** `tsc --noEmit` clean. Next PMS-triggered monthly run will pass through dashboard_metrics → Summary cleanly. Job #118 (One Endodontics) and any earlier failed runs remain in their failed state and will need to be re-triggered via the existing PMS restart flow.
@@ -1450,6 +1613,7 @@ Pre-existing bug from the Plan 1 "Summary as Chief-of-Staff" refactor (commit `3
 Two coordination problems shared one root cause and got fixed together: (1) the ranking pipeline was writing its own `agent_type="RANKING"` USER tasks in parallel to Summary's `top_actions`, so clients on `/to-do-list` could see duplicate or contradictory tasks; (2) admins had no way to debug a monthly run because `agent_results.agent_input` was nulled out for any payload >50KB and `dashboard_metrics`/GBP/Rybbit were never persisted. Folding ranking into Summary's input and removing the truncation fixes both with one coherent change.
 
 **Key Changes:**
+
 - `service.agent-orchestrator.ts` — removed the 50KB truncation on `agent_results.agent_input`; the column is already JSONB-shaped via `BaseModel.jsonFields`, so no migration was needed. The full payload sent to Claude (PMS rollup + GBP + RE output + dashboard_metrics + ranking_recommendations) is now persisted verbatim per run for both Referral Engine and Summary.
 - `service.ranking-recommendations.ts` (new) — `fetchLatestRankingRecommendations(orgId, locationId)` reads the most recent completed `practice_rankings.llm_analysis.top_recommendations[]` for a location.
 - `service.agent-input-builder.ts` — `buildSummaryPayload` accepts `rankingRecommendations` and emits it as `additional_data.ranking_recommendations` (sibling key, intentionally not folded into `dashboard_metrics` so the deterministic-dictionary contract stays intact).
@@ -1476,6 +1640,7 @@ Two coordination problems shared one root cause and got fixed together: (1) the 
 Iterative refinement pass on the Rankings dashboard and the surrounding UI shell. Removed a redundant hero block, replaced overlapping section descriptors with `(i)`-icon hover tooltips (`InfoHint` helper), recovered from a layout regression where the eyebrow tooltip was rendering behind adjacent stacking contexts and one KPI label ("Practice Health") was wrapping to two lines, and finished the multi-page serif sweep that had been rolling out since 0.0.36. Brand bar in the sidebar now renders "Alloro" in bold Fraunces with the "Intelligence" subtitle dropped. The legacy v1 "auto-discovered competitors" notice on Practice Health was removed entirely.
 
 **Key Changes:**
+
 - `RankingsDashboard.tsx` — dropped Local Reputation hero block; restyled `client_summary` as a soft cream parchment callout (`#FCFAED` / `#EDE5C0`) with an "Practice insight" Info eyebrow and serif body; introduced `InfoHint` component for section eyebrows (Practice Health + Live Google Rank), replacing inline overflowing descriptors with bottom-positioned animated tooltips; grouped each `InfoHint` with its section in `space-y-4` containers so eyebrows hug their content while preserving 80px breathing room between major groups; tightened KPI label tracking (`0.25em` → `0.18em`) + added `whitespace-nowrap` so "PRACTICE HEALTH" stays on one line; removed the `LegacyRankingTag` v1 notice and its dead import.
 - `CompetitorOnboardingBanner.tsx` — slimmed v2 banner from a 3-line card to a single padded row (`px-4 py-2.5`, 28px icon); added animated Info hover tooltip explaining what curation does to ranking accuracy.
 - `focus/ActionQueue.tsx` — removed the explanatory footer paragraph ("Summary outputs 3–5 actions per month, ordered by priority_score…").
@@ -1487,6 +1652,7 @@ Iterative refinement pass on the Rankings dashboard and the surrounding UI shell
 **Tooltip layering fix (post-regression):** Initial `InfoHint` rendered tooltips above the icon (`bottom-full mb-2`) with a `-mb-6` negative margin on the row, causing the tooltip to clash with the previous section's stacking context and the eyebrow row to crowd against the next KPI grid. Flipped tooltip to render below (`top-full mt-2`), flipped the arrow (`border-b-alloro-navy`), replaced `-mb-6` with `pb-2`, bumped tooltip `z-50` → `z-[100]`, and added a per-instance `zIndex: 60` on the `InfoHint` root when the tooltip is open.
 
 **Commits:**
+
 - `e9927fdf` — drop hero header, restyle client summary as parchment callout
 - `f44ef3c2` — subtler cream callout + slim v2 banner above
 - `ced05757` — info tooltip on v2 banner explaining the curation upgrade
@@ -1510,15 +1676,18 @@ Iterative refinement pass on the Rankings dashboard and the surrounding UI shell
 Stripped page-level eyebrow + headline + subtitle blocks that were taking first-fold space without adding signal. Tasks, Notifications, Help, and Settings lose their headers entirely; Rankings keeps its header but at a much smaller scale and switches to Fraunces (`font-display`). Two remaining setup-state headings (PMS Visual Pillars, DFY Website) also pick up Fraunces for consistency with the Focus dashboard's typography.
 
 **Removed entirely (no replacement):**
+
 - `TasksView.tsx` — "Actionable Growth · Practice Roadmap. Complete these Team Tasks to capture high-value revenue leakage."
 - `Notifications.tsx` — "Notifications Active · Practice Updates. A live feed of Important Events that need your attention."
 - `Help.tsx` — "We are here to help · How can we help? Talk to your Alloro Strategist for help with your practice growth."
 - `Settings.tsx` — avatar circle + "Hamilton Wise's Organization" h1 + "Manage your practice details and connect your Google integrations" subtitle, plus the entire `<header>` shell that wrapped them.
 
 **Shrunk + serif:**
+
 - `RankingsDashboard.tsx` — "Local Reputation." heading dropped from `text-5xl/6xl font-black font-heading` to `font-display text-2xl md:text-3xl font-medium tracking-tight`. Subtitle dropped from `text-xl/2xl` to `text-base/lg`. The "Local SEO Tracking On" eyebrow + structure preserved.
 
 **Serif applied to remaining prominent page headings:**
+
 - `PMSVisualPillars.tsx:1148` setup-state heading — `font-display text-3xl font-medium`
 - `DFYWebsite.tsx:888` building-state heading — `font-display text-2xl md:text-3xl font-medium`
 
@@ -1533,11 +1702,13 @@ Stripped page-level eyebrow + headline + subtitle blocks that were taking first-
 Walked back the most visible part of 0.0.34 (the global sidebar → top-bar swap) while preserving every other piece of that release. The sidebar returns as the live navigation across all authenticated pages; the new Focus dashboard content (Hero, Trajectory, Action Queue, three product cards), the new fonts (Fraunces, Inter, JetBrains Mono), the `mark.hl` highlight class, and the brand-orange wizard outline all stay.
 
 **Code changes:**
+
 - `PageWrapper.tsx` — restored to its pre-0.0.34 shape (sidebar mount + mobile header + sidebar-aware main padding via `useSidebar` collapsed state). `TopBar` and `Ticker` are no longer mounted.
 - `Sidebar.tsx` — `@deprecated` JSDoc block from 0.0.34 removed; the sidebar is fully live again.
 - `components/layout/TopBar.tsx` + `components/layout/Ticker.tsx` — `@deprecated` JSDoc added (mirrors the pattern we just removed from Sidebar). Components preserved on disk and trivially revivable with a one-line `PageWrapper` edit if a top-bar rethink lands later.
 
 **Unchanged from 0.0.34:**
+
 - All 11 components under `components/dashboard/focus/` (Hero, Trajectory, ActionQueue, WebsiteCard, LocalRankingCard, PMSCard, ProoflineModal, SetupProgressBanner, HighlightedText, Sparkline, FactorBar, icons)
 - The thin `DashboardOverview.tsx` composition rendering them
 - 3 new API clients (`dashboardMetrics`, `formSubmissionsTimeseries`, `rankingHistory`)
@@ -1561,12 +1732,14 @@ Decide within ~1 release cycle whether to delete `TopBar.tsx` + `Ticker.tsx` or 
 The practice-facing dashboard at `/dashboard` is fully redesigned. The global left sidebar is replaced with a top-bar nav across all authenticated pages. The dashboard's "Focus" tab gets a single dominant Hero card surfacing Summary v2's `top_actions[0]`, a Trajectory + Action Queue row, and three product cards (Website / Local Ranking / PMS) that surface real grounded metrics with month-over-month context. The 1700-line legacy `DashboardOverview.tsx` is replaced by a 95-line composition that delegates all rendering to small focused components under `frontend/src/components/dashboard/focus/`.
 
 **Layout shell (global):**
+
 - `PageWrapper.tsx` rewritten — sidebar mount removed, replaced with `<TopBar>` at top + `<Ticker>` (only on dashboard routes). Content area no longer reserves sidebar width. Mobile header consolidated into `TopBar`'s mobile variant. `MobileBottomNav` continues to render as primary mobile nav until the mobile redesign lands.
 - New `components/layout/TopBar.tsx` — brand mark · 6-tab nav (Focus/Journey/PMS/Rankings/Tasks·count/Referral Engine) via `<NavLink>` for URL-driven active state · live pulse pill · refresh icon (wires to `useQueryClient().invalidateQueries()`) · location selector consuming `useLocationContext` · avatar with initials from `useAuth().userProfile`. Mobile: collapses to brand + avatar + hamburger drawer.
 - New `components/layout/Ticker.tsx` — today strip with ambient signals + refreshed-at timestamp.
 - `components/Sidebar.tsx` preserved on disk (with `@deprecated` JSDoc) for revert path. Not mounted.
 
 **Focus dashboard composition** (`components/dashboard/focus/`):
+
 - `Hero.tsx` (+ `useTopAction` hook) — reads tasks where `agent_type='SUMMARY'` filtered to highest `metadata.priority_score`. Renders dark card with 3 pills (1-thing-that-matters · urgency · domain), Fraunces display headline with inline `<mark class="hl">` highlights, rationale paragraph, primary/secondary/tertiary CTAs, and a right-side "Why this first" panel with 3 grounded stats + outcome (deliverables in green-bold + mechanism muted).
 - `Trajectory.tsx` — reads existing `useAgentData` for Proofline. Renders salutation ("Good morning, {firstName}." with time-of-day) + body with highlights + "Read full explanation →" link triggering `ProoflineModal` + 3 mini-stats (Production MTD / New patient starts / Visibility score) sourced from `useDashboardMetrics`.
 - `ActionQueue.tsx` (+ `useActionQueue` hook) — reads remaining tasks (Summary `priority_score < hero` + RE ALLORO), sorts desc, slices to 5 rows. Each row: domain icon tile via `getDomainIcon` lookup · title · color-coded urgency · due date · agent pill (Summary/Referral Engine) · chevron. Footer note explains the priority_score ordering rule.
@@ -1577,20 +1750,24 @@ The practice-facing dashboard at `/dashboard` is fully redesigned. The global le
 - `SetupProgressBanner.tsx` — thin orange-tinted banner above hero, only when `useAuth().onboardingCompleted === false`. CTA to `/new-account-onboarding`.
 
 **Helper components:**
+
 - `HighlightedText.tsx` — pure-text deterministic substring → `<mark class="hl">` JSX wrap. Sorts highlights longest-first, escapes regex specials, never injects raw HTML from agent output. Mismatched phrases silently dropped.
 - `Sparkline.tsx` — area + line + last-point dot SVG. `viewBox` + `preserveAspectRatio="none"` for responsive scaling.
 - `FactorBar.tsx` — labeled horizontal progress bar with color tier (green ≥0.7, orange 0.5-0.7, red <0.5). Score clamped to [0,1].
 - `icons.ts` — `DOMAIN_ICONS` lookup map (review→MessageSquare, gbp→MapPin, ranking→TrendingUp, form-submission→Inbox, pms-data-quality→Database, referral→UserPlus). Frontend-derived per Plan 1's domain enum; agent never picks an icon.
 
 **Typography & tokens:**
+
 - New fonts: Fraunces (display, weights 400/500/600), Inter (400/500/600/700), JetBrains Mono (400/500/600). Loaded via Google Fonts in `index.html` alongside existing Plus Jakarta Sans + Literata. CSS vars `--font-display`, `--font-mono`, `--font-inter` added to `index.css`.
 - `mark.hl` class added with light + dark variants (toggled by `focus-card-dark` wrapper class on the Hero). Brand orange `#D66853`.
 - Domain icon tile classes (`.di-review`, `.di-gbp`, `.di-ranking`, `.di-form`, `.di-pms`, `.di-referral`) added to `index.css` with their respective tints.
 
 **Onboarding wizard fix:**
+
 - `SpotlightOverlay.tsx` — `wizard-highlight` outline color updated from off-brand `rgba(255,138,61,X)` to brand orange `rgba(214,104,83,X)` matching `--color-alloro-orange`. Pulse animation pattern unchanged. Now reads correctly against the new dashboard's dark hero card.
 
 **API clients (consume Plan 1 endpoints):**
+
 - `frontend/src/api/dashboardMetrics.ts` + `useDashboardMetrics` hook
 - `frontend/src/api/formSubmissionsTimeseries.ts` + `useFormSubmissionsTimeseries` hook
 - `frontend/src/api/rankingHistory.ts` + `useRankingHistory` hook
@@ -1610,6 +1787,7 @@ Mobile-first redesign of the new layout (current mobile is "works, doesn't crash
 The monthly agent chain is reorganized so a single agent (Summary v2) writes practice-facing tasks, with Referral Engine providing specialist input and a new deterministic metrics service grounding every claim. Opportunity and CRO Optimizer are disabled (preserved on disk for revival). Two new endpoints land for the upcoming dashboard redesign (Plan 2 — frontend).
 
 **Architecture:**
+
 - **New chain order:** `Referral Engine → service.dashboard-metrics.ts → Summary v2`. RE runs first to produce specialist analysis (matrices, growth opportunity summary). The new dashboard-metrics service computes a deterministic dictionary of org-specific numbers (review/GBP/ranking/form-submission/PMS/referral) consuming RE's output. Summary v2 runs last with the full context (PMS, GBP, analytics, RE output, dashboard metrics) and picks 3-5 monthly priorities across all six domains.
 - **Opportunity + CRO disabled** in `service.agent-orchestrator.ts` via `if (false)` blocks. Their prompt files, payload builders, and task-creator branches are preserved on disk; revival is a one-line orchestrator change.
 - **Summary v2 schema** (`SummaryV2OutputSchema` in `agent-output-schemas.ts`): top-level `.strict()` Zod, requires `top_actions: TopAction[]` of length 3-5. Each `TopAction` carries `title · urgency · priority_score (0-1) · domain · rationale · highlights[≤2] · supporting_metrics[exactly 3] · outcome.{deliverables, mechanism} · cta · due_at?`. The domain enum is `review | gbp | ranking | form-submission | pms-data-quality | referral` — Summary now picks across all six (the earlier "exclude referral" rule is dropped).
@@ -1622,12 +1800,14 @@ The monthly agent chain is reorganized so a single agent (Summary v2) writes pra
 - **3-attempt retry on Summary v2** (mirrors RE's pattern). Each attempt: Zod corrective retry inside the runner + value/highlights validators outside. Failure of all 3 attempts returns `{ success: false }` with the error.
 
 **New backend endpoints (consumed by Plan 2 frontend):**
+
 - `GET /api/dashboard/metrics?organization_id=X[&location_id=Y]` — wraps `computeDashboardMetrics`. Validates output via `DashboardMetricsSchema` before returning.
 - `GET /api/user/website/form-submissions/timeseries?range=12m|6m|3m` — returns `[{ month, verified, unread, flagged }]` zero-filled, oldest-first. Filters via the existing `is_flagged` / `is_read` columns + `form_name` exclusion that match the existing `/stats` semantics (so dashboard counts stay consistent).
 - `GET /api/practice-ranking/history?googleAccountId=X[&locationId=Y]&range=6m|3m` — returns `[{ observedAt, rankScore, rankPosition, factorScores }]` oldest-first, with `factorScores` flattened from the `ranking_factors` jsonb to a `Record<string, number>` of just the score numbers.
 
 **`service.dashboard-metrics.ts` — the deterministic dictionary:**
 Pure function — no LLM calls. Six sections:
+
 - `reviews` — oldest_unanswered_hours, unanswered_count, current_rating, rating_change_30d, reviews_this_month
 - `gbp` — days_since_last_post, posts_last_quarter, call/direction_clicks_last_30d
 - `ranking` — position, total_competitors, score, lowest_factor, highest_factor, score_gap_to_top
@@ -1649,6 +1829,7 @@ Frontend redesign (Plan 2 — separate spec at `plans/04282026-no-ticket-focus-d
 PMS uploads now run through a column-mapping system that handles arbitrary export shapes — not just the 4-col Alloro template. The previous positional parser silently misclassified procedure-log exports (e.g., Open Dental: `Treatment Date | Procedure | Patient | … | Referring Practice | …`) by treating procedure codes as source names and per-procedure rows as per-referral rows. New flow hashes the file's headers into a signature and resolves through three tiers: **org cache → global library → AI inference (Haiku 4.5)**. On first upload of an unknown shape, the user reviews/edits the mapping in a side drawer; on confirm (or "Re-process and save") it clones into the org's cache so subsequent uploads of the same shape are silent. The n8n PMS parsing webhook is no longer called — paste and file-upload paths now run the same code in this repo.
 
 **Architecture:**
+
 - New `pms_column_mappings` table (jsonb mapping payload, `is_global` flag, partial unique indexes for org rows and global rows). `pms_jobs.column_mapping_id` added as additive nullable FK with `ON DELETE SET NULL`.
 - Three-tier resolver in `src/utils/pms/resolveColumnMapping.ts` with `[pms-mapping]` telemetry on every dispatch (`{ signatureHash, source, confidence, orgId, success }`). One-way fallback chain — never reversed, never merged.
 - AI inference (`src/utils/pms/columnMappingInference.ts`) reuses the same Zod + corrective-retry plumbing the Referral Engine got in 0.0.31. 8s hard timeout, Haiku 4.5, temperature 0, prompt cache enabled (`cachedSystemBlocks: []`). On timeout or repeat-Zod-failure, falls through to manual-mapping UI.
@@ -1658,12 +1839,14 @@ PMS uploads now run through a column-mapping system that handles arbitrary expor
 - Initial global library seeded with two entries: Alloro 4-col template and the Open Dental procedure-log shape derived from the Fredericksburg test fixture. Engineering-controlled — global writes are seed-only; app code can only read from the library and write to the org cache.
 
 **Frontend:**
+
 - `PMSManualEntryModal.tsx` rewritten with a state-machine CSV parser. The previous naive `split(',')` shifted all columns silently whenever a quoted field contained a comma (patient names like `"Diab, Zied"`). State machine handles quoted fields, escaped quotes (`""`), and CRLF.
 - New `ColumnMappingDrawer.tsx` — 3 main fields (Date, Source, Production) + Advanced collapsible (Patient + status filter). Inverted from the original per-header dropdown matrix because doctors found the role-enum-first UX unintuitive — "tell us where Date / Source / Production live" matches the mental model of someone who knows their PMS export but not the role enum. Single "Re-process and save" CTA, disabled until edits exist.
 - New `ProductionFormulaBuilder.tsx` — `+` / `−` ops over column dropdowns with live preview against the first row (`Gross Revenue − Total Writeoffs = $1,234.56`). The target-of-formula dropdown was removed during execution (overengineered — defaults to `production_net` silently).
 - 4 new typed API client wrappers in `frontend/src/api/pms.ts`: `previewMapping`, `uploadWithMapping`, `reprocessJob`, `getCachedMapping`.
 
 **Behavior changes from spec (logged in spec Revision Log):**
+
 - **Dedup model** changed from per-`(patient, date, practice)` triplet (D8) to per-`(patient, practice)` pair after verification against Hamilton Wise's reference pivot on the Fredericksburg Feb 2026 dataset. The spreadsheet treats a patient referred by Practice X as one referral for the period regardless of visit count — per-patient mental model, not per-visit. Multiple visits collapse into one referral; production sums across visits. Per-source counts and production now match the pivot exactly.
 - **Zero-production skip rule** was prototyped then removed. The reference pivot retains zero-production referrals (post-op visits) as legitimate referral events. The `flags?: string[]` parameter on `applyMapping` and `applyProcedureLogMapping` is preserved for future data-quality use.
 - **Clone-on-confirm cache write** now also fires from the drawer's "Re-process and save" CTA, not just initial Submit. User edits made during the preview flow weren't being persisted before, so re-uploads after Clear Data showed the seed/global mapping again instead of the edited version.
@@ -1674,11 +1857,13 @@ PMS uploads now run through a column-mapping system that handles arbitrary expor
 
 **Out of scope (deferred):**
 Admin UI for managing the global library, AI inference for the dedup step, multi-mapping per file (sectioned exports), drag-drop UI redesign, multiplication/division/parentheses in production formulas, telemetry dashboard, backfill of historical `pms_jobs` rows, per-uploader (vs per-org) mappings, telemetry-driven auto-promotion of org cache entries into the global library.
+
 ### Practice Ranking v2 — User-Curated Competitor Lists
 
 Replaces the auto-discovered competitor set with a user-curated list per location. Clients control exactly which practices their Practice Health score is benchmarked against — no more drift run-to-run, no more nearby-but-irrelevant competitors, no more missing real ones. Search Position stays untouched (still pure-Google top-20) so the live rank signal remains a real Google rank, not a relative position within a curated set.
 
 **Architecture:**
+
 - New `location_competitors` table (per-location, soft-deletable via `removed_at`, partial unique index on `(location_id, place_id) WHERE removed_at IS NULL` so re-add revives instead of duplicates). FK cascades from `locations`; `added_by_user_id` SET NULL on user deletion.
 - New `LocationCompetitorModel` mirrors the `PracticeRankingModel` style — find-active, find-including-removed, addCompetitor (handles soft-delete revival), removeCompetitor (soft), countActive, getOnboardingStatus, setOnboardingStatus, findLatestInitialScrapeAt.
 - Per-location v2 lifecycle on `locations`: `location_competitor_onboarding_status` (`pending` → `curating` → `finalized`) + `location_competitor_onboarding_finalized_at`. Verbose name to disambiguate from the existing organization-level onboarding.
@@ -1687,14 +1872,17 @@ Replaces the auto-discovered competitor set with a user-curated list per locatio
 - Existing `agent_key='ranking'` schedule row updated in-place from drifting `interval_days=15` to calendar-aligned cron `0 0 1,15 * *` UTC. No new scheduler entry; the worker recomputes `next_run_at` via `cron-parser`.
 
 **Pipeline branching (single decision point):**
+
 - New `service.competitor-source-resolver.ts:resolveCompetitorsForRanking` resolves the competitor set used for Practice Health scoring. For finalized locations: loads the curated list, batch-fetches fresh `getPlaceDetails`, returns hydrated `DiscoveredCompetitor[]`. For pending/curating: passes through the Step 0 Places top-N. Falls back to the discovered set on any curated-path failure (graceful degradation).
 - Resolver wired into `service.ranking-pipeline.ts` after Step 0 sub-step 5 (search_position persisted), before Step 1. Step 0 sub-steps 1-5 (Places top-20 → search_position fields) are UNCHANGED — Search Position math is fully isolated from curation status.
 - `competitor_source` persisted on the `practice_rankings` row at the same point.
 
 **Scheduler filter:**
+
 - `service.ranking-executor.ts:setupRankingBatches` skips locations whose `location_competitor_onboarding_status !== 'finalized'`. Logged per-location with status. Existing admin trigger flow (`POST /api/practice-ranking/trigger`) is unchanged — admins can still trigger any location regardless of onboarding status.
 
 **Backend endpoints (location-scoped, JWT + RBAC + locationScope gated):**
+
 - `GET    /api/practice-ranking/locations/:locationId/competitors` — list active curated competitors + onboarding status + cap.
 - `POST   /api/practice-ranking/locations/:locationId/competitors/discover` — runs initial Places discovery (top 10), populates `location_competitors` with `source='initial_scrape'`, flips status to `curating`. Idempotent: skips if existing initial_scrape <7 days old.
 - `POST   /api/practice-ranking/locations/:locationId/competitors` — adds a user-chosen competitor by Place ID (cap enforced server-side at 10).
@@ -1703,20 +1891,24 @@ Replaces the auto-discovered competitor set with a user-curated list per locatio
 - All write endpoints require `admin` or `manager` role; `viewer` cannot mutate the curated list.
 
 **Places API rate limiting:**
+
 - `placesAutocompleteLimiter` (60/min/IP), `placesDetailsLimiter` (60/min/IP), `placesSearchLimiter` (30/min/IP) added to the existing `publicRateLimiter.ts`. Wired into `routes/places.ts`. Generous enough that the leadgen-tool's onboarding flow (which shares these public endpoints) is unaffected.
 
 **Frontend — 3-stage onboarding page:**
+
 - New route `/dashboard/competitors/:locationId/onboarding` → `LocationCompetitorOnboarding.tsx`.
 - Stage 1 — Discovering: framer-motion radar pulses + staggered pin reveal as the Places top-10 lands. No Google Maps iframe dependency (works without lat/lng up front).
 - Stage 2 — Curating: list with per-row Remove (soft delete, optimistic), Add via debounced autocomplete against `/api/places/autocomplete`. Counter shows N/10. Source tag distinguishes "you added" vs "auto" entries.
 - Stage 3 — Finalize: single button → `POST /finalize-and-run`, redirects to `/rankings?batchId=…` for the user to watch their first run.
 
 **Frontend — Dashboard banner + v1 legacy tag:**
+
 - `CompetitorOnboardingBanner.tsx` renders for `pending`/`curating` locations with copy + CTA to the onboarding page.
 - `LegacyRankingTag` renders next to Practice Health when the latest ranking row has `competitor_source='discovered_v1_legacy'` — explains the score predates curation and prompts setup.
 - `/latest` controller now returns `competitorSource` and `locationOnboarding` per ranking; `RankingResult` interface extended; `wizardDemoData` updated to satisfy the new fields.
 
 **Out of scope (v1 — explicit deferrals):**
+
 - Admin-side curate UI (admin trigger flow stays as-is — read-only competitor list view via existing endpoints).
 - Re-discovery UX ("suggest competitors I might have missed").
 - Per-competitor scoring weight overrides.
@@ -1726,12 +1918,14 @@ Replaces the auto-discovered competitor set with a user-curated list per locatio
 - Minimum competitor count enforcement (lists may be 0–10).
 
 **Runtime verification:**
+
 - `tsc --noEmit` clean across backend and frontend (one pre-existing unused-var error in `FieldMappingDropdown.tsx` predates this work).
 - ESLint clean for all newly-authored files (one benign React hooks warning about ref cleanup in `LocationCompetitorOnboarding.tsx`).
 - Migration applied successfully against the configured DB; `competitor_cache` dropped, `location_competitors` created, `locations` and `practice_rankings` columns added, `schedules.ranking` row switched to cron `0 0 1,15 * *` UTC.
 - End-to-end manual verification (3-stage onboarding walkthrough, scheduler skip behavior, dashboard banner + v1 tag rendering, Search Position non-cross-contamination) is the deployment owner's responsibility — Done checklist captured in spec.
 
 **Commits:**
+
 - `src/database/migrations/20260428000001_practice_ranking_v2_curated_competitors.ts` — drops `competitor_cache`, creates `location_competitors`, adds onboarding columns to `locations`, `competitor_source` to `practice_rankings` (with backfill), updates the `agent_key='ranking'` schedule row.
 - `src/models/LocationCompetitorModel.ts` — new model.
 - `src/models/LocationModel.ts` — `ILocation` extended with v2 columns; `create()` signature widened so callers don't need to pass the defaulted onboarding fields.
@@ -1759,18 +1953,21 @@ Replaces the auto-discovered competitor set with a user-curated list per locatio
 Admin can now wipe agent outputs and PMS data for a single organization via a "Reset Data" button on `/admin/organizations/:id`, scoped to the Agent Results section. v1 ships two reset groups — **PMS Ingestion** (clears `pms_jobs`) and **Referral Engine output** (clears `agent_results` + `agent_recommendations` where `agent_type='referral_engine'`) — with a one-way cascade: checking PMS auto-checks-and-disables Referral Engine because the analysis output is derived from PMS source data. Wiping PMS without RE would leave stale analysis pointing at deleted source data, so the modal forces them together. RE alone remains independent so admins can re-run analysis on existing PMS data without disturbing the source.
 
 **Architecture:**
+
 - Backend: `GET /api/admin/organizations/:id/reset-data/preview` returns live row counts for both groups; `POST /api/admin/organizations/:id/reset-data` accepts `{ groups, confirmName }` and runs all selected deletes inside a single `knex.transaction()` so partial failure rolls back. Returns per-table `deletedCounts`.
 - `agent_recommendations` deleted manually first via subquery on `agent_results` — there's no FK CASCADE from `agent_results.id`, confirmed during the prior one-off org-36 reset.
 - Audit trail via console-logged `[admin-reset]` structured JSON line on every successful commit (`adminEmail`, `orgId`, `orgName`, `groups`, `deletedCounts`, `timestamp`). No new audit table for v1.
 - RBAC: existing `superAdminMiddleware` (env-allowlist via `SUPER_ADMIN_EMAILS`). Defense-in-depth — backend route enforces super-admin even though the entire `/admin/*` tree is already gated by `AdminGuard` on the frontend.
 
 **Frontend:**
+
 - `ResetOrgDataModal.tsx` mirrors the existing `OrgSettingsSection` delete-org modal pattern (framer-motion `motion.div`, react-hot-toast feedback, type-org-name confirm input, `lucide-react` icons). On open, fetches preview counts and renders 2 checkboxes with row-count badges.
 - Cascade UX: when PMS checkbox is checked, RE is force-checked + disabled with hint "PMS reset also clears Referral Engine output (derived data)." When PMS is unchecked, RE becomes independently toggleable.
 - Submit button disabled until `confirmText === org.name` AND ≥1 group selected. On success: toasts deletion summary, fires `queryClient.invalidateQueries` for `adminOrgPmsJobsAll(orgId)` and `adminOrgAgentOutputsAll(orgId)`, closes modal.
 - Button placement gated to `?section=agent` only — hidden on Subscription/Users/Connections/Settings to reduce accidental-click surface (Rev 2 of the spec).
 
 **One-off org-36 PMS reset (prior plan, now in version control):**
+
 - `src/database/migrations/20260423000002_reset_pms_data_org_36.ts` — the manual prod reset that motivated this feature. Snapshot-rollback via `<table>_reset_backup_org36_20260423` tables; `down()` restores rows with original IDs and JSONB intact.
 - Dual env-var guarded: `RESET_ORG_36_CONFIRM=true` AND `RESET_ORG_36_DB_NAME=<DB_NAME>` both required, plus `DB_NAME` must match `RESET_ORG_36_DB_NAME`. Migration is a no-op in any future env that doesn't explicitly opt in. Deletion order is FK-safe: `agent_recommendations` (subquery) → `agent_results` → `tasks` → `pms_jobs`. `agent_recommendations` for org 36 had 0 rows; backups still created for rollback symmetry.
 
@@ -1782,12 +1979,13 @@ The other 7 reset groups (Rankings, Tasks Hub, Notifications, Proofline, Summary
 Six surgical accuracy improvements identified during a deep map of the Referral Engine flow. Bounded scope: no model change, no n8n contract change, no parser internals.
 
 **Key Changes:**
+
 - `buildReferralEnginePayload` now emits `additional_data.{pms, gbp, website_analytics}`. Prompt previously promised GBP + analytics enrichment but the code only sent PMS — the model was told to weigh data it never saw. Reuses the GBP fetch already wired into Summary; no new fetches.
 - New `ReferralEngineAgentOutputSchema` (Zod, top-level `.strict()`, nested permissive) validates every Referral Engine output. On shape mismatch the runner sends a corrective user message with formatted Zod issues and re-calls Anthropic once; both attempts logged with `[zod-retry]` prefix. Falls through to legacy `isValidAgentOutput` if the corrective retry also fails. Cap is one retry per outer attempt — outer retry budget unchanged at 3.
 - Three additive prompt sections in `src/agents/monthlyAgents/ReferralEngineAnalysis.md` (no existing rule reworded):
-    - **GROUNDING RULES — STRICT:** cite only source names, months, and numbers that appear verbatim in the input JSON. Omit claims with numbers not in the input. Do not infer, estimate, or interpolate.
-    - **SINGLE-MONTH RULE:** when `monthly_rollup` has one month, force `trend_label='new'` for every source in both matrices and add the corresponding `data_quality_flags` entry. Do not invent prior-month numbers.
-    - **UPSTREAM DATA QUALITY ACKNOWLEDGEMENT:** surface upstream flags from `additional_data.pms.data_quality_flags` verbatim — they are deterministic checks already run before the model saw the data.
+  - **GROUNDING RULES — STRICT:** cite only source names, months, and numbers that appear verbatim in the input JSON. Omit claims with numbers not in the input. Do not infer, estimate, or interpolate.
+  - **SINGLE-MONTH RULE:** when `monthly_rollup` has one month, force `trend_label='new'` for every source in both matrices and add the corresponding `data_quality_flags` entry. Do not invent prior-month numbers.
+  - **UPSTREAM DATA QUALITY ACKNOWLEDGEMENT:** surface upstream flags from `additional_data.pms.data_quality_flags` verbatim — they are deterministic checks already run before the model saw the data.
 - `pmsAggregator`: new `SOURCE_SUM_TOLERANCE = 0.05` constant. Per-month reconciliation pushes `Sum-of-sources mismatch in <month>: sources=N, total=M` entries into a new `dataQualityFlags: string[]` field on the aggregator output. The orchestrator propagates this through its existing camelCase→snake_case PMS payload transform to `additional_data.pms.data_quality_flags`, which the new prompt section instructs the model to surface.
 - Prompt caching enabled at the Referral Engine `runAgent` call site (5-min ephemeral). `cache_creation_input_tokens` / `cache_read_input_tokens` visible in `llm-runner` logs from the second within-window call onward.
 - Runner cache condition relaxed: `cachedSystemBlocks !== undefined` (was: `length > 0`). Callers can now pass `[]` to cache only the auto-appended `systemPrompt` without duplicating it as a prefix block — fixes a double-send bug discovered during integration verification (the runner auto-appends the systemPrompt as a cached block; passing `[systemPrompt]` would have produced two identical cached blocks per call).
@@ -1799,6 +1997,7 @@ No new dependencies (Zod 4.3.6 already in deps). No schema migration. Other agen
 AI-driven type classification (replace keyword matching at parse time), date-format detection by sampling, parser unit test suite, "review parsed data" admin UI step, self-critique second pass (Haiku), n8n parser repatriation, per-claim confidence scoring, output cache keyed by PMS data fingerprint, 1-hour cache TTL (Anthropic beta).
 
 **Commits:**
+
 - `src/types/adminReset.ts` — `ResetGroupKey` union + request/response types.
 - `src/controllers/admin-organizations/feature-services/service.reset-org-data.ts` — transactional reset service with `[admin-reset]` audit log.
 - `src/controllers/admin-organizations/AdminOrganizationsController.ts` — `previewResetData` + `resetOrgData` handlers with org-name confirmation validation.
@@ -1824,6 +2023,7 @@ AI-driven type classification (replace keyword matching at parse time), date-for
 New per-website **Integrations** tab in the admin dashboard. Connect a HubSpot Private App token, see website forms detected from existing submissions, map their fields to a HubSpot form via per-row dropdowns, and every non-flagged submission automatically pushes to HubSpot via the Forms Submissions API. Schema, controller, and worker are vendor-agnostic from day one — Salesforce/Pipedrive drop in as additional adapters without restructure. Existing Make.com "new contact" automation keeps firing because HubSpot's form-submit path emits the same `contact.creation` webhook as direct contact creates.
 
 **Architecture:**
+
 - New `website_builder.website_integrations` (per-project credentials, AES-256-GCM encrypted, vendor metadata in JSONB), `website_integration_form_mappings` (N→1 fan-in: many website forms to one HubSpot form), and `crm_sync_logs` (audit trail with `ON DELETE SET NULL` + denormalized `platform`/`vendor_form_id` so logs survive integration deletion).
 - Vendor-agnostic adapter layer at `src/services/integrations/` (`ICrmAdapter` interface + HubSpot impl). v1 uses raw `fetch` — no `@hubspot/api-client` dependency added.
 - New `crm-hubspot-push` queue (concurrency 3, prefix `{crm}`) on the existing single-process worker. Idempotent via `jobId === submissionId` (BullMQ refuses duplicate jobIds, so retries on transient errors don't create duplicate HubSpot contacts).
@@ -1831,16 +2031,19 @@ New per-website **Integrations** tab in the admin dashboard. Connect a HubSpot P
 - Form-detection feature service derives website forms from `form_submissions` GROUP BY `form_name` and unions field keys across the last 20 submissions per form — handles BOTH the legacy flat shape AND the sectioned `FormSection[]` shape via a shared `flattenSubmissionContents` util.
 
 **Hot-path hook (T0 audit corrected the placement):**
+
 - T0 audit of `formSubmissionController.ts` found that `FormSubmissionModel.create()` always writes `is_flagged: false`; the AI block UPDATEs to flagged=true LATER. Hooking after `create()` (the original spec wording) would have pushed AI-caught spam to HubSpot. Corrected hook lives AFTER the AI block (after line 475), gates on the local `flagged` boolean, and is wrapped in an inner try/catch so a Redis hiccup never breaks form submissions.
 - AI-flagged submissions skip the push and write a `skipped_flagged` log row (only if an integration exists — write-amplification rule).
 - Submissions on websites with no integration write nothing to `crm_sync_logs` at all.
 
 **Frontend (per-website dashboard):**
+
 - `IntegrationsTab.tsx` follows the PostsTab 30/70 sidebar+main layout. State machine: not connected → connect modal; connected → connection panel + detected-forms list + (when a form is selected) field-mapping dropdown editor + recent activity panel; revoked → red banner + reconnect CTA.
 - `FieldMappingDropdown` is per-row `<select>` (NOT drag-drop — explicit decision to halve the build cost; required HubSpot fields show red asterisk). "Auto-fill defaults" calls the inference service and merges suggestions over empty rows only — never overwrites user choices.
 - `RecentActivityPanel` shows the last 10 sync attempts with outcome badges so customers can self-diagnose "why didn't this push?"
 
 **Security:**
+
 - Tokens encrypted at rest with AES-256-GCM via existing `src/utils/encryption.ts` (requires `CREDENTIALS_ENCRYPTION_KEY` env var — same encryption module already used by `minds.platform_credentials`).
 - `SAFE_COLUMNS` list ensures `encrypted_credentials` never returns from any controller endpoint. `getDecryptedCredentials` is internal-only and called from the adapter layer only.
 - DB-level `CHECK (platform IN ('hubspot'))` on `website_integrations` rejects typos that would create unreadable rows. Extending vendors = small follow-up migration to widen the CHECK.
@@ -1852,6 +2055,7 @@ OAuth flow (Private App token only), one-to-many fanout, static defaults / field
 **Deferred.** Code is `tsc --noEmit` clean across backend and frontend, but no migrations have been applied to a real DB, no real HubSpot token has been validated through the adapter, no end-to-end form submission has actually pushed a contact. The spec's Done checklist (~17 manual items including idempotency, Make.com regression, broken-form detection, Redis-down resilience) is unrun. Treat 0.0.30 as code-complete — the runtime gate fires the first time a customer connects HubSpot in dev/staging.
 
 **Commits:**
+
 - `src/database/migrations/20260425100000_create_website_integrations.ts` — `website_integrations` table with `CHECK` on `platform` + `status`, unique `(project_id, platform)`.
 - `src/database/migrations/20260425100001_create_website_integration_form_mappings.ts` — N→1 mappings with unique `(integration_id, website_form_name)`.
 - `src/database/migrations/20260425100002_create_crm_sync_logs.ts` — audit trail with `SET NULL` cascade + denormalized `platform`/`vendor_form_id`.
@@ -1884,6 +2088,7 @@ OAuth flow (Private App token only), one-to-many fanout, static defaults / field
 Two related changes shipped to make the leadgen audit work on Cloudflare-protected sites and finish faster on every site. Before this release, dental sites behind CF Bot Fight Mode (which our EC2 IP isn't whitelisted for) failed at the homepage scrape and the audit dead-ended at "Heavier traffic than usual." The default Puppeteer scraper was also wasting input tokens on framework boilerplate that Claude was throwing away anyway.
 
 **Key Changes — CF stealth fallback:**
+
 - New `service.playwright-stealth-manager.ts` runs Playwright + `puppeteer-extra-plugin-stealth` as a fallback when the default Puppeteer path hits `ERR_BLOCKED_BY_CLIENT`. Returns the same `ScrapingResult` shape so downstream consumers don't care which method won.
 - `service.puppeteer-manager.ts navigateWithRetry` now returns `{ok, blocked, error?}` and fails fast on bot-block patterns (`ERR_BLOCKED_BY_CLIENT`, `ERR_HTTP2_PROTOCOL_ERROR`, `ERR_TOO_MANY_REDIRECTS`) — no wasted second retry. Saves ~5s per blocked audit before the fallback even starts.
 - `service.scraping-orchestrator.ts scrapeHomepage` now returns `ScrapeOutcome = {result, blocked}` and orchestrates the chain: default → (on bot-block, if `AUDIT_USE_STEALTH_FALLBACK !== "false"`) stealth → null. All paths log `[CHAIN]` lines for grep-able prod telemetry.
@@ -1892,12 +2097,14 @@ Two related changes shipped to make the leadgen audit work on Cloudflare-protect
 - Feature flag `AUDIT_USE_STEALTH_FALLBACK` env var (default true). Set to `"false"` to instantly disable the stealth fallback if the plugin starts hurting more than helping.
 
 **Key Changes — Branch B input tightening:**
+
 - `markupStripper.ts` extended with five new rules: drop framework-utility class strings (>60 chars OR >5 space-separated tokens), drop generated `id` values (>30 chars), drop most `data-*` attributes (kept: `data-type`, `data-role`, `data-cy`), drop `<head><link>` tags except `canonical` and `alternate`, drop `aria-hidden="true"` subtrees. Strip ratio improved from 39–66% → 51–80% across test targets.
 - `CLAUDE_MAX_DIMENSION` lowered from 1568 px → 1024 px and made env-overridable via `process.env.CLAUDE_MAX_DIMENSION`. Halves the JPEG fed to Claude (~80kB → ~24–38kB) without losing layout/CTA-prominence signal.
 - Combined effect on `[B] WebsiteAnalysis LLM` duration: -13% on Artful (clean baseline, 26.6s → 23.2s), -27% on Coastal Endo (CF target, 34.5s → 25.1s). Total audit wall-clock down ~9 seconds on the harder targets.
 - Quality validated empirically: `overall_grade` and `overall_score` on website_analysis identical pre/post on Artful (C+/78 → C+/78); GBP analysis grade identical on Coastal Endo (B/85 → B/85). Aggressive stripping is NOT removing content the LLM relied on for grading.
 
 **Commits:**
+
 - `package.json` / `package-lock.json` — add `playwright-extra` + `puppeteer-extra-plugin-stealth`.
 - `src/agents/auditAgents/gbp/ProfileIntegrity.md` — bot-blocked-website rules added.
 - `src/controllers/audit/audit-services/auditRetrievalService.ts` — expose `website_blocked` in status response.
@@ -1919,12 +2126,14 @@ Two related changes shipped to make the leadgen audit work on Cloudflare-protect
 Fixes a regression introduced in 0.0.25 where editor-only "DOCTORS BLOCK" / "SERVICES BLOCK" / "REVIEWS" pill labels were rendering on published sites (first spotted on ARCS / calm-clinic-3597). The preview pill writer and the save-path restorer were keyed to two different attribute names, so the pill wrapper was being persisted verbatim into `website_builder.pages.sections[].content` on every save. The public site renderer then served the wrapper as-is, and the post/review/menu resolver expanded the raw token that still sat inside the wrapper — resulting in the label + dashed border appearing around the real cards.
 
 **Key Changes:**
+
 - `renderShortcodePlaceholders` now emits `data-alloro-shortcode-original="<encoded-token>"` on the pill's outer div, matching the contract that `wrapResolved` (admin-side shortcode resolver) has always followed.
 - `restoreShortcodeTokens` rewritten with `DOMParser` instead of a lazy `[\s\S]*?</div>` regex. The old regex stopped at the first `</div>`, which (a) silently no-op'd on the new pill because the attribute didn't match and (b) was already subtly broken for multi-div resolved content from `wrapResolved`. Both call paths now unwrap correctly, including nested wrapper children.
 - One-shot cleanup script `scripts/debug-warmup/unpollute-shortcode-pills.ts`: pre-filters via `sections::text LIKE '%data-alloro-shortcode%'` to only fetch candidate rows, walks each section with cheerio, strips `<div data-alloro-shortcode="…">…</div>` pills via fixed-point loop (handles pill-inside-pill from repeated saves), restoring either the `data-alloro-shortcode-original` token (post-fix pills) or the raw token text in the inner div (pre-fix pills). Dry-run by default; `--apply` required to write. Forces blocking stdio so progress lines flush under piped stdout.
 - One-shot applied: 12 polluted pages across 2 projects (ARCS + one other), 38 pill wrappers removed. Post-apply dry-run confirms zero remaining candidate rows.
 
 **Commits:**
+
 - `frontend/src/utils/templateRenderer.ts` — add `data-alloro-shortcode-original="<encoded-token>"` to the pill outer div; use a separate attribute-safe encoding that escapes `"` as `&quot;` on top of the text encoding.
 - `frontend/src/utils/htmlReplacer.ts` — `restoreShortcodeTokens` rewritten to parse with `DOMParser`, query all `[data-alloro-shortcode-original]` elements, and replace each (including children) with a text node holding the decoded token. Short-circuits when the marker string is absent so non-polluted HTML pays zero cost.
 - `scripts/debug-warmup/unpollute-shortcode-pills.ts` — new one-shot cleanup script.
@@ -1937,6 +2146,7 @@ Fixes a regression introduced in 0.0.25 where editor-only "DOCTORS BLOCK" / "SER
 Replaces the cluttered, grid-based custom-fields panel in the post editor with an inline-edit vertical list. Each field type now has a dedicated editor component under a new `postEditor/` module; framer-motion drives add/remove/reorder transitions; `@dnd-kit` powers sortable gallery items. Click-to-edit is the default interaction on simple fields (text, textarea, number, date, select); complex items (gallery) are compact rows by default with per-item expand affordances for link/caption. Zero new npm dependencies. Desktop-only scope; backend untouched.
 
 **Key Changes:**
+
 - New module `frontend/src/components/Admin/postEditor/` with `types.ts`, `index.ts` barrel, three primitives (`FieldTypeIcon`, `InlineEditRow`, `BulkPasteDialog`), three hooks (`useInlineEdit`, `useClipboardRow`, `useBulkPaste`), eight field editors (text, textarea, number, date, boolean, select, media_url, gallery), a gallery item card, and the `CustomFieldsPanel` composer.
 - `PostsTab.tsx` custom-fields panel (~109 lines of inline switchboard) replaced with a single `<CustomFieldsPanel />` render; state management (`formCustomFields`, `setFormCustomFields`) stays in `PostsTab` so save semantics are unchanged.
 - Gallery items gain an optional `id: string` (UUID, synthesized lazily on mount) as stable key for framer-motion exits and `@dnd-kit` sort. Backwards-compatible: extra key in JSONB, ignored by the render path.
@@ -1947,6 +2157,7 @@ Replaces the cluttered, grid-based custom-fields panel in the post editor with a
 - `MediaPickerField` helper kept inline in `PostsTab.tsx` (still consumed by the Featured Image row) with a TODO to extract later.
 
 **Commits:**
+
 - `frontend/src/components/Admin/postEditor/` — new module (16 files)
 - `frontend/src/components/Admin/PostsTab.tsx` — switchboard IIFE replaced with `<CustomFieldsPanel />`; `MediaPickerArrayField` import removed; TODO comment added above the retained `MediaPickerField` helper
 - `frontend/src/components/Admin/MediaPickerArrayField.tsx` — deleted; behavior absorbed into `GalleryFieldEditor` + `GalleryItemCard`
@@ -1958,6 +2169,7 @@ Replaces the cluttered, grid-based custom-fields panel in the post editor with a
 Introduces the first composite custom-field type in the CMS. Posts can now store ordered arrays of image items (each with optional link, alt text, and caption), and templates can iterate them inline via a new `{{start_gallery_loop}}…{{end_gallery_loop}}` shortcode grammar with per-item `{{if item.X}}` conditionals. Ships alongside a data migration that replaces the hardcoded AAE + VDA affiliation logos on the dental SEO template's single-doctor page with the new subloop, and prefills both logos onto the 8 One Endodontics doctors so their rendered pages stay visually identical. Other practices using the same template (six projects including orthodontic and non-VA endodontic sites) now correctly render no affiliations section until the practice authors its own list per doctor, fixing a long-standing accuracy bug where AAE + VDA were showing on sites those logos did not apply to.
 
 **Key Changes:**
+
 - New `gallery` field type registered in the custom-field system; value shape `{ url, link?, alt, caption? }[]`
 - Shortcode grammar: `{{start_gallery_loop field='X'}}…{{end_gallery_loop}}` with `{{item.url/link/alt/caption}}` and `{{if item.X}}…{{endif}}` inside the loop body
 - `isConditionalValueEmpty` now treats empty arrays as empty, so `{{if post.custom.X}}` correctly hides sections when a gallery field has zero items
@@ -1968,6 +2180,7 @@ Introduces the first composite custom-field type in the CMS. Posts can now store
 - Data migration: adds `affiliations` gallery field to the Doctors post-type schema on the dental SEO template, rewrites the single-doctor template markup to use the subloop, prefills both logos for the 8 One Endodontics doctors; fully idempotent with a symmetric down migration
 
 **Commits:**
+
 - `src/controllers/admin-websites/feature-services/service.post-type-manager.ts` — `gallery` added to `VALID_FIELD_TYPES`
 - `src/controllers/admin-websites/feature-services/service.post-manager.ts` — schema-aware boundary check rejects non-array gallery values on post create/update
 - `src/controllers/user-website/user-website-services/shortcodeResolver.service.ts` — new `renderGalleryLoops` + `processItemConditionals` passes, ordered before `processConditionals` in `renderPostBlock`; empty-array fix; scalar hardening; NOTE updated for three-location sync
@@ -2022,6 +2235,7 @@ styled gray-bg placeholder div, which becomes the section's root and
 receives both the section marker and the regenerate overlay.
 
 **Commits:**
+
 - `frontend/src/components/Admin/ProgressivePagePreview.tsx` — srcDoc
   held in state, not `useMemo` with a one-shot ref gate.
 - `frontend/src/utils/templateRenderer.ts` —
@@ -2058,6 +2272,7 @@ coverage, inline styles, and a build experience that scrolled the viewport
 on every section completion.
 
 **Agent accuracy — prompts + normalizer + whole-page critic:**
+
 - **`ComponentGenerator.md` tightened** — four new contract sections:
   - **Button System (MANDATORY)** — two allowed shapes (`rounded-full` pill
     or `rounded-lg` rectangle), two variants each. Pick ONE shape per page
@@ -2092,6 +2307,7 @@ on every section completion.
   not block publish.
 
 **Progressive section reveal — Page Editor build experience:**
+
 - **New `GET /:id/pages/:pageId/progressive-state`** endpoint and
   `getPageProgressiveState()` service — returns the template section
   scaffolding (name + template markup) plus whichever sections have been
@@ -2108,6 +2324,7 @@ on every section completion.
   When generation completes, the existing preview takes over as before.
 
 **Template shortcode markers — 6 sections annotated:**
+
 - **`ALLORO_SHORTCODE` convention documented** at top of
   `shortcodeResolver.service.ts` with the full type vocabulary (doctors,
   services, reviews, posts, menus, locations). The resolver itself never
@@ -2128,6 +2345,7 @@ on every section completion.
     `section-testimonials` → reviews, `section-testimonials-grid` → reviews
 
 **Create Page modal — on-demand LLM slot fill + smarter prefill:**
+
 - **"Rewrite all from identity" button** in the Create Page modal's
   Section Content header. Single click triggers one Sonnet call over all
   text-type slots using the full identity context (voice, locations,
@@ -2138,10 +2356,10 @@ on every section completion.
   see it after the page is built" surprise.
 - **New `service.slot-generator.ts`** — reuses
   `buildStableIdentityContext()` so multi-location rules + doctor roster
-  + service blurbs all land in the prompt. Response values are key-allow-
-  listed against the template_page's slot definitions so the LLM can't
-  inject extra keys. Returns 409 when identity isn't ready, 400 on
-  missing `templatePageId`.
+  - service blurbs all land in the prompt. Response values are key-allow-
+    listed against the template_page's slot definitions so the LLM can't
+    inject extra keys. Returns 409 when identity isn't ready, 400 on
+    missing `templatePageId`.
 - **New `POST /:id/slot-generate`** endpoint and
   `generateSlotValues()` controller handler + `generateSlotValues` API
   client in `frontend/src/api/websites.ts`.
@@ -2162,6 +2380,7 @@ text invented. All six root causes are addressed by the prompt contract
 changes + normalizer + shortcode markers above.
 
 **Commits:**
+
 - `feat(website-builder): agent accuracy + progressive reveal + shortcode markers`
 
 ## [0.0.23] - April 2026
@@ -2177,6 +2396,7 @@ refinements around multi-location rendering, doctor / service prompt
 enrichment, and content-hash image dedup.
 
 **Warmup — Quality Fixes:**
+
 - **Prefill 400 across 5 callers** — `claude-sonnet-4-6` silently dropped
   assistant-prefill support. `classifyArchetype`, `distillContent`, image
   vision analysis, and two other callers were failing with 400 and falling
@@ -2194,6 +2414,7 @@ enrichment, and content-hash image dedup.
   relative URLs, bumped timeout to 25s.
 
 **Warmup — Auto-Discover + Distillation Tuning:**
+
 - **Auto-discover sub-pages** — homepage scrape emits a `discovered_pages`
   list (doctor pages, contact, practice pages); distillation uses them to
   populate per-doctor credentials and per-service blurbs not visible from
@@ -2203,6 +2424,7 @@ enrichment, and content-hash image dedup.
   `doctors[i].credentials[]` per-doctor rather than a single catch-all list.
 
 **Identity Modal — Rebuild:**
+
 - **Monaco JSON editor** replaces the raw textarea on the JSON tab.
   Lazy-loaded via `React.lazy` + `Suspense`. Validation-gated save.
 - **Slice PATCH endpoint** — `PATCH /:id/identity/slice` with Zod validators
@@ -2226,6 +2448,7 @@ enrichment, and content-hash image dedup.
   routes, imports, and all frontend plumbing.
 
 **Media Backfill:**
+
 - **New migration `20260420000001_add_unique_project_s3url_to_media.ts`** —
   unique partial index on `(project_id, s3_url) WHERE s3_url IS NOT NULL`
   so repeat warmups + backfill are idempotent via ON CONFLICT DO NOTHING.
@@ -2239,6 +2462,7 @@ enrichment, and content-hash image dedup.
   non-fatal and logged.
 
 **Layouts Tab — Modal Extraction:**
+
 - **New `LayoutInputsModal.tsx`** — mirrors the IdentityModal shell (fixed
   inset, max-w-3xl, 75vh body). Houses slot inputs + generate / regenerate
   / cancel. The Layouts tab now shows a compact summary card + single
@@ -2246,6 +2470,7 @@ enrichment, and content-hash image dedup.
   under without a wall of inputs pushing it off-screen.
 
 **Prompt Enrichment — Multi-Location, Doctors, Services:**
+
 - **Multi-location** — `util.identity-context.ts` emits a
   `## LOCATIONS (N total)` block in stable context whenever >1 active
   location exists, listing each as `Name — City, ST (primary)`. Footer
@@ -2264,6 +2489,7 @@ enrichment, and content-hash image dedup.
   anti-hallucination guardrail ("don't invent services not listed").
 
 **Image Dedup:**
+
 - **Content-hash dedup in `util.image-processor.ts`** — SHA-1 of the
   downloaded buffer; byte-identical images served from CDN + origin
   (WordPress' `tdosites.com` vs `www.*.com` pattern) upload + analyze
@@ -2271,6 +2497,7 @@ enrichment, and content-hash image dedup.
   `extracted_assets.images[]`; re-run warmup to clear.
 
 **One-off Ops (Coastal project):**
+
 - **Template assignment** — project was created without the confirm flow
   so `template_id` was NULL and the Layouts tab had nothing to render.
   Assigned Alloro Dental Template via
@@ -2281,6 +2508,7 @@ enrichment, and content-hash image dedup.
   existence check, works without the unique index migration applied).
 
 **Debug Scripts:**
+
 - New `scripts/debug-warmup/` with: `inspect-identity`, `inspect-images`,
   `inspect-template`, `list-templates`, `e2e-pipeline`,
   `repro-distill-prod`, `test-url-normalize`, `test-autodiscover`,
@@ -2288,6 +2516,7 @@ enrichment, and content-hash image dedup.
   `assign-coastal-template`.
 
 **Commits:**
+
 - `feat(website-builder): identity rebuild + warmup quality + prompt enrichment`
 
 ## [0.0.22] - April 2026
@@ -2301,6 +2530,7 @@ SAME `audit_id`, preserving session → audit continuity in the admin
 timeline — no more orphaned failed rows with brand-new retry rows alongside.
 
 **Key Changes:**
+
 - **New migration `20260418000000_add_retry_count_to_audit_processes.ts`** —
   adds `retry_count INTEGER NOT NULL DEFAULT 0` to `audit_processes`. The
   column is read as part of a row-scoped UPDATE; no index needed.
@@ -2338,6 +2568,7 @@ timeline — no more orphaned failed rows with brand-new retry rows alongside.
   `/:auditId/status`, and `PATCH /:auditId` routes remain unchanged.
 
 **Commits:**
+
 - `feat(leadgen): audit retry endpoint + admin rerun + 3-retry cap`
 
 ## [0.0.21] - April 2026
@@ -2352,6 +2583,7 @@ canonical `/contact` CTA rule and a simplified 3-step setup checklist on
 the website detail page.
 
 **Key Changes:**
+
 - **Multi-location support** — `identity.locations[]` top-level array
   populated by scraping every `project.selected_place_ids[]` entry
   (concurrency 3). `identity.business` stays as a pointer to the
@@ -2366,7 +2598,7 @@ the website detail page.
   that affected pages should be regenerated.
 - **Doctor + service lightweight lists** — extracted during the
   existing warmup distillation pass. `{name, source_url,
-  short_blurb, last_synced_at, stale?}` only, no images, no full
+short_blurb, last_synced_at, stale?}` only, no images, no full
   content. Capped at 100 entries per list; 400-char blurbs;
   `source_url` must match a real discovered page.
 - **Doctors / Services tabs** — same list view with per-row
@@ -2396,6 +2628,7 @@ the website detail page.
   shows a small spinner; completed shows a green check.
 
 **Commits:**
+
 - `src/database/migrations/20260418000002_add_multi_location_to_projects.ts` —
   adds `selected_place_ids TEXT[]` + `primary_place_id TEXT` on
   `website_builder.projects`; backfills from the existing
@@ -2467,6 +2700,7 @@ URL scrape-blocked detection, and the per-page Preview/Stop/Delete
 actions that shipped earlier in the same thread.
 
 **Key Changes:**
+
 - **Costs tab** — new `website_builder.ai_cost_events` table (frozen
   `estimated_cost_usd` at write time, nested tool-call roll-ups via
   `parent_event_id`). Cost capture is fire-and-forget: the pipeline
@@ -2500,7 +2734,7 @@ actions that shipped earlier in the same thread.
   dark backgrounds per class attribute.
 - **Section rebuild UX** — `PageEditor` tracks
   `regeneratingSectionNames` and injects `opacity-50 animate-pulse
-  pointer-events-none` + a "Rebuilding section…" overlay into the
+pointer-events-none` + a "Rebuilding section…" overlay into the
   iframe `srcDoc` for the target section. On content change detected
   by the existing live-preview poll: overlay clears, toast fires via
   existing `showSuccessToast`, section scrolls into view.
@@ -2521,6 +2755,7 @@ actions that shipped earlier in the same thread.
   Existing projects with warmup data no longer error on page create.
 
 **Commits:**
+
 - `src/database/migrations/20260418000001_create_ai_cost_events.ts` —
   new per-LLM-call table with project FK, vendor, model, token
   breakdown, frozen USD, optional `metadata` JSONB, and
@@ -2585,6 +2820,7 @@ active fetches, and admins can now multi-select rows for bulk delete
 without clicking the row delete button one at a time.
 
 **Key Changes:**
+
 - Detail drawer — **request-after-response polling** with a 500ms gap
   between ticks. Pauses when the browser tab is hidden (admin switches
   away), resumes seamlessly on visible. Initial fetch surfaces errors;
@@ -2612,6 +2848,7 @@ without clicking the row delete button one at a time.
   via existing FK `ON DELETE CASCADE`. Returns `{ deleted: number }`.
 
 **Commits:**
+
 - `feat(admin): live leadgen polling + multi-select bulk delete`
 
 ## [0.0.18] - April 2026
@@ -2625,6 +2862,7 @@ with desktop-sized headlines and padding. Establishes a canonical
 responsive doc that future devs (and DesignSystem additions) must follow.
 
 **Key Changes:**
+
 - New `frontend/docs/responsive-vocabulary.md` — the canonical class-ladder
   table for typography, padding, card max-widths, and layout direction.
   Linked from the top of `DesignSystem.tsx`. Acts as the convention
@@ -2651,6 +2889,7 @@ responsive doc that future devs (and DesignSystem additions) must follow.
   grid stacks `grid-cols-1 sm:grid-cols-2` on mobile.
 
 **Commits:**
+
 - `feat(frontend): mobile responsive refactor — client-facing pages + standardized vocabulary`
 
 ## [0.0.17] - April 2026
@@ -2662,6 +2901,7 @@ compounding bugs were preventing every prod signup from being credited
 as a conversion in the leadgen funnel.
 
 **Key Changes:**
+
 - **`linkAccountCreation` now wired into `AuthPasswordController.verifyEmail`** —
   the actual prod signup path. Was previously only in `AuthOtpController`,
   which the public signup flow doesn't go through. Reads optional
@@ -2687,6 +2927,7 @@ as a conversion in the leadgen funnel.
   arg, includes it in the POST body when provided.
 
 **Commits:**
+
 - `fix: account-link hook + ?ls= forwarding + paywall server-authoritative endpoint`
 
 ## [0.0.16] - April 2026
@@ -2701,6 +2942,7 @@ drained and the report email goes out via the existing n8n webhook —
 durable, server-driven, doesn't depend on the user's tab staying open.
 
 **Key Changes:**
+
 - New `leadgen_email_notifications` queue table with cascade FKs to
   `leadgen_sessions` and `audit_processes`. Unique on
   `(session_id, audit_id)` so re-submissions upsert (latest email wins,
@@ -2724,6 +2966,7 @@ durable, server-driven, doesn't depend on the user's tab staying open.
   leadgen-tool's `VITE_N8N_EMAIL_URL`).
 
 **Commits:**
+
 - `feat: leadgen email-notify FAB queue + audit-complete worker drain`
 
 ## [0.0.15] - April 2026
@@ -2734,24 +2977,28 @@ Phase 2 of the n8n exit. The Identifier agent — the last n8n dependency inside
 
 **Key Changes:**
 
-*Identifier agent off n8n*
+_Identifier agent off n8n_
+
 - New prompt at `src/agents/rankingAgents/Identifier.md` — first file in a new prompt subdirectory parallel to `dailyAgents`, `monthlyAgents`, `pmAgents`, `pmsAgents`, `websiteAgents`. Holds the system prompt for the practice specialty / market location extractor.
 - `identifyLocationMeta()` in `service.webhook-orchestrator.ts` no longer calls `IDENTIFIER_AGENT_WEBHOOK` via axios. It loads the prompt and calls `runAgent` directly. Same function signature, same `{specialty, marketLocation}` return shape — no consumer changes needed in `service.ranking-executor.ts` or `service.places-competitor-discovery.ts`.
 - Fallback path is preserved: `getFallbackMeta(gbpData)` still runs on SDK error or unparseable output, returning hardcoded `"orthodontist"` plus city/state extracted from the GBP storefront address.
 - The new prompt also produces `specialtyKeywords[]`, `city`, `state`, `county`, and `postalCode`. Path A migration: these new fields are ignored for now to keep the migration parity-only; wiring them into competitor discovery and geographic filtering is a separate follow-up.
 - The `IDENTIFIER_AGENT_WEBHOOK` env var constant stays exported at module level so the code path is restorable if we ever want the n8n route back.
 
-*Copy Companion, Guardian, Governance disabled (reversible)*
+_Copy Companion, Guardian, Governance disabled (reversible)_
+
 - `POST /api/agents/gbp-optimizer-run` and `POST /api/agents/guardian-governance-agents-run` route registrations commented out in `agentsV2.ts` with a dated `DISABLED` marker. JSDoc endpoint list updated to flag both routes as disabled. Controllers and downstream services (`runGbpOptimizer`, `runGuardianGovernance`, `service.governance-validator.ts`, etc.) are untouched and remain exported.
 - The `COPY_COMPANION_AGENT_WEBHOOK`, `GUARDIAN_AGENT_WEBHOOK`, and `GOVERNANCE_AGENT_WEBHOOK` env var constants stay exported for restoration.
 - Admin AI Data Insights page (`AIDataInsightsList.tsx`): "Run Guardian & Governance" `ActionButton`, the `handleRunAgents` handler, and the `renderProgressBar` helper are commented out with the same `DISABLED` marker. Both `<AnimatePresence>{renderProgressBar()}</AnimatePresence>` JSX call sites are commented in place. The empty-state copy is rewritten to neutral text — `"No agent insights available for this month yet."` — so users aren't told to click a button that no longer exists.
 - `setIsRunning` is dropped from the destructure because nothing references the setter anymore (only the getter `isRunning` is still read, by the Clear button). Restoration requires uncommenting `handleRunAgents` and adding `setIsRunning` back to the destructure.
 - Two now-unused imports trimmed to keep the build clean: `Play` from `lucide-react` and `AnimatePresence` from `framer-motion`. Both are referenced only inside the commented-out JSX and need re-importing on restore.
 
-*Goal achieved*
+_Goal achieved_
+
 - After this entry, every performing agent (Proofline, Summary, Opportunity, CRO, Referral Engine, Practice Ranking, Identifier) runs through the in-repo `runAgent` Claude SDK pipeline. No performing agent depends on n8n. The three disabled agents are inactive and can be restored — or fully retired in a future cleanup pass — without rushing.
 
 **Commits:**
+
 - `src/routes/agentsV2.ts` — comment out `gbp-optimizer-run` and `guardian-governance-agents-run` route registrations with `DISABLED` marker; mark both endpoints disabled in the JSDoc endpoint list
 - `src/controllers/agents/feature-services/service.webhook-orchestrator.ts` — replace the `identifyLocationMeta()` axios webhook call with `runAgent` + `loadPrompt("rankingAgents/Identifier")`; preserve the fallback path; add a note about the ignored new prompt fields. Webhook constants stay exported.
 - `src/agents/rankingAgents/Identifier.md` — new prompt file in a new prompt subdirectory. System prompt for the dental specialty / market location extractor; produces `specialty`, `marketLocation`, `specialtyKeywords[]`, and `city` / `state` / `county` / `postalCode`.
@@ -2766,13 +3013,15 @@ Three composed features land together because they share the same backbone — a
 
 **Key Changes:**
 
-*Move backlog tasks between projects*
+_Move backlog tasks between projects_
+
 - New endpoint `POST /api/pm/tasks/bulk/move-to-project` accepts `{ task_ids, target_project_id }`; the single-task right-click path calls the same endpoint with a one-element array so there is one code path to maintain
 - Hard-gated to backlog-only: server rejects with `400 + offending_task_ids` metadata if any source task's column is not `is_backlog = true`. The UI also disables the bulk bar and context menu item with an explanatory tooltip, so the rule is enforced at both layers
 - Tasks are appended to the end of the destination project's Backlog; source columns are compacted in the same transaction so positions stay contiguous
 - One `pm_activity_log` row per moved task, logged under the **destination** project with `action: "task_moved_to_project"` and `metadata: { from_project_id, from_column_id, to_column_id, title }`
 
-*Multi-select with floating action bar*
+_Multi-select with floating action bar_
+
 - New `pmStore` state: `selectedTaskIds: Set<string>` scoped to `activeProject`, plus a separate `meSelectedTaskIds` for the Me tab (tasks span projects there, so the Sets can't be shared)
 - Selection auto-clears on project switch via `fetchProject` state reset — stale ids from the previous project can never leak into a bulk action
 - Checkbox appears on card hover and stays pinned when any card is selected; clicks use `onClick` + `onPointerDown` stopPropagation so the dnd-kit drag sensor never fires from a checkbox tap
@@ -2780,7 +3029,8 @@ Three composed features land together because they share the same backbone — a
 - Context menu semantics: right-clicking a **selected** card applies the action to the whole selection; right-clicking an **unselected** card acts on that single task only and does not modify the selection
 - Bulk actions wired in the bar: Delete (with count-aware confirm modal), Move to project (disabled with tooltip unless every target is in Backlog). The context menu adds Open, Assign…, Set priority (P1–P5 + clear), Move to column, and Delete
 
-*Cross-project AI Synth*
+_Cross-project AI Synth_
+
 - New top-level "Cross-project AI Synth" button on `/admin/pm` dashboard, separate from the existing per-project button. The existing per-project synth flow is **completely untouched** — forked a new `CrossProjectAISynthModal` rather than refactoring `AISynthModal` to avoid regression risk
 - Detached batch model: `pm_ai_synth_batches.project_id` is now nullable, and each `pm_ai_synth_batch_tasks` row gets a new `target_project_id` FK that must be set before the task can be approved
 - LLM receives the active project list (id + name + description) as JSON in the system prompt and proposes a `target_project_id` per task. New prompt file `src/agents/pmAgents/AISynthCrossProject.md` lives alongside the existing `AISynth.md` — neither file modifies the other
@@ -2788,16 +3038,19 @@ Three composed features land together because they share the same backbone — a
 - Approval UX: per-task project picker plus a "Set all pending to…" dropdown at the top of the task list. Approve button is disabled (with tooltip "Assign a project first") until `target_project_id` is set. Reject is always allowed
 - On approve, the server re-validates the destination project is still `active` (guards the archived-between-extract-and-approve race), resolves its Backlog column via `is_backlog = true`, and creates the real task there with `source: "ai_synth"`
 
-*Architectural lift — `is_backlog` flag*
+_Architectural lift — `is_backlog` flag_
+
 - Every backend site that previously identified the Backlog column by name literal (`column.name === "Backlog"`) now reads `column.is_backlog`. This includes `PmTasksController.createTask`/`moveTask`, `PmStatsController.listStats`, `PmAiSynthController.approveTask`, and the frontend `pmStore.moveTask`, `CreateTaskModal`, `KanbanBoard`, `KanbanColumn`. Single grep sweep confirms only three name literals remain, all expected: migration backfill, migration comment, and the `DEFAULT_COLUMNS` seed constant
 - Adding this flag in the same migration batch as the cross-project synth schema change was the "future-us won't hate present-us" call — if a column ever gets renamed or reordered, priority auto-clear, approval routing, and move-to-project validation keep working
 
-*New primitives*
+_New primitives_
+
 - `frontend/src/components/ui/context-menu.tsx` — shadcn-canonical wrapper around `@radix-ui/react-context-menu` (new dep), styled to the PM dark theme. First `radix-ui` primitive beyond `react-slot` in this repo; exports the full family (`ContextMenu`, `ContextMenuTrigger`, `ContextMenuContent`, `ContextMenuItem`, `ContextMenuSeparator`, `ContextMenuSub`/`SubTrigger`/`SubContent`, etc.)
 - `frontend/src/components/pm/MoveToProjectModal.tsx` — searchable project picker with backlog counts per project, used by both the bulk bar and the context menu move-to-project paths
 - `frontend/src/components/pm/CrossProjectAISynthModal.tsx` — the forked cross-project variant of AISynthModal (grid / new / detail views, per-task project picker, set-all dropdown, cross-project badge on history cards)
 
 **Migration:**
+
 - `20260412000001_pm_backlog_flag_and_cross_project_synth.ts` — additive, forward-compatible:
   - `ALTER TABLE pm_columns ADD COLUMN is_backlog BOOLEAN NOT NULL DEFAULT FALSE` + backfill `WHERE name = 'Backlog'` + partial index `idx_pm_columns_is_backlog` on `(project_id) WHERE is_backlog = TRUE`
   - `ALTER TABLE pm_ai_synth_batches ALTER COLUMN project_id DROP NOT NULL`
@@ -2805,6 +3058,7 @@ Three composed features land together because they share the same backbone — a
 - Down migration refuses to restore `NOT NULL` on `project_id` if any cross-project batches exist — loud-by-design so a rollback never nukes detached batches
 
 **Commits:**
+
 - `src/database/migrations/20260412000001_pm_backlog_flag_and_cross_project_synth.ts` — new migration (is_backlog flag, nullable project_id, target_project_id FK, partial index)
 - `src/controllers/pm/PmTasksController.ts` — `bulkMoveTasksToProject` + `bulkDeleteTasks` controllers; `createTask` and `moveTask` switched from name checks to `is_backlog`
 - `src/controllers/pm/PmAiSynthController.ts` — `extractBatch` gains `scope: "project" | "cross_project"` parameter and injects the active project list into the cross-project prompt; `approveTask` resolves destination via `batch.project_id ?? batchTask.target_project_id` with active-status revalidation; new `setBatchTaskTargetProject` and `listCrossProjectBatches` controllers
@@ -2838,6 +3092,7 @@ Three composed features land together because they share the same backbone — a
 Post blocks and single post templates can now hide markup when a field or custom field is empty, eliminating broken-image icons, empty labels, and orphan wrapper elements. Template authors wrap markup in `{{if post.X}}...{{endif}}` or `{{if_not post.X}}...{{endif}}` to conditionally render based on field presence. Supports standard post tokens and `post.custom.<slug>` custom fields. Evaluated before token replacement so the stripped markup never reaches the output.
 
 **Key Changes:**
+
 - New syntax: `{{if post.featured_image}}<img src="{{post.featured_image}}"/>{{endif}}` keeps the image only when set; pair with `{{if_not post.featured_image}}...{{endif}}` for a fallback branch
 - "Empty" is strictly `null`, `undefined`, or empty string `""`. The values `"0"`, `0`, `false`, whitespace strings, and empty arrays/objects are intentionally **not** empty — authors writing `{{if post.custom.count}}` with a zero count see the block render as expected
 - Flat only in v1 — nested conditionals trigger a `console.warn` and leave the template unchanged so the raw markers render visibly. Loud-by-design so silent template bugs don't ship
@@ -2848,6 +3103,7 @@ Post blocks and single post templates can now hide markup when a field or custom
 - Companion change in `website-builder-rebuild` (production renderer) ships the same `processConditionals` logic in `src/utils/shortcodes.ts` — required for production parity. Three source-of-truth copies are kept in sync via cross-reference header comments in each file.
 
 **Commits:**
+
 - `src/controllers/user-website/user-website-services/shortcodeResolver.service.ts` — added `processConditionals` helper (local, non-exported) with field resolver handling the backend's `_categories`/`_tags` naming convention and derived `url` field; wired into `renderPostBlock`'s `posts.map` body after `customFields` is parsed. Header comment names the two sibling copies.
 - `frontend/src/components/Admin/PostBlocksTab.tsx` — added `processConditionals` helper that resolves fields by looking up literal token strings in `PLACEHOLDER_POST`; invoked in both the loop path (per-post, so different preview posts can resolve differently) and the single-template fallback path of `replacePlaceholders`. Documents the custom-field preview limitation inline.
 - `frontend/src/pages/admin/AlloroPostsDocs.tsx` — new "Conditional Rendering" section between "Shortcode Syntax" and "Examples" with syntax reference, empty-definition explainer, two worked examples (featured image fallback, video embed), and a rules/limits list covering flat-only constraint, absence of `{{else}}`/comparisons, preview limitation, and the supported field list.
@@ -2860,12 +3116,14 @@ Post blocks and single post templates can now hide markup when a field or custom
 Manager-role users can now rename a location from Settings → Properties without escalating to an org admin. Rename is lightweight metadata and no longer requires full `canManageConnections` admin privilege. All other location management actions (Change GBP, Set Primary, Delete, Add Location, change domain) remain admin-only.
 
 **Key Changes:**
+
 - Backend `PUT /api/locations/:id` is now accessible to both `admin` and `manager` roles
 - Server-side field-level guard rejects non-admin attempts to modify `domain` or `is_primary` with `403` — defense in depth, the client is not authoritative
 - Frontend `PropertiesTab` exposes a distinct `canRenameLocation` flag (admin OR manager); the inline name-edit affordance uses this flag while every other action remains gated on `canManageConnections` (admin-only)
 - Viewer role remains fully read-only; no edit affordance is rendered
 
 **Commits:**
+
 - `src/routes/locations.ts` — widened role gate on `PUT /:id` from `admin` to `admin, manager`; added field-level guard blocking `domain`/`is_primary` modification for non-admin roles
 - `frontend/src/components/settings/PropertiesTab.tsx` — added `canRenameLocation` flag; swapped `canManageConnections` → `canRenameLocation` on the two call sites that gate the name-edit UI (click handler and hover pencil icon)
 
@@ -2876,6 +3134,7 @@ Manager-role users can now rename a location from Settings → Properties withou
 Full Playwright QA pass on the PM feature surfaced five confirmed bugs and five friction points. All fixed before production rollout.
 
 **Bug Fixes:**
+
 - Task cards now immediately show "by dave" (creator name) and "→ dave" (assignee name) on creation and assignment — backend `createTask` and `assignTask` responses now enrich with LEFT JOIN on users
 - Deadline panel display no longer shows the wrong date (off-by-one) — changed from `.slice(0, 10)` on a UTC ISO string to `toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" })` to get the correct PST date
 - ME kanban card clicks now open the task detail panel — moved click handler to outer draggable div with a `didDrag` ref to distinguish click vs drag
@@ -2884,6 +3143,7 @@ Full Playwright QA pass on the PM feature surfaced five confirmed bugs and five 
 - Fixed missing `format` import in `pmDateFormat.ts` that would crash for far-future deadlines
 
 **UX Improvements:**
+
 - Truncated task titles show full text as native browser tooltip (`title` attribute) on both kanban and ME kanban cards
 - Task detail panel now shows "Created by {name} · X ago" metadata row at the bottom
 - ME kanban columns show an orange border ring + subtle scale on drag-over for clearer drop targeting
@@ -2891,6 +3151,7 @@ Full Playwright QA pass on the PM feature surfaced five confirmed bugs and five 
 - Old notifications without `actor_name` in metadata are now enriched server-side via actor email fallback
 
 **Commits:**
+
 - `src/controllers/pm/PmTasksController.ts` — `enrichTask()` helper, applied to createTask + assignTask
 - `frontend/src/components/pm/TaskDetailPanel.tsx` — PST deadline display fix, creator metadata row
 - `frontend/src/components/pm/MeKanbanBoard.tsx` — click vs drag fix, column collision detection, drop zone ring
@@ -2906,12 +3167,14 @@ Full Playwright QA pass on the PM feature surfaced five confirmed bugs and five 
 Users with expired JWT tokens hitting `/settings/billing` saw a white screen — "Something went wrong." — because the billing page crashed trying to render a 403 error response as billing data. The app now detects expired tokens globally and shows a "Session Expired" modal prompting re-login.
 
 **Key Changes:**
+
 - Global 403 axios interceptor in `api/index.ts` — detects `"Invalid or expired token"` responses, dispatches `session:expired` event with dedup flag to prevent multiple modals
 - `SessionExpiredModal` component — non-dismissible dark glassmorphic modal, clears all auth state (localStorage, sessionStorage, query cache, cookies), broadcasts logout to other tabs, redirects to `/signin`
 - Mounted in `App.tsx` at top level alongside `<Toaster />`
 - `BillingTab.tsx` defensive guard — changed `success !== false` to `success === true` so malformed API responses never set state
 
 **Commits:**
+
 - `frontend/src/api/index.ts` — 403 interceptor with `sessionExpiredFired` dedup flag
 - `frontend/src/components/SessionExpiredModal.tsx` — new modal component
 - `frontend/src/App.tsx` — mount SessionExpiredModal
@@ -2924,12 +3187,14 @@ Users with expired JWT tokens hitting `/settings/billing` saw a white screen —
 Caswell Orthodontics and One Endodontics have flat-rate deals — they pay for a single unit regardless of how many locations they have. A new `billing_quantity_override` column on organizations allows per-org override of the Stripe subscription quantity, bypassing the automatic location count.
 
 **Key Changes:**
+
 - Migration `20260323000001_add_billing_quantity_override` — adds nullable integer column, seeds `1` for Caswell (org 25) and One Endo (org 39)
 - `BillingService.createCheckoutSession()` — uses override when set, falls back to location count
 - `BillingService.syncSubscriptionQuantity()` — uses override when set, prevents location add/remove from changing the billed quantity
 - `IOrganization` interface — added `billing_quantity_override: number | null`
 
 **Commits:**
+
 - `src/database/migrations/20260323000001_add_billing_quantity_override.ts` — column + seed data
 - `src/controllers/billing/BillingService.ts` — guard clauses in checkout and quantity sync
 - `src/models/OrganizationModel.ts` — interface update
@@ -2941,6 +3206,7 @@ Caswell Orthodontics and One Endodontics have flat-rate deals — they pay for a
 Adding or removing a location now automatically updates the Stripe subscription quantity and sends an email notification to org admins with the billing change details.
 
 **Key Changes:**
+
 - `syncSubscriptionQuantity()` in BillingService — retrieves Stripe subscription, compares item quantity to current location count, updates if different
 - Hooked into `LocationService.createLocation()` and `removeLocation()` as fire-and-forget after transaction commits
 - Email notification to org admins: old/new quantity, unit price, new monthly total, proration note
@@ -2948,6 +3214,7 @@ Adding or removing a location now automatically updates the Stripe subscription 
 - No-op for admin-granted orgs (no `stripe_subscription_id`)
 
 **Commits:**
+
 - `signalsai-backend/src/controllers/billing/BillingService.ts` — Add syncSubscriptionQuantity() with Stripe update + email notification
 - `signalsai-backend/src/controllers/locations/LocationService.ts` — Hook sync into createLocation() and removeLocation()
 
@@ -2958,6 +3225,7 @@ Adding or removing a location now automatically updates the Stripe subscription 
 Automated Rybbit website analytics provisioning, migrated Proofline from N8N to direct Claude calls, and enriched both daily and monthly agents with website analytics data from Rybbit.
 
 **Key Changes:**
+
 - Automated Rybbit site creation when a custom domain is verified — creates site via Rybbit API and auto-injects tracking script into project header code
 - Migrated Proofline agent from N8N webhook to direct Claude LLM call with proper JSON output schema (title, proof_type, trajectory, explanation)
 - Proofline daily agent now includes Rybbit website analytics (sessions, pageviews, bounce rate) alongside GBP data for yesterday vs day-before comparison
@@ -2968,6 +3236,7 @@ Automated Rybbit website analytics provisioning, migrated Proofline from N8N to 
 - Added `trajectory` field to frontend `ProoflineAgentData` type
 
 **Commits:**
+
 - `signalsai-backend/src/database/migrations/20260312000001_add_rybbit_site_id_to_projects.ts` — Add rybbit_site_id to projects
 - `signalsai-backend/src/controllers/admin-websites/feature-services/service.rybbit.ts` — Rybbit site provisioning on domain verification
 - `signalsai-backend/src/controllers/admin-websites/feature-services/service.custom-domain.ts` — Hook provisioning into verifyDomain
@@ -2985,6 +3254,7 @@ Automated Rybbit website analytics provisioning, migrated Proofline from N8N to 
 Billing was hardcoded to a single $2,000 flat price with `quantity: 1`. Now supports per-location/per-team pricing driven by organization type, dynamic quantity based on location count, and a persistent subscribe banner for unpaid users.
 
 **Key Changes:**
+
 - Checkout resolves Stripe price by organization type: `health` ($2,000/location/mo) or `saas` ($3,500/team/mo)
 - Checkout quantity dynamically set to org's location count from DB (minimum 1)
 - New `organization_type` column on organizations (nullable, immutable once set, null = health)
@@ -2994,6 +3264,7 @@ Billing was hardcoded to a single $2,000 flat price with `quantity: 1`. Now supp
 - ENV restructured: `STRIPE_DFY_PRICE_ID` renamed to `STRIPE_HEALTH_PRICE_ID`, added `STRIPE_SAAS_PRICE_ID`, comment-swap blocks for test/prod keys
 
 **Commits:**
+
 - `signalsai-backend/src/database/migrations/20260312000002_add_organization_type.ts` — Add organization_type column
 - `signalsai-backend/src/config/stripe.ts` — Replace `getPriceId(tier)` with `getPriceIdByOrgType(orgType)`
 - `signalsai-backend/src/controllers/billing/BillingService.ts` — Dynamic price + quantity in checkout session
@@ -3011,6 +3282,7 @@ Billing was hardcoded to a single $2,000 flat price with `quantity: 1`. Now supp
 SEO data was siloed on individual page versions. Bulk generation targeted the highest version number (often an inactive version), and manual SEO edits only wrote to one row. The page list showed score 77 from an old inactive version while the editor showed 15 (draft had null seo_data). The public renderer serves from the published row — if that row had no seo_data, zero SEO tags were injected.
 
 **Key Changes:**
+
 - Added `propagateSeoToSiblings` helper — when SEO data is written to any page version, all sibling versions of the same path with null seo_data are backfilled (additive only, never overwrites)
 - Fixed bulk SEO generation to target the published page per path (fallback to draft, then highest version) instead of blindly picking the highest version number
 - Fixed page list SEO score to use `displayPage` (published or latest) instead of scanning all versions for any with seo_data
@@ -3019,6 +3291,7 @@ SEO data was siloed on individual page versions. Bulk generation targeted the hi
 - One-time backfill migration: copied best seo_data to all 79 page versions across 13 page groups that had gaps
 
 **Commits:**
+
 - `signalsai-backend/src/controllers/admin-websites/feature-services/service.page-editor.ts` — Add propagateSeoToSiblings helper, call from updatePageSeo
 - `signalsai-backend/src/workers/processors/seoBulkGenerate.processor.ts` — Fix getPageEntities to prefer published, add sibling propagation after bulk save
 - `signalsai-backend/src/controllers/admin-websites/AdminWebsitesController.ts` — Deduplicate getAllSeoMeta by path
@@ -3033,12 +3306,14 @@ SEO data was siloed on individual page versions. Bulk generation targeted the hi
 Removed vestigial `domain` requirement from the monthly-agents-run endpoint — a leftover from the domain-centered execution model replaced in February. Organizations without a domain set caused silent 400 failures in the PMS pipeline.
 
 **Key Changes:**
+
 - `domain` no longer required in `POST /api/agents/monthly-agents-run` — endpoint resolves display name from its internal org join
 - PMS retry and approval services no longer resolve org domain just to pass it back; removed unnecessary `OrganizationModel` lookups
 - Fire-and-forget axios calls replaced with `await` so errors propagate correctly instead of being swallowed
 - `notifyAdminsMonthlyAgentComplete` parameter renamed from `domain` to `practiceName`
 
 **Commits:**
+
 - `src/controllers/agents/AgentsController.ts` — Remove domain validation, use org join for admin email
 - `src/utils/core/notificationHelper.ts` — Rename domain param to practiceName
 - `src/controllers/pms/pms-services/pms-retry.service.ts` — Remove org lookup, domain payload, fix await
@@ -3049,10 +3324,12 @@ Removed vestigial `domain` requirement from the monthly-agents-run endpoint — 
 SEO scores displayed correctly in the website page list but appeared empty when opening a page for editing. The `createDraft` function was not copying `seo_data` from the published page to the draft.
 
 **Key Changes:**
+
 - Draft creation now copies `seo_data` from the published source page
 - Stale draft refresh now syncs `seo_data` from the published version
 
 **Commits:**
+
 - `src/controllers/admin-websites/feature-services/service.page-editor.ts` — Add seo_data to draft insert and stale refresh update
 
 ## [0.0.3] - March 2026
@@ -3062,6 +3339,7 @@ SEO scores displayed correctly in the website page list but appeared empty when 
 Full SEO scoring, editing, and meta injection pipeline across admin frontend, backend, and website-builder-rebuild rendering server.
 
 **Key Changes:**
+
 - SEO scoring panel with sidebar navigation, per-section scores, colored dot indicators, and inline field editing for meta title, description, canonical URL, robots, OG tags, and JSON-LD schema
 - SEO meta injection in website-builder-rebuild renderer: smart replace-or-inject for `<title>`, meta tags, canonical, OG tags, and JSON-LD schema blocks
 - Business data service with Redis-cached lookups (10-min TTL) for org + location data
@@ -3082,15 +3360,18 @@ Restructured SeoPanel from a full-width scrolling list to a sidebar+main split l
 Added editable display name to website projects and custom domain preference in the list view.
 
 **Key Changes:**
+
 - `display_name` column on `website_builder.projects` (migration `20260309000001`)
 - Inline-editable display name in WebsitesList (pencil icon, Enter to save)
 - "View Site" link and domain display prefer `custom_domain` over generated subdomain
 - Backend: `display_name` and `custom_domain` included in list query, set on project create
 
 ### Misc Fixes
+
 - Removed unused imports (`Download`, `HelpCircle`, `FileText`, `Upload`, `Sparkles`) and dead `LocationFormRow` component to fix TS6133 errors
 
 **Commits:**
+
 - `website-builder-rebuild/src/utils/renderer.ts` — SEO meta injection with `injectSeoMeta()`, `replaceOrInjectMeta()`, `replaceOrInjectLink()`
 - `website-builder-rebuild/src/services/seo.service.ts` — Business data fetch with Redis caching
 - `website-builder-rebuild/src/routes/site.ts` — SEO injection in page and post assembly
@@ -3123,6 +3404,7 @@ Added editable display name to website projects and custom domain preference in 
 Enables password management for legacy Google-only accounts via admin tools and user self-service.
 
 **Key Changes:**
+
 - Admin can now see password status (PW / No PW badge) on each user card in Organization Detail
 - Admin can set a temporary auto-generated password for any user with optional email notification
 - New "Account" tab in Settings (after Billing) where users can set or change their password
@@ -3130,6 +3412,7 @@ Enables password management for legacy Google-only accounts via admin tools and 
 - Password validation enforces existing rules (8+ chars, 1 uppercase, 1 number)
 
 **Commits:**
+
 - `signalsai-backend/src/models/OrganizationUserModel.ts` — Added password_hash to user join query
 - `signalsai-backend/src/controllers/admin-organizations/AdminOrganizationsController.ts` — Added has_password mapping + setUserPassword handler with temp password generation and email notification
 - `signalsai-backend/src/controllers/settings/SettingsController.ts` — Added getPasswordStatus and changePassword handlers

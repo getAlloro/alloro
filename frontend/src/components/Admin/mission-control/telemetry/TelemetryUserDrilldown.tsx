@@ -8,12 +8,14 @@ export type TelemetryUserDrilldownProps = {
   organization: MissionControlTelemetryOrganizationRow | null;
   users: MissionControlTelemetryUserRow[];
   isLoading: boolean;
+  onSelectUser?: (userId: number) => void;
 };
 
 export function TelemetryUserDrilldown({
   organization,
   users,
   isLoading,
+  onSelectUser,
 }: TelemetryUserDrilldownProps) {
   return (
     <section className="rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -31,7 +33,9 @@ export function TelemetryUserDrilldown({
             </p>
           </div>
         </div>
-        {isLoading && <Loader2 className="h-4 w-4 animate-spin text-alloro-orange" />}
+        {isLoading && (
+          <Loader2 className="h-4 w-4 animate-spin text-alloro-orange" />
+        )}
       </div>
 
       <div className="p-4">
@@ -42,7 +46,13 @@ export function TelemetryUserDrilldown({
         ) : (
           <div className="space-y-2">
             {users.map((user) => (
-              <div key={user.userId} className="rounded-lg bg-gray-50 px-3 py-3">
+              <button
+                key={user.userId}
+                type="button"
+                onClick={() => onSelectUser?.(user.userId)}
+                disabled={!onSelectUser}
+                className="w-full rounded-lg bg-gray-50 px-3 py-3 text-left transition-all hover:bg-alloro-teal/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-alloro-teal/40 disabled:cursor-default disabled:hover:bg-gray-50"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="truncate text-xs font-black text-alloro-navy">
@@ -61,7 +71,7 @@ export function TelemetryUserDrilldown({
                   <MiniStat label="Views" value={user.pageViews} />
                   <MiniStat label="Time" value={`${user.activeMinutes}m`} />
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         )}

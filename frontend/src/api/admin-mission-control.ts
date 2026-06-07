@@ -128,6 +128,11 @@ export type MissionControlTelemetrySurfaceRow = {
   activeUsers: number;
   activeOrganizations: number;
   activeMinutes: number;
+  lastOrganizationId: number | null;
+  lastOrganizationName: string | null;
+  lastUserId: number | null;
+  lastUserName: string | null;
+  lastUserEmail: string | null;
 };
 
 export type MissionControlTelemetryPageRow = {
@@ -136,7 +141,13 @@ export type MissionControlTelemetryPageRow = {
   surface: string | null;
   pageViews: number;
   activeUsers: number;
+  activeOrganizations: number;
   activeMinutes: number;
+  lastOrganizationId: number | null;
+  lastOrganizationName: string | null;
+  lastUserId: number | null;
+  lastUserName: string | null;
+  lastUserEmail: string | null;
 };
 
 export type MissionControlTelemetryOrganizationRow = {
@@ -163,10 +174,39 @@ export type MissionControlTelemetryUserRow = {
   topSurface: string | null;
 };
 
+export type MissionControlTelemetryOrganizationSummary = {
+  activeUsers: number;
+  totalSessions: number;
+  totalPageViews: number;
+  totalActiveMinutes: number;
+  averageActiveMinutesPerUser: number;
+  lastActiveAt: string | null;
+  topSurface: string | null;
+};
+
+export type MissionControlTelemetryMovementRow = {
+  id: string;
+  eventName: string;
+  eventLabel: string;
+  userId: number | null;
+  userName: string | null;
+  userEmail: string | null;
+  userRole: string | null;
+  sessionId: string;
+  routeTemplate: string | null;
+  surface: string | null;
+  pageLabel: string | null;
+  activeSeconds: number;
+  activeMinutes: number;
+  occurredAt: string;
+  createdAt: string;
+};
+
 export type MissionControlTelemetryData = {
   generatedAt: string;
   range: MissionControlTelemetryRange;
   includePilot: boolean;
+  includeAdmin: boolean;
   summary: MissionControlTelemetrySummary;
   dailyUsage: MissionControlTelemetryDailyPoint[];
   surfaceUsage: MissionControlTelemetrySurfaceRow[];
@@ -174,10 +214,38 @@ export type MissionControlTelemetryData = {
   organizationUsage: MissionControlTelemetryOrganizationRow[];
 };
 
+export type MissionControlTelemetryOrganizationDetailData = {
+  generatedAt: string;
+  range: MissionControlTelemetryRange;
+  includePilot: boolean;
+  includeAdmin: boolean;
+  organization: MissionControlTelemetryOrganizationRow;
+  summary: MissionControlTelemetryOrganizationSummary;
+  dailyUsage: MissionControlTelemetryDailyPoint[];
+  surfaceUsage: MissionControlTelemetrySurfaceRow[];
+  pageUsage: MissionControlTelemetryPageRow[];
+  users: MissionControlTelemetryUserRow[];
+  recentMovements: MissionControlTelemetryMovementRow[];
+};
+
+export type MissionControlTelemetryUserDetailData = {
+  generatedAt: string;
+  range: MissionControlTelemetryRange;
+  includePilot: boolean;
+  includeAdmin: boolean;
+  organization: MissionControlTelemetryOrganizationRow;
+  user: MissionControlTelemetryUserRow;
+  dailyUsage: MissionControlTelemetryDailyPoint[];
+  surfaceUsage: MissionControlTelemetrySurfaceRow[];
+  pageUsage: MissionControlTelemetryPageRow[];
+  recentMovements: MissionControlTelemetryMovementRow[];
+};
+
 export type MissionControlTelemetryUsersData = {
   generatedAt: string;
   range: MissionControlTelemetryRange;
   includePilot: boolean;
+  includeAdmin: boolean;
   organizationId: number;
   users: MissionControlTelemetryUserRow[];
 };
@@ -197,7 +265,9 @@ export async function adminGetMissionControl(
   });
 
   if (!response.success || !response.data) {
-    throw new Error(response.error?.message || "Failed to load Mission Control");
+    throw new Error(
+      response.error?.message || "Failed to load Mission Control",
+    );
   }
 
   return response.data;
@@ -226,10 +296,12 @@ export async function adminGetMissionControlInsight(): Promise<{
 export async function adminGetMissionControlTelemetry(
   range: MissionControlTelemetryRange,
   includePilot = false,
+  includeAdmin = false,
 ): Promise<MissionControlTelemetryData> {
   const query = new URLSearchParams({
     range,
     includePilot: String(includePilot),
+    includeAdmin: String(includeAdmin),
   });
   const response: ApiEnvelope<MissionControlTelemetryData> = await apiGet({
     path: `/admin/mission-control/telemetry?${query.toString()}`,
@@ -244,14 +316,67 @@ export async function adminGetMissionControlTelemetry(
   return response.data;
 }
 
+export async function adminGetMissionControlTelemetryOrganizationDetail(
+  organizationId: number,
+  range: MissionControlTelemetryRange,
+  includePilot = false,
+  includeAdmin = false,
+): Promise<MissionControlTelemetryOrganizationDetailData> {
+  const query = new URLSearchParams({
+    range,
+    includePilot: String(includePilot),
+    includeAdmin: String(includeAdmin),
+  });
+  const response: ApiEnvelope<MissionControlTelemetryOrganizationDetailData> =
+    await apiGet({
+      path: `/admin/mission-control/telemetry/organizations/${organizationId}/detail?${query.toString()}`,
+    });
+
+  if (!response.success || !response.data) {
+    throw new Error(
+      response.error?.message || "Failed to load organization telemetry detail",
+    );
+  }
+
+  return response.data;
+}
+
+export async function adminGetMissionControlTelemetryUserDetail(
+  organizationId: number,
+  userId: number,
+  range: MissionControlTelemetryRange,
+  includePilot = false,
+  includeAdmin = false,
+): Promise<MissionControlTelemetryUserDetailData> {
+  const query = new URLSearchParams({
+    range,
+    includePilot: String(includePilot),
+    includeAdmin: String(includeAdmin),
+  });
+  const response: ApiEnvelope<MissionControlTelemetryUserDetailData> =
+    await apiGet({
+      path: `/admin/mission-control/telemetry/organizations/${organizationId}/users/${userId}/detail?${query.toString()}`,
+    });
+
+  if (!response.success || !response.data) {
+    throw new Error(
+      response.error?.message || "Failed to load user telemetry detail",
+    );
+  }
+
+  return response.data;
+}
+
 export async function adminGetMissionControlTelemetryUsers(
   organizationId: number,
   range: MissionControlTelemetryRange,
   includePilot = false,
+  includeAdmin = false,
 ): Promise<MissionControlTelemetryUsersData> {
   const query = new URLSearchParams({
     range,
     includePilot: String(includePilot),
+    includeAdmin: String(includeAdmin),
   });
   const response: ApiEnvelope<MissionControlTelemetryUsersData> = await apiGet({
     path: `/admin/mission-control/telemetry/organizations/${organizationId}/users?${query.toString()}`,

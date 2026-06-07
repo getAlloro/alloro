@@ -38,7 +38,9 @@ export function TelemetryTrendChart({ data }: TelemetryTrendChartProps) {
     [data],
   );
 
-  const activeIndex = hoverIndex ?? Math.max(chartData.length - 1, 0);
+  const latestActiveIndex = findLatestActiveIndex(chartData);
+  const activeIndex =
+    hoverIndex ?? latestActiveIndex ?? Math.max(chartData.length - 1, 0);
   const activeDay = chartData[activeIndex];
 
   return (
@@ -84,9 +86,21 @@ export function TelemetryTrendChart({ data }: TelemetryTrendChartProps) {
                 <stop offset="100%" stopColor="#14b8a6" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid vertical={false} stroke="#e5e7eb" strokeDasharray="3 5" />
-            <XAxis dataKey="label" axisLine={false} tickLine={false} tick={false} />
-            <YAxis hide domain={[0, (max: number) => Math.max(1, Math.ceil(max * 1.2))]} />
+            <CartesianGrid
+              vertical={false}
+              stroke="#e5e7eb"
+              strokeDasharray="3 5"
+            />
+            <XAxis
+              dataKey="label"
+              axisLine={false}
+              tickLine={false}
+              tick={false}
+            />
+            <YAxis
+              hide
+              domain={[0, (max: number) => Math.max(1, Math.ceil(max * 1.2))]}
+            />
             <Tooltip
               cursor={{ stroke: "#11151c", strokeOpacity: 0.12 }}
               content={<TrendTooltip />}
@@ -103,7 +117,11 @@ export function TelemetryTrendChart({ data }: TelemetryTrendChartProps) {
               stroke="var(--color-alloro-teal)"
               strokeWidth={2.8}
               dot={false}
-              activeDot={{ r: 5, fill: "var(--color-alloro-teal)", strokeWidth: 0 }}
+              activeDot={{
+                r: 5,
+                fill: "var(--color-alloro-teal)",
+                strokeWidth: 0,
+              }}
             />
             <Line
               type="monotone"
@@ -111,7 +129,11 @@ export function TelemetryTrendChart({ data }: TelemetryTrendChartProps) {
               stroke="var(--color-alloro-orange)"
               strokeWidth={2.2}
               dot={false}
-              activeDot={{ r: 4, fill: "var(--color-alloro-orange)", strokeWidth: 0 }}
+              activeDot={{
+                r: 4,
+                fill: "var(--color-alloro-orange)",
+                strokeWidth: 0,
+              }}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -136,14 +158,31 @@ function TrendTooltip({
         {datum.tooltipLabel}
       </p>
       <p className="mt-1 text-xs font-black tabular-nums text-alloro-navy">
-        {datum.activeUsers} users · {datum.pageViews} views · {datum.activeMinutes}m
+        {datum.activeUsers} users · {datum.pageViews} views ·{" "}
+        {datum.activeMinutes}m
       </p>
     </div>
   );
 }
 
-function formatDate(value: string, options: Intl.DateTimeFormatOptions): string {
-  return new Intl.DateTimeFormat("en-US", options).format(
-    new Date(`${value}T00:00:00Z`),
-  );
+function formatDate(
+  value: string,
+  options: Intl.DateTimeFormatOptions,
+): string {
+  return new Intl.DateTimeFormat("en-US", options).format(parseDateKey(value));
+}
+
+function parseDateKey(value: string): Date {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function findLatestActiveIndex(data: TrendDatum[]): number | null {
+  for (let index = data.length - 1; index >= 0; index -= 1) {
+    const day = data[index];
+    if (day.activeUsers > 0 || day.pageViews > 0 || day.activeMinutes > 0) {
+      return index;
+    }
+  }
+  return null;
 }
