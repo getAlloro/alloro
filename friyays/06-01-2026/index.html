@@ -22,64 +22,56 @@
           <h1 id="page-title">This week's Alloro feature roundup</h1>
           <p>
             Coverage window: Monday, June 1, 2026 through Sunday, June 7, 2026.
-            This folder tracks verified local build evidence plus deployment
-            follow-ups for the week's Alloro polish and website improvements.
+            This edition now tracks only the dev-only items that are not already
+            on <strong>origin/main</strong>. Items already shipped to main were
+            moved into the previous shipped-feature inventory.
           </p>
         </div>
         <aside class="hero-panel" aria-label="Release state summary">
           <p class="eyebrow">06-01-2026 edition</p>
           <div class="status-stack">
-            <span class="tag good">Implemented locally</span>
-            <span class="tag good">Build verified</span>
-            <span class="tag warn">Needs deployment verification</span>
+            <span class="tag good">Main-shipped items moved out</span>
+            <span class="tag good">Dev-only items cataloged</span>
+            <span class="tag warn">No customer email yet</span>
           </div>
         </aside>
       </section>
 
-      <section class="section" aria-labelledby="customer-highlights">
-        <p class="eyebrow">Customer-facing highlights</p>
-        <h2 id="customer-highlights">Typography polish and clearer calls</h2>
+      <section class="section" aria-labelledby="client-view-updates">
+        <p class="eyebrow">Client-facing and client-view updates</p>
+        <h2 id="client-view-updates">
+          No new client-view items in this dev-only cut
+        </h2>
         <div class="grid">
           <article class="highlight-card">
-            <h3>Cleaner serif typography across Alloro</h3>
+            <h3>Client-facing shipped work moved out</h3>
             <p>
-              Alloro's active frontend serif/display surfaces now use Spectral
-              instead of mixing Fraunces and Literata, keeping dashboard
-              metrics, editorial text, rankings gauge numbers, and chat reading
-              surfaces more consistent.
+              Client-facing and public-site items already on
+              <strong>origin/main</strong> were removed from this edition and
+              moved to the previous shipped-feature inventory to avoid
+              double-counting.
             </p>
             <div class="meta">
-              <span class="tag good">Build verified</span
-              ><span class="tag">UI polish</span>
-            </div>
-          </article>
-          <article class="highlight-card">
-            <h3>Phone CTAs prepared for Alloro-built websites</h3>
-            <p>
-              Website headers now have a standard place for the practice phone
-              number and a simple "Call us today" helper line, making the
-              primary contact action easier to find once the migration is
-              deployed.
-            </p>
-            <div class="meta">
-              <span class="tag good">Locally verified</span
-              ><span class="tag warn">Deployment verification pending</span>
+              <span class="tag good">Separated from current cut</span
+              ><span class="tag">Client view</span>
             </div>
           </article>
         </div>
       </section>
 
-      <section class="section" aria-labelledby="internal-highlights">
-        <p class="eyebrow">Internal/admin highlights</p>
-        <h2 id="internal-highlights">Usage visibility for Mission Control</h2>
+      <section class="section" aria-labelledby="admin-operator-updates">
+        <p class="eyebrow">Admin and operator updates</p>
+        <h2 id="admin-operator-updates">
+          Mission Control, launch tools, and integration checks
+        </h2>
         <div class="grid">
           <article class="highlight-card">
             <h3>Mission Control product telemetry refinements</h3>
             <p>
-              Mission Control's Telemetry tab now defaults to client usage, adds
-              explicit admin/pilot filters, links out to Clarity for replay and
-              heatmap review, and supports organization and user drilldowns with
-              breadcrumb navigation.
+              Mission Control has first-party telemetry for authenticated app
+              usage, plus refinements for client-default aggregates, explicit
+              admin/pilot filters, Clarity replay/heatmap links, organization
+              drilldowns, user drilldowns, and breadcrumb navigation.
             </p>
             <div class="meta">
               <span class="tag good">Build verified</span
@@ -90,13 +82,35 @@
         </div>
       </section>
 
+      <section class="section" aria-labelledby="operations-updates">
+        <p class="eyebrow">Operations and reliability updates</p>
+        <h2 id="operations-updates">
+          Safer deploys, worker health, and maintenance
+        </h2>
+        <div class="grid">
+          <article class="highlight-card">
+            <h3>Worker stall watchdog</h3>
+            <p>
+              Added an out-of-process worker watchdog and Redis connection
+              hardening so stalled harvest processing can alert instead of
+              sitting silently behind an "online" PM2 process.
+            </p>
+            <div class="meta">
+              <span class="tag good">Build verified</span
+              ><span class="tag">Operations</span>
+            </div>
+          </article>
+        </div>
+      </section>
+
       <section class="section" aria-labelledby="inventory">
         <p class="eyebrow">Feature inventory</p>
-        <h2 id="inventory">All candidates, including uncertain items</h2>
+        <h2 id="inventory">Separated inventory</h2>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
+                <th>Bucket</th>
                 <th>Feature</th>
                 <th>Audience</th>
                 <th>State</th>
@@ -106,34 +120,7 @@
             </thead>
             <tbody>
               <tr>
-                <td>Spectral serif typography standardization</td>
-                <td>Client dashboard users, admins, docs readers</td>
-                <td>
-                  <span class="tag good">Implemented and build verified</span>
-                </td>
-                <td>Maybe</td>
-                <td>
-                  Sources: changelog 0.0.96,
-                  <code>plans/06032026-replace-serif-with-spectral</code>,
-                  frontend build, and Alloro Docs font-token parity.
-                </td>
-              </tr>
-              <tr>
-                <td>Website header phone CTAs</td>
-                <td>Website visitors, practice teams, Alloro operators</td>
-                <td>
-                  <span class="tag warn"
-                    >Implemented locally; migration deployment pending</span
-                  >
-                </td>
-                <td>Maybe</td>
-                <td>
-                  Sources: changelog 0.0.107,
-                  <code>plans/06052026-website-header-phone-cta</code>, local
-                  migration up/down smoke test, and TypeScript verification.
-                </td>
-              </tr>
-              <tr>
+                <td>Admin/operator</td>
                 <td>Mission Control product telemetry and drilldowns</td>
                 <td>Alloro admins and operators</td>
                 <td>
@@ -146,7 +133,22 @@
                   Sources: changelog 0.0.108 and 0.0.110,
                   <code>plans/06052026-mission-control-product-telemetry</code>,
                   backend/frontend builds, scoped ESLint, Playwright
-                  telemetry/breadcrumb smoke checks, and docs parity check.
+                  telemetry/breadcrumb smoke checks, docs parity check, and
+                  <code>origin/main</code> exclusion check.
+                </td>
+              </tr>
+              <tr>
+                <td>Operations</td>
+                <td>Worker stall watchdog and Redis hardening</td>
+                <td>Alloro operators</td>
+                <td>
+                  <span class="tag good">Implemented and build verified</span>
+                </td>
+                <td>No</td>
+                <td>
+                  Sources: changelog 0.0.109 and worker heartbeat/watchdog
+                  implementation. Not present on <code>origin/main</code> as of
+                  the June 8 check.
                 </td>
               </tr>
             </tbody>
@@ -156,10 +158,13 @@
 
       <section class="section" aria-labelledby="email-draft">
         <p class="eyebrow">Email draft</p>
-        <h2 id="email-draft">Customer-ready shape, still draft</h2>
+        <h2 id="email-draft">
+          No customer email draft for this dev-only edition
+        </h2>
         <p class="section-subtitle">
-          Open <a href="./email.html">email.html</a> for the standalone email
-          version. Keep this as draft until deployment verification is complete.
+          Open <a href="./email.html">email.html</a> for the standalone note.
+          Because the remaining items are admin/operations work, this edition
+          does not prepare customer-facing announcement copy.
         </p>
       </section>
 
@@ -201,15 +206,15 @@
           <li>
             <span class="box done">x</span
             ><span
-              >Mission Control telemetry backend/frontend builds and
-              touched-file ESLint passed locally.</span
+              >Items already present on <code>origin/main</code> were moved out
+              of this edition.</span
             >
           </li>
           <li>
             <span class="box done">x</span
             ><span
-              >Mission Control telemetry drilldowns and breadcrumbs passed
-              Playwright smoke verification.</span
+              >No customer-facing email copy is included for the remaining
+              dev-only items.</span
             >
           </li>
           <li>
