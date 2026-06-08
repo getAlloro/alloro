@@ -12,8 +12,13 @@
 import { Job } from "bullmq";
 import { ScheduleModel, ScheduleRunModel } from "../../models/ScheduleModel";
 import { getMindsQueue } from "../queues";
+import { recordSchedulerTick } from "../workerHealth";
 
 export async function processSchedulerTick(_job: Job): Promise<void> {
+  // Processing heartbeat — must run BEFORE the early-return below so it fires
+  // every tick even when no schedules are due. Read by the worker watchdog.
+  recordSchedulerTick();
+
   const dueSchedules = await ScheduleModel.findDueSchedules();
 
   if (dueSchedules.length === 0) return;

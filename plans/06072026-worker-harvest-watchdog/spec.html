@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Worker Harvest Watchdog Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Implemented · Pending Deploy/QA</span>
+      </div>
+      <h1>Worker Stall Watchdog &amp; Redis Hardening</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Implemented · Pending Deploy/QA</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06072026-worker-harvest-watchdog</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>
+        On 2026-06-07 the <code>minds-worker</code> process was <strong>alive but wedged</strong> — pm2 reported
+        <code>online</code> (idle CPU, flat memory) while it had processed <strong>zero jobs for ~42h</strong>.
+        Every scheduled job silently stopped, so the 5 AM data harvest missed Jun 6 and Jun 7 and Clarity/Rybbit/GSC
+        data froze at Jun 5. Nothing alerted; it was found only by manual inspection. The worker's Redis connections
+        have no error/close/reconnect handlers, so a dropped or hung connection fails <em>silently</em> — the exact
+        signature observed.
+      </p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>
+        Two complementary changes: (1) an <strong>external watchdog</strong> that detects a stalled worker / missed
+        harvest and emails a dev alert to <code>dave@getalloro.com</code> via the existing n8n email webhook, and
+        (2) <strong>Redis connection hardening</strong> so a dropped/hung connection logs loudly and self-heals
+        instead of silently freezing all queues. Alert-only (no auto-restart, per decision).
+      </p>
+      <p>
+        <strong>Done when:</strong> the worker writes a processing heartbeat every scheduler tick and on each harvest
+        completion; an out-of-process checker emails dave@getalloro.com (error-format) when the heartbeat goes stale
+        or a daily harvest is missed, de-duped so it doesn't spam; and worker Redis connections emit visible
+        error/reconnect logs and recover from a transient drop.
+      </p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/workers/worker.ts</code> - <code>makeConnection()</code> (L46-56, per-worker ioredis, currently no handlers/retryStrategy); the scheduler + harvest workers. Hardening target.</li>
+        <li><code>src/workers/queues.ts</code> - <code>getRedisConnection()</code> (L9-19, shared producer connection, same gap). Hardening target.</li>
+        <li><code>src/workers/processors/scheduler.processor.ts</code> - <code>processSchedulerTick</code> (L16). <strong>Note: it early-returns at L19 when no schedules are due</strong> — the heartbeat must be recorded BEFORE that return so it fires every 60s.</li>
+        <li><code>src/workers/processors/dataHarvest.processor.ts</code> - <code>processDataHarvest</code>; record harvest completion after the <code>Daily harvest complete</code> log (L84).</li>
+        <li><code>src/emails/emailService.ts</code> - <code>sendEmail({ subject, body, recipients })</code> (L123) over <code>ALLORO_EMAIL_SERVICE_WEBHOOK</code> (n8n). The alert sender — the "other implementations" analog.</li>
+        <li><strong>New</strong> <code>src/workers/workerHealth.ts</code> - heartbeat read/write helper (file-based).</li>
+        <li><strong>New</strong> <code>src/scripts/worker-watchdog.ts</code> - the out-of-process checker (compiled to <code>dist/scripts/worker-watchdog.js</code>, run by system cron).</li>
+        <li>Ops (alloro-app): <code>pm2</code> at <code>/home/ubuntu/.nvm/versions/node/v22.18.0/bin</code> (shebang needs node on PATH); env at <code>/etc/alloro/app.env</code>; worker logs <code>~/.pm2/logs/minds-worker-*</code>.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Send the alert with <code>emailService.sendEmail</code> exactly as other senders do (subject + HTML/text body + <code>recipients</code>); do not introduce a second email path.</li>
+        <li>Keep <code>maxRetriesPerRequest: null</code> on worker connections (BullMQ requirement); hardening is <em>additive</em> (event handlers + bounded <code>retryStrategy</code>), not a rewrite.</li>
+        <li>Heartbeat must reflect actual <em>queue processing</em> (tie it to the scheduler tick + harvest completion), not mere event-loop liveness — the stall had a live loop but dead job processing.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/emails/emailService.ts</code> (alert sender) and any existing caller of <code>sendEmail</code> for body/subject shape. <strong>Decision recorded:</strong> the Clarity/Rybbit/GSC harvest itself is left <em>as-is</em> (it is already correct for what the Clarity API allows — <code>numOfDays</code> 1-3 returns an aggregate, not per-day; verified 2026-06-07). This plan does not change harvest cadence.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>The checker runs <strong>outside</strong> the worker process (system cron) — an in-process self-check is worthless (pm2 showed "online" while wedged).</li>
+            <li>Heartbeat written on every scheduler tick (before the early-return) and on harvest completion.</li>
+            <li>Alert via <code>emailService.sendEmail</code> to <code>dave@getalloro.com</code>, error-format subject/body, including last-tick / last-harvest times, hostname, and remediation (<code>pm2 restart minds-worker</code>).</li>
+            <li>De-dupe alerts: notify on healthy&rarr;unhealthy transition and re-alert at most every N hours while still unhealthy.</li>
+            <li>Redis connections: add <code>error</code>/<code>close</code>/<code>reconnecting</code>/<code>end</code> handlers that log, plus a bounded <code>retryStrategy</code>; keep <code>maxRetriesPerRequest: null</code>.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No auto-restart (alert-only, per decision).</li>
+            <li>No change to harvest cadence / the Clarity adapter (out of scope; correct as-is).</li>
+            <li>No new heavy dependency (use <code>fs</code> + existing <code>emailService</code>).</li>
+            <li>Do not store the heartbeat in Redis (it is the failing dependency) — use the filesystem so detection survives a Redis outage.</li>
+            <li>Do not block or slow the scheduler tick / harvest (heartbeat write must be cheap and non-throwing).</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Trailing-3-day Clarity rollup (deferred per decision — no consumer yet).</li>
+        <li>Auto-restart / self-healing (explicitly alert-only this round).</li>
+        <li>A full resilience audit of all ~20 workers beyond the shared connection-handler change.</li>
+        <li>Backfilling the already-lost data (handled operationally on 2026-06-07).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 (Structural — touches shared worker Redis infrastructure used by all ~20 queues)</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Redis-handler change affects every worker (L3).</strong> A bad <code>retryStrategy</code> could worsen reconnection. <strong>Mitigation:</strong> additive handlers only; conservative bounded backoff (e.g. <code>min(times*200, 5000)</code>); keep <code>maxRetriesPerRequest: null</code>; deploy the worker and watch <code>~/.pm2/logs/minds-worker-*</code> for a clean boot + first scheduler tick before walking away.</li>
+        <li><strong>Root cause unconfirmed.</strong> Idle CPU + silence strongly implies a hung Redis connection, but it was never proven. <strong>Mitigation:</strong> the hardening adds <em>visibility</em> (loud logs) so a recurrence is diagnosable, and the external watchdog is the guaranteed safety net regardless of cause.</li>
+        <li><strong>Alert-only means data can still be lost (L2).</strong> A missed Clarity day is unrecoverable (API has no historical fetch). If a stall happens overnight and the email isn't actioned before the next day rolls over, that day is gone. <strong>Mitigation:</strong> check every ~5 min and alert fast; revisit capped auto-restart later if alert latency proves too slow.</li>
+        <li><strong>Watchdog needs an ops step (L2).</strong> The system cron entry is not part of the app deploy. <strong>Mitigation:</strong> document the exact crontab line + env in this spec and in the runbook; verify it is installed post-deploy. Alternative: run the checker as a separate small pm2 app.</li>
+        <li><strong>Alert spam (L1).</strong> A 5-min checker could email every tick while down. <strong>Mitigation:</strong> de-dup state file (transition + N-hour re-alert).</li>
+      </ul>
+      <p><strong>Blast radius:</strong></p>
+      <ul>
+        <li><code>makeConnection()</code> / <code>getRedisConnection()</code> - used by all worker + producer queues. Additive handler/retry changes; verify normal processing after deploy.</li>
+        <li><code>processSchedulerTick</code> / <code>processDataHarvest</code> - one cheap, non-throwing heartbeat write added; no behavioral change to dispatch/harvest logic.</li>
+        <li>New <code>workerHealth.ts</code> / <code>worker-watchdog.ts</code> - net-new; no existing importer.</li>
+      </ul>
+      <h3>Pushback</h3>
+      <ul>
+        <li>The watchdog treats the symptom; the Redis hardening targets the (suspected) cause but can't be confirmed a cure. Recommend shipping both, then watching the new connection logs for the next disconnect to confirm the mechanism before considering it closed.</li>
+        <li>You chose alert-only. Given Clarity days are unrecoverable, consider a fast check cadence now and keep capped auto-restart as a documented follow-up if a human can't reliably action the email within a few hours.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Heartbeat helper (workerHealth.ts)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create <code>src/workers/workerHealth.ts</code> with <code>recordSchedulerTick()</code>, <code>recordHarvestComplete()</code>, and <code>readWorkerHealth()</code>. Persist a small JSON <code>{ schedulerTickAt, harvestCompletedAt }</code> to a file at <code>process.env.WORKER_HEALTH_FILE</code> (default e.g. <code>os.tmpdir()/alloro-worker-health.json</code>). Writes must be cheap and wrapped in try/catch (never throw into the tick/harvest). Merge-update (read-modify-write or maintain both keys) so one writer doesn't clobber the other's timestamp.</dd></div>
+          <div><dt>Files</dt><dd><code>src/workers/workerHealth.ts</code> (new)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Backend type-check; unit-call both recorders and confirm the file reflects both keys.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Emit heartbeats from the tick + harvest</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>scheduler.processor.ts</code>, call <code>recordSchedulerTick()</code> at the TOP of <code>processSchedulerTick</code> (before the <code>dueSchedules.length === 0</code> early return). In <code>dataHarvest.processor.ts</code>, call <code>recordHarvestComplete()</code> right after the <code>Daily harvest complete</code> log.</dd></div>
+          <div><dt>Files</dt><dd><code>src/workers/processors/scheduler.processor.ts</code>, <code>src/workers/processors/dataHarvest.processor.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Run the worker locally; confirm the health file's <code>schedulerTickAt</code> advances every ~60s.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Redis connection hardening</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>worker.ts</code> <code>makeConnection()</code> and <code>queues.ts</code> <code>getRedisConnection()</code>, attach <code>.on('error'|'close'|'reconnecting'|'end', …)</code> handlers that log with a clear prefix, and add a bounded <code>retryStrategy</code> (e.g. <code>(times) =&gt; Math.min(times * 200, 5000)</code>). Keep <code>maxRetriesPerRequest: null</code>. Optionally set <code>reconnectOnError</code> for fatal errors. Do not change host/port/TLS resolution.</dd></div>
+          <div><dt>Files</dt><dd><code>src/workers/worker.ts</code>, <code>src/workers/queues.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Type-check; boot worker locally — clean connect + first tick; (optional) bounce local Redis and confirm reconnect logs + recovery.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Watchdog checker script</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create <code>src/scripts/worker-watchdog.ts</code>: read the health file via <code>readWorkerHealth()</code>; if <code>schedulerTickAt</code> is older than <code>WORKER_TICK_STALE_MIN</code> (default 5) OR <code>harvestCompletedAt</code> older than <code>HARVEST_STALE_HOURS</code> (default 26), build an error-format message (last-tick/last-harvest ages, hostname, suspected cause, remediation) and call <code>emailService.sendEmail</code> to <code>dave@getalloro.com</code>. De-dup via a small state file (only email on transition to unhealthy + re-alert every <code>ALERT_REPEAT_HOURS</code>, default 6). Exit 0 always (cron-friendly). Must self-load env (it runs standalone).</dd></div>
+          <div><dt>Files</dt><dd><code>src/scripts/worker-watchdog.ts</code> (new)</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Point it at a stale/synthetic health file → it sends one email; run again → no duplicate (de-dup). Fresh file → silent.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Wiring, env &amp; cron (ops)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Ensure <code>tsc</code> build emits <code>dist/scripts/worker-watchdog.js</code> (confirm <code>src/scripts</code> is in the build include). Add env to <code>/etc/alloro/app.env</code>: <code>WORKER_HEALTH_FILE</code>, <code>WORKER_TICK_STALE_MIN</code>, <code>HARVEST_STALE_HOURS</code>, <code>ALERT_REPEAT_HOURS</code>, and a dev-alert recipient (<code>dave@getalloro.com</code>). Install a system crontab entry on alloro-app (every 5 min) that sources the env + uses the nvm node to run the compiled watchdog. Document the exact line in the spec/runbook.</dd></div>
+          <div><dt>Files</dt><dd><code>tsconfig.json</code> (verify include), ops: <code>/etc/alloro/app.env</code>, crontab on alloro-app</dd></div>
+          <div><dt>Depends on</dt><dd>T4</dd></div>
+          <div><dt>Verify</dt><dd>Cron runs the script on schedule; a forced stall (stop worker on a staging box / stale file) produces exactly one alert email, then re-alerts only after the repeat window.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> Backend <code>tsc --noEmit</code> passes — zero new errors (full build will emit <code>dist/scripts/worker-watchdog.js</code>; <code>src/scripts</code> is in tsconfig <code>include</code>)</li>
+        <li><input type="checkbox" disabled> Health file's <code>schedulerTickAt</code> advances every ~60s while the worker runs; <code>harvestCompletedAt</code> set after a harvest</li>
+        <li><input type="checkbox" disabled> Worker Redis connections log on error/close/reconnecting and recover from a transient Redis drop</li>
+        <li><input type="checkbox" disabled> Watchdog emails dave@getalloro.com (error format) on a simulated stall / missed harvest, and de-dups repeat runs</li>
+        <li><input type="checkbox" disabled> Cron entry installed on alloro-app (every 5 min) and verified to run</li>
+        <li><input type="checkbox" disabled> No regression: normal scheduler dispatch + daily harvest still run after the connection change</li>
+        <li><input type="checkbox" disabled> Runbook note: alert means <code>pm2 restart minds-worker</code>; harvest cadence unchanged (left as-is by decision)</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

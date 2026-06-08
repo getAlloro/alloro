@@ -89,7 +89,14 @@ export const QUERY_KEYS = {
     orgId: number,
     locationId?: number | null,
     params?: Record<string, unknown>,
-  ) => ["admin", "org-gbp-published-local-posts", orgId, locationId, params] as const,
+  ) =>
+    [
+      "admin",
+      "org-gbp-published-local-posts",
+      orgId,
+      locationId,
+      params,
+    ] as const,
   adminOrgGbpPublishedLocalPostsAll: (orgId: number) =>
     ["admin", "org-gbp-published-local-posts", orgId] as const,
   adminOrgPmsJobs: (orgId: number, params?: Record<string, unknown>) =>
@@ -118,6 +125,73 @@ export const QUERY_KEYS = {
   adminActionItemOrgs: ["admin", "action-item-orgs"] as const,
   adminMissionControl: ["admin", "mission-control"] as const,
   adminMissionControlInsight: ["admin", "mission-control", "insight"] as const,
+  adminMissionControlTelemetry: (
+    range: string,
+    includePilot: boolean,
+    includeAdmin: boolean,
+  ) =>
+    [
+      "admin",
+      "mission-control",
+      "telemetry",
+      range,
+      includePilot,
+      includeAdmin,
+    ] as const,
+  adminMissionControlTelemetryUsers: (
+    orgId: number | null,
+    range: string,
+    includePilot: boolean,
+    includeAdmin: boolean,
+  ) =>
+    [
+      "admin",
+      "mission-control",
+      "telemetry",
+      "organizations",
+      orgId,
+      "users",
+      range,
+      includePilot,
+      includeAdmin,
+    ] as const,
+  adminMissionControlTelemetryOrganizationDetail: (
+    orgId: number | null,
+    range: string,
+    includePilot: boolean,
+    includeAdmin: boolean,
+  ) =>
+    [
+      "admin",
+      "mission-control",
+      "telemetry",
+      "organizations",
+      orgId,
+      "detail",
+      range,
+      includePilot,
+      includeAdmin,
+    ] as const,
+  adminMissionControlTelemetryUserDetail: (
+    orgId: number | null,
+    userId: number | null,
+    range: string,
+    includePilot: boolean,
+    includeAdmin: boolean,
+  ) =>
+    [
+      "admin",
+      "mission-control",
+      "telemetry",
+      "organizations",
+      orgId,
+      "users",
+      userId,
+      "detail",
+      range,
+      includePilot,
+      includeAdmin,
+    ] as const,
   adminInsightsSummary: (page: number, month: string) =>
     ["admin", "insights-summary", page, month] as const,
   adminInsightsSummaryAll: ["admin", "insights-summary"] as const,
@@ -155,9 +229,24 @@ export const QUERY_KEYS = {
   adminWebsiteIntegrations: (uuid: string) =>
     ["admin", "website-detail", uuid, "integrations"] as const,
   adminWebsiteGscConnections: (uuid: string) =>
-    ["admin", "website-detail", uuid, "integrations", "gsc", "connections"] as const,
+    [
+      "admin",
+      "website-detail",
+      uuid,
+      "integrations",
+      "gsc",
+      "connections",
+    ] as const,
   adminWebsiteGscSites: (uuid: string, connectionId: number | null) =>
-    ["admin", "website-detail", uuid, "integrations", "gsc", "sites", connectionId] as const,
+    [
+      "admin",
+      "website-detail",
+      uuid,
+      "integrations",
+      "gsc",
+      "sites",
+      connectionId,
+    ] as const,
 
   // Client — notifications
   notifications: (orgId: number | null, locationId: number | null) =>

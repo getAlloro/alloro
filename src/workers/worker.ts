@@ -48,9 +48,26 @@ function makeConnection(): IORedis {
   const conn = new IORedis({
     host: REDIS_HOST,
     port: REDIS_PORT,
-    maxRetriesPerRequest: null,
+    maxRetriesPerRequest: null, // required by BullMQ workers
+    // Bounded backoff so a dropped connection always keeps retrying instead of
+    // silently giving up (the 2026-06-07 stall surfaced no logs at all).
+    retryStrategy: (times) => Math.min(times * 200, 5000),
     ...(process.env.REDIS_TLS === "true" && { tls: {} }),
   });
+  // Make connection trouble LOUD — previously these events were unhandled, so a
+  // hung/closed connection froze the worker with zero log output.
+  conn.on("error", (err) =>
+    console.error("[MINDS-WORKER][redis] connection error:", err?.message),
+  );
+  conn.on("close", () =>
+    console.warn("[MINDS-WORKER][redis] connection closed"),
+  );
+  conn.on("reconnecting", () =>
+    console.warn("[MINDS-WORKER][redis] reconnecting..."),
+  );
+  conn.on("end", () =>
+    console.warn("[MINDS-WORKER][redis] connection ended (no further reconnects)"),
+  );
   connections.push(conn);
   return conn;
 }
