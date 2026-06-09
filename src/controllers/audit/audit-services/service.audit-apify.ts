@@ -15,6 +15,10 @@
 import axios from "axios";
 import { GbpMinimized } from "../../../models/AuditProcessModel";
 import { textSearch } from "../../places/feature-services/GooglePlacesApiService";
+import {
+  placesToCompetitors,
+  filterBySpecialty,
+} from "../../practice-ranking/feature-services/service.places-competitor-discovery";
 
 export { GbpMinimized };
 
@@ -322,18 +326,54 @@ export async function scrapeCompetitorGBPs(
   searchString: string,
   limit: number = 5,
 ): Promise<GbpMinimized[]> {
+  // Fetch a larger candidate pool so specialty filtering has room to choose from.
+  const poolSize = Math.max(limit * 3, 15);
   log(
-    `scrapeCompetitorGBPs: "${searchString}" (limit: ${limit}, Places API only — no Apify)`,
+    `scrapeCompetitorGBPs: "${searchString}" (limit: ${limit}, pool: ${poolSize}, Places API only — no Apify)`,
   );
 
-  const places = await textSearch(searchString, limit);
+  const places = await textSearch(searchString, poolSize);
   if (!places || places.length === 0) {
     log("scrapeCompetitorGBPs: no competitors found via Places API");
     return [];
   }
 
-  const competitors = places.slice(0, limit).map(placeToGbpMinimized);
-  log(`scrapeCompetitorGBPs: ${competitors.length} competitor(s) from Places API`);
+  // The competitorString is "category: location" (LLM CompetitorStringBuilder),
+  // so the category prefix is the specialty. Reuse the dashboard's proven mapper
+  // + specialty filter (pure functions, no Apify).
+  const specialty = searchString.split(":")[0]?.trim() || "";
+  const candidates = placesToCompetitors(places, searchString, new Date());
+  const relevant = specialty
+    ? filterBySpecialty(candidates, specialty)
+    : candidates;
+
+  // NS1 fallback: show the relevant few (down to 1). Pad with unfiltered ONLY
+  // when there are zero specialty matches (a specialist alone in their market).
+  // Never put an off-specialty practice (e.g. a general dentist) into a real
+  // specialist cohort — that is the exact trust-breaker this fix removes.
+  let selected = relevant;
+  if (relevant.length === 0) {
+    log(
+      `scrapeCompetitorGBPs: 0 specialty matches for "${specialty}"; falling back to unfiltered top-${limit}`,
+    );
+    selected = candidates;
+  }
+
+  // Map the surviving (filtered) competitors back to the full GbpMinimized shape
+  // the downstream pipeline expects, preserving order, capped at limit.
+  const placeById = new Map<string, any>();
+  for (const p of places as any[]) {
+    if (p?.id) placeById.set(p.id, p);
+  }
+  const competitors: GbpMinimized[] = [];
+  for (const c of selected.slice(0, limit)) {
+    const p = placeById.get(c.placeId);
+    if (p) competitors.push(placeToGbpMinimized(p));
+  }
+
+  log(
+    `scrapeCompetitorGBPs: ${competitors.length} competitor(s) (specialty="${specialty}", ${relevant.length} relevant / ${candidates.length} candidates)`,
+  );
   return competitors;
 }
 

@@ -604,8 +604,9 @@ const BROADENING_MAP: Record<string, string> = {
 
 /**
  * Convert raw Google Places results to DiscoveredCompetitor array.
+ * Exported for reuse by the audit pipeline (specialty filtering).
  */
-function placesToCompetitors(
+export function placesToCompetitors(
   places: any[],
   discoveryQuery: string,
   discoveryCheckedAt: Date,
