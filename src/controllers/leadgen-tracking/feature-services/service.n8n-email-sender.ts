@@ -16,6 +16,7 @@
  */
 
 import axios from "axios";
+import { interceptEmailPayload } from "../../../emails/emailInterceptor";
 
 const N8N_EMAIL_URL =
   process.env.N8N_EMAIL_URL ||
@@ -112,8 +113,8 @@ export async function sendAuditReportEmail(
       opts.businessName
     );
 
-    const payload = {
-      cc: [],
+    const builtPayload = {
+      cc: [] as string[],
       bcc: ["info@getalloro.com"],
       body,
       from: "info@getalloro.com",
@@ -121,6 +122,21 @@ export async function sendAuditReportEmail(
       fromName: "Alloro",
       recipients: [opts.recipientEmail],
     };
+
+    // Non-production senders get every email rerouted to the intercept
+    // recipient (fail closed) — see emails/emailInterceptor.ts.
+    const {
+      payload,
+      intercepted,
+      originalRecipients,
+    } = await interceptEmailPayload(builtPayload);
+
+    if (intercepted) {
+      console.log(
+        "[Leadgen Email] Email intercepted (non-production sender). Original recipients:",
+        originalRecipients
+      );
+    }
 
     const response = await axios.post(N8N_EMAIL_URL, payload, {
       headers: { "Content-Type": "application/json" },
