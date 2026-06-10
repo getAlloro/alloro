@@ -210,7 +210,7 @@ You MUST respond with valid JSON matching this exact structure:
 - Do NOT include conversational text, prose, or comments outside the JSON object
 - Respond with valid JSON only
 - Keep \`gaps\` to the 4 most important items
-- Keep \`top_recommendations\` to exactly 3 items
+- Keep \`top_recommendations\` to exactly 1 item — the single highest-impact action the practice should take first
 - Keep \`render_text\` focused: roughly 900-1,200 characters, not a long report
 - Keep \`client_summary\` under 500 characters
 - Keep \`one_line_summary\` under 220 characters

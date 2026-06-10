@@ -210,7 +210,7 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
     // No inner px — the orchestrator's <main> already provides horizontal
     // padding, and the alert banner above shares the same bare 1080 box.
     // Inner padding here is what threw the two out of alignment.
-    <div className="pm-light mx-auto w-full max-w-[1080px] space-y-6 py-8 lg:py-10">
+    <div className="pm-light mx-auto w-full max-w-[960px] space-y-6">
       <div className="flex items-center justify-between gap-4">
         <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--color-pm-text-secondary)]">
           Referrals Hub

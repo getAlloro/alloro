@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Local Rankings Simplification Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Completed</span>
+      </div>
+      <h1>Local Rankings Simplification</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed — user-verified 2026-06-10, committed on dev/dave</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06102026-local-rankings-simplification</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Third of four dashboard simplifications (Practice Hub → Referrals Hub → <strong>Local Rankings</strong> → Reviews &amp; Posts). The current <code>/rankings</code> Overview is dense: a narrative hero, a 0–100 Health gauge, a Visibility score, an 8-factor breakdown, drivers/gaps modals, and a Next Moves grid. Both scores "kept drawing questions" and are removed entirely. The redesign anchors on the thing owners actually ask about — <em>where do I rank, against whom, on the map</em> — plus three vitals and one action.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Build a slim <code>RankingsHubSurface</code> rendered by <code>RankingsDashboard</code>'s Overview branch in place of <code>PerformanceDashboard</code>. Done when:</p>
+      <ul>
+        <li>Header reads "LOCAL RANKINGS" with a MONTH/QTR/YTD toggle rendered <strong>disabled</strong> (tooltip "Not enough ranking history yet"), with the history-trend wiring built behind it ready to enable.</li>
+        <li>Hero card: "YOU RANK #N of M nearby" + the standard <code>searchQuery</code> shown ("measured the same way every time") + a <strong>leaflet competitor map</strong> — rank-numbered dot markers, highlighted YOU marker, auto-fit bounds.</li>
+        <li>Three stat boxes: REVIEWS (<code>total · rating★ · +N/30d</code>), LAST POST (<code>Nd · overdue/current</code>), RATING VS MKT (<code>you / market avg</code>).</li>
+        <li>"1 ACTION" banner shows <code>llmAnalysis.top_recommendations[0]</code>.</li>
+        <li>Bottom strip: comparison insight ("You lead all 10 tracked competitors") → existing Manage Competitors action.</li>
+        <li>Visibility Score and Practice Health are gone: HealthGauge, DriversPanel, FactorBreakdown, ScoreCardCtas, both detail modals, the MeaningHero narrative, and the NextMoves grid no longer render.</li>
+        <li>The ranking agent emits exactly ONE <code>top_recommendations</code> entry (prompt + guardrails backfill).</li>
+        <li>In-flight banner, competitor-onboarding banner, refresh, and the Engage tab keep working. Wizard tour not broken. <code>tsc</code> + lint clean.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/components/dashboard/RankingsDashboard.tsx</code> (~2000 lines) — orchestrator + all current internals. Swap point: the Overview branch renders <code>PerformanceDashboard</code> (~line 911–934 region; PerformanceDashboard ~1998 carries <code>data-wizard-target="rankings-score"</code>). Keeps: <code>fetchLatestRankings</code> (lines 402–441), in-flight banner (380–400), onboarding banner, view tabs, refresh.</li>
+        <li><code>frontend/src/pages/competitor-onboarding/LocationCompetitorOnboarding.tsx</code> — the existing react-leaflet map (imports line 30–32; <code>L.divIcon</code> markers 1434–1466; bounds-fit helper 1469; <code>MapContainer</code>/<code>TileLayer</code>/<code>Marker</code> 1687–1732). <strong>Reference analog for the map card.</strong></li>
+        <li><code>frontend/src/api/practiceRanking.ts</code> — <code>CuratedCompetitor</code> (lat/lng/name/rating/reviewCount), <code>getInFlightRanking</code>.</li>
+        <li><code>frontend/src/api/rankingHistory.ts</code> — <code>fetchRankingHistory(orgId, locationId, "3m"|"6m")</code> → <code>RankingHistoryPoint[]</code> (observedAt, rankPosition, searchPosition). Feeds the dormant toggle.</li>
+        <li><code>RankingResult</code> fields (typed in RankingsDashboard.tsx 93–268): <code>searchPosition</code>, <code>searchQuery</code>, <code>searchStatus</code>, <code>selectedCompetitorSearchResults[]</code> (position/rating/distance), <code>rawData.client_gbp</code> (totalReviewCount, averageRating, reviewsLast30d), <code>llmAnalysis.top_recommendations[]</code>, <code>locationOnboarding</code>.</li>
+        <li>Last-post age: the GBP published-posts query already used by <code>GbpEngagementSummaryCard</code> (frontend/src/hooks/queries/useGbpAutomationQueries.ts).</li>
+        <li>Market average rating: computed client-side from competitor ratings (existing pattern at RankingsDashboard ~1991–1994).</li>
+        <li><code>src/controllers/practice-ranking/feature-services/service.ranking-llm.ts</code> — inline prompt; line ~213: "Keep <code>top_recommendations</code> to exactly 3 items".</li>
+        <li><code>src/controllers/practice-ranking/feature-services/service.ranking-output-guardrails.ts</code> — <code>backfillRecommendations</code> pads to 3 from <code>SAFE_RECOMMENDATION_BACKFILL</code> (line 187 <code>next.length &gt;= 3</code>) and slices to 3 (line 194).</li>
+        <li><code>frontend/src/components/onboarding-wizard/wizardConfig.ts</code> — rankings steps: <code>rankings-overview</code>, <code>rankings-score</code>, <code>rankings-factors</code>, <code>rankings-competitors</code>.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Surface-swap pattern from the previous two hubs: slim surface file, orchestrator keeps plumbing, retired internals stay on disk.</li>
+        <li>Header + disabled segmented toggle: mirror <code>PmsHubSurface</code>'s PeriodToggle (1080px container, same typography).</li>
+        <li>1-ACTION banner: same warm strip used on both other hubs (<code>#FAF1EC</code>/<code>#EFDED4</code>, eyebrow <code>#B3503E</code>).</li>
+        <li>Map: copy the onboarding leaflet config verbatim (divIcon numbered markers — avoids leaflet's default-icon asset trap; fitBounds helper).</li>
+      </ul>
+      <p><strong>Reference files:</strong> <code>PmsHubSurface.tsx</code> (surface shape/toggle/banner) and <code>LocationCompetitorOnboarding.tsx</code> (map).</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Reuse react-leaflet (already a dependency); no new packages.</li>
+            <li>Filter competitors with null <code>lat</code>/<code>lng</code>; render a graceful empty state when no coordinates exist.</li>
+            <li>Preserve hero error states (<code>not_in_top_20</code>, <code>bias_unavailable</code>, <code>api_error</code>) — <code>searchPosition</code> can be null.</li>
+            <li>Keep in-flight banner, onboarding banner, refresh, Engage tab fully functional.</li>
+            <li>Build the period toggle's history wiring (<code>fetchRankingHistory</code> → rank-at-period-start delta) but ship the control disabled with a tooltip; one documented enable point.</li>
+            <li>Reuse the existing Manage Competitors handler/destination from SearchPositionSection.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No new dependencies. No rewrite of <code>RankingsDashboard</code> beyond the Overview render swap (+ minimal lifted derivations).</li>
+            <li>Do not delete retired internals (HealthGauge, DriversPanel, FactorBreakdown, modals, NextMoves) — stop rendering only.</li>
+            <li>Do not remove the Engage tab (sole GBP-automation access until /gbp-manager exists).</li>
+            <li>Do not render <code>rankScore</code> / <code>practiceHealth</code> anywhere on the new surface.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Enabling the period toggle (needs accumulated ranking history).</li>
+        <li>The Reviews &amp; Posts page (<code>/gbp-manager</code>) and moving the Engage tab there.</li>
+        <li>Backend changes to ranking storage/history; competitor onboarding flow changes.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 (Structural — surgery in a ~2000-line monolith + an agent-output change with task-creation knock-on).</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>R1 — No clean surface seam.</strong> Unlike PMS, the rankings internals live inside the monolith. <strong>Mitigation:</strong> new <code>RankingsHubSurface</code> file; orchestrator edit limited to the Overview render branch; retired internals stay in-file unrendered.</li>
+        <li><strong>R2 — Leaflet in a dashboard card.</strong> Tile loads, null coords, icon assets. <strong>Mitigation:</strong> copy the proven onboarding divIcon/fitBounds setup; filter null coords; empty state.</li>
+        <li><strong>R3 — Agent trim knock-on (accepted).</strong> 1 recommendation → 1 <code>category="USER"</code> ranking task per run (per service.ranking-llm.ts:450, recommendations are the sole writer of those tasks) and a 1-item <code>ranking_recommendations</code> pool for the Summary agent.</li>
+        <li><strong>R4 — Dormant toggle wiring.</strong> Shipped-but-disabled capability can drift. <strong>Mitigation:</strong> small pure helper + hook, single documented enable constant.</li>
+        <li><strong>R5 — Rank is the only anchor post-scores.</strong> Null/20+ positions must render the existing fallback copy, not a broken hero.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>RankingsDashboard.tsx</code> (render branch), new surface + map + helper files, <code>wizardConfig.ts</code>, ranking prompt + guardrails (backend). Consumers of <code>top_recommendations</code>: ranking task creator (1 task now), Summary agent inputs (<code>service.ranking-recommendations.ts</code>, <code>service.agent-input-builder.ts</code> — additive-safe, arrays just get shorter), wizard demo data untouched.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>The Engage tab contradicts the mockup's chrome-free header but is kept deliberately — removing it orphans GBP automation. Revisit when Reviews &amp; Posts lands.</li>
+        <li>Shipping a visible-but-disabled toggle is honest about roadmap but is still dead UI; if history accumulates slowly, consider hiding it instead. Flagged, owner chose disabled-visible.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Competitor map card</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New <code>RankingsMapCard.tsx</code> — react-leaflet map: numbered <code>divIcon</code> dot markers per competitor (rank order), highlighted "YOU" marker, fitBounds across all points, null-coord filtering, empty state ("Competitor locations appear after your next ranking run"). Lift the divIcon/fitBounds approach from LocationCompetitorOnboarding (lines 1434–1466, 1469, 1687–1732).</dd></div>
+          <div><dt>Files</dt><dd><code>components/dashboard/rankings-hub/RankingsMapCard.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc</code>; renders with 0, 1, and N competitors.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Rank-trend helper + dormant toggle</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>rankingPeriod.ts</code>: <code>rankDeltaForPeriod(history, period)</code> → position at period start vs latest (null-safe). <code>useRankingHistory</code> hook wrapping <code>fetchRankingHistory</code> (enabled only when the toggle is enabled). <code>PERIOD_TOGGLE_ENABLED = false</code> exported constant — the single enable point; the toggle renders disabled with tooltip "Not enough ranking history yet".</dd></div>
+          <div><dt>Files</dt><dd><code>components/dashboard/rankings-hub/rankingPeriod.ts</code>, <code>hooks/queries/useRankingHistory.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc</code>; delta math spot-checked.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: RankingsHubSurface</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Compose: header (LOCAL RANKINGS + disabled MONTH/QTR/YTD) → hero card ("YOU RANK #N of M nearby", <code>searchQuery</code> chip, <code>RankingsMapCard</code>; preserve searchStatus fallbacks; <code>data-wizard-target="rankings-score"</code>) → 3 stat boxes (REVIEWS from client_gbp, LAST POST from the published-posts query w/ overdue at ≥30d per focus statusRules, RATING VS MKT vs computed competitor average) → 1-ACTION banner (<code>top_recommendations[0]</code> title; warm strip; <code>data-wizard-target="rankings-action"</code>) → bottom strip (comparison insight text + chevron → existing Manage Competitors handler; <code>data-wizard-target="rankings-competitors"</code>). Container <code>max-w-[1080px]</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>components/dashboard/rankings-hub/RankingsHubSurface.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc</code>; manual render incl. null-position and no-recommendation states.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Swap into RankingsDashboard</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In the Overview branch, render <code>RankingsHubSurface</code> (passing the fetched <code>RankingResult</code> + handlers) instead of <code>PerformanceDashboard</code>. Keep in-flight banner, onboarding banner, view tabs, refresh untouched. Retired internals remain in-file unrendered; remove only now-dead local state (e.g. modal open flags) if trivially safe.</dd></div>
+          <div><dt>Files</dt><dd><code>components/dashboard/RankingsDashboard.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3</dd></div>
+          <div><dt>Verify</dt><dd>Manual: page renders; refresh + in-flight + Engage tab still work; no score anywhere.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Ranking agent → one recommendation (backend)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>service.ranking-llm.ts</code>: output constraint "Keep <code>top_recommendations</code> to exactly 3 items" → "exactly 1 item — the single highest-impact action"; trim the JSON example accordingly. <code>service.ranking-output-guardrails.ts</code>: <code>backfillRecommendations</code> pad target 3 → 1 (line 187) and <code>slice(0, 3)</code> → <code>slice(0, 1)</code> (line 194), comment why.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/practice-ranking/feature-services/service.ranking-llm.ts</code>, <code>service.ranking-output-guardrails.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>backend <code>tsc</code>; guardrails logic re-read. Effect lands on the NEXT ranking run.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Wizard re-point</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>wizardConfig.ts</code> rankings steps: keep <code>rankings-overview</code>; <code>rankings-score</code> → hero/map card (retitle "Your Rank on the Map"); trim <code>rankings-factors</code> (factors retired); <code>rankings-competitors</code> → bottom strip. Refresh copy; no orphaned selectors.</dd></div>
+          <div><dt>Files</dt><dd><code>components/onboarding-wizard/wizardConfig.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3, T4</dd></div>
+          <div><dt>Verify</dt><dd>Manual: rankings tour anchors to real elements.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: Verification</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Import/export integrity; frontend + backend <code>tsc</code>; eslint on touched files; confirm no remaining renderer of HealthGauge/DriversPanel/FactorBreakdown/NextMoves/score modals.</dd></div>
+          <div><dt>Files</dt><dd>—</dd></div>
+          <div><dt>Depends on</dt><dd>T1–T6</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> (both), eslint</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="task-card">
+        <h3>Rev 1 — 2026-06-10 (execution)</h3>
+        <ul>
+          <li>Built T1–T6: <code>RankingsMapCard</code> (reuses competitor-onboarding leaflet + <code>getLocationCompetitors</code> for coords + practice location), <code>rankingPeriod.ts</code> (dormant toggle helper), <code>RankingsHubSurface</code> (hero rank + map, 3 vitals, 1-action, bottom strip), swapped into <code>RankingsDashboard</code> Overview; ranking agent → 1 recommendation; wizard rankings steps 4 → 3.</li>
+          <li><strong>Deviation from "leave on disk unrendered":</strong> <code>noUnusedLocals</code> is on and the rankings internals live in ONE file, so an unused <code>PerformanceDashboard</code> would not compile. Kept the entire legacy tree behind <code>const USE_LEGACY_RANKINGS_DASHBOARD = false</code> (referenced → type-checks; dead branch tree-shaken) — flip to true to fall back, delete in a follow-up cleanup. No deletion cascade this pass.</li>
+          <li><strong>Reused existing <code>useRankingHistory</code></strong> (signature <code>(orgId, locationId, range)</code>) rather than adding a new hook; the period helper + that hook are the "ready" wiring behind <code>PERIOD_TOGGLE_ENABLED = false</code>.</li>
+          <li>Map locationId + GBP-posts both use the orchestrator's <code>selectedGbpAutomationLocationId</code> (= ranking location).</li>
+        </ul>
+        <p><strong>Build:</strong> backend <code>tsc</code> clean; frontend <code>tsc</code> clean for touched files (only pre-existing ai-seo-audit errors remain); eslint 0 errors (1 pre-existing <code>exhaustive-deps</code> warning in an untouched RankingsDashboard hook).</p>
+        <p><strong>Pending:</strong> user visual QA (map render, rank/vitals, 1-action) + rankings tour pass. Agent change lands on the next ranking run.</p>
+      </article>
+    </section>
+
+    <article class="task-card" style="margin-top:14px">
+      <h3>Rev 2 — 2026-06-10 (post-execution refinements, user-driven QA)</h3>
+      <ul>
+        <li><strong>Container unification (all three hubs):</strong> shared recipe <code>max-w-[960px] mx-auto px-4 sm:px-6 lg:px-8 space-y-6</code> across Practice Hub, Referrals Hub, and Rankings. Root-caused two latent bugs while at it: Practice Hub double top-padding (Dashboard.tsx wrapper + surface both padded) and the Referrals surface rendering OUTSIDE its <code>&lt;main&gt;</code> (alert and content had different widths) — <code>&lt;/main&gt;</code> moved to wrap the surface.</li>
+        <li><strong>Hero polish:</strong> REVIEWS box now uses the lucide <code>Star</code> (amber-400 fill, size 15, gap from the rating) instead of the ★ glyph; removed "— measured the same way every time." from the hero copy.</li>
+        <li><strong>Map pins:</strong> shared <code>competitor-map.css</code> pins recolored <code>#f47434</code> → <code>#d66853</code> (brand terracotta) incl. both pulse keyframes — applies to the rankings map and the manage-comparison map.</li>
+        <li><strong>Manage-comparison page:</strong> container 1400 → 960 w/ shared gutters; compacted spacing; "Automated suggestions" label block removed; map column now stretches to the competitor-list height (min 320px) with a new <code>InvalidateOnResize</code> leaflet helper (ResizeObserver → <code>invalidateSize</code>); sticky finalize bar slimmed.</li>
+        <li><strong>Sidebar:</strong> Local Rankings stays active on <code>/dashboard/competitors/*</code> (manage-comparison lives under the Rankings section). Known gap: MobileBottomNav uses NavLink's built-in matching and won't highlight on that route — deferred.</li>
+      </ul>
+      <p>All verified via user-driven browser QA during the session (rank+map hero, vitals, 1-action, manage-comparison flow). tsc (both) + eslint clean throughout.</p>
+    </article>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled checked> <code>npx tsc --noEmit</code> — frontend + backend, zero new errors</li>
+        <li><input type="checkbox" disabled checked> eslint clean on touched files</li>
+        <li><input type="checkbox" disabled checked> Manual: hero shows "#N of M nearby" + search query + competitor map with numbered dots and YOU</li>
+        <li><input type="checkbox" disabled checked> Manual: REVIEWS / LAST POST / RATING VS MKT boxes show real values</li>
+        <li><input type="checkbox" disabled checked> Manual: 1-ACTION banner shows the top ranking recommendation</li>
+        <li><input type="checkbox" disabled checked> Manual: bottom strip insight + Manage Competitors works</li>
+        <li><input type="checkbox" disabled checked> Manual: MONTH/QTR/YTD visible but disabled with tooltip</li>
+        <li><input type="checkbox" disabled checked> Manual: no Visibility/Health score anywhere; modals gone</li>
+        <li><input type="checkbox" disabled checked> Manual: refresh, in-flight banner, onboarding banner, Engage tab intact</li>
+        <li><input type="checkbox" disabled checked> Manual: rankings onboarding tour not broken</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

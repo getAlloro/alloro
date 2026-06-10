@@ -2,6 +2,26 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.113] - June 2026
+
+### Local Rankings Simplification
+
+Replaces the dense Local Rankings overview (`/rankings`) with a slim, map-anchored surface, drops both scores, and unifies the dashboard container width across the three client hubs.
+
+**Key Changes:**
+
+- New Rankings hub: "YOU RANK #N of M nearby" hero with a leaflet competitor map (rank-numbered pins + YOU marker), the standard search query, three vitals (Reviews with star icon, Last post, Rating vs market), a single "1 action" banner, and a comparison-insight strip that opens Manage Competitors.
+- Visibility Score and Practice Health are removed entirely (gauge, factor breakdown, drivers/gaps modals, Next Moves). The legacy overview is retained behind a `USE_LEGACY_RANKINGS_DASHBOARD` fallback flag.
+- A MONTH/QTR/YTD toggle ships disabled ("Not enough ranking history yet") with the ranking-history wiring built behind a single enable point.
+- The ranking agent now emits one recommendation (prompt + guardrails backfill capped at 1); takes effect on the next ranking run.
+- All three hubs (Practice, Referrals, Rankings) now share one container recipe (960px, same gutters); fixed Practice Hub double padding and the Referrals surface rendering outside its padded main.
+- Manage-comparison page compacted to the same 960 container: map column matches the competitor-list height (with leaflet resize handling), suggestions toolbar slimmed, competitor pins recolored to brand terracotta, and Local Rankings stays active in the sidebar on that route.
+
+**Commits:**
+
+- frontend: new `rankings-hub/` surface (RankingsHubSurface, RankingsMapCard, rankingPeriod); RankingsDashboard overview swap; wizard rankings steps 4 → 3; width/padding unification across DashboardOverview, PMSVisualPillars, PmsHubSurface; LocationCompetitorOnboarding + competitor-map.css + Sidebar refinements.
+- backend: ranking LLM prompt + output guardrails emit a single `top_recommendations` entry.
+
 ## [0.0.112] - June 2026
 
 ### Referrals Hub Simplification

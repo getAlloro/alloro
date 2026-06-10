@@ -33,6 +33,7 @@ import { CompetitorComparisonSortMenu } from "./rankings/CompetitorComparisonSor
 import { CompetitorComparisonTable } from "./rankings/CompetitorComparisonTable";
 import { GbpAutomationPanel } from "./gbp-automation/GbpAutomationPanel";
 import { GbpEngagementSummaryCard } from "./gbp-automation/GbpEngagementSummaryCard";
+import { RankingsHubSurface } from "./rankings-hub/RankingsHubSurface";
 import {
   RankingsDashboardViewTabs,
   type RankingsDashboardView,
@@ -43,6 +44,12 @@ import {
   sortComparisonRows,
   type ComparisonSortKey,
 } from "./rankings/competitorComparison";
+
+// Redesign flag: the simplified RankingsHubSurface replaces PerformanceDashboard
+// on the Overview tab. Kept as a const (not deleted) so the legacy tree stays
+// type-checked and trivially restorable; flip to true to fall back.
+// plans/06102026-local-rankings-simplification.
+const USE_LEGACY_RANKINGS_DASHBOARD = false;
 
 type CompetitorSnapshot = {
   competitors?: Array<{
@@ -90,7 +97,7 @@ interface ClientGbpData {
   };
 }
 
-interface RankingResult {
+export interface RankingResult {
   id: number;
   specialty: string;
   location: string | null;
@@ -823,7 +830,7 @@ export function RankingsDashboard({
 
   return (
     <div className="min-h-screen bg-alloro-bg font-body text-alloro-textDark pb-32 selection:bg-alloro-orange selection:text-white">
-      <main className="w-full max-w-[1320px] mx-auto px-6 lg:px-10 py-8 lg:py-10 space-y-6">
+      <main className="w-full max-w-[960px] mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-alloro-navy/45 mb-2">
@@ -907,22 +914,33 @@ export function RankingsDashboard({
                 />
               )}
 
-            {/* Selected Location Detail */}
-            {selectedRanking && (
-              <PerformanceDashboard
-                result={selectedRanking}
-                insight={selectedInsight || undefined}
-                onOpenEngage={() => setDashboardView("engage")}
-                engagementSummary={
-                  <GbpEngagementSummaryCard
-                    agentContent={selectedRanking.llmAnalysis?.engagement_card ?? null}
-                    organizationId={organizationId}
-                    locationId={selectedGbpAutomationLocationId}
-                    onOpenEngage={() => setDashboardView("engage")}
-                  />
-                }
-              />
-            )}
+            {/* Selected Location Detail — simplified rankings hub (redesign).
+                The legacy PerformanceDashboard tree is retained behind this
+                flag (referenced so it still type-checks; dead branch is
+                tree-shaken) for a clean delete once the redesign is confirmed.
+                plans/06102026-local-rankings-simplification. */}
+            {selectedRanking &&
+              (USE_LEGACY_RANKINGS_DASHBOARD ? (
+                <PerformanceDashboard
+                  result={selectedRanking}
+                  insight={selectedInsight || undefined}
+                  onOpenEngage={() => setDashboardView("engage")}
+                  engagementSummary={
+                    <GbpEngagementSummaryCard
+                      agentContent={selectedRanking.llmAnalysis?.engagement_card ?? null}
+                      organizationId={organizationId}
+                      locationId={selectedGbpAutomationLocationId}
+                      onOpenEngage={() => setDashboardView("engage")}
+                    />
+                  }
+                />
+              ) : (
+                <RankingsHubSurface
+                  result={selectedRanking}
+                  organizationId={organizationId}
+                  locationId={selectedGbpAutomationLocationId}
+                />
+              ))}
           </>
         ) : (
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">

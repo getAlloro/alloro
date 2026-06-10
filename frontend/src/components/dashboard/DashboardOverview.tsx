@@ -140,7 +140,7 @@ export function DashboardOverview(props: DashboardOverviewProps) {
   });
 
   return (
-    <div className="max-w-[1080px] mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-16 space-y-6">
+    <div className="max-w-[960px] mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
       {alerts.length > 0 && <DashboardAlertStack alerts={alerts} />}
       <PracticeHubHeader firstName={firstName} />
 

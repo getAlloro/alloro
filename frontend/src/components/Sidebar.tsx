@@ -349,6 +349,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const isActive = (path: string) => {
     if (path === "/dashboard" && location.pathname === "/dashboard")
       return true;
+    // Competitor management (/dashboard/competitors/:id/onboarding) lives under
+    // the Local Rankings section — keep that tab active while managing the set.
+    if (path === "/rankings" && location.pathname.startsWith("/dashboard/competitors"))
+      return true;
     return location.pathname.startsWith(path) && path !== "/dashboard";
   };
 

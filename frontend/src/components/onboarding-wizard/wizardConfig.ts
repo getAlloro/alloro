@@ -150,32 +150,26 @@ export const WIZARD_STEPS: WizardStep[] = [
     scrollToElement: true,
   },
 
-  // ========== LOCAL RANKINGS — 4 steps ==========
+  // ========== LOCAL RANKINGS — 3 steps ==========
+  // Simplified redesign: the Visibility/Health score and factor breakdown
+  // were retired, so the "Visibility Drivers" step is gone and the rank step
+  // re-points to the map hero. plans/06102026-local-rankings-simplification.
   {
     id: "rankings-overview",
     page: "rankings",
     targetSelector: null,
     title: "Local Rankings",
     description:
-      "Track how your practice ranks in local Google search results. We scan your area, analyze competitors, and identify what's driving your visibility.",
+      "See exactly where you rank against the practices nearest you, and the one move that protects or improves your position.",
     isPageOverview: true,
   },
   {
     id: "rankings-score",
     page: "rankings",
     targetSelector: "[data-wizard-target='rankings-score']",
-    title: "Practice Performance",
+    title: "Your Rank on the Map",
     description:
-      "Your live Google Maps rank estimate, Practice Health score, and the key metrics that matter — reviews, rating, and search visibility.",
-    scrollToElement: true,
-  },
-  {
-    id: "rankings-factors",
-    page: "rankings",
-    targetSelector: "[data-wizard-target='rankings-factors']",
-    title: "Visibility Drivers",
-    description:
-      "What's working for you and what's holding you back. Each factor is scored and ranked so you know exactly where to improve.",
+      "Your live Google Maps position for one standard search, with every tracked competitor plotted around you.",
     scrollToElement: true,
   },
   {
@@ -184,7 +178,7 @@ export const WIZARD_STEPS: WizardStep[] = [
     targetSelector: "[data-wizard-target='rankings-competitors']",
     title: "Competitor Landscape",
     description:
-      "See who you're competing against in Google Maps. Compare star ratings, review counts, and positions to find your edge.",
+      "How you stack up against the practices you track — open Manage Competitors to adjust the set.",
     scrollToElement: true,
   },
 

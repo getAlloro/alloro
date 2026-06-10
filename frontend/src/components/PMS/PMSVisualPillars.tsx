@@ -1318,10 +1318,12 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
 
   return (
     <div className="pm-light min-h-screen bg-[var(--color-pm-bg-primary)] font-body text-alloro-navy">
-      <main className="mx-auto w-full max-w-[1320px] space-y-4 px-4 pb-6 sm:px-6 lg:px-8">
-        {/* Cascaded dashboard alerts — stale-data alert (top) + upload nudge */}
+      <main className="mx-auto w-full max-w-[960px] space-y-6 px-4 pb-6 sm:px-6 lg:px-8">
+        {/* Cascaded dashboard alerts — stale-data alert (top) + upload nudge.
+            Shared 960px container width across Practice Hub / Referrals /
+            Rankings; the surface + alerts fill the same centered main. */}
         {!isLoading && !error && keyData && dashboardAlerts.length > 0 && (
-          <div className="mx-auto w-full max-w-[1080px]">
+          <div className="w-full">
             <DashboardAlertStack alerts={dashboardAlerts} />
           </div>
         )}
@@ -1384,9 +1386,7 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
           </motion.div>
         )}
 
-      </main>
-
-      {!error && (keyData || isWizardActive || showDashboardProcessingStatus) && (
+        {!error && (keyData || isWizardActive || showDashboardProcessingStatus) && (
         <PmsHubSurface
           monthlyData={monthlyData}
           topSources={topSources}
@@ -1419,6 +1419,7 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
           onOpenSettings={() => navigate('/settings/integrations')}
         />
       )}
+      </main>
 
       {organizationId && locationId && (
         <PmsFileManager
