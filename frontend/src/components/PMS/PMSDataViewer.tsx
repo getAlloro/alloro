@@ -45,6 +45,8 @@ interface PMSDataViewerProps {
   jobId: number;
   title?: string;
   subtitle?: string;
+  /** Drop the subtitle line entirely (month-scoped editor variant). */
+  hideSubtitle?: boolean;
   initialData: unknown;
   initialMonth?: string | null;
   centerInMainView?: boolean;
@@ -198,6 +200,7 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
   jobId,
   title = "View PMS Data",
   subtitle = "Review referral and production data",
+  hideSubtitle = false,
   initialData,
   initialMonth,
   centerInMainView = false,
@@ -390,9 +393,11 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
           <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-              <p className="text-xs uppercase tracking-wide text-gray-400">
-                {subtitle} • Job #{jobId}
-              </p>
+              {!hideSubtitle && (
+                <p className="text-xs uppercase tracking-wide text-gray-400">
+                  {subtitle} • Job #{jobId}
+                </p>
+              )}
             </div>
             <button
               type="button"
@@ -411,7 +416,10 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
               </div>
             ) : (
               <div className="space-y-8">
-                {/* Month Tabs */}
+                {/* Month Tabs — hidden when scoped to a single month: the
+                    data is pre-filtered, so the pill (and its delete) would
+                    be a dead/dangerous control. */}
+                {!initialMonth && (
                 <div className="flex items-center gap-2 flex-wrap">
                   {sortedMonths.map((m) => {
                     const isActive = m.id === activeMonthId;
@@ -491,6 +499,7 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
                     );
                   })}
                 </div>
+                )}
 
                 {/* Summary Cards */}
                 <div className="grid grid-cols-5 gap-6">

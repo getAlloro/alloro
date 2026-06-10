@@ -5,8 +5,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Circle,
-  PenLine,
-  Upload,
 } from "lucide-react";
 
 export type PmsCalendarMonth = {
@@ -20,28 +18,27 @@ export type PmsCalendarMonth = {
 export type PmsMonthSlotGridProps = {
   months: PmsCalendarMonth[];
   selectedMonth: string | null;
-  canManage: boolean;
-  isProcessing: boolean;
   windowLabel: string;
   canGoNext: boolean;
   onSelectMonth: (month: PmsCalendarMonth) => void;
-  onUploadMonth: (month: PmsCalendarMonth) => void;
-  onEditMonth: (month: PmsCalendarMonth) => void;
   onPreviousWindow: () => void;
   onNextWindow: () => void;
   onCurrentWindow: () => void;
 };
 
+/**
+ * PmsMonthSlotGrid — month-window calendar for the PMS file manager.
+ *
+ * Slots are select-only; the Edit / Overwrite actions live in a static row
+ * under the grid (owned by PmsFileManager's "Selected month" card) rather
+ * than in a per-slot hover popover.
+ */
 export function PmsMonthSlotGrid({
   months,
   selectedMonth,
-  canManage,
-  isProcessing,
   windowLabel,
   canGoNext,
   onSelectMonth,
-  onUploadMonth,
-  onEditMonth,
   onPreviousWindow,
   onNextWindow,
   onCurrentWindow,
@@ -55,7 +52,7 @@ export function PmsMonthSlotGrid({
   }
 
   return (
-    <div className="space-y-3 overflow-visible">
+    <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line-soft bg-white px-3 py-2">
         <div className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-alloro-navy">
           <CalendarDays className="h-4 w-4 text-alloro-orange" />
@@ -89,11 +86,10 @@ export function PmsMonthSlotGrid({
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-2 overflow-visible">
-        {months.map((slot, index) => {
+      <div className="grid grid-cols-4 gap-2">
+        {months.map((slot) => {
           const isReady = slot.status === "ready";
           const isSelected = slot.month === selectedMonth;
-          const popoverPosition = getPopoverPosition(index);
           const baseClass = slot.status === "active"
             ? `border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-alloro-orange/40 ${
                 isSelected ? "border-emerald-600 ring-2 ring-emerald-300/70" : ""
@@ -107,68 +103,35 @@ export function PmsMonthSlotGrid({
                 }`;
 
           return (
-            <div key={slot.month} className="group relative">
-              <button
-                type="button"
-                onClick={() => onSelectMonth(slot)}
-                className={`flex min-h-[58px] w-full flex-col justify-between rounded-xl border px-3 py-2 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-alloro-orange/25 ${baseClass}`}
-              >
-                <span className="flex items-center justify-between gap-2">
-                  {slot.status === "active" ? (
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                  ) : isReady ? (
-                    <AlertTriangle className="h-3.5 w-3.5" />
-                  ) : (
-                    <Circle className="h-3.5 w-3.5" />
-                  )}
-                  {slot.isLatest && (
-                    <span
-                      className="rounded-full bg-alloro-orange/10 px-1.5 py-0.5 text-[8px] text-alloro-orange"
-                    >
-                      Latest
-                    </span>
-                  )}
-                </span>
-                <span className="font-display text-sm font-semibold">
-                  {formatMonth(slot.month)}
-                </span>
-              </button>
-
-              {canManage && !isProcessing && (
-                <div className={`pointer-events-none absolute top-full z-30 mt-2 flex translate-y-1 gap-1.5 rounded-xl border border-line-soft bg-white p-1.5 opacity-0 shadow-xl transition-all duration-150 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100 ${popoverPosition}`}>
-                  {slot.status === "active" && (
-                    <button
-                      type="button"
-                      onClick={() => onEditMonth(slot)}
-                      className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-2 text-[10px] font-black uppercase tracking-widest text-alloro-navy hover:bg-alloro-orange/10"
-                    >
-                      <PenLine className="h-3 w-3" />
-                      Edit data
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => onUploadMonth(slot)}
-                    className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-alloro-orange px-2.5 py-2 text-[10px] font-black uppercase tracking-widest text-white hover:brightness-110"
-                  >
-                    <Upload className="h-3 w-3" />
-                    {slot.status === "active" ? "Overwrite data" : "Upload data"}
-                  </button>
-                </div>
-              )}
-            </div>
+            <button
+              key={slot.month}
+              type="button"
+              onClick={() => onSelectMonth(slot)}
+              className={`flex min-h-[58px] w-full flex-col justify-between rounded-xl border px-3 py-2 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-alloro-orange/25 ${baseClass}`}
+            >
+              <span className="flex items-center justify-between gap-2">
+                {slot.status === "active" ? (
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                ) : isReady ? (
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                ) : (
+                  <Circle className="h-3.5 w-3.5" />
+                )}
+                {slot.isLatest && (
+                  <span className="rounded-full bg-alloro-orange/10 px-1.5 py-0.5 text-[8px] text-alloro-orange">
+                    Latest
+                  </span>
+                )}
+              </span>
+              <span className="font-display text-sm font-semibold">
+                {formatMonth(slot.month)}
+              </span>
+            </button>
           );
         })}
       </div>
     </div>
   );
-}
-
-function getPopoverPosition(index: number) {
-  const column = index % 4;
-  if (column === 0) return "left-0";
-  if (column === 3) return "right-0";
-  return "left-1/2 -translate-x-1/2";
 }
 
 function formatMonth(month: string) {

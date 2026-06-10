@@ -264,7 +264,11 @@ const referralTopFixSchema = z.object({
 });
 
 const referralGrowthSummarySchema = z.object({
-  top_three_fixes: z.array(referralTopFixSchema),
+  // Field name is legacy — the agent now emits a single recommended action
+  // (the Referrals Hub 1-ACTION banner shows exactly one). max(1) enforced;
+  // min left open so sparse-data months can validly produce no fix.
+  // plans/06102026-referrals-hub-simplification.
+  top_three_fixes: z.array(referralTopFixSchema).max(1),
   estimated_additional_annual_revenue: z.number(),
 });
 

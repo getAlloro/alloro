@@ -90,41 +90,34 @@ export const WIZARD_STEPS: WizardStep[] = [
     scrollToElement: true,
   },
 
-  // ========== REFERRALS HUB (PMS Statistics) — 5 steps ==========
+  // ========== REFERRALS HUB (PMS Statistics) — 4 steps ==========
+  // Simplified redesign: velocity step retired; insights step re-pointed to
+  // the "1 action" banner. plans/06102026-referrals-hub-simplification.
   {
     id: "pms-overview",
     page: "pmsStatistics",
     targetSelector: null,
     title: "Referrals Hub",
     description:
-      "Deep-dive into where your patients come from. Upload PMS data and Alloro analyzes referral patterns, revenue attribution, and growth opportunities.",
+      "See where your patients come from. Switch between month, quarter, and year-to-date to track production and referrals over time.",
     isPageOverview: true,
   },
   {
     id: "pms-vitals",
     page: "pmsStatistics",
     targetSelector: "[data-wizard-target='pms-vitals']",
-    title: "PMS Vitals",
+    title: "Your Numbers",
     description:
-      "Year-to-date production, total referrals, and referral source count — your key PMS health metrics at a glance.",
+      "Production for the selected period, total referrals, your active source count, and year-to-date production — at a glance.",
     scrollToElement: true,
   },
   {
     id: "pms-insights",
     page: "pmsStatistics",
     targetSelector: "[data-wizard-target='pms-insights']",
-    title: "Top Source & Insights",
+    title: "The One Action",
     description:
-      "Your highest-producing referral source at a glance, with the doctor vs. self-referral split. Alloro highlights what matters most.",
-    scrollToElement: true,
-  },
-  {
-    id: "pms-velocity",
-    page: "pmsStatistics",
-    targetSelector: "[data-wizard-target='pms-velocity']",
-    title: "Drill Into the Details",
-    description:
-      "Click to open the full referral trends — production over time, referral mix, and monthly velocity — or see all sources ranked by production.",
+      "Alloro flags the single most important move — like protecting the top sources that drive most of your referrals.",
     scrollToElement: true,
   },
   {

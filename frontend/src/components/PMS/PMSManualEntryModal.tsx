@@ -293,6 +293,10 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
   // PasteConfirmDialog wording ("File detected" vs "Paste detected").
   const [droppedFileName, setDroppedFileName] = useState<string | null>(null);
   const [selectedUploadFile, setSelectedUploadFile] = useState<File | null>(null);
+  // Month-selected mode only: months found in the data that are NOT the
+  // target month. Non-null blocks the merge until the user discards or
+  // re-uploads a corrected file.
+  const [monthMismatch, setMonthMismatch] = useState<string[] | null>(null);
   const [uploadPreview, setUploadPreview] =
     useState<PmsUploadPreviewData | null>(null);
   const [isPreviewingUpload, setIsPreviewingUpload] = useState(false);
@@ -344,6 +348,38 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
     [targetMonth]
   );
 
+  /**
+   * Month-selected mode: parsed data must contain ONLY the target month.
+   * When any other month is present, reject the whole batch and flag it —
+   * the user must discard or re-upload a corrected file. No silent
+   * filtering. Returns true when the batch was flagged (caller must stop).
+   */
+  const flagOffsetMonths = useCallback(
+    (incomingMonthKeys: string[]): boolean => {
+      if (!targetMonth) return false;
+      const offset = [
+        ...new Set(incomingMonthKeys.filter((month) => month !== targetMonth)),
+      ].sort();
+      if (offset.length === 0) return false;
+
+      const emptyTarget = createEmptyMonthBucket(targetMonth);
+      setMonths([emptyTarget]);
+      setActiveMonthId(emptyTarget.id);
+      setSelectedUploadFile(null);
+      setUploadPreview(null);
+      setParsedPreview(null);
+      setPendingMonths(null);
+      setMonthConflicts(null);
+      setError(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      setMonthMismatch(offset);
+      return true;
+    },
+    [createEmptyMonthBucket, targetMonth]
+  );
+
   const getSubmitMonths = useCallback(() => {
     const backendData = transformUIToBackend(months);
     if (!targetMonth) return backendData;
@@ -352,6 +388,7 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
 
   const applyMerge = useCallback(
     (incomingMonths: MonthBucket[]) => {
+      if (flagOffsetMonths(incomingMonths.map((m) => m.month))) return;
       const scopedIncoming = scopeMonthsToTarget(incomingMonths);
       if (targetMonth && scopedIncoming.length === 0) {
         const emptyTarget = createEmptyMonthBucket(targetMonth);
@@ -376,11 +413,12 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
       setPendingMonths(null);
       setMonthConflicts(null);
     },
-    [createEmptyMonthBucket, scopeMonthsToTarget, targetMonth]
+    [createEmptyMonthBucket, flagOffsetMonths, scopeMonthsToTarget, targetMonth]
   );
 
   const mergeOrConfirm = useCallback(
     (incomingMonths: MonthBucket[]) => {
+      if (flagOffsetMonths(incomingMonths.map((m) => m.month))) return;
       const scopedIncoming = scopeMonthsToTarget(incomingMonths);
       if (targetMonth && scopedIncoming.length === 0) {
         applyMerge(incomingMonths);
@@ -410,7 +448,7 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
         setMonthConflicts(conflicts);
       }
     },
-    [applyMerge, months, scopeMonthsToTarget, targetMonth]
+    [applyMerge, flagOffsetMonths, months, scopeMonthsToTarget, targetMonth]
   );
 
   const confirmMerge = useCallback(() => {
@@ -560,11 +598,31 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
     [legacyHandlePasteEvent]
   );
 
+  // Shared by the empty-state action card and the compact "Paste Data" button.
+  const handlePasteFromClipboard = useCallback(() => {
+    navigator.clipboard
+      .readText()
+      .then((text) => {
+        if (text) {
+          const fakeEvent = {
+            clipboardData: { getData: () => text },
+            target: document.body,
+            preventDefault: () => {},
+          } as unknown as React.ClipboardEvent;
+          handlePasteEvent(fakeEvent);
+        }
+      })
+      .catch(() => {
+        setError("Clipboard access denied. Try pressing Cmd+V instead.");
+      });
+  }, [handlePasteEvent]);
+
   // Only reset transient state when modal opens (keep data intact)
   useEffect(() => {
     if (isOpen) {
       setSubmitStatus("idle");
       setError(null);
+      setMonthMismatch(null);
       if (targetMonth) {
         const targetBucket = createEmptyMonthBucket(targetMonth);
         setMonths([targetBucket]);
@@ -668,6 +726,21 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
     }
   }, [createEmptyMonthBucket, targetMonth]);
 
+  // Month-mismatch resolutions: both clear the flagged batch; re-upload
+  // additionally reopens the file picker for the corrected file.
+  const discardMismatchedUpload = useCallback(() => {
+    setMonthMismatch(null);
+    setDroppedFileName(null);
+    clearAllData();
+  }, [clearAllData]);
+
+  const reuploadCorrectedFile = useCallback(() => {
+    setMonthMismatch(null);
+    setDroppedFileName(null);
+    clearAllData();
+    fileInputRef.current?.click();
+  }, [clearAllData]);
+
   const replaceMonthsFromRollup = useCallback(
     (rollup: Array<MonthlyRollupMonth | ManualMonthEntry>) => {
       const buckets = scopeMonthsToTarget(monthlyRollupToBuckets(rollup));
@@ -723,6 +796,11 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
           throw new Error(response.error || "Could not preview this PMS file.");
         }
 
+        // Month-selected mode: a file carrying any other month is flagged,
+        // not silently trimmed. droppedFileName stays set so the mismatch
+        // panel can name the offending file.
+        if (flagOffsetMonths(response.data.incomingMonths)) return;
+
         const scopedRollup = targetMonth
           ? response.data.monthlyRollup.filter(
               (month) => month.month === targetMonth
@@ -762,7 +840,7 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
         setIsPreviewingUpload(false);
       }
     },
-    [locationId, replaceMonthsFromRollup, targetMonth]
+    [flagOffsetMonths, locationId, replaceMonthsFromRollup, targetMonth]
   );
 
   const handleFileInputChange = useCallback(
@@ -1232,13 +1310,15 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
           <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 bg-white">
             <div>
               <h2 className="text-xl font-bold text-gray-900">
-                Enter PMS Data{locationName ? ` for ${locationName}` : ""}
-              </h2>
-              <p className="text-xs text-gray-500 mt-1">
                 {targetMonth
-                  ? `Only ${formatMonthLabel(targetMonth)} will be saved from this upload.`
-                  : `Add your referral and production data for ${clientId}`}
-              </p>
+                  ? `${locationName ? `${locationName} — ` : ""}${formatMonthLabel(targetMonth)}`
+                  : `Enter PMS Data${locationName ? ` for ${locationName}` : ""}`}
+              </h2>
+              {!targetMonth && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Add your referral and production data for {clientId}
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-2">
               {/* Mapping settings link — visible whenever a mapping has been
@@ -1326,15 +1406,38 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
                   className="hidden"
                 />
 
-                {targetMonth && (
-                  <div className="rounded-xl border border-alloro-orange/25 bg-alloro-orange/10 px-4 py-3">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-alloro-orange">
-                      Calendar month selected
+                {targetMonth && monthMismatch && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-red-600">
+                      Month mismatch — upload flagged
                     </p>
                     <p className="mt-1 text-sm font-bold text-gray-900">
-                      Uploads, pasted rows, and parsed file data are restricted to{" "}
-                      {formatMonthLabel(targetMonth)}. Other months will be discarded.
+                      {droppedFileName
+                        ? `"${droppedFileName}" contains`
+                        : "The provided data contains"}{" "}
+                      data for {formatMonthList(monthMismatch)}. Only{" "}
+                      {formatMonthLabel(targetMonth)} can be uploaded from this
+                      view, so nothing was kept.
                     </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={reuploadCorrectedFile}
+                        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-white transition hover:brightness-110"
+                        style={{ backgroundColor: ALORO_ORANGE }}
+                      >
+                        <Upload size={13} />
+                        Re-upload corrected file
+                      </button>
+                      <button
+                        type="button"
+                        onClick={discardMismatchedUpload}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-600 transition hover:bg-gray-50"
+                      >
+                        <Trash2 size={13} />
+                        Discard upload
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -1376,7 +1479,9 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
                   </div>
                 )}
 
-                {/* Month Tabs */}
+                {/* Month Tabs — hidden in month-selected mode: the month is
+                    fixed, so the pill row would be a dead control. */}
+                {!targetMonth && (
                 <div className="flex items-center gap-2 flex-wrap">
                   {sortedMonths.map((m) => {
                     const isActive = m.id === activeMonthId;
@@ -1455,16 +1560,15 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
                     );
                   })}
 
-                  {!targetMonth && (
-                    <button
-                      onClick={addMonthBucket}
-                      className="p-2 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition"
-                      title="Add month"
-                    >
-                      <Plus size={14} />
-                    </button>
-                  )}
+                  <button
+                    onClick={addMonthBucket}
+                    className="p-2 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition"
+                    title="Add month"
+                  >
+                    <Plus size={14} />
+                  </button>
                 </div>
+                )}
 
                 {/* Summary Cards */}
                 {activeMonth && (
@@ -1477,7 +1581,7 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
                           ? "cursor-default"
                           : "cursor-pointer hover:border-gray-300"
                       }`}
-                      onClick={openMonthPicker}
+                      onClick={targetMonth ? undefined : openMonthPicker}
                     >
                       <div className="flex items-center justify-center gap-2 text-xs font-bold text-gray-400 uppercase mb-2">
                         <Calendar size={14} />
@@ -1537,14 +1641,16 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
                   </div>
                 )}
 
-                {/* Table Header */}
-                <div className="grid grid-cols-13 gap-4 px-2 text-[11px] font-bold text-gray-400 uppercase">
-                  <div className="col-span-3">Source</div>
-                  <div className="col-span-2">Type</div>
-                  <div className="col-span-3">Referral Count</div>
-                  <div className="col-span-4">Production</div>
-                  <div className="col-span-1" />
-                </div>
+                {/* Table Header — only meaningful once rows exist */}
+                {rows.length > 0 && (
+                  <div className="grid grid-cols-13 gap-4 px-2 text-[11px] font-bold text-gray-400 uppercase">
+                    <div className="col-span-3">Source</div>
+                    <div className="col-span-2">Type</div>
+                    <div className="col-span-3">Referral Count</div>
+                    <div className="col-span-4">Production</div>
+                    <div className="col-span-1" />
+                  </div>
+                )}
 
                 {/* Data Rows */}
                 <AnimatePresence>
@@ -1552,15 +1658,75 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      className="text-center py-8 text-gray-500"
+                      className="py-10"
                     >
-                      <Upload className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                      <p className="text-sm">No sources added yet</p>
-                      <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
-                        Copy your cells from a spreadsheet and paste here, or drag
-                        and drop a CSV, XLS, or XLSX file. Alloro will parse and clean your data
-                        automatically.
-                      </p>
+                      <div className="mx-auto grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        {[
+                          {
+                            label: "Choose File",
+                            description: "Select a valid file from your computer",
+                            icon: <Upload size={22} />,
+                            accent: true,
+                            onClick: () => fileInputRef.current?.click(),
+                          },
+                          {
+                            label: "Download Template",
+                            description: "Fill out and upload",
+                            icon: <Download size={22} />,
+                            accent: false,
+                            onClick: downloadTemplate,
+                          },
+                          {
+                            label: "Paste Data",
+                            description: "Copy and paste data from a sheets software",
+                            icon: <ClipboardPaste size={22} />,
+                            accent: false,
+                            onClick: handlePasteFromClipboard,
+                            disabled: isPasting,
+                          },
+                          {
+                            label: "Add Source",
+                            description: "Manually input your sources and revenue here",
+                            icon: <Plus size={22} />,
+                            accent: true,
+                            onClick: addRow,
+                          },
+                        ].map((action) => (
+                          <button
+                            key={action.label}
+                            type="button"
+                            onClick={action.onClick}
+                            disabled={action.disabled}
+                            className="flex flex-col items-center gap-3 rounded-2xl border bg-white px-4 py-6 text-center transition-all hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50"
+                            style={{
+                              borderColor: action.accent ? ALORO_ORANGE : "#E5E7EB",
+                            }}
+                          >
+                            <span
+                              className="flex h-12 w-12 items-center justify-center rounded-full"
+                              style={{
+                                backgroundColor: action.accent
+                                  ? "rgba(201,118,94,0.12)"
+                                  : "#F3F4F6",
+                                color: action.accent ? ALORO_ORANGE : "#6B7280",
+                              }}
+                            >
+                              {action.icon}
+                            </span>
+                            <span
+                              className="text-sm font-bold"
+                              style={{
+                                color: action.accent ? ALORO_ORANGE : "#374151",
+                              }}
+                            >
+                              {action.label}
+                            </span>
+                            <span className="text-xs leading-relaxed text-gray-500">
+                              {action.description}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
                     </motion.div>
                   ) : (
                     rows.map((row) => (
@@ -1743,60 +1909,21 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
                   )}
                 </AnimatePresence>
 
-                {/* Action Buttons: Download Template | Paste Data | Add Source */}
-                <div className="flex justify-end gap-3 px-2">
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-2 border rounded-full px-5 py-2 text-xs font-semibold transition-colors hover:bg-gray-50"
-                    style={{ color: ALORO_ORANGE, borderColor: ALORO_ORANGE }}
-                  >
-                    <Upload size={16} />
-                    <span>Choose File</span>
-                  </button>
-                  <button
-                    onClick={downloadTemplate}
-                    className="flex items-center gap-2 border rounded-full px-5 py-2 text-xs font-semibold transition-colors hover:bg-gray-50"
-                    style={{ color: "#6B7280", borderColor: "#D1D5DB" }}
-                  >
-                    <Download size={16} />
-                    <span>Download Template</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard
-                        .readText()
-                        .then((text) => {
-                          if (text) {
-                            const fakeEvent = {
-                              clipboardData: { getData: () => text },
-                              target: document.body,
-                              preventDefault: () => {},
-                            } as unknown as React.ClipboardEvent;
-                            handlePasteEvent(fakeEvent);
-                          }
-                        })
-                        .catch(() => {
-                          setError(
-                            "Clipboard access denied. Try pressing Cmd+V instead."
-                          );
-                        });
-                    }}
-                    disabled={isPasting}
-                    className="flex items-center gap-2 border rounded-full px-5 py-2 text-xs font-semibold transition-colors hover:bg-gray-50 disabled:opacity-50"
-                    style={{ color: "#6B7280", borderColor: "#D1D5DB" }}
-                  >
-                    <ClipboardPaste size={16} />
-                    <span>Paste Data</span>
-                  </button>
-                  <button
-                    onClick={addRow}
-                    className="flex items-center gap-2 border rounded-full px-5 py-2 text-xs font-semibold transition-colors hover:bg-gray-50"
-                    style={{ color: ALORO_ORANGE, borderColor: ALORO_ORANGE }}
-                  >
-                    <Plus size={16} />
-                    <span>Add Source</span>
-                  </button>
-                </div>
+                {/* Compact action row — the empty state renders the full
+                    action-card grid instead; once rows exist the only
+                    remaining inline action is adding another row. */}
+                {rows.length > 0 && (
+                  <div className="flex justify-end gap-3 px-2">
+                    <button
+                      onClick={addRow}
+                      className="flex items-center gap-2 border rounded-full px-5 py-2 text-xs font-semibold transition-colors hover:bg-gray-50"
+                      style={{ color: ALORO_ORANGE, borderColor: ALORO_ORANGE }}
+                    >
+                      <Plus size={16} />
+                      <span>Add Row</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

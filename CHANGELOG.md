@@ -2,6 +2,25 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.112] - June 2026
+
+### Referrals Hub Simplification
+
+Collapses the Referrals Hub (`/pmsStatistics`) into a slim surface and reworks the PMS upload / file-manager flow.
+
+**Key Changes:**
+
+- New slim Referrals Hub surface: a MONTH/QTR/YTD period toggle, a dual-line production & referrals chart (hover a point to scope the stat tiles to that month/quarter), four stat tiles, a lean upload CTA, top-3 sources with trend arrows, and a single "1 action" banner.
+- The "1 action" banner shows the Referral-Engine's recommended action; that agent now emits a single fix (schema `top_three_fixes` capped at 1).
+- Revenue Manager (file manager) panel: per-location "Analysis #N" / "Batch Analysis #N" naming with a "Ran on {date} with data included for {months}" line, static Edit/Overwrite buttons under the month grid, and row actions consolidated into a single ⋯ menu.
+- PMS entry modal: month-selected mode is locked to one month, off-month uploads are flagged (discard / re-upload) instead of silently trimmed, and the empty state presents four action cards.
+- The upload modal now overlays the file-manager panel (matching the edit flow), and the panel refreshes after submit.
+
+**Commits:**
+
+- frontend: new `PmsHubSurface`, `PmsHubTrendChart`, `pmsPeriod`, `sourceTrend`; `PMSVisualPillars` swaps in the surface; `PMSManualEntryModal`, `PmsJobDataEditorModal`, `PMSDataViewer`, `PmsFileManager`, `PmsMonthSlotGrid`, `PmsFileList` reworked; `useInvalidatePmsFileSurfaces` exported.
+- backend: Referral-Engine growth-opportunity rule + schema emit a single fix.
+
 ## [0.0.111] - June 2026
 
 ### Practice Hub Simplification
