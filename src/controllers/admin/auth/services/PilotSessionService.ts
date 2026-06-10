@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import { SESSION_TOKEN_TTL } from "../../../auth-otp/feature-services/service.jwt-management";
 import { UserModel } from "../../../../models/UserModel";
 import { GoogleConnectionModel } from "../../../../models/GoogleConnectionModel";
 import { OrganizationUserModel } from "../../../../models/OrganizationUserModel";
@@ -54,7 +55,7 @@ export class PilotSessionService {
         isPilot: true,
       },
       getJwtSecret(),
-      { expiresIn: "1h" }
+      { expiresIn: SESSION_TOKEN_TTL }
     );
 
     console.log(

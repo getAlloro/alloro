@@ -125,6 +125,8 @@ app.use((req, res, next) => {
     "Access-Control-Allow-Headers",
     "Content-Type, Authorization, X-Requested-With, x-scraper-key, x-leadgen-key",
   );
+  // Let cross-origin frontends read the sliding session refresh header
+  res.setHeader("Access-Control-Expose-Headers", "x-session-refresh");
   res.setHeader("Access-Control-Allow-Credentials", "true");
 
   // Handle preflight requests

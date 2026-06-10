@@ -1,5 +1,9 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import {
+  getRefreshedSessionToken,
+  SESSION_REFRESH_HEADER,
+} from "../controllers/auth-otp/feature-services/service.jwt-management";
 
 /**
  * Read JWT_SECRET lazily at call time so dotenv.config() has already run.
@@ -31,6 +35,12 @@ export const authenticateToken = (
   jwt.verify(token, getJwtSecret(), (err: any, user: any) => {
     if (err) {
       return res.status(403).json({ error: "Invalid or expired token" });
+    }
+
+    // Sliding expiry — past half-life, hand the client a fresh token
+    const refreshedToken = getRefreshedSessionToken(user);
+    if (refreshedToken) {
+      res.setHeader(SESSION_REFRESH_HEADER, refreshedToken);
     }
 
     req.user = user;

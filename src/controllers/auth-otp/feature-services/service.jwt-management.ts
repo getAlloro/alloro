@@ -17,7 +17,17 @@ function getJwtSecret(): string {
 export interface JwtPayload {
   userId: number;
   email: string;
+  isPilot?: boolean;
 }
+
+/** Session lifetime for all login tokens (regular, admin, pilot). */
+export const SESSION_TOKEN_TTL = "7d";
+
+/** Response header carrying a re-issued token when a session is past half-life. */
+export const SESSION_REFRESH_HEADER = "x-session-refresh";
+
+const SESSION_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const REFRESH_THRESHOLD_MS = SESSION_TOKEN_TTL_MS / 2;
 
 /**
  * Generates a JWT token with a 7-day expiry.
@@ -26,8 +36,34 @@ export function generateToken(userId: number, email: string): string {
   return jwt.sign(
     { userId, email },
     getJwtSecret(),
-    { expiresIn: "7d" }
+    { expiresIn: SESSION_TOKEN_TTL }
   );
+}
+
+/**
+ * Sliding expiry: re-issues a fresh 7-day token once the current one is past
+ * half its life, so active users never get logged out while sessions left
+ * idle for 7+ days still expire.
+ *
+ * Builds a clean payload (jwt.sign throws if the payload already carries exp)
+ * and preserves the isPilot claim so pilot sessions stay marked across refreshes.
+ * Returns null while the token is still young.
+ */
+export function getRefreshedSessionToken(
+  decoded: JwtPayload & { exp?: number }
+): string | null {
+  if (!decoded.exp) return null;
+
+  const remainingMs = decoded.exp * 1000 - Date.now();
+  if (remainingMs >= REFRESH_THRESHOLD_MS) return null;
+
+  const payload: JwtPayload = {
+    userId: decoded.userId,
+    email: decoded.email,
+    ...(decoded.isPilot ? { isPilot: true } : {}),
+  };
+
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: SESSION_TOKEN_TTL });
 }
 
 /**

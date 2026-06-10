@@ -236,11 +236,40 @@ export async function apiDelete({ path }: { path: string }) {
 // Prevents multiple modals when several API calls 403 simultaneously.
 let sessionExpiredFired = false;
 
+/**
+ * Sliding session refresh: when the backend re-issues a token (past half-life),
+ * it returns it in the x-session-refresh header. Persist it transparently to the
+ * same store getCommonHeaders() reads from — sessionStorage in pilot mode, else
+ * localStorage — so the next request rides the fresh token.
+ */
+const storeRefreshedToken = (headers: unknown) => {
+  const refreshed = (headers as Record<string, string> | undefined)?.[
+    "x-session-refresh"
+  ];
+  if (!refreshed) return;
+
+  const isPilot =
+    typeof window !== "undefined" &&
+    (window.sessionStorage?.getItem("pilot_mode") === "true" ||
+      !!window.sessionStorage?.getItem("token"));
+
+  if (isPilot) {
+    window.sessionStorage.setItem("token", refreshed);
+  } else {
+    window.localStorage.setItem("auth_token", refreshed);
+  }
+};
+
 axios.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    storeRefreshedToken(response?.headers);
+    return response;
+  },
   (error) => {
     const status = error?.response?.status;
     const data = error?.response?.data;
+
+    storeRefreshedToken(error?.response?.headers);
 
     // 402 — billing lockout (existing)
     if (status === 402 && data?.errorCode === "ACCOUNT_LOCKED") {
