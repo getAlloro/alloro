@@ -2,6 +2,25 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.111] - June 2026
+
+### Practice Hub Simplification
+
+Collapses the Practice Hub dashboard (`/dashboard`) into a focused, scannable surface and trims the data it loads.
+
+**Key Changes:**
+
+- Rebuilt the Practice Hub layout: greeting, one year-to-date production chart, a "1 thing that matters" banner, and four compact stat cards (Referrals, Local rank, Reviews, Form subs).
+- Dropped the heavier Trajectory, Action Queue, and per-card LLM/sparkline fetches from this surface (`useAgentData`, `useActionQueue`, `useLatestRanking` no longer load here).
+- Surfaced `reviews.total_review_count` from already-fetched GBP data so the Reviews card shows a total count.
+- The Summary (Chief-of-Staff) monthly agent now emits a single top action instead of 3–5; the task creator persists only the top-ranked entry.
+- Onboarding wizard tour updated for the new layout.
+
+**Commits:**
+
+- frontend: `DashboardOverview` rebuilt; new `ProductionPanel`, `OneThingBanner`, `StatCard`, `StatCardRow`, `statusRules`, shared `usePmsKeyData`; `total_review_count` mirrored in the dashboard-metrics type.
+- backend: `total_review_count` added to the dashboard-metrics builder; `Summary.md` + output schema + task-creator emit one action.
+
 ## [0.0.110] - June 2026
 
 ### Mission Control Telemetry Refinements

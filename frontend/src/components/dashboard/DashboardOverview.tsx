@@ -1,27 +1,29 @@
 /**
- * DashboardOverview — Focus tab content (Plan 2 redesign).
+ * DashboardOverview — Practice Hub (simplified redesign).
  *
- * Thin composition of the new card components under
- * `frontend/src/components/dashboard/focus/`. The legacy 1700-line file
- * was replaced wholesale; the new file is intentionally minimal and
- * delegates all heavy lifting to the child components, each of which
- * fetches its own data via React Query hooks.
+ * Spec: plans/06092026-practice-hub-simplification/spec.html
  *
- * Plan: plans/04282026-no-ticket-focus-dashboard-frontend/spec.md (T20)
+ * Collapses the previous dense Focus layout (Hero + Trajectory + ActionQueue
+ * + three fat metric cards) into a calm, scannable surface:
  *
- * Layout:
- *   <DashboardAlertStack />          (cascaded alerts: stale-data, upload nudge, setup)
- *   <FocusHeader />                  (small "Focus — {Month YYYY}" eyebrow)
- *   <Hero />                         (top_actions[0] from Summary v2)
- *   <Trajectory /> | <ActionQueue /> (2/1 grid)
- *   <WebsiteCard /> <LocalRankingCard /> <PMSCard />  (3-col grid)
+ *   <DashboardAlertStack />   (cascaded alerts: stale-data, upload nudge, setup)
+ *   <PracticeHubHeader />     (PRACTICE HUB · YEAR TO DATE + greeting)
+ *   <ProductionPanel />       (one YTD production chart)
+ *   <OneThingBanner />        (the single top action — useTopAction)
+ *   <StatCardRow />           (Referrals · Local rank · Reviews · Form subs)
  *
- * Data sources are the new endpoints from Plan 1 (backend):
- *   GET /api/dashboard/metrics
- *   GET /api/user/website/form-submissions/timeseries
- *   GET /api/practice-ranking/history
- * Plus existing endpoints for tasks (Hero/Queue), agents/latest (Trajectory),
- * pms/keyData (PMS card), practice-ranking/latest (Ranking card).
+ * Data-load reduction vs. the old layout — these fetches are intentionally
+ * NO LONGER made on this surface (the components that owned them are retired,
+ * left on disk for the onboarding-wizard demo path but not mounted here):
+ *   - useAgentData (Proofline trajectory paragraph) — Trajectory removed
+ *   - useActionQueue (3–5 queued actions)            — ActionQueue removed
+ *   - useLatestRanking (LLM summary + practice health) — LocalRankingCard removed
+ *   - PMSCard's referral-mix / top-sources rendering — replaced by ProductionPanel
+ *
+ * Remaining fetches: useDashboardMetrics (4 cards + production pill),
+ * usePmsKeyData (production series + referral MoM), useTopAction (the banner),
+ * useFormSubmissionsTimeseries (form-subs this month), usePmsFocusPeriod
+ * (alert/period logic).
  */
 
 import { useNavigate } from "react-router-dom";
@@ -32,49 +34,51 @@ import { useRerunPmsInsights } from "../../hooks/queries/usePmsFileManagerQuerie
 import { buildDashboardAlerts } from "../../utils/dashboardAlerts";
 import { DashboardAlertStack } from "./alerts/DashboardAlertStack";
 import { showErrorToast, showSparkleToast } from "../../lib/toast";
-import type { PmsFocusPeriod } from "../../utils/pmsFocusPeriod";
-import { Hero } from "./focus/Hero";
-import { Trajectory } from "./focus/Trajectory";
-import { ActionQueue } from "./focus/ActionQueue";
-import WebsiteCard from "./focus/WebsiteCard";
-import LocalRankingCard from "./focus/LocalRankingCard";
-import PMSCard from "./focus/PMSCard";
+import { ProductionPanel } from "./focus/ProductionPanel";
+import { OneThingBanner } from "./focus/OneThingBanner";
+import { StatCardRow } from "./focus/StatCardRow";
 import { useIsWizardActive } from "../../contexts/OnboardingWizardContext";
 
 interface DashboardOverviewProps {
   // Legacy props — kept for backward compatibility with Dashboard.tsx tab
-  // dispatch. The new card components self-fetch via useAuth + useLocationContext
+  // dispatch. The card components self-fetch via useAuth + useLocationContext
   // and do not require these to be threaded down.
   organizationId?: number | null;
   locationId?: number | null;
 }
 
-type FocusHeaderProps = {
-  period: PmsFocusPeriod;
-};
+function getGreeting(now = new Date()): string {
+  const h = now.getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
 
-function FocusHeader({ period }: FocusHeaderProps) {
+function resolveFirstName(
+  firstName?: string | null,
+  email?: string | null,
+): string {
+  const first = firstName?.trim();
+  if (first) return first;
+  const local = email?.split("@")[0]?.trim();
+  if (local) return local.charAt(0).toUpperCase() + local.slice(1);
+  return "there";
+}
+
+function PracticeHubHeader({ firstName }: { firstName: string }) {
   return (
-    <div className="flex items-end justify-between gap-6 mb-6">
-      <div>
-        <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#6B7280] mb-2">
-          The month at a glance
-        </div>
-        <h2 className="font-display text-[28px] font-normal tracking-tight text-[#1A1A1A]">
-          Focus — {period.focusMonthLabel}
-        </h2>
-        <p className="mt-1.5 text-[13px] text-[#6B7280] max-w-[540px] leading-relaxed">
-          One priority. Everything else, in order.
-        </p>
+    <div>
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#6B7280]">
+          Practice Hub
+        </span>
+        <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#6B7280]">
+          Year to date
+        </span>
       </div>
-      <div className="hidden md:flex flex-col items-end gap-3">
-        <div className="flex items-center gap-3.5 text-[10.5px] font-bold uppercase tracking-[0.16em] text-[#6B7280]">
-          <span>Period</span>
-          <span className="font-display text-[22px] font-medium text-[#1A1A1A] tracking-tight">
-            {period.periodLabel}
-          </span>
-        </div>
-      </div>
+      <h1 className="mt-3 font-display text-[34px] font-normal leading-tight tracking-tight text-[#1A1A1A]">
+        {getGreeting()}, {firstName}
+      </h1>
     </div>
   );
 }
@@ -87,16 +91,16 @@ export function DashboardOverview(props: DashboardOverviewProps) {
   const organizationId =
     props.organizationId ?? userProfile?.organizationId ?? null;
   const locationId = props.locationId ?? selectedLocation?.id ?? null;
-  const { period, insightsStale, isLoading } = usePmsFocusPeriod(
+  const { period, insightsStale } = usePmsFocusPeriod(
     organizationId,
     locationId,
   );
   const rerunInsights = useRerunPmsInsights(organizationId, locationId);
-  const hasPmsData = isWizardActive
-    ? true
-    : isLoading || !organizationId
-      ? true
-      : period.hasPmsData;
+
+  const firstName = resolveFirstName(
+    userProfile?.firstName,
+    userProfile?.email,
+  );
 
   // "Get updated insights" on the dashboard kicks off the rerun, then routes to
   // the Referrals Hub where the animated processing card lives.
@@ -136,22 +140,13 @@ export function DashboardOverview(props: DashboardOverviewProps) {
   });
 
   return (
-    <div className="max-w-[1320px] mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-16 space-y-6">
+    <div className="max-w-[1080px] mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-16 space-y-6">
       {alerts.length > 0 && <DashboardAlertStack alerts={alerts} />}
-      <FocusHeader period={period} />
+      <PracticeHubHeader firstName={firstName} />
 
-      <Hero hasPmsData={hasPmsData} />
-
-      <div className="grid gap-6 grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <Trajectory />
-        <ActionQueue />
-      </div>
-
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-        <WebsiteCard />
-        <LocalRankingCard />
-        <PMSCard />
-      </div>
+      <ProductionPanel />
+      <OneThingBanner />
+      <StatCardRow />
     </div>
   );
 }

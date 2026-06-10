@@ -28,6 +28,7 @@ export interface ReviewsMetrics {
   unanswered_reviewer_names: string[];
   avg_rating_this_month: number | null;
   current_rating: number | null;
+  total_review_count: number | null;
   rating_change_30d: number | null;
   reviews_this_month: number;
 }
@@ -38,6 +39,7 @@ export const ReviewsMetricsSchema = z.object({
   unanswered_reviewer_names: z.array(z.string()).max(5),
   avg_rating_this_month: z.number().nullable(),
   current_rating: z.number().nullable(),
+  total_review_count: z.number().nullable(),
   rating_change_30d: z.number().nullable(),
   reviews_this_month: z.number(),
 });

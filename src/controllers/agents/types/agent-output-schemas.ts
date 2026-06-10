@@ -401,7 +401,10 @@ export const DomainSummarySchema = z.object({
 
 export const SummaryV2OutputSchema = z
   .object({
-    top_actions: z.array(TopActionSchema).min(3).max(5),
+    // Simplified to a single "one thing that matters" action. Upper bound kept
+    // at 5 so older multi-action outputs still validate; the task-creator
+    // persists only the top-ranked entry. plans/06092026-practice-hub-simplification.
+    top_actions: z.array(TopActionSchema).min(1).max(5),
     domain_summaries: z.array(DomainSummarySchema).max(6).optional(),
     data_quality_flags: z.array(z.string()).optional(),
     confidence: z.number().min(0).max(1).optional(),

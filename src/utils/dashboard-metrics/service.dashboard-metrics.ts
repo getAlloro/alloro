@@ -134,6 +134,7 @@ function sumGbpMetricFromTimeSeries(
  */
 function extractReviewSummary(gbpData: any): {
   currentRating: number | null;
+  totalReviewCount: number | null;
   reviewsThisMonth: number;
   reviewDetails: Array<{
     stars: number | null;
@@ -144,10 +145,16 @@ function extractReviewSummary(gbpData: any): {
   }>;
 } {
   if (!gbpData || !Array.isArray(gbpData.locations)) {
-    return { currentRating: null, reviewsThisMonth: 0, reviewDetails: [] };
+    return {
+      currentRating: null,
+      totalReviewCount: null,
+      reviewsThisMonth: 0,
+      reviewDetails: [],
+    };
   }
 
   const ratings: number[] = [];
+  let totalReviewCount: number | null = null;
   let reviewsThisMonth = 0;
   const reviewDetails: Array<{
     stars: number | null;
@@ -161,6 +168,15 @@ function extractReviewSummary(gbpData: any): {
     const allTime = loc?.data?.reviews?.allTime;
     if (allTime && typeof allTime.averageRating === "number" && allTime.averageRating > 0) {
       ratings.push(allTime.averageRating);
+    }
+    // Sum the all-time total review count across locations (multi-location
+    // practices). Stays null until at least one location reports a count.
+    if (
+      allTime &&
+      typeof allTime.totalReviewCount === "number" &&
+      Number.isFinite(allTime.totalReviewCount)
+    ) {
+      totalReviewCount = (totalReviewCount ?? 0) + allTime.totalReviewCount;
     }
 
     const win = loc?.data?.reviews?.window;
@@ -183,7 +199,7 @@ function extractReviewSummary(gbpData: any): {
     ? Number((ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(2))
     : null;
 
-  return { currentRating, reviewsThisMonth, reviewDetails };
+  return { currentRating, totalReviewCount, reviewsThisMonth, reviewDetails };
 }
 
 // =====================================================================
@@ -194,7 +210,7 @@ function buildReviewsMetrics(
   gbpData: any,
   reviewsPriorMonth: { averageRating: number | null }
 ): ReviewsMetrics {
-  const { currentRating, reviewsThisMonth, reviewDetails } =
+  const { currentRating, totalReviewCount, reviewsThisMonth, reviewDetails } =
     extractReviewSummary(gbpData);
 
   const now = new Date();
@@ -234,6 +250,7 @@ function buildReviewsMetrics(
     unanswered_reviewer_names: unansweredNames,
     avg_rating_this_month: avgRatingThisMonth,
     current_rating: currentRating,
+    total_review_count: totalReviewCount,
     rating_change_30d: ratingChange30d,
     reviews_this_month: reviewsThisMonth,
   };
