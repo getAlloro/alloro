@@ -457,6 +457,12 @@
         <p><strong>Reason:</strong> User QA: selected links/buttons showed a double orange outline, and the inline textarea border reduced available text width enough to wrap text differently.</p>
         <p><strong>Updated Done criteria:</strong> selected/focused/active elements show one orange outline; hover shows blue; inline text editing does not change text wrapping because of editor border chrome.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 18 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Fixed the React inline popover's scaled-preview measurement. <code>InlineEditorPopover</code> now measures its unscaled layout size with <code>offsetWidth</code>/<code>offsetHeight</code> instead of the CSS-transformed visual rect, keeps a minimum unscaled toolbar footprint after resize callbacks, and uses a larger anchor gap so the toolbar clears small text elements in the scaled DFY desktop preview.</p>
+        <p><strong>Reason:</strong> User QA: the floating white toolbar still overlapped the selected eyebrow/text element in the scaled preview.</p>
+        <p><strong>Updated Done criteria:</strong> the React inline toolbar must clear selected text elements in desktop scaled preview, including compact eyebrow text.</p>
+      </article>
     </section>
   </main>
 </body>
