@@ -387,13 +387,18 @@ const SELECTOR_CSS = `
     cursor: text !important;
     caret-color: #d66853 !important;
     outline: 2px solid #d66853 !important;
-    outline-offset: 6px !important;
+    outline-offset: 4px !important;
+    box-shadow: none !important;
     user-select: text !important;
     -webkit-user-select: text !important;
   }
 
-  [data-alloro-editing="true"]:focus {
-    box-shadow: 0 0 0 4px rgba(214, 104, 83, 0.2) !important;
+  [data-alloro-editing="true"]:focus,
+  [data-alloro-editing="true"]:focus-visible,
+  [data-alloro-editing="true"]:active {
+    outline: 2px solid #d66853 !important;
+    outline-offset: 4px !important;
+    box-shadow: none !important;
   }
 
   /* Keep hidden/invisible overlays from intercepting events */
@@ -416,22 +421,24 @@ const SELECTOR_CSS = `
   /* Hover highlight */
   [data-alloro-hover="true"] {
     outline: 2px dashed #3b82f6 !important;
-    outline-offset: 6px !important;
+    outline-offset: 4px !important;
   }
 
-  /* Selected highlight */
+  /* Selected/focused/active highlight */
   [data-alloro-selected="true"] {
-    outline: 2px solid #2563eb !important;
-    outline-offset: 6px !important;
+    outline: 2px solid #d66853 !important;
+    outline-offset: 4px !important;
+    box-shadow: none !important;
   }
 
-  /* Both hover and selected — selected wins */
-  [data-alloro-selected="true"][data-alloro-hover="true"] {
-    outline: 2px solid #2563eb !important;
-  }
-
+  [data-alloro-selected="true"]:focus,
+  [data-alloro-selected="true"]:focus-visible,
+  [data-alloro-selected="true"]:active,
+  [data-alloro-selected="true"][data-alloro-hover="true"],
   [data-alloro-selected="true"][data-alloro-editing="true"] {
-    outline-color: #d66853 !important;
+    outline: 2px solid #d66853 !important;
+    outline-offset: 4px !important;
+    box-shadow: none !important;
   }
 
   /* Label injected into the DOM */
