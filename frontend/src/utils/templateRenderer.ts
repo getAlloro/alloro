@@ -175,6 +175,17 @@ function prettyShortcodeLabel(type: string, raw: string): string {
 }
 
 /**
+ * Strip editor selection/hover/editing state attributes that saves made
+ * before 2026-06-11 baked into content (extraction now strips them at save
+ * time, but already-saved pages still carry them — the editor's injected CSS
+ * would otherwise show stale selection outlines on load). data-alloro-hidden
+ * and data-alloro-section are real content/marker attributes and survive.
+ */
+function stripEditorStateAttrs(html: string): string {
+  return html.replace(/\s+data-alloro-(?:selected|hover|editing)="[^"]*"/gi, "");
+}
+
+/**
  * Replace `{{ post_block … }}` / `{{ review_block … }}` / `{{ menu … }}` and
  * `[post_block …]` / `[review_block …]` tokens with a styled preview
  * placeholder. This is purely cosmetic — the canonical source keeps the
@@ -277,10 +288,17 @@ export function renderPage(
   // root for tagSectionRoot and the regenerate overlay.
   const mainContent = sectionsToRender
     .map((s) =>
-      tagSectionRoot(s.name, renderShortcodePlaceholders(s.content)),
+      tagSectionRoot(
+        s.name,
+        renderShortcodePlaceholders(stripEditorStateAttrs(s.content)),
+      ),
     )
     .join("\n");
-  const pageContent = [header, mainContent, footer].join("\n");
+  const pageContent = [
+    stripEditorStateAttrs(header),
+    mainContent,
+    stripEditorStateAttrs(footer),
+  ].join("\n");
   let finalHtml = wrapper.replace("{{slot}}", pageContent);
 
   // Inject code snippets
