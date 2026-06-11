@@ -2,6 +2,10 @@ import type { MediaItem } from "../api/websiteMedia";
 import { getFriendlyName } from "../hooks/useIframeSelector";
 import type { SelectedInfo } from "../hooks/useIframeSelector";
 import { getCanvasTextEditEligibility } from "./canvasTextEditing";
+// Import-cycle note: richTextEditing imports normalizeEditorHref from this
+// module. Both sides only call the other inside function bodies (no module-
+// evaluation-time usage), so the ESM cycle is safe and tsc-clean.
+import { sanitizeInlineHtml } from "./richTextEditing";
 
 export const EDITOR_TEXT_TAGS = new Set([
   "p",
@@ -21,6 +25,7 @@ export const EDITOR_TEXT_TAGS = new Set([
 
 export const EDITOR_MEDIA_TAGS = new Set(["img", "video"]);
 export const EDITOR_LINK_TAGS = new Set(["a"]);
+const IMAGE_ONLY_TAGS = new Set(["img"]);
 
 export const BACKGROUND_SIZE_PRESETS = ["cover", "contain", "auto"] as const;
 export const BACKGROUND_POSITION_PRESETS = [
@@ -49,8 +54,10 @@ const TEXT_SIZE_SCALE = [
 
 export type DirectEditorOperation =
   | { type: "replace-text"; value: string }
+  | { type: "replace-inline-html"; html: string }
   | { type: "update-link"; href: string }
   | { type: "replace-media"; media: MediaItem }
+  | { type: "set-alt-text"; value: string }
   | { type: "step-font-size"; direction: "up" | "down" }
   | { type: "toggle-hidden" }
   | { type: "set-background-color"; color: string }
@@ -68,6 +75,7 @@ export type DirectOperationAvailability = {
   canAdjustTextSize: boolean;
   canToggleHidden: boolean;
   canEditBackground: boolean;
+  canEditAltText: boolean;
 };
 
 export type DirectEditorOperationResult = {
@@ -91,7 +99,17 @@ export function getDirectOperationAvailability(
     canAdjustTextSize: canEditText,
     canToggleHidden: Boolean(selectedInfo),
     canEditBackground: selectedInfo?.type === "section",
+    canEditAltText: tag === "img",
   };
+}
+
+/** Current alt attribute value parsed from the selection's outerHTML. */
+export function getSelectedAltText(selectedInfo: SelectedInfo | null): string {
+  if (!selectedInfo || selectedInfo.tagName !== "img") return "";
+
+  const template = document.createElement("template");
+  template.innerHTML = selectedInfo.outerHtml;
+  return template.content.firstElementChild?.getAttribute("alt") || "";
 }
 
 export function getSelectedTextValue(selectedInfo: SelectedInfo | null): string {
@@ -152,6 +170,11 @@ export function applyDirectEditorOperation(
       assertTag(EDITOR_TEXT_TAGS, tagName, "Text replacement is not available for this element.");
       element.textContent = operation.value;
       break;
+    case "replace-inline-html":
+      assertTag(EDITOR_TEXT_TAGS, tagName, "Rich text replacement is not available for this element.");
+      // Defense in depth — never trust the caller's markup; re-sanitize here.
+      element.innerHTML = sanitizeInlineHtml(operation.html, element.ownerDocument);
+      break;
     case "update-link":
       assertTag(EDITOR_LINK_TAGS, tagName, "Link editing is only available for links.");
       element.setAttribute("href", normalizeEditorHref(operation.href));
@@ -159,6 +182,10 @@ export function applyDirectEditorOperation(
     case "replace-media":
       assertTag(EDITOR_MEDIA_TAGS, tagName, "Media replacement is only available for images and videos.");
       replaceMediaElement(element, operation.media);
+      break;
+    case "set-alt-text":
+      assertTag(IMAGE_ONLY_TAGS, tagName, "Alt text is only available for images.");
+      element.setAttribute("alt", operation.value.trim());
       break;
     case "step-font-size":
       assertTag(EDITOR_TEXT_TAGS, tagName, "Font size controls are not available for this element.");

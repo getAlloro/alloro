@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { X, Loader2, Image } from "lucide-react";
+import { useState, useEffect, useRef, type ChangeEvent } from "react";
+import { X, Loader2, Image, Upload } from "lucide-react";
 import type { MediaApi, MediaItem } from "../../api/websiteMedia";
 
 export type { MediaApi, MediaItem } from "../../api/websiteMedia";
@@ -14,6 +14,9 @@ interface MediaBrowserProps {
 export default function MediaBrowser({ mediaApi, onSelect, onClose, compact }: MediaBrowserProps) {
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fetchMedia = async () => {
@@ -33,17 +36,73 @@ export default function MediaBrowser({ mediaApi, onSelect, onClose, compact }: M
     fetchMedia();
   }, [mediaApi]);
 
+  // Upload-in-place: a single uploaded file is applied to the selection
+  // immediately; multiple files just land in the library grid.
+  const handleUploadFiles = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = "";
+    if (files.length === 0) return;
+
+    try {
+      setUploading(true);
+      setUploadError(null);
+      const result = await mediaApi.upload(files);
+      const uploaded = result.data || [];
+      if (!result.success || uploaded.length === 0) {
+        setUploadError(result.message || result.error || "Upload failed");
+        return;
+      }
+      setMediaItems((prev) => [...uploaded, ...prev]);
+      if (files.length === 1 && uploaded[0]) {
+        onSelect(uploaded[0]);
+      }
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <div className={`border border-gray-200 rounded-lg bg-white shadow-lg overflow-y-auto ${compact ? "max-h-[180px]" : "max-h-[300px]"}`}>
       <div className="sticky top-0 bg-white border-b border-gray-200 px-3 py-2 flex items-center justify-between">
         <span className="text-xs font-medium text-gray-700">Media Library</span>
-        <button
-          onClick={onClose}
-          className="text-gray-400 hover:text-gray-600"
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            onChange={handleUploadFiles}
+            className="hidden"
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="flex items-center gap-1 text-[11px] text-alloro-orange hover:text-alloro-orange/80 disabled:opacity-50 transition-colors"
+          >
+            {uploading ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <Upload className="w-3 h-3" />
+            )}
+            {uploading ? "Uploading..." : "Upload"}
+          </button>
+          <button
+            onClick={onClose}
+            aria-label="Close media library"
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
+
+      {uploadError && (
+        <div className="px-3 py-1.5 bg-red-50 border-b border-red-100">
+          <p className="text-[11px] text-red-600">{uploadError}</p>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center py-8">

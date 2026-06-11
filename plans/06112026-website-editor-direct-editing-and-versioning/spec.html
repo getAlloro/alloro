@@ -11,11 +11,11 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
-        <span class="status-pill status-pending">Pending Execution</span>
+        <span class="status-pill status-pending">In Progress</span>
       </div>
       <h1>Website Editor: Direct Editing &amp; Versioning</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>In Progress — built, manual QA pending</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/06112026-website-editor-direct-editing-and-versioning</dd></div>
         <div><dt>Size</dt><dd>Large (~25 files)</dd></div>
         <div><dt>Risk</dt><dd>Level 2</dd></div>
@@ -352,6 +352,20 @@
         <p><strong>Change:</strong> Added nine feature tasks (T10–T18): Cmd/Ctrl+S save shortcut, localStorage crash recovery, optimistic concurrency guard, constrained rich-text editing, save notes + provenance (first DB migration in this plan — <code>change_source</code>/<code>revision_note</code> on <code>pages</code>), version diff + section-level restore, image upload-in-place + alt text, admin site-wide find &amp; replace, and pre-publish lint warnings. Rich-text editing and provenance labels moved from Out of Scope into scope. AI-as-reviewer explicitly excluded pending its own design pass. Size revised ~13 → ~25 files; T9 (verification) now depends on all tasks; recommended two-milestone execution (M1: T1–T9, M2: T10–T18).</p>
         <p><strong>Reason:</strong> User requested all suggestions from the feature review be folded into this plan, including rich-text editing.</p>
         <p><strong>Updated Done criteria:</strong> Ten new checklist items covering the Rev 1 features (see Done).</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-06-11 (execution log)</h3>
+        <p><strong>Change:</strong> All tasks T1–T18 implemented in two commits (M1: core editing + versioning; M2: feature layer). Migration <code>20260611000000_add_page_revision_metadata</code> applied to the local DB (batch 122); NOT applied on dev/prod. Documented deviations:</p>
+        <ul>
+          <li>Auto-tag class format is <code>alloro-tpl-m-component-{tag}-{n}</code> (spec said <code>alloro-tpl-m-{tag}-{n}</code>) — the <code>-component-</code> token is required by <code>isComponent()</code> type detection.</li>
+          <li>Conflict modal offers "Save Anyway / Keep Editing" instead of a three-way with "Reload latest" — the shared ConfirmModal is two-action; reload is covered by browser refresh + the local crash backup.</li>
+          <li>User-side restore needed no extra pre-restore snapshot call: the superseded draft/published rows transition to <code>inactive</code> and ARE the history entries; only field-carrying, artifact guard, and pruning were added.</li>
+          <li>Provenance (<code>change_source</code>/<code>revision_note</code>) is stamped on the live row at write time and travels onto snapshots when copied — same History UX as stamping snapshots directly, simpler data flow.</li>
+          <li><code>richTextEditing.ts</code> is 458 lines (over the 300-line soft cap) — toolbar UI + session lifecycle + sanitizer; helpers extracted.</li>
+          <li>DFY crash-recovery check is timestamp-based only (admin also deep-compares sections — DFY's Page row doesn't carry sections client-side at check time).</li>
+          <li>ESLint not runnable in this worktree (missing <code>@eslint/js</code> in node_modules; backend has no flat config) — environment issue, tsc green on both sides.</li>
+        </ul>
+        <p><strong>Reason:</strong> Spec-code parity record at execution time.</p>
       </article>
     </section>
   </main>

@@ -30,9 +30,14 @@ const SAFE_INLINE_TEXT_CHILD_TAGS = new Set([
 ]);
 const SAFE_INLINE_TEXT_CHILD_TAGS_SELECTOR = Array.from(SAFE_INLINE_TEXT_CHILD_TAGS).join(",");
 
-type CanvasTextEditEligibility = {
+/** Rich mode additionally tolerates inline anchors — plain replace-text would destroy them. */
+const RICH_INLINE_TEXT_CHILD_TAGS = new Set([...SAFE_INLINE_TEXT_CHILD_TAGS, "a"]);
+
+export type CanvasTextEditEligibility = {
   canEdit: boolean;
   reason?: string;
+  /** "plain" → textarea overlay (text-only commit); "rich" → contentEditable session (inline HTML commit). */
+  mode?: "plain" | "rich";
 };
 
 export type CanvasTextEditSession = {
@@ -71,18 +76,19 @@ export function getCanvasTextEditEligibility(element: Element | null): CanvasTex
     return { canEdit: false, reason: "This element does not support canvas text editing." };
   }
 
-  if (hasUnsafeNestedContent(element)) {
+  const childTags = Array.from(element.querySelectorAll("*")).map((child) =>
+    child.tagName.toLowerCase(),
+  );
+
+  if (childTags.some((tagName) => !RICH_INLINE_TEXT_CHILD_TAGS.has(tagName))) {
     return { canEdit: false, reason: "Use fallback text editing for nested content." };
   }
 
-  return { canEdit: true };
-}
+  if (childTags.some((tagName) => !SAFE_INLINE_TEXT_CHILD_TAGS.has(tagName))) {
+    return { canEdit: true, mode: "rich" };
+  }
 
-function hasUnsafeNestedContent(element: HTMLElement): boolean {
-  return Array.from(element.querySelectorAll("*")).some((child) => {
-    const tagName = child.tagName.toLowerCase();
-    return !SAFE_INLINE_TEXT_CHILD_TAGS.has(tagName);
-  });
+  return { canEdit: true, mode: "plain" };
 }
 
 export function startCanvasTextEdit({
@@ -92,7 +98,9 @@ export function startCanvasTextEdit({
   onFinish,
 }: CanvasTextEditOptions): CanvasTextEditSession | null {
   if (!(element instanceof HTMLElement)) return null;
-  if (!getCanvasTextEditEligibility(element).canEdit) return null;
+  // Plain mode only — rich-eligible elements (inline anchors) must go through
+  // startRichTextEdit, otherwise replace-text would destroy their markup.
+  if (getCanvasTextEditEligibility(element).mode !== "plain") return null;
 
   const doc = element.ownerDocument;
   const computed = doc.defaultView?.getComputedStyle(element);

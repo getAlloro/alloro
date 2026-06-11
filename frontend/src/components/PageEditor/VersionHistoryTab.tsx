@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Clock, Eye, RotateCcw, CheckCircle, FileEdit, Archive } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { apiGet } from "../../api";
+import type { SectionDiffEntry } from "../../utils/sectionDiff";
 
 export interface PageVersion {
   id: string;
@@ -9,7 +10,17 @@ export interface PageVersion {
   status: "draft" | "published" | "inactive";
   created_at: string;
   updated_at: string;
+  change_source?: string | null;
+  revision_note?: string | null;
 }
+
+const SOURCE_LABELS: Record<string, string> = {
+  save: "Saved",
+  publish: "Published",
+  restore: "Restored",
+  "restore-section": "Section restore",
+  "find-replace": "Find & replace",
+};
 
 interface Props {
   pageId: string | null;
@@ -22,6 +33,10 @@ interface Props {
   fetchVersions?: (pageId: string) => Promise<PageVersion[]>;
   /** Allow restoring published rows too (admin restores into the draft). */
   allowRestorePublished?: boolean;
+  /** Per-section diff vs the current draft for the previewed version. */
+  previewDiff?: SectionDiffEntry[] | null;
+  /** Restore a single section from the previewed version into the draft. */
+  onRestoreSection?: (name: string) => void;
 }
 
 const STATUS_CONFIG: Record<
@@ -54,6 +69,8 @@ export default function VersionHistoryTab({
   onExitPreview,
   fetchVersions,
   allowRestorePublished = false,
+  previewDiff,
+  onRestoreSection,
 }: Props) {
   const [versions, setVersions] = useState<PageVersion[]>([]);
   const [loading, setLoading] = useState(true);
@@ -163,10 +180,55 @@ export default function VersionHistoryTab({
                     {config.label}
                   </span>
                 </div>
-                <span className="text-[11px] text-gray-400">
-                  {relativeTime(version.updated_at)}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  {version.change_source && (
+                    <span className="text-[10px] text-gray-400">
+                      {SOURCE_LABELS[version.change_source] || version.change_source}
+                    </span>
+                  )}
+                  <span className="text-[11px] text-gray-400">
+                    {relativeTime(version.updated_at)}
+                  </span>
+                </div>
               </div>
+
+              {version.revision_note && (
+                <p className="text-[11px] text-gray-500 italic mt-0.5 truncate" title={version.revision_note}>
+                  "{version.revision_note}"
+                </p>
+              )}
+
+              {isPreviewing && previewDiff && previewDiff.length > 0 && (
+                <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/60 px-2.5 py-2">
+                  <p className="text-[11px] font-semibold text-amber-700 mb-1">
+                    {previewDiff.length} section{previewDiff.length === 1 ? "" : "s"} differ from the draft
+                  </p>
+                  <div className="space-y-1">
+                    {previewDiff.map((entry) => (
+                      <div key={entry.name} className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] text-amber-800 truncate">
+                          {entry.name}
+                          <span className="text-amber-600/70">
+                            {entry.status === "added"
+                              ? " (not in draft)"
+                              : entry.status === "removed"
+                                ? " (only in draft)"
+                                : ""}
+                          </span>
+                        </span>
+                        {onRestoreSection && entry.status !== "removed" && (
+                          <button
+                            onClick={() => onRestoreSection(entry.name)}
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors shrink-0"
+                          >
+                            Restore section
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="flex items-center gap-1.5 mt-2">
                 {version.status !== "draft" && (

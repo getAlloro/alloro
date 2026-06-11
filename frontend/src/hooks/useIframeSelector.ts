@@ -21,6 +21,7 @@ import {
   startCanvasTextEdit,
   type CanvasTextEditSession,
 } from "../utils/canvasTextEditing";
+import { startRichTextEdit, type RichTextEditSession } from "../utils/richTextEditing";
 
 const ALLORO_PREFIX = "alloro-tpl-";
 
@@ -219,13 +220,17 @@ export function prepareHtmlForPreview(html: string): string {
   );
 }
 
-/** Quick action types that can be triggered from the iframe label. */
-export type QuickActionType = "text" | "link" | "media" | "hide" | "text-up" | "text-down";
+/**
+ * Quick action types that can be triggered from the iframe label.
+ * "rich-text" is dispatched only from a rich edit session commit (sanitized
+ * inline HTML) — it is never rendered as a label icon.
+ */
+export type QuickActionType = "text" | "rich-text" | "link" | "media" | "hide" | "text-up" | "text-down";
 
 /** Payload emitted when a quick action with user input is submitted. */
 export interface QuickActionPayload {
   action: QuickActionType;
-  value?: string; // For text/link — the user-entered value
+  value?: string; // For text/link — the user-entered value; for rich-text — sanitized inline HTML
 }
 
 /** Inline SVG icons for quick action buttons (white stroke). */
@@ -464,7 +469,7 @@ export function useIframeSelector(
   const [selectedInfo, setSelectedInfo] = useState<SelectedInfo | null>(null);
   const [isCanvasTextEditing, setIsCanvasTextEditing] = useState(false);
   const currentHoveredComponentRef = useRef<Element | null>(null);
-  const canvasTextSessionRef = useRef<CanvasTextEditSession | null>(null);
+  const canvasTextSessionRef = useRef<CanvasTextEditSession | RichTextEditSession | null>(null);
   const quickActionRef = useRef(onQuickAction);
   quickActionRef.current = onQuickAction;
 
@@ -505,14 +510,14 @@ export function useIframeSelector(
       const info = buildSelectedInfo(target);
       if (info) setSelectedInfo(info);
 
-      const session = startCanvasTextEdit({
+      const makeCommitHandler = (action: QuickActionType) => (value: string) => {
+        delete doc.body.dataset.alloroCanvasEditing;
+        setIsCanvasTextEditing(false);
+        canvasTextSessionRef.current = null;
+        quickActionRef.current?.({ action, value });
+      };
+      const sharedOptions = {
         element: target,
-        onCommit: (value) => {
-          delete doc.body.dataset.alloroCanvasEditing;
-          setIsCanvasTextEditing(false);
-          canvasTextSessionRef.current = null;
-          quickActionRef.current?.({ action: "text", value });
-        },
         onCancel: () => {
           const freshInfo = buildSelectedInfo(target);
           if (freshInfo) setSelectedInfo(freshInfo);
@@ -522,7 +527,11 @@ export function useIframeSelector(
           setIsCanvasTextEditing(false);
           canvasTextSessionRef.current = null;
         },
-      });
+      };
+
+      const session = eligibility.mode === "rich"
+        ? startRichTextEdit({ ...sharedOptions, onCommit: makeCommitHandler("rich-text") })
+        : startCanvasTextEdit({ ...sharedOptions, onCommit: makeCommitHandler("text") });
 
       canvasTextSessionRef.current = session;
       if (!session) {

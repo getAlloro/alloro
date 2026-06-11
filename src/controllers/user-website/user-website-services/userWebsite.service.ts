@@ -376,7 +376,15 @@ export async function listPageVersions(orgId: number, pageId: string) {
   const versions = await db(PAGES_TABLE)
     .where({ project_id: project.id, path: page.path })
     .orderBy("version", "desc")
-    .select("id", "version", "status", "created_at", "updated_at");
+    .select(
+      "id",
+      "version",
+      "status",
+      "created_at",
+      "updated_at",
+      "change_source",
+      "revision_note"
+    );
 
   return { versions, path: page.path };
 }
@@ -484,6 +492,7 @@ export async function restorePageVersion(
     template_page_id: targetVersion.template_page_id || null,
     page_type: targetVersion.page_type || "sections",
     generation_status: "ready",
+    change_source: "restore",
   };
 
   const result = await db.transaction(async (trx) => {
