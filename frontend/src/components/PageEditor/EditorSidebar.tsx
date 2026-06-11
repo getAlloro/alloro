@@ -126,26 +126,25 @@ export default function EditorSidebar({
       {tab === "edit" ? (
         selectedInfo ? (
           <div className="flex flex-1 min-h-0 flex-col">
-            <SelectedElementEditorPanel
-              selectedInfo={selectedInfo}
-              isEditing={isEditing}
-              mediaApi={mediaApi}
-              externalAction={externalAction}
-              onExternalActionHandled={onExternalActionHandled}
-              onApplyDirectEdit={onApplyDirectEdit}
-              onToggleHidden={onToggleHidden}
-              isCanvasTextEditing={isCanvasTextEditing}
-              onLiveTextPreview={onLiveTextPreview}
-              onLiveTextRevert={onLiveTextRevert}
-              primaryColor={primaryColor}
-              accentColor={accentColor}
-            />
-
-            {/* Direct-edit hint fills the gap above the AI dropdown */}
-            <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
-              <p className="text-[11px] leading-5 text-gray-400">
-                Edit text, links, photos, color and font with the controls above —
-                or type directly on the page. Changes preview live.
+            {/* Direct controls — primary surface, scrolls independently */}
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <SelectedElementEditorPanel
+                selectedInfo={selectedInfo}
+                isEditing={isEditing}
+                mediaApi={mediaApi}
+                externalAction={externalAction}
+                onExternalActionHandled={onExternalActionHandled}
+                onApplyDirectEdit={onApplyDirectEdit}
+                onToggleHidden={onToggleHidden}
+                isCanvasTextEditing={isCanvasTextEditing}
+                onLiveTextPreview={onLiveTextPreview}
+                onLiveTextRevert={onLiveTextRevert}
+                primaryColor={primaryColor}
+                accentColor={accentColor}
+              />
+              <p className="px-5 py-4 text-[11px] leading-5 text-gray-400">
+                Tip: click text on the page to type directly. Changes preview live —
+                Save when you're happy.
               </p>
             </div>
 

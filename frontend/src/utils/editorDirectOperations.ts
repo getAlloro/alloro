@@ -119,6 +119,33 @@ export function getSelectedTextColor(selectedInfo: SelectedInfo | null): string 
   return normalizeColorForInput(el.style.color);
 }
 
+/** Human-readable current text size (e.g. "Large") or "Default". */
+export function getSelectedFontSizeLabel(selectedInfo: SelectedInfo | null): string {
+  if (!selectedInfo || !EDITOR_TEXT_TAGS.has(selectedInfo.tagName)) return "Default";
+
+  const template = document.createElement("template");
+  template.innerHTML = selectedInfo.outerHtml;
+  const el = template.content.firstElementChild;
+  if (!el) return "Default";
+
+  const cls = TEXT_SIZE_SCALE.find((c) => el.classList.contains(c));
+  if (!cls) return "Default";
+  return TEXT_SIZE_LABELS[cls] || cls.replace("text-", "");
+}
+
+const TEXT_SIZE_LABELS: Record<string, string> = {
+  "text-xs": "XS",
+  "text-sm": "Small",
+  "text-base": "Base",
+  "text-lg": "Large",
+  "text-xl": "XL",
+  "text-2xl": "2XL",
+  "text-3xl": "3XL",
+  "text-4xl": "4XL",
+  "text-5xl": "5XL",
+  "text-6xl": "6XL",
+};
+
 /** Current font-family override ("serif" | "sans") or null for theme default. */
 export function getSelectedFontFamily(
   selectedInfo: SelectedInfo | null,
