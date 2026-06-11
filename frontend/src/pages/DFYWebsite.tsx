@@ -227,6 +227,9 @@ export function DFYWebsite() {
     return () => window.removeEventListener("keydown", handleSaveShortcut);
   }, [activeView, handleSaveShortcut]);
   const deferredEditRef = useRef<DirectEditorOperation | null>(null);
+  // The element a deferred commit is pinned to (from the canvas session that
+  // emitted it) so it applies there even if the selection has moved on.
+  const deferredTargetRef = useRef<string | undefined>(undefined);
   // Tracks the page whose editor HTML is already assembled, so re-entering the
   // editor tab (e.g. from the overview) doesn't rebuild and clobber unsaved edits.
   const assembledPageIdRef = useRef<string | null>(null);
@@ -355,6 +358,7 @@ export function DFYWebsite() {
   // Quick action handler from iframe label icons
   const handleIframeQuickAction = useCallback(
     (payload: QuickActionPayload) => {
+      deferredTargetRef.current = payload.targetAlloroClass;
       if (payload.action === "rich-text" && payload.value) {
         deferredEditRef.current = {
           type: "replace-inline-html",
@@ -829,17 +833,25 @@ export function DFYWebsite() {
   );
 
   const handleApplyDirectEdit = useCallback(
-    (operation: DirectEditorOperation) => {
+    (operation: DirectEditorOperation, overrideAlloroClass?: string) => {
+      // When a commit is pinned to a specific element (committing element A
+      // while B is now selected), operate on A and DON'T write the selection
+      // back — otherwise we'd clobber B's caret/selection.
+      const isOverride =
+        !!overrideAlloroClass && overrideAlloroClass !== selectedInfo?.alloroClass;
       if (!selectedInfo) return;
+      const opInfo = isOverride
+        ? { ...selectedInfo, alloroClass: overrideAlloroClass! }
+        : selectedInfo;
 
       const iframe = iframeRef.current;
       const doc = iframe?.contentDocument;
       if (!doc) return;
 
-      const selectedElement = doc.querySelector(
-        `.${CSS.escape(selectedInfo.alloroClass)}`,
+      const targetElement = doc.querySelector(
+        `.${CSS.escape(opInfo.alloroClass)}`,
       );
-      if (selectedElement && !selectedElement.closest("[data-alloro-section]")) {
+      if (targetElement && !targetElement.closest("[data-alloro-section]")) {
         setEditError("Header/footer components can't be edited from the page editor.");
         return;
       }
@@ -850,9 +862,9 @@ export function DFYWebsite() {
         const scrollX = iframe.contentWindow?.scrollX || 0;
         const previousSections = structuredClone(sectionsRef.current);
 
-        const result = applyDirectEditorOperation(doc, selectedInfo, operation);
+        const result = applyDirectEditorOperation(doc, opInfo, operation);
         if (!result.changed) {
-          setSelectedInfo(result.selectedInfo);
+          if (!isOverride) setSelectedInfo(result.selectedInfo);
           return;
         }
         const updatedSections = extractSectionsFromDom(
@@ -870,7 +882,7 @@ export function DFYWebsite() {
         setIsDirty(true);
         setupListeners();
         iframe.contentWindow?.scrollTo(scrollX, scrollY);
-        setSelectedInfo(result.selectedInfo);
+        if (!isOverride) setSelectedInfo(result.selectedInfo);
       } catch (err) {
         setEditError(err instanceof Error ? err.message : "Direct edit failed");
       }
@@ -924,9 +936,11 @@ export function DFYWebsite() {
       pendingSidebarAction === ("__deferred__" as QuickActionType)
     ) {
       const operation = deferredEditRef.current;
+      const targetCls = deferredTargetRef.current;
       deferredEditRef.current = null;
+      deferredTargetRef.current = undefined;
       setPendingSidebarAction(null);
-      handleApplyDirectEdit(operation);
+      handleApplyDirectEdit(operation, targetCls);
     }
   }, [pendingSidebarAction, handleApplyDirectEdit]);
 

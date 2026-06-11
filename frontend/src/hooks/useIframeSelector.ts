@@ -302,6 +302,14 @@ export type QuickActionType = "text" | "rich-text" | "link" | "media" | "hide" |
 export interface QuickActionPayload {
   action: QuickActionType;
   value?: string; // For text/link — the user-entered value; for rich-text — sanitized inline HTML
+  /**
+   * The alloro class of the element the edit targets, captured when the
+   * session started. Lets the host apply the commit against THAT element even
+   * if the selection has already moved on (committing element A while
+   * re-selecting element B in the same click). Without this the deferred apply
+   * resolves against the live selection and writes A's text into B.
+   */
+  targetAlloroClass?: string;
 }
 
 /** Inline SVG icons for quick action buttons (white stroke). */
@@ -596,7 +604,13 @@ export function useIframeSelector(
         delete doc.body.dataset.alloroCanvasEditing;
         setIsCanvasTextEditing(false);
         canvasTextSessionRef.current = null;
-        quickActionRef.current?.({ action, value });
+        // Pin the commit to the element this session edited so the host applies
+        // it there regardless of what is selected when the deferred apply runs.
+        quickActionRef.current?.({
+          action,
+          value,
+          targetAlloroClass: getAlloroClass(target) || undefined,
+        });
       };
       const sharedOptions = {
         element: target,
@@ -838,7 +852,16 @@ export function useIframeSelector(
     });
 
     doc.body.addEventListener("click", (e) => {
-      if (isCanvasTextEditingActive()) return;
+      // A click while a canvas/rich session is active must COMMIT that session
+      // (pinned to its own element via makeCommitHandler) and clear the flag
+      // synchronously so THIS same click can re-select — instead of being
+      // swallowed. The session's blur also schedules finish() a tick later;
+      // that becomes a no-op via the isFinished guard.
+      if (isCanvasTextEditingActive()) {
+        canvasTextSessionRef.current?.commit();
+        canvasTextSessionRef.current = null;
+        delete doc.body.dataset.alloroCanvasEditing;
+      }
       const clickTarget = e.target as Element;
 
       // Anchors are pointer-enabled inside sections — navigation must never
@@ -891,9 +914,12 @@ export function useIframeSelector(
       if (info) setSelectedInfo(info);
       if (info?.canCanvasEditText) {
         // Capture the caret offset now (element intact, no overlay yet) so the
-        // edit caret lands exactly where the user clicked.
+        // edit caret lands exactly where the user clicked. Begin SYNCHRONOUSLY
+        // (within the click gesture) so the iframe caret actually paints —
+        // deferring with setTimeout focused outside the gesture and showed no
+        // caret.
         const caretOffset = caretCharOffsetFromPoint(doc, target, e.clientX, e.clientY);
-        window.setTimeout(() => beginCanvasTextEditing(target, caretOffset), 0);
+        beginCanvasTextEditing(target, caretOffset);
       }
     });
 

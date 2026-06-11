@@ -465,7 +465,11 @@ function PageEditorInner() {
   // Quick action triggered from iframe label icons
   const [pendingSidebarAction, setPendingSidebarAction] = useState<QuickActionType | null>(null);
   const deferredEditRef = useRef<DirectEditorOperation | null>(null);
+  // The element a deferred commit is pinned to (from the canvas session that
+  // emitted it) so it applies there even if the selection has moved on.
+  const deferredTargetRef = useRef<string | undefined>(undefined);
   const handleIframeQuickAction = useCallback((payload: QuickActionPayload) => {
+    deferredTargetRef.current = payload.targetAlloroClass;
     if (payload.action === "rich-text" && payload.value) {
       deferredEditRef.current = {
         type: "replace-inline-html",
@@ -1083,17 +1087,25 @@ function PageEditorInner() {
   );
 
   const handleApplyDirectEdit = useCallback(
-    (operation: DirectEditorOperation) => {
+    (operation: DirectEditorOperation, overrideAlloroClass?: string) => {
+      // When a commit is pinned to a specific element (committing element A
+      // while B is now selected), operate on A and DON'T write the selection
+      // back — otherwise we'd clobber B's caret/selection.
+      const isOverride =
+        !!overrideAlloroClass && overrideAlloroClass !== selectedInfo?.alloroClass;
       if (!selectedInfo) return;
+      const opInfo = isOverride
+        ? { ...selectedInfo, alloroClass: overrideAlloroClass! }
+        : selectedInfo;
 
       const iframe = iframeRef.current;
       const doc = iframe?.contentDocument;
       if (!doc) return;
 
-      const selectedElement = doc.querySelector(
-        `.${CSS.escape(selectedInfo.alloroClass)}`,
+      const targetElement = doc.querySelector(
+        `.${CSS.escape(opInfo.alloroClass)}`,
       );
-      if (selectedElement && !selectedElement.closest("[data-alloro-section]")) {
+      if (targetElement && !targetElement.closest("[data-alloro-section]")) {
         setEditError("Header/footer components can't be edited here. Use the Layout Editor from the project page.");
         return;
       }
@@ -1104,9 +1116,9 @@ function PageEditorInner() {
         const scrollX = iframe.contentWindow?.scrollX || 0;
         const previousSections = structuredClone(sectionsRef.current);
 
-        const result = applyDirectEditorOperation(doc, selectedInfo, operation);
+        const result = applyDirectEditorOperation(doc, opInfo, operation);
         if (!result.changed) {
-          setSelectedInfo(result.selectedInfo);
+          if (!isOverride) setSelectedInfo(result.selectedInfo);
           return;
         }
         const updatedSections = extractSectionsFromDom(doc, sectionsRef.current);
@@ -1117,7 +1129,7 @@ function PageEditorInner() {
         setIsDirty(true);
         setupListeners();
         iframe.contentWindow?.scrollTo(scrollX, scrollY);
-        setSelectedInfo(result.selectedInfo);
+        if (!isOverride) setSelectedInfo(result.selectedInfo);
       } catch (err) {
         setEditError(err instanceof Error ? err.message : "Direct edit failed");
       }
@@ -1129,9 +1141,11 @@ function PageEditorInner() {
   useEffect(() => {
     if (deferredEditRef.current && pendingSidebarAction === ("__deferred__" as QuickActionType)) {
       const operation = deferredEditRef.current;
+      const targetCls = deferredTargetRef.current;
       deferredEditRef.current = null;
+      deferredTargetRef.current = undefined;
       setPendingSidebarAction(null);
-      handleApplyDirectEdit(operation);
+      handleApplyDirectEdit(operation, targetCls);
     }
   }, [pendingSidebarAction, handleApplyDirectEdit]);
 
