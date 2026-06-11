@@ -1274,6 +1274,23 @@ mark.hl {
     inset 0 0 0 1px rgba(214, 104, 83, 0.24);
 }
 
+.editor-cobalt .page-version-action {
+  background: var(--ec-control);
+  color: var(--ec-text-2);
+}
+
+.editor-cobalt .page-version-action:hover {
+  background: var(--ec-border-strong);
+  color: var(--ec-text);
+}
+
+.editor-cobalt .page-version-action.page-version-action--active,
+.editor-cobalt .page-version-action.page-version-action--active:hover {
+  background: rgba(214, 104, 83, 0.28) !important;
+  color: #fff3ee !important;
+  box-shadow: inset 0 0 0 1px rgba(214, 104, 83, 0.48);
+}
+
 /* Hide the global support FAB while a full-screen editor is open so it
    never overlaps the sidebar. Editors toggle the body attribute on mount. */
 body[data-editor-fullscreen="true"] [data-support-capture-exclude] {
