@@ -189,10 +189,10 @@ function renderShortcodePlaceholders(html: string): string {
     const label = prettyShortcodeLabel(type, raw);
     const guidance =
       type === "menu"
-        ? "This menu's design can't be edited here — manage its links from the Menus tab."
+        ? "The design for this menu is managed by Alloro — manage its links from the Menus tab."
         : type === "review_block"
-          ? "This block's design can't be edited here — your reviews flow in automatically."
-          : "This block's design can't be edited here — add or update its content from the Posts tab.";
+          ? "The design for this block is managed by Alloro — your reviews flow in automatically."
+          : "The design for this block is managed by Alloro — add or update its content from the Posts tab.";
     // Brace/bracket entities are LOAD-BEARING, not cosmetic: the assembled
     // page string is sent to the server-side shortcode resolver
     // (resolve-preview), whose regexes match raw {{ … }} / [ … ] tokens
@@ -228,10 +228,9 @@ function renderShortcodePlaceholders(html: string): string {
       `text-transform:uppercase;letter-spacing:0.08em;font-size:12px;` +
       `font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;">` +
       `${label}</div>` +
-      `<div style="font-size:13px;color:#4b5563;margin-bottom:10px;` +
+      `<div style="font-size:13px;color:#4b5563;` +
       `font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;">` +
       `${guidance}</div>` +
-      `<div style="font-size:11px;opacity:0.55;">${escapedRaw}</div>` +
       `</div>`
     );
   };
