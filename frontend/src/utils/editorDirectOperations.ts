@@ -227,11 +227,12 @@ export function getSelectedAltText(selectedInfo: SelectedInfo | null): string {
 
 export function getSelectedTextValue(selectedInfo: SelectedInfo | null): string {
   if (!selectedInfo || !EDITOR_TEXT_TAGS.has(selectedInfo.tagName)) return "";
+  if (selectedInfo.draftText !== undefined) return selectedInfo.draftText;
 
   const template = document.createElement("template");
   template.innerHTML = selectedInfo.outerHtml;
   const text = template.content.firstElementChild?.textContent || "";
-  return text.replace(/\s+/g, " ").trim();
+  return text.replace(/\s+/g, " ").replace(/^\s+/, "");
 }
 
 export function normalizeEditorHref(rawHref: string): string {

@@ -463,6 +463,12 @@
         <p><strong>Reason:</strong> User QA: the floating white toolbar still overlapped the selected eyebrow/text element in the scaled preview.</p>
         <p><strong>Updated Done criteria:</strong> the React inline toolbar must clear selected text elements in desktop scaled preview, including compact eyebrow text.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 19 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Removed the floating preview control surfaces now that the sidebar owns element controls. The iframe selector now keeps canvas chrome to outlines only, restores a visible dashed blue hover outline, and continues using orange for selected/editing state. Sidebar Content edits now auto-apply through the direct edit pipeline without an Apply button, and active inline canvas typing mirrors draft text into the sidebar textarea immediately.</p>
+        <p><strong>Reason:</strong> User QA: the floating controls still competed with page content, hover outlines disappeared, and sidebar text editing should be live instead of Apply-gated.</p>
+        <p><strong>Updated Done criteria:</strong> no floating canvas toolbar appears; hover shows dashed blue outline; selected/editing state stays orange; sidebar Content typing applies immediately and inline canvas typing updates the sidebar field while typing.</p>
+      </article>
     </section>
   </main>
 </body>
