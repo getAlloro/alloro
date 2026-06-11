@@ -32,8 +32,11 @@ const MONTH_SHORT = [
  * "YYYY-MM" keys (PMSVisualPillars formats months before passing them
  * down). Parse both forms — same dual handling the retired
  * PmsDashboardSurface used in normalizeMonthKey.
+ *
+ * Exported: ProductionPanel (Practice Hub) reuses this as the canonical
+ * month-key parser so its YTD filter works on BOTH formats.
  */
-function parseYM(month: string): { year: number; month: number } | null {
+export function parseYM(month: string): { year: number; month: number } | null {
   const m = /^(\d{4})-(\d{2})/.exec(month);
   if (m) return { year: Number(m[1]), month: Number(m[2]) };
   const parsed = new Date(`${month} 1`);

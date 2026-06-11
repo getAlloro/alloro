@@ -18,6 +18,7 @@
 
 import { db } from "../../database/connection";
 import { aggregatePmsData } from "../pms/pmsAggregator";
+import { compareMonthKeys } from "../pms/monthKey";
 import { fetchRybbitMonthlyComparison } from "../rybbit/service.rybbit-data";
 import { fetchGBPDataForRange } from "../dataAggregation/dataAggregator";
 import { listLocalPostsInRange } from "../../controllers/gbp/gbp-services/post-handler.service";
@@ -576,8 +577,10 @@ async function buildPmsMetrics(
     // Production change 30d: compare last month vs prior month within aggregated months.
     let productionChange30d: number | null = null;
     if (aggregated.months.length >= 2) {
+      // Chronological — labeled month keys ("Apr 2026") sort alphabetically
+      // with localeCompare, which compared the wrong month pair (+0% deltas).
       const sorted = [...aggregated.months].sort((a, b) =>
-        a.month.localeCompare(b.month)
+        compareMonthKeys(a.month, b.month)
       );
       const last = sorted[sorted.length - 1];
       const prev = sorted[sorted.length - 2];
@@ -604,7 +607,7 @@ async function buildPmsMetrics(
 
     // Extract current (latest) month values for grounding monthly claims.
     const sortedMonths = [...aggregated.months].sort((a, b) =>
-      a.month.localeCompare(b.month)
+      compareMonthKeys(a.month, b.month)
     );
     const latestMonth = sortedMonths.length > 0 ? sortedMonths[sortedMonths.length - 1] : null;
 

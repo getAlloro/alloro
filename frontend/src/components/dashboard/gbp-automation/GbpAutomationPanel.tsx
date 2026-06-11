@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertCircle } from "lucide-react";
 import { toast } from "react-hot-toast";
 import {
@@ -20,18 +20,56 @@ import { GbpSettingsSection } from "./GbpSettingsSection";
 export type GbpAutomationPanelProps = {
   organizationId: number | null;
   locationId?: number | null;
+  /**
+   * Promotion props for the standalone /gbp-manager page. All optional —
+   * omitting them preserves the panel's original embedded behavior.
+   * Spec: plans/06102026-reviews-posts-page (T1/T4).
+   */
+  /** Controlled view: when provided, the page owns the active tab. */
+  view?: ClientGbpView;
+  onViewChange?: (view: ClientGbpView) => void;
+  /** Suppress the internal Engage title + tab chrome (readiness alert stays). */
+  hideHeader?: boolean;
+  /** Drop the monthly trend sparkline. */
+  hideTrendCard?: boolean;
+  /** Drop the inner reply-ops stat cards (the page renders its own). */
+  hideReplyOpsCards?: boolean;
+  /** Default the Needs-Reply list to a recent window of N days. */
+  reviewWindowDays?: number;
+  /** Silently pre-generate reply drafts for the newest 1–2 unreplied reviews. */
+  autoPregenerate?: boolean;
+  /**
+   * Drop the outer card chrome so inner sections sit directly in the page
+   * container (avoids card-in-card nesting on /gbp-manager).
+   */
+  frameless?: boolean;
 };
 
 const EMPTY_REVIEW_MONTHS = { needsReply: [], replied: [] };
+const PREGENERATE_LIMIT = 2;
 
-export function GbpAutomationPanel({ organizationId, locationId }: GbpAutomationPanelProps) {
+export function GbpAutomationPanel({
+  organizationId,
+  locationId,
+  view,
+  onViewChange,
+  hideHeader = false,
+  hideTrendCard = false,
+  hideReplyOpsCards = false,
+  reviewWindowDays,
+  autoPregenerate = false,
+  frameless = false,
+}: GbpAutomationPanelProps) {
   const [needsReplyMonth, setNeedsReplyMonth] = useState<string | null>(null);
   const [repliedMonth, setRepliedMonth] = useState<string | null>(null);
   const [publishedPostPage, setPublishedPostPage] = useState(1);
   const { data, isFetching, isLoading, isPlaceholderData, error, refetch } =
     useGbpAutomation(organizationId, locationId, { needsReplyMonth, repliedMonth });
   const actions = useGbpAutomationActions(organizationId, locationId);
-  const [activeView, setActiveView] = useState<ClientGbpView>("reviews");
+  const [internalView, setInternalView] = useState<ClientGbpView>("reviews");
+  // Controlled when the page provides `view`; falls back to internal state.
+  const activeView = view ?? internalView;
+  const setActiveView = onViewChange ?? setInternalView;
   const {
     data: publishedPostsData,
     isLoading: isLoadingPublishedPosts,
@@ -84,6 +122,54 @@ export function GbpAutomationPanel({ organizationId, locationId }: GbpAutomation
     const totalPages = publishedPostsData?.pagination.totalPages || 1;
     if (publishedPostPage > totalPages) setPublishedPostPage(totalPages);
   }, [publishedPostPage, publishedPostsData?.pagination.totalPages]);
+
+  // Pre-generate reply drafts (standalone page): for the newest unreplied
+  // reviews that have NEVER had a reply work item, silently run the same
+  // generateDraft action a user would click. Ref-guarded to fire at most once
+  // per location per mount (refetches change `data` identity and would
+  // otherwise re-run this); the backend's already-generating validation is
+  // the backstop. Failures are silent — manual drafting still works.
+  const pregenerateFiredFor = useRef<number | null>(null);
+  useEffect(() => {
+    if (!autoPregenerate || !locationId || !data || isPlaceholderData) return;
+    if (pregenerateFiredFor.current === locationId) return;
+    if (!data.readiness.ready || !data.settings.review_reply_enabled) return;
+
+    const reviewsWithItems = new Set(
+      data.workItems
+        .filter(
+          (item) =>
+            (!item.content_type || item.content_type === "review_reply") &&
+            item.source_review_id
+        )
+        .map((item) => item.source_review_id as string)
+    );
+    const candidates = data.eligibleReviews
+      .filter((review) => !review.has_reply && !reviewsWithItems.has(review.id))
+      .sort(
+        (a, b) =>
+          new Date(b.review_created_at ?? 0).getTime() -
+          new Date(a.review_created_at ?? 0).getTime()
+      )
+      .slice(0, PREGENERATE_LIMIT);
+
+    // Mark BEFORE firing so refetch-triggered re-runs cannot double-fire.
+    pregenerateFiredFor.current = locationId;
+    if (candidates.length === 0) return;
+
+    void (async () => {
+      for (const review of candidates) {
+        try {
+          await actions.generateDraft.mutateAsync(review.id);
+        } catch {
+          // Silent — the row's Draft reply button remains the manual path.
+        }
+      }
+    })();
+    // actions.generateDraft is intentionally omitted: mutation identity churns
+    // every render and the ref guard already makes this once-per-location.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoPregenerate, locationId, data, isPlaceholderData]);
 
   if (!organizationId || !locationId) return null;
 
@@ -197,12 +283,19 @@ export function GbpAutomationPanel({ organizationId, locationId }: GbpAutomation
   const sourceReviews = [...data.eligibleReviews, ...data.repliedReviews];
 
   return (
-    <section className="rounded-[14px] border border-slate-200 bg-white p-5 shadow-premium">
+    <section
+      className={
+        frameless
+          ? undefined
+          : "rounded-[14px] border border-slate-200 bg-white p-5 shadow-premium"
+      }
+    >
       <GbpClientAutomationHeader
         activeView={activeView}
         readiness={readiness}
         settings={data.settings}
         onViewChange={setActiveView}
+        hideChrome={hideHeader}
       />
 
       {isLoadingLocation && activeView === "reviews" ? (
@@ -211,10 +304,12 @@ export function GbpAutomationPanel({ organizationId, locationId }: GbpAutomation
         </div>
       ) : activeView === "reviews" ? (
         <>
-          <GbpEngagementTrendCard
-            needsReplyMonths={reviewMonths.needsReply}
-            repliedMonths={reviewMonths.replied}
-          />
+          {!hideTrendCard && (
+            <GbpEngagementTrendCard
+              needsReplyMonths={reviewMonths.needsReply}
+              repliedMonths={reviewMonths.replied}
+            />
+          )}
           <GbpClientReviewsPanel
             reviews={data.eligibleReviews}
             repliedReviews={data.repliedReviews}
@@ -225,7 +320,9 @@ export function GbpAutomationPanel({ organizationId, locationId }: GbpAutomation
             isReady={isReady}
             isLoading={isReviewMonthLoading}
             isBusy={isBusy}
-            replyOps={data.readiness.replyOps}
+            replyOps={hideReplyOpsCards ? undefined : data.readiness.replyOps}
+            recentWindowDays={reviewWindowDays}
+            initialNeedsReplyRange={reviewWindowDays ? "last30" : undefined}
             onGenerate={(reviewId) =>
               handle(
                 () => actions.generateDraft.mutateAsync(reviewId),

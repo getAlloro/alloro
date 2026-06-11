@@ -5,8 +5,7 @@ import {
   LayoutDashboard,
   Activity,
   Trophy,
-  CheckSquare,
-  Bell,
+  Sparkles,
   Settings as SettingsIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -23,8 +22,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Practice Hub", requiresOnboarding: false },
   { to: "/pmsStatistics", icon: Activity, label: "Referrals Hub", requiresOnboarding: true },
   { to: "/rankings", icon: Trophy, label: "Local Rankings", requiresOnboarding: true },
-  { to: "/tasks", icon: CheckSquare, label: "To-Do List", requiresOnboarding: true },
-  { to: "/notifications", icon: Bell, label: "Notifications", requiresOnboarding: true },
+  { to: "/gbp-manager", icon: Sparkles, label: "Reviews & Posts", requiresOnboarding: true },
   { to: "/settings", icon: SettingsIcon, label: "Settings", requiresOnboarding: false },
 ];
 

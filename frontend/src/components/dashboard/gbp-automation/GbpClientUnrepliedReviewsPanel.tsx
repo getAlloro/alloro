@@ -35,6 +35,10 @@ export type GbpClientUnrepliedReviewsPanelProps = {
   onSaveDraft: (input: GbpDraftSaveInput) => Promise<unknown>;
   onDeployDraft: (input: GbpDraftDeployInput) => Promise<unknown>;
   onSelectedMonthChange: (month: string | null) => void;
+  /** Days covered by the recent-window range (default 30). */
+  recentWindowDays?: number;
+  /** Range tab selected on mount (default "latest"). */
+  initialRange?: GbpReviewRange;
 };
 
 const DRAFT_AVAILABLE_STATUSES = new Set(["draft", "awaiting_approval", "approved"]);
@@ -47,10 +51,13 @@ const WORK_ITEM_STATUS_PRIORITY: Record<string, number> = {
   draft: 1,
 };
 
-function isRecentReview(review: GbpReview): boolean {
+function isRecentReview(review: GbpReview, windowDays: number): boolean {
   if (!review.review_created_at) return false;
   const createdAt = new Date(review.review_created_at).getTime();
-  return Number.isFinite(createdAt) && createdAt >= Date.now() - 30 * 24 * 60 * 60 * 1000;
+  return (
+    Number.isFinite(createdAt) &&
+    createdAt >= Date.now() - windowDays * 24 * 60 * 60 * 1000
+  );
 }
 
 function selectedMonthCount(months: GbpReviewMonthBucket[], selectedMonth: string | null): number {
@@ -89,8 +96,10 @@ export function GbpClientUnrepliedReviewsPanel({
   onSaveDraft,
   onDeployDraft,
   onSelectedMonthChange,
+  recentWindowDays = 30,
+  initialRange = "latest",
 }: GbpClientUnrepliedReviewsPanelProps) {
-  const [range, setRange] = useState<GbpReviewRange>("latest");
+  const [range, setRange] = useState<GbpReviewRange>(initialRange);
   const [expandedReviewId, setExpandedReviewId] = useState<string | null>(null);
   const [generatingReviewId, setGeneratingReviewId] = useState<string | null>(null);
   const workItemByReviewId = useMemo(() => {
@@ -114,10 +123,13 @@ export function GbpClientUnrepliedReviewsPanel({
     [reviews, workItemByReviewId]
   );
   const visibleReviews = useMemo(() => {
-    if (range === "last30") return actionableReviews.filter(isRecentReview);
+    if (range === "last30")
+      return actionableReviews.filter((review) =>
+        isRecentReview(review, recentWindowDays)
+      );
     if (range === "all") return selectedMonth ? actionableReviews : [];
     return actionableReviews.slice(0, 10);
-  }, [actionableReviews, range, selectedMonth]);
+  }, [actionableReviews, range, recentWindowDays, selectedMonth]);
   const isAllLoaded = range === "all";
   const displayedReviewCount =
     isLoading && isAllLoaded
@@ -137,6 +149,7 @@ export function GbpClientUnrepliedReviewsPanel({
         count={displayedReviewCount}
         range={range}
         onRangeChange={handleRangeChange}
+        recentWindowDays={recentWindowDays}
       />
       {isAllLoaded && (
         <p className="text-right text-[11px] font-bold text-slate-500">

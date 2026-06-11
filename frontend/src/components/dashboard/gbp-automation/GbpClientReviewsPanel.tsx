@@ -8,6 +8,7 @@ import type {
 import { GbpClientRepliedReviewsPanel } from "./GbpClientRepliedReviewsPanel";
 import { GbpClientUnrepliedReviewsPanel } from "./GbpClientUnrepliedReviewsPanel";
 import { GbpReplyDraftsPanel } from "./GbpReplyDraftsPanel";
+import type { GbpReviewRange } from "./GbpReviewRangeControls";
 import type { GbpDraftDeployInput, GbpDraftSaveInput } from "./GbpReviewReplySlot";
 
 export type GbpClientReviewsPanelProps = {
@@ -48,6 +49,10 @@ export type GbpClientReviewsPanelProps = {
   onDeletePublishedReply: (reviewId: string) => Promise<unknown>;
   onNeedsReplyMonthChange: (month: string | null) => void;
   onRepliedMonthChange: (month: string | null) => void;
+  /** Days covered by the Needs-Reply recent window (default 30). */
+  recentWindowDays?: number;
+  /** Needs-Reply range tab selected on mount (default "latest"). */
+  initialNeedsReplyRange?: GbpReviewRange;
 };
 
 type ReviewsManagerTab = "needsReply" | "drafts" | "replied";
@@ -83,6 +88,8 @@ export function GbpClientReviewsPanel({
   onDeletePublishedReply,
   onNeedsReplyMonthChange,
   onRepliedMonthChange,
+  recentWindowDays,
+  initialNeedsReplyRange,
 }: GbpClientReviewsPanelProps) {
   const [activeTab, setActiveTab] = useState<ReviewsManagerTab>("needsReply");
   const sourceReviews = [...reviews, ...repliedReviews];
@@ -122,6 +129,8 @@ export function GbpClientReviewsPanel({
           onSaveDraft={onSaveDraft}
           onDeployDraft={onDeployDraft}
           onSelectedMonthChange={onNeedsReplyMonthChange}
+          recentWindowDays={recentWindowDays}
+          initialRange={initialNeedsReplyRange}
         />
       ) : activeTab === "drafts" ? (
         <GbpReplyDraftsPanel

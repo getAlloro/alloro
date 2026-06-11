@@ -69,14 +69,14 @@ function PracticeHubHeader({ firstName }: { firstName: string }) {
   return (
     <div>
       <div className="flex items-center justify-between gap-4">
-        <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#6B7280]">
+        <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-ink-muted">
           Practice Hub
         </span>
-        <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#6B7280]">
+        <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-ink-muted">
           Year to date
         </span>
       </div>
-      <h1 className="mt-3 font-display text-[34px] font-normal leading-tight tracking-tight text-[#1A1A1A]">
+      <h1 className="mt-3 font-display text-[34px] font-normal leading-tight tracking-tight text-alloro-navy">
         {getGreeting()}, {firstName}
       </h1>
     </div>

@@ -6,7 +6,7 @@ export type GbpCreatePostDraftModalProps = {
   isOpen: boolean;
   isGenerating: boolean;
   onClose: () => void;
-  onGenerate: (featuredImageUrl: string) => void | Promise<unknown>;
+  onGenerate: (featuredImageUrl: string | null) => void | Promise<unknown>;
   onUploadImage: (file: File) => Promise<string>;
 };
 
@@ -18,7 +18,9 @@ export function GbpCreatePostDraftModal({
   onUploadImage,
 }: GbpCreatePostDraftModalProps) {
   const [postImageUrl, setPostImageUrl] = useState("");
-  const canGenerate = Boolean(postImageUrl.trim()) && !isGenerating;
+  // Photo is optional — the post text matters more. Generate is only gated
+  // on not already generating.
+  const canGenerate = !isGenerating;
 
   useEffect(() => {
     if (!isOpen) setPostImageUrl("");
@@ -28,7 +30,7 @@ export function GbpCreatePostDraftModal({
 
   const handleGenerate = async () => {
     if (!canGenerate) return;
-    await onGenerate(postImageUrl.trim());
+    await onGenerate(postImageUrl.trim() || null);
     setPostImageUrl("");
     onClose();
   };
@@ -42,7 +44,8 @@ export function GbpCreatePostDraftModal({
               Create post draft
             </p>
             <p className="mt-1 text-sm font-semibold leading-6 text-slate-500">
-              Upload the image first. Alloro will generate a draft you can edit before it ever goes to Google.
+              Alloro will generate a draft you can edit before it ever goes to
+              Google. Adding a photo is optional.
             </p>
           </div>
           <button

@@ -285,9 +285,9 @@ export const WIZARD_STEPS: WizardStep[] = [
     id: "settings-integrations",
     page: "settings",
     targetSelector: "[data-wizard-target='settings-integrations']",
-    title: "Integrations & Locations",
+    title: "Google Integrations",
     description:
-      "Connect Google Business Profiles, Google Search Console, and manage your practice locations. Each location gets its own GBP connection.",
+      "Connect Google Business Profile and Search Console here. Your practice locations have their own Locations tab, where each location gets its own GBP connection.",
     scrollToElement: true,
   },
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Check,
   GripVertical,
@@ -52,6 +52,51 @@ function getFormLabel(form: WebsiteFormCatalogItem): string {
   return form.display_label || form.form_name;
 }
 
+/**
+ * Form-card title that shows an animated tooltip with the FULL label on
+ * hover/focus — but only when the text is actually truncated. Same visual
+ * language as the shared InfoTip (navy bubble + arrow, 150ms fade/slide);
+ * state-driven here because the truncation check needs a DOM measure.
+ */
+function TruncatedTitle({ text }: { text: string }) {
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+
+  const handleOpen = () => {
+    const el = textRef.current;
+    if (el && el.scrollWidth > el.clientWidth) setIsOpen(true);
+  };
+
+  return (
+    <span
+      className="relative min-w-0 flex-1"
+      onMouseEnter={handleOpen}
+      onMouseLeave={() => setIsOpen(false)}
+      onFocus={handleOpen}
+      onBlur={() => setIsOpen(false)}
+    >
+      <span
+        ref={textRef}
+        className="block truncate text-[13px] font-semibold text-gray-900"
+      >
+        {text}
+      </span>
+      <span
+        role="tooltip"
+        aria-hidden={!isOpen}
+        className={`pointer-events-none absolute left-0 top-full z-50 mt-1.5 w-max max-w-[230px] rounded-lg bg-alloro-navy px-2.5 py-1.5 text-[11px] font-medium leading-snug text-white shadow-lg transition-[opacity,transform,visibility] duration-150 ease-out ${
+          isOpen
+            ? "visible translate-y-0 opacity-100"
+            : "invisible -translate-y-1 opacity-0"
+        }`}
+      >
+        <span className="absolute bottom-full left-3 h-0 w-0 border-[5px] border-transparent border-b-alloro-navy" />
+        {text}
+      </span>
+    </span>
+  );
+}
+
 type SortableFormCardProps = {
   form: WebsiteFormCatalogItem;
   isActive: boolean;
@@ -101,7 +146,7 @@ function SortableFormCard({
               }
             }
       }
-      className={`rounded-lg border p-3 text-left transition ${
+      className={`rounded-lg border p-2.5 text-left transition ${
         isActive
           ? "border-alloro-orange bg-white shadow-sm"
           : "border-gray-200 bg-white hover:border-gray-300"
@@ -156,14 +201,12 @@ function SortableFormCard({
                   title={`${form.unread_count} unread`}
                 />
               )}
-              <span className="truncate text-sm font-semibold text-gray-900">
-                {getFormLabel(form)}
-              </span>
+              <TruncatedTitle text={getFormLabel(form)} />
             </div>
             <p className="mt-0.5 truncate text-[10px] text-gray-400">
               {form.form_name}
             </p>
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-0.5 text-[11px] text-gray-500">
               {form.submission_count} submissions · {formatLastSeen(form.last_seen)}
             </p>
           </div>
@@ -221,9 +264,9 @@ function SortableFormCard({
         </div>
       </div>
 
-      <div className="mt-2 flex justify-end">
+      <div className="mt-1.5 flex justify-end">
         <span
-          className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+          className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
             hasCustomRoute(form)
               ? "bg-alloro-orange/10 text-alloro-orange"
               : "bg-gray-100 text-gray-500"
@@ -282,8 +325,8 @@ export function FormSubmissionsSidebar({
   };
 
   return (
-    <aside className="flex min-h-[620px] flex-col border-b border-gray-100 bg-gray-50/60 lg:border-b-0 lg:border-r">
-      <div className="border-b border-gray-100 p-4">
+    <aside className="flex min-h-[520px] flex-col border-b border-gray-100 bg-gray-50/60 lg:border-b-0 lg:border-r">
+      <div className="border-b border-gray-100 p-3">
         <div className="flex items-center gap-2">
           <SlidersHorizontal className="h-4 w-4 text-alloro-orange" />
           <h3 className="text-sm font-semibold text-gray-900">Forms</h3>
@@ -338,15 +381,12 @@ export function FormSubmissionsSidebar({
         <button
           type="button"
           onClick={onOpenSettings}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:border-gray-300 hover:bg-gray-50"
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:border-gray-300 hover:bg-gray-50"
           title="Open form recipient settings"
         >
           <Settings className="h-4 w-4" />
           Settings
         </button>
-        <p className="mt-2 text-center text-[11px] text-gray-400">
-          Defaults are fallback recipients for new forms.
-        </p>
       </div>
     </aside>
   );

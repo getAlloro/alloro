@@ -1128,7 +1128,7 @@ export function DFYWebsite() {
   // Shared dashboard header (intro heading + pill tabs + site actions). Rendered
   // INSIDE each non-editor view's scroll area so it scrolls instead of sticking.
   const dashboardHeader = (
-    <div className="mx-auto w-full max-w-[1320px] px-4 pt-8 sm:px-6 lg:px-8 lg:pt-10">
+    <div className="mx-auto w-full max-w-[960px] px-4 pt-8 sm:px-6 lg:px-8 lg:pt-10">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-alloro-navy/45">
@@ -1302,7 +1302,7 @@ export function DFYWebsite() {
       ) : activeView === "submissions" ? (
         <div className="flex-1 overflow-y-auto bg-alloro-bg" data-wizard-target="website-submissions">
           {dashboardHeader}
-          <div className="mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-6 lg:px-8">
+          <div className="mx-auto w-full max-w-[960px] px-4 py-6 sm:px-6 lg:px-8">
           {project && (
             <>
               <FormSubmissionsTab
@@ -1339,7 +1339,7 @@ export function DFYWebsite() {
       ) : activeView === "posts" ? (
         <div className="flex-1 overflow-y-auto bg-alloro-bg">
           {dashboardHeader}
-          <div className="mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-6 lg:px-8">
+          <div className="mx-auto w-full max-w-[960px] px-4 py-6 sm:px-6 lg:px-8">
           {project && project.template_id && (
             <PostsTab
               projectId={project.id}
@@ -1363,7 +1363,7 @@ export function DFYWebsite() {
       ) : activeView === "menus" ? (
         <div className="flex-1 overflow-y-auto bg-alloro-bg">
           {dashboardHeader}
-          <div className="mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-6 lg:px-8">
+          <div className="mx-auto w-full max-w-[960px] px-4 py-6 sm:px-6 lg:px-8">
           {project && (
             <MenusTab
               projectId={project.id}

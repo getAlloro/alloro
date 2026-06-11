@@ -153,12 +153,12 @@ export default function Dashboard() {
   });
 
   return (
-    <div className="w-full max-w-[1600px] mx-auto min-h-screen flex flex-col bg-[#F7F5F3] font-body text-alloro-navy">
+    <div className="w-full max-w-[1600px] mx-auto min-h-screen flex flex-col bg-alloro-bg font-body text-alloro-navy">
       {/* Show loading state while checking onboarding */}
       {!ready || checkingOnboarding || (!selectedLocation && !isWizardActive) ? (
         <CogitatingLoader />
       ) : clientLoading ? (
-        <div className="h-full flex items-center justify-center bg-[#F7F5F3]">
+        <div className="h-full flex items-center justify-center bg-alloro-bg">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-4 border-alloro-orange/20 border-t-alloro-orange mx-auto mb-4"></div>
             <p className="text-slate-600 font-medium">Resolving client access...</p>

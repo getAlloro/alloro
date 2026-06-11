@@ -69,15 +69,11 @@ async function assertOrganizationActive(organizationId: number): Promise<void> {
   }
 }
 
-function requireFeaturedImageUrl(value: unknown): string {
-  const featuredImageUrl = sanitizeGbpUrl(value);
-  if (!featuredImageUrl) {
-    throw new GbpAutomationError(
-      "GBP_POST_IMAGE_REQUIRED",
-      "Upload a post image before creating a GBP post draft."
-    );
-  }
-  return featuredImageUrl;
+// Photo is OPTIONAL for GBP posts (text matters more; Google accepts
+// text-only STANDARD posts). Sanitizes when present, null otherwise.
+// plans/06102026-reviews-posts-page (T5).
+function optionalFeaturedImageUrl(value: unknown): string | null {
+  return sanitizeGbpUrl(value) || null;
 }
 
 function localPostPayload(
@@ -177,7 +173,7 @@ async function generateDistinctLocalPost(
 async function generateSafeLocalPost(
   systemPrompt: string,
   generationInput: Record<string, unknown>,
-  featuredImageUrl: string,
+  featuredImageUrl: string | null,
   previousDraftContent?: string | null
 ): Promise<LocalPostOutput> {
   let draft = await generateDistinctLocalPost(
@@ -225,7 +221,7 @@ export class GbpLocalPostDraftService {
     location: ILocation;
     review: IReview;
     settings?: IGbpAutomationSettings;
-    featuredImageUrl: string;
+    featuredImageUrl: string | null;
     previousDraftContent?: string | null;
   }): Promise<{
     draftContent: string;
@@ -303,7 +299,7 @@ export class GbpLocalPostDraftService {
     userId: number | null;
     actorEmail?: string | null;
     generationWindow?: string | null;
-    featuredImageUrl: string;
+    featuredImageUrl: string | null;
   }): Promise<IGbpWorkItem> {
     await assertOrganizationActive(params.organizationId);
 
@@ -341,7 +337,7 @@ export class GbpLocalPostDraftService {
     if (!organization || !location) {
       throw new GbpAutomationError("GBP_CONTEXT_MISSING", "GBP post context is incomplete.");
     }
-    const featuredImageUrl = requireFeaturedImageUrl(params.featuredImageUrl);
+    const featuredImageUrl = optionalFeaturedImageUrl(params.featuredImageUrl);
     const draft = await this.generateLocalPostDraft({
       organization,
       location,
@@ -402,7 +398,7 @@ export class GbpLocalPostDraftService {
     userId: number | null;
     actorEmail?: string | null;
     accessibleLocationIds?: number[];
-    featuredImageUrl: string;
+    featuredImageUrl: string | null;
   }): Promise<IGbpWorkItem> {
     ensureLocationAccess(params.locationId, params.accessibleLocationIds);
 
@@ -421,7 +417,7 @@ export class GbpLocalPostDraftService {
     actorEmail?: string | null;
     accessibleLocationIds?: number[];
     generationWindow?: string | null;
-    featuredImageUrl: string;
+    featuredImageUrl: string | null;
   }): Promise<IGbpWorkItem> {
     ensureLocationAccess(params.locationId, params.accessibleLocationIds);
     const candidates = await ReviewModel.findLocalPostCandidatesForLocation(params.locationId, {
@@ -456,7 +452,7 @@ export class GbpLocalPostDraftService {
     if (item.status === "published" || item.status === "deploying") {
       throw new GbpAutomationError("INVALID_STATUS", "This post draft cannot be edited now.");
     }
-    const featuredImageUrl = requireFeaturedImageUrl(
+    const featuredImageUrl = optionalFeaturedImageUrl(
       params.featuredImageUrl ?? item.featured_image_url
     );
     const draftContent = cleanManualPostContent(params.draftContent);
@@ -524,7 +520,7 @@ export class GbpLocalPostDraftService {
     if (!review || !organization || !location) {
       throw new GbpAutomationError("GBP_CONTEXT_MISSING", "GBP post context is incomplete.");
     }
-    const featuredImageUrl = requireFeaturedImageUrl(
+    const featuredImageUrl = optionalFeaturedImageUrl(
       item.featured_image_url
     );
     const draft = await this.generateLocalPostDraft({
@@ -587,7 +583,7 @@ export class GbpLocalPostDraftService {
     }
 
     try {
-      const featuredImageUrl = requireFeaturedImageUrl(item.featured_image_url);
+      const featuredImageUrl = optionalFeaturedImageUrl(item.featured_image_url);
       const candidates = await ReviewModel.findLocalPostCandidatesForLocation(
         item.location_id,
         { limit: 25 }

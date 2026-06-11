@@ -151,7 +151,8 @@ export type GbpPublishedLocalPostsResponse = {
 export type GbpPublishedLocalPostInput = {
   name: string;
   summary: string;
-  featuredImageUrl: string;
+  // Empty/null = text-only post (an existing image can only be replaced).
+  featuredImageUrl: string | null;
 };
 
 export type GbpPostMediaUpload = {
@@ -311,7 +312,7 @@ export async function generateGbpReplyDraft(reviewId: string, locationId: number
 export async function createGbpPostDraftFromReview(
   reviewId: string,
   locationId: number,
-  featuredImageUrl: string
+  featuredImageUrl: string | null
 ) {
   return unwrap<GbpWorkItem>(
     await apiPost({
@@ -323,7 +324,8 @@ export async function createGbpPostDraftFromReview(
 
 export async function generateGbpPostDraftNow(
   locationId: number,
-  featuredImageUrl: string
+  // Photo is optional — posts can be text-only.
+  featuredImageUrl: string | null
 ) {
   return unwrap<GbpWorkItem>(
     await apiPost({

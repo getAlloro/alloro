@@ -8,6 +8,8 @@ import {
   useWizardDemoData,
 } from "../../../contexts/OnboardingWizardContext";
 import { FocusTrendChart, type FocusTrendDatum } from "./FocusTrendChart";
+import { parseYM } from "../../PMS/dashboard/pmsPeriod";
+import { TONE_COLOR } from "./statusRules";
 
 /**
  * ProductionPanel — the single year-to-date production chart that anchors
@@ -17,19 +19,16 @@ import { FocusTrendChart, type FocusTrendDatum } from "./FocusTrendChart";
  *   - usePmsKeyData → months[] (YTD total + the charted series)
  *   - useDashboardMetrics → pms.production_change_30d (the trend pill)
  *
- * The "YEAR TO DATE" framing is a static label; the trend pill is
- * month-over-month (`production_change_30d`) and is explicitly labeled
- * "vs last mo" so it isn't misread as a YTD growth figure.
+ * YTD means Jan 1 → today, strictly: only current-year months are summed
+ * and charted. A practice with only prior-year data gets an honest
+ * "no {year} data yet" state instead of an all-time sum mislabeled YTD.
+ *
+ * The trend pill is month-over-month (`production_change_30d`) and is
+ * explicitly labeled "vs last mo" so it isn't misread as YTD growth.
  *
  * Spec: plans/06092026-practice-hub-simplification/spec.html (T3)
+ *       plans/06112026-design-consistency-pass (tokens + YTD honesty)
  */
-
-const CARD_BG = "#FDFDFD";
-const CARD_BORDER = "#E8E4DD";
-const INK = "#1F1B16";
-const MUTED = "#8E8579";
-const PMS_GREEN = "#4F8A5B";
-const SPECTRAL = "'Spectral', Georgia, Cambria, 'Times New Roman', serif";
 
 const MONTH_SHORT = [
   "Jan",
@@ -46,11 +45,18 @@ const MONTH_SHORT = [
   "Dec",
 ];
 
+// Month keys arrive as EITHER "2026-04" or display labels ("Apr 2026")
+// depending on the upload path — parseYM handles both. A naive
+// startsWith(year) filter silently matched nothing for labeled months and
+// fell back to an all-time sum mislabeled YTD (the "$2.2M" bug).
 function monthShort(month: string): string {
-  const m = /^(\d{4})-(\d{2})/.exec(month);
-  if (!m) return month;
-  const idx = parseInt(m[2], 10) - 1;
-  return idx >= 0 && idx < 12 ? MONTH_SHORT[idx] : month;
+  const p = parseYM(month);
+  return p && p.month >= 1 && p.month <= 12 ? MONTH_SHORT[p.month - 1] : month;
+}
+
+function monthSortKey(month: string): number {
+  const p = parseYM(month);
+  return p ? p.year * 100 + p.month : 0;
 }
 
 function compactCurrency(value: number): string {
@@ -66,14 +72,8 @@ type MonthRow = { month: string; productionTotal: number; totalReferrals: number
 
 function Eyebrow() {
   return (
-    <div
-      className="mb-2.5 flex items-center gap-2 font-bold uppercase"
-      style={{ color: MUTED, fontSize: 10, letterSpacing: "0.16em" }}
-    >
-      <span
-        className="inline-block rounded-full"
-        style={{ width: 6, height: 6, background: INK }}
-      />
+    <div className="mb-2.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-ink-muted">
+      <span className="inline-block h-1.5 w-1.5 rounded-full bg-alloro-navy" />
       Production · Year to date
     </div>
   );
@@ -83,16 +83,18 @@ function Shell({ children }: { children: ReactNode }) {
   return (
     <section
       data-wizard-target="dashboard-pms"
-      className="flex flex-col"
-      style={{
-        background: CARD_BG,
-        border: `1px solid ${CARD_BORDER}`,
-        borderRadius: 14,
-        padding: "24px 24px 22px",
-      }}
+      className="flex flex-col rounded-[14px] border border-line-soft bg-white px-6 pb-[22px] pt-6 shadow-premium"
     >
       {children}
     </section>
+  );
+}
+
+function EmptyState({ children }: { children: ReactNode }) {
+  return (
+    <div className="mt-2 flex h-[150px] items-center justify-center rounded-[10px] border border-dashed border-line-soft px-6 text-center text-[13px] font-medium text-ink-muted">
+      {children}
+    </div>
   );
 }
 
@@ -126,25 +128,21 @@ export function ProductionPanel() {
     );
   }
 
-  // Current-year window for the YTD total + the charted series.
-  const currentYear = String(new Date().getFullYear());
-  const ytdMonths = months
-    .filter((m) => m.month.startsWith(currentYear))
-    .sort((a, b) => a.month.localeCompare(b.month));
-  // Fall back to all available months if no current-year rows exist yet
-  // (e.g. early January, or a practice that only uploaded prior-year data).
-  const series = ytdMonths.length > 0 ? ytdMonths : [...months].sort((a, b) => a.month.localeCompare(b.month));
+  // YTD = Jan 1 → today. Current-year rows only — no all-time fallback.
+  const currentYear = new Date().getFullYear();
+  const series = months
+    .filter((m) => parseYM(m.month)?.year === currentYear)
+    .sort((a, b) => monthSortKey(a.month) - monthSortKey(b.month));
 
   if (series.length === 0) {
     return (
       <Shell>
         <Eyebrow />
-        <div
-          className="mt-2 flex h-[150px] items-center justify-center rounded-[10px] border border-dashed text-[13px] font-medium"
-          style={{ borderColor: CARD_BORDER, color: MUTED }}
-        >
-          Upload PMS data to see your production trend.
-        </div>
+        <EmptyState>
+          {months.length > 0
+            ? `No ${currentYear} data yet — your year-to-date trend starts with your first ${currentYear} upload.`
+            : "Upload PMS data to see your production trend."}
+        </EmptyState>
       </Shell>
     );
   }
@@ -166,31 +164,19 @@ export function ProductionPanel() {
         <div>
           <Eyebrow />
           <div className="flex items-baseline gap-2">
-            <span
-              style={{
-                fontFamily: SPECTRAL,
-                fontWeight: 500,
-                fontSize: 40,
-                letterSpacing: "-0.02em",
-                lineHeight: 1,
-                color: INK,
-              }}
-            >
+            <span className="font-display text-[40px] font-medium leading-none tracking-[-0.02em] text-alloro-navy tabular-nums">
               {compactCurrency(ytdTotal)}
             </span>
           </div>
         </div>
         {change != null && (
           <span
-            className="font-bold"
-            style={{ fontSize: 12, color: up ? PMS_GREEN : "#B3503E" }}
+            className="text-xs font-bold"
+            style={{ color: up ? TONE_COLOR.positive : TONE_COLOR.critical }}
           >
             {up ? "▲" : "▼"} {up ? "+" : ""}
             {Math.round(change)}%
-            <span
-              className="ml-1 font-semibold uppercase"
-              style={{ fontSize: 9.5, letterSpacing: "0.1em", color: MUTED }}
-            >
+            <span className="ml-1 text-[9.5px] font-semibold uppercase tracking-[0.1em] text-ink-muted">
               vs last mo
             </span>
           </span>
@@ -200,7 +186,7 @@ export function ProductionPanel() {
       <div className="mt-5">
         <FocusTrendChart
           data={chartData}
-          color={PMS_GREEN}
+          color={TONE_COLOR.positive}
           gradientId="practice-hub-production"
           ariaLabel="Year-to-date production trend"
           emptyLabel="No production trend yet"

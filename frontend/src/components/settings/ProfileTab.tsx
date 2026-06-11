@@ -126,7 +126,7 @@ export const ProfileTab: React.FC = () => {
               <Key className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-lg font-black text-alloro-navy tracking-tight">
+              <h3 className="font-display text-lg font-medium text-alloro-navy tracking-tight">
                 {hasPassword ? "Change Password" : "Set Password"}
               </h3>
               <p className="text-sm text-slate-500">

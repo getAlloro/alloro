@@ -170,17 +170,12 @@ export function GbpSettingsSection({
   const diagnosticAction = diagnosticsActionText(readiness, prerequisitesReady);
 
   return (
-    <section className="rounded-2xl border border-gray-200 bg-white p-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h3 className="text-base font-bold text-gray-900">Settings</h3>
-          <p className="mt-1 text-xs font-semibold text-gray-500">
-            Next post generation: {nextPostLabel(settingsDraft.next_post_generation_at)}
-          </p>
-        </div>
-      </div>
+    <section className="rounded-[14px] border border-line-soft bg-white p-5 shadow-premium">
+      <p className="text-xs font-semibold text-gray-500">
+        Next post generation: {nextPostLabel(settingsDraft.next_post_generation_at)}
+      </p>
 
-      <div className="mt-5 space-y-5">
+      <div className="mt-4 space-y-4">
         <div className="flex items-center justify-between gap-4 rounded-xl border border-gray-200 p-4">
           <div>
             <p id="gbp-review-replies-label" className="text-sm font-bold text-gray-900">

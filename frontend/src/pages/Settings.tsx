@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Users,
   Link2,
+  MapPin,
   Shield,
   User,
 } from "lucide-react";
@@ -28,6 +29,7 @@ export const Settings: React.FC = () => {
 
   const settingsTabs = [
     { to: "/settings/integrations", icon: Link2, label: "Integrations" },
+    { to: "/settings/locations", icon: MapPin, label: "Locations" },
     { to: "/settings/users", icon: Users, label: "Users & Roles" },
     { to: "/settings/billing", icon: Shield, label: "Billing" },
     { to: "/settings/account", icon: User, label: "Account" },
@@ -37,7 +39,7 @@ export const Settings: React.FC = () => {
     <div className="min-h-screen bg-alloro-bg font-body text-alloro-textDark pb-32 selection:bg-alloro-orange selection:text-white">
       <div className="max-w-[1400px] mx-auto relative flex flex-col">
         {/* Main Content */}
-        <main className="w-full max-w-[1100px] mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-10 lg:py-16 space-y-12 lg:space-y-12">
+        <main className="w-full max-w-[960px] mx-auto px-4 sm:px-6 md:px-8 lg:px-10 py-8 lg:py-10 space-y-8">
           {/* Tabs — desktop/tablet pills */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}

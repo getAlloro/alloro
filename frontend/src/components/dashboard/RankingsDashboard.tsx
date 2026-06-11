@@ -34,10 +34,10 @@ import { CompetitorComparisonTable } from "./rankings/CompetitorComparisonTable"
 import { GbpAutomationPanel } from "./gbp-automation/GbpAutomationPanel";
 import { GbpEngagementSummaryCard } from "./gbp-automation/GbpEngagementSummaryCard";
 import { RankingsHubSurface } from "./rankings-hub/RankingsHubSurface";
-import {
-  RankingsDashboardViewTabs,
-  type RankingsDashboardView,
-} from "./rankings/RankingsDashboardViewTabs";
+// The Engage tab moved to its own page (/gbp-manager) — only the view TYPE
+// is still needed for the retained (unreachable) engage branch below.
+// plans/06102026-reviews-posts-page (T6).
+import { type RankingsDashboardView } from "./rankings/RankingsDashboardViewTabs";
 import {
   buildCompetitorComparisonRows,
   getComparisonInsight,
@@ -879,11 +879,6 @@ export function RankingsDashboard({
             </div>
           )}
         </div>
-
-        <RankingsDashboardViewTabs
-          activeView={dashboardView}
-          onViewChange={setDashboardView}
-        />
 
         {dashboardView === "overview" ? (
           <>

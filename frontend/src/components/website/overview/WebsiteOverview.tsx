@@ -273,7 +273,7 @@ export function WebsiteOverview({
   if (loading) {
     return (
       <div
-        className="pm-light mx-auto w-full max-w-[1320px] space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10"
+        className="pm-light mx-auto w-full max-w-[960px] space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10"
         data-wizard-target="website-overview"
       >
         <div className="h-[260px] animate-pulse rounded-[16px] bg-neutral-100" />
@@ -287,7 +287,7 @@ export function WebsiteOverview({
 
   return (
     <div
-      className="pm-light mx-auto w-full max-w-[1320px] space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10"
+      className="pm-light mx-auto w-full max-w-[960px] space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10"
       data-wizard-target="website-overview"
     >
       <MeaningHero

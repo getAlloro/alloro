@@ -6,6 +6,9 @@ import {
   buildCompetitorComparisonRows,
   getComparisonInsight,
 } from "../rankings/competitorComparison";
+import { ActionBanner } from "../ActionBanner";
+import { StatBox } from "../StatBox";
+import { TONE_COLOR } from "../focus/statusRules";
 import { RankingsMapCard } from "./RankingsMapCard";
 import {
   RANKING_PERIODS,
@@ -39,8 +42,7 @@ function PeriodToggle() {
   // Disabled until enough ranking history accumulates (PERIOD_TOGGLE_ENABLED).
   return (
     <div
-      className="inline-flex rounded-full p-0.5"
-      style={{ background: "#EDEAE5" }}
+      className="inline-flex rounded-full bg-[#EDEAE5] p-0.5"
       title={PERIOD_TOGGLE_ENABLED ? undefined : PERIOD_DISABLED_TOOLTIP}
     >
       {RANKING_PERIODS.map((p: RankingPeriod, i) => (
@@ -56,35 +58,6 @@ function PeriodToggle() {
           {p}
         </button>
       ))}
-    </div>
-  );
-}
-
-function StatBox({
-  label,
-  value,
-  sub,
-  tone = "ink",
-}: {
-  label: string;
-  value: ReactNode;
-  sub?: string;
-  tone?: "ink" | "warn";
-}) {
-  return (
-    <div className="rounded-[14px] border border-line-soft bg-white p-5 shadow-premium">
-      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-alloro-navy/45">
-        {label}
-      </div>
-      <div
-        className="mt-2 font-display text-2xl font-medium leading-none tracking-tight tabular-nums"
-        style={{ color: tone === "warn" ? "#B3503E" : "#1F1B16" }}
-      >
-        {value}
-      </div>
-      {sub && (
-        <div className="mt-1.5 text-[12px] font-semibold text-alloro-navy/45">{sub}</div>
-      )}
     </div>
   );
 }
@@ -135,12 +108,12 @@ export function RankingsHubSurface({
     return getComparisonInsight(rows, "mapsPosition");
   }, [result]);
 
-  const rankColor =
+  const rankColorClass =
     rank !== null && rank <= 3
-      ? "#D66853"
+      ? "text-alloro-orange"
       : rank !== null && rank <= 10
-        ? "#1F1B16"
-        : "rgba(31,27,22,0.45)";
+        ? "text-alloro-navy"
+        : "text-alloro-navy/45";
 
   const reviewsValue: ReactNode =
     reviewCount !== null && avgRating !== null ? (
@@ -168,21 +141,20 @@ export function RankingsHubSurface({
         <div className="flex flex-col justify-center">
           {status === "ok" && rank !== null ? (
             <>
-              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-alloro-navy/45">
+              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-ink-muted">
                 You rank
               </div>
               <div className="mt-1 flex items-baseline gap-3">
                 <span
-                  className="font-display text-[72px] font-medium leading-[0.85] tracking-tight tabular-nums lg:text-[88px]"
-                  style={{ color: rankColor }}
+                  className={`font-display text-[72px] font-medium leading-[0.85] tracking-tight tabular-nums lg:text-[88px] ${rankColorClass}`}
                 >
                   #{rank}
                 </span>
-                <span className="text-[13px] font-semibold text-alloro-navy/55">
+                <span className="text-[13px] font-semibold text-ink-muted">
                   of {nearby} nearby
                 </span>
               </div>
-              <p className="mt-3 text-[13px] font-medium leading-relaxed text-alloro-navy/70">
+              <p className="mt-3 text-[13px] font-medium leading-relaxed text-alloro-navy">
                 for{" "}
                 <span className="font-bold text-alloro-navy">
                   {result.searchQuery ?? "your tracked search"}
@@ -191,7 +163,7 @@ export function RankingsHubSurface({
             </>
           ) : (
             <div className="flex flex-col gap-2">
-              <span className="font-display text-3xl font-medium tracking-tight text-alloro-navy/55">
+              <span className="font-display text-3xl font-medium tracking-tight text-alloro-navy">
                 {status === "not_in_top_20"
                   ? "Not ranked in top 20"
                   : status === "bias_unavailable"
@@ -200,7 +172,7 @@ export function RankingsHubSurface({
                       ? "Google search temporarily unavailable"
                       : "Local search estimate pending"}
               </span>
-              <p className="max-w-[46ch] text-[13px] font-medium leading-relaxed text-alloro-navy/60">
+              <p className="max-w-[46ch] text-[13px] font-medium leading-relaxed text-alloro-navy">
                 for{" "}
                 <span className="font-bold text-alloro-navy">
                   {result.searchQuery ?? "your tracked search"}
@@ -243,26 +215,13 @@ export function RankingsHubSurface({
 
       {/* One action */}
       {topAction && (
-        <section
-          data-wizard-target="rankings-action"
-          className="rounded-[14px]"
-          style={{ background: "#FAF1EC", border: "1px solid #EFDED4", padding: "18px 20px" }}
-        >
-          <div
-            className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em]"
-            style={{ color: "#B3503E" }}
-          >
-            1 Action
-          </div>
-          <p className="font-display text-lg font-medium leading-snug text-alloro-navy">
-            {topAction.title}
-          </p>
-          {topAction.description && (
-            <p className="mt-1 text-[13px] leading-relaxed text-alloro-navy/55">
-              {topAction.description}
-            </p>
-          )}
-        </section>
+        <ActionBanner
+          hub="rankings-hub"
+          eyebrow="1 Action"
+          title={topAction.title}
+          description={topAction.description ?? null}
+          wizardTarget="rankings-action"
+        />
       )}
 
       {/* Bottom strip → manage competitors */}
@@ -278,12 +237,15 @@ export function RankingsHubSurface({
           className="flex w-full items-center justify-between gap-3 rounded-[14px] border border-line-soft bg-white px-5 py-4 text-left shadow-premium transition-colors hover:border-alloro-orange/40"
         >
           <span className="flex items-center gap-2.5 min-w-0">
-            <span className="h-2 w-2 shrink-0 rounded-full bg-[#4F8A5B]" />
+            <span
+              className="h-2 w-2 shrink-0 rounded-full"
+              style={{ background: TONE_COLOR.positive }}
+            />
             <span className="truncate text-[14px] font-semibold text-alloro-navy">
               {comparisonInsight}
             </span>
           </span>
-          <ChevronRight size={18} className="shrink-0 text-alloro-navy/40" />
+          <ChevronRight size={18} className="shrink-0 text-ink-muted" />
         </button>
       )}
     </div>

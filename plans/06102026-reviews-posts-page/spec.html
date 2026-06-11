@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reviews &amp; Posts Page Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Completed</span>
+      </div>
+      <h1>Reviews &amp; Posts Page</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed — user-verified 2026-06-11, committed on dev/dave</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06102026-reviews-posts-page</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Fourth and final dashboard redesign (Practice Hub → Referrals Hub → Local Rankings → <strong>Reviews &amp; Posts</strong>). The Engage workspace is buried as a secondary tab inside Local Rankings; reviews are "too important to hide behind a toggle." It becomes its own sidebar page at <code>/gbp-manager</code> — the URL three existing arrows already point at (Practice Hub Reviews card, plus the planned route reserved since redesign #1).</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Promote the existing <code>GbpAutomationPanel</code> to a standalone page with a simplified board-04 shape. Done when:</p>
+      <ul>
+        <li><code>/gbp-manager</code> renders a "Reviews &amp; Posts" page in the shared 960px container: header → navy pill tabs (Reviews · Posts · Settings, Reviews default) → per-tab content.</li>
+        <li>Reviews tab leads with three stat boxes — NEEDS REPLY (<code>N · last 60d</code>), LAST REVIEW (<code>Xd ago · keep it fresh</code>), COVERAGE (<code>NN% · replied</code>) — then the existing reviews workspace scoped to a 60-day chunk with a "view older" escape into the month-bucketed view. The trend sparkline is dropped.</li>
+        <li>On load, 1–2 reply drafts are silently pre-generated for the newest unreplied reviews without existing work items (guarded; see T4).</li>
+        <li>Posts tab is the existing posts manager with the photo now <strong>optional</strong> end-to-end (composer, work-item edit, backend validation, Google deploy payload).</li>
+        <li>"Reviews &amp; Posts" appears in the Sidebar (after Local Rankings) and MobileBottomNav; the Practice Hub Reviews card's <code>/gbp-manager</code> arrow resolves.</li>
+        <li>Local Rankings loses its Engage tab (Overview-only); no orphaned imports.</li>
+        <li>No "keywords to rank for" input exists (confirmed: none ever did). No new endpoints. <code>tsc</code> + lint clean.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/components/dashboard/gbp-automation/GbpAutomationPanel.tsx</code> (413 lines) — the engine: internal <code>activeView</code> state ("reviews" | "posts" | "settings", line 34), all mutations/dialog wiring. Reused, not rebuilt; gains additive props.</li>
+        <li><code>GbpClientAutomationHeader.tsx</code> — current internal tab header (suppressed on the new page; the page owns tabs).</li>
+        <li><code>GbpEngagementTrendCard.tsx</code> — sparkline, dropped on the new page (prop-gated).</li>
+        <li><code>GbpClientReviewsPanel.tsx</code> → <code>GbpClientUnrepliedReviewsPanel</code> (month sidebar + <code>GbpEligibleReviewRow</code> + inline reply slots) — receives the 60-day window prop.</li>
+        <li><code>GbpCreatePostDraftModal.tsx</code> (image required at line ~21) + <code>GbpLocalPostWorkItemCard.tsx</code> — photo-optional frontend.</li>
+        <li><code>frontend/src/api/gbpAutomation.ts</code> — <code>createGbpPostDraft</code>/<code>generateGbpPostDraftNow</code> take <code>featuredImageUrl: string</code> (lines ~314/326 — loosen to <code>string | null</code>); <code>GbpReadiness.replyOps</code> carries <code>replyCoveragePercent</code>; <code>GbpReview.review_created_at</code>/<code>has_reply</code> feed the client-derived stats; settings flags <code>review_reply_enabled</code> / <code>local_post_generation_enabled</code>.</li>
+        <li><code>frontend/src/hooks/queries/useGbpAutomationQueries.ts</code> — <code>useGbpAutomation</code> (same queryKey dedupe lets the page read stats without a second fetch), <code>useGbpAutomationActions.generateDraft</code> (pre-gen reuses this).</li>
+        <li><code>src/controllers/gbp-automation/feature-services/GbpLocalPostDraftService.ts</code> — <code>requireFeaturedImageUrl</code> (~line 72) throws <code>GBP_POST_IMAGE_REQUIRED</code>; relax.</li>
+        <li><code>GbpLocalPostDeploymentService.ts</code> — Google payload <code>media: [{ url }]</code> must be omitted when no image.</li>
+        <li><code>frontend/src/components/dashboard/rankings/RankingsDashboardViewTabs.tsx</code> — the navy pill-tab visual to replicate on the new page; the "engage" option is removed from rankings.</li>
+        <li><code>frontend/src/components/dashboard/RankingsDashboard.tsx</code> — engage branch render (~line 928) removed.</li>
+        <li><code>frontend/src/App.tsx</code> (ProtectedLayout routes), <code>Sidebar.tsx</code> (mainNavItems ~line 298), <code>MobileBottomNav.tsx</code>.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Shared hub container: <code>max-w-[960px] mx-auto px-4 sm:px-6 lg:px-8 space-y-6</code> (matches the other three pages; the outer Dashboard wrapper does NOT apply here — this is a standalone route, so the page provides its own <code>pt</code>).</li>
+        <li>Pill tabs: copy <code>RankingsDashboardViewTabs</code>' visual (navy active pill, icon + uppercase label) as the page's own three-tab switcher.</li>
+        <li>Stat boxes: the rankings-hub <code>StatBox</code> shape (eyebrow label, display value, muted sub).</li>
+        <li>Additive optional props only on shared components — defaults preserve existing behavior.</li>
+      </ul>
+      <p><strong>Reference files:</strong> <code>RankingsHubSurface.tsx</code> (page shape + StatBox), <code>RankingsDashboardViewTabs.tsx</code> (tab visual), <code>GbpAutomationPanel.tsx</code> (the engine being promoted).</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Reuse <code>GbpAutomationPanel</code> + children — no rebuild of the mutation/dialog wiring.</li>
+            <li>Pre-gen guards: once per mount per location (ref), cap 2, skip reviews with existing work items, only when <code>readiness.ready && settings.review_reply_enabled</code>.</li>
+            <li>Photo-optional must omit <code>media</code> from the Google payload when absent (not send null/empty).</li>
+            <li>60-day chunk derived client-side from <code>review_created_at</code>; "view older" reveals the existing month-bucketed UI.</li>
+            <li>Stat boxes read the SAME <code>useGbpAutomation</code> queryKey (no duplicate fetch).</li>
+            <li>Keep Settings reachable (third tab) — automation toggles + sync live there.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No new endpoints; no scheduler/cron for pre-gen.</li>
+            <li>No changes to reply/post deploy flows beyond photo-optional.</li>
+            <li>Do not delete <code>RankingsDashboardViewTabs</code> or <code>GbpEngagementSummaryCard</code> files (legacy branch references them); stop rendering only.</li>
+            <li>No wizard tour additions this pass (nothing currently targets Engage; adding a tour page is separate scope).</li>
+            <li>No "keywords to rank for" feature.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Backend 60d counter (client-derived instead); review-sync changes; post scheduling changes.</li>
+        <li>Wizard tour page for /gbp-manager.</li>
+        <li>Deleting legacy rankings components (separate cleanup once the redesign is confirmed).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 (new top-level route/nav + page-load LLM calls + a backend validation relaxation touching the Google deploy payload).</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>R1 — Pre-gen runaway (Level 3).</strong> Page-load LLM calls could re-fire on refetch/StrictMode/remount. <strong>Mitigation:</strong> once-per-mount-per-location ref guard; existing-work-item skip; cap 2; readiness + <code>review_reply_enabled</code> gates; backend "already generating" check is the backstop. Silent failure tolerated (user can still click Draft reply).</li>
+        <li><strong>R2 — Photo-optional payload (Level 2).</strong> <strong>Mitigation:</strong> conditional <code>media</code> in the deployment service; relax (not remove) URL sanitation; loosen the two API signatures + modal gate together so no layer still hard-requires it.</li>
+        <li><strong>R3 — Panel prop surface (Level 2).</strong> Controlled view + hide flags + window prop are additive with defaults = current behavior.</li>
+        <li><strong>R4 — 60d window vs month sidebar (Level 2).</strong> Window mode replaces the sidebar with a flat recent list + "view older" toggle back to the existing UI; no data changes.</li>
+        <li><strong>R5 — Mobile nav fit (Level 1).</strong> Verify a 4th item fits <code>MobileBottomNav</code>; truncate label if needed ("Engage").</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>GbpAutomationPanel</code>'s only consumer is RankingsDashboard's engage branch (being removed) → the new page becomes the sole consumer; additive props can't break others. Photo-optional touches draft creation + deployment for posts only (review replies untouched). Nav: App.tsx/Sidebar/MobileBottomNav additions are isolated. <code>GbpEngagementSummaryCard</code> remains legacy-only.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Pre-gen on load spends LLM tokens for any visitor with unreplied reviews. Capped at 2 and once-per-review-ever (work items persist), so worst case is bounded — but if cost telemetry later shows waste, the same code moves behind a "Generate latest" button trivially.</li>
+        <li>Tabs contradict the board's "not behind a toggle" letter — owner explicitly chose pill tabs (reviews default, so reviews are never hidden on landing). Noted as a deliberate decision.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Panel promotion props</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add optional props to <code>GbpAutomationPanel</code>: <code>view</code>/<code>onViewChange</code> (controlled view; internal state remains the uncontrolled default), <code>hideHeader</code> (suppress <code>GbpClientAutomationHeader</code>; readiness alert stays), <code>hideTrendCard</code>, <code>reviewWindowDays</code> (threads to <code>GbpClientReviewsPanel</code> → <code>GbpClientUnrepliedReviewsPanel</code>: flat list of unreplied reviews newer than N days + "View older reviews" toggle restoring the month-bucketed UI).</dd></div>
+          <div><dt>Files</dt><dd><code>gbp-automation/GbpAutomationPanel.tsx</code>, <code>GbpClientReviewsPanel.tsx</code>, <code>GbpClientUnrepliedReviewsPanel.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc</code>; defaults unchanged (no prop = today's behavior).</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: GbpManagerPage + route + nav</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New <code>pages/GbpManagerPage.tsx</code>: 960 container + own <code>pt</code>; header eyebrow "REVIEWS &amp; POSTS" + title; navy pill tabs (Reviews · Posts · Settings — visual copied from RankingsDashboardViewTabs); renders <code>GbpAutomationPanel</code> with <code>view</code> controlled by the tabs, <code>hideHeader</code>, <code>hideTrendCard</code>, <code>reviewWindowDays={60}</code>. Register <code>/gbp-manager</code> under ProtectedLayout in App.tsx. Sidebar: "Reviews &amp; Posts" item (Sparkles icon) after Local Rankings. MobileBottomNav: matching item (fit-check; shorten label if cramped).</dd></div>
+          <div><dt>Files</dt><dd><code>pages/GbpManagerPage.tsx</code> (new), <code>App.tsx</code>, <code>components/Sidebar.tsx</code>, <code>components/MobileBottomNav.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Manual: /gbp-manager renders with sidebar shell; Practice Hub Reviews arrow lands here.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Stat boxes (Reviews tab)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Three StatBoxes above the reviews workspace, derived from the SAME <code>useGbpAutomation</code> data (queryKey dedupe): NEEDS REPLY = count of <code>eligibleReviews</code> with <code>review_created_at</code> ≥ now−60d (sub "last 60d"); LAST REVIEW = days since max <code>review_created_at</code> across eligible+replied (sub "keep it fresh"; warn tone when &gt; 14d); COVERAGE = <code>readiness.replyOps.replyCoveragePercent</code> (sub "replied"). Null-safe throughout.</dd></div>
+          <div><dt>Files</dt><dd><code>pages/GbpManagerPage.tsx</code> (or a small <code>gbp-manager/</code> stats component)</dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>Manual + Network: no duplicate /gbp-automation/work-items request.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Draft pre-generation</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Effect (in the panel, behind <code>autoPregenerate</code> prop set by the page): when data settles and <code>readiness.ready && settings.review_reply_enabled</code>, take the 2 newest <code>eligibleReviews</code> lacking any work item (<code>source_review_id</code> match) and fire <code>generateDraft</code> sequentially. Ref-guarded once per mount per locationId; silent on failure; respects backend "already generating".</dd></div>
+          <div><dt>Files</dt><dd><code>gbp-automation/GbpAutomationPanel.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Manual: fresh location → exactly ≤2 generation calls, none on refetch/tab-switch/revisit.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Photo optional (frontend + backend)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Frontend: composer modal allows Generate without an image (copy says photo optional); work-item card tolerates null image; API signatures <code>createGbpPostDraft</code>/<code>generateGbpPostDraftNow</code> → <code>featuredImageUrl?: string | null</code>. Backend: <code>requireFeaturedImageUrl</code> → optional sanitize (null allowed; still validates format when present); draft service stores null; deployment service omits <code>media</code> entirely when no image. Review-reply paths untouched.</dd></div>
+          <div><dt>Files</dt><dd><code>GbpCreatePostDraftModal.tsx</code>, <code>GbpLocalPostWorkItemCard.tsx</code>, <code>api/gbpAutomation.ts</code>, <code>src/.../GbpLocalPostDraftService.ts</code>, <code>GbpLocalPostDeploymentService.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Backend <code>tsc</code>; trace: no-image draft → approve → deploy payload has no <code>media</code> key.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Remove Engage from Local Rankings</h3>
+        <dl>
+          <div><dt>Do</dt><dd>RankingsDashboard: drop the view-tabs row + engage branch + <code>GbpAutomationPanel</code>/<code>RankingsDashboardViewTabs</code> imports (files stay on disk; legacy flag branch untouched where it compiles). <code>dashboardView</code> state removed or pinned "overview".</dd></div>
+          <div><dt>Files</dt><dd><code>components/dashboard/RankingsDashboard.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2 (new home live first)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: /rankings is Overview-only; refresh/in-flight/onboarding banners intact.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: Verification</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Import/export integrity; frontend + backend <code>tsc</code>; eslint on touched files; confirm GbpAutomationPanel's sole consumer is the new page; confirm no remaining hard-require of the post image anywhere.</dd></div>
+          <div><dt>Files</dt><dd>—</dd></div>
+          <div><dt>Depends on</dt><dd>T1–T6</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> (both), eslint</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="task-card">
+        <h3>Rev 1 — 2026-06-10 (execution)</h3>
+        <ul>
+          <li>Built T1–T7 as specced. Deviations (all below Level 3):</li>
+          <li><strong>Reused the existing range mechanism</strong> for the 60-day chunk: the unreplied panel already had latest/last30/all ranges — parameterized the window (<code>recentWindowDays</code>, label follows) and defaulted the page to it via <code>initialRange</code>, instead of building a parallel "view older" system. "All loaded" is the escape hatch.</li>
+          <li><strong>One extra prop:</strong> <code>hideReplyOpsCards</code> — the inner Waiting-7d/30d/Coverage cards would duplicate the page stat boxes; the panel withholds <code>replyOps</code> when set (children unchanged).</li>
+          <li><strong>Admin surface knock-on:</strong> photo-optional propagated to <code>AdminGbpWorkItemsPanel</code>, <code>OrgGbpAutomationTab</code>'s actions hook, and <code>admin-gbp-automation.ts</code> API signatures (same shared posts manager).</li>
+          <li><strong>Header alert preserved</strong> via <code>hideChrome</code> on <code>GbpClientAutomationHeader</code> (alert-only render) rather than duplicating alert markup in the panel.</li>
+        </ul>
+        <p><strong>Build:</strong> backend <code>tsc</code> exit 0; frontend <code>tsc</code> clean for touched files (only pre-existing ai-seo-audit errors remain); eslint 0 errors (1 pre-existing warning in an untouched RankingsDashboard hook).</p>
+        <p><strong>Pending:</strong> user visual QA — /gbp-manager render, pre-gen behavior (≤2 drafts, once), 60d window, photo-less post end-to-end, rankings Overview-only.</p>
+      <article class="task-card">
+        <h3>Rev 2 — 2026-06-10 (user QA: de-nest + de-noise + sidebar)</h3>
+        <p><strong>Change:</strong> Visual-QA-driven simplification of the Engage tab surfaces and a sidebar regroup.</p>
+        <ul>
+          <li><strong>Frameless panel:</strong> new <code>frameless</code> prop on <code>GbpAutomationPanel</code> drops the outer card chrome on /gbp-manager, killing the card-in-card nesting (Posts manager and Settings each keep their own single card; review rows were already self-carded).</li>
+          <li><strong>Posts manager:</strong> title/description block removed; Published/Drafts tabs switched to the navy pill style (matching the reviews sub-tabs) and merged into one header row with a compacted Next-draft pill + Create button.</li>
+          <li><strong>Published cards:</strong> the per-card "synced from Google" boilerplate now renders only for actionable states (rejected/processing); raw image URL line removed from the uploader.</li>
+          <li><strong>Settings:</strong> redundant in-card "Settings" heading dropped (page tab already says it); spacing tightened. Shared with AdminGbpSettingsPanel (same simplification applies).</li>
+          <li><strong>Photo-optional follow-through:</strong> published-post EDITS no longer require an image for text-only posts — <code>GbpPublishedLocalPostService.update</code> + <code>buildPayload</code> + <code>mergeGooglePatchResponse</code> relaxed to <code>string | null</code>; an EXISTING image still cannot be removed (Google update API limitation — replacement only), enforced server-side with a clear error and client-side via <code>canSave</code>.</li>
+          <li><strong>Sidebar:</strong> "Websites" moved INTO the Operations group (after Reviews &amp; Posts) and relabeled "Website"; its own gating (<code>hasWebsite</code>, onboarding, submission dot) preserved.</li>
+        </ul>
+        <p><strong>Reason:</strong> User QA feedback — double-carded container padding, wordy posts/settings surfaces, sidebar grouping.</p>
+        <p><strong>Build:</strong> backend + frontend <code>tsc</code> clean; eslint 0 errors.</p>
+      <article class="task-card">
+        <h3>Rev 3 — 2026-06-11 (finalized)</h3>
+        <p>User-verified through iterative QA (page render, tabs, photo-less posts, de-nested panels). The 06112026 design-consistency pass subsequently restyled these surfaces (tokens, card recipe, shared StatBox); both plans ship in one commit because the edits interleave in the same files.</p>
+      </article>
+
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled checked> <code>npx tsc --noEmit</code> — frontend + backend, zero new errors</li>
+        <li><input type="checkbox" disabled checked> eslint clean on touched files</li>
+        <li><input type="checkbox" disabled checked> Manual: /gbp-manager renders (sidebar shell, 960 container, pill tabs, Reviews default)</li>
+        <li><input type="checkbox" disabled checked> Manual: stat boxes show 60d needs-reply / last-review countdown / coverage, no duplicate fetch</li>
+        <li><input type="checkbox" disabled checked> Manual: ≤2 drafts pre-generate once; Draft reply still works manually</li>
+        <li><input type="checkbox" disabled checked> Manual: 60d chunk + "view older" works in Needs Reply</li>
+        <li><input type="checkbox" disabled checked> Manual: post draft without a photo generates, approves, deploys (payload omits media)</li>
+        <li><input type="checkbox" disabled checked> Manual: sidebar + mobile nav items navigate and highlight; Practice Hub Reviews arrow resolves</li>
+        <li><input type="checkbox" disabled checked> Manual: /rankings is Overview-only with everything else intact</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

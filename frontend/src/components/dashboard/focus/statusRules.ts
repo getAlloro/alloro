@@ -10,12 +10,22 @@
  * Spec: plans/06092026-practice-hub-simplification/spec.html (T3)
  */
 
-export type StatusTone = "positive" | "warn" | "neutral";
+export type StatusTone = "positive" | "warn" | "critical" | "neutral";
 
-/** Dot / status-text colors per tone (warm palette, matches focus cards). */
+/**
+ * Dot / status-text colors per tone (warm palette, matches focus cards).
+ *
+ * App-wide status language (plans/06112026-design-consistency-pass):
+ *   positive (green)  = healthy / current / on track
+ *   warn     (yellow) = needs attention soon
+ *   critical (red)    = overdue / failing — act now
+ *   neutral  (stone)  = no signal yet
+ * Every hub's status dot imports from here — no ad-hoc dot colors.
+ */
 export const TONE_COLOR: Record<StatusTone, string> = {
   positive: "#4F8A5B",
   warn: "#C2891E",
+  critical: "#B0382E",
   neutral: "#A8A192",
 };
 

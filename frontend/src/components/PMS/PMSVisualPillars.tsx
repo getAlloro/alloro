@@ -1176,7 +1176,7 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
 
   if (!initialLoadComplete) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#F7F5F3]">
+      <div className="flex items-center justify-center min-h-screen bg-alloro-bg">
         <div className="text-center">
           <div className="relative flex items-center justify-center h-16 w-16 mx-auto mb-2">
             <div
@@ -1197,7 +1197,7 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
     if (!connectionStatus.gbpConnected) disconnectedServices.push("Business Profile");
 
     return (
-      <div className="min-h-screen bg-[#F8FAFC] font-body text-alloro-navy flex flex-col items-center justify-center p-8">
+      <div className="min-h-screen bg-alloro-bg font-body text-alloro-navy flex flex-col items-center justify-center p-8">
         <div className="max-w-2xl w-full">
           {/* Welcome header */}
           <div className="text-center mb-10">
@@ -1317,7 +1317,7 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
   });
 
   return (
-    <div className="pm-light min-h-screen bg-[var(--color-pm-bg-primary)] font-body text-alloro-navy">
+    <div className="pm-light min-h-screen bg-alloro-bg font-body text-alloro-navy">
       <main className="mx-auto w-full max-w-[960px] space-y-6 px-4 pb-6 sm:px-6 lg:px-8">
         {/* Cascaded dashboard alerts — stale-data alert (top) + upload nudge.
             Shared 960px container width across Practice Hub / Referrals /

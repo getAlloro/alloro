@@ -100,7 +100,7 @@ export function useGbpAutomationActions(
       onSuccess: invalidate,
     }),
     createPostDraft: useMutation({
-      mutationFn: (input: { reviewId: string; featuredImageUrl: string }) =>
+      mutationFn: (input: { reviewId: string; featuredImageUrl: string | null }) =>
         createGbpPostDraftFromReview(
           input.reviewId,
           locationId!,
@@ -109,7 +109,7 @@ export function useGbpAutomationActions(
       onSuccess: invalidate,
     }),
     generatePostDraftNow: useMutation({
-      mutationFn: (featuredImageUrl: string) =>
+      mutationFn: (featuredImageUrl: string | null) =>
         generateGbpPostDraftNow(locationId!, featuredImageUrl),
       onSuccess: invalidate,
     }),

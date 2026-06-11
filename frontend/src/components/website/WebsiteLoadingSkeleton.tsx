@@ -39,7 +39,7 @@ export function WebsiteLoadingSkeleton({ editor = false }: { editor?: boolean })
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto bg-gray-50">
-          <div className="mx-auto w-full max-w-[1320px] space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+          <div className="mx-auto w-full max-w-[960px] space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
             <div className="space-y-2">
               <div className="h-7 w-64 bg-slate-200 rounded" />
               <div className="h-4 w-80 bg-slate-100 rounded" />

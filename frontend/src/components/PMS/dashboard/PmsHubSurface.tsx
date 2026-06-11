@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { ArrowUp, ChevronRight } from "lucide-react";
+import { ActionBanner } from "../../dashboard/ActionBanner";
 import { PmsEmptyDashboardState } from "./PmsEmptyDashboardState";
 import { PmsProcessingStatusCard } from "./PmsProcessingStatusCard";
-import { PmsCardShell, PmsEyebrow } from "./primitives";
+import { PmsEyebrow } from "./primitives";
 import { PmsHubTrendChart } from "./PmsHubTrendChart";
-import { buildSourceTrendLookup } from "./sourceTrend";
+import { PmsHubTopSources } from "./PmsHubTopSources";
+import { buildSourceDetailLookup, buildSourceTrendLookup } from "./sourceTrend";
 import {
   bucketByPeriod,
   scopedTotals,
@@ -42,7 +44,7 @@ function PeriodToggle({
 }) {
   const options: Period[] = ["MONTH", "QTR", "YTD"];
   return (
-    <div className="inline-flex rounded-full p-0.5" style={{ background: "#EDEAE5" }}>
+    <div className="inline-flex rounded-full bg-[#EDEAE5] p-0.5">
       {options.map((o) => {
         const active = period === o;
         return (
@@ -53,7 +55,7 @@ function PeriodToggle({
             className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider transition-colors ${
               active
                 ? "bg-white text-alloro-navy shadow-sm"
-                : "text-[color:var(--color-pm-text-secondary)] hover:text-alloro-navy"
+                : "text-ink-muted hover:text-alloro-navy"
             }`}
           >
             {o}
@@ -118,11 +120,11 @@ function UploadCta({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block font-semibold text-alloro-navy">Upload your latest data</span>
-        <span className="block text-sm text-[color:var(--color-pm-text-secondary)]">
+        <span className="block text-sm text-ink-muted">
           Re-upload a month to overwrite it
         </span>
       </span>
-      <ChevronRight size={18} className="shrink-0 text-[color:var(--color-pm-text-secondary)]" />
+      <ChevronRight size={18} className="shrink-0 text-ink-muted" />
     </button>
   );
 }
@@ -168,6 +170,7 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
   // true year-to-date figure (totalProduction prop is all-time source sum).
   const ytd = scopedTotals(monthlyData, "YTD");
   const trendFor = buildSourceTrendLookup(referralData);
+  const detailFor = buildSourceDetailLookup(referralData);
 
   const top3 = topSources.slice(0, 3);
   const top2 = topSources.slice(0, 2);
@@ -212,7 +215,7 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
     // Inner padding here is what threw the two out of alignment.
     <div className="pm-light mx-auto w-full max-w-[960px] space-y-6">
       <div className="flex items-center justify-between gap-4">
-        <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--color-pm-text-secondary)]">
+        <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-ink-muted">
           Referrals Hub
         </span>
         <PeriodToggle period={period} onChange={handlePeriodChange} />
@@ -249,73 +252,20 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
             highlighted={isIngestionHighlighted}
           />
 
-          {top3.length > 0 && (
-            <PmsCardShell eyebrow="Top sources">
-              <div className="divide-y divide-line-soft">
-                {top3.map((s) => {
-                  const trend = trendFor(s.name);
-                  return (
-                    <div
-                      key={s.rank}
-                      className="flex items-center gap-3 py-3 first:pt-0 last:pb-0"
-                    >
-                      <span
-                        className="font-display text-lg font-medium tabular-nums"
-                        style={{
-                          width: 20,
-                          color:
-                            s.rank === 1
-                              ? "var(--color-alloro-orange)"
-                              : "var(--color-pm-text-secondary)",
-                        }}
-                      >
-                        {s.rank}
-                      </span>
-                      <span className="flex-1 truncate font-semibold text-alloro-navy">
-                        {s.name}
-                      </span>
-                      <span className="text-sm font-semibold tabular-nums text-[color:var(--color-pm-text-secondary)]">
-                        {s.referrals} · {s.percentage}%
-                      </span>
-                      <span className="w-4 text-center font-bold" style={{ color: trend.color }}>
-                        {trend.arrow}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </PmsCardShell>
-          )}
+          <PmsHubTopSources sources={top3} trendFor={trendFor} detailFor={detailFor} />
 
           {(topFix || topSources.length > 0) && (
-            <section
-              data-wizard-target="pms-insights"
-              className="rounded-[14px]"
-              style={{ background: "#FAF1EC", border: "1px solid #EFDED4", padding: "18px 20px" }}
-            >
-              <div
-                className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em]"
-                style={{ color: "#B3503E" }}
-              >
-                1 Action
-              </div>
-              {topFix ? (
-                <>
-                  <p className="font-display text-lg font-medium leading-snug text-alloro-navy">
-                    {topFix.title}
-                  </p>
-                  {topFix.description && (
-                    <p className="mt-1 text-[13px] leading-relaxed text-[color:var(--color-pm-text-secondary)]">
-                      {topFix.description}
-                    </p>
-                  )}
-                </>
-              ) : (
-                <p className="font-display text-lg font-medium leading-snug text-alloro-navy">
-                  Protect your top {top2.length} {top2.length === 1 ? "source" : "sources"} — {top2Pct}% of all referrals
-                </p>
-              )}
-            </section>
+            <ActionBanner
+              hub="referrals-hub"
+              eyebrow="1 Action"
+              title={
+                topFix
+                  ? topFix.title
+                  : `Protect your top ${top2.length} ${top2.length === 1 ? "source" : "sources"} — ${top2Pct}% of all referrals`
+              }
+              description={topFix?.description ?? null}
+              wizardTarget="pms-insights"
+            />
           )}
         </>
       )}

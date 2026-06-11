@@ -116,7 +116,7 @@ export function useAdminGbpAutomationActions(
       onSuccess: invalidate,
     }),
     generatePostDraftNow: useMutation({
-      mutationFn: (featuredImageUrl: string) =>
+      mutationFn: (featuredImageUrl: string | null) =>
         generateAdminGbpPostDraftNow(organizationId, locationId!, featuredImageUrl),
       onSuccess: invalidate,
     }),

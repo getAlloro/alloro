@@ -2,6 +2,33 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.115] - June 2026
+
+### Reviews & Posts Page + App-Wide Design Consistency
+
+The fourth dashboard redesign and the cross-app consistency pass, shipped together (interleaved edits). Reviews & Posts (Alloro Engage) is promoted out of Local Rankings into its own sidebar page at /gbp-manager, and every client surface now shares one design language: white cards on parchment, ink text, terracotta as the only accent.
+
+**Key Changes — Reviews & Posts (/gbp-manager):**
+- New standalone page: navy pill tabs (Reviews · Posts · Settings), three stat boxes (Needs reply last-60d, Last review countdown, Coverage), zero extra network requests
+- 1–2 reply drafts silently pre-generated for the newest unreplied reviews (guarded, once per location)
+- Reviews scoped to a 60-day chunk with "All loaded" escape; trend sparkline dropped
+- Post photos now OPTIONAL end-to-end (composer, edits, published-post edits, Google deploy payload omits media) — existing images replace-only
+- Engage tab removed from Local Rankings; Sidebar + mobile nav gain "Reviews & Posts"; de-nested card-in-card panels; compact posts header
+
+**Key Changes — Design Consistency:**
+- Parchment background token (#FAF8F3) app-wide; ink-muted/accent-soft tokens replace per-file hex constants; one card recipe everywhere
+- Shared ActionBanner with "Mark done" (localStorage) across all three hub 1-action banners; shared StatBox
+- Referrals top sources are now a click-in (per-source production, avg/referral, funnel %, notes)
+- Month-key sorting bug fixed backend-wide (labeled months sorted alphabetically): aggregator 12-month cap, production_change_30d (+0% deltas), "this month" grounding, per-source trends; Practice Hub YTD is strictly Jan 1 → today with honest empty state (the "$2.2M" fix)
+- To-Do List & Notifications removed from nav (routes intact); 3s notification poll deleted
+- Settings: single-column priority layout, Locations promoted to its own tab, serif display headings (font-heading was never defined), compacted
+- Website tab: all views in the shared 960px container; Submissions compacted with truncation tooltips
+- Sidebar: Settings + Log out rows replace the account card; org name under the wordmark; "Disconnect" → "Log out"
+
+**Commits:**
+- frontend: GbpManagerPage + gbp-automation panel promotion props/frameless; ActionBanner/StatBox/useActionDone/PmsHubTopSources (new); hub surfaces + focus components on tokens; Sidebar/MobileBottomNav/App routes; Settings + settings components; Website tab containers + FormSubmissions compaction; index.css tokens
+- backend: photo-optional (GbpLocalPostDraft/Deployment/PublishedLocalPost services); monthKey.ts chronological sorts in pmsAggregator + dashboard-metrics
+
 ## [0.0.114] - June 2026
 
 ### AI/SEO Audit Admin App

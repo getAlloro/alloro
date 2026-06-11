@@ -118,7 +118,7 @@ export const PropertySelectionModal: React.FC<PropertySelectionModalProps> = ({
           >
             {/* Header */}
             <div className="p-6 border-b border-slate-200 flex justify-between items-center">
-              <h3 className="text-lg font-bold text-alloro-navy font-heading">
+              <h3 className="font-display text-lg font-medium text-alloro-navy tracking-tight">
                 {title}
               </h3>
               <button

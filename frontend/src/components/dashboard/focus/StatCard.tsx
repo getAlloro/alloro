@@ -15,10 +15,8 @@ import { TONE_COLOR, type StatusTone } from "./statusRules";
  * Spec: plans/06092026-practice-hub-simplification/spec.html (T3)
  */
 
-const CARD_BG = "#FDFDFD";
-const CARD_BORDER = "#E8E4DD";
-const INK = "#1F1B16";
-const MUTED = "#8E8579";
+// Card + text colors come from the shared tokens (consistency pass);
+// only the status TONE_COLOR stays a JS constant (dot/trailing tints).
 
 export interface StatCardProps {
   /** Uppercase eyebrow, e.g. "Referrals". */
@@ -60,45 +58,34 @@ export function StatCard({
       onClick={clickable ? () => navigate(href as string) : undefined}
       tabIndex={clickable ? 0 : -1}
       aria-disabled={!clickable}
-      className={`group flex w-full flex-col items-start text-left transition-colors ${
-        clickable ? "cursor-pointer hover:border-[#D8D2C8]" : "cursor-default"
+      className={`group flex w-full flex-col items-start rounded-[14px] border border-line-soft bg-white px-[18px] pb-4 pt-[18px] text-left shadow-premium transition-colors ${
+        clickable ? "cursor-pointer hover:border-line-medium" : "cursor-default"
       }`}
-      style={{
-        background: CARD_BG,
-        border: `1px solid ${CARD_BORDER}`,
-        borderRadius: 14,
-        padding: "18px 18px 16px",
-      }}
     >
       <div className="flex w-full items-center justify-between">
         <span
-          className="inline-block rounded-full"
-          style={{ width: 7, height: 7, background: TONE_COLOR[dotTone] }}
+          className="inline-block h-[7px] w-[7px] rounded-full"
+          style={{ background: TONE_COLOR[dotTone] }}
         />
         {clickable && (
           <ArrowUpRight
             size={15}
             strokeWidth={2}
-            className="text-[#A8A192] transition-colors group-hover:text-[#1F1B16]"
+            className="text-ink-muted transition-colors group-hover:text-alloro-navy"
           />
         )}
       </div>
 
-      <span
-        className="mt-3 font-bold uppercase"
-        style={{ fontSize: 11.5, letterSpacing: "0.08em", color: INK }}
-      >
+      <span className="mt-3 text-[11.5px] font-bold uppercase tracking-[0.08em] text-alloro-navy">
         {label}
       </span>
 
-      <span className="mt-1 leading-tight" style={{ fontSize: 14 }}>
-        <span style={{ color: INK, fontWeight: 600 }}>{value}</span>
+      <span className="mt-1 text-sm leading-tight">
+        <span className="font-semibold text-alloro-navy tabular-nums">{value}</span>
         {trailing ? (
           <span
-            style={{
-              color: trailingTone ? TONE_COLOR[trailingTone] : MUTED,
-              fontWeight: trailingTone ? 600 : 400,
-            }}
+            className={trailingTone ? "font-semibold" : "font-normal text-ink-muted"}
+            style={trailingTone ? { color: TONE_COLOR[trailingTone] } : undefined}
           >
             {" · "}
             {trailing}

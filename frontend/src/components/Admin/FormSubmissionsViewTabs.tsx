@@ -30,13 +30,13 @@ export function FormSubmissionsViewTabs({
             key={tab.key}
             type="button"
             onClick={() => onChange(tab.key)}
-            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition ${
+            className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition ${
               isActive
                 ? "bg-white text-alloro-orange shadow-sm"
                 : "text-gray-500 hover:text-gray-700"
             }`}
           >
-            <Icon className="h-4 w-4" />
+            <Icon className="h-3.5 w-3.5" />
             {tab.label}
           </button>
         );

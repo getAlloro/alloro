@@ -66,7 +66,8 @@ export function GbpLocalPostWorkItemCard({
   const isGenerationFailed = generationStatus === "failed";
   const canEdit =
     item.status !== "deploying" && item.status !== "published" && !isGenerationRunning;
-  const canDeploy = canEdit && Boolean(draft.trim()) && Boolean(featuredImageUrl.trim());
+  // Photo is optional for posts — publish only requires text.
+  const canDeploy = canEdit && Boolean(draft.trim());
   const sourceReviewDate = reviewDateLabel(sourceReview?.review_created_at || null);
 
   useEffect(() => {
@@ -225,7 +226,7 @@ export function GbpLocalPostWorkItemCard({
         </button>
         <button
           type="button"
-          disabled={isBusy || isGenerating || !canEdit || !featuredImageUrl.trim()}
+          disabled={isBusy || isGenerating || !canEdit}
           onClick={handleRegenerate}
           className="inline-flex items-center gap-1.5 rounded-[9px] bg-alloro-orange px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white transition-colors hover:bg-alloro-orange/90 disabled:cursor-not-allowed disabled:opacity-50"
         >

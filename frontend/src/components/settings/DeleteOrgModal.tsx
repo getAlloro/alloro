@@ -69,7 +69,7 @@ export const DeleteOrgModal: React.FC<DeleteOrgModalProps> = ({
                 <div className="p-3 rounded-xl bg-red-50 text-red-600">
                   <AlertTriangle className="w-6 h-6" />
                 </div>
-                <h3 className="text-lg font-bold text-alloro-navy font-heading">
+                <h3 className="font-display text-lg font-medium text-alloro-navy tracking-tight">
                   Delete Organization
                 </h3>
               </div>
