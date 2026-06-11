@@ -433,6 +433,18 @@
         <p><strong>Reason:</strong> Computer-use QA on the logged-in pilot window confirmed the real state: clicking the heading selected it and focused the iframe/sidebar path, but no on-page editable textarea/contentEditable caret became usable; clicking again kept selection without inline editing.</p>
         <p><strong>Updated Done criteria:</strong> first click on editable text opens a visible inline caret/editor; second click on the same text moves/keeps the inline caret instead of dropping back to sidebar-only editing.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 14 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Fixed the iframe realm check in the inline text editor utilities. <code>canvasTextEditing</code> and <code>richTextEditing</code> now validate preview nodes against <code>element.ownerDocument.defaultView.HTMLElement</code> instead of the parent app window's <code>HTMLElement</code>, so real iframe headings/paragraphs are no longer rejected before the textarea/contentEditable session can start.</p>
+        <p><strong>Reason:</strong> Computer-use QA after Rev 13 still reproduced the bug in the logged-in pilot window: the heading selected and the toolbar appeared, but no inline editor/caret opened. The remaining failure was the cross-window <code>instanceof HTMLElement</code> guard, not deployment or branch state.</p>
+        <p><strong>Updated Done criteria:</strong> first and repeated clicks on iframe text must start/keep an active inline editor with a visible caret in the real <code>localhost:3000</code> pilot window.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 15 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Kept the mousedown-created inline editor alive through mouse release. The selector now suppresses the matching mouseup/click after it starts a canvas edit, and the plain textarea tolerates the first brief blur by refocusing during a small initial grace window.</p>
+        <p><strong>Reason:</strong> User QA after Rev 14 narrowed the failure: the caret and typing worked only while the mouse button was held, then the release/click path killed the editor and rejected subsequent keyboard input.</p>
+        <p><strong>Updated Done criteria:</strong> clicking and releasing editable preview text must leave the inline editor focused with a visible caret so normal typing continues after release.</p>
+      </article>
     </section>
   </main>
 </body>

@@ -11,7 +11,7 @@
  * evaluation), so the ESM cycle is safe and tsc-clean.
  */
 
-import { getCanvasTextEditEligibility } from "./canvasTextEditing";
+import { getCanvasTextEditEligibility, isCanvasHtmlElement } from "./canvasTextEditing";
 import { normalizeEditorHref } from "./editorDirectOperations";
 
 export const RICH_TEXT_ALLOWED_TAGS = new Set([
@@ -112,7 +112,7 @@ export function startRichTextEdit({
   onFinish,
   caretOffset,
 }: RichTextEditOptions): RichTextEditSession | null {
-  if (!(element instanceof HTMLElement)) return null;
+  if (!isCanvasHtmlElement(element)) return null;
   if (!getCanvasTextEditEligibility(element).canEdit) return null;
 
   const doc = element.ownerDocument;
