@@ -379,6 +379,12 @@
         <p><strong>Reason:</strong> User QA on the DFY editor: preview reloaded on font-size changes; inline type-on-page never engaged; requested font color + serif/sans controls.</p>
         <p><strong>Updated Done criteria:</strong> font size/color/family changes apply with no iframe reload; clicking text starts on-page typing without the sidebar stealing focus.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 5 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Loop (shortcode) duplication fix + selection scoping. Root cause of the duplicated/broken doctor & blog grids: the editor's shortcode pill carries the raw <code>&#123;&#123; post_block … &#125;&#125;</code> token in its attribute and label, and the DFY preview sends the assembled HTML through the server resolver whose regex resolved those copies <em>inside the pill</em> — injecting a rendered grid into the attribute (breaking quoting, leaking markup as text) and a duplicate grid into the pill body. Token copies are now entity-armored (braces/brackets) so resolver regexes can't match them; header/footer menu tokens stay raw and resolve normally. Extraction now also strips editor state attributes (hover/selected/editing) before persisting. Selection scoping: shortcode pills are never selectable; page editors pass <code>sectionsOnly</code> so header/footer can't be selected (Layout Editor unchanged).</p>
+        <p><strong>Reason:</strong> User QA: duplicate loop renders + leaked markup text; request to disallow editing of loops, header, and footer.</p>
+        <p><strong>Updated Done criteria:</strong> loops render once as read-only pills with no leaked markup; hover/click ignores pills and header/footer in both page editors.</p>
+      </article>
     </section>
   </main>
 </body>

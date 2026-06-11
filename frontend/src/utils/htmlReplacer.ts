@@ -152,6 +152,31 @@ function restoreShortcodeTokens(html: string): string {
   return doc.body.innerHTML;
 }
 
+/**
+ * Serialize an element for persistence: clone it, strip editor-only state
+ * attributes (selection/hover/editing markers leak into saved content and
+ * render on the public site otherwise), and restore shortcode pills back to
+ * their raw tokens.
+ */
+function serializeSectionElement(el: Element, stripSectionMarker: boolean): string {
+  const clone = el.cloneNode(true) as Element;
+  if (stripSectionMarker) {
+    clone.removeAttribute("data-alloro-section");
+  }
+  const editorAttrs = [
+    "data-alloro-hover",
+    "data-alloro-selected",
+    "data-alloro-editing",
+  ];
+  for (const attr of editorAttrs) {
+    clone.removeAttribute(attr);
+    clone.querySelectorAll(`[${attr}]`).forEach((child) => {
+      child.removeAttribute(attr);
+    });
+  }
+  return restoreShortcodeTokens(clone.outerHTML);
+}
+
 export function extractSectionsFromDom(
   iframeDoc: Document,
   currentSections: Section[]
@@ -160,14 +185,10 @@ export function extractSectionsFromDom(
     // Strategy 1: find by data-alloro-section marker (injected by renderPage)
     const markerEl = iframeDoc.querySelector(`[data-alloro-section="${CSS.escape(section.name)}"]`);
     if (markerEl) {
-      // Strip the marker attribute before persisting — it's editor-only
-      markerEl.removeAttribute("data-alloro-section");
-      let html = markerEl.outerHTML;
-      // Re-add the marker so subsequent extractions still work
-      markerEl.setAttribute("data-alloro-section", section.name);
-      // Restore any resolved shortcodes back to their original tokens
-      html = restoreShortcodeTokens(html);
-      return { ...section, content: html };
+      return {
+        ...section,
+        content: serializeSectionElement(markerEl, true),
+      };
     }
 
     // Strategy 2: fall back to alloro-tpl-* class from stored content
@@ -175,9 +196,10 @@ export function extractSectionsFromDom(
     if (alloroClass) {
       const el = iframeDoc.querySelector(`.${CSS.escape(alloroClass)}`);
       if (el) {
-        let html = el.outerHTML;
-        html = restoreShortcodeTokens(html);
-        return { ...section, content: html };
+        return {
+          ...section,
+          content: serializeSectionElement(el, false),
+        };
       }
     }
 
