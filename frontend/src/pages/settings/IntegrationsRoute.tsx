@@ -62,6 +62,7 @@ function GscSettingsSection({
       : currentOwner === "organization"
         ? "Client organization"
         : null;
+  const isAdminManaged = !!currentIntegration && currentOwner === "admin";
   const connections = connectionsQuery.data?.data ?? [];
   const selectedConnection = connections.find(
     (connection) => connection.id === selectedConnectionId,
@@ -260,7 +261,26 @@ function GscSettingsSection({
                     </div>
                   ) : null}
 
-                  {connectionsQuery.isLoading ? (
+                  {isAdminManaged ? (
+                    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                      <p className="text-sm text-slate-500">
+                        Search Console is connected and managed by your Alloro
+                        admin. No action is needed on your end.
+                      </p>
+                      <button
+                        onClick={handleGrantAccess}
+                        disabled={granting}
+                        className="mt-2 inline-flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-alloro-orange transition-colors disabled:opacity-50"
+                      >
+                        {granting ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                          <ExternalLink size={13} />
+                        )}
+                        Use your own Google account instead
+                      </button>
+                    </div>
+                  ) : connectionsQuery.isLoading ? (
                     <div className="flex items-center gap-2 text-sm text-slate-400">
                       <Loader2 size={16} className="animate-spin" />
                       Loading Google accounts...
