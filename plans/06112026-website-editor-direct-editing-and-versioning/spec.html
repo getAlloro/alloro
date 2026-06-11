@@ -373,6 +373,12 @@
         <p><strong>Reason:</strong> User QA: "reject alloro-tpl stuff and just edit elements directly, especially text inline."</p>
         <p><strong>Updated Done criteria:</strong> none added — covered by the existing "untagged p/span/a/img are selectable and editable" item, now including elements nested inside tagged ancestors.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 4 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Live editing polish, both surfaces. (1) Direct edits no longer reload the preview — the DFY editor rebuilt the iframe <code>srcDoc</code> after every in-place mutation (font-size steps flashed + scroll-jumped); both rebuild calls removed to match the admin editor's in-place model. (2) New text-style direct ops + sidebar controls: text color (brand swatches + custom picker + reset, inline <code>color</code> style) and serif/sans toggle (Tailwind <code>font-serif</code>/<code>font-sans</code> classes), live in-place. (3) Type-on-page fixed: the sidebar panel auto-focused its textarea ~50ms after selection, blurring (and committing) the just-started canvas text session — focus is now suppressed while canvas editing is active. (4) Sidebar textarea typing now live-previews into the iframe element (visual only; Apply commits, abandoning reverts the original markup).</p>
+        <p><strong>Reason:</strong> User QA on the DFY editor: preview reloaded on font-size changes; inline type-on-page never engaged; requested font color + serif/sans controls.</p>
+        <p><strong>Updated Done criteria:</strong> font size/color/family changes apply with no iframe reload; clicking text starts on-page typing without the sidebar stealing focus.</p>
+      </article>
     </section>
   </main>
 </body>
