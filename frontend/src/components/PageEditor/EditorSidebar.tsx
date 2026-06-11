@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Sparkles, ChevronDown } from "lucide-react";
+import { Sparkles, ChevronDown, Undo2, Redo2 } from "lucide-react";
 import type { SelectedInfo } from "../../hooks/useIframeSelector";
 import type { QuickActionType } from "../../hooks/useIframeSelector";
 import type { EditDebugInfo } from "../../api/websites";
@@ -60,6 +60,14 @@ export type EditorSidebarProps = {
   onLiveTextPreview?: (value: string) => void;
   /** Revert an unapplied live preview. */
   onLiveTextRevert?: () => void;
+  /** Whether an undo action is available. */
+  canUndo?: boolean;
+  /** Whether a redo action is available. */
+  canRedo?: boolean;
+  /** Undo the latest editor change. */
+  onUndo?: () => void;
+  /** Redo the latest undone editor change. */
+  onRedo?: () => void;
 };
 
 export default function EditorSidebar({
@@ -91,6 +99,10 @@ export default function EditorSidebar({
   isCanvasTextEditing = false,
   onLiveTextPreview,
   onLiveTextRevert,
+  canUndo = false,
+  canRedo = false,
+  onUndo,
+  onRedo,
 }: EditorSidebarProps) {
   const [tab, setTab] = useState<"edit" | "debug" | "history">("edit");
   const [aiOpen, setAiOpen] = useState(false);
@@ -106,19 +118,45 @@ export default function EditorSidebar({
     <div className="editor-cobalt w-[380px] shrink-0 bg-[var(--ec-base)] border-l border-[color:var(--ec-border)] flex flex-col overflow-hidden">
       {/* Header with tabs */}
       <div className="px-4 pt-3 pb-0 border-b border-gray-200">
-        <div className="flex items-center gap-4">
-          <button onClick={() => setTab("edit")} className={tabClass(tab === "edit")}>
-            Edit
-          </button>
-          {showHistory && (
-            <button onClick={() => setTab("history")} className={tabClass(tab === "history")}>
-              History
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setTab("edit")} className={tabClass(tab === "edit")}>
+              Edit
             </button>
-          )}
-          {showDebug && (
-            <button onClick={() => setTab("debug")} className={tabClass(tab === "debug")}>
-              Debug
-            </button>
+            {showHistory && (
+              <button onClick={() => setTab("history")} className={tabClass(tab === "history")}>
+                History
+              </button>
+            )}
+            {showDebug && (
+              <button onClick={() => setTab("debug")} className={tabClass(tab === "debug")}>
+                Debug
+              </button>
+            )}
+          </div>
+          {(onUndo || onRedo) && (
+            <div className="mb-2 flex items-center gap-1">
+              <button
+                type="button"
+                onClick={onUndo}
+                disabled={!canUndo}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200/60 text-gray-400 transition-colors hover:border-gray-300 hover:bg-gray-100/40 hover:text-gray-200 disabled:cursor-not-allowed disabled:opacity-30"
+                aria-label="Undo"
+                title="Undo"
+              >
+                <Undo2 className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={onRedo}
+                disabled={!canRedo}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200/60 text-gray-400 transition-colors hover:border-gray-300 hover:bg-gray-100/40 hover:text-gray-200 disabled:cursor-not-allowed disabled:opacity-30"
+                aria-label="Redo"
+                title="Redo"
+              >
+                <Redo2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
           )}
         </div>
       </div>

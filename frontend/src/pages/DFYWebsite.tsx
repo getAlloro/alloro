@@ -9,8 +9,6 @@ import {
   ArrowLeft,
   Monitor,
   Smartphone,
-  Undo2,
-  Redo2,
   RotateCcw,
   Loader2,
   Save,
@@ -94,6 +92,11 @@ const DESKTOP_SCALE = 0.7;
 const WEBSITE_TABS = ["overview", "editor", "submissions", "posts", "menus", "pages"] as const;
 type WebsiteTab = typeof WEBSITE_TABS[number];
 
+type SectionHistoryEntry = {
+  sections: Section[];
+  changedSectionNames?: string[];
+};
+
 function parseWebsiteTab(value: string | null): WebsiteTab | null {
   return WEBSITE_TABS.includes(value as WebsiteTab)
     ? (value as WebsiteTab)
@@ -134,8 +137,8 @@ export function DFYWebsite() {
   const [chatMap, setChatMap] = useState<Map<string, ChatMessage[]>>(new Map());
   const [isEditing, setIsEditing] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
-  const [undoStack, setUndoStack] = useState<Section[][]>([]);
-  const [redoStack, setRedoStack] = useState<Section[][]>([]);
+  const [undoStack, setUndoStack] = useState<SectionHistoryEntry[]>([]);
+  const [redoStack, setRedoStack] = useState<SectionHistoryEntry[]>([]);
   const [isDirty, setIsDirty] = useState(false);
   const [isResolving, setIsResolving] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -747,10 +750,25 @@ export function DFYWebsite() {
             throw new Error(`Invalid HTML: ${validation.error}`);
           }
 
-          setUndoStack((prev) => [...prev, structuredClone(sections)]);
+          const iframe = iframeRef.current;
+          const changedSectionName =
+            iframe?.contentDocument
+              ?.querySelector(`.${CSS.escape(alloroClass)}`)
+              ?.closest("[data-alloro-section]")
+              ?.getAttribute("data-alloro-section") || undefined;
+          const changedSectionNames = changedSectionName
+            ? [changedSectionName]
+            : undefined;
+
+          setUndoStack((prev) => [
+            ...prev,
+            {
+              sections: structuredClone(sections),
+              changedSectionNames,
+            },
+          ]);
           setRedoStack([]);
 
-          const iframe = iframeRef.current;
           if (iframe?.contentDocument) {
             const scrollY = iframe.contentWindow?.scrollY || 0;
             const scrollX = iframe.contentWindow?.scrollX || 0;
@@ -872,7 +890,21 @@ export function DFYWebsite() {
           sectionsRef.current,
         );
 
-        setUndoStack((prev) => [...prev, previousSections]);
+        const changedSectionName =
+          targetElement
+            ?.closest("[data-alloro-section]")
+            ?.getAttribute("data-alloro-section") || undefined;
+        const changedSectionNames = changedSectionName
+          ? [changedSectionName]
+          : undefined;
+
+        setUndoStack((prev) => [
+          ...prev,
+          {
+            sections: previousSections,
+            changedSectionNames,
+          },
+        ]);
         setRedoStack([]);
         setSections(updatedSections);
         // No rebuildHtml here — the operation already mutated the iframe DOM
@@ -949,53 +981,116 @@ export function DFYWebsite() {
     handleApplyDirectEdit({ type: "toggle-hidden" });
   }, [handleApplyDirectEdit]);
 
+  const syncPreviewDomFromSections = useCallback(
+    (nextSections: Section[], changedSectionNames?: string[]) => {
+      if (!project) return;
+
+      const buildFullHtml = () =>
+        assemblePageHtml(
+          project.wrapper || "{{slot}}",
+          project.header || "",
+          project.footer || "",
+          nextSections,
+          undefined,
+          undefined,
+          undefined,
+          project.id,
+        );
+
+      const iframe = iframeRef.current;
+      const doc = iframe?.contentDocument;
+      if (!iframe?.contentWindow || !doc?.body || !changedSectionNames?.length) {
+        setHtmlContent(buildFullHtml());
+        return;
+      }
+
+      try {
+        const scrollY = iframe.contentWindow.scrollY || 0;
+        const scrollX = iframe.contentWindow.scrollX || 0;
+        let patched = false;
+
+        for (const sectionName of changedSectionNames) {
+          const nextSection = nextSections.find(
+            (section) => section.name === sectionName,
+          );
+          const liveSection = doc.querySelector(
+            `[data-alloro-section="${CSS.escape(sectionName)}"]`,
+          );
+          if (!nextSection || !liveSection) continue;
+
+          const sectionHtml = assemblePageHtml(
+            "{{slot}}",
+            "",
+            "",
+            [nextSection],
+          );
+          const nextDoc = new DOMParser().parseFromString(
+            prepareHtmlForPreview(sectionHtml),
+            "text/html",
+          );
+          const nextSectionEl = nextDoc.querySelector(
+            `[data-alloro-section="${CSS.escape(sectionName)}"]`,
+          );
+          if (!nextSectionEl) continue;
+
+          liveSection.replaceWith(doc.importNode(nextSectionEl, true));
+          patched = true;
+        }
+
+        if (!patched) {
+          setHtmlContent(buildFullHtml());
+          return;
+        }
+
+        setupListeners();
+        iframe.contentWindow.scrollTo(scrollX, scrollY);
+      } catch (err) {
+        console.error("Failed to sync preview DOM:", err);
+        setHtmlContent(buildFullHtml());
+      }
+    },
+    [project, setupListeners],
+  );
+
   // --- Undo ---
   const handleUndo = useCallback(() => {
     if (undoStack.length === 0 || !project) return;
 
-    const previousSections = undoStack[undoStack.length - 1];
+    const previousEntry = undoStack[undoStack.length - 1];
+    const previousSections = previousEntry.sections;
     setUndoStack((prev) => prev.slice(0, -1));
-    setRedoStack((prev) => [...prev, structuredClone(sections)]);
+    setRedoStack((prev) => [
+      ...prev,
+      {
+        sections: structuredClone(sections),
+        changedSectionNames: previousEntry.changedSectionNames,
+      },
+    ]);
     setSections(previousSections);
     setIsDirty(true);
-
-    const html = assemblePageHtml(
-      project.wrapper || "{{slot}}",
-      project.header || "",
-      project.footer || "",
-      previousSections,
-      undefined,
-      undefined,
-      undefined,
-      project.id,
-    );
-    setHtmlContent(html);
     clearSelection();
-  }, [undoStack, sections, project, clearSelection]);
+    syncPreviewDomFromSections(previousSections, previousEntry.changedSectionNames);
+  }, [undoStack, sections, project, clearSelection, syncPreviewDomFromSections]);
 
   // --- Redo ---
   const handleRedo = useCallback(() => {
     if (redoStack.length === 0 || !project) return;
 
-    const nextSections = redoStack[redoStack.length - 1];
+    const nextEntry = redoStack[redoStack.length - 1];
+    const nextSections = nextEntry.sections;
     setRedoStack((prev) => prev.slice(0, -1));
-    setUndoStack((prev) => [...prev, structuredClone(sections)]);
+    setUndoStack((prev) => [
+      ...prev,
+      {
+        sections: structuredClone(sections),
+        changedSectionNames: nextEntry.changedSectionNames,
+      },
+    ]);
     setSections(nextSections);
     setIsDirty(true);
-
-    const html = assemblePageHtml(
-      project.wrapper || "{{slot}}",
-      project.header || "",
-      project.footer || "",
-      nextSections,
-      undefined,
-      undefined,
-      undefined,
-      project.id,
-    );
-    setHtmlContent(html);
     clearSelection();
-  }, [redoStack, sections, project, clearSelection]);
+    syncPreviewDomFromSections(nextSections, nextEntry.changedSectionNames);
+  }, [redoStack, sections, project, clearSelection, syncPreviewDomFromSections]);
 
   // --- Save & Publish ---
   // Note: apiPatch swallows HTTP errors and returns the error body, so the
@@ -1297,26 +1392,6 @@ export function DFYWebsite() {
               <Smartphone size={13} />
             </button>
           </div>
-          {(undoStack.length > 0 || redoStack.length > 0) && (
-            <div className="flex items-center gap-0.5">
-              <button
-                onClick={handleUndo}
-                disabled={undoStack.length === 0}
-                className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-30"
-                title="Undo"
-              >
-                <Undo2 size={13} />
-              </button>
-              <button
-                onClick={handleRedo}
-                disabled={redoStack.length === 0}
-                className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-30"
-                title="Redo"
-              >
-                <Redo2 size={13} />
-              </button>
-            </div>
-          )}
           {isDirty && (
             <button
               onClick={handleSave}
@@ -1608,6 +1683,10 @@ export function DFYWebsite() {
             isCanvasTextEditing={isCanvasTextEditing}
             onLiveTextPreview={handleLiveTextPreview}
             onLiveTextRevert={handleLiveTextRevert}
+            canUndo={undoStack.length > 0}
+            canRedo={redoStack.length > 0}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
           />
         </div>
       )}
@@ -1630,7 +1709,10 @@ export function DFYWebsite() {
         onClose={() => setRecoveryPrompt(null)}
         onConfirm={() => {
           if (recoveryPrompt) {
-            setUndoStack((prev) => [...prev, structuredClone(sectionsRef.current)]);
+            setUndoStack((prev) => [
+              ...prev,
+              { sections: structuredClone(sectionsRef.current) },
+            ]);
             setRedoStack([]);
             setSections(recoveryPrompt);
             rebuildHtml(recoveryPrompt);
