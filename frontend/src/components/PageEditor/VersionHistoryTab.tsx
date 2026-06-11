@@ -238,14 +238,12 @@ export default function VersionHistoryTab({
                     onClick={() =>
                       isPreviewing ? onExitPreview() : onPreview(version)
                     }
-                    className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-                      isPreviewing
-                        ? "bg-alloro-orange/15 text-[#f3c7b7] ring-1 ring-inset ring-alloro-orange/25 hover:bg-alloro-orange/20"
-                        : "bg-[var(--ec-control)] text-[color:var(--ec-text-2)] hover:bg-[var(--ec-border-strong)] hover:text-[color:var(--ec-text)]"
+                    className={`page-version-action flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium transition-colors ${
+                      isPreviewing ? "page-version-action--active" : ""
                     }`}
                   >
-                    <Eye size={11} />
-                    {isPreviewing ? "Previewing" : "Preview"}
+                    {isPreviewing ? <FileEdit size={11} /> : <Eye size={11} />}
+                    {isPreviewing ? "Editing" : "Preview"}
                   </button>
                 )}
                 {(version.status === "inactive" ||
