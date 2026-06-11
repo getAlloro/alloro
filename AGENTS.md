@@ -13,6 +13,16 @@ All Alloro plan folders must use the global HTML/CSS spec artifact format:
 - Use a modern black-and-white visual design with clear cards, strong type hierarchy, restrained borders, and no decorative color palettes.
 - Show the current execution status in the first hero viewport. Default new plans to `Pending Execution`, then update to `In Progress`, `Needs Revision`, `Blocked`, or `Completed` when the work state changes.
 
+### Spec Revision Log (`Rev N`) convention
+
+Any change to an existing spec — added scope, an execution-time deviation, or a QA fix round — is recorded as an append-only revision entry. This applies to every agent touching a spec, not just the one that created it.
+
+- Append exactly one `<article class="revision-entry">` per revision to the spec's `<section class="spec-card" id="revision-log">` (create the section before the closing `</main>` if it doesn't exist yet).
+- Heading format: `<h3>Rev N - YYYY-MM-DD</h3>` where `N` = highest existing Rev in the file + 1. Never renumber, rewrite, or delete earlier entries — the log is the audit trail.
+- Each entry carries three lines: `<strong>Change:</strong>` (what was done, concretely — include root causes for bug-fix rounds), `<strong>Reason:</strong>` (why — e.g. `User QA: …`, `Scope addition: …`, `Execution deviation: …`), and `<strong>Updated Done criteria:</strong>` (the new checklist expectations, or "none").
+- Tasks added by a revision are tagged `(Rev N)` in their titles, and the Done checklist gains matching items in the same edit.
+- Update the hero status pill/status card in the same edit whenever the work state changes; never create a new plan folder for a revision of an existing spec.
+
 ## Deployment Path
 
 Standard promotion path:
