@@ -403,6 +403,12 @@
         <p><strong>Reason:</strong> User QA: editing heading then paragraph carried the paragraph's content onto the heading; clicking text dropped the caret at the start instead of the click point.</p>
         <p><strong>Updated Done criteria:</strong> switching elements never carries content across; the type caret appears where the user clicks.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 9 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Regression from Rev 8 — clicking text selected the element but never entered edit mode (no caret). Two causes, both fixed: (1) <code>caretCharOffsetFromPoint</code> runs synchronously in the click handler <em>after</em> selection is set but <em>before</em> the edit is scheduled, so any throw there aborted editing while leaving the element selected — its whole body is now wrapped so it can never throw (returns null → caret falls back to select-all, editing still starts). (2) The sidebar Content field auto-focused ~50ms after selection, blurring/ending the just-started on-page caret session — it now never competes for focus when the element supports in-canvas editing (<code>canCanvasEditText</code>), with a fire-time re-check as backstop.</p>
+        <p><strong>Reason:</strong> User QA: clicking heading/paragraph/link no longer entered edit mode; caret didn't display.</p>
+        <p><strong>Updated Done criteria:</strong> clicking editable text reliably starts on-page editing with a visible caret.</p>
+      </article>
     </section>
   </main>
 </body>
