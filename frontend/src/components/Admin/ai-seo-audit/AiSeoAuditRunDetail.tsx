@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, type Variants } from "framer-motion";
 import {
   AlertTriangle,
   ChevronDown,
@@ -47,11 +47,11 @@ const FIELD_VERDICT: Record<string, { label: string; cls: string }> = {
   unavailable: { label: "Unconfirmed", cls: "text-gray-400" },
 };
 
-const container = {
+const container: Variants = {
   hidden: {},
   show: { transition: { staggerChildren: 0.05 } },
 };
-const item = {
+const item: Variants = {
   hidden: { opacity: 0, y: 10 },
   show: { opacity: 1, y: 0, transition: { duration: 0.25, ease: "easeOut" } },
 };
