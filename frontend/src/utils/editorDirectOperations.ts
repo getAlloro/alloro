@@ -50,7 +50,49 @@ const TEXT_SIZE_SCALE = [
   "text-4xl",
   "text-5xl",
   "text-6xl",
+  "text-7xl",
+  "text-8xl",
+  "text-9xl",
 ];
+
+/** Approx rendered px for each scale step (Tailwind defaults at 16px root). */
+const TEXT_SIZE_PX = [12, 14, 16, 18, 20, 24, 30, 36, 48, 60, 72, 96, 128];
+
+/** Matches a Tailwind text-size class, with or without a responsive prefix. */
+const TEXT_SIZE_CLASS_RE =
+  /^(?:(?:sm|md|lg|xl|2xl):)?text-(?:xs|sm|base|lg|xl|[2-9]xl)$/;
+
+function nearestScaleIndex(px: number): number {
+  let best = 0;
+  let bestDiff = Infinity;
+  for (let i = 0; i < TEXT_SIZE_PX.length; i += 1) {
+    const diff = Math.abs(TEXT_SIZE_PX[i] - px);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = i;
+    }
+  }
+  return best;
+}
+
+/** The element's current size step, read from a base text-* class, then a
+ * responsive variant, then nearest computed size. */
+function currentSizeIndex(el: HTMLElement): number {
+  const base = TEXT_SIZE_SCALE.findIndex((c) => el.classList.contains(c));
+  if (base !== -1) return base;
+
+  for (const cls of Array.from(el.classList)) {
+    const match = /^(?:sm|md|lg|xl|2xl):text-(xs|sm|base|lg|xl|[2-9]xl)$/.exec(cls);
+    if (match) {
+      const idx = TEXT_SIZE_SCALE.indexOf(`text-${match[1]}`);
+      if (idx !== -1) return idx;
+    }
+  }
+
+  const win = el.ownerDocument.defaultView;
+  const px = win ? parseFloat(win.getComputedStyle(el).fontSize) : 16;
+  return nearestScaleIndex(Number.isNaN(px) ? 16 : px);
+}
 
 export type DirectEditorOperation =
   | { type: "replace-text"; value: string }
@@ -128,12 +170,19 @@ export function getSelectedFontSizeLabel(selectedInfo: SelectedInfo | null): str
   const el = template.content.firstElementChild as HTMLElement | null;
   if (!el) return "Default";
 
-  // Inline font-size (set by the stepper) wins and is the most accurate readout.
-  if (el.style.fontSize) return el.style.fontSize;
+  // Prefer a base text-* class; fall back to a responsive variant's size so a
+  // heading that's only `md:text-7xl` still reads "7XL" before any step.
+  const base = TEXT_SIZE_SCALE.find((c) => el.classList.contains(c));
+  if (base) return TEXT_SIZE_LABELS[base] || base.replace("text-", "");
 
-  const cls = TEXT_SIZE_SCALE.find((c) => el.classList.contains(c));
-  if (!cls) return "Default";
-  return TEXT_SIZE_LABELS[cls] || cls.replace("text-", "");
+  for (const cls of Array.from(el.classList)) {
+    const match = /^(?:sm|md|lg|xl|2xl):text-(xs|sm|base|lg|xl|[2-9]xl)$/.exec(cls);
+    if (match) {
+      const token = `text-${match[1]}`;
+      return TEXT_SIZE_LABELS[token] || match[1].toUpperCase();
+    }
+  }
+  return "Default";
 }
 
 const TEXT_SIZE_LABELS: Record<string, string> = {
@@ -147,6 +196,9 @@ const TEXT_SIZE_LABELS: Record<string, string> = {
   "text-4xl": "4XL",
   "text-5xl": "5XL",
   "text-6xl": "6XL",
+  "text-7xl": "7XL",
+  "text-8xl": "8XL",
+  "text-9xl": "9XL",
 };
 
 /** Current font-family override ("serif" | "sans") or null for theme default. */
@@ -438,21 +490,23 @@ function toHex(value: number): string {
 }
 
 function stepFontSize(element: Element, direction: "up" | "down") {
-  // Step the actual rendered size via an inline font-size so it always wins
-  // over Tailwind text-* classes — including responsive ones like
-  // `md:text-7xl` that a class swap could never override. Tailwind size
-  // classes are also stripped so they can't fight the inline value.
+  // Step through the named Tailwind scale (text-base → text-xl → text-2xl …).
+  // To make the chosen class actually render we must remove EVERY existing
+  // text-size class — including responsive variants like `md:text-7xl` that
+  // would otherwise override a base swap at their breakpoint — plus any inline
+  // font-size left by an earlier session.
   const el = element as HTMLElement;
-  el.classList.remove(...TEXT_SIZE_SCALE);
+  const index = currentSizeIndex(el);
+  const nextIndex =
+    direction === "up"
+      ? Math.min(index + 1, TEXT_SIZE_SCALE.length - 1)
+      : Math.max(index - 1, 0);
 
-  const win = el.ownerDocument.defaultView;
-  const computedPx = win
-    ? parseFloat(win.getComputedStyle(el).fontSize)
-    : 16;
-  const currentPx = parseFloat(el.style.fontSize) || computedPx || 16;
-  const factor = direction === "up" ? 1.1 : 1 / 1.1;
-  const nextPx = Math.round(Math.min(240, Math.max(8, currentPx * factor)));
-  el.style.fontSize = `${nextPx}px`;
+  Array.from(el.classList).forEach((cls) => {
+    if (TEXT_SIZE_CLASS_RE.test(cls)) el.classList.remove(cls);
+  });
+  el.style.removeProperty("font-size");
+  el.classList.add(TEXT_SIZE_SCALE[nextIndex]);
 }
 
 function toggleHiddenAttribute(element: Element) {
