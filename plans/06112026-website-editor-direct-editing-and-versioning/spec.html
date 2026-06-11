@@ -385,6 +385,12 @@
         <p><strong>Reason:</strong> User QA: duplicate loop renders + leaked markup text; request to disallow editing of loops, header, and footer.</p>
         <p><strong>Updated Done criteria:</strong> loops render once as read-only pills with no leaked markup; hover/click ignores pills and header/footer in both page editors.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 6 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Editor sidebar UX pass. (1) Cobalt-dark theme via a new scoped <code>.editor-cobalt</code> block in <code>index.css</code> — mirrors the existing <code>.minds-theme</code> utility-override approach (no component JSX churn); orange primary accents preserved, surfaces tinted cobalt navy, errors/chips kept legible. (2) De-AI-first restructure of <code>EditorSidebar</code>: tabs are now <strong>Edit / History (/ Debug)</strong> with Edit as default; direct controls (text, color, font, link, photo) are the primary surface, and the AI chat is demoted into a collapsed <strong>"AI Editor — Tell Alloro what to change"</strong> dropdown at the bottom. (3) Global support FAB hidden while an editor is open (<code>body[data-editor-fullscreen]</code> set by both editors) so the bug icon never overlaps the sidebar.</p>
+        <p><strong>Reason:</strong> User: dark cobalt sidebar; make it intuitive / not AI-first; stop the bug icon overlapping the chat input.</p>
+        <p><strong>Updated Done criteria:</strong> sidebar renders cobalt-dark; direct controls lead with AI behind a dropdown; FAB does not overlap the sidebar.</p>
+      </article>
     </section>
   </main>
 </body>

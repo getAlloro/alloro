@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Sparkles, ChevronDown } from "lucide-react";
 import type { SelectedInfo } from "../../hooks/useIframeSelector";
 import type { QuickActionType } from "../../hooks/useIframeSelector";
 import type { EditDebugInfo } from "../../api/websites";
@@ -91,86 +92,104 @@ export default function EditorSidebar({
   onLiveTextPreview,
   onLiveTextRevert,
 }: EditorSidebarProps) {
-  const [tab, setTab] = useState<"chat" | "debug" | "history">("chat");
+  const [tab, setTab] = useState<"edit" | "debug" | "history">("edit");
+  const [aiOpen, setAiOpen] = useState(false);
+
+  const tabClass = (active: boolean) =>
+    `pb-2 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${
+      active
+        ? "text-alloro-orange border-alloro-orange"
+        : "text-gray-400 border-transparent hover:text-gray-600"
+    }`;
 
   return (
-    <div className="w-[380px] shrink-0 bg-white border-l border-gray-200 flex flex-col overflow-hidden">
+    <div className="editor-cobalt w-[380px] shrink-0 bg-[var(--ec-base)] border-l border-[color:var(--ec-border)] flex flex-col overflow-hidden">
       {/* Header with tabs */}
       <div className="px-4 pt-3 pb-0 border-b border-gray-200">
         <div className="flex items-center gap-4">
-          <button
-            onClick={() => setTab("chat")}
-            className={`pb-2 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${
-              tab === "chat"
-                ? "text-alloro-orange border-alloro-orange"
-                : "text-gray-400 border-transparent hover:text-gray-600"
-            }`}
-          >
-            Chat
+          <button onClick={() => setTab("edit")} className={tabClass(tab === "edit")}>
+            Edit
           </button>
-          {showDebug && (
-            <button
-              onClick={() => setTab("debug")}
-              className={`pb-2 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${
-                tab === "debug"
-                  ? "text-alloro-orange border-alloro-orange"
-                  : "text-gray-400 border-transparent hover:text-gray-600"
-              }`}
-            >
-              Debug
+          {showHistory && (
+            <button onClick={() => setTab("history")} className={tabClass(tab === "history")}>
+              History
             </button>
           )}
-          {showHistory && (
-            <button
-              onClick={() => setTab("history")}
-              className={`pb-2 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${
-                tab === "history"
-                  ? "text-alloro-orange border-alloro-orange"
-                  : "text-gray-400 border-transparent hover:text-gray-600"
-              }`}
-            >
-              History
+          {showDebug && (
+            <button onClick={() => setTab("debug")} className={tabClass(tab === "debug")}>
+              Debug
             </button>
           )}
         </div>
       </div>
 
-      {selectedInfo && (
-        <SelectedElementEditorPanel
-          selectedInfo={selectedInfo}
-          isEditing={isEditing}
-          mediaApi={mediaApi}
-          externalAction={externalAction}
-          onExternalActionHandled={onExternalActionHandled}
-          onApplyDirectEdit={onApplyDirectEdit}
-          onToggleHidden={onToggleHidden}
-          isCanvasTextEditing={isCanvasTextEditing}
-          onLiveTextPreview={onLiveTextPreview}
-          onLiveTextRevert={onLiveTextRevert}
-          primaryColor={primaryColor}
-          accentColor={accentColor}
-        />
-      )}
-
-      {tab === "chat" ? (
+      {tab === "edit" ? (
         selectedInfo ? (
-          <ChatPanel
-            messages={chatMessages}
-            onSend={onSendEdit}
-            isLoading={isEditing}
-            disabled={isPreviewingVersion}
-            mediaApi={mediaApi}
-            primaryColor={primaryColor}
-            accentColor={accentColor}
-          />
+          <div className="flex flex-1 min-h-0 flex-col">
+            <SelectedElementEditorPanel
+              selectedInfo={selectedInfo}
+              isEditing={isEditing}
+              mediaApi={mediaApi}
+              externalAction={externalAction}
+              onExternalActionHandled={onExternalActionHandled}
+              onApplyDirectEdit={onApplyDirectEdit}
+              onToggleHidden={onToggleHidden}
+              isCanvasTextEditing={isCanvasTextEditing}
+              onLiveTextPreview={onLiveTextPreview}
+              onLiveTextRevert={onLiveTextRevert}
+              primaryColor={primaryColor}
+              accentColor={accentColor}
+            />
+
+            {/* Direct-edit hint fills the gap above the AI dropdown */}
+            <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
+              <p className="text-[11px] leading-5 text-gray-400">
+                Edit text, links, photos, color and font with the controls above —
+                or type directly on the page. Changes preview live.
+              </p>
+            </div>
+
+            {/* AI editor — demoted into a collapsible dropdown */}
+            <div className="border-t border-gray-200">
+              <button
+                onClick={() => setAiOpen((open) => !open)}
+                aria-expanded={aiOpen}
+                className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-gray-100/40"
+              >
+                <span className="flex items-center gap-2 text-xs font-semibold text-gray-700">
+                  <Sparkles className="h-3.5 w-3.5 text-alloro-orange" />
+                  AI Editor
+                  <span className="font-normal text-gray-400">
+                    — Tell Alloro what to change
+                  </span>
+                </span>
+                <ChevronDown
+                  className={`h-4 w-4 text-gray-400 transition-transform ${aiOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+              {aiOpen && (
+                <div className="flex h-[340px] min-h-0 flex-col border-t border-gray-100">
+                  <ChatPanel
+                    messages={chatMessages}
+                    onSend={onSendEdit}
+                    isLoading={isEditing}
+                    disabled={isPreviewingVersion}
+                    mediaApi={mediaApi}
+                    primaryColor={primaryColor}
+                    accentColor={accentColor}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
         ) : (
           <div className="flex-1 flex items-center justify-center px-6">
             <div className="text-center">
               <p className="text-sm text-gray-400 mb-2">
-                Click on a section or component to start editing.
+                Click an element on the page to edit it.
               </p>
               <p className="text-xs text-gray-300">
-                Hover to preview selectable elements.
+                Text, photos, color and links — edit directly on the page.
               </p>
             </div>
           </div>
