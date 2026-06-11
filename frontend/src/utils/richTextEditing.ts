@@ -39,6 +39,8 @@ type RichTextEditOptions = {
   onCommit: (html: string) => void;
   onCancel?: () => void;
   onFinish?: () => void;
+  /** Raw char offset into the element's text to place the caret at (else select all). */
+  caretOffset?: number | null;
 };
 
 /**
@@ -108,6 +110,7 @@ export function startRichTextEdit({
   onCommit,
   onCancel,
   onFinish,
+  caretOffset,
 }: RichTextEditOptions): RichTextEditSession | null {
   if (!(element instanceof HTMLElement)) return null;
   if (!getCanvasTextEditEligibility(element).canEdit) return null;
@@ -305,13 +308,54 @@ export function startRichTextEdit({
 
   window.setTimeout(() => {
     element.focus({ preventScroll: true });
-    selectAllContents(doc, element);
+    // Land the caret where the user clicked; fall back to selecting all.
+    if (caretOffset == null || !placeCaretAtOffset(doc, element, caretOffset)) {
+      selectAllContents(doc, element);
+    }
   }, 0);
 
   return {
     cancel: () => finish(false),
     commit: () => finish(true),
   };
+}
+
+/** Collapse the caret at a raw char offset into the element's text nodes. */
+function placeCaretAtOffset(
+  doc: Document,
+  element: Element,
+  offset: number,
+): boolean {
+  const walker = doc.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  let remaining = offset;
+  let lastNode: Node | null = null;
+  let node: Node | null;
+  const selection = doc.getSelection();
+  if (!selection) return false;
+
+  while ((node = walker.nextNode())) {
+    const len = (node.textContent || "").length;
+    lastNode = node;
+    if (remaining <= len) {
+      const range = doc.createRange();
+      range.setStart(node, Math.max(0, Math.min(remaining, len)));
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      return true;
+    }
+    remaining -= len;
+  }
+
+  if (lastNode) {
+    const range = doc.createRange();
+    range.setStart(lastNode, (lastNode.textContent || "").length);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    return true;
+  }
+  return false;
 }
 
 function execCommandSafe(doc: Document, command: string) {

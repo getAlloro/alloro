@@ -822,9 +822,10 @@ function PageEditorInner() {
   const sectionsRef = useRef(sections);
   sectionsRef.current = sections;
 
-  // Original markup of the element being live-previewed from the sidebar
-  // textarea (visual only; restored if the preview is abandoned).
-  const liveTextOriginalRef = useRef<string | null>(null);
+  // The element currently being live-previewed from the sidebar textarea —
+  // stored WITH its class so revert always targets the previewed element,
+  // even after the selection has moved on (visual only; restored on abandon).
+  const liveTextRef = useRef<{ alloroClass: string; html: string } | null>(null);
 
   // --- Crash-recovery backup (localStorage mirror of dirty sections) ---
   const { clearBackup, readBackup } = useLocalDraftBackup({
@@ -1112,7 +1113,7 @@ function PageEditorInner() {
 
         pushUndoSnapshot(previousSections);
         setSections(updatedSections);
-        liveTextOriginalRef.current = null;
+        liveTextRef.current = null;
         setIsDirty(true);
         setupListeners();
         iframe.contentWindow?.scrollTo(scrollX, scrollY);
@@ -1186,6 +1187,17 @@ function PageEditorInner() {
 
   // --- Live text preview: mirror sidebar typing into the iframe element ---
   // Visual only — sections update on Apply; an abandoned preview reverts.
+  const handleLiveTextRevert = useCallback(() => {
+    const ref = liveTextRef.current;
+    if (!ref) return;
+    const doc = iframeRef.current?.contentDocument;
+    const el = doc?.querySelector(
+      `.${CSS.escape(ref.alloroClass)}`
+    ) as HTMLElement | null;
+    if (el) el.innerHTML = ref.html;
+    liveTextRef.current = null;
+  }, []);
+
   const handleLiveTextPreview = useCallback(
     (value: string) => {
       if (!selectedInfo) return;
@@ -1194,23 +1206,17 @@ function PageEditorInner() {
         `.${CSS.escape(selectedInfo.alloroClass)}`
       ) as HTMLElement | null;
       if (!el) return;
-      if (liveTextOriginalRef.current === null) {
-        liveTextOriginalRef.current = el.innerHTML;
+      // Holding a preview for a different element — revert it before starting.
+      if (liveTextRef.current && liveTextRef.current.alloroClass !== selectedInfo.alloroClass) {
+        handleLiveTextRevert();
+      }
+      if (!liveTextRef.current) {
+        liveTextRef.current = { alloroClass: selectedInfo.alloroClass, html: el.innerHTML };
       }
       el.textContent = value;
     },
-    [selectedInfo]
+    [selectedInfo, handleLiveTextRevert]
   );
-
-  const handleLiveTextRevert = useCallback(() => {
-    if (liveTextOriginalRef.current === null) return;
-    const doc = iframeRef.current?.contentDocument;
-    const el = doc?.querySelector(
-      `.${CSS.escape(selectedInfo?.alloroClass || "")}`
-    ) as HTMLElement | null;
-    if (el) el.innerHTML = liveTextOriginalRef.current;
-    liveTextOriginalRef.current = null;
-  }, [selectedInfo]);
 
   // --- Manual save (explicit only — snapshots a restorable version) ---
   const performSave = useCallback(

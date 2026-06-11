@@ -397,6 +397,12 @@
         <p><strong>Reason:</strong> User: cobalt didn't match the left sidebar; tools were cramped to the top corner — "we can do better."</p>
         <p><strong>Updated Done criteria:</strong> sidebar cobalt matches the nav rail; element controls are spacious labeled sections, not a cramped icon row.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 8 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Two editing bugs. (1) <strong>Content carryover</strong>: the live-preview revert keyed off the <em>current</em> selection, so switching heading → paragraph → heading without applying reverted the wrong element and stamped one element's text onto another. The live-preview ref now stores <code>{ alloroClass, html }</code> and revert targets the element it actually previewed (both editors); switching elements reverts the prior preview first. (2) <strong>Caret at click</strong>: canvas/rich editing selected-all on focus; now the click coordinate is mapped to a character offset (<code>caretCharOffsetFromPoint</code>) and the caret lands exactly where clicked — textarea <code>setSelectionRange</code> for plain text, a collapsed DOM range (<code>placeCaretAtOffset</code>) for rich.</p>
+        <p><strong>Reason:</strong> User QA: editing heading then paragraph carried the paragraph's content onto the heading; clicking text dropped the caret at the start instead of the click point.</p>
+        <p><strong>Updated Done criteria:</strong> switching elements never carries content across; the type caret appears where the user clicks.</p>
+      </article>
     </section>
   </main>
 </body>

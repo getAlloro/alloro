@@ -85,6 +85,51 @@ export function getFriendlyName(tagName: string): string {
   return TAG_LABELS[tagName.toLowerCase()] || tagName.charAt(0).toUpperCase() + tagName.slice(1).toLowerCase();
 }
 
+/**
+ * Raw character offset into `element`'s text at the given viewport point —
+ * used to land the edit caret where the user clicked. Returns null when the
+ * point doesn't resolve to a text position inside the element.
+ */
+function caretCharOffsetFromPoint(
+  doc: Document,
+  element: Element,
+  x: number,
+  y: number,
+): number | null {
+  let node: Node | null = null;
+  let offset = 0;
+  const anyDoc = doc as Document & {
+    caretRangeFromPoint?: (x: number, y: number) => Range | null;
+    caretPositionFromPoint?: (
+      x: number,
+      y: number,
+    ) => { offsetNode: Node; offset: number } | null;
+  };
+  if (typeof anyDoc.caretRangeFromPoint === "function") {
+    const range = anyDoc.caretRangeFromPoint(x, y);
+    if (range) {
+      node = range.startContainer;
+      offset = range.startOffset;
+    }
+  } else if (typeof anyDoc.caretPositionFromPoint === "function") {
+    const pos = anyDoc.caretPositionFromPoint(x, y);
+    if (pos) {
+      node = pos.offsetNode;
+      offset = pos.offset;
+    }
+  }
+  if (!node || !element.contains(node)) return null;
+
+  let raw = 0;
+  const walker = doc.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  let textNode: Node | null;
+  while ((textNode = walker.nextNode())) {
+    if (textNode === node) return raw + offset;
+    raw += (textNode.textContent || "").length;
+  }
+  return raw;
+}
+
 /** Walk up from a target element to find the nearest alloro-classed ancestor (or self). */
 function findAlloroElement(el: Element | null): Element | null {
   while (el) {
@@ -522,7 +567,7 @@ export function useIframeSelector(
   }, [iframeRef]);
 
   const beginCanvasTextEditing = useCallback(
-    (element?: Element | null) => {
+    (element?: Element | null, caretOffset?: number | null) => {
       const doc = iframeRef.current?.contentDocument;
       const target = element || (selectedInfo
         ? doc?.querySelector(`.${CSS.escape(selectedInfo.alloroClass)}`)
@@ -549,6 +594,7 @@ export function useIframeSelector(
       };
       const sharedOptions = {
         element: target,
+        caretOffset,
         onCancel: () => {
           const freshInfo = buildSelectedInfo(target);
           if (freshInfo) setSelectedInfo(freshInfo);
@@ -838,7 +884,10 @@ export function useIframeSelector(
       const info = buildSelectedInfo(target);
       if (info) setSelectedInfo(info);
       if (info?.canCanvasEditText) {
-        window.setTimeout(() => beginCanvasTextEditing(target), 0);
+        // Capture the caret offset now (element intact, no overlay yet) so the
+        // edit caret lands exactly where the user clicked.
+        const caretOffset = caretCharOffsetFromPoint(doc, target, e.clientX, e.clientY);
+        window.setTimeout(() => beginCanvasTextEditing(target, caretOffset), 0);
       }
     });
 
