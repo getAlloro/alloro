@@ -584,9 +584,15 @@ export function useIframeSelector(
     const doc = iframeRef.current?.contentDocument;
     if (!doc) return;
     delete doc.body.dataset.alloroCanvasEditing;
+    currentHoveredComponentRef.current = null;
     doc
       .querySelectorAll("[data-alloro-selected]")
       .forEach((el) => el.removeAttribute("data-alloro-selected"));
+    doc
+      .querySelectorAll("[data-alloro-hover]")
+      .forEach((el) => el.removeAttribute("data-alloro-hover"));
+    const hoverLabel = doc.getElementById("alloro-hover-label");
+    if (hoverLabel) hoverLabel.remove();
     const selectedLabel = doc.getElementById("alloro-selected-label");
     if (selectedLabel) selectedLabel.remove();
     const actionPanel = doc.getElementById("alloro-action-panel");
@@ -605,6 +611,10 @@ export function useIframeSelector(
       if (!eligibility.canEdit) return false;
 
       canvasTextSessionRef.current?.cancel();
+      currentHoveredComponentRef.current = null;
+      doc
+        .querySelectorAll("[data-alloro-hover]")
+        .forEach((el) => el.removeAttribute("data-alloro-hover"));
       doc.getElementById("alloro-hover-label")?.remove();
       doc.getElementById("alloro-action-panel")?.remove();
       doc.body.dataset.alloroCanvasEditing = "true";
@@ -676,8 +686,41 @@ export function useIframeSelector(
       if (panel) panel.remove();
     }
 
-    // Show an inline text input panel below the selected label
-    function showActionPanel(action: "text" | "link", labelEl: HTMLElement, href?: string) {
+    function positionFloatingElement(
+      floating: HTMLElement,
+      anchor: Element,
+      preferred: "above" | "below" = "above",
+    ) {
+      const rect = anchor.getBoundingClientRect();
+      const scrollTop = doc.documentElement.scrollTop || doc.body.scrollTop;
+      const scrollLeft = doc.documentElement.scrollLeft || doc.body.scrollLeft;
+      const viewportHeight = doc.defaultView?.innerHeight || doc.documentElement.clientHeight;
+      const viewportWidth = doc.defaultView?.innerWidth || doc.documentElement.clientWidth;
+      const gap = 8;
+      const measured = floating.getBoundingClientRect();
+      const height = floating.offsetHeight || measured.height || 28;
+      const width = floating.offsetWidth || measured.width || 0;
+      const hasAbove = rect.top >= height + gap;
+      const hasBelow = viewportHeight - rect.bottom >= height + gap;
+      let useAbove = preferred === "above";
+
+      if (useAbove && !hasAbove && hasBelow) useAbove = false;
+      if (!useAbove && !hasBelow && hasAbove) useAbove = true;
+
+      const rawTop = useAbove
+        ? rect.top + scrollTop - height - gap
+        : rect.bottom + scrollTop + gap;
+      const minLeft = scrollLeft + gap;
+      const maxLeft = scrollLeft + Math.max(gap, viewportWidth - width - gap);
+      const rawLeft = rect.left + scrollLeft;
+
+      floating.style.position = "absolute";
+      floating.style.top = `${Math.max(scrollTop + gap, rawTop)}px`;
+      floating.style.left = `${Math.min(Math.max(rawLeft, minLeft), maxLeft)}px`;
+    }
+
+    // Show an inline text input panel beside the selected element without covering it.
+    function showActionPanel(action: "text" | "link", anchorEl: Element, href?: string) {
       hideActionPanel();
 
       const panel = doc.createElement("div");
@@ -714,12 +757,7 @@ export function useIframeSelector(
       panel.appendChild(submitBtn);
       doc.body.appendChild(panel);
 
-      // Position below the label
-      const labelRect = labelEl.getBoundingClientRect();
-      const scrollTop = doc.documentElement.scrollTop || doc.body.scrollTop;
-      const scrollLeft = doc.documentElement.scrollLeft || doc.body.scrollLeft;
-      panel.style.top = (labelRect.bottom + scrollTop + 4) + "px";
-      panel.style.left = (labelRect.left + scrollLeft) + "px";
+      positionFloatingElement(panel, anchorEl, "below");
 
       // Focus the input
       setTimeout(() => input.focus(), 0);
@@ -764,7 +802,6 @@ export function useIframeSelector(
           sep.className = "alloro-label-sep";
           label.appendChild(sep);
 
-          const currentLabel = label; // capture for closure
           for (const action of actions) {
             const btn = doc.createElement("button");
             btn.className = "alloro-action-btn";
@@ -783,14 +820,13 @@ export function useIframeSelector(
                 quickActionRef.current?.({ action });
               } else if (action === "text") {
                 if (!beginCanvasTextEditing(el)) {
-                  showActionPanel(action, currentLabel);
+                  showActionPanel(action, el);
                 }
               } else if (action === "link") {
-                // Show inline input below the label
                 const hrefVal = action === "link"
                   ? (el.tagName.toLowerCase() === "a" ? (el as HTMLAnchorElement).getAttribute("href") || "" : "")
                   : undefined;
-                showActionPanel(action, currentLabel, hrefVal || undefined);
+                showActionPanel(action, el, hrefVal || undefined);
               } else {
                 // Media and hide — dispatch directly to parent
                 quickActionRef.current?.({ action });
@@ -801,14 +837,7 @@ export function useIframeSelector(
         }
       }
 
-      const rect = el.getBoundingClientRect();
-      const scrollTop =
-        doc.documentElement.scrollTop || doc.body.scrollTop;
-      const scrollLeft =
-        doc.documentElement.scrollLeft || doc.body.scrollLeft;
-      label.style.position = "absolute";
-      label.style.top = rect.top + scrollTop - 26 + "px";
-      label.style.left = rect.left + scrollLeft + "px";
+      positionFloatingElement(label, el, "above");
     }
 
     function hideLabel(variant: "hover" | "selected") {
@@ -816,6 +845,14 @@ export function useIframeSelector(
         variant === "hover" ? "alloro-hover-label" : "alloro-selected-label";
       const label = doc.getElementById(labelId);
       if (label) label.remove();
+    }
+
+    function clearHoverState() {
+      currentHoveredComponentRef.current = null;
+      doc
+        .querySelectorAll("[data-alloro-hover]")
+        .forEach((el) => el.removeAttribute("data-alloro-hover"));
+      hideLabel("hover");
     }
 
     function isCanvasTextEditingActive() {
@@ -873,6 +910,7 @@ export function useIframeSelector(
       doc
         .querySelectorAll("[data-alloro-selected]")
         .forEach((el) => el.removeAttribute("data-alloro-selected"));
+      clearHoverState();
       target.setAttribute("data-alloro-selected", "true");
       showLabel(target, info.alloroClass, "selected");
       setSelectedInfo(info);
@@ -894,7 +932,10 @@ export function useIframeSelector(
 
     // Event delegation on the body — survives DOM mutations
     doc.body.addEventListener("mouseover", (e) => {
-      if (isCanvasTextEditingActive()) return;
+      if (isCanvasTextEditingActive()) {
+        clearHoverState();
+        return;
+      }
       const resolved = resolveHoverTarget(e.target as Element, sectionsOnly);
       if (!resolved) return;
       const { target, cls } = resolved;
@@ -919,7 +960,10 @@ export function useIframeSelector(
     });
 
     doc.body.addEventListener("mouseout", (e) => {
-      if (isCanvasTextEditingActive()) return;
+      if (isCanvasTextEditingActive()) {
+        clearHoverState();
+        return;
+      }
       const resolved = resolveHoverTarget(e.target as Element, sectionsOnly);
       if (!resolved) return;
       const { target, cls } = resolved;
@@ -972,6 +1016,7 @@ export function useIframeSelector(
 
       // Dismiss action panel on any other click
       hideActionPanel();
+      clearHoverState();
 
       const target = resolveEditableClickTarget(clickTarget);
       if (!target) return;
@@ -1026,6 +1071,7 @@ export function useIframeSelector(
       doc
         .querySelectorAll("[data-alloro-selected]")
         .forEach((el) => el.removeAttribute("data-alloro-selected"));
+      clearHoverState();
       target.setAttribute("data-alloro-selected", "true");
       showLabel(target, info.alloroClass, "selected");
       setSelectedInfo(info);

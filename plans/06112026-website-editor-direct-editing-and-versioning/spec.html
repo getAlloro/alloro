@@ -445,6 +445,12 @@
         <p><strong>Reason:</strong> User QA after Rev 14 narrowed the failure: the caret and typing worked only while the mouse button was held, then the release/click path killed the editor and rejected subsequent keyboard input.</p>
         <p><strong>Updated Done criteria:</strong> clicking and releasing editable preview text must leave the inline editor focused with a visible caret so normal typing continues after release.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 16 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Cleaned up selection chrome after switching elements. The iframe selector now clears stale hover state whenever selection or inline editing starts, so a previously hovered heading cannot keep its dashed blue outline after paragraph/button selection. Both the in-iframe label/action panel and the React <code>InlineEditorPopover</code> now position above or below the selected element with measured spacing instead of using fixed offsets that overlap text and buttons.</p>
+        <p><strong>Reason:</strong> User QA: after clicking heading → paragraph → button, the old heading outline stayed visible and the floating control covered the active paragraph/button.</p>
+        <p><strong>Updated Done criteria:</strong> switching selected elements leaves only the active element outlined; floating inline controls must not cover the selected element.</p>
+      </article>
     </section>
   </main>
 </body>
