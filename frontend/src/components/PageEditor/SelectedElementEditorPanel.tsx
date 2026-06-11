@@ -90,13 +90,31 @@ export default function SelectedElementEditorPanel({
     };
   }, [selectedInfo.alloroClass]);
 
-  // Auto-focus the content field on selection — but never while the user is
-  // typing directly on the page (focusing here would blur/commit that session).
+  // The sidebar Content field must never grab focus when the element can be
+  // edited directly on the page — focusing here blurs (and ends) that on-page
+  // caret session. Only auto-focus the sidebar for text that can't be edited
+  // in-canvas (e.g. nested-content elements that fall back to the sidebar).
+  const isCanvasEditingRef = useRef(isCanvasTextEditing);
+  isCanvasEditingRef.current = isCanvasTextEditing;
   useEffect(() => {
-    if (isCanvasTextEditing || !canEditText) return;
-    const id = window.setTimeout(() => textAreaRef.current?.focus(), 50);
+    if (
+      isCanvasTextEditing ||
+      selectedInfo.canCanvasEditText ||
+      !canEditText
+    ) {
+      return;
+    }
+    const id = window.setTimeout(() => {
+      if (isCanvasEditingRef.current) return;
+      textAreaRef.current?.focus();
+    }, 50);
     return () => window.clearTimeout(id);
-  }, [selectedInfo.alloroClass, canEditText, isCanvasTextEditing]);
+  }, [
+    selectedInfo.alloroClass,
+    selectedInfo.canCanvasEditText,
+    canEditText,
+    isCanvasTextEditing,
+  ]);
 
   // Quick-actions dispatched from the iframe label icons.
   useEffect(() => {

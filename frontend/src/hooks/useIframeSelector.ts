@@ -96,38 +96,44 @@ function caretCharOffsetFromPoint(
   x: number,
   y: number,
 ): number | null {
-  let node: Node | null = null;
-  let offset = 0;
-  const anyDoc = doc as Document & {
-    caretRangeFromPoint?: (x: number, y: number) => Range | null;
-    caretPositionFromPoint?: (
-      x: number,
-      y: number,
-    ) => { offsetNode: Node; offset: number } | null;
-  };
-  if (typeof anyDoc.caretRangeFromPoint === "function") {
-    const range = anyDoc.caretRangeFromPoint(x, y);
-    if (range) {
-      node = range.startContainer;
-      offset = range.startOffset;
+  // Pure best-effort: a caret-positioning nicety must NEVER throw out of the
+  // click handler (that would abort the edit and leave only a selection).
+  try {
+    let node: Node | null = null;
+    let offset = 0;
+    const anyDoc = doc as Document & {
+      caretRangeFromPoint?: (x: number, y: number) => Range | null;
+      caretPositionFromPoint?: (
+        x: number,
+        y: number,
+      ) => { offsetNode: Node; offset: number } | null;
+    };
+    if (typeof anyDoc.caretRangeFromPoint === "function") {
+      const range = anyDoc.caretRangeFromPoint(x, y);
+      if (range) {
+        node = range.startContainer;
+        offset = range.startOffset;
+      }
+    } else if (typeof anyDoc.caretPositionFromPoint === "function") {
+      const pos = anyDoc.caretPositionFromPoint(x, y);
+      if (pos) {
+        node = pos.offsetNode;
+        offset = pos.offset;
+      }
     }
-  } else if (typeof anyDoc.caretPositionFromPoint === "function") {
-    const pos = anyDoc.caretPositionFromPoint(x, y);
-    if (pos) {
-      node = pos.offsetNode;
-      offset = pos.offset;
-    }
-  }
-  if (!node || !element.contains(node)) return null;
+    if (!node || !element.contains(node)) return null;
 
-  let raw = 0;
-  const walker = doc.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-  let textNode: Node | null;
-  while ((textNode = walker.nextNode())) {
-    if (textNode === node) return raw + offset;
-    raw += (textNode.textContent || "").length;
+    let raw = 0;
+    const walker = doc.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    let textNode: Node | null;
+    while ((textNode = walker.nextNode())) {
+      if (textNode === node) return raw + offset;
+      raw += (textNode.textContent || "").length;
+    }
+    return raw;
+  } catch {
+    return null;
   }
-  return raw;
 }
 
 /** Walk up from a target element to find the nearest alloro-classed ancestor (or self). */
