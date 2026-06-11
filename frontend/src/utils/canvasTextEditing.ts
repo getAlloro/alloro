@@ -50,6 +50,8 @@ type CanvasTextEditOptions = {
   onCommit: (value: string) => void;
   onCancel?: () => void;
   onFinish?: () => void;
+  /** Raw char offset into the element's text to place the caret at (else select all). */
+  caretOffset?: number | null;
 };
 
 type StyleSnapshot = Array<{
@@ -96,6 +98,7 @@ export function startCanvasTextEdit({
   onCommit,
   onCancel,
   onFinish,
+  caretOffset,
 }: CanvasTextEditOptions): CanvasTextEditSession | null {
   if (!(element instanceof HTMLElement)) return null;
   // Plain mode only — rich-eligible elements (inline anchors) must go through
@@ -183,7 +186,18 @@ export function startCanvasTextEdit({
 
   window.setTimeout(() => {
     textarea.focus({ preventScroll: true });
-    textarea.select();
+    // Land the caret where the user clicked, mapping the raw DOM offset onto
+    // the whitespace-collapsed textarea value. No offset → select all.
+    if (caretOffset != null) {
+      const prefix = (element.textContent || "")
+        .slice(0, caretOffset)
+        .replace(/\s+/g, " ")
+        .replace(/^\s/, "");
+      const pos = Math.max(0, Math.min(prefix.length, textarea.value.length));
+      textarea.setSelectionRange(pos, pos);
+    } else {
+      textarea.select();
+    }
     resizeCanvasTextarea(textarea);
   }, 0);
 
