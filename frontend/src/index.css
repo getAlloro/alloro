@@ -1183,16 +1183,16 @@ mark.hl {
    alloro-orange primary accents intentionally ride through unchanged.
    ════════════════════════════════════════════════════════════════════ */
 .editor-cobalt {
-  --ec-base: #0a1322;        /* sidebar shell (darkest) */
-  --ec-surface: #0f1c33;     /* panels on the shell */
-  --ec-raised: #14233f;      /* inputs, sub-cards */
-  --ec-control: #1b2c4a;     /* buttons, chips */
-  --ec-border: rgba(150, 180, 235, 0.14);
-  --ec-border-strong: rgba(150, 180, 235, 0.24);
-  --ec-text: #eef3fb;
-  --ec-text-2: #c6d2e8;
-  --ec-text-muted: #8595b4;
-  --ec-cobalt: #3d6fe5;
+  --ec-base: #212d40;        /* sidebar shell — matches the left nav rail */
+  --ec-surface: #27344a;     /* element panel, lifted off the shell */
+  --ec-raised: #1a2433;      /* recessed inputs/textarea (rail footer tone) */
+  --ec-control: #2e3d56;     /* buttons, chips */
+  --ec-border: rgba(255, 255, 255, 0.09);
+  --ec-border-strong: rgba(255, 255, 255, 0.16);
+  --ec-text: #f1f5fb;
+  --ec-text-2: #c7d2e4;
+  --ec-text-muted: #8a99b3;
+  --ec-cobalt: #5b8bf5;
   color: var(--ec-text);
 }
 

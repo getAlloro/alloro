@@ -391,6 +391,12 @@
         <p><strong>Reason:</strong> User: dark cobalt sidebar; make it intuitive / not AI-first; stop the bug icon overlapping the chat input.</p>
         <p><strong>Updated Done criteria:</strong> sidebar renders cobalt-dark; direct controls lead with AI behind a dropdown; FAB does not overlap the sidebar.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 7 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Cobalt palette + tool layout polish. (1) Retuned <code>.editor-cobalt</code> to the left nav rail's exact <code>#212D40</code> (shell), with a lifted <code>#27344a</code> element panel, recessed <code>#1a2433</code> inputs and <code>#2e3d56</code> controls — was too dark/desaturated before. (2) Rebuilt <code>SelectedElementEditorPanel</code> from a cramped top-corner icon row into a spacious, labeled inspector: <strong>Content</strong> (always-visible text field), <strong>Size</strong> (−/readout/+), <strong>Color</strong> + <strong>Font</strong> (roomy labeled rows in <code>TextStyleControls</code>), <strong>Link</strong>, <strong>Photo</strong>, <strong>Alt text</strong> — each a labeled section with breathing room, separate field state so they coexist, and the panel scrolls within the sidebar. New <code>getSelectedFontSizeLabel</code> helper drives the size readout.</p>
+        <p><strong>Reason:</strong> User: cobalt didn't match the left sidebar; tools were cramped to the top corner — "we can do better."</p>
+        <p><strong>Updated Done criteria:</strong> sidebar cobalt matches the nav rail; element controls are spacious labeled sections, not a cramped icon row.</p>
+      </article>
     </section>
   </main>
 </body>
