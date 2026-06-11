@@ -7,6 +7,7 @@
 
 import { db } from "../../../database/connection";
 import { normalizeSections } from "../feature-utils/util.section-normalizer";
+import { snapshotPageStateIfChanged } from "../../../utils/website-utils/pageSnapshots";
 
 const PROJECTS_TABLE = "website_builder.projects";
 const PAGES_TABLE = "website_builder.pages";
@@ -229,6 +230,9 @@ export async function updatePage(
   };
 
   if (sections) {
+    // Preserve the draft's pre-save state as a restorable history entry
+    // before overwriting it (deduped + pruned inside the helper).
+    await snapshotPageStateIfChanged(page);
     updatePayload.sections = JSON.stringify(sections);
   }
 
@@ -396,12 +400,16 @@ export async function createDraft(
     .first();
 
   if (existingDraft) {
-    // Check if the published page has been updated since this draft was created.
-    // If so, the draft is stale — refresh its sections from the published version.
+    // Check if the published page has been updated since this draft was last
+    // touched. If so, the draft is stale — refresh its sections from the
+    // published version. Compared against the draft's updated_at (not
+    // created_at) so saved draft edits are never silently clobbered.
     const publishedUpdated = new Date(sourcePage.updated_at).getTime();
-    const draftCreated = new Date(existingDraft.created_at).getTime();
+    const draftUpdated = new Date(
+      existingDraft.updated_at || existingDraft.created_at
+    ).getTime();
 
-    if (publishedUpdated > draftCreated) {
+    if (publishedUpdated > draftUpdated) {
       console.log(
         `[Admin Websites] Stale draft detected (draft created: ${existingDraft.created_at}, published updated: ${sourcePage.updated_at}). Refreshing sections.`
       );

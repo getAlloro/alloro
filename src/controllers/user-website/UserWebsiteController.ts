@@ -32,6 +32,7 @@ import { resolveRybbitTimeZone } from "../../utils/rybbit/rybbit-time-zone";
 import { FormSubmissionModel } from "../../models/website-builder/FormSubmissionModel";
 import { WebsiteIntegrationModel } from "../../models/website-builder/WebsiteIntegrationModel";
 import { db } from "../../database/connection";
+import { snapshotPageStateIfChanged } from "../../utils/website-utils/pageSnapshots";
 import * as formDetection from "../admin-websites/feature-services/service.form-detection";
 import { upsertFormCatalogPreferences } from "../../services/formCatalogPreferenceService";
 import { upsertFormRecipientRule } from "../../services/formRecipientRuleService";
@@ -1187,6 +1188,10 @@ export async function savePageSections(
       .where({ id: pageId, project_id: projectId })
       .first();
     if (!page) return res.status(404).json({ error: "Page not found" });
+
+    // Preserve the page's pre-save state as a restorable history entry
+    // before overwriting it (user-side saves write the live page in place).
+    await snapshotPageStateIfChanged(page);
 
     // Update the page sections directly
     await db("website_builder.pages")

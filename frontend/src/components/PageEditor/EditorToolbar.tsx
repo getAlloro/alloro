@@ -1,10 +1,8 @@
-import { ArrowLeft, Undo2, Save, Upload, Monitor, Tablet, Smartphone, Loader2, Code, BarChart3, Sparkles } from "lucide-react";
-import { Link } from "react-router-dom";
+import { ArrowLeft, Undo2, Redo2, Save, Upload, Monitor, Tablet, Smartphone, Loader2, Code, BarChart3, Sparkles } from "lucide-react";
 
 type EditorView = "visual" | "code" | "seo";
 
 interface EditorToolbarProps {
-  projectId: string;
   pagePath: string;
   pageVersion: number;
   pageStatus: string;
@@ -12,18 +10,20 @@ interface EditorToolbarProps {
   onDeviceChange: (device: "desktop" | "tablet" | "mobile") => void;
   activeView: EditorView;
   onViewChange: (view: EditorView) => void;
+  onBack: () => void;
   onUndo: () => void;
+  onRedo: () => void;
   onSave: () => void;
   onPublish: () => void;
   onRegenerate?: () => void;
   canUndo: boolean;
+  canRedo: boolean;
   isSaving: boolean;
   isPublishing: boolean;
   isDirty: boolean;
 }
 
 export default function EditorToolbar({
-  projectId,
   pagePath,
   pageVersion,
   pageStatus,
@@ -31,11 +31,14 @@ export default function EditorToolbar({
   onDeviceChange,
   activeView,
   onViewChange,
+  onBack,
   onUndo,
+  onRedo,
   onSave,
   onPublish,
   onRegenerate,
   canUndo,
+  canRedo,
   isSaving,
   isPublishing,
   isDirty,
@@ -44,13 +47,13 @@ export default function EditorToolbar({
     <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between shrink-0">
       {/* Left: Back + page info */}
       <div className="flex items-center gap-3">
-        <Link
-          to={`/admin/websites/${projectId}`}
+        <button
+          onClick={onBack}
           className="text-xs text-gray-500 hover:text-gray-900 transition-colors flex items-center gap-1"
         >
           <ArrowLeft className="w-3 h-3" />
           Back
-        </Link>
+        </button>
         <div className="w-px h-4 bg-gray-200" />
         <span className="text-xs font-medium text-gray-700">{pagePath}</span>
         <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium">
@@ -134,10 +137,20 @@ export default function EditorToolbar({
           onClick={onUndo}
           disabled={!canUndo}
           className="px-2.5 py-1.5 rounded-lg text-xs text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1"
-          title="Undo last edit"
+          title="Undo last edit (Cmd+Z)"
         >
           <Undo2 className="w-3.5 h-3.5" />
           Undo
+        </button>
+
+        <button
+          onClick={onRedo}
+          disabled={!canRedo}
+          className="px-2.5 py-1.5 rounded-lg text-xs text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1"
+          title="Redo (Shift+Cmd+Z)"
+        >
+          <Redo2 className="w-3.5 h-3.5" />
+          Redo
         </button>
 
         {onRegenerate && (

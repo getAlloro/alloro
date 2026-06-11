@@ -958,6 +958,74 @@ export const publishPage = async (
   return response.json();
 };
 
+export type PageVersionSummary = {
+  id: string;
+  version: number;
+  status: "draft" | "published" | "inactive";
+  created_at: string;
+  updated_at: string;
+};
+
+/**
+ * List version history at a page's path
+ */
+export const fetchPageVersions = async (
+  projectId: string,
+  pageId: string,
+): Promise<{ success: boolean; data: { versions: PageVersionSummary[]; path: string } }> => {
+  const response = await adminFetch(
+    `${API_BASE}/${projectId}/pages/${pageId}/versions`,
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to fetch page versions");
+  }
+
+  return response.json();
+};
+
+/**
+ * Fetch a single version's full content
+ */
+export const fetchPageVersionContent = async (
+  projectId: string,
+  pageId: string,
+  versionId: string,
+): Promise<{ success: boolean; data: WebsitePage }> => {
+  const response = await adminFetch(
+    `${API_BASE}/${projectId}/pages/${pageId}/versions/${versionId}`,
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to fetch page version");
+  }
+
+  return response.json();
+};
+
+/**
+ * Restore a version's content into the current draft (never publishes)
+ */
+export const restorePageVersionIntoDraft = async (
+  projectId: string,
+  pageId: string,
+  versionId: string,
+): Promise<{ success: boolean; data: WebsitePage }> => {
+  const response = await adminFetch(
+    `${API_BASE}/${projectId}/pages/${pageId}/versions/${versionId}/restore`,
+    { method: "POST" },
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to restore page version");
+  }
+
+  return response.json();
+};
+
 /**
  * Create a blank page (no template, no pipeline)
  */
