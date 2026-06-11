@@ -27,7 +27,7 @@ export default function InlineEditorPopover({
   const [colorValue, setColorValue] = useState("#ffffff");
   const [mediaMode, setMediaMode] = useState<"media" | "background" | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
-  const [popoverSize, setPopoverSize] = useState({ width: 320, height: 64 });
+  const [popoverSize, setPopoverSize] = useState({ width: 320, height: 88 });
 
   const availability = getDirectOperationAvailability(selectedInfo, Boolean(mediaApi));
   const rect = selectedInfo?.rect;
@@ -47,8 +47,8 @@ export default function InlineEditorPopover({
     const measure = () => {
       const next = node.getBoundingClientRect();
       setPopoverSize((current) => {
-        const width = Math.ceil(next.width);
-        const height = Math.ceil(next.height);
+        const width = Math.ceil(node.offsetWidth || next.width);
+        const height = Math.ceil(node.offsetHeight || next.height);
         if (current.width === width && current.height === height) return current;
         return { width, height };
       });
@@ -61,12 +61,12 @@ export default function InlineEditorPopover({
   }, [availability.canChangeLink, availability.canEditBackground, mediaMode, selectedInfo]);
 
   const positionStyle = useMemo(() => {
-    const margin = 8;
+    const margin = 14;
     const anchorTop = rect?.top || 0;
     const anchorLeft = rect?.left || 0;
     const anchorBottom = anchorTop + (rect?.height || 0);
-    const estimatedHeight = popoverSize.height || (hasPropertyPanel ? 128 : 64);
-    const estimatedWidth = popoverSize.width || 320;
+    const estimatedHeight = Math.max(popoverSize.height, hasPropertyPanel ? 128 : 88);
+    const estimatedWidth = Math.max(popoverSize.width, hasPropertyPanel ? 320 : 256);
     const viewportHeight = typeof window === "undefined" ? 0 : window.innerHeight;
     const viewportWidth = typeof window === "undefined" ? 0 : window.innerWidth;
     const canFitAbove = anchorTop >= estimatedHeight + margin;
