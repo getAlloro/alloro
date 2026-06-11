@@ -22,11 +22,13 @@ import {
   Inbox,
   Radar,
   UserCheck,
+  Blocks,
 } from "lucide-react";
 import { useSidebar } from "./SidebarContext";
 
 export type AdminNavKey =
   | "mission-control"
+  | "apps"
   | "action-items"
   | "agent-outputs"
   | "ai-pms-automation"
@@ -66,6 +68,7 @@ const DONE_FOR_YOU_ITEMS: NavItem[] = [
 
 const TOP_ITEMS: NavItem[] = [
   { key: "mission-control", label: "Mission Control", icon: Radar },
+  { key: "apps", label: "Apps", icon: Blocks },
   { key: "action-items", label: "Action Items Hub", icon: CheckSquare },
 ];
 

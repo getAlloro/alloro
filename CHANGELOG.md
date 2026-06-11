@@ -2,6 +2,27 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.114] - June 2026
+
+### AI/SEO Audit Admin App
+
+New admin-only Apps workspace (`/admin/apps/ai-seo-audit`) that scores an organization's website — or any external URL — for AI/search readiness against a five-category, evidence-backed rubric (Findability, Content Readiness, Business Consistency, Connected Data, Reputation), with async execution, real external entity discovery, and a plain-English results surface.
+
+**Key Changes:**
+
+- Audits run asynchronously on a new `wb-ai-seo-audit` BullMQ worker: launching returns a queued run immediately, the run list and detail poll live progress (gathering business data → reading pages → checking the web → scoring) until completed/failed.
+- Scoring contract: per-check weighted points roll up into five categories summing to 100; a rubric-integrity assertion fails fast if check weights ever drift from declared category weights. Missing integrations (GSC/GBP) reduce coverage and confidence, never the score. Hard caps apply per page and report which pages they cap.
+- Organization audits prioritize home → content → legal/utility pages before the 12-page cap (disclosed as "12 of N"), and the run score is an importance-weighted average (home ×2, content ×1, utility ×0.5). Legal/utility pages are exempt from service-page content checks.
+- External entity consistency runs once per audit via SerpAPI plus on-page profile links, never cites the audited site's own pages, detects blocked/CAPTCHA listing pages, and gives benefit of the doubt when the business's real phone/address appears anywhere on the listing page. Findings are framed as "Referenced" leads with one-line "possible mismatch — worth double-checking" advisories instead of asserted verdicts.
+- Results UI leads with an overall score + grade band (Excellent/Good/Needs work/At risk), a "Biggest wins" top-fixes list ranked by score impact, per-page scores (lowest first), category score cards with bars, and criteria grouped by check with plain-English labels, hover explanations, and per-page expansion.
+- Run management: delete a single run or clear all, organization picker lists only auditable orgs (connected website project with published pages), and the whole view deep-links via `/admin/apps/ai-seo-audit?mode=&organization=&run=` so refresh restores state.
+- Persistence: five new `website_builder.ai_seo_audit_*` tables (runs, targets, results, external sources, evidence) with enum CHECK constraints, cascade deletes, and a pinned rule version.
+
+**Commits:**
+
+- backend: `src/services/ai-seo-audit/*` (scoring engine, URL collector + SSRF safety, identity extraction, SerpAPI external search, entity consistency, org context resolver, persistence), admin routes/controller, audit models, migration `20260608000000`, `aiSeoAudit.processor` + worker registration.
+- frontend: `pages/admin/AdminApps.tsx`, `components/Admin/ai-seo-audit/*` (workspace, panel, run list, run detail, labels dictionary, org search select), `api/aiSeoAudit.ts`, `useAiSeoAuditQueries` polling hooks, query-key additions, `/admin/apps/:appKey` routes + sidebar Apps entry.
+
 ## [0.0.113] - June 2026
 
 ### Local Rankings Simplification

@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI SEO Audit Mini App Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Completed</span>
+      </div>
+      <h1>AI SEO Audit Mini App</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06082026-ai-seo-audit-mini-app</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 4</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Alloro has the raw ingredients for a proprietary AI/SEO readiness product: website project data, page content, project identity, GSC harvests, GBP connections, and location records. The current gap is that these signals are not consolidated into a measurable audit product that can score an external URL or a full existing Alloro organization with evidence-backed criteria.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Build an internal-first AI/SEO Audit mini app inside Alloro that supports URL-only audits and organization audits. The app must produce a weighted score, data coverage, confidence level, hard caps, evidence, and prioritized remediation rather than a vague AI-generated grade.</p>
+      <p>The first execution should deliver the reusable backend scoring foundation, persisted audit history, admin organization audit surface, and an internal external-URL audit flow. A client-facing website tab can be exposed only after scoring output is stable and safe enough for customer display.</p>
+    </section>
+
+    <section class="spec-card" id="scoring-contract">
+      <h2>Scoring Contract</h2>
+      <h3>Full Organization Audit</h3>
+      <table class="score-table">
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Weight</th>
+            <th>Data Needed</th>
+            <th>Subcriteria</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Access And Indexability</td>
+            <td>25</td>
+            <td>URL crawl, headers, rendered HTML, robots, sitemap</td>
+            <td>
+              <ul>
+                <li>Final URL resolves with a successful status and sane redirect chain.</li>
+                <li>Search crawlers are not blocked by robots, CDN, headers, or meta tags.</li>
+                <li>Page is indexable and snippet-eligible unless a documented policy says otherwise.</li>
+                <li>Canonical is self-referencing or intentionally points to the correct canonical URL.</li>
+                <li>URL is discoverable through sitemap, internal links, and crawlable navigation.</li>
+                <li>Main content renders as readable text.</li>
+              </ul>
+            </td>
+          </tr>
+          <tr>
+            <td>Page Source Readiness</td>
+            <td>20</td>
+            <td>Rendered page content, page type, headings, media, schema</td>
+            <td>
+              <ul>
+                <li>Page has a clear primary intent and direct answer block.</li>
+                <li>Service, location, provider, and offer language is specific rather than generic.</li>
+                <li>Evidence units exist: definitions, FAQs, steps, comparisons, statistics, review snippets, or first-party proof.</li>
+                <li>Claims are supported by visible page content and do not overreach.</li>
+                <li>Structured data parses and reinforces visible content instead of contradicting it.</li>
+                <li>Page type requirements are met: home, service, location, provider, blog/post, or contact.</li>
+              </ul>
+            </td>
+          </tr>
+          <tr>
+            <td>Entity And External Consistency</td>
+            <td>25</td>
+            <td>Submitted URL, JSON-LD, footer/contact content, Alloro identity, GBP profile, locations, web search results</td>
+            <td>
+              <ul>
+                <li>Business identity is extractable from the submitted URL: name, domain, phone, address, hours, providers, services, and social/profile links where present.</li>
+                <li>Visible identity fields match schema fields on the submitted URL.</li>
+                <li>For organization audits, submitted URL identity aligns with Alloro project identity, GBP, and location records.</li>
+                <li>For URL-only audits, external sources are compared against the submitted URL baseline and flagged as consistent, conflicting, missing-on-site, or ambiguous.</li>
+                <li>External exact and near-exact web mentions are collected and weighted by source reliability.</li>
+                <li>High-authority or high-confidence mismatches are flagged: old phone, old address, wrong domain, stale hours, wrong provider, wrong location, or entity ambiguity.</li>
+              </ul>
+            </td>
+          </tr>
+          <tr>
+            <td>Connected Performance Signals</td>
+            <td>20</td>
+            <td>GSC harvests, GBP profile/review/performance data, locations, audit history, later prompt-test history</td>
+            <td>
+              <ul>
+                <li>GSC integration is active and has recent data for the site.</li>
+                <li>Audited URLs map to GSC page rows where available.</li>
+                <li>GBP profile data is available and location mappings are explicit.</li>
+                <li>Location-level GBP signals exist: reviews, rating, website clicks, call clicks, direction requests, impressions, categories, hours.</li>
+                <li>Audit history exists for before/after comparison.</li>
+                <li>Future AI prompt/citation tests can attach to the same audit target model without changing the scoring contract.</li>
+              </ul>
+            </td>
+          </tr>
+          <tr>
+            <td>Authority And Market Signals</td>
+            <td>10</td>
+            <td>Reviews now; external mentions from consistency scan; citation/backlink provider later</td>
+            <td>
+              <ul>
+                <li>Review volume, rating, freshness, and response posture support the entity.</li>
+                <li>External mentions corroborate the business rather than creating ambiguity.</li>
+                <li>Known profiles and directories point to the canonical domain.</li>
+                <li>Competitor citation, mention, and backlink gaps can be added when provider data exists.</li>
+                <li>Authority signals are reported separately from correctness signals; a high-authority wrong listing is a risk, not a win.</li>
+              </ul>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>URL-Only Mode</h3>
+      <table class="score-table">
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Max Available</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Access And Indexability</td><td>25 / 25</td><td>Fully measurable from the submitted URL and public crawl assets.</td></tr>
+          <tr><td>Page Source Readiness</td><td>20 / 20</td><td>Mostly measurable from rendered content, schema, and evidence-bound semantic analysis.</td></tr>
+          <tr><td>Entity And External Consistency</td><td>18 / 25</td><td>The submitted URL can be used as the baseline, then compared against external web mentions. Correctness confidence is lower without Alloro, GBP, or manual canonical facts.</td></tr>
+          <tr><td>Connected Performance Signals</td><td>0 / 20</td><td>Requires GSC, GBP, audit history, or prompt/citation history.</td></tr>
+          <tr><td>Authority And Market Signals</td><td>4 / 10</td><td>External mention presence can be sampled, but backlink/citation depth and competitor gaps require provider data.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>External Entity Consistency States</h3>
+      <table class="score-table">
+        <thead>
+          <tr><th>State</th><th>Meaning</th><th>Example</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Consistent</td><td>The submitted URL and external source expose the same field.</td><td>Website footer and Healthgrades list the same phone number.</td></tr>
+          <tr><td>Conflicting</td><td>The submitted URL and external source expose different values for the same field.</td><td>The site lists one address while Yelp lists an older address.</td></tr>
+          <tr><td>Missing On Site</td><td>External sources expose a useful identity field that the submitted URL does not expose.</td><td>The site lacks a phone number, but multiple directories list one.</td></tr>
+          <tr><td>External Candidate</td><td>A field appears externally but cannot be judged correct without stronger canonical evidence.</td><td>One directory lists hours that do not appear on the submitted URL.</td></tr>
+          <tr><td>Ambiguous Entity</td><td>Search results suggest multiple similarly named businesses or locations.</td><td>Two different cities have businesses with the same or near-identical name.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Hard Caps</h3>
+      <table class="score-table">
+        <thead>
+          <tr><th>Failure</th><th>Maximum Score</th><th>Required Output</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>URL does not resolve or final response is not 200</td><td>30</td><td>Hard failure with final status and redirect chain evidence.</td></tr>
+          <tr><td>Blocked by robots or CDN rules</td><td>35</td><td>Hard failure with the blocking directive or fetch failure evidence.</td></tr>
+          <tr><td>Noindex present</td><td>40</td><td>Hard failure with meta/header evidence.</td></tr>
+          <tr><td>Main content not renderable</td><td>55</td><td>High concern with rendered text and screenshot/render evidence.</td></tr>
+          <tr><td>Bad canonical or canonical points to the wrong page</td><td>65</td><td>Concern with canonical target evidence.</td></tr>
+          <tr><td>Organization audit has no connected site</td><td>60</td><td>Blocked full audit; allow limited organization-data readiness report.</td></tr>
+          <tr><td>Local audit has GBP/page NAP mismatch</td><td>70</td><td>High concern with field-by-field mismatch evidence.</td></tr>
+          <tr><td>Schema contradicts visible content</td><td>75</td><td>High concern with schema field and visible-content evidence.</td></tr>
+          <tr><td>High-confidence external source contradicts submitted URL</td><td>78</td><td>Entity Consistency Risk flag with source URL, field, submitted value, and external value.</td></tr>
+          <tr><td>Unsupported high-risk claims</td><td>80</td><td>High Risk flag plus cited unsupported claims.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/pages/DFYWebsite.tsx</code> - client website dashboard host, active tab routing, and live website context.</li>
+        <li><code>frontend/src/components/website/WebsiteDashboardTabs.tsx</code> - client website tab control to extend after internal scoring is stable.</li>
+        <li><code>frontend/src/pages/admin/OrganizationDetail.tsx</code> - admin organization shell and embedded website management surface.</li>
+        <li><code>frontend/src/components/Admin/organizationDetailNavigationConfig.ts</code> - admin organization website tab key registry.</li>
+        <li><code>frontend/src/pages/admin/WebsiteDetail.tsx</code> - admin website detail surface and embedded organization website tab renderer.</li>
+        <li><code>frontend/src/lib/queryClient.ts</code> - query key factory that new admin/client audit hooks must extend.</li>
+        <li><code>src/services/integrations/gscHarvestAdapter.ts</code> - existing GSC harvest adapter and required metadata shape.</li>
+        <li><code>src/models/website-builder/GscDataModel.ts</code> - stored GSC harvest access by project/date range.</li>
+        <li><code>src/models/website-builder/WebsiteIntegrationModel.ts</code> - active integration lookup and GSC connection metadata.</li>
+        <li><code>src/controllers/gbp/GbpController.ts</code> - existing <code>getGBPAIReadyData</code> programmatic GBP profile, review, and performance collector.</li>
+        <li><code>src/models/website-builder/ProjectIdentityModel.ts</code> - project identity source for business fields and entity comparison.</li>
+        <li><code>src/models/website-builder/PageModel.ts</code> - published website pages for organization audit targeting.</li>
+        <li><code>src/routes/admin/organizations.ts</code> and <code>src/controllers/admin-organizations/AdminOrganizationsController.ts</code> - admin org patterns and ownership checks.</li>
+        <li><code>src/routes/user/website.ts</code> - client website route analog if later exposing simplified customer-facing audit results.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Backend must follow Routes to Controllers to Services to Models; no DB queries in routes/controllers outside models.</li>
+        <li>Frontend API calls must live in typed API modules and React Query hooks, using <code>QUERY_KEYS</code> factories.</li>
+        <li>Scoring rules live in versioned code. Persist the rule version and results, not mutable rule logic only in the database.</li>
+        <li>Every score component must include evidence, status, remediation, data scope, and confidence; no unexplained scores.</li>
+        <li>External URL fetches must be admin/internal first with strict SSRF protections before any customer exposure.</li>
+        <li>External web consistency checks must distinguish missing-on-site, conflicting, candidate, and ambiguous states instead of pretending every external source is authoritative.</li>
+      </ul>
+      <p><strong>Reference files:</strong> <code>src/services/integrations/gscHarvestAdapter.ts</code> for integration validation/fetching shape; <code>frontend/src/components/website/WebsiteDashboardTabs.tsx</code> for client tab style; <code>frontend/src/pages/admin/OrganizationDetail.tsx</code> for admin embedded website routing.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Start as an internal/admin mini app before customer exposure.</li>
+            <li>Support both <code>url_only</code> and <code>organization</code> audit scopes.</li>
+            <li>Support multi-location organization audits and location-level score breakdowns.</li>
+            <li>Support external exact and near-exact web source discovery for entity consistency checks.</li>
+            <li>Persist audit runs, targets, results, evidence, and rule version.</li>
+            <li>Show score, data coverage, confidence, hard caps, evidence, and remediation.</li>
+            <li>Reuse existing GSC, GBP, project identity, and website page data boundaries.</li>
+            <li>Include docs parity for admin/client dashboard UI once implemented.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not expose arbitrary URL audit to customers in the first implementation.</li>
+            <li>Do not create a standalone Next.js app or separate database for this feature.</li>
+            <li>Do not duplicate GBP collection logic already owned by <code>getGBPAIReadyData</code>.</li>
+            <li>Do not mark missing integration data as a failure; mark it unavailable and reduce data coverage/confidence.</li>
+            <li>Do not declare an external source correct in URL-only mode unless the submitted URL or a stronger connected source corroborates it.</li>
+            <li>Do not store secrets, crawler tokens, full OAuth payloads, or private credentials in audit evidence.</li>
+            <li>Do not treat <code>llms.txt</code> as a core scoring requirement.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Automated fixes to websites, schema, GBP, or GSC settings.</li>
+        <li>Production authority provider integration for backlinks/citations.</li>
+        <li>Live AI prompt/citation testing across ChatGPT, Perplexity, Claude, or Google AI Mode.</li>
+        <li>Customer-facing arbitrary external URL scanner.</li>
+        <li>Changing existing website generation prompts or templates.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 4 - cross-system dashboard feature with new persistence, external URL fetching, scoring semantics, and future customer-facing impact.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>SSRF and network abuse:</strong> arbitrary URL audit can fetch internal network targets if naive. <strong>Mitigation:</strong> admin-only first, validate protocol/host, block private/reserved IPs after DNS resolution, disallow redirects to private IPs, enforce timeouts, byte limits, and rate limits.</li>
+        <li><strong>Misleading scores:</strong> missing GBP/GSC/authority data can look like failure. <strong>Mitigation:</strong> separate score from data coverage and confidence; use <code>unavailable</code> and <code>not_applicable</code> result states.</li>
+        <li><strong>Architecture drift:</strong> scoring can sprawl into controllers or UI. <strong>Mitigation:</strong> isolate rule evaluation in backend services, DB access in models, and UI rendering in small typed components.</li>
+        <li><strong>Production migration risk:</strong> new audit tables touch production deployment. <strong>Mitigation:</strong> additive-only schema, reversible drops, indexed foreign keys, no backfill, no data rewrite.</li>
+        <li><strong>Expensive audits:</strong> rendering pages and parsing sitemaps can become slow. <strong>Mitigation:</strong> queue long audits through a worker or explicit async run status before broad rollout; first implementation can support synchronous small runs only if timeouts are strict.</li>
+        <li><strong>Data leakage:</strong> evidence can accidentally expose PII, OAuth state, or private GBP review text. <strong>Mitigation:</strong> evidence stores normalized facts and excerpts only, never tokens or full raw provider payloads.</li>
+        <li><strong>External search false positives:</strong> web results can mix similarly named practices, old listings, lead-gen pages, and scraped directories. <strong>Mitigation:</strong> use entity disambiguation, source reliability weights, location/domain matching, and explicit ambiguous/candidate states.</li>
+        <li><strong>Search provider dependency:</strong> external consistency scanning requires a search API or controlled search provider with cost, rate limits, and terms-of-use constraints. <strong>Mitigation:</strong> make the provider pluggable and keep the app useful without external scan data by marking that segment unavailable.</li>
+        <li><strong>Synchronous audit timeout:</strong> URL fetching, sitemap discovery, external consistency checks, and scoring can exceed normal HTTP request time. <strong>Mitigation:</strong> audit launch must create a queued run/job immediately, process asynchronously, and expose current step/progress through polling.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> Admin organization detail, admin website detail, client website dashboard tabs if exposed, GSC harvest model, GBP profile collector, project identity model, website pages model, new audit persistence tables, audit job runner, polling query hooks, query cache keys, dashboard docs parity.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>A standalone Next.js app is the wrong first move. It duplicates auth, org mapping, GBP/GSC access, and website project state already owned by Alloro.</li>
+        <li>A single opaque score is not enough. Future-us will hate this if every number cannot point to evidence and remediation.</li>
+        <li>External URL audit should not be customer-facing in phase one. That belongs behind admin controls until SSRF, rate limits, and output quality are proven.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Audit Persistence Schema</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create additive audit tables for runs, targets, category results, check evidence, and rule version metadata. Include indexes for organization, project, location, scope, status, and created date.</dd></div>
+          <div><dt>Files</dt><dd><code>src/database/migrations/*_create_ai_seo_audit_tables.ts</code>, <code>src/models/*AiSeoAudit*.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>None</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run db:migrate</code>, <code>npm run db:rollback</code> on dev DB target after checking <code>.env</code>.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Rule Catalog And Scoring Engine</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Implement typed rule definitions, category weights, URL-only max availability, hard caps, result states, data coverage, confidence, and score aggregation. Rules must return evidence and remediation.</dd></div>
+          <div><dt>Files</dt><dd><code>src/services/ai-seo-audit/*</code>, <code>src/validation/*</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Unit tests for weighting, unavailable data, hard caps, and confidence calculation.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: URL Collection And Safety Layer</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Fetch and normalize audited URLs with SSRF protections, robots lookup, headers, canonical/meta extraction, sitemap detection, structured data parsing, rendered text strategy, and deterministic technical checks.</dd></div>
+          <div><dt>Files</dt><dd><code>src/services/ai-seo-audit/urlCollectorService.ts</code>, <code>src/services/ai-seo-audit/urlSafetyService.ts</code>, <code>src/utils/website-utils/*</code> if reused</dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>Tests for blocked private IPs, blocked redirects, noindex, bad canonical, and robots disallow cases.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: External Entity Consistency Collector</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Search exact and near-exact business/entity queries, collect candidate external sources, extract identity fields, score source reliability, compare fields against the submitted URL baseline and connected canonical sources when available, and classify findings as consistent, conflicting, missing-on-site, external-candidate, or ambiguous-entity.</dd></div>
+          <div><dt>Files</dt><dd><code>src/services/ai-seo-audit/externalEntitySearchService.ts</code>, <code>src/services/ai-seo-audit/externalEntityExtractionService.ts</code>, <code>src/services/ai-seo-audit/entityConsistencyService.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3</dd></div>
+          <div><dt>Verify</dt><dd>Tests for matching phone/address/domain, stale external phone, missing-on-site phone, multiple similarly named entities, and unavailable search provider.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Organization Data Resolver</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Resolve organization audit context from website project, published pages, project identity, active GSC integration, latest GSC data, GBP profile data, google properties, and locations. Map location pages to GBP locations with explicit confidence.</dd></div>
+          <div><dt>Files</dt><dd><code>src/services/ai-seo-audit/organizationAuditContextService.ts</code>, existing website/GSC/GBP models as consumers only</dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2</dd></div>
+          <div><dt>Verify</dt><dd>Tests for no website, no GSC, no GBP, single location, and multiple location mapping cases.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Admin API Surface</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add protected admin endpoints to create URL-only audits, create organization audits, list audit runs, and fetch a run with evidence and external consistency findings. Keep routes thin and validate input before controllers.</dd></div>
+          <div><dt>Files</dt><dd><code>src/routes/admin/aiSeoAudit.ts</code>, <code>src/controllers/admin-ai-seo-audit/*</code>, <code>src/index.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3, T4, T5</dd></div>
+          <div><dt>Verify</dt><dd>API tests or manual curl against authenticated admin session; response shape must follow <code>{ success, data, error }</code>.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: Admin Mini-App UI</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a top-level admin Apps route and sidebar entry. Show AI/SEO Audit as the first app; selecting it opens organization and custom URL launch modes, run history, simplified category score cards, location breakdowns, external consistency findings, evidence, hard caps, data coverage, confidence, and remediation.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/Admin.tsx</code>, <code>frontend/src/components/Admin/AdminSidebar.tsx</code>, <code>frontend/src/pages/admin/AdminApps.tsx</code>, <code>frontend/src/api/aiSeoAudit.ts</code>, <code>frontend/src/hooks/queries/useAiSeoAuditQueries.ts</code>, <code>frontend/src/components/Admin/ai-seo-audit/*</code></dd></div>
+          <div><dt>Depends on</dt><dd>T6</dd></div>
+          <div><dt>Verify</dt><dd>Frontend build, admin route manual inspection, loading/empty/error/success states, keyboard navigation, no raw query keys.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T8: Client Website Tab Gate</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Decide whether phase one exposes a simplified customer-facing website tab. If exposed, show only safe organization results and hide arbitrary URL scanning and raw technical internals. If deferred, document why and keep the UI admin-only.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/DFYWebsite.tsx</code>, <code>frontend/src/components/website/WebsiteDashboardTabs.tsx</code>, <code>frontend/src/components/website/ai-seo-audit/*</code> if exposed</dd></div>
+          <div><dt>Depends on</dt><dd>T7</dd></div>
+          <div><dt>Verify</dt><dd>Client dashboard route inspection or explicit deferral note in the implementation summary.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T9: Docs, Tests, And Verification</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add focused backend and frontend tests, run type/build gates, and update Alloro Docs for any visible admin/client dashboard change.</dd></div>
+          <div><dt>Files</dt><dd><code>/Users/rustinedave/Desktop/alloro-docs</code> docs files determined during execution, relevant test files</dd></div>
+          <div><dt>Depends on</dt><dd>T1-T8</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>, backend/frontend build, focused tests, manual admin route checks, docs parity check.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T10: Async Audit Job Lifecycle</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Change audit launches from synchronous completion requests into queued jobs. Creating a URL or organization audit should immediately create an audit run with <code>queued</code> status, insert it at the top of run history, return the run id, and process the audit asynchronously through <code>queued</code>, <code>running</code>, <code>completed</code>, or <code>failed</code>. The UI must poll the latest run list and selected run detail until a terminal status, showing current step/progress details such as URL collection, indexability checks, entity extraction, external consistency scan, scoring, persistence, and error messages.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-ai-seo-audit/AdminAiSeoAuditController.ts</code>, <code>src/services/ai-seo-audit/aiSeoAuditService.ts</code>, <code>src/services/ai-seo-audit/auditTargetExecutionService.ts</code>, <code>src/services/ai-seo-audit/auditPersistenceService.ts</code>, <code>frontend/src/api/aiSeoAudit.ts</code>, <code>frontend/src/hooks/queries/useAiSeoAuditQueries.ts</code>, <code>frontend/src/components/Admin/ai-seo-audit/*</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1, T6, T7</dd></div>
+          <div><dt>Verify</dt><dd>Launching an audit creates a visible queued list row immediately; row transitions through running status without page refresh; selected detail polls latest status/progress; terminal completed/failed stops polling; failed jobs show the latest error and remain selectable.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> Additive audit persistence migration exists with rollback and production-safety review.</li>
+        <li><input type="checkbox" checked disabled> Audit rules produce score, data coverage, confidence, hard caps, evidence, remediation, and result state.</li>
+        <li><input type="checkbox" checked disabled> URL-only audit is admin/internal and protected by SSRF controls, timeouts, and size limits.</li>
+        <li><input type="checkbox" checked disabled> URL-only audit can compare submitted-site identity against external exact and near-exact web mentions.</li>
+        <li><input type="checkbox" checked disabled> External findings distinguish consistent, conflicting, missing-on-site, external-candidate, and ambiguous-entity states.</li>
+        <li><input type="checkbox" checked disabled> Organization audit uses Alloro website project, pages, project identity, GSC harvest data, GBP profile data, and location context where available.</li>
+        <li><input type="checkbox" checked disabled> Multi-location organizations receive location-level audit breakdowns and mapping confidence.</li>
+        <li><input type="checkbox" checked disabled> Missing integrations lower data coverage/confidence instead of becoming false failures.</li>
+        <li><input type="checkbox" checked disabled> Apps sidebar entry and <code>/admin/apps</code> route show AI/SEO Audit as the first app.</li>
+        <li><input type="checkbox" checked disabled> Admin UI shows run history, current run status, score breakdown, hard caps, evidence, and remediations.</li>
+        <li><input type="checkbox" checked disabled> Client-facing tab is intentionally deferred until scoring output is safe enough for customer display.</li>
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> passes with no errors caused by this work.</li>
+        <li><input type="checkbox" checked disabled> Backend and frontend builds pass; pre-existing frontend lint/build warnings are documented separately.</li>
+        <li><input type="checkbox" checked disabled> Focused service smoke and inline assertions pass for URL safety, hard caps, scoring coverage, and unavailable-data handling.</li>
+        <li><input type="checkbox" checked disabled> Alloro Docs parity is checked; no docs update required because this surface is internal admin-only and the docs app has no matching admin page.</li>
+        <li><input type="checkbox" checked disabled> Audit launch creates a queued run/job immediately instead of blocking the request until scoring completes.</li>
+        <li><input type="checkbox" checked disabled> Run history shows the new queued/running job row immediately and polls until completed or failed.</li>
+        <li><input type="checkbox" checked disabled> Selected run detail shows latest job status details, current step/progress, timestamps, and failure reason if applicable.</li>
+        <li><input type="checkbox" checked disabled> Hard caps are deduped per run; external consistency is run-level via SerpAPI and never cites the audited site's own pages; org picker lists only auditable organizations; run detail groups criteria by category with per-page expansion and supports delete/clear-all.</li>
+        <li><input type="checkbox" checked disabled> Run-level organization audit score and coverage aggregation cannot overflow percent numeric columns.</li>
+        <li><input type="checkbox" checked disabled> Custom URL mode lists only URL-only runs instead of unfiltered organization runs.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - June 8, 2026</h3>
+        <p><strong>Change:</strong> Collapsed the scoring contract into five parent categories with subcriteria, added External Entity Consistency as a first-class module, and expanded tasks/done criteria for web-source discovery and mismatch classification.</p>
+        <p><strong>Reason:</strong> URL-only audits can still infer a baseline from the submitted site and compare it against external mentions; the app should flag missing-on-site and conflicting web data without requiring Alloro/GBP canonical data.</p>
+        <p><strong>Updated Done criteria:</strong> Added external web mention comparison and explicit consistency states.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - June 8, 2026</h3>
+        <p><strong>Change:</strong> Marked execution complete after implementing the admin-only mini app, audit persistence, scoring engine, URL safety, external consistency fallback, organization data resolver, admin API, and admin website tab.</p>
+        <p><strong>Reason:</strong> The first implementation is intentionally internal. Customer-facing website exposure remains deferred until scoring semantics, rate limits, and output safety are validated with real Alloro organizations.</p>
+        <p><strong>Updated Done criteria:</strong> Documented migration rollback/re-apply verification, service-level smoke coverage, and Alloro Docs parity result.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - June 8, 2026</h3>
+        <p><strong>Change:</strong> Move the mini app from the website-management tab into a top-level admin Apps feature. Apps will show AI/SEO Audit as the first app; selecting it opens the same audit UI with two launch modes: existing organization or custom URL.</p>
+        <p><strong>Reason:</strong> The product model is an Alloro app marketplace/workspace, not a hidden website-management tool. Organization audits still need website, GSC, GBP, and location context, but the entry point should be global.</p>
+        <p><strong>Updated Done criteria:</strong> Add a global <code>/admin/apps</code> route, sidebar entry, Apps hub UI, app selector, organization picker, and custom URL audit controls.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 4 - June 8, 2026</h3>
+        <p><strong>Change:</strong> Simplify the Apps and AI/SEO Audit UI by removing decorative hero copy, redundant pills, status labels, and extra explanatory text.</p>
+        <p><strong>Reason:</strong> The workflow should be direct: choose the app, choose organization or URL, run the audit, then review results.</p>
+        <p><strong>Updated Done criteria:</strong> Apps UI is compact, app selection is obvious, launch controls are grouped, and no decorative copy competes with the audit controls.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 5 - June 9, 2026</h3>
+        <p><strong>Change:</strong> Replace the native organization select with an animated searchable combobox.</p>
+        <p><strong>Reason:</strong> The browser-native dropdown is visually heavy, hard to scan, and awkward with many organizations. Search keeps the app compact and faster to operate.</p>
+        <p><strong>Updated Done criteria:</strong> Organization mode uses a custom animated search select with filtered results, selected-state feedback, outside-click close, and keyboard support.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 6 - June 9, 2026</h3>
+        <p><strong>Change:</strong> Plan audit execution as an async job lifecycle instead of a synchronous request/response action.</p>
+        <p><strong>Reason:</strong> Real audits can take time and should not make the user wait on one blocking button request. A queued/running run should appear immediately in history, poll for latest status, and show the current processing detail until the audit completes or fails.</p>
+        <p><strong>Updated Done criteria:</strong> Added unchecked criteria for immediate queued job rows, list/detail polling, latest job status details, terminal-state handling, and failure visibility.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 7 - June 9, 2026</h3>
+        <p><strong>Change:</strong> Fix run-level aggregation overflow and separate Custom URL run history from organization run history.</p>
+        <p><strong>Reason:</strong> Organization audits can span many targets, so run-level data coverage must be an average percentage rather than summed target availability. Custom URL mode also must not request unfiltered audit history.</p>
+        <p><strong>Updated Done criteria:</strong> Added completed criteria for clamped run-level score/coverage aggregation and scope-filtered run history.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 8 - June 9, 2026</h3>
+        <p><strong>Change:</strong> Consolidated execution batch after first internal QA. (1) Build the async job lifecycle (T10) on the existing BullMQ <code>wb-</code> worker stack: a new <code>wb-ai-seo-audit</code> queue + processor, controller creates a <code>queued</code> run and enqueues immediately, processor advances <code>queued -&gt; running -&gt; completed/failed</code> with per-step progress stored in <code>runs.summary.progress</code>, and the UI polls list + selected detail until terminal. (2) Dedupe run-level hard caps by <code>code</code> (keep lowest <code>maxScore</code>) so multi-target org audits stop repeating identical caps. (3) Move external entity consistency from per-target to once-per-run keyed on business identity, wire SerpAPI (<code>SERPAPI_API_KEY</code>, <code>engine=google</code>, <code>organic_results</code>) as the real provider, and stop emitting the audited site's own pages as "external" rows. (4) Add delete-run support (single + clear-all) with a UI control and a one-time dev cleanup. (5) Filter the organization picker to auditable orgs only (connected website project + at least one published page). (6) Redesign run detail: overall + five category scores up top, criteria grouped and deduped by check id with pass/partial/fail counts, per-page detail behind expansion, and explicit queued/running/failed states.</p>
+        <p><strong>Reason:</strong> Internal QA surfaced duplicated hard caps, external-consistency rows that only cited the audited site, a noisy partial-heavy flat criteria list, organizations with no website project polluting the picker, and synchronous audits that block the request. SerpAPI and the BullMQ worker stack already exist in the repo, so the async lifecycle and real external search reuse owned infrastructure instead of new dependencies.</p>
+        <p><strong>Updated Done criteria:</strong> Async lifecycle Done items move from deferred to in-scope; added criteria for deduped hard caps, run-level SerpAPI-backed external consistency, delete-run support, auditable-only organization picker, and a grouped/expandable status-aware results view. No new migration: reuses the existing <code>status</code> enum and <code>summary</code> jsonb, so production schema risk is unchanged.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 9 - June 10, 2026</h3>
+        <p><strong>Change:</strong> Scoring-accuracy and comprehensibility pass. Accuracy: (1) <code>entity.connected_canonical_match</code> pass now awards its full weight (was 4 of 5, making 100 unreachable for orgs); (2) missing GBP (<code>connected.gbp_profile</code>, <code>authority.reviews</code>) is now <code>unavailable</code> — coverage/confidence impact only — instead of a partial score penalty, matching the spec's missing-integration rule; (3) added a rubric-integrity assertion: per-category check weights must sum to the declared category weight or scoring throws; (4) regex-based content checks relabeled <code>deterministic</code> (the <code>llm_assisted</code> method value is reserved for a future real LLM layer). Structure: (5) page selection now prioritizes home → content → legal/utility before the 12-page cap, the run score is an importance-weighted average (home ×2, content ×1, utility ×0.5 via target metadata), and the run summary records <code>totalPages</code>; (6) legal/utility pages take <code>not_applicable</code> on service-page content checks (specificity, evidence units, page-type fit). UI: per-page score list (lowest first, grade chips), a "Biggest wins" top-fixes section ranked by score impact, a grade band on the overall score (Excellent/Good/Needs work/At risk), hard caps now state which/how many pages they cap, and Pages Checked discloses "12 of N".</p>
+        <p><strong>Reason:</strong> The score must be exactly reproducible from the published rubric, and a non-technical reader should understand what the number means and what to do next without decoding statuses. Equal page weighting and alphabetical page selection let boilerplate pages distort organization scores.</p>
+        <p><strong>Updated Done criteria:</strong> Passing checks award full weight; missing integrations never lower the score; rubric drift fails fast; run score is importance-weighted; utility pages exempt from content rubric; results view leads with grade, top fixes, and per-page scores.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

@@ -31,6 +31,7 @@ import { PmErrorBoundary } from "@/components/pm/PmErrorBoundary";
 import LeadgenSubmissions from "./admin/LeadgenSubmissions";
 import SupportDashboard from "./admin/SupportDashboard";
 import MissionControl from "./admin/MissionControl";
+import AdminApps from "./admin/AdminApps";
 
 function WebDevEngine() {
   return (
@@ -69,6 +70,8 @@ function AdminWithLayout() {
       <Routes>
         <Route path="/" element={<Navigate to="mission-control" replace />} />
         <Route path="mission-control" element={<MissionControl />} />
+        <Route path="apps" element={<AdminApps />} />
+        <Route path="apps/:appKey" element={<AdminApps />} />
         <Route path="ai-pms-automation" element={<PMSAutomationCards />} />
         <Route path="action-items" element={<ActionItemsHub />} />
         <Route path="agent-outputs" element={<AgentOutputsList />} />

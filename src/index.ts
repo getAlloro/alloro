@@ -50,6 +50,7 @@ import adminPmsPipelineRoutes from "./routes/admin/pmsPipeline";
 import adminSupportRoutes from "./routes/admin/support";
 import adminGbpAutomationRoutes from "./routes/admin/gbpAutomation";
 import adminMissionControlRoutes from "./routes/admin/missionControl";
+import adminAiSeoAuditRoutes from "./routes/admin/aiSeoAudit";
 import leadgenTrackingRoutes from "./routes/leadgenTracking";
 import practiceRankingRoutes from "./routes/practiceRanking";
 import supportRoutes from "./routes/support";
@@ -188,6 +189,7 @@ app.use("/api/admin/pms-jobs", adminPmsPipelineRoutes);
 app.use("/api/admin/support", adminSupportRoutes);
 app.use("/api/admin/gbp-automation", adminGbpAutomationRoutes);
 app.use("/api/admin/mission-control", adminMissionControlRoutes);
+app.use("/api/admin/ai-seo-audit", adminAiSeoAuditRoutes);
 app.use("/api/leadgen", leadgenTrackingRoutes);
 app.use("/api/admin/practice-ranking", practiceRankingRoutes);
 app.use("/api/practice-ranking", practiceRankingRoutes); // Client-facing endpoint for /latest
