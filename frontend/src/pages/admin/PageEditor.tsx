@@ -22,8 +22,14 @@ import {
 import { runPublishLint, type PublishLintWarning } from "../../utils/publishLint";
 import PublishConfirmModal from "../../components/PageEditor/PublishConfirmModal";
 import FindReplaceModal from "../../components/Admin/FindReplaceModal";
-import { createAdminWebsiteMediaApi } from "../../api/websiteMedia";
-import type { WebsitePage, WebsiteProject, EditChatHistory, EditDebugInfo, ApiError } from "../../api/websites";
+import { createAdminWebsiteMediaApi, type MediaItem } from "../../api/websiteMedia";
+import type {
+  WebsitePage,
+  WebsiteProjectWithPages,
+  EditChatHistory,
+  EditDebugInfo,
+  ApiError,
+} from "../../api/websites";
 import type { Section } from "../../api/templates";
 import { renderPage, normalizeSections } from "../../utils/templateRenderer";
 import {
@@ -399,7 +405,7 @@ function PageEditorInner() {
 
   // Page + project state
   const [page, setPage] = useState<WebsitePage | null>(null);
-  const [project, setProject] = useState<WebsiteProject | null>(null);
+  const [project, setProject] = useState<WebsiteProjectWithPages | null>(null);
   const [draftPageId, setDraftPageId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -918,7 +924,7 @@ function PageEditorInner() {
 
   // --- Handle edit send ---
   const handleSendEdit = useCallback(
-    async (instruction: string, attachedMedia?: any[]) => {
+    async (instruction: string, attachedMedia?: MediaItem[]) => {
       // Block editing header/footer elements (they live on the project, not the page).
       // Check structurally: if the element is inside a data-alloro-section marker, it's page content.
       if (selectedInfo) {
@@ -1010,7 +1016,7 @@ function PageEditorInner() {
           const scrollY = iframe.contentWindow?.scrollY || 0;
           const scrollX = iframe.contentWindow?.scrollX || 0;
 
-          const { html: newHtml } = replaceComponentInDom(
+          replaceComponentInDom(
             iframe.contentDocument,
             alloroClass,
             result.editedHtml!

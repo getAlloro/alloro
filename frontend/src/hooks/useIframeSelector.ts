@@ -121,7 +121,9 @@ function caretCharOffsetFromPoint(
         offset = pos.offset;
       }
     }
-    if (!node || !element.contains(node)) return null;
+    if (!node || !element.contains(node)) {
+      return estimateCaretOffsetFromPoint(element, x);
+    }
 
     let raw = 0;
     const walker = doc.createTreeWalker(element, NodeFilter.SHOW_TEXT);
@@ -130,10 +132,21 @@ function caretCharOffsetFromPoint(
       if (textNode === node) return raw + offset;
       raw += (textNode.textContent || "").length;
     }
-    return raw;
+    return raw || estimateCaretOffsetFromPoint(element, x);
   } catch {
-    return null;
+    return estimateCaretOffsetFromPoint(element, x);
   }
+}
+
+function estimateCaretOffsetFromPoint(element: Element, x: number): number | null {
+  const textLength = (element.textContent || "").length;
+  if (!textLength) return null;
+
+  const rect = element.getBoundingClientRect();
+  if (!Number.isFinite(rect.width) || rect.width <= 0) return null;
+
+  const ratio = Math.max(0, Math.min(1, (x - rect.left) / rect.width));
+  return Math.max(0, Math.min(textLength, Math.round(textLength * ratio)));
 }
 
 /** Walk up from a target element to find the nearest alloro-classed ancestor (or self). */
@@ -852,17 +865,26 @@ export function useIframeSelector(
     });
 
     doc.body.addEventListener("click", (e) => {
+      const clickTarget = e.target as Element;
+
       // A click while a canvas/rich session is active must COMMIT that session
       // (pinned to its own element via makeCommitHandler) and clear the flag
       // synchronously so THIS same click can re-select — instead of being
       // swallowed. The session's blur also schedules finish() a tick later;
       // that becomes a no-op via the isFinished guard.
       if (isCanvasTextEditingActive()) {
+        if (
+          clickTarget.closest?.('textarea[data-alloro-canvas-editor="true"]') ||
+          clickTarget.closest?.("[data-alloro-editing='true']") ||
+          clickTarget.closest?.("#alloro-rich-toolbar")
+        ) {
+          e.stopPropagation();
+          return;
+        }
         canvasTextSessionRef.current?.commit();
         canvasTextSessionRef.current = null;
         delete doc.body.dataset.alloroCanvasEditing;
       }
-      const clickTarget = e.target as Element;
 
       // Anchors are pointer-enabled inside sections — navigation must never
       // fire in the editor, whether the click lands on a selectable element
