@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Disallow Email on Dev &amp; Local Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Completed</span>
+      </div>
+      <h1>Disallow Email on Dev &amp; Local</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06102026-disallow-email-on-dev-and-local</dd></div>
+        <div><dt>Size</dt><dd>Medium (4 files)</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+        <div><dt>Branch</dt><dd>hotfix/disallow-email-on-dev-and-local (off origin/main)</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The dev server (dev.getalloro.com) points at the <strong>same production n8n email webhooks</strong> as prod, and its <code>CONTACT_FORM_RECIPIENTS</code> contains real recipient addresses. Any email-triggering action on dev or localhost (form submission, OTP, password reset, PMS notification, leadgen report) sends real email to real people. No runtime environment discriminator exists: <code>ecosystem.config.js</code> hardcodes <code>NODE_ENV=production</code> for both PM2 apps and both servers deploy with that same file, so dev and prod are indistinguishable to the code.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>A runtime <strong>sender-identity guard</strong>: email dispatches normally only when the sending machine's own public IP is among the DNS A records of <code>app.getalloro.com</code> (verified: prod box 52.203.199.155 matches; dev box 3.210.41.226 does not; DNS points directly at the boxes, no proxy). On any other machine — and on <em>any</em> failure to determine identity — every email is intercepted: recipients rewritten to <code>dave@getalloro.com</code> strictly (cc/bcc emptied), subject prefixed with <code>[Intercepted] </code>, original recipients logged. No env variable, no <code>NODE_ENV</code>, no <code>Host</code> header. Applied inside all 3 email exit functions so every current and future caller is covered.</p>
+      <p><strong>Done means:</strong> all 3 exit points guarded, <code>npx tsc --noEmit</code> clean, lint clean, and a local manual trigger produces an <code>[Intercepted]</code> email addressed only to dave@getalloro.com with originals logged.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/emails/emailService.ts</code> - central <code>sendEmail()</code> / <code>sendToAdmins()</code> via <code>ALLORO_EMAIL_SERVICE_WEBHOOK</code>. Callers: OTP (<code>auth-otp/feature-services/service.otp-generation.ts</code>), password reset (<code>auth-password/AuthPasswordController.ts</code>), billing (<code>billing/BillingService.ts</code>), support (<code>support/support-services/SupportEmailService.ts</code>), settings invites (<code>settings/feature-services/service.user-management.ts</code>), admin temp passwords (<code>admin-organizations/AdminOrganizationsController.ts</code>), tier changes (<code>TierManagementService.ts</code>), checkup emails (<code>routes/checkup.ts</code> via templates), user notifications (<code>utils/core/notificationHelper.ts</code>), worker watchdog (<code>scripts/worker-watchdog.ts</code>). All <code>src/emails/templates/*</code> funnel through it — verified none makes its own HTTP call.</li>
+        <li><code>src/controllers/websiteContact/websiteContact-services/emailWebhookService.ts</code> - <code>sendEmailWebhook()</code> via <code>ALLORO_CUSTOM_WEBSITE_EMAIL_WEBHOOK</code>. Callers: public contact forms (<code>websiteContactController.ts</code>, <code>formSubmissionController.ts</code>), newsletter confirm/send (<code>newsletterConfirmController.ts</code>, <code>newsletterConfirmationService.ts</code>), admin manual resend (<code>admin-websites/AdminWebsitesController.ts</code> ×2).</li>
+        <li><code>src/controllers/leadgen-tracking/feature-services/service.n8n-email-sender.ts</code> - FAB audit-report email via axios to <code>N8N_EMAIL_URL</code> with a <strong>hardcoded production webhook fallback</strong> when unset.</li>
+        <li><code>src/emails/types.ts</code> - <code>SendEmailOptions</code> / <code>EmailPayload</code> shapes (read-only reference).</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Module-level config consts + exported async functions + structured logging, as in <code>src/emails/emailService.ts</code> (<code>logEmail</code> levels INFO/ERROR/WARN).</li>
+        <li>axios with explicit timeout for outbound HTTP, as in <code>emailService.ts</code>; <code>node:dns/promises</code> for resolution (built-in, no new dependency).</li>
+        <li>Guard errors must never throw out of the exit functions — mirror <code>sendEmail()</code>'s return-an-EmailResult error style.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/emails/emailService.ts</code> - closest existing analog for the new module's structure (consts, logging, exported config for testing).</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Fail closed: any DNS failure, IP-fetch failure, timeout, or mismatch → intercept.</li>
+            <li>Intercepted recipients are exactly <code>["dave@getalloro.com"]</code>; cc and bcc emptied.</li>
+            <li>Subject becomes <code>[Intercepted] {original subject}</code>.</li>
+            <li>Guard applied <em>inside</em> the 3 exit functions, not at call sites.</li>
+            <li>Log original recipients on every interception (via <code>logEmail</code> in emailService; <code>console.log</code> in the other two, matching their existing logging style).</li>
+            <li>Cache the live/intercept verdict with a 10-minute TTL; dedupe concurrent in-flight checks behind one promise; fire-and-forget warm-up at module load.</li>
+            <li>Use <code>dns.promises.resolve4("app.getalloro.com")</code> and <code>https://checkip.amazonaws.com</code> (axios, ≤5s timeout, trimmed body) for own-IP discovery.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No new dependencies (axios and node:dns already available).</li>
+            <li>No env-variable gating, no <code>NODE_ENV</code> reads, no request <code>Host</code> header inspection.</li>
+            <li>Do not modify any caller, template, or email body content.</li>
+            <li>Do not change <code>ecosystem.config.js</code>, knex config, or server env files.</li>
+            <li>Do not refactor unrelated code in the touched files.</li>
+            <li>Never drop an email entirely — interception reroutes, it does not discard.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Leadgen tool <em>client</em> (separate repo, audit.getalloro.com) posting directly to the n8n webhook from the browser.</li>
+        <li>Emails sent by n8n flows on their own triggers; Stripe's own receipt emails.</li>
+        <li>The Mailgun-based email-manager branch (worktree dave/email-manager) — must adopt this guard when it merges.</li>
+        <li>NODE_ENV / per-environment config normalization (captured as separate background task).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li>Infra coupling: adding a CDN/proxy in front of prod or swapping the Elastic IP makes prod stop matching and divert all email to dave. <strong>Mitigation:</strong> fail-closed is loud — <code>[Intercepted]</code> prod mail lands in dave's inbox immediately; documented here and in agent memory.</li>
+        <li>Transient DNS/checkip failure on prod intercepts mail for up to one TTL (10 min). <strong>Mitigation:</strong> short TTL, re-check on next send, every interception logged with originals so nothing is lost.</li>
+        <li>checkip.amazonaws.com is an external dependency on the send path. <strong>Mitigation:</strong> 5s timeout, verdict cached, failure → intercept (never block/drop). EC2 IMDS fallback deliberately omitted to keep the hotfix small.</li>
+        <li>First send after boot/TTL expiry pays up to ~5s of network checks. <strong>Mitigation:</strong> module-load warm-up primes the cache before the first email.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> every email feature — OTP login codes, password reset, billing, support tickets, user invites, admin temp passwords, tier notices, checkup emails, user notifications, worker-watchdog alerts, website contact forms, newsletter, admin form resend, leadgen audit reports. On prod (IP match) behavior is byte-identical to today. On dev/local, all of it reroutes to dave — the purpose of this change. Known consequence: nobody but dave can receive OTP codes on dev; the JWT test shortcut covers dev auth.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Env-var gating (e.g. <code>ALLORO_PUBLIC_HOST</code>) was rejected: env hygiene already failed once (uniform NODE_ENV, prod webhooks copied into dev.env), and a copied env file could silently re-enable live sending. Self-identification by IP cannot be lied to by configuration.</li>
+        <li>Request <code>Host</code>-header gating was rejected: forgeable (fail-open on dev via spoofed header) and nonexistent for worker/queue/cron sends.</li>
+        <li>Accepted trade-off: email delivery is now coupled to DNS/IP infrastructure. If infra changes, the failure mode is visible interception, not silent client email.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Email interceptor module</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create <code>emailInterceptor.ts</code>: consts (<code>LIVE_HOST</code>, <code>INTERCEPT_RECIPIENT</code>, <code>SUBJECT_PREFIX</code>, TTL); <code>isLiveSender(): Promise&lt;boolean&gt;</code> resolving A records + own public IP with verdict cache, in-flight dedupe, fail-closed error handling; <code>interceptEmailPayload({recipients, cc, bcc, subject})</code> returning <code>{recipients, cc, bcc, subject, intercepted, originalRecipients}</code>; fire-and-forget warm-up at module load; export config consts for testing (mirroring emailService's <code>config</code> export).</dd></div>
+          <div><dt>Files</dt><dd><code>src/emails/emailInterceptor.ts</code> (new)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code></dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Guard central sendEmail</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>sendEmail()</code>, after validation and before building the webhook payload, apply <code>interceptEmailPayload</code>; when intercepted, log via <code>logEmail("INFO", "Email intercepted (non-production sender)", { originalRecipients, subject })</code> and post the rewritten payload.</dd></div>
+          <div><dt>Files</dt><dd><code>src/emails/emailService.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code></dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: Guard website-contact webhook sender</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>sendEmailWebhook()</code>, apply <code>interceptEmailPayload</code> to the payload before the fetch; <code>console.log</code> original recipients on interception, matching the file's existing <code>[Website Contact]</code> log prefix.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/websiteContact/websiteContact-services/emailWebhookService.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code></dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T4: Guard leadgen n8n sender</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Read the full send function first (Read Before Write); apply <code>interceptEmailPayload</code> to its payload (recipient + subject fields) before the axios post; log original recipient on interception in the file's existing style.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/leadgen-tracking/feature-services/service.n8n-email-sender.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code></dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T5: Verification pass</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Full build + lint; locally trigger one email path (e.g. <code>sendEmail</code> via a small ts-node invocation or an existing endpoint) and confirm the dispatched payload targets dave@getalloro.com only with <code>[Intercepted] </code> prefix and the original recipients in the log.</dd></div>
+          <div><dt>Files</dt><dd>none (verification only)</dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3, T4</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> + <code>npm run lint</code> + Manual: intercepted email observed locally</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> - zero errors from this change</li>
+        <li><input type="checkbox" disabled> Lint clean on touched files</li>
+        <li><input type="checkbox" disabled> All 3 exit functions route through the interceptor (no caller files modified)</li>
+        <li><input type="checkbox" disabled> Manual: local send produces <code>[Intercepted]</code> subject addressed only to dave@getalloro.com, cc/bcc empty</li>
+        <li><input type="checkbox" disabled> Original recipients visible in logs on interception</li>
+        <li><input type="checkbox" disabled> No regressions in email sending on prod-identity machines (verdict logic reviewed: IP match → payload untouched)</li>
+      </ul>
+      <h3>Execution Prerequisites</h3>
+      <ul>
+        <li>Work happens on branch <code>hotfix/disallow-email-on-dev-and-local</code> (created off origin/main at PR #130 merge, not yet checked out).</li>
+        <li>Working tree currently holds unrelated uncommitted dev/dave work — stash it or execute in a dedicated worktree before checkout.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

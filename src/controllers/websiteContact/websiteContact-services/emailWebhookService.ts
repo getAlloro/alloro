@@ -3,6 +3,8 @@
  * Sends email payloads to the n8n webhook for dispatch.
  */
 
+import { interceptEmailPayload } from "../../../emails/emailInterceptor";
+
 export interface EmailWebhookPayload {
   cc: string[];
   bcc: string[];
@@ -21,10 +23,25 @@ export async function sendEmailWebhook(payload: EmailWebhookPayload): Promise<vo
     throw new Error("Email service not configured");
   }
 
+  // Non-production senders get every email rerouted to the intercept
+  // recipient (fail closed) — see emails/emailInterceptor.ts.
+  const {
+    payload: outboundPayload,
+    intercepted,
+    originalRecipients,
+  } = await interceptEmailPayload(payload);
+
+  if (intercepted) {
+    console.log(
+      "[Website Contact] Email intercepted (non-production sender). Original recipients:",
+      originalRecipients
+    );
+  }
+
   const webhookRes = await fetch(webhookUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(outboundPayload),
   });
 
   if (!webhookRes.ok) {

@@ -2,6 +2,30 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.116] - June 2026
+
+### Disallow Email on Dev & Local
+
+Prevents any non-production server from sending real email. Previously dev.getalloro.com and local environments pointed at the same production n8n email webhooks and carried real recipient lists, so any email-triggering action (OTP, password reset, contact forms, PMS notifications, leadgen reports) reached real people. There was no runtime discriminator between environments — `ecosystem.config.js` hardcodes `NODE_ENV=production` for both PM2 apps and both servers deploy with it, so dev and prod were indistinguishable to the code.
+
+The fix introduces a runtime sender-identity guard: a process may send live email only when its own public IP matches a DNS A record of `app.getalloro.com`. Anywhere else — and on any failure to determine identity — every email is intercepted: recipients rewritten to `dave@getalloro.com` only (cc/bcc emptied), subject prefixed with `[Intercepted] `, and original recipients logged. The check ignores env vars, `NODE_ENV`, and request `Host` headers by design: configuration can be copied between machines, identity cannot. It fails closed, so a misconfigured prod box diverts mail to an inbox rather than silently mailing clients.
+
+**Key Changes:**
+
+- New `src/emails/emailInterceptor.ts`: resolves `app.getalloro.com` A records and the box's own public IP (via `checkip.amazonaws.com`), caches the verdict for 10 minutes, dedupes concurrent checks, warms the cache at module load, and fails closed on any error.
+- Guard applied inside all three backend email exit functions, covering every current and future caller without touching call sites.
+- Intercepted mail reroutes to `dave@getalloro.com` strictly, with original recipients logged; interception never drops mail.
+- No new dependencies (`axios` and `node:dns` already present); no env-var, `NODE_ENV`, or `Host`-header gating.
+- Verified: `npx tsc --noEmit` clean; interception path confirmed locally (rerouted to dave, `[Intercepted]` subject, originals logged); live path confirmed against real DNS (prod IP 52.203.199.155 matches the A record, dev IP 3.210.41.226 does not).
+
+**Commits:**
+
+- `src/emails/emailInterceptor.ts` - new IP self-identity guard with cached, fail-closed verdict and payload reroute helper
+- `src/emails/emailService.ts` - route `sendEmail()` through the interceptor; log interception with original recipients
+- `src/controllers/websiteContact/websiteContact-services/emailWebhookService.ts` - route `sendEmailWebhook()` through the interceptor
+- `src/controllers/leadgen-tracking/feature-services/service.n8n-email-sender.ts` - route the leadgen audit-report sender through the interceptor
+- `plans/06102026-disallow-email-on-dev-and-local/` - spec and execution notes
+
 ## [0.0.115] - June 2026
 
 ### Reviews & Posts Page + App-Wide Design Consistency
@@ -107,6 +131,7 @@ Collapses the Practice Hub dashboard (`/dashboard`) into a focused, scannable su
 
 - frontend: `DashboardOverview` rebuilt; new `ProductionPanel`, `OneThingBanner`, `StatCard`, `StatCardRow`, `statusRules`, shared `usePmsKeyData`; `total_review_count` mirrored in the dashboard-metrics type.
 - backend: `total_review_count` added to the dashboard-metrics builder; `Summary.md` + output schema + task-creator emit one action.
+
 
 ## [0.0.110] - June 2026
 
