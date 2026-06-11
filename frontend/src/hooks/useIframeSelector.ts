@@ -46,6 +46,7 @@ export interface SelectedInfo {
   backgroundPosition?: string;
   canCanvasEditText?: boolean;
   textEditFallbackReason?: string;
+  draftText?: string;
 }
 
 /** Map HTML tag names to friendly display names. */
@@ -325,34 +326,6 @@ export interface QuickActionPayload {
   targetAlloroClass?: string;
 }
 
-/** Inline SVG icons for quick action buttons (white stroke). */
-const ACTION_ICONS: Record<string, string> = {
-  text: `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></svg>`,
-  media: `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" x2="22" y1="5" y2="5"/><line x1="19" x2="19" y1="2" y2="8"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>`,
-  link: `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`,
-  hide: `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/></svg>`,
-  "text-up": `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><text x="2" y="16" font-size="14" font-weight="bold" fill="currentColor" stroke="none" font-family="sans-serif">A</text><line x1="18" y1="7" x2="18" y2="17"/><line x1="14" y1="12" x2="22" y2="12"/></svg>`,
-  "text-down": `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><text x="2" y="16" font-size="14" font-weight="bold" fill="currentColor" stroke="none" font-family="sans-serif">A</text><line x1="14" y1="12" x2="22" y2="12"/></svg>`,
-};
-
-/** Arrow-right SVG for the submit button inside the inline input. */
-const SUBMIT_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>`;
-
-const TEXT_TAGS = new Set(["p", "span", "h1", "h2", "h3", "h4", "h5", "h6", "a", "button", "li", "blockquote", "figcaption"]);
-const IMAGE_TAGS = new Set(["img", "video"]);
-const LINK_TAGS = new Set(["a"]);
-
-/** Build the list of quick action types available for a given tag. */
-function getActionsForTag(tagName: string): QuickActionType[] {
-  const actions: QuickActionType[] = [];
-  if (TEXT_TAGS.has(tagName)) actions.push("text");
-  if (TEXT_TAGS.has(tagName)) actions.push("text-up", "text-down");
-  if (IMAGE_TAGS.has(tagName)) actions.push("media");
-  if (LINK_TAGS.has(tagName)) actions.push("link");
-  actions.push("hide");
-  return actions;
-}
-
 /** CSS injected into the iframe to enable the selector UX. */
 const SELECTOR_CSS = `
   /* Kill native interactivity */
@@ -419,9 +392,10 @@ const SELECTOR_CSS = `
   }
 
   /* Hover highlight */
-  [data-alloro-hover="true"] {
+  [data-alloro-hover="true"]:not([data-alloro-selected="true"]):not([data-alloro-editing="true"]),
+  [class*="${ALLORO_PREFIX}"]:hover:not([data-alloro-selected="true"]):not([data-alloro-editing="true"]) {
     outline: 2px dashed #3b82f6 !important;
-    outline-offset: 4px !important;
+    outline-offset: 5px !important;
   }
 
   /* Selected/focused/active highlight */
@@ -642,9 +616,19 @@ export function useIframeSelector(
           targetAlloroClass: getAlloroClass(target) || undefined,
         });
       };
+      const targetAlloroClass = getAlloroClass(target);
+      const syncDraftText = (value: string) => {
+        if (!targetAlloroClass) return;
+        setSelectedInfo((prev) =>
+          prev?.alloroClass === targetAlloroClass
+            ? { ...prev, draftText: value }
+            : prev,
+        );
+      };
       const sharedOptions = {
         element: target,
         caretOffset,
+        onChange: syncDraftText,
         onCancel: () => {
           const freshInfo = buildSelectedInfo(target);
           if (freshInfo) setSelectedInfo(freshInfo);
@@ -693,158 +677,11 @@ export function useIframeSelector(
       if (panel) panel.remove();
     }
 
-    function positionFloatingElement(
-      floating: HTMLElement,
-      anchor: Element,
-      preferred: "above" | "below" = "above",
-    ) {
-      const rect = anchor.getBoundingClientRect();
-      const scrollTop = doc.documentElement.scrollTop || doc.body.scrollTop;
-      const scrollLeft = doc.documentElement.scrollLeft || doc.body.scrollLeft;
-      const viewportHeight = doc.defaultView?.innerHeight || doc.documentElement.clientHeight;
-      const viewportWidth = doc.defaultView?.innerWidth || doc.documentElement.clientWidth;
-      const gap = 8;
-      const measured = floating.getBoundingClientRect();
-      const height = floating.offsetHeight || measured.height || 28;
-      const width = floating.offsetWidth || measured.width || 0;
-      const hasAbove = rect.top >= height + gap;
-      const hasBelow = viewportHeight - rect.bottom >= height + gap;
-      let useAbove = preferred === "above";
-
-      if (useAbove && !hasAbove && hasBelow) useAbove = false;
-      if (!useAbove && !hasBelow && hasAbove) useAbove = true;
-
-      const rawTop = useAbove
-        ? rect.top + scrollTop - height - gap
-        : rect.bottom + scrollTop + gap;
-      const minLeft = scrollLeft + gap;
-      const maxLeft = scrollLeft + Math.max(gap, viewportWidth - width - gap);
-      const rawLeft = rect.left + scrollLeft;
-
-      floating.style.position = "absolute";
-      floating.style.top = `${Math.max(scrollTop + gap, rawTop)}px`;
-      floating.style.left = `${Math.min(Math.max(rawLeft, minLeft), maxLeft)}px`;
-    }
-
-    // Show an inline text input panel beside the selected element without covering it.
-    function showActionPanel(action: "text" | "link", anchorEl: Element, href?: string) {
-      hideActionPanel();
-
-      const panel = doc.createElement("div");
-      panel.id = "alloro-action-panel";
-
-      const input = doc.createElement("input");
-      input.type = "text";
-      input.placeholder = action === "text" ? "Enter new text..." : "Enter URL...";
-      if (action === "link" && href) input.value = href;
-
-      const submitBtn = doc.createElement("button");
-      submitBtn.className = "alloro-action-submit";
-      submitBtn.innerHTML = SUBMIT_ICON;
-      submitBtn.title = "Apply";
-
-      const submit = () => {
-        const val = input.value.trim();
-        if (!val) return;
-        quickActionRef.current?.({ action, value: val });
-        hideActionPanel();
-      };
-
-      input.addEventListener("keydown", (ev) => {
-        if (ev.key === "Enter") { ev.preventDefault(); submit(); }
-        if (ev.key === "Escape") { ev.preventDefault(); hideActionPanel(); }
-        ev.stopPropagation();
-      });
-      // Prevent all key events from bubbling to the page
-      input.addEventListener("keyup", (ev) => ev.stopPropagation());
-      input.addEventListener("keypress", (ev) => ev.stopPropagation());
-      submitBtn.addEventListener("click", (ev) => { ev.stopPropagation(); ev.preventDefault(); submit(); });
-
-      panel.appendChild(input);
-      panel.appendChild(submitBtn);
-      doc.body.appendChild(panel);
-
-      positionFloatingElement(panel, anchorEl, "below");
-
-      // Focus the input
-      setTimeout(() => input.focus(), 0);
-    }
-
     // Label helpers
-    function showLabel(
-      el: Element,
-      cls: string,
-      variant: "hover" | "selected"
-    ) {
-      const labelId =
-        variant === "hover" ? "alloro-hover-label" : "alloro-selected-label";
-      let label = doc.getElementById(labelId);
-      if (!label) {
-        label = doc.createElement("div");
-        label.id = labelId;
-        label.className = "alloro-label";
-        doc.body.appendChild(label);
-      }
-
-      const elType = isComponent(cls) ? "component" : "section";
-      const tagName = el.tagName.toLowerCase();
-
-      // Build label content
-      label.innerHTML = "";
-      label.className =
-        "alloro-label alloro-label--" +
-        (variant === "selected" ? "selected-" : "") +
-        elType;
-
-      // Text span for the friendly name
-      const textSpan = doc.createElement("span");
-      textSpan.textContent = getFriendlyName(tagName);
-      label.appendChild(textSpan);
-
-      // Add action icons only for selected labels
-      if (variant === "selected") {
-        const actions = getActionsForTag(tagName);
-        if (actions.length > 0) {
-          const sep = doc.createElement("span");
-          sep.className = "alloro-label-sep";
-          label.appendChild(sep);
-
-          for (const action of actions) {
-            const btn = doc.createElement("button");
-            btn.className = "alloro-action-btn";
-            btn.setAttribute("data-alloro-action", action);
-            btn.innerHTML = ACTION_ICONS[action] || "";
-            btn.title = action === "text" ? "Edit text"
-              : action === "media" ? "Change image"
-              : action === "link" ? "Change link"
-              : action === "text-up" ? "Increase text size"
-              : action === "text-down" ? "Decrease text size"
-              : "Toggle visibility";
-            btn.addEventListener("click", (ev) => {
-              ev.stopPropagation();
-              ev.preventDefault();
-              if (action === "text-up" || action === "text-down") {
-                quickActionRef.current?.({ action });
-              } else if (action === "text") {
-                if (!beginCanvasTextEditing(el)) {
-                  showActionPanel(action, el);
-                }
-              } else if (action === "link") {
-                const hrefVal = action === "link"
-                  ? (el.tagName.toLowerCase() === "a" ? (el as HTMLAnchorElement).getAttribute("href") || "" : "")
-                  : undefined;
-                showActionPanel(action, el, hrefVal || undefined);
-              } else {
-                // Media and hide — dispatch directly to parent
-                quickActionRef.current?.({ action });
-              }
-            });
-            label.appendChild(btn);
-          }
-        }
-      }
-
-      positionFloatingElement(label, el, "above");
+    function showLabel(...args: [Element, string, "hover" | "selected"]) {
+      void args;
+      // Intentionally no-op. The sidebar owns editing controls; canvas chrome
+      // is limited to hover/selected outlines so it never overlaps content.
     }
 
     function hideLabel(variant: "hover" | "selected") {

@@ -38,6 +38,7 @@ type RichTextEditOptions = {
   element: Element;
   onCommit: (html: string) => void;
   onCancel?: () => void;
+  onChange?: (value: string) => void;
   onFinish?: () => void;
   /** Raw char offset into the element's text to place the caret at (else select all). */
   caretOffset?: number | null;
@@ -109,6 +110,7 @@ export function startRichTextEdit({
   element,
   onCommit,
   onCancel,
+  onChange,
   onFinish,
   caretOffset,
 }: RichTextEditOptions): RichTextEditSession | null {
@@ -127,6 +129,7 @@ export function startRichTextEdit({
   const cleanup = () => {
     element.removeEventListener("keydown", handleKeyDown);
     element.removeEventListener("blur", handleBlur);
+    element.removeEventListener("input", handleInput);
     element.removeEventListener("paste", handlePaste);
     element.removeEventListener("drop", handleDrop);
     element.removeEventListener("click", suppressAnchorClick);
@@ -169,6 +172,7 @@ export function startRichTextEdit({
       // instead of letting the browser split into block-level children.
       event.preventDefault();
       insertLineBreak(doc);
+      handleInput();
     }
   }
 
@@ -185,11 +189,16 @@ export function startRichTextEdit({
     event.preventDefault();
     event.stopPropagation();
     insertTextAtSelection(doc, event.clipboardData?.getData("text/plain") || "");
+    handleInput();
   }
 
   function handleDrop(event: DragEvent) {
     event.preventDefault();
     event.stopPropagation();
+  }
+
+  function handleInput() {
+    onChange?.((element.textContent || "").replace(/\s+/g, " ").trim());
   }
 
   function suppressAnchorClick(event: MouseEvent) {
@@ -260,6 +269,7 @@ export function startRichTextEdit({
       return;
     }
     closeLinkInput();
+    handleInput();
     element.focus({ preventScroll: true });
   };
 
@@ -271,6 +281,7 @@ export function startRichTextEdit({
     for (const candidate of Array.from(element.querySelectorAll(FORMATTING_SELECTOR))) {
       if (!scoped || scoped.intersectsNode(candidate)) unwrapElement(candidate);
     }
+    handleInput();
     element.focus({ preventScroll: true });
   };
 
@@ -281,8 +292,14 @@ export function startRichTextEdit({
     event.stopPropagation();
   });
   toolbar.addEventListener("click", (event) => event.stopPropagation());
-  buttons.bold.addEventListener("click", () => execCommandSafe(doc, "bold"));
-  buttons.italic.addEventListener("click", () => execCommandSafe(doc, "italic"));
+  buttons.bold.addEventListener("click", () => {
+    execCommandSafe(doc, "bold");
+    handleInput();
+  });
+  buttons.italic.addEventListener("click", () => {
+    execCommandSafe(doc, "italic");
+    handleInput();
+  });
   buttons.link.addEventListener("click", toggleLinkInput);
   buttons.clear.addEventListener("click", clearFormatting);
   buttons.done.addEventListener("click", () => finish(true));
@@ -300,6 +317,7 @@ export function startRichTextEdit({
   element.setAttribute("contenteditable", "true");
   element.addEventListener("keydown", handleKeyDown);
   element.addEventListener("blur", handleBlur);
+  element.addEventListener("input", handleInput);
   element.addEventListener("paste", handlePaste);
   element.addEventListener("drop", handleDrop);
   element.addEventListener("click", suppressAnchorClick);

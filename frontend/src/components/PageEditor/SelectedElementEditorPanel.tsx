@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Eye, EyeOff, ImagePlus, Minus, Plus } from "lucide-react";
+import { Eye, EyeOff, ImagePlus, Minus, Plus } from "lucide-react";
 import type { SelectedInfo, QuickActionType } from "../../hooks/useIframeSelector";
 import {
   getDirectOperationAvailability,
@@ -22,9 +22,9 @@ export type SelectedElementEditorPanelProps = {
   onToggleHidden?: () => void;
   /** True while an in-canvas text session is active — the sidebar must not steal focus. */
   isCanvasTextEditing?: boolean;
-  /** Mirror sidebar typing into the preview element (visual only). */
+  /** Deprecated: text edits are now applied immediately through onApplyDirectEdit. */
   onLiveTextPreview?: (value: string) => void;
-  /** Revert an unapplied live preview (selection changed / panel closed). */
+  /** Deprecated: text edits are now applied immediately and are not reverted on unmount. */
   onLiveTextRevert?: () => void;
   /** Brand colors for the text-style swatches. */
   primaryColor?: string | null;
@@ -48,8 +48,6 @@ export default function SelectedElementEditorPanel({
   onApplyDirectEdit,
   onToggleHidden,
   isCanvasTextEditing = false,
-  onLiveTextPreview,
-  onLiveTextRevert,
   primaryColor,
   accentColor,
 }: SelectedElementEditorPanelProps) {
@@ -59,7 +57,6 @@ export default function SelectedElementEditorPanel({
   const [showMedia, setShowMedia] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const linkInputRef = useRef<HTMLInputElement>(null);
-  const hasLivePreviewRef = useRef(false);
 
   const {
     canEditText,
@@ -76,19 +73,7 @@ export default function SelectedElementEditorPanel({
     setLinkValue(selectedInfo.href || "");
     setAltValue(getSelectedAltText(selectedInfo));
     setShowMedia(false);
-  }, [selectedInfo.alloroClass, selectedInfo.outerHtml]);
-
-  // Restore an abandoned live preview (selection changed without Apply).
-  const liveRevertRef = useRef(onLiveTextRevert);
-  liveRevertRef.current = onLiveTextRevert;
-  useEffect(() => {
-    return () => {
-      if (hasLivePreviewRef.current) {
-        hasLivePreviewRef.current = false;
-        liveRevertRef.current?.();
-      }
-    };
-  }, [selectedInfo.alloroClass]);
+  }, [selectedInfo]);
 
   // The sidebar Content field must never grab focus when the element can be
   // edited directly on the page — focusing here blurs (and ends) that on-page
@@ -139,16 +124,7 @@ export default function SelectedElementEditorPanel({
 
   const handleTextInput = (value: string) => {
     setTextValue(value);
-    if (onLiveTextPreview) {
-      hasLivePreviewRef.current = true;
-      onLiveTextPreview(value);
-    }
-  };
-  const applyText = () => {
-    const next = textValue.trim();
-    if (!next) return;
-    hasLivePreviewRef.current = false;
-    onApplyDirectEdit({ type: "replace-text", value: next });
+    onApplyDirectEdit({ type: "replace-text", value });
   };
   const applyLink = () => {
     const href = linkValue.trim();
@@ -209,10 +185,6 @@ export default function SelectedElementEditorPanel({
             value={textValue}
             onChange={(e) => handleTextInput(e.target.value)}
             onKeyDown={(e) => {
-              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                e.preventDefault();
-                applyText();
-              }
               if (e.key === "Escape") setTextValue(getSelectedTextValue(selectedInfo));
             }}
             disabled={isEditing}
@@ -220,16 +192,6 @@ export default function SelectedElementEditorPanel({
             placeholder="Enter text…"
             className={`${FIELD_CLS} min-h-[96px] resize-y leading-5`}
           />
-          <div className="flex justify-end">
-            <button
-              onClick={applyText}
-              disabled={isEditing || !textValue.trim()}
-              className={APPLY_CLS}
-            >
-              <Check className="h-3.5 w-3.5" />
-              Apply
-            </button>
-          </div>
         </section>
       )}
 

@@ -46,6 +46,7 @@ type CanvasTextEditOptions = {
   element: Element;
   onCommit: (value: string) => void;
   onCancel?: () => void;
+  onChange?: (value: string) => void;
   onFinish?: () => void;
   /** Raw char offset into the element's text to place the caret at (else select all). */
   caretOffset?: number | null;
@@ -103,6 +104,7 @@ export function startCanvasTextEdit({
   element,
   onCommit,
   onCancel,
+  onChange,
   onFinish,
   caretOffset,
 }: CanvasTextEditOptions): CanvasTextEditSession | null {
@@ -187,6 +189,7 @@ export function startCanvasTextEdit({
 
   function handleInput() {
     resizeCanvasTextarea(textarea);
+    onChange?.(normalizeElementText(textarea.value));
   }
 
   element.setAttribute("data-alloro-editing", "true");
