@@ -9,6 +9,7 @@ import {
 } from "../../utils/editorDirectOperations";
 import { InlineIconButton } from "./InlineEditorControls";
 import MediaBrowser from "./MediaBrowser";
+import TextStyleControls from "./TextStyleControls";
 import type { MediaApi, MediaItem } from "./MediaBrowser";
 type ActiveAction = "text" | "link" | "media" | "alt" | null;
 export type SelectedElementEditorPanelProps = {
@@ -19,6 +20,15 @@ export type SelectedElementEditorPanelProps = {
   onExternalActionHandled?: () => void;
   onApplyDirectEdit: (operation: DirectEditorOperation) => void;
   onToggleHidden?: () => void;
+  /** True while an in-canvas text session is active — the sidebar must not steal focus. */
+  isCanvasTextEditing?: boolean;
+  /** Mirror sidebar typing into the preview element (visual only). */
+  onLiveTextPreview?: (value: string) => void;
+  /** Revert an unapplied live preview (selection changed / panel closed). */
+  onLiveTextRevert?: () => void;
+  /** Brand colors for the text-style swatches. */
+  primaryColor?: string | null;
+  accentColor?: string | null;
 };
 export default function SelectedElementEditorPanel({
   selectedInfo,
@@ -28,13 +38,32 @@ export default function SelectedElementEditorPanel({
   onExternalActionHandled,
   onApplyDirectEdit,
   onToggleHidden,
+  isCanvasTextEditing = false,
+  onLiveTextPreview,
+  onLiveTextRevert,
+  primaryColor,
+  accentColor,
 }: SelectedElementEditorPanelProps) {
   const [activeAction, setActiveAction] = useState<ActiveAction>(null);
   const [actionInput, setActionInput] = useState("");
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const linkInputRef = useRef<HTMLInputElement>(null);
-  const { canEditText, canChangeMedia, canChangeLink, canAdjustTextSize, canEditAltText } =
+  const hasLivePreviewRef = useRef(false);
+  const { canEditText, canChangeMedia, canChangeLink, canAdjustTextSize, canEditAltText, canStyleText } =
     getDirectOperationAvailability(selectedInfo, Boolean(mediaApi));
+
+  // Abandoned live preview (selection changed without Apply) — restore the
+  // element's original markup in the iframe.
+  const liveRevertRef = useRef(onLiveTextRevert);
+  liveRevertRef.current = onLiveTextRevert;
+  useEffect(() => {
+    return () => {
+      if (hasLivePreviewRef.current) {
+        hasLivePreviewRef.current = false;
+        liveRevertRef.current?.();
+      }
+    };
+  }, [selectedInfo.alloroClass]);
   useEffect(() => {
     if (canEditText) {
       setActiveAction("text");
@@ -71,16 +100,27 @@ export default function SelectedElementEditorPanel({
     onExternalActionHandled?.();
   }, [externalAction, onApplyDirectEdit, onExternalActionHandled, onToggleHidden, selectedInfo]);
   useEffect(() => {
+    // Never steal focus while the user is typing directly on the page —
+    // focusing the sidebar textarea blurs (and commits) the canvas session.
+    if (isCanvasTextEditing) return;
     if (activeAction === "text") {
       window.setTimeout(() => textAreaRef.current?.focus(), 50);
     }
     if (activeAction === "link") {
       window.setTimeout(() => linkInputRef.current?.focus(), 50);
     }
-  }, [activeAction]);
+  }, [activeAction, isCanvasTextEditing]);
+  const handleTextInput = (value: string) => {
+    setActionInput(value);
+    if (onLiveTextPreview) {
+      hasLivePreviewRef.current = true;
+      onLiveTextPreview(value);
+    }
+  };
   const applyText = () => {
     const nextText = actionInput.trim();
     if (!nextText) return;
+    hasLivePreviewRef.current = false;
     onApplyDirectEdit({ type: "replace-text", value: nextText });
   };
   const applyLink = () => {
@@ -164,12 +204,22 @@ export default function SelectedElementEditorPanel({
         </div>
       </div>
 
+      {canStyleText && (
+        <TextStyleControls
+          selectedInfo={selectedInfo}
+          isEditing={isEditing}
+          onApplyDirectEdit={onApplyDirectEdit}
+          primaryColor={primaryColor}
+          accentColor={accentColor}
+        />
+      )}
+
       {activeAction === "text" && (
         <div className="px-4 pb-3">
           <textarea
             ref={textAreaRef}
             value={actionInput}
-            onChange={(event) => setActionInput(event.target.value)}
+            onChange={(event) => handleTextInput(event.target.value)}
             onKeyDown={handleTextKeyDown}
             disabled={isEditing}
             rows={5}

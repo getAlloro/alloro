@@ -53,6 +53,12 @@ export type EditorSidebarProps = {
   primaryColor?: string | null;
   /** Project accent color for color picker. */
   accentColor?: string | null;
+  /** True while an in-canvas text session is active (sidebar must not steal focus). */
+  isCanvasTextEditing?: boolean;
+  /** Mirror sidebar typing into the preview element (visual only). */
+  onLiveTextPreview?: (value: string) => void;
+  /** Revert an unapplied live preview. */
+  onLiveTextRevert?: () => void;
 };
 
 export default function EditorSidebar({
@@ -81,6 +87,9 @@ export default function EditorSidebar({
   onExitPreview,
   primaryColor,
   accentColor,
+  isCanvasTextEditing = false,
+  onLiveTextPreview,
+  onLiveTextRevert,
 }: EditorSidebarProps) {
   const [tab, setTab] = useState<"chat" | "debug" | "history">("chat");
 
@@ -135,6 +144,11 @@ export default function EditorSidebar({
           onExternalActionHandled={onExternalActionHandled}
           onApplyDirectEdit={onApplyDirectEdit}
           onToggleHidden={onToggleHidden}
+          isCanvasTextEditing={isCanvasTextEditing}
+          onLiveTextPreview={onLiveTextPreview}
+          onLiveTextRevert={onLiveTextRevert}
+          primaryColor={primaryColor}
+          accentColor={accentColor}
         />
       )}
 

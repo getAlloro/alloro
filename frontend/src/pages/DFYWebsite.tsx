@@ -185,6 +185,10 @@ export function DFYWebsite() {
   const sectionsRef = useRef(sections);
   sectionsRef.current = sections;
 
+  // Original markup of the element being live-previewed from the sidebar
+  // textarea (visual only; restored if the preview is abandoned).
+  const liveTextOriginalRef = useRef<string | null>(null);
+
   // Crash-recovery backup (localStorage mirror of dirty sections)
   const { clearBackup, readBackup } = useLocalDraftBackup({
     pageId: selectedPage?.id ?? null,
@@ -747,7 +751,8 @@ export function DFYWebsite() {
               sectionsRef.current,
             );
             setSections(updatedSections);
-            rebuildHtml(updatedSections);
+            // No rebuildHtml here — the DOM is already mutated in place;
+            // re-setting srcDoc reloads the iframe and jumps the scroll.
             setIsDirty(true);
 
             setupListeners();
@@ -847,7 +852,10 @@ export function DFYWebsite() {
         setUndoStack((prev) => [...prev, previousSections]);
         setRedoStack([]);
         setSections(updatedSections);
-        rebuildHtml(updatedSections);
+        // No rebuildHtml here — the operation already mutated the iframe DOM
+        // in place; re-setting srcDoc reloads the preview on every font-size
+        // step / color change and jumps the scroll.
+        liveTextOriginalRef.current = null;
         setIsDirty(true);
         setupListeners();
         iframe.contentWindow?.scrollTo(scrollX, scrollY);
@@ -856,8 +864,36 @@ export function DFYWebsite() {
         setEditError(err instanceof Error ? err.message : "Direct edit failed");
       }
     },
-    [selectedInfo, rebuildHtml, setupListeners, setSelectedInfo],
+    [selectedInfo, setupListeners, setSelectedInfo],
   );
+
+  // --- Live text preview: mirror sidebar typing into the iframe element ---
+  // Visual only — sections update on Apply; an abandoned preview reverts.
+  const handleLiveTextPreview = useCallback(
+    (value: string) => {
+      if (!selectedInfo) return;
+      const doc = iframeRef.current?.contentDocument;
+      const el = doc?.querySelector(
+        `.${CSS.escape(selectedInfo.alloroClass)}`,
+      ) as HTMLElement | null;
+      if (!el) return;
+      if (liveTextOriginalRef.current === null) {
+        liveTextOriginalRef.current = el.innerHTML;
+      }
+      el.textContent = value;
+    },
+    [selectedInfo],
+  );
+
+  const handleLiveTextRevert = useCallback(() => {
+    if (liveTextOriginalRef.current === null) return;
+    const doc = iframeRef.current?.contentDocument;
+    const el = doc?.querySelector(
+      `.${CSS.escape(selectedInfo?.alloroClass || "")}`,
+    ) as HTMLElement | null;
+    if (el) el.innerHTML = liveTextOriginalRef.current;
+    liveTextOriginalRef.current = null;
+  }, [selectedInfo]);
 
   // Process deferred quick-action edits from iframe input panel
   useEffect(() => {
@@ -1533,6 +1569,9 @@ export function DFYWebsite() {
             onExternalActionHandled={() => setPendingSidebarAction(null)}
             primaryColor={project?.primary_color}
             accentColor={project?.accent_color}
+            isCanvasTextEditing={isCanvasTextEditing}
+            onLiveTextPreview={handleLiveTextPreview}
+            onLiveTextRevert={handleLiveTextRevert}
           />
         </div>
       )}

@@ -815,6 +815,10 @@ function PageEditorInner() {
   const sectionsRef = useRef(sections);
   sectionsRef.current = sections;
 
+  // Original markup of the element being live-previewed from the sidebar
+  // textarea (visual only; restored if the preview is abandoned).
+  const liveTextOriginalRef = useRef<string | null>(null);
+
   // --- Crash-recovery backup (localStorage mirror of dirty sections) ---
   const { clearBackup, readBackup } = useLocalDraftBackup({
     pageId: draftPageId,
@@ -1101,6 +1105,7 @@ function PageEditorInner() {
 
         pushUndoSnapshot(previousSections);
         setSections(updatedSections);
+        liveTextOriginalRef.current = null;
         setIsDirty(true);
         setupListeners();
         iframe.contentWindow?.scrollTo(scrollX, scrollY);
@@ -1171,6 +1176,34 @@ function PageEditorInner() {
   const handleToggleHidden = useCallback(() => {
     handleApplyDirectEdit({ type: "toggle-hidden" });
   }, [handleApplyDirectEdit]);
+
+  // --- Live text preview: mirror sidebar typing into the iframe element ---
+  // Visual only — sections update on Apply; an abandoned preview reverts.
+  const handleLiveTextPreview = useCallback(
+    (value: string) => {
+      if (!selectedInfo) return;
+      const doc = iframeRef.current?.contentDocument;
+      const el = doc?.querySelector(
+        `.${CSS.escape(selectedInfo.alloroClass)}`
+      ) as HTMLElement | null;
+      if (!el) return;
+      if (liveTextOriginalRef.current === null) {
+        liveTextOriginalRef.current = el.innerHTML;
+      }
+      el.textContent = value;
+    },
+    [selectedInfo]
+  );
+
+  const handleLiveTextRevert = useCallback(() => {
+    if (liveTextOriginalRef.current === null) return;
+    const doc = iframeRef.current?.contentDocument;
+    const el = doc?.querySelector(
+      `.${CSS.escape(selectedInfo?.alloroClass || "")}`
+    ) as HTMLElement | null;
+    if (el) el.innerHTML = liveTextOriginalRef.current;
+    liveTextOriginalRef.current = null;
+  }, [selectedInfo]);
 
   // --- Manual save (explicit only — snapshots a restorable version) ---
   const performSave = useCallback(
@@ -1776,6 +1809,11 @@ function PageEditorInner() {
             mediaApi={mediaApi}
             externalAction={pendingSidebarAction !== ("__deferred__" as QuickActionType) ? pendingSidebarAction : null}
             onExternalActionHandled={() => setPendingSidebarAction(null)}
+            isCanvasTextEditing={isCanvasTextEditing}
+            onLiveTextPreview={handleLiveTextPreview}
+            onLiveTextRevert={handleLiveTextRevert}
+            primaryColor={project?.primary_color}
+            accentColor={project?.accent_color}
             showHistory={true}
             historyPageId={draftPageId}
             fetchVersions={fetchAdminVersions}

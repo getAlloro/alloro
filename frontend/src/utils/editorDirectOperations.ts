@@ -59,6 +59,9 @@ export type DirectEditorOperation =
   | { type: "replace-media"; media: MediaItem }
   | { type: "set-alt-text"; value: string }
   | { type: "step-font-size"; direction: "up" | "down" }
+  | { type: "set-text-color"; color: string }
+  | { type: "clear-text-color" }
+  | { type: "set-font-family"; family: "serif" | "sans" | "reset" }
   | { type: "toggle-hidden" }
   | { type: "set-background-color"; color: string }
   | { type: "clear-background-color" }
@@ -76,6 +79,7 @@ export type DirectOperationAvailability = {
   canToggleHidden: boolean;
   canEditBackground: boolean;
   canEditAltText: boolean;
+  canStyleText: boolean;
 };
 
 export type DirectEditorOperationResult = {
@@ -100,7 +104,34 @@ export function getDirectOperationAvailability(
     canToggleHidden: Boolean(selectedInfo),
     canEditBackground: selectedInfo?.type === "section",
     canEditAltText: tag === "img",
+    canStyleText: canEditText,
   };
+}
+
+/** Current inline text color (hex) parsed from the selection's outerHTML. */
+export function getSelectedTextColor(selectedInfo: SelectedInfo | null): string | null {
+  if (!selectedInfo || !EDITOR_TEXT_TAGS.has(selectedInfo.tagName)) return null;
+
+  const template = document.createElement("template");
+  template.innerHTML = selectedInfo.outerHtml;
+  const el = template.content.firstElementChild as HTMLElement | null;
+  if (!el?.style.color) return null;
+  return normalizeColorForInput(el.style.color);
+}
+
+/** Current font-family override ("serif" | "sans") or null for theme default. */
+export function getSelectedFontFamily(
+  selectedInfo: SelectedInfo | null,
+): "serif" | "sans" | null {
+  if (!selectedInfo || !EDITOR_TEXT_TAGS.has(selectedInfo.tagName)) return null;
+
+  const template = document.createElement("template");
+  template.innerHTML = selectedInfo.outerHtml;
+  const el = template.content.firstElementChild;
+  if (!el) return null;
+  if (el.classList.contains("font-serif")) return "serif";
+  if (el.classList.contains("font-sans")) return "sans";
+  return null;
 }
 
 /** Current alt attribute value parsed from the selection's outerHTML. */
@@ -190,6 +221,21 @@ export function applyDirectEditorOperation(
     case "step-font-size":
       assertTag(EDITOR_TEXT_TAGS, tagName, "Font size controls are not available for this element.");
       stepFontSize(element, operation.direction);
+      break;
+    case "set-text-color":
+      assertTag(EDITOR_TEXT_TAGS, tagName, "Text color is not available for this element.");
+      (element as HTMLElement).style.color = normalizeBackgroundColor(operation.color);
+      break;
+    case "clear-text-color":
+      assertTag(EDITOR_TEXT_TAGS, tagName, "Text color is not available for this element.");
+      (element as HTMLElement).style.removeProperty("color");
+      break;
+    case "set-font-family":
+      assertTag(EDITOR_TEXT_TAGS, tagName, "Font family controls are not available for this element.");
+      element.classList.remove("font-serif", "font-sans");
+      if (operation.family !== "reset") {
+        element.classList.add(`font-${operation.family}`);
+      }
       break;
     case "toggle-hidden":
       toggleHiddenAttribute(element);
