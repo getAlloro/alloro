@@ -427,6 +427,12 @@
         <p><strong>Reason:</strong> User QA: first click showed the edit state but no visible caret; clicking the same text again removed the sidebar highlight/edit state and made the text uneditable.</p>
         <p><strong>Updated Done criteria:</strong> clicking inside active inline text keeps editing active and lets the caret move; clicking outside commits and moves cleanly to the next element.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 13 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Inline text editing now starts from the iframe <code>mousedown</code> capture path for editable text, before Chrome's default click/focus behavior can move focus back to the iframe or sidebar. The selector reuses one target resolver for mousedown and click, ignores editor chrome consistently, and leaves the later click event inside the already-active editor instead of toggling the session off.</p>
+        <p><strong>Reason:</strong> Computer-use QA on the logged-in pilot window confirmed the real state: clicking the heading selected it and focused the iframe/sidebar path, but no on-page editable textarea/contentEditable caret became usable; clicking again kept selection without inline editing.</p>
+        <p><strong>Updated Done criteria:</strong> first click on editable text opens a visible inline caret/editor; second click on the same text moves/keeps the inline caret instead of dropping back to sidebar-only editing.</p>
+      </article>
     </section>
   </main>
 </body>
