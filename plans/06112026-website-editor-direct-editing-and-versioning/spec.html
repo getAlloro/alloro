@@ -415,6 +415,12 @@
         <p><strong>Reason:</strong> User QA: heading inline editing disabled by default with no caret; size −/+ didn't update; popover floated/detached on scroll.</p>
         <p><strong>Updated Done criteria:</strong> all text elements are inline-editable with a caret; size −/+ visibly changes the text; the popover stays anchored to its element while scrolling.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 11 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Two inline-editing bugs, diagnosed via a parallel adversarial workflow (4 expert traces + 3 verifiers). (1) <strong>No on-page caret</strong> — the edit element was focused two macrotasks after the click (begin deferred via <code>setTimeout</code>, then focus deferred again), i.e. OUTSIDE the user gesture, so a contentEditable/textarea in a sandboxed iframe never painted a caret. Removed both defers: begin + focus now run synchronously inside the click. (2) <strong>Click toggles editing on/off</strong> — the click handler early-returned whenever a session was active (flag cleared only later in a deferred blur), swallowing every other click. Now a click while editing COMMITS the active session and proceeds to re-select in the same gesture. The verifier caught that a naive commit re-introduces the Rev 8 cross-element contamination (the commit's deferred apply resolves against the LIVE selection), so the commit is now <strong>target-pinned</strong>: the session emits its element's class (<code>QuickActionPayload.targetAlloroClass</code>), and <code>handleApplyDirectEdit</code> takes an <code>overrideAlloroClass</code> to apply against that element and skip the selection write-back. (#3 sidebar auto-Apply deferred — it changes the undo/live-preview contract and ships separately.)</p>
+        <p><strong>Reason:</strong> User QA: no caret in the on-page editor (only the sidebar textbox); clicking text edits once then can't edit again.</p>
+        <p><strong>Updated Done criteria:</strong> clicking text shows an on-page caret immediately; switching elements mid-edit commits the prior one to its own element and opens the next — no swallowed clicks, no content carryover.</p>
+      </article>
     </section>
   </main>
 </body>

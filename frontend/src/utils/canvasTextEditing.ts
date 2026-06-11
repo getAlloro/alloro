@@ -183,22 +183,23 @@ export function startCanvasTextEdit({
   textarea.addEventListener("input", handleInput);
   doc.body.appendChild(textarea);
 
-  window.setTimeout(() => {
-    textarea.focus({ preventScroll: true });
-    // Land the caret where the user clicked, mapping the raw DOM offset onto
-    // the whitespace-collapsed textarea value. No offset → select all.
-    if (caretOffset != null) {
-      const prefix = (element.textContent || "")
-        .slice(0, caretOffset)
-        .replace(/\s+/g, " ")
-        .replace(/^\s/, "");
-      const pos = Math.max(0, Math.min(prefix.length, textarea.value.length));
-      textarea.setSelectionRange(pos, pos);
-    } else {
-      textarea.select();
-    }
-    resizeCanvasTextarea(textarea);
-  }, 0);
+  // Focus SYNCHRONOUSLY (the caller runs this inside the user click gesture).
+  // Deferring via setTimeout moved focus outside the gesture, which stops a
+  // contentEditable/textarea inside a sandboxed iframe from painting a caret.
+  textarea.focus({ preventScroll: true });
+  // Land the caret where the user clicked, mapping the raw DOM offset onto
+  // the whitespace-collapsed textarea value. No offset → select all.
+  if (caretOffset != null) {
+    const prefix = (element.textContent || "")
+      .slice(0, caretOffset)
+      .replace(/\s+/g, " ")
+      .replace(/^\s/, "");
+    const pos = Math.max(0, Math.min(prefix.length, textarea.value.length));
+    textarea.setSelectionRange(pos, pos);
+  } else {
+    textarea.select();
+  }
+  resizeCanvasTextarea(textarea);
 
   return {
     cancel: () => finish(false),

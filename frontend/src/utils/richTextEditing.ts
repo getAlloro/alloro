@@ -306,13 +306,15 @@ export function startRichTextEdit({
   positionToolbar(toolbar, element, doc);
   doc.body.appendChild(toolbar);
 
-  window.setTimeout(() => {
-    element.focus({ preventScroll: true });
-    // Land the caret where the user clicked; fall back to selecting all.
-    if (caretOffset == null || !placeCaretAtOffset(doc, element, caretOffset)) {
-      selectAllContents(doc, element);
-    }
-  }, 0);
+  // Focus SYNCHRONOUSLY (the caller runs this inside the user click gesture).
+  // Deferring via setTimeout moved focus outside the gesture, so the iframe
+  // contentEditable never painted a caret. contentEditable + listeners are
+  // already set above and the element is in-DOM, so synchronous focus is valid.
+  element.focus({ preventScroll: true });
+  // Land the caret where the user clicked; fall back to selecting all.
+  if (caretOffset == null || !placeCaretAtOffset(doc, element, caretOffset)) {
+    selectAllContents(doc, element);
+  }
 
   return {
     cancel: () => finish(false),
