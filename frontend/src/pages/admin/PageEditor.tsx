@@ -390,6 +390,13 @@ function PageEditorInner() {
     setCollapsed(true);
   }, [setCollapsed]);
 
+  // Hide the global support FAB while the editor is open so it never
+  // overlaps the sidebar (see index.css [data-editor-fullscreen]).
+  useEffect(() => {
+    document.body.setAttribute("data-editor-fullscreen", "true");
+    return () => document.body.removeAttribute("data-editor-fullscreen");
+  }, []);
+
   // Page + project state
   const [page, setPage] = useState<WebsitePage | null>(null);
   const [project, setProject] = useState<WebsiteProject | null>(null);

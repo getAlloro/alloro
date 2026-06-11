@@ -237,6 +237,14 @@ export function DFYWebsite() {
     return () => setCollapsed(false);
   }, [activeView, setCollapsed]);
 
+  // Hide the global support FAB while the editor view is open so it never
+  // overlaps the sidebar (see index.css [data-editor-fullscreen]).
+  useEffect(() => {
+    if (activeView !== "editor") return;
+    document.body.setAttribute("data-editor-fullscreen", "true");
+    return () => document.body.removeAttribute("data-editor-fullscreen");
+  }, [activeView]);
+
   // Normalize legacy links like ?view=submissions to the new ?tab= permalink.
   useEffect(() => {
     if (!searchParams.has("view")) return;
