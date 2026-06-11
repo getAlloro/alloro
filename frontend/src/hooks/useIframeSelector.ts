@@ -127,7 +127,14 @@ function findAutoTagCandidate(el: Element | null): Element | null {
  * styling and precedence only — never written to the DOM on hover (hover
  * must not mutate content that later gets persisted).
  */
-function resolveHoverTarget(origin: Element): { target: Element; cls: string } | null {
+function resolveHoverTarget(
+  origin: Element,
+  sectionsOnly: boolean,
+): { target: Element; cls: string } | null {
+  // Shortcode pills (post/review/menu loops) are read-only placeholders —
+  // their content is server-resolved and never directly editable.
+  if (origin.closest("[data-alloro-shortcode]")) return null;
+
   const candidate = findAutoTagCandidate(origin);
   if (candidate) {
     const existing = getAlloroClass(candidate);
@@ -139,7 +146,12 @@ function resolveHoverTarget(origin: Element): { target: Element; cls: string } |
     };
   }
   const tagged = findAlloroElement(origin);
-  if (tagged) return { target: tagged, cls: getAlloroClass(tagged)! };
+  if (tagged) {
+    // Page editors restrict selection to page content — header/footer live
+    // on the project and are edited in the Layout Editor.
+    if (sectionsOnly && !tagged.closest("[data-alloro-section]")) return null;
+    return { target: tagged, cls: getAlloroClass(tagged)! };
+  }
   return null;
 }
 
@@ -470,10 +482,21 @@ const SELECTOR_CSS = `
   }
 `;
 
+export type UseIframeSelectorOptions = {
+  /**
+   * Restrict selection to elements inside [data-alloro-section] — page
+   * editors set this so header/footer (Layout Editor territory) can't be
+   * selected. Shortcode pills are always excluded regardless.
+   */
+  sectionsOnly?: boolean;
+};
+
 export function useIframeSelector(
   iframeRef: React.RefObject<HTMLIFrameElement | null>,
-  onQuickAction?: (payload: QuickActionPayload) => void
+  onQuickAction?: (payload: QuickActionPayload) => void,
+  options?: UseIframeSelectorOptions
 ) {
+  const sectionsOnly = options?.sectionsOnly ?? false;
   const [selectedInfo, setSelectedInfo] = useState<SelectedInfo | null>(null);
   const [isCanvasTextEditing, setIsCanvasTextEditing] = useState(false);
   const currentHoveredComponentRef = useRef<Element | null>(null);
@@ -722,7 +745,7 @@ export function useIframeSelector(
     // Event delegation on the body — survives DOM mutations
     doc.body.addEventListener("mouseover", (e) => {
       if (isCanvasTextEditingActive()) return;
-      const resolved = resolveHoverTarget(e.target as Element);
+      const resolved = resolveHoverTarget(e.target as Element, sectionsOnly);
       if (!resolved) return;
       const { target, cls } = resolved;
       const elIsComponent = isComponent(cls);
@@ -747,7 +770,7 @@ export function useIframeSelector(
 
     doc.body.addEventListener("mouseout", (e) => {
       if (isCanvasTextEditingActive()) return;
-      const resolved = resolveHoverTarget(e.target as Element);
+      const resolved = resolveHoverTarget(e.target as Element, sectionsOnly);
       if (!resolved) return;
       const { target, cls } = resolved;
 
@@ -780,6 +803,9 @@ export function useIframeSelector(
       // Dismiss action panel on any other click
       hideActionPanel();
 
+      // Shortcode pills (loops) are read-only placeholders — never selectable.
+      if (clickTarget.closest?.("[data-alloro-shortcode]")) return;
+
       // Content-first: the precise element under the cursor wins over any
       // tagged ancestor — tag it on demand so the edit pipeline can key off
       // the class. Container clicks (section padding, tagged cards) fall
@@ -790,6 +816,8 @@ export function useIframeSelector(
       } else {
         target = findAlloroElement(clickTarget);
         if (!target) return;
+        // Header/footer are Layout Editor territory in page editors.
+        if (sectionsOnly && !target.closest("[data-alloro-section]")) return;
       }
       const cls = getAlloroClass(target)!;
       const elIsComponent = isComponent(cls);
@@ -818,12 +846,14 @@ export function useIframeSelector(
       if (isCanvasTextEditingActive()) return;
       // Same content-first resolution as click; the preceding click normally
       // tags the element already — this keeps dblclick safe on its own.
+      if ((e.target as Element).closest?.("[data-alloro-shortcode]")) return;
       let target = findAutoTagCandidate(e.target as Element);
       if (target) {
         ensureGeneratedAlloroClass(target, doc);
       } else {
         target = findAlloroElement(e.target as Element);
         if (!target) return;
+        if (sectionsOnly && !target.closest("[data-alloro-section]")) return;
       }
 
       const info = buildSelectedInfo(target);
@@ -839,7 +869,7 @@ export function useIframeSelector(
       setSelectedInfo(info);
       beginCanvasTextEditing(target);
     });
-  }, [beginCanvasTextEditing, iframeRef]);
+  }, [beginCanvasTextEditing, iframeRef, sectionsOnly]);
 
   const toggleHidden = useCallback(() => {
     if (!selectedInfo) return;

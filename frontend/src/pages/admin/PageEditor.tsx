@@ -493,7 +493,7 @@ function PageEditorInner() {
     beginCanvasTextEditing,
     isCanvasTextEditing,
   } =
-    useIframeSelector(iframeRef, handleIframeQuickAction);
+    useIframeSelector(iframeRef, handleIframeQuickAction, { sectionsOnly: true });
 
   // Regenerate component modal (Plan B T14)
   const [regenerateModalOpen, setRegenerateModalOpen] = useState(false);

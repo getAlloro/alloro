@@ -187,10 +187,23 @@ function prettyShortcodeLabel(type: string, raw: string): string {
 function renderShortcodePlaceholders(html: string): string {
   const placeholder = (type: string, raw: string): string => {
     const label = prettyShortcodeLabel(type, raw);
+    // Brace/bracket entities are LOAD-BEARING, not cosmetic: the assembled
+    // page string is sent to the server-side shortcode resolver
+    // (resolve-preview), whose regexes match raw {{ … }} / [ … ] tokens
+    // anywhere in the string. Un-armored token copies inside the pill get
+    // resolved IN PLACE — injecting a full rendered block into the attribute
+    // (breaking its quoting and leaking markup as text) and a duplicate
+    // block into the pill body. Entities render identically but are
+    // invisible to those regexes. getAttribute() decodes them transparently
+    // for the save-path extractor (restoreShortcodeTokens).
     const escapedRaw = raw
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
+      .replace(/>/g, "&gt;")
+      .replace(/\{/g, "&#123;")
+      .replace(/\}/g, "&#125;")
+      .replace(/\[/g, "&#91;")
+      .replace(/\]/g, "&#93;");
     // Attribute-safe encoding: adds `"` escape on top of the text encoding
     // so the pill wrapper can carry the original token in
     // data-alloro-shortcode-original. The save-path extractor

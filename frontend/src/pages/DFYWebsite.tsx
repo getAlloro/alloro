@@ -385,7 +385,9 @@ export function DFYWebsite() {
     setupListeners,
     beginCanvasTextEditing,
     isCanvasTextEditing,
-  } = useIframeSelector(iframeRef, handleIframeQuickAction);
+  } = useIframeSelector(iframeRef, handleIframeQuickAction, {
+    sectionsOnly: true,
+  });
 
   // User-facing API wrappers (routes don't need projectId — inferred from auth)
   const userFetchRecipients = async (_projectId: string) =>
