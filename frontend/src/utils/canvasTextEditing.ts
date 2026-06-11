@@ -255,9 +255,9 @@ function createCanvasTextarea(
   textarea.style.resize = "none";
   textarea.style.overflow = "hidden";
   textarea.style.background = "rgba(255, 255, 255, 0.08)";
-  textarea.style.border = "2px solid #d66853";
+  textarea.style.border = "0";
   textarea.style.outline = "none";
-  textarea.style.boxShadow = "0 0 0 4px rgba(214, 104, 83, 0.2)";
+  textarea.style.boxShadow = "none";
   textarea.style.caretColor = "#d66853";
   textarea.style.borderRadius = computed?.borderRadius && computed.borderRadius !== "0px"
     ? computed.borderRadius

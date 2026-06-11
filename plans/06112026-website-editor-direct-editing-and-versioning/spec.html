@@ -451,6 +451,12 @@
         <p><strong>Reason:</strong> User QA: after clicking heading → paragraph → button, the old heading outline stayed visible and the floating control covered the active paragraph/button.</p>
         <p><strong>Updated Done criteria:</strong> switching selected elements leaves only the active element outlined; floating inline controls must not cover the selected element.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 17 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Collapsed editor selection chrome to a single non-layout ring. Hover remains a blue dashed outline; selected, focused, active, and editing states use one orange outline. The plain textarea overlay no longer adds its own border or shadow, so it does not shrink the text box and force extra wrapping while editing.</p>
+        <p><strong>Reason:</strong> User QA: selected links/buttons showed a double orange outline, and the inline textarea border reduced available text width enough to wrap text differently.</p>
+        <p><strong>Updated Done criteria:</strong> selected/focused/active elements show one orange outline; hover shows blue; inline text editing does not change text wrapping because of editor border chrome.</p>
+      </article>
     </section>
   </main>
 </body>
