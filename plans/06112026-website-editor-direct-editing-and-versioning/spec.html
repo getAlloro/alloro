@@ -409,6 +409,12 @@
         <p><strong>Reason:</strong> User QA: clicking heading/paragraph/link no longer entered edit mode; caret didn't display.</p>
         <p><strong>Updated Done criteria:</strong> clicking editable text reliably starts on-page editing with a visible caret.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 10 - 2026-06-11</h3>
+        <p><strong>Change:</strong> The real root cause of "can't edit / no caret" (Rev 8/9 chased the wrong layer). <code>getCanvasTextEditEligibility</code> returned <code>canEdit:false</code> for any text element with a descendant outside a tiny allowlist — so common headings/paragraphs carrying a stray nested element were silently <strong>un-editable</strong> (no pencil, no caret). Now any text-tag element with non-plain children routes to the contentEditable "rich" path (native caret at click, structure preserved, commit sanitizer as the safety net) instead of being disabled. Also: (C) the −/+ size stepper now sets an inline <code>font-size</code> (computed-based ±10%) so it can't be overridden by responsive <code>md:text-*</code> classes — previously it swapped <code>text-*</code> classes that the responsive class beat, so nothing changed; the size readout reads the inline px. (B) the inline popover now tracks the element on scroll via an rAF-throttled live-rect update in the selector hook, instead of floating in the viewport.</p>
+        <p><strong>Reason:</strong> User QA: heading inline editing disabled by default with no caret; size −/+ didn't update; popover floated/detached on scroll.</p>
+        <p><strong>Updated Done criteria:</strong> all text elements are inline-editable with a caret; size −/+ visibly changes the text; the popover stays anchored to its element while scrolling.</p>
+      </article>
     </section>
   </main>
 </body>

@@ -924,6 +924,31 @@ export function useIframeSelector(
       setSelectedInfo(info);
       beginCanvasTextEditing(target);
     });
+
+    // Keep the selected element's rect live as the page scrolls so the React
+    // popover tracks the element instead of floating in the viewport. The
+    // in-iframe label is absolutely positioned and already scrolls with
+    // content; this is only to sync the out-of-iframe overlay.
+    let scrollRaf = 0;
+    const handleScroll = () => {
+      if (scrollRaf) return;
+      scrollRaf = window.requestAnimationFrame(() => {
+        scrollRaf = 0;
+        const sel = doc.querySelector("[data-alloro-selected]");
+        if (!sel) return;
+        const r = sel.getBoundingClientRect();
+        setSelectedInfo((prev) =>
+          prev
+            ? {
+                ...prev,
+                rect: { top: r.top, left: r.left, width: r.width, height: r.height },
+              }
+            : prev,
+        );
+      });
+    };
+    doc.addEventListener("scroll", handleScroll, true);
+    doc.defaultView?.addEventListener("scroll", handleScroll, { passive: true });
   }, [beginCanvasTextEditing, iframeRef, sectionsOnly]);
 
   const toggleHidden = useCallback(() => {

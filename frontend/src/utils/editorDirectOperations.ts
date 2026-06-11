@@ -125,8 +125,11 @@ export function getSelectedFontSizeLabel(selectedInfo: SelectedInfo | null): str
 
   const template = document.createElement("template");
   template.innerHTML = selectedInfo.outerHtml;
-  const el = template.content.firstElementChild;
+  const el = template.content.firstElementChild as HTMLElement | null;
   if (!el) return "Default";
+
+  // Inline font-size (set by the stepper) wins and is the most accurate readout.
+  if (el.style.fontSize) return el.style.fontSize;
 
   const cls = TEXT_SIZE_SCALE.find((c) => el.classList.contains(c));
   if (!cls) return "Default";
@@ -435,17 +438,21 @@ function toHex(value: number): string {
 }
 
 function stepFontSize(element: Element, direction: "up" | "down") {
-  const currentSizeClass = TEXT_SIZE_SCALE.find((cls) =>
-    element.classList.contains(cls),
-  );
-  const currentIndex = currentSizeClass ? TEXT_SIZE_SCALE.indexOf(currentSizeClass) : 2;
-  const nextIndex =
-    direction === "up"
-      ? Math.min(currentIndex + 1, TEXT_SIZE_SCALE.length - 1)
-      : Math.max(currentIndex - 1, 0);
+  // Step the actual rendered size via an inline font-size so it always wins
+  // over Tailwind text-* classes — including responsive ones like
+  // `md:text-7xl` that a class swap could never override. Tailwind size
+  // classes are also stripped so they can't fight the inline value.
+  const el = element as HTMLElement;
+  el.classList.remove(...TEXT_SIZE_SCALE);
 
-  if (currentSizeClass) element.classList.remove(currentSizeClass);
-  element.classList.add(TEXT_SIZE_SCALE[nextIndex]);
+  const win = el.ownerDocument.defaultView;
+  const computedPx = win
+    ? parseFloat(win.getComputedStyle(el).fontSize)
+    : 16;
+  const currentPx = parseFloat(el.style.fontSize) || computedPx || 16;
+  const factor = direction === "up" ? 1.1 : 1 / 1.1;
+  const nextPx = Math.round(Math.min(240, Math.max(8, currentPx * factor)));
+  el.style.fontSize = `${nextPx}px`;
 }
 
 function toggleHiddenAttribute(element: Element) {

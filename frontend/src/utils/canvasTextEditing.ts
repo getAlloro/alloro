@@ -30,9 +30,6 @@ const SAFE_INLINE_TEXT_CHILD_TAGS = new Set([
 ]);
 const SAFE_INLINE_TEXT_CHILD_TAGS_SELECTOR = Array.from(SAFE_INLINE_TEXT_CHILD_TAGS).join(",");
 
-/** Rich mode additionally tolerates inline anchors — plain replace-text would destroy them. */
-const RICH_INLINE_TEXT_CHILD_TAGS = new Set([...SAFE_INLINE_TEXT_CHILD_TAGS, "a"]);
-
 export type CanvasTextEditEligibility = {
   canEdit: boolean;
   reason?: string;
@@ -82,10 +79,12 @@ export function getCanvasTextEditEligibility(element: Element | null): CanvasTex
     child.tagName.toLowerCase(),
   );
 
-  if (childTags.some((tagName) => !RICH_INLINE_TEXT_CHILD_TAGS.has(tagName))) {
-    return { canEdit: false, reason: "Use fallback text editing for nested content." };
-  }
-
+  // Anything beyond plain-safe inline children (anchors, or any other nested
+  // markup) routes to the contentEditable "rich" path: it edits the element
+  // in place with a native caret and preserves structure, and the commit
+  // sanitizer is the safety net for unsupported markup. Previously this
+  // returned canEdit:false, which silently disabled inline editing for common
+  // headings/paragraphs that carry a stray nested element.
   if (childTags.some((tagName) => !SAFE_INLINE_TEXT_CHILD_TAGS.has(tagName))) {
     return { canEdit: true, mode: "rich" };
   }
