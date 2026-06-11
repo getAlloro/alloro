@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Check, Eye, EyeOff, ImagePlus, Link, Minus, Pencil, Plus } from "lucide-react";
 import type { SelectedInfo } from "../../hooks/useIframeSelector";
 import {
@@ -26,6 +26,8 @@ export default function InlineEditorPopover({
   const [hrefValue, setHrefValue] = useState("");
   const [colorValue, setColorValue] = useState("#ffffff");
   const [mediaMode, setMediaMode] = useState<"media" | "background" | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const [popoverSize, setPopoverSize] = useState({ width: 320, height: 64 });
 
   const availability = getDirectOperationAvailability(selectedInfo, Boolean(mediaApi));
   const rect = selectedInfo?.rect;
@@ -38,16 +40,56 @@ export default function InlineEditorPopover({
     setColorValue(getSelectedBackgroundColorValue(selectedInfo));
   }, [selectedInfo]);
 
+  useLayoutEffect(() => {
+    const node = popoverRef.current;
+    if (!node) return;
+
+    const measure = () => {
+      const next = node.getBoundingClientRect();
+      setPopoverSize((current) => {
+        const width = Math.ceil(next.width);
+        const height = Math.ceil(next.height);
+        if (current.width === width && current.height === height) return current;
+        return { width, height };
+      });
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [availability.canChangeLink, availability.canEditBackground, mediaMode, selectedInfo]);
+
   const positionStyle = useMemo(() => {
-    const top = hasPropertyPanel
-      ? Math.max(8, (rect?.top || 0) + 8)
-      : Math.max(8, (rect?.top || 0) - 46);
-    const left = Math.max(8, (rect?.left || 0) + 8);
+    const margin = 8;
+    const anchorTop = rect?.top || 0;
+    const anchorLeft = rect?.left || 0;
+    const anchorBottom = anchorTop + (rect?.height || 0);
+    const estimatedHeight = popoverSize.height || (hasPropertyPanel ? 128 : 64);
+    const estimatedWidth = popoverSize.width || 320;
+    const viewportHeight = typeof window === "undefined" ? 0 : window.innerHeight;
+    const viewportWidth = typeof window === "undefined" ? 0 : window.innerWidth;
+    const canFitAbove = anchorTop >= estimatedHeight + margin;
+    const canFitBelow = !viewportHeight || viewportHeight - anchorBottom >= estimatedHeight + margin;
+    let top = hasPropertyPanel
+      ? anchorBottom + margin
+      : anchorTop - estimatedHeight - margin;
+
+    if (hasPropertyPanel && !canFitBelow && canFitAbove) {
+      top = anchorTop - estimatedHeight - margin;
+    } else if (!hasPropertyPanel && !canFitAbove && canFitBelow) {
+      top = anchorBottom + margin;
+    }
+
+    const maxLeft = viewportWidth
+      ? Math.max(margin, viewportWidth - estimatedWidth - margin)
+      : anchorLeft + margin;
+    const left = Math.min(Math.max(margin, anchorLeft + margin), maxLeft);
     const width = hasPropertyPanel
       ? Math.min(Math.max((rect?.width || 320) - 16, 320), 620)
       : "auto";
-    return { top, left, width, maxWidth: "calc(100% - 16px)" };
-  }, [hasPropertyPanel, rect]);
+    return { top: Math.max(margin, top), left, width, maxWidth: "calc(100% - 16px)" };
+  }, [hasPropertyPanel, popoverSize, rect]);
 
   if (!selectedInfo || !rect) return null;
 
@@ -77,6 +119,7 @@ export default function InlineEditorPopover({
 
   return (
     <div
+      ref={popoverRef}
       className="absolute z-[60] rounded-xl border border-gray-200 bg-white/95 p-2 shadow-2xl backdrop-blur-md pointer-events-auto"
       style={positionStyle}
       onClick={(event) => event.stopPropagation()}
