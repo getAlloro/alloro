@@ -1178,7 +1178,7 @@ export async function savePageSections(
     if (!projectId) return res.status(404).json({ error: "No website found" });
 
     const { pageId } = req.params;
-    const { sections } = req.body;
+    const { sections, expected_updated_at, force } = req.body;
     if (!sections || !Array.isArray(sections)) {
       return res.status(400).json({ error: "sections array is required" });
     }
@@ -1189,19 +1189,39 @@ export async function savePageSections(
       .first();
     if (!page) return res.status(404).json({ error: "Page not found" });
 
+    // Optimistic concurrency: reject when the row changed since the client
+    // loaded it, unless the client explicitly forces the overwrite.
+    if (
+      expected_updated_at &&
+      !force &&
+      new Date(page.updated_at).getTime() !==
+        new Date(expected_updated_at).getTime()
+    ) {
+      return res.status(409).json({
+        error: "STALE_WRITE",
+        message:
+          "This page changed since you loaded it. Review the latest version or save anyway.",
+      });
+    }
+
     // Preserve the page's pre-save state as a restorable history entry
     // before overwriting it (user-side saves write the live page in place).
     await snapshotPageStateIfChanged(page);
 
     // Update the page sections directly
-    await db("website_builder.pages")
+    const [updatedPage] = await db("website_builder.pages")
       .where("id", pageId)
       .update({
         sections: JSON.stringify(sections),
+        change_source: "save",
         updated_at: db.fn.now(),
-      });
+      })
+      .returning(["updated_at"]);
 
-    return res.json({ success: true });
+    return res.json({
+      success: true,
+      data: { updated_at: updatedPage?.updated_at },
+    });
   } catch (error) {
     return handleError(res, error, "Save page sections");
   }

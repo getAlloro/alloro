@@ -37,7 +37,15 @@ export async function listPageVersions(
   const versions = await db(PAGES_TABLE)
     .where({ project_id: projectId, path: page.path })
     .orderBy("version", "desc")
-    .select("id", "version", "status", "created_at", "updated_at");
+    .select(
+      "id",
+      "version",
+      "status",
+      "created_at",
+      "updated_at",
+      "change_source",
+      "revision_note"
+    );
 
   return { versions, path: page.path };
 }
@@ -128,6 +136,7 @@ export async function restoreVersionIntoDraft(
         display_name: targetVersion.display_name || null,
         template_page_id: targetVersion.template_page_id || null,
         generation_status: "ready",
+        change_source: "restore",
       })
       .returning("*");
 
@@ -145,6 +154,8 @@ export async function restoreVersionIntoDraft(
     .update({
       sections: restoredSections,
       seo_data: restoredSeoData,
+      change_source: "restore",
+      revision_note: null,
       updated_at: db.fn.now(),
     })
     .returning("*");

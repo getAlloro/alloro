@@ -8,6 +8,7 @@ import DebugPanel from "./DebugPanel";
 import SelectedElementEditorPanel from "./SelectedElementEditorPanel";
 import VersionHistoryTab from "./VersionHistoryTab";
 import type { PageVersion } from "./VersionHistoryTab";
+import type { SectionDiffEntry } from "../../utils/sectionDiff";
 import type { MediaApi, MediaItem } from "./MediaBrowser";
 import type { ChatMessage } from "./ChatPanel";
 
@@ -38,6 +39,10 @@ export type EditorSidebarProps = {
   fetchVersions?: (pageId: string) => Promise<PageVersion[]>;
   /** Allow restoring published rows too (admin restores into the draft). */
   allowRestorePublished?: boolean;
+  /** Per-section diff vs the current draft for the previewed version. */
+  previewDiff?: SectionDiffEntry[] | null;
+  /** Restore a single section from the previewed version into the draft. */
+  onRestoreSection?: (name: string) => void;
   /** Whether the editor is in version preview mode. */
   isPreviewingVersion?: boolean;
   /** ID of the version being previewed. */
@@ -69,6 +74,8 @@ export default function EditorSidebar({
   onRestoreVersion,
   fetchVersions,
   allowRestorePublished = false,
+  previewDiff,
+  onRestoreSection,
   isPreviewingVersion = false,
   previewVersionId,
   onExitPreview,
@@ -164,6 +171,8 @@ export default function EditorSidebar({
           onExitPreview={onExitPreview || (() => {})}
           fetchVersions={fetchVersions}
           allowRestorePublished={allowRestorePublished}
+          previewDiff={previewDiff}
+          onRestoreSection={onRestoreSection}
         />
       ) : (
         <DebugPanel debugInfo={debugInfo} selectedInfo={selectedInfo} systemPrompt={systemPrompt} />

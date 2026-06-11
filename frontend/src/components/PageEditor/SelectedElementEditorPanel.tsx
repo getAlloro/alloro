@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Eye, EyeOff, ImagePlus, Link, Minus, Pencil, Plus } from "lucide-react";
+import { Check, Eye, EyeOff, ImagePlus, Link, Minus, Pencil, Plus, Type } from "lucide-react";
 import type { SelectedInfo, QuickActionType } from "../../hooks/useIframeSelector";
 import {
   getDirectOperationAvailability,
   getSelectedTextValue,
+  getSelectedAltText,
   type DirectEditorOperation,
 } from "../../utils/editorDirectOperations";
 import { InlineIconButton } from "./InlineEditorControls";
 import MediaBrowser from "./MediaBrowser";
 import type { MediaApi, MediaItem } from "./MediaBrowser";
-type ActiveAction = "text" | "link" | "media" | null;
+type ActiveAction = "text" | "link" | "media" | "alt" | null;
 export type SelectedElementEditorPanelProps = {
   selectedInfo: SelectedInfo;
   isEditing: boolean;
@@ -32,7 +33,7 @@ export default function SelectedElementEditorPanel({
   const [actionInput, setActionInput] = useState("");
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const linkInputRef = useRef<HTMLInputElement>(null);
-  const { canEditText, canChangeMedia, canChangeLink, canAdjustTextSize } =
+  const { canEditText, canChangeMedia, canChangeLink, canAdjustTextSize, canEditAltText } =
     getDirectOperationAvailability(selectedInfo, Boolean(mediaApi));
   useEffect(() => {
     if (canEditText) {
@@ -93,6 +94,15 @@ export default function SelectedElementEditorPanel({
     onApplyDirectEdit({ type: "replace-media", media });
     setActiveAction(null);
   };
+  const applyAltText = () => {
+    onApplyDirectEdit({ type: "set-alt-text", value: actionInput });
+    setActiveAction(null);
+    setActionInput("");
+  };
+  const openAltAction = () => {
+    setActiveAction("alt");
+    setActionInput(getSelectedAltText(selectedInfo));
+  };
   const openTextAction = () => {
     setActiveAction("text");
     setActionInput(getSelectedTextValue(selectedInfo));
@@ -148,6 +158,7 @@ export default function SelectedElementEditorPanel({
             </>
           )}
           {canChangeMedia && <InlineIconButton emphasis={activeAction === "media"} disabled={isEditing} label="Change media" onClick={() => setActiveAction(activeAction === "media" ? null : "media")}><ImagePlus className="h-3.5 w-3.5" /></InlineIconButton>}
+          {canEditAltText && <InlineIconButton emphasis={activeAction === "alt"} disabled={isEditing} label="Edit alt text" onClick={openAltAction}><Type className="h-3.5 w-3.5" /></InlineIconButton>}
           {canChangeLink && <InlineIconButton emphasis={activeAction === "link"} disabled={isEditing} label="Change link" onClick={openLinkAction}><Link className="h-3.5 w-3.5" /></InlineIconButton>}
           <InlineIconButton emphasis={selectedInfo.isHidden} label={selectedInfo.isHidden ? "Unhide element" : "Hide element"} onClick={handleToggleVisibility}>{selectedInfo.isHidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}</InlineIconButton>
         </div>
@@ -179,6 +190,28 @@ export default function SelectedElementEditorPanel({
           <div className="flex items-center gap-1.5">
             <input ref={linkInputRef} type="text" value={actionInput} onChange={(event) => setActionInput(event.target.value)} onKeyDown={handleLinkKeyDown} placeholder="Enter URL..." className="flex-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-900 outline-none transition focus:border-alloro-orange focus:ring-1 focus:ring-alloro-orange/20" />
             <button onClick={applyLink} disabled={!actionInput.trim()} className="rounded-lg bg-alloro-orange px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-alloro-orange/90 disabled:opacity-30">Apply</button>
+          </div>
+        </div>
+      )}
+
+      {activeAction === "alt" && (
+        <div className="px-4 pb-2">
+          <div className="flex items-center gap-1.5">
+            <input
+              type="text"
+              value={actionInput}
+              onChange={(event) => setActionInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  applyAltText();
+                }
+                if (event.key === "Escape") setActionInput(getSelectedAltText(selectedInfo));
+              }}
+              placeholder="Describe this image (alt text)..."
+              className="flex-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-900 outline-none transition focus:border-alloro-orange focus:ring-1 focus:ring-alloro-orange/20"
+            />
+            <button onClick={applyAltText} disabled={isEditing} className="rounded-lg bg-alloro-orange px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-alloro-orange/90 disabled:opacity-30">Apply</button>
           </div>
         </div>
       )}

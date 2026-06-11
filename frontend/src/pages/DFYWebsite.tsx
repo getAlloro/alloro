@@ -53,6 +53,8 @@ import {
 } from "../utils/editorDirectOperations";
 import EditorSidebar from "../components/PageEditor/EditorSidebar";
 import InlineEditorPopover from "../components/PageEditor/InlineEditorPopover";
+import { ConfirmModal } from "../components/settings/ConfirmModal";
+import { useLocalDraftBackup } from "../hooks/useLocalDraftBackup";
 import type { ChatMessage } from "../components/PageEditor/ChatPanel";
 import type { PageVersion } from "../components/PageEditor/VersionHistoryTab";
 import type { Section } from "../api/templates";
@@ -140,6 +142,13 @@ export function DFYWebsite() {
   const [pendingSidebarAction, setPendingSidebarAction] =
     useState<QuickActionType | null>(null);
 
+  // Optimistic-concurrency conflict (409 STALE_WRITE) on save
+  const [showConflictModal, setShowConflictModal] = useState(false);
+
+  // Crash-recovery prompt (localStorage backup newer than the server row)
+  const [recoveryPrompt, setRecoveryPrompt] = useState<Section[] | null>(null);
+  const recoveryCheckedRef = useRef<string | null>(null);
+
   const { setCollapsed } = useSidebar();
   const mediaApi = useMemo(() => userWebsiteMediaApi, []);
   const isWizardActive = useIsWizardActive();
@@ -175,6 +184,43 @@ export function DFYWebsite() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const sectionsRef = useRef(sections);
   sectionsRef.current = sections;
+
+  // Crash-recovery backup (localStorage mirror of dirty sections)
+  const { clearBackup, readBackup } = useLocalDraftBackup({
+    pageId: selectedPage?.id ?? null,
+    sections,
+    isDirty,
+  });
+
+  // Offer recovery once per page when a backup is newer than the server row.
+  useEffect(() => {
+    if (!selectedPage || activeView !== "editor") return;
+    if (recoveryCheckedRef.current === selectedPage.id) return;
+    recoveryCheckedRef.current = selectedPage.id;
+
+    const backup = readBackup(selectedPage.id);
+    if (!backup) return;
+    if (backup.savedAt > new Date(selectedPage.updated_at).getTime()) {
+      setRecoveryPrompt(backup.sections);
+    }
+  }, [selectedPage, activeView, readBackup]);
+
+  // --- Cmd/Ctrl+S saves (never the browser dialog) ---
+  // Ref indirection keeps the listener identity stable; the actual save
+  // handler is assigned after it's defined below.
+  const saveRef = useRef<() => void>(() => {});
+
+  const handleSaveShortcut = useCallback((e: KeyboardEvent) => {
+    if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "s") return;
+    e.preventDefault();
+    saveRef.current();
+  }, []);
+
+  useEffect(() => {
+    if (activeView !== "editor") return;
+    window.addEventListener("keydown", handleSaveShortcut);
+    return () => window.removeEventListener("keydown", handleSaveShortcut);
+  }, [activeView, handleSaveShortcut]);
   const deferredEditRef = useRef<DirectEditorOperation | null>(null);
   // Tracks the page whose editor HTML is already assembled, so re-entering the
   // editor tab (e.g. from the overview) doesn't rebuild and clobber unsaved edits.
@@ -296,7 +342,13 @@ export function DFYWebsite() {
   // Quick action handler from iframe label icons
   const handleIframeQuickAction = useCallback(
     (payload: QuickActionPayload) => {
-      if (
+      if (payload.action === "rich-text" && payload.value) {
+        deferredEditRef.current = {
+          type: "replace-inline-html",
+          html: payload.value,
+        };
+        setPendingSidebarAction("__deferred__" as QuickActionType);
+      } else if (
         (payload.action === "text" || payload.action === "link") &&
         payload.value
       ) {
@@ -588,10 +640,14 @@ export function DFYWebsite() {
     }
   };
 
-  // --- Handle iframe load: set up selector listeners ---
+  // --- Handle iframe load: set up selector listeners + save shortcut ---
   const handleIframeLoad = useCallback(() => {
     setupListeners();
-  }, [setupListeners]);
+    iframeRef.current?.contentDocument?.addEventListener(
+      "keydown",
+      handleSaveShortcut,
+    );
+  }, [setupListeners, handleSaveShortcut]);
 
   // --- Handle edit send (ported from admin PageEditor) ---
   const handleSendEdit = useCallback(
@@ -870,22 +926,53 @@ export function DFYWebsite() {
   }, [redoStack, sections, project, clearSelection]);
 
   // --- Save & Publish ---
-  const handleSave = useCallback(async () => {
-    if (!selectedPage || !project || isSaving) return;
-    setIsSaving(true);
-    try {
-      await apiPatch({
-        path: `/user/website/pages/${selectedPage.id}/save`,
-        passedData: { sections },
-      });
-      setIsDirty(false);
-      toast.success("Changes saved & published");
-    } catch {
-      toast.error("Failed to save changes");
-    } finally {
-      setIsSaving(false);
-    }
-  }, [selectedPage, project, sections, isSaving]);
+  // Note: apiPatch swallows HTTP errors and returns the error body, so the
+  // 409 STALE_WRITE conflict is detected on the returned object, not in catch.
+  const performSave = useCallback(
+    async (force = false) => {
+      if (!selectedPage || !project || isSaving) return;
+      setIsSaving(true);
+      try {
+        const res = await apiPatch({
+          path: `/user/website/pages/${selectedPage.id}/save`,
+          passedData: {
+            sections,
+            expected_updated_at: selectedPage.updated_at,
+            force,
+          },
+        });
+        if (res?.error === "STALE_WRITE") {
+          setShowConflictModal(true);
+          return;
+        }
+        if (!res?.success) {
+          toast.error(res?.message || "Failed to save changes");
+          return;
+        }
+        if (res?.data?.updated_at) {
+          setSelectedPage((prev) =>
+            prev ? { ...prev, updated_at: res.data.updated_at } : prev,
+          );
+        }
+        setIsDirty(false);
+        clearBackup();
+        toast.success("Changes saved & published");
+      } catch {
+        toast.error("Failed to save changes");
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [selectedPage, project, sections, isSaving, clearBackup],
+  );
+
+  const handleSave = useCallback(() => performSave(), [performSave]);
+  const handleForceSave = useCallback(() => {
+    setShowConflictModal(false);
+    performSave(true);
+  }, [performSave]);
+
+  saveRef.current = handleSave;
 
   // --- Version preview ---
   const handlePreviewVersion = useCallback(
@@ -1452,6 +1539,39 @@ export function DFYWebsite() {
 
       {/* Custom Domain Modal */}
       {project && (
+        {/* Save Conflict Modal (409 STALE_WRITE) */}
+        <ConfirmModal
+          isOpen={showConflictModal}
+          onClose={() => setShowConflictModal(false)}
+          onConfirm={handleForceSave}
+          title="Page Changed Elsewhere"
+          message="This page was saved from somewhere else after you loaded it. Saving anyway overwrites that version (it stays in History). Keep editing to review first — your work is also backed up locally."
+          confirmText="Save Anyway"
+          cancelText="Keep Editing"
+          type="warning"
+        />
+
+        {/* Crash Recovery Modal */}
+        <ConfirmModal
+          isOpen={recoveryPrompt !== null}
+          onClose={() => setRecoveryPrompt(null)}
+          onConfirm={() => {
+            if (recoveryPrompt) {
+              setUndoStack((prev) => [...prev, structuredClone(sectionsRef.current)]);
+              setRedoStack([]);
+              setSections(recoveryPrompt);
+              rebuildHtml(recoveryPrompt);
+              setIsDirty(true);
+            }
+            setRecoveryPrompt(null);
+          }}
+          title="Recover Unsaved Changes?"
+          message="We found unsaved edits from a previous session that are newer than the saved page. Recover them into the editor?"
+          confirmText="Recover"
+          cancelText="Not Now"
+          type="info"
+        />
+
         <ConnectDomainModal
           isOpen={showDomainModal}
           onClose={() => setShowDomainModal(false)}

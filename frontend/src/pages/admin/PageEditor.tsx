@@ -14,8 +14,16 @@ import {
   restorePageVersionIntoDraft,
 } from "../../api/websites";
 import type { PageVersion } from "../../components/PageEditor/VersionHistoryTab";
+import { useLocalDraftBackup } from "../../hooks/useLocalDraftBackup";
+import {
+  diffSections,
+  injectDiffOutlines,
+} from "../../utils/sectionDiff";
+import { runPublishLint, type PublishLintWarning } from "../../utils/publishLint";
+import PublishConfirmModal from "../../components/PageEditor/PublishConfirmModal";
+import FindReplaceModal from "../../components/Admin/FindReplaceModal";
 import { createAdminWebsiteMediaApi } from "../../api/websiteMedia";
-import type { WebsitePage, WebsiteProject, EditChatHistory, EditDebugInfo } from "../../api/websites";
+import type { WebsitePage, WebsiteProject, EditChatHistory, EditDebugInfo, ApiError } from "../../api/websites";
 import type { Section } from "../../api/templates";
 import { renderPage, normalizeSections } from "../../utils/templateRenderer";
 import {
@@ -399,9 +407,28 @@ function PageEditorInner() {
   // Version-history preview state (read-only view of a prior version)
   const [previewVersion, setPreviewVersion] = useState<PageVersion | null>(null);
   const [previewVersionHtml, setPreviewVersionHtml] = useState("");
+  const [previewVersionSections, setPreviewVersionSections] = useState<
+    Section[] | null
+  >(null);
 
   // Unsaved-changes guard for the toolbar Back button
   const [showLeaveModal, setShowLeaveModal] = useState(false);
+
+  // Optimistic-concurrency conflict (409 STALE_WRITE) on save
+  const [showConflictModal, setShowConflictModal] = useState(false);
+  const pendingSaveNoteRef = useRef<string | null>(null);
+
+  // Crash-recovery prompt (localStorage backup newer than the server row)
+  const [recoveryPrompt, setRecoveryPrompt] = useState<Section[] | null>(null);
+  const recoveryCheckedRef = useRef(false);
+
+  // Pre-publish lint warnings (advisory chips in the publish modal)
+  const [publishLintWarnings, setPublishLintWarnings] = useState<
+    PublishLintWarning[]
+  >([]);
+
+  // Site-wide find & replace modal
+  const [showFindReplace, setShowFindReplace] = useState(false);
 
   // UI state
   const [device, setDevice] = useState<"desktop" | "tablet" | "mobile">(
@@ -432,7 +459,13 @@ function PageEditorInner() {
   const [pendingSidebarAction, setPendingSidebarAction] = useState<QuickActionType | null>(null);
   const deferredEditRef = useRef<DirectEditorOperation | null>(null);
   const handleIframeQuickAction = useCallback((payload: QuickActionPayload) => {
-    if ((payload.action === "text" || payload.action === "link") && payload.value) {
+    if (payload.action === "rich-text" && payload.value) {
+      deferredEditRef.current = {
+        type: "replace-inline-html",
+        html: payload.value,
+      };
+      setPendingSidebarAction("__deferred__" as QuickActionType);
+    } else if ((payload.action === "text" || payload.action === "link") && payload.value) {
       deferredEditRef.current = payload.action === "text"
         ? { type: "replace-text", value: payload.value }
         : { type: "update-link", href: payload.value };
@@ -782,6 +815,32 @@ function PageEditorInner() {
   const sectionsRef = useRef(sections);
   sectionsRef.current = sections;
 
+  // --- Crash-recovery backup (localStorage mirror of dirty sections) ---
+  const { clearBackup, readBackup } = useLocalDraftBackup({
+    pageId: draftPageId,
+    sections,
+    isDirty,
+  });
+
+  // Offer recovery once per editor load when a backup is newer than the
+  // server row and differs from what the server returned.
+  useEffect(() => {
+    if (!page || !draftPageId || loading || recoveryCheckedRef.current) return;
+    recoveryCheckedRef.current = true;
+
+    const backup = readBackup(draftPageId);
+    if (!backup) return;
+
+    const serverTime = new Date(page.updated_at).getTime();
+    const matchesServer =
+      JSON.stringify(backup.sections) ===
+      JSON.stringify(normalizeSections(page.sections));
+
+    if (backup.savedAt > serverTime && !matchesServer) {
+      setRecoveryPrompt(backup.sections);
+    }
+  }, [page, draftPageId, loading, readBackup]);
+
   // --- Undo/redo stacks ---
   // Every content edit pushes the pre-edit sections onto the undo stack and
   // clears redo. Saving is explicit (Save button) — edits only mark dirty.
@@ -796,9 +855,20 @@ function PageEditorInner() {
   // listener identity stable across renders.
   const undoRef = useRef<() => void>(() => {});
   const redoRef = useRef<() => void>(() => {});
+  const saveRef = useRef<() => void>(() => {});
 
   const handleEditorKeyDown = useCallback((e: KeyboardEvent) => {
-    if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
+    if (!(e.metaKey || e.ctrlKey)) return;
+    const key = e.key.toLowerCase();
+
+    // Cmd/Ctrl+S saves even while typing in a field — never the browser dialog.
+    if (key === "s") {
+      e.preventDefault();
+      saveRef.current();
+      return;
+    }
+
+    if (key !== "z") return;
     const target = e.target as HTMLElement | null;
     if (
       target &&
@@ -1102,35 +1172,69 @@ function PageEditorInner() {
     handleApplyDirectEdit({ type: "toggle-hidden" });
   }, [handleApplyDirectEdit]);
 
-  // --- Manual save ---
-  const handleSave = useCallback(async () => {
-    if (!projectId || !draftPageId || isSaving) return;
+  // --- Manual save (explicit only — snapshots a restorable version) ---
+  const performSave = useCallback(
+    async (note?: string | null, force = false) => {
+      if (!projectId || !draftPageId || isSaving) return;
 
-    try {
-      setIsSaving(true);
-      await updatePageSections(
-        projectId,
-        draftPageId,
-        sections,
-        chatMapToObject(chatMap)
-      );
-      setIsDirty(false);
-      showSuccessToast("Changes saved", "A restorable version was recorded");
-    } catch (err) {
-      console.error("Save failed:", err);
-      setEditError(
-        err instanceof Error ? err.message : "Failed to save"
-      );
-    } finally {
-      setIsSaving(false);
-    }
-  }, [projectId, draftPageId, sections, chatMap, isSaving]);
+      try {
+        setIsSaving(true);
+        const res = await updatePageSections(
+          projectId,
+          draftPageId,
+          sectionsRef.current,
+          chatMapToObject(chatMapRef.current),
+          {
+            revisionNote: note ?? null,
+            expectedUpdatedAt: page?.updated_at ?? null,
+            force,
+          }
+        );
+        setPage((prev) =>
+          prev ? { ...prev, updated_at: res.data.updated_at } : prev
+        );
+        setIsDirty(false);
+        clearBackup();
+        setEditError(null);
+        showSuccessToast("Changes saved", "A restorable version was recorded");
+      } catch (err) {
+        if ((err as ApiError).code === "STALE_WRITE") {
+          pendingSaveNoteRef.current = note ?? null;
+          setShowConflictModal(true);
+          return;
+        }
+        console.error("Save failed:", err);
+        setEditError(err instanceof Error ? err.message : "Failed to save");
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [projectId, draftPageId, isSaving, page?.updated_at, clearBackup]
+  );
+
+  const handleSave = useCallback(() => performSave(), [performSave]);
+  const handleSaveWithNote = useCallback(
+    (note: string) => performSave(note || null),
+    [performSave]
+  );
+  const handleForceSave = useCallback(() => {
+    setShowConflictModal(false);
+    performSave(pendingSaveNoteRef.current, true);
+  }, [performSave]);
+
+  saveRef.current = handleSave;
 
   // --- Publish ---
   const handlePublish = useCallback(() => {
     if (!projectId || !draftPageId || isPublishing) return;
+    // Advisory pre-publish lint — never blocks, chips render in the modal.
+    const knownPaths = (project?.pages || []).map((p: WebsitePage) => p.path);
+    setPublishLintWarnings([]);
+    runPublishLint(htmlContent, knownPaths)
+      .then(setPublishLintWarnings)
+      .catch(() => setPublishLintWarnings([]));
     setShowPublishModal(true);
-  }, [projectId, draftPageId, isPublishing]);
+  }, [projectId, draftPageId, isPublishing, project, htmlContent]);
 
   const handlePublishConfirmed = useCallback(async () => {
     if (!projectId || !draftPageId) return;
@@ -1178,10 +1282,11 @@ function PageEditorInner() {
         setHtmlContent(assembled);
       }
 
-      // Clear chat history and edit history for the fresh draft
+      // Clear chat history, edit history, and the local backup for the fresh draft
       setChatMap(new Map());
       setUndoStack([]);
       setRedoStack([]);
+      clearBackup();
 
       // Close modal and show success alert
       setShowPublishModal(false);
@@ -1253,6 +1358,9 @@ function PageEditorInner() {
           version.id
         );
         const versionSections = normalizeSections(res.data.sections);
+        const changedNames = diffSections(sectionsRef.current, versionSections)
+          .filter((entry) => entry.status !== "removed")
+          .map((entry) => entry.name);
         const assembled = renderPage(
           project.wrapper || "{{slot}}",
           project.header || "",
@@ -1263,7 +1371,8 @@ function PageEditorInner() {
           undefined,
           projectId
         );
-        setPreviewVersionHtml(assembled);
+        setPreviewVersionHtml(injectDiffOutlines(assembled, changedNames));
+        setPreviewVersionSections(versionSections);
         setPreviewVersion(version);
         clearSelection();
       } catch (err) {
@@ -1278,7 +1387,42 @@ function PageEditorInner() {
   const handleExitPreview = useCallback(() => {
     setPreviewVersion(null);
     setPreviewVersionHtml("");
+    setPreviewVersionSections(null);
   }, []);
+
+  // Per-section diff between the previewed version and the current draft
+  const previewDiff = useMemo(
+    () =>
+      previewVersionSections
+        ? diffSections(sections, previewVersionSections)
+        : null,
+    [sections, previewVersionSections]
+  );
+
+  // Restore a single section from the previewed version into the draft
+  const handleRestoreSection = useCallback(
+    (name: string) => {
+      if (!previewVersionSections) return;
+      const versionSection = previewVersionSections.find(
+        (s) => s.name === name
+      );
+      if (!versionSection) return;
+
+      pushUndoSnapshot(structuredClone(sectionsRef.current));
+      const current = sectionsRef.current;
+      const exists = current.some((s) => s.name === name);
+      const updated = exists
+        ? current.map((s) =>
+            s.name === name ? { ...s, content: versionSection.content } : s
+          )
+        : [...current, structuredClone(versionSection)];
+      setSections(updated);
+      rebuildPreviewHtml(updated);
+      setIsDirty(true);
+      showSuccessToast("Section restored", `"${name}" updated in the draft`);
+    },
+    [previewVersionSections, pushUndoSnapshot, rebuildPreviewHtml]
+  );
 
   const handleRestoreVersion = useCallback(
     async (versionId: string) => {
@@ -1302,8 +1446,44 @@ function PageEditorInner() {
       setIsDirty(false);
       setPreviewVersion(null);
       setPreviewVersionHtml("");
+      setPreviewVersionSections(null);
+      clearBackup();
       clearSelection();
       showSuccessToast("Version restored", "Now editing the restored draft");
+    },
+    [projectId, draftPageId, rebuildPreviewHtml, clearBackup, clearSelection]
+  );
+
+  // --- Site-wide find & replace ---
+  // It writes to drafts server-side, so unsaved local edits must land first.
+  const handleOpenFindReplace = useCallback(() => {
+    if (isDirty) {
+      setEditError(
+        "Save your changes before running Find & Replace — it updates drafts on the server."
+      );
+      return;
+    }
+    setShowFindReplace(true);
+  }, [isDirty]);
+
+  const handleFindReplaceApplied = useCallback(
+    async (summary: { pagesChanged: number; replacements: number; pageIds: string[] }) => {
+      // If the open draft was among the changed pages, reload it.
+      if (!projectId || !draftPageId || !summary.pageIds.includes(draftPageId))
+        return;
+      try {
+        const freshPage = await fetchPage(projectId, draftPageId);
+        setPage(freshPage.data);
+        const freshSections = normalizeSections(freshPage.data.sections);
+        setSections(freshSections);
+        rebuildPreviewHtml(freshSections);
+        setUndoStack([]);
+        setRedoStack([]);
+        setIsDirty(false);
+        clearSelection();
+      } catch (err) {
+        console.error("Failed to reload page after find & replace:", err);
+      }
     },
     [projectId, draftPageId, rebuildPreviewHtml, clearSelection]
   );
@@ -1416,10 +1596,16 @@ function PageEditorInner() {
         onUndo={handleUndo}
         onRedo={handleRedo}
         onSave={handleSave}
+        onSaveWithNote={handleSaveWithNote}
         onPublish={handlePublish}
         onRegenerate={
           !isLivePreview && !loading && sections.length > 0 && activeView === "visual"
             ? () => setRegenerateModalOpen(true)
+            : undefined
+        }
+        onFindReplace={
+          page.page_type !== "artifact" && !isLivePreview
+            ? handleOpenFindReplace
             : undefined
         }
         canUndo={undoStack.length > 0}
@@ -1596,6 +1782,8 @@ function PageEditorInner() {
             allowRestorePublished={true}
             onPreviewVersion={handlePreviewVersion}
             onRestoreVersion={handleRestoreVersion}
+            previewDiff={previewDiff}
+            onRestoreSection={handleRestoreSection}
             isPreviewingVersion={!!previewVersion}
             previewVersionId={previewVersion?.id || null}
             onExitPreview={handleExitPreview}
@@ -1618,16 +1806,44 @@ function PageEditorInner() {
         type="warning"
       />
 
-      {/* Publish Confirmation Modal */}
-      <ConfirmModal
+      {/* Publish Confirmation Modal (with advisory lint chips) */}
+      <PublishConfirmModal
         isOpen={showPublishModal}
+        warnings={publishLintWarnings}
+        isLoading={isPublishing}
         onClose={() => setShowPublishModal(false)}
         onConfirm={handlePublishConfirmed}
-        title="Publish Page"
-        message="Publish this page? The current published version will be replaced. You'll continue editing in a new draft."
-        confirmText="Publish"
-        cancelText="Cancel"
-        isLoading={isPublishing}
+      />
+
+      {/* Save Conflict Modal (409 STALE_WRITE) */}
+      <ConfirmModal
+        isOpen={showConflictModal}
+        onClose={() => setShowConflictModal(false)}
+        onConfirm={handleForceSave}
+        title="Page Changed Elsewhere"
+        message="This page was saved by someone else after you loaded it. Saving anyway overwrites their version (it stays in History). Keep editing to review first — your work is also backed up locally."
+        confirmText="Save Anyway"
+        cancelText="Keep Editing"
+        type="warning"
+      />
+
+      {/* Crash Recovery Modal */}
+      <ConfirmModal
+        isOpen={recoveryPrompt !== null}
+        onClose={() => setRecoveryPrompt(null)}
+        onConfirm={() => {
+          if (recoveryPrompt) {
+            pushUndoSnapshot(structuredClone(sectionsRef.current));
+            setSections(recoveryPrompt);
+            rebuildPreviewHtml(recoveryPrompt);
+            setIsDirty(true);
+          }
+          setRecoveryPrompt(null);
+        }}
+        title="Recover Unsaved Changes?"
+        message="We found unsaved edits from a previous session that are newer than the saved page. Recover them into the editor?"
+        confirmText="Recover"
+        cancelText="Not Now"
         type="info"
       />
 
@@ -1641,6 +1857,16 @@ function PageEditorInner() {
         buttonText="Continue Editing"
         autoDismiss={true}
       />
+
+      {/* Site-wide Find & Replace Modal */}
+      {projectId && (
+        <FindReplaceModal
+          projectId={projectId}
+          isOpen={showFindReplace}
+          onClose={() => setShowFindReplace(false)}
+          onApplied={handleFindReplaceApplied}
+        />
+      )}
 
       {/* Regenerate Component Modal */}
       {regenerateModalOpen && projectId && draftPageId && (

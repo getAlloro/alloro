@@ -27,6 +27,8 @@ type SnapshotSourcePage = {
   display_name?: string | null;
   template_page_id?: string | null;
   page_type?: string | null;
+  change_source?: string | null;
+  revision_note?: string | null;
 };
 
 /**
@@ -102,6 +104,10 @@ export async function snapshotPageStateIfChanged(
         template_page_id: page.template_page_id || null,
         page_type: page.page_type || "sections",
         generation_status: "ready",
+        // Provenance rides with the copied state — the source row was
+        // stamped when its content was written (save/publish/restore).
+        change_source: page.change_source || null,
+        revision_note: page.revision_note || null,
       });
 
       console.log(

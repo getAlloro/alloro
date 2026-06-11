@@ -35,6 +35,7 @@ import {
   Eye,
   DollarSign,
   Plug,
+  Search,
 } from "lucide-react";
 import {
   fetchWebsiteDetail,
@@ -83,6 +84,7 @@ import RedirectsTab from "../../components/Admin/RedirectsTab";
 import ReviewsTab from "../../components/Admin/ReviewsTab";
 import CostsTab from "../../components/Admin/CostsTab";
 import IntegrationsTab from "../../components/Admin/IntegrationsTab";
+import FindReplaceModal from "../../components/Admin/FindReplaceModal";
 import { fetchProjectCodeSnippets } from "../../api/codeSnippets";
 import type { CodeSnippet } from "../../api/codeSnippets";
 import { useConfirm } from "../../components/ui/ConfirmModal";
@@ -287,6 +289,7 @@ export default function WebsiteDetail({
 
   // Create page modal state
   const [showCreatePageModal, setShowCreatePageModal] = useState(false);
+  const [showFindReplaceModal, setShowFindReplaceModal] = useState(false);
   const [showIdentityModal, setShowIdentityModal] = useState(false);
   const [showLayoutsModal, setShowLayoutsModal] = useState(false);
 
@@ -1484,6 +1487,16 @@ export default function WebsiteDetail({
               )}
             </div>
             <div className="flex items-center gap-2">
+              {pageGroups.length > 0 && (
+                <button
+                  onClick={() => setShowFindReplaceModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-orange-50 hover:text-alloro-orange rounded-lg transition-colors"
+                  title="Find & replace text across all pages"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  Find &amp; Replace
+                </button>
+              )}
               {/* Bulk SEO generation progress */}
               {isBulkSeoActive && bulkSeoStatus ? (
                 <span className="flex items-center gap-1.5 text-xs text-alloro-orange font-medium">
@@ -2282,6 +2295,16 @@ export default function WebsiteDetail({
           onClose={() => setShowCreatePageModal(false)}
         />
       )}
+
+      {/* Site-wide Find & Replace Modal */}
+      <FindReplaceModal
+        projectId={website.id}
+        isOpen={showFindReplaceModal}
+        onClose={() => setShowFindReplaceModal(false)}
+        onApplied={() => {
+          if (id) invalidateWebsite(id);
+        }}
+      />
 
       {/* Custom Domain Modal */}
       {website && (

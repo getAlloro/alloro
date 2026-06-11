@@ -143,7 +143,11 @@ export async function publishPage(
   // Publish this page
   const [publishedPage] = await db(PAGES_TABLE)
     .where("id", pageId)
-    .update({ status: "published", updated_at: db.fn.now() })
+    .update({
+      status: "published",
+      change_source: "publish",
+      updated_at: db.fn.now(),
+    })
     .returning("*");
 
   console.log(`[Admin Websites] \u2713 Published page ID: ${pageId}`);
@@ -177,7 +181,13 @@ export async function getPageById(
 export async function updatePage(
   projectId: string,
   pageId: string,
-  data: { sections?: any; edit_chat_history?: any }
+  data: {
+    sections?: any;
+    edit_chat_history?: any;
+    revision_note?: string | null;
+    expected_updated_at?: string;
+    force?: boolean;
+  }
 ): Promise<{
   page: any;
   error?: { status: number; code: string; message: string };
@@ -225,6 +235,25 @@ export async function updatePage(
     };
   }
 
+  // Optimistic concurrency: reject the write when the row changed since the
+  // client loaded it, unless the client explicitly forces the overwrite.
+  if (
+    data.expected_updated_at &&
+    !data.force &&
+    new Date(page.updated_at).getTime() !==
+      new Date(data.expected_updated_at).getTime()
+  ) {
+    return {
+      page: null,
+      error: {
+        status: 409,
+        code: "STALE_WRITE",
+        message:
+          "This page changed since you loaded it. Review the latest version or save anyway.",
+      },
+    };
+  }
+
   const updatePayload: Record<string, unknown> = {
     updated_at: db.fn.now(),
   };
@@ -234,6 +263,11 @@ export async function updatePage(
     // before overwriting it (deduped + pruned inside the helper).
     await snapshotPageStateIfChanged(page);
     updatePayload.sections = JSON.stringify(sections);
+    updatePayload.change_source = "save";
+    updatePayload.revision_note =
+      typeof data.revision_note === "string" && data.revision_note.trim()
+        ? data.revision_note.trim().slice(0, 255)
+        : null;
   }
 
   if (edit_chat_history !== undefined) {
