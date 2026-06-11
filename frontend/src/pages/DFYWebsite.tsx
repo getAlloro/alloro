@@ -1537,41 +1537,41 @@ export function DFYWebsite() {
         </div>
       )}
 
+      {/* Save Conflict Modal (409 STALE_WRITE) */}
+      <ConfirmModal
+        isOpen={showConflictModal}
+        onClose={() => setShowConflictModal(false)}
+        onConfirm={handleForceSave}
+        title="Page Changed Elsewhere"
+        message="This page was saved from somewhere else after you loaded it. Saving anyway overwrites that version (it stays in History). Keep editing to review first — your work is also backed up locally."
+        confirmText="Save Anyway"
+        cancelText="Keep Editing"
+        type="warning"
+      />
+
+      {/* Crash Recovery Modal */}
+      <ConfirmModal
+        isOpen={recoveryPrompt !== null}
+        onClose={() => setRecoveryPrompt(null)}
+        onConfirm={() => {
+          if (recoveryPrompt) {
+            setUndoStack((prev) => [...prev, structuredClone(sectionsRef.current)]);
+            setRedoStack([]);
+            setSections(recoveryPrompt);
+            rebuildHtml(recoveryPrompt);
+            setIsDirty(true);
+          }
+          setRecoveryPrompt(null);
+        }}
+        title="Recover Unsaved Changes?"
+        message="We found unsaved edits from a previous session that are newer than the saved page. Recover them into the editor?"
+        confirmText="Recover"
+        cancelText="Not Now"
+        type="info"
+      />
+
       {/* Custom Domain Modal */}
       {project && (
-        {/* Save Conflict Modal (409 STALE_WRITE) */}
-        <ConfirmModal
-          isOpen={showConflictModal}
-          onClose={() => setShowConflictModal(false)}
-          onConfirm={handleForceSave}
-          title="Page Changed Elsewhere"
-          message="This page was saved from somewhere else after you loaded it. Saving anyway overwrites that version (it stays in History). Keep editing to review first — your work is also backed up locally."
-          confirmText="Save Anyway"
-          cancelText="Keep Editing"
-          type="warning"
-        />
-
-        {/* Crash Recovery Modal */}
-        <ConfirmModal
-          isOpen={recoveryPrompt !== null}
-          onClose={() => setRecoveryPrompt(null)}
-          onConfirm={() => {
-            if (recoveryPrompt) {
-              setUndoStack((prev) => [...prev, structuredClone(sectionsRef.current)]);
-              setRedoStack([]);
-              setSections(recoveryPrompt);
-              rebuildHtml(recoveryPrompt);
-              setIsDirty(true);
-            }
-            setRecoveryPrompt(null);
-          }}
-          title="Recover Unsaved Changes?"
-          message="We found unsaved edits from a previous session that are newer than the saved page. Recover them into the editor?"
-          confirmText="Recover"
-          cancelText="Not Now"
-          type="info"
-        />
-
         <ConnectDomainModal
           isOpen={showDomainModal}
           onClose={() => setShowDomainModal(false)}
