@@ -421,6 +421,12 @@
         <p><strong>Reason:</strong> User QA: no caret in the on-page editor (only the sidebar textbox); clicking text edits once then can't edit again.</p>
         <p><strong>Updated Done criteria:</strong> clicking text shows an on-page caret immediately; switching elements mid-edit commits the prior one to its own element and opens the next — no swallowed clicks, no content carryover.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 12 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Refined the Rev 11 click behavior. A click inside the active on-page editor itself — the plain textarea overlay, the rich contentEditable element, or the rich toolbar — now stays inside that editor instead of bubbling into the selector's "commit current session, then re-select" path. Clicks outside the active editor still commit and can move selection to the next element. The plain textarea overlay also gets an explicit orange caret color, and failed browser caret coordinate lookups now fall back to an estimated character offset instead of selecting the whole text block. Verification cleanup also removed two admin editor typecheck blockers: an unused DOM replacement return and an overly narrow project state type that hid <code>pages</code> from the publisher lint path.</p>
+        <p><strong>Reason:</strong> User QA: first click showed the edit state but no visible caret; clicking the same text again removed the sidebar highlight/edit state and made the text uneditable.</p>
+        <p><strong>Updated Done criteria:</strong> clicking inside active inline text keeps editing active and lets the caret move; clicking outside commits and moves cleanly to the next element.</p>
+      </article>
     </section>
   </main>
 </body>

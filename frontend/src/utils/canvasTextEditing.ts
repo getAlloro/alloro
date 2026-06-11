@@ -242,6 +242,7 @@ function createCanvasTextarea(
   textarea.style.border = "2px solid #d66853";
   textarea.style.outline = "none";
   textarea.style.boxShadow = "0 0 0 4px rgba(214, 104, 83, 0.2)";
+  textarea.style.caretColor = "#d66853";
   textarea.style.borderRadius = computed?.borderRadius && computed.borderRadius !== "0px"
     ? computed.borderRadius
     : "8px";
