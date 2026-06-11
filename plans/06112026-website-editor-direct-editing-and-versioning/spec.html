@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Website Editor: Direct Editing &amp; Versioning Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Pending Execution</span>
+      </div>
+      <h1>Website Editor: Direct Editing &amp; Versioning</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06112026-website-editor-direct-editing-and-versioning</dd></div>
+        <div><dt>Size</dt><dd>Large (~25 files)</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The website editor is AI-first by accident: only elements the generator happened to tag with an <code>alloro-tpl-*</code> class are selectable, so plain <code>&lt;p&gt;</code>/<code>&lt;span&gt;</code>/<code>&lt;a&gt;</code>/<code>&lt;img&gt;</code> elements force users into the AI chat. Saves never create snapshots anywhere, so "revert to version" has nothing meaningful to revert to — and restore silently drops <code>seo_data</code>. The admin editor additionally lacks redo, a refresh guard, and any version history UI, while autosave fires every 800ms making save points meaningless.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>A fully functional manual-editing workflow across both editor surfaces (admin <code>PageEditor</code> and customer <code>DFYWebsite</code>):</p>
+      <ul>
+        <li>Every basic content element (<code>p, span, a, h1–h6, li, button, blockquote, figcaption, img, video</code>) inside a page section is click-selectable and directly editable (text, link href, media swap, font-size step, hide) — no AI required. No element deletion or reordering.</li>
+        <li>Admin editor: working undo <em>and</em> redo (buttons + Cmd/Ctrl+Z / Shift+Cmd/Ctrl+Z), covering AI edits, direct edits, and code-view edits.</li>
+        <li>Admin editor: autosave removed. Explicit Save only. Every content write snapshots the prior state, creating restorable versions.</li>
+        <li>Admin editor: History tab (preview + restore-into-draft) wired into the existing <code>EditorSidebar</code>.</li>
+        <li>Both surfaces: refresh/close with unsaved changes prompts confirmation; admin Back link gets an in-app dirty guard.</li>
+        <li>User-side restore fixed to carry <code>seo_data</code>, <code>display_name</code>, <code>template_page_id</code>; snapshot growth pruned.</li>
+        <li>Constrained rich-text editing: bold/italic/link formatting inside mixed-content paragraphs via a sanitized contentEditable session (Rev 1).</li>
+        <li>Cmd/Ctrl+S save shortcut, localStorage crash recovery, and optimistic-concurrency conflict detection on both surfaces (Rev 1).</li>
+        <li>Save notes + provenance badges in version history, backed by two nullable columns on <code>pages</code> (Rev 1, migration).</li>
+        <li>Version diff badges + per-section restore in admin History (Rev 1).</li>
+        <li>Image upload-in-place + alt-text editing; admin site-wide find &amp; replace; pre-publish lint warnings (Rev 1).</li>
+      </ul>
+      <p><strong>Done when:</strong> an admin can edit any paragraph/link/photo by clicking it, undo/redo freely, save deliberately, see each save in History, preview and restore any version into the draft, and never lose work to a refresh.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/hooks/useIframeSelector.ts</code> — iframe hover/click selection; only matches <code>alloro-tpl-*</code> classes (lines 81–94); shared by PageEditor, LayoutEditor, DFYWebsite.</li>
+        <li><code>frontend/src/pages/admin/PageEditor.tsx</code> — admin editor orchestrator; autosave (line 770), undo-only history (line 1017), no beforeunload, no History tab.</li>
+        <li><code>frontend/src/pages/DFYWebsite.tsx</code> — user editor; reference analog for redo (lines 825–870) and beforeunload (line 224); version preview/restore handlers (lines 891–937).</li>
+        <li><code>frontend/src/components/PageEditor/EditorToolbar.tsx</code> — toolbar; has Undo button, needs Redo.</li>
+        <li><code>frontend/src/components/PageEditor/EditorSidebar.tsx</code> — already accepts <code>showHistory</code> + version props; admin just never passes them.</li>
+        <li><code>frontend/src/components/PageEditor/VersionHistoryTab.tsx</code> — hardcodes <code>/user/website/...</code> endpoint (line 61); needs parameterized fetchers.</li>
+        <li><code>frontend/src/utils/editorDirectOperations.ts</code> — direct ops (replace-text, update-link, replace-media, step-font-size, toggle-hidden, backgrounds); already supports all required tags.</li>
+        <li><code>frontend/src/utils/canvasTextEditing.ts</code> — in-canvas textarea editing + eligibility rules.</li>
+        <li><code>frontend/src/api/websites.ts</code> — admin API module; needs version-history calls.</li>
+        <li><code>src/routes/admin/websites.ts</code> — admin route registry; needs versions/restore routes.</li>
+        <li><code>src/controllers/admin-websites/feature-services/service.page-editor.ts</code> — updatePage (line 176), publishPage (line 108), createDraft (line 353, stale-draft clobber bug at ~400–410).</li>
+        <li><code>src/controllers/user-website/UserWebsiteController.ts</code> — savePageSections (line 1168) overwrites live page with no snapshot.</li>
+        <li><code>src/controllers/user-website/user-website-services/userWebsite.service.ts</code> — getPageVersions/getPageVersionContent/restorePageVersion (lines 360–510); restore drops seo_data.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Undo/redo stacks + beforeunload: copy the working implementation in <code>DFYWebsite.tsx</code>.</li>
+        <li>Admin endpoints: thin controller + feature-service pattern, error objects with <code>{status, code, message}</code>, as in <code>service.page-editor.ts</code>.</li>
+        <li>Version model: page rows at the same <code>project_id + path</code>, <code>status ∈ draft|published|inactive</code>, monotonically increasing <code>version</code> (see <code>restorePageVersion</code> for the insert pattern).</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>frontend/src/pages/DFYWebsite.tsx</code> — closest existing analog for undo/redo, beforeunload, and version preview/restore wiring.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Reuse the existing <code>pages</code>-row version model — no schema change, no migration.</li>
+            <li>Auto-tagging only fires inside <code>[data-alloro-section]</code> (LayoutEditor stays untouched).</li>
+            <li>Admin restore loads the version into the current <em>draft</em> — never auto-publishes.</li>
+            <li>User-side save/restore keeps its publish-live semantics (only fixed + snapshotted).</li>
+            <li>Snapshot rule: on every content write (save/restore/find-replace), snapshot the about-to-be-overwritten state iff it differs from the newest history entry.</li>
+            <li>Keep <code>VersionHistoryTab</code> backward-compatible with DFYWebsite.</li>
+            <li>Rich-text commits pass through an allowlist node-rebuild serializer (never trust raw <code>innerHTML</code>); <code>a[href]</code> normalized via <code>normalizeEditorHref</code>.</li>
+            <li>Migration is additive + nullable only (<code>change_source</code>, <code>revision_note</code>); repo migration file follows the <code>src/database/migrations</code> TS analog.</li>
+            <li>Find &amp; replace writes to <em>draft</em> rows only (creating drafts where needed); never touches published rows directly.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No new dependencies.</li>
+            <li>No element deletion or drag-reorder capability.</li>
+            <li>No changes to AI edit flow, prompts, or generation pipeline.</li>
+            <li>No modification of the renderer handoff (sections JSONB contract unchanged).</li>
+            <li>No refactor of unrelated editor code.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>AI-as-reviewer "suggest improvements" mode — needs its own design pass (suggestion source, cost, accept/reject UX); separate plan.</li>
+        <li>LayoutEditor (header/footer/wrapper) version history.</li>
+        <li>SEO-data versioning UI (snapshots carry <code>seo_data</code>, but History UI shows section content only).</li>
+        <li>Removing/redesigning the AI chat sidebar.</li>
+        <li>Regex / case-transforming find &amp; replace (plain text + tel/mailto hrefs only).</li>
+        <li>Lint as a publish blocker — warnings are advisory, publish always allowed.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 overall — one Level 3-class item (in-house HTML sanitization = security exposure) mitigated by design, see below.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li>Auto-tagging persists editor-generated classes into saved content. <strong>Mitigation:</strong> classes are already the addressing scheme for saved sections; use a deterministic <code>alloro-tpl-m-</code> prefix, assign only on user click, only inside section markers.</li>
+        <li>Removing autosave shifts data-loss risk to the user. <strong>Mitigation:</strong> beforeunload guard + in-app Back-link guard + existing "Unsaved changes" badge; undo/redo stacks survive until navigation.</li>
+        <li>Page-row snapshots grow the <code>pages</code> table. <strong>Mitigation:</strong> differs-check dedupe + prune inactive rows beyond 20 per path (never touch draft/published rows). Alternatives considered: (B) dedicated snapshots table — cleaner but needs migration + new UI; (C) provenance column — needs migration. A chosen for zero schema change and full reuse of existing history UI/endpoints.</li>
+        <li><code>replace-text</code> sets <code>textContent</code> and destroys inline children (e.g. <code>&lt;a&gt;</code> inside <code>&lt;p&gt;</code>). <strong>Mitigation:</strong> auto-tagging lets users select the child element directly; canvas editing already refuses unsafe nested content. Documented limitation; rich-text editing deferred.</li>
+        <li>Stale-draft refresh clobbers saved draft edits (compares published <code>updated_at</code> vs draft <code>created_at</code>). <strong>Mitigation:</strong> T8 changes comparison to draft <code>updated_at</code>.</li>
+        <li><strong>(L3-class, Rev 1)</strong> Rich-text editing introduces an HTML injection surface — committed markup is persisted and rendered on live customer sites. <strong>Mitigation:</strong> allowlist serializer that rebuilds nodes (<code>strong, em, b, i, u, small, sup, sub, mark, br, span, a</code>), strips all attributes except <code>href</code> (normalized) and existing classes, and drops anything else; Escape always restores the original; covered by an explicit sanitizer test in Done.</li>
+        <li>(Rev 1) Find &amp; replace fans one action out across many pages. <strong>Mitigation:</strong> drafts only, per-page snapshot + concurrency check, explicit per-match selection before applying, summary of pages touched.</li>
+        <li>(Rev 1) localStorage backups could resurrect stale content after a publish/restore. <strong>Mitigation:</strong> backup keyed by draft page id, cleared on save/publish/restore, offered only when newer than the server row's <code>updated_at</code>.</li>
+        <li>(Rev 1) Image-size lint needs HEAD requests to S3 which CORS may block. <strong>Mitigation:</strong> best-effort — skip the size check silently on failure; other checks are pure DOM.</li>
+        <li>(Rev 1) Additive migration on the shared <code>website_builder.pages</code> table. <strong>Mitigation:</strong> nullable columns, no backfill, no index — zero impact on existing readers.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>useIframeSelector</code> is consumed by PageEditor, LayoutEditor, and DFYWebsite (auto-tag gated to section markers so LayoutEditor is unaffected). <code>VersionHistoryTab</code> + <code>EditorSidebar</code> are consumed by DFYWebsite (props stay backward-compatible). <code>updatePageSections</code> API is called only by the admin editor. <code>savePageSections</code> endpoint is called only by DFYWebsite. <code>createDraft</code> is called from admin page-load and publish flows. (Rev 1) <code>MediaBrowser</code> is shared by both surfaces — upload-in-place must degrade gracefully if a surface's media API lacks upload. The publish confirmation in <code>PageEditor</code> is extended locally; the shared <code>settings/ConfirmModal</code> is not modified. <code>canvasTextEditing</code> eligibility changes affect PageEditor, LayoutEditor, and DFYWebsite equally — the rich-text path must be additive (plain-text elements keep the existing textarea flow).</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Reusing page rows as snapshots overloads one table with two meanings (live workflow states + history). A dedicated snapshots table is the textbook answer — but it costs a migration, duplicate endpoints, and a merged-history UI for marginal benefit at current scale. With dedupe + pruning, row reuse is the pragmatic call; revisit if snapshot volume or listing performance becomes a problem.</li>
+        <li>Keeping user-side save = publish-live is a product decision being preserved, not endorsed; a draft workflow for customers would be safer but is a separate feature.</li>
+        <li>(Rev 1) This is now a release-sized plan (~25 files, 17 feature tasks). Recommend executing in two milestones with a commit each: <strong>M1 = T1–T9</strong> (core editing + versioning) and <strong>M2 = T10–T18</strong> (feature layer). M2 depends on M1 landing clean; cramming both into one pass raises regression risk for no benefit.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Auto-tag selectable basic elements</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>useIframeSelector</code>, when a click/hover target has no <code>alloro-tpl-*</code> ancestor but is (or is inside) an eligible basic element (<code>p, span, a, h1–h6, li, button, blockquote, figcaption, img, video</code>) within <code>[data-alloro-section]</code>, assign a generated unique class (<code>alloro-tpl-m-&lt;tag&gt;-&lt;n&gt;</code>) to the nearest eligible element and proceed with normal selection. Hover highlighting must work on untagged eligible elements too. Idempotent: re-clicks reuse the assigned class.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/hooks/useIframeSelector.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: click an untagged <code>&lt;p&gt;</code>, <code>&lt;a&gt;</code>, and <code>&lt;img&gt;</code> in a section → selection label + inline popover appear; text/link/photo edits apply; LayoutEditor behavior unchanged.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Undo/redo with keyboard shortcuts (admin)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Port DFYWebsite's <code>undoStack</code>/<code>redoStack</code> pattern into <code>PageEditor.tsx</code> (replace single <code>editHistory</code>): push on AI edits, direct edits, and code-view edits (<code>handleCodeSectionsChange</code> currently skips history); clear redo on new edit. Add Redo button to <code>EditorToolbar</code>. Bind Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z on both the parent document and the iframe document (re-bind on iframe load; skip while canvas text editing is active).</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/admin/PageEditor.tsx</code>, <code>frontend/src/components/PageEditor/EditorToolbar.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: chain edit → undo → redo across AI, direct, and code edits; keyboard shortcuts work with focus inside the iframe.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Remove autosave; explicit Save only (admin)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Delete <code>scheduleSave</code>/<code>saveTimeoutRef</code> and all call sites in <code>PageEditor.tsx</code>; edits only set <code>isDirty</code>. Save button persists sections + chat history. Pre-publish save-if-dirty stays. Undo/redo no longer triggers network writes.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/admin/PageEditor.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2 (same file)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: edit → no PATCH in network tab until Save clicked; Save clears dirty badge.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Unsaved-changes guards (admin)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>beforeunload</code> handler gated on <code>isDirty</code> (DFYWebsite line 224 pattern). Intercept the toolbar Back link when dirty with the existing <code>ConfirmModal</code> ("Leave without saving?").</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/admin/PageEditor.tsx</code>, <code>frontend/src/components/PageEditor/EditorToolbar.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3</dd></div>
+          <div><dt>Verify</dt><dd>Manual: dirty editor + refresh → browser prompt; dirty + Back → confirm modal; clean editor → no prompts.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Snapshot-on-write (backend, both surfaces)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New shared helper (e.g. <code>src/utils/website-utils/pageSnapshots.ts</code>, styled after <code>pageEditorService.ts</code>): given a page row about to be overwritten, insert an <code>inactive</code> copy (sections, seo_data, display_name, template_page_id, page_type) at <code>version = latest+1</code> iff its sections differ from the newest inactive/published row at that path; then prune inactive rows beyond 20 per path (oldest first). Call it from admin <code>updatePage</code> (explicit save path) and user <code>savePageSections</code> before applying new sections. Restore paths reuse the same helper (T6/T7).</dd></div>
+          <div><dt>Files</dt><dd><code>src/utils/website-utils/pageSnapshots.ts</code> (new), <code>src/controllers/admin-websites/feature-services/service.page-editor.ts</code>, <code>src/controllers/user-website/UserWebsiteController.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: two saves with different content → two history rows; save with identical content → no new row; 21st snapshot prunes the oldest.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Admin version history (endpoints + UI)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add admin routes <code>GET /:id/pages/:pageId/versions</code>, <code>GET /:id/pages/:pageId/versions/:versionId</code>, <code>POST /:id/pages/:pageId/versions/:versionId/restore</code> following the feature-service pattern; admin restore snapshots the current draft state (T5 helper) then replaces the draft's sections/seo_data in place — no publish. Add API functions to <code>frontend/src/api/websites.ts</code>. Parameterize <code>VersionHistoryTab</code> with injectable fetchers (default = current user endpoints, so DFYWebsite is unchanged). Wire <code>showHistory</code>, preview (read-only iframe of version content), restore, and exit-preview into <code>PageEditor.tsx</code>, mirroring DFYWebsite lines 891–937 and 1380–1440.</dd></div>
+          <div><dt>Files</dt><dd><code>src/routes/admin/websites.ts</code>, <code>src/controllers/admin-websites/feature-services/service.page-editor.ts</code> (or sibling service), admin websites controller, <code>frontend/src/api/websites.ts</code>, <code>frontend/src/components/PageEditor/VersionHistoryTab.tsx</code>, <code>frontend/src/pages/admin/PageEditor.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3, T4, T5</dd></div>
+          <div><dt>Verify</dt><dd>Manual: History tab lists versions; Preview shows version read-only with editing disabled; Restore loads content into draft (dirty until saved or auto-saved per restore design), page stays unpublished; DFYWebsite history still works.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: Fix user-side restore + prune</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>restorePageVersion</code>, carry <code>seo_data</code>, <code>display_name</code>, <code>template_page_id</code>, <code>page_type</code> into both inserted rows; snapshot the pre-restore published state via the T5 helper inside the same transaction.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/user-website/user-website-services/userWebsite.service.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T5</dd></div>
+          <div><dt>Verify</dt><dd>Manual: restore a version on a page with SEO data → restored published row retains seo_data; pre-restore state appears in history.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T8: Fix stale-draft clobber</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>createDraft</code>, compare published <code>updated_at</code> against draft <code>updated_at</code> (not <code>created_at</code>) before refreshing draft sections, so saved draft edits are never silently overwritten.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.page-editor.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: edit + save draft, touch published row's updated_at, reload editor → draft edits intact.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T10: Save keyboard shortcut (Rev 1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Bind Cmd/Ctrl+S on both surfaces (parent document + iframe document, alongside the T2 undo/redo bindings): <code>preventDefault</code> always; trigger Save only when dirty and not already saving. Skip while canvas/rich-text editing is active.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/admin/PageEditor.tsx</code>, <code>frontend/src/pages/DFYWebsite.tsx</code> (shared hook <code>frontend/src/hooks/useEditorKeyboard.ts</code> if T2's bindings are extracted)</dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3</dd></div>
+          <div><dt>Verify</dt><dd>Manual: Cmd+S saves with focus inside and outside the iframe; never triggers the browser save dialog.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T11: localStorage crash recovery (Rev 1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New hook <code>useLocalDraftBackup(pageId, sections, isDirty)</code>: debounce-mirror dirty sections to <code>localStorage</code> (<code>alloro-editor-recovery:{pageId}</code>); clear on successful save/publish/restore. On editor load, if a backup exists, differs from server sections, and is newer than the page row's <code>updated_at</code>, prompt "Recover unsaved changes?" (recover → load sections + mark dirty; discard → clear). Wire into both surfaces.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/hooks/useLocalDraftBackup.ts</code> (new), <code>frontend/src/pages/admin/PageEditor.tsx</code>, <code>frontend/src/pages/DFYWebsite.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3</dd></div>
+          <div><dt>Verify</dt><dd>Manual: edit → kill tab → reopen → recovery prompt restores edits; after Save, no prompt on reload.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T12: Optimistic concurrency guard (Rev 1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Save calls send <code>expectedUpdatedAt</code> (the page row's <code>updated_at</code> as loaded). Backend (<code>updatePage</code>, <code>savePageSections</code>) returns 409 <code>{code:"STALE_WRITE"}</code> on mismatch. Frontend conflict modal: "Reload latest" (refetch, local backup keeps unsaved work) or "Save anyway" (retry with <code>force: true</code>). Refresh the tracked timestamp after every successful save.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.page-editor.ts</code>, <code>src/controllers/user-website/UserWebsiteController.ts</code>, <code>frontend/src/api/websites.ts</code>, <code>frontend/src/pages/admin/PageEditor.tsx</code>, <code>frontend/src/pages/DFYWebsite.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T5</dd></div>
+          <div><dt>Verify</dt><dd>Manual: open the same page in two tabs, save in both → second save gets the conflict modal; both paths (reload / save anyway) behave.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T13: Constrained rich-text editing (Rev 1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>For canvas-eligible text elements that currently fail eligibility due to safe inline children (<code>hasUnsafeNestedContent</code> passes but mixed content exists): start a contentEditable session on the element inside the iframe with a floating mini-toolbar (Bold, Italic, Link, Clear formatting). On commit, serialize through an allowlist node-rebuild sanitizer (<code>strong, em, b, i, u, small, sup, sub, mark, br, span, a</code>; strip all attributes except <code>a[href]</code> via <code>normalizeEditorHref</code> and existing <code>class</code>); apply via new direct op <code>replace-inline-html</code> so undo/redo and dirty tracking work unchanged. Escape cancels and restores the original markup. Plain-text elements keep the existing textarea flow.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/utils/richTextEditing.ts</code> (new), <code>frontend/src/utils/canvasTextEditing.ts</code>, <code>frontend/src/utils/editorDirectOperations.ts</code>, <code>frontend/src/hooks/useIframeSelector.ts</code>, <code>frontend/src/components/PageEditor/InlineEditorPopover.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2</dd></div>
+          <div><dt>Verify</dt><dd>Manual: bold/italic/link inside a paragraph with an existing inline link — link survives; pasting HTML with <code>&lt;script&gt;</code>/<code>onclick</code>/<code>style</code> commits stripped-clean markup; Escape restores original; undo reverts the commit.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T14: Save notes + provenance (Rev 1, migration)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Migration: add nullable <code>change_source</code> VARCHAR(20) and <code>revision_note</code> VARCHAR(255) to <code>website_builder.pages</code> (scaffolds in <code>migrations/</code>; repo file follows the <code>src/database/migrations</code> TS analog). Snapshot helper stamps <code>change_source</code> (<code>save | publish | restore | restore-section | find-replace</code>). Save button becomes a split-button with "Save with note…" capturing an optional note onto the snapshot row. <code>VersionHistoryTab</code> renders a source badge + note line.</dd></div>
+          <div><dt>Files</dt><dd>repo knex migration (new), <code>src/utils/website-utils/pageSnapshots.ts</code>, <code>src/controllers/admin-websites/feature-services/service.page-editor.ts</code>, <code>src/controllers/user-website/user-website-services/userWebsite.service.ts</code>, <code>frontend/src/components/PageEditor/VersionHistoryTab.tsx</code>, <code>frontend/src/components/PageEditor/EditorToolbar.tsx</code>, <code>frontend/src/pages/admin/PageEditor.tsx</code>, <code>frontend/src/api/websites.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T5, T6</dd></div>
+          <div><dt>Verify</dt><dd><code>npx knex migrate:latest</code> locally; Manual: "Save with note" → note + Save badge visible in History.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T15: Version diff + section-level restore (Rev 1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New <code>sectionDiff.ts</code>: per-section content-hash compare between a history version and the current draft. In admin History preview: badge the version list entry ("3 sections differ"), outline changed sections in the preview iframe, and offer "Restore this section" per changed section — swaps only that section into the draft (undo push, dirty; saved via the normal Save flow).</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/utils/sectionDiff.ts</code> (new), <code>frontend/src/components/PageEditor/VersionHistoryTab.tsx</code>, <code>frontend/src/pages/admin/PageEditor.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T6</dd></div>
+          <div><dt>Verify</dt><dd>Manual: edit one section, save, open History → exactly that section flagged; restore it → draft matches the old version for that section only.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T16: Image upload-in-place + alt text (Rev 1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add "Upload from device" to <code>MediaBrowser</code> (use the surface's media API upload if available — verify <code>createAdminWebsiteMediaApi</code> and the DFY media API during execution; hide the button when the API lacks upload). Add an alt-text input to the image edit controls backed by a new direct op <code>set-alt-text</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/PageEditor/MediaBrowser.tsx</code>, <code>frontend/src/utils/editorDirectOperations.ts</code>, <code>frontend/src/components/PageEditor/SelectedElementEditorPanel.tsx</code>, <code>frontend/src/api/websiteMedia.ts</code> (verify)</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Manual: upload a photo from the picker and swap it onto an image; edit alt text → persists through save and appears in saved sections.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T17: Site-wide find &amp; replace, admin (Rev 1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Project-level modal (entry on the admin website detail page + editor toolbar): client-side search across all pages' sections (DOMParser text-node walk, plus <code>tel:</code>/<code>mailto:</code> hrefs), case-sensitivity toggle, match list with context and per-match checkboxes. Apply writes per page to <em>draft</em> rows only (creating drafts via the existing flow where needed), through the normal save endpoints so T5 snapshots and T12 concurrency apply. Finish with a summary of pages touched + "review &amp; publish per page" notice.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/Admin/FindReplaceModal.tsx</code> (new), admin website detail page (locate entry point during execution), <code>frontend/src/components/PageEditor/EditorToolbar.tsx</code>, <code>frontend/src/api/websites.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T5, T12</dd></div>
+          <div><dt>Verify</dt><dd>Manual: replace a phone number appearing on 3 pages (text + tel: link) → 3 drafts updated, 3 snapshots created, published rows untouched until publish.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T18: Pre-publish lint warnings (Rev 1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New <code>publishLint.ts</code> running on the assembled draft DOM at Publish time: images with missing/empty alt; internal links (<code>href</code> starting with <code>/</code>) that match no project page path; heading-level jumps within a section; images over ~500KB via best-effort HEAD <code>content-length</code> (skip silently on CORS failure). Render results as advisory warning chips in the publish confirmation (extend the publish modal locally in <code>PageEditor</code> — do not modify the shared <code>settings/ConfirmModal</code>). Publish is always allowed.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/utils/publishLint.ts</code> (new), <code>frontend/src/pages/admin/PageEditor.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3, T4</dd></div>
+          <div><dt>Verify</dt><dd>Manual: page with an alt-less image and a dead internal link → both chips appear; clean page → no chips; publish works in both cases.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T9: Verification pipeline</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Run type-check + lint for backend and frontend; execute the manual QA checklist in Done.</dd></div>
+          <div><dt>Files</dt><dd>n/a</dd></div>
+          <div><dt>Depends on</dt><dd>T1–T8, T10–T18</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> (root + frontend), <code>npm run lint</code></dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> — zero errors (backend root + frontend)</li>
+        <li><input type="checkbox" disabled> <code>npm run lint</code> — pass</li>
+        <li><input type="checkbox" disabled> Manual: untagged <code>p</code>/<code>span</code>/<code>a</code>/<code>img</code> in a section are selectable and editable (text, href, photo swap) without AI</li>
+        <li><input type="checkbox" disabled> Manual: undo + redo work via buttons and Cmd/Ctrl+Z / Shift+Cmd/Ctrl+Z, including code-view edits</li>
+        <li><input type="checkbox" disabled> Manual: no network save fires until Save is clicked; each distinct Save adds a restorable version</li>
+        <li><input type="checkbox" disabled> Manual: refresh/close and Back with unsaved changes prompt for confirmation</li>
+        <li><input type="checkbox" disabled> Manual: admin History tab lists, previews, and restores versions into the draft without publishing</li>
+        <li><input type="checkbox" disabled> Manual: user-side (DFYWebsite) save, history, and restore still work; restore retains SEO data</li>
+        <li><input type="checkbox" disabled> No regressions in LayoutEditor selection/editing and AI chat editing on both surfaces</li>
+        <li><input type="checkbox" disabled> Manual (Rev 1): Cmd/Ctrl+S saves on both surfaces without triggering the browser dialog</li>
+        <li><input type="checkbox" disabled> Manual (Rev 1): killed tab with dirty edits → recovery prompt restores them; clean save → no prompt</li>
+        <li><input type="checkbox" disabled> Manual (Rev 1): concurrent save from a second tab → 409 conflict modal; both resolution paths work</li>
+        <li><input type="checkbox" disabled> Manual (Rev 1): rich-text bold/italic/link preserves existing inline links; pasted <code>&lt;script&gt;</code>/<code>onclick</code>/<code>style</code> markup is stripped on commit</li>
+        <li><input type="checkbox" disabled> <code>npx knex migrate:latest</code> applies cleanly (Rev 1); save-with-note shows source badge + note in History</li>
+        <li><input type="checkbox" disabled> Manual (Rev 1): version diff flags exactly the changed sections; single-section restore touches only that section</li>
+        <li><input type="checkbox" disabled> Manual (Rev 1): upload-from-device + alt-text edit persist through save</li>
+        <li><input type="checkbox" disabled> Manual (Rev 1): find &amp; replace updates drafts only, with snapshots, across multiple pages (text + tel: hrefs)</li>
+        <li><input type="checkbox" disabled> Manual (Rev 1): publish lint chips appear for missing alt + dead internal link; publish never blocked</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Added nine feature tasks (T10–T18): Cmd/Ctrl+S save shortcut, localStorage crash recovery, optimistic concurrency guard, constrained rich-text editing, save notes + provenance (first DB migration in this plan — <code>change_source</code>/<code>revision_note</code> on <code>pages</code>), version diff + section-level restore, image upload-in-place + alt text, admin site-wide find &amp; replace, and pre-publish lint warnings. Rich-text editing and provenance labels moved from Out of Scope into scope. AI-as-reviewer explicitly excluded pending its own design pass. Size revised ~13 → ~25 files; T9 (verification) now depends on all tasks; recommended two-milestone execution (M1: T1–T9, M2: T10–T18).</p>
+        <p><strong>Reason:</strong> User requested all suggestions from the feature review be folded into this plan, including rich-text editing.</p>
+        <p><strong>Updated Done criteria:</strong> Ten new checklist items covering the Rev 1 features (see Done).</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

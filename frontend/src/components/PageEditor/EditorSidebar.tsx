@@ -34,6 +34,10 @@ export type EditorSidebarProps = {
   onPreviewVersion?: (version: PageVersion) => void;
   /** Callback when user clicks Restore on a version. */
   onRestoreVersion?: (versionId: string) => Promise<void>;
+  /** Override the version list source (defaults to the user-website endpoint). */
+  fetchVersions?: (pageId: string) => Promise<PageVersion[]>;
+  /** Allow restoring published rows too (admin restores into the draft). */
+  allowRestorePublished?: boolean;
   /** Whether the editor is in version preview mode. */
   isPreviewingVersion?: boolean;
   /** ID of the version being previewed. */
@@ -63,6 +67,8 @@ export default function EditorSidebar({
   historyPageId,
   onPreviewVersion,
   onRestoreVersion,
+  fetchVersions,
+  allowRestorePublished = false,
   isPreviewingVersion = false,
   previewVersionId,
   onExitPreview,
@@ -156,6 +162,8 @@ export default function EditorSidebar({
           isPreviewMode={isPreviewingVersion}
           previewVersionId={previewVersionId || null}
           onExitPreview={onExitPreview || (() => {})}
+          fetchVersions={fetchVersions}
+          allowRestorePublished={allowRestorePublished}
         />
       ) : (
         <DebugPanel debugInfo={debugInfo} selectedInfo={selectedInfo} systemPrompt={systemPrompt} />

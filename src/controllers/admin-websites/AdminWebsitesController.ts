@@ -22,6 +22,7 @@ import { z } from "zod";
 import * as projectManager from "./feature-services/service.project-manager";
 import * as templateManager from "./feature-services/service.template-manager";
 import * as pageEditor from "./feature-services/service.page-editor";
+import * as pageVersions from "./feature-services/service.page-versions";
 import * as hfcmManager from "./feature-services/service.hfcm-manager";
 import * as websiteScraper from "./feature-services/service.website-scraper";
 import * as customDomain from "./feature-services/service.custom-domain";
@@ -2105,6 +2106,109 @@ export async function updatePage(
       success: false,
       error: "UPDATE_ERROR",
       message: error?.message || "Failed to update page",
+    });
+  }
+}
+
+/** GET /:id/pages/:pageId/versions — List versions at the page's path */
+export async function listPageVersions(
+  req: Request,
+  res: Response
+): Promise<Response> {
+  try {
+    const { id, pageId } = req.params;
+    const { versions, path, error } = await pageVersions.listPageVersions(
+      id,
+      pageId
+    );
+
+    if (error) {
+      return res.status(error.status).json({
+        success: false,
+        error: error.code,
+        message: error.message,
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: { versions, path },
+    });
+  } catch (error: any) {
+    console.error("[Admin Websites] Error listing page versions:", error);
+    return res.status(500).json({
+      success: false,
+      error: "FETCH_ERROR",
+      message: error?.message || "Failed to list page versions",
+    });
+  }
+}
+
+/** GET /:id/pages/:pageId/versions/:versionId — Get version content */
+export async function getPageVersionContent(
+  req: Request,
+  res: Response
+): Promise<Response> {
+  try {
+    const { id, versionId } = req.params;
+    const { version, error } = await pageVersions.getPageVersionContent(
+      id,
+      versionId
+    );
+
+    if (error) {
+      return res.status(error.status).json({
+        success: false,
+        error: error.code,
+        message: error.message,
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: version,
+    });
+  } catch (error: any) {
+    console.error("[Admin Websites] Error fetching page version:", error);
+    return res.status(500).json({
+      success: false,
+      error: "FETCH_ERROR",
+      message: error?.message || "Failed to fetch page version",
+    });
+  }
+}
+
+/** POST /:id/pages/:pageId/versions/:versionId/restore — Restore into draft */
+export async function restorePageVersion(
+  req: Request,
+  res: Response
+): Promise<Response> {
+  try {
+    const { id, pageId, versionId } = req.params;
+    const { page, error } = await pageVersions.restoreVersionIntoDraft(
+      id,
+      pageId,
+      versionId
+    );
+
+    if (error) {
+      return res.status(error.status).json({
+        success: false,
+        error: error.code,
+        message: error.message,
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: page,
+    });
+  } catch (error: any) {
+    console.error("[Admin Websites] Error restoring page version:", error);
+    return res.status(500).json({
+      success: false,
+      error: "RESTORE_ERROR",
+      message: error?.message || "Failed to restore page version",
     });
   }
 }

@@ -4,6 +4,13 @@
  * Extracted from ~/Desktop/dentist-landing-page/components/HtmlPreview.tsx.
  * Provides hover/click selection of alloro-tpl-* elements inside an iframe.
  *
+ * Untagged basic content elements (headings, paragraphs, links, images, …)
+ * inside a [data-alloro-section] wrapper are also selectable — they receive a
+ * generated alloro-tpl-m-component-* class on click so the existing edit
+ * pipeline (which keys off alloroClass) can drive them. Hover never assigns
+ * a class. Header/footer content (LayoutEditor) has no section wrappers, so
+ * its behavior is unchanged.
+ *
  * Uses event delegation on the iframe body so listeners survive DOM mutations
  * (critical for live editing — we mutate the iframe DOM directly after LLM edits).
  */
@@ -84,6 +91,67 @@ function findAlloroElement(el: Element | null): Element | null {
     el = el.parentElement;
   }
   return null;
+}
+
+/** Tags eligible for auto-tagging when untagged content is hovered/clicked inside a section. */
+const AUTO_TAG_ELIGIBLE_TAGS = new Set([
+  "p", "span", "a", "h1", "h2", "h3", "h4", "h5", "h6",
+  "li", "button", "blockquote", "figcaption", "img", "video",
+]);
+
+/**
+ * Walk up from a target to find the nearest auto-taggable content element.
+ * Only elements inside a [data-alloro-section] wrapper qualify — header/footer
+ * content (LayoutEditor) has no section wrappers and stays untouched.
+ */
+function findAutoTagCandidate(el: Element | null): Element | null {
+  while (el) {
+    if (
+      AUTO_TAG_ELIGIBLE_TAGS.has(el.tagName.toLowerCase()) &&
+      el.closest("[data-alloro-section]")
+    ) {
+      return el;
+    }
+    el = el.parentElement;
+  }
+  return null;
+}
+
+/**
+ * Resolve the effective hover target: alloro-classed ancestor first, then an
+ * untagged auto-tag candidate. The candidate gets a synthetic component class
+ * for label styling and precedence only — it is never written to the DOM
+ * (hover must not mutate content that later gets persisted).
+ */
+function resolveHoverTarget(origin: Element): { target: Element; cls: string } | null {
+  const tagged = findAlloroElement(origin);
+  if (tagged) return { target: tagged, cls: getAlloroClass(tagged)! };
+  const candidate = findAutoTagCandidate(origin);
+  if (!candidate) return null;
+  return {
+    target: candidate,
+    cls: `${ALLORO_PREFIX}m-component-${candidate.tagName.toLowerCase()}`,
+  };
+}
+
+/**
+ * Assign a generated component class to an untagged element so the existing
+ * selection/edit pipeline (which queries `.${alloroClass}`) can drive it.
+ * Idempotent — returns the existing alloro class when one is already present.
+ * The "-component-" segment is load-bearing: isComponent() keys off it.
+ */
+function ensureGeneratedAlloroClass(el: Element, doc: Document): string {
+  const existing = getAlloroClass(el);
+  if (existing) return existing;
+  const tag = el.tagName.toLowerCase();
+  let n = 1;
+  let cls = `${ALLORO_PREFIX}m-component-${tag}-${n}`;
+  while (doc.querySelector(`.${CSS.escape(cls)}`)) {
+    n += 1;
+    cls = `${ALLORO_PREFIX}m-component-${tag}-${n}`;
+  }
+  el.classList.add(cls);
+  return cls;
 }
 
 export function getAlloroClass(el: Element): string | null {
@@ -194,6 +262,15 @@ const SELECTOR_CSS = `
   a, button, form, input, select, textarea {
     pointer-events: none !important;
     cursor: default !important;
+  }
+
+  /* Untagged links/buttons inside sections must stay clickable so they can be
+     selected — navigation is suppressed in the click handler instead. Form
+     controls stay dead. */
+  [data-alloro-section] a,
+  [data-alloro-section] button {
+    pointer-events: auto !important;
+    cursor: pointer !important;
   }
 
   textarea[data-alloro-canvas-editor="true"] {
@@ -628,9 +705,9 @@ export function useIframeSelector(
     // Event delegation on the body — survives DOM mutations
     doc.body.addEventListener("mouseover", (e) => {
       if (isCanvasTextEditingActive()) return;
-      const target = findAlloroElement(e.target as Element);
-      if (!target) return;
-      const cls = getAlloroClass(target)!;
+      const resolved = resolveHoverTarget(e.target as Element);
+      if (!resolved) return;
+      const { target, cls } = resolved;
       const elIsComponent = isComponent(cls);
 
       if (elIsComponent) {
@@ -653,9 +730,9 @@ export function useIframeSelector(
 
     doc.body.addEventListener("mouseout", (e) => {
       if (isCanvasTextEditingActive()) return;
-      const target = findAlloroElement(e.target as Element);
-      if (!target) return;
-      const cls = getAlloroClass(target)!;
+      const resolved = resolveHoverTarget(e.target as Element);
+      if (!resolved) return;
+      const { target, cls } = resolved;
 
       target.removeAttribute("data-alloro-hover");
       if (isComponent(cls)) {
@@ -672,6 +749,11 @@ export function useIframeSelector(
       if (isCanvasTextEditingActive()) return;
       const clickTarget = e.target as Element;
 
+      // Anchors are pointer-enabled inside sections — navigation must never
+      // fire in the editor, whether the click lands on a selectable element
+      // or not.
+      if (clickTarget.closest?.("a")) e.preventDefault();
+
       // Ignore clicks on action buttons or the action input panel
       if (
         clickTarget.closest?.("#alloro-selected-label") ||
@@ -681,8 +763,15 @@ export function useIframeSelector(
       // Dismiss action panel on any other click
       hideActionPanel();
 
-      const target = findAlloroElement(clickTarget);
-      if (!target) return;
+      let target = findAlloroElement(clickTarget);
+      if (!target) {
+        // Untagged content inside a section — tag it now so the existing
+        // selection/edit pipeline can key off the class.
+        const candidate = findAutoTagCandidate(clickTarget);
+        if (!candidate) return;
+        ensureGeneratedAlloroClass(candidate, doc);
+        target = candidate;
+      }
       const cls = getAlloroClass(target)!;
       const elIsComponent = isComponent(cls);
 
@@ -708,8 +797,15 @@ export function useIframeSelector(
 
     doc.body.addEventListener("dblclick", (e) => {
       if (isCanvasTextEditingActive()) return;
-      const target = findAlloroElement(e.target as Element);
-      if (!target) return;
+      let target = findAlloroElement(e.target as Element);
+      if (!target) {
+        // Untagged content inside a section — the preceding click normally
+        // tags it already; this keeps dblclick safe on its own.
+        const candidate = findAutoTagCandidate(e.target as Element);
+        if (!candidate) return;
+        ensureGeneratedAlloroClass(candidate, doc);
+        target = candidate;
+      }
 
       const info = buildSelectedInfo(target);
       if (!info?.canCanvasEditText) return;

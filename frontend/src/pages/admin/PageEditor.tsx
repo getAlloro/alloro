@@ -9,7 +9,11 @@ import {
   editPageComponent,
   fetchEditorSystemPrompt,
   replaceArtifactBuild,
+  fetchPageVersions,
+  fetchPageVersionContent,
+  restorePageVersionIntoDraft,
 } from "../../api/websites";
+import type { PageVersion } from "../../components/PageEditor/VersionHistoryTab";
 import { createAdminWebsiteMediaApi } from "../../api/websiteMedia";
 import type { WebsitePage, WebsiteProject, EditChatHistory, EditDebugInfo } from "../../api/websites";
 import type { Section } from "../../api/templates";
@@ -121,6 +125,12 @@ function injectRegenerateOverlays(html: string, regeneratingNames: Set<string>):
 }
 
 const MAX_CHAT_MESSAGES_PER_COMPONENT = 50;
+
+/**
+ * Code-view (Monaco) edits fire onChange per keystroke; snapshots within this
+ * window coalesce into a single undo entry so the stack stays usable.
+ */
+const CODE_EDIT_UNDO_COALESCE_MS = 2500;
 
 function chatMapToObject(map: Map<string, ChatMessage[]>): EditChatHistory {
   const obj: EditChatHistory = {};
@@ -382,8 +392,16 @@ function PageEditorInner() {
   // Sections + assembled HTML state
   const [sections, setSections] = useState<Section[]>([]);
   const [htmlContent, setHtmlContent] = useState("");
-  const [editHistory, setEditHistory] = useState<Section[][]>([]);
+  const [undoStack, setUndoStack] = useState<Section[][]>([]);
+  const [redoStack, setRedoStack] = useState<Section[][]>([]);
   const [isDirty, setIsDirty] = useState(false);
+
+  // Version-history preview state (read-only view of a prior version)
+  const [previewVersion, setPreviewVersion] = useState<PageVersion | null>(null);
+  const [previewVersionHtml, setPreviewVersionHtml] = useState("");
+
+  // Unsaved-changes guard for the toolbar Back button
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
 
   // UI state
   const [device, setDevice] = useState<"desktop" | "tablet" | "mobile">(
@@ -465,8 +483,6 @@ function PageEditorInner() {
   const livePreviewPollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevSectionCountRef = useRef(0);
 
-  // Debounced auto-save ref
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chatMapRef = useRef(chatMap);
   chatMapRef.current = chatMap;
 
@@ -751,42 +767,68 @@ function PageEditorInner() {
       .catch((err) => console.error("Failed to load system prompt:", err));
   }, []);
 
-  // --- Cleanup auto-save timeout ---
+  // --- Warn before closing/reloading with unsaved changes ---
   useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    const handler = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
     };
-  }, []);
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
 
-  // --- Handle iframe load: set up selector listeners ---
-  const handleIframeLoad = useCallback(() => {
-    setupListeners();
-  }, [setupListeners]);
-
-  // --- Debounced auto-save ---
   const sectionsRef = useRef(sections);
   sectionsRef.current = sections;
 
-  const scheduleSave = useCallback(
-    (_html: string) => {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-      saveTimeoutRef.current = setTimeout(async () => {
-        if (!projectId || !draftPageId) return;
-        try {
-          await updatePageSections(
-            projectId,
-            draftPageId,
-            sectionsRef.current,
-            chatMapToObject(chatMapRef.current)
-          );
-          setIsDirty(false);
-        } catch (err) {
-          console.error("Auto-save failed:", err);
-        }
-      }, 800);
-    },
-    [projectId, draftPageId]
-  );
+  // --- Undo/redo stacks ---
+  // Every content edit pushes the pre-edit sections onto the undo stack and
+  // clears redo. Saving is explicit (Save button) — edits only mark dirty.
+  const pushUndoSnapshot = useCallback((previousSections: Section[]) => {
+    setUndoStack((prev) => [...prev, previousSections]);
+    setRedoStack([]);
+  }, []);
+
+  // --- Keyboard shortcuts: Cmd/Ctrl+Z undo, Shift+Cmd/Ctrl+Z redo ---
+  // Bound on both the parent window and the iframe document (re-bound on
+  // every iframe load since srcDoc swaps replace the document). Refs keep the
+  // listener identity stable across renders.
+  const undoRef = useRef<() => void>(() => {});
+  const redoRef = useRef<() => void>(() => {});
+
+  const handleEditorKeyDown = useCallback((e: KeyboardEvent) => {
+    if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
+    const target = e.target as HTMLElement | null;
+    if (
+      target &&
+      (target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable)
+    ) {
+      return;
+    }
+    e.preventDefault();
+    if (e.shiftKey) {
+      redoRef.current();
+    } else {
+      undoRef.current();
+    }
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleEditorKeyDown);
+    return () => window.removeEventListener("keydown", handleEditorKeyDown);
+  }, [handleEditorKeyDown]);
+
+  // --- Handle iframe load: set up selector listeners + keyboard shortcuts ---
+  const handleIframeLoad = useCallback(() => {
+    setupListeners();
+    iframeRef.current?.contentDocument?.addEventListener(
+      "keydown",
+      handleEditorKeyDown
+    );
+  }, [setupListeners, handleEditorKeyDown]);
 
   // --- Handle edit send ---
   const handleSendEdit = useCallback(
@@ -874,7 +916,7 @@ function PageEditorInner() {
           );
         }
 
-        setEditHistory((prev) => [...prev, structuredClone(sections)]);
+        pushUndoSnapshot(structuredClone(sectionsRef.current));
 
         const iframe = iframeRef.current;
         if (iframe?.contentDocument) {
@@ -896,7 +938,6 @@ function PageEditorInner() {
           setSections(updatedSections);
 
           setIsDirty(true);
-          scheduleSave(newHtml);
           setupListeners();
 
           // Restore scroll position
@@ -954,8 +995,7 @@ function PageEditorInner() {
       selectedInfo,
       setSelectedInfo,
       chatMap,
-      htmlContent,
-      scheduleSave,
+      pushUndoSnapshot,
       setupListeners,
     ]
   );
@@ -989,10 +1029,9 @@ function PageEditorInner() {
         }
         const updatedSections = extractSectionsFromDom(doc, sectionsRef.current);
 
-        setEditHistory((prev) => [...prev, previousSections]);
+        pushUndoSnapshot(previousSections);
         setSections(updatedSections);
         setIsDirty(true);
-        scheduleSave("");
         setupListeners();
         iframe.contentWindow?.scrollTo(scrollX, scrollY);
         setSelectedInfo(result.selectedInfo);
@@ -1000,7 +1039,7 @@ function PageEditorInner() {
         setEditError(err instanceof Error ? err.message : "Direct edit failed");
       }
     },
-    [selectedInfo, scheduleSave, setupListeners, setSelectedInfo],
+    [selectedInfo, pushUndoSnapshot, setupListeners, setSelectedInfo],
   );
 
   // Process deferred quick-action edits from iframe input panel
@@ -1013,30 +1052,50 @@ function PageEditorInner() {
     }
   }, [pendingSidebarAction, handleApplyDirectEdit]);
 
-  // --- Undo ---
+  // --- Undo / Redo ---
+  const rebuildPreviewHtml = useCallback(
+    (nextSections: Section[]) => {
+      const assembled = renderPage(
+        project?.wrapper || "{{slot}}",
+        project?.header || "",
+        project?.footer || "",
+        nextSections,
+        undefined,
+        undefined,
+        undefined,
+        projectId
+      );
+      setHtmlContent(assembled);
+    },
+    [project, projectId]
+  );
+
   const handleUndo = useCallback(() => {
-    if (editHistory.length === 0) return;
+    if (undoStack.length === 0) return;
 
-    const previousSections = editHistory[editHistory.length - 1];
-    setEditHistory((prev) => prev.slice(0, -1));
+    const previousSections = undoStack[undoStack.length - 1];
+    setUndoStack((prev) => prev.slice(0, -1));
+    setRedoStack((prev) => [...prev, structuredClone(sectionsRef.current)]);
     setSections(previousSections);
-
-    // Reassemble HTML from restored sections
-    const assembled = renderPage(
-      project?.wrapper || "{{slot}}",
-      project?.header || "",
-      project?.footer || "",
-      previousSections,
-      undefined,
-      undefined,
-      undefined,
-      projectId
-    );
-    setHtmlContent(assembled);
+    rebuildPreviewHtml(previousSections);
     setIsDirty(true);
-    scheduleSave(assembled);
     clearSelection();
-  }, [editHistory, project, scheduleSave, clearSelection]);
+  }, [undoStack, rebuildPreviewHtml, clearSelection]);
+
+  const handleRedo = useCallback(() => {
+    if (redoStack.length === 0) return;
+
+    const nextSections = redoStack[redoStack.length - 1];
+    setRedoStack((prev) => prev.slice(0, -1));
+    setUndoStack((prev) => [...prev, structuredClone(sectionsRef.current)]);
+    setSections(nextSections);
+    rebuildPreviewHtml(nextSections);
+    setIsDirty(true);
+    clearSelection();
+  }, [redoStack, rebuildPreviewHtml, clearSelection]);
+
+  undoRef.current = handleUndo;
+  redoRef.current = handleRedo;
 
   // --- Toggle hidden ---
   const handleToggleHidden = useCallback(() => {
@@ -1049,7 +1108,6 @@ function PageEditorInner() {
 
     try {
       setIsSaving(true);
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
       await updatePageSections(
         projectId,
         draftPageId,
@@ -1057,6 +1115,7 @@ function PageEditorInner() {
         chatMapToObject(chatMap)
       );
       setIsDirty(false);
+      showSuccessToast("Changes saved", "A restorable version was recorded");
     } catch (err) {
       console.error("Save failed:", err);
       setEditError(
@@ -1080,7 +1139,6 @@ function PageEditorInner() {
       setIsPublishing(true);
 
       if (isDirty) {
-        if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
         await updatePageSections(
           projectId,
           draftPageId,
@@ -1120,8 +1178,10 @@ function PageEditorInner() {
         setHtmlContent(assembled);
       }
 
-      // Clear chat history for fresh draft
+      // Clear chat history and edit history for the fresh draft
       setChatMap(new Map());
+      setUndoStack([]);
+      setRedoStack([]);
 
       // Close modal and show success alert
       setShowPublishModal(false);
@@ -1155,27 +1215,107 @@ function PageEditorInner() {
   );
 
   // --- Handle sections change from SectionsEditor (code view) ---
+  const lastCodeEditPushRef = useRef(0);
   const handleCodeSectionsChange = useCallback(
     (updated: Section[]) => {
+      // Code edits fire per keystroke — coalesce undo snapshots per burst so
+      // a typing session undoes as one step instead of fifty.
+      const now = Date.now();
+      if (now - lastCodeEditPushRef.current > CODE_EDIT_UNDO_COALESCE_MS) {
+        pushUndoSnapshot(structuredClone(sectionsRef.current));
+      }
+      lastCodeEditPushRef.current = now;
+
       setSections(updated);
       setIsDirty(true);
-
-      // Rebuild preview
-      const assembled = renderPage(
-        project?.wrapper || "{{slot}}",
-        project?.header || "",
-        project?.footer || "",
-        updated,
-        undefined,
-        undefined,
-        undefined,
-        projectId
-      );
-      setHtmlContent(assembled);
-      scheduleSave(assembled);
+      rebuildPreviewHtml(updated);
     },
-    [project, projectId, scheduleSave]
+    [pushUndoSnapshot, rebuildPreviewHtml]
   );
+
+  // --- Version history: preview / restore / exit ---
+  const fetchAdminVersions = useCallback(
+    async (pid: string) => {
+      if (!projectId) return [];
+      const res = await fetchPageVersions(projectId, pid);
+      return res.data.versions;
+    },
+    [projectId]
+  );
+
+  const handlePreviewVersion = useCallback(
+    async (version: PageVersion) => {
+      if (!projectId || !draftPageId || !project) return;
+      try {
+        const res = await fetchPageVersionContent(
+          projectId,
+          draftPageId,
+          version.id
+        );
+        const versionSections = normalizeSections(res.data.sections);
+        const assembled = renderPage(
+          project.wrapper || "{{slot}}",
+          project.header || "",
+          project.footer || "",
+          versionSections,
+          undefined,
+          undefined,
+          undefined,
+          projectId
+        );
+        setPreviewVersionHtml(assembled);
+        setPreviewVersion(version);
+        clearSelection();
+      } catch (err) {
+        setEditError(
+          err instanceof Error ? err.message : "Failed to load version preview"
+        );
+      }
+    },
+    [projectId, draftPageId, project, clearSelection]
+  );
+
+  const handleExitPreview = useCallback(() => {
+    setPreviewVersion(null);
+    setPreviewVersionHtml("");
+  }, []);
+
+  const handleRestoreVersion = useCallback(
+    async (versionId: string) => {
+      if (!projectId || !draftPageId) return;
+      const res = await restorePageVersionIntoDraft(
+        projectId,
+        draftPageId,
+        versionId
+      );
+      const restoredDraft = res.data;
+
+      // The restore replaced the draft server-side (its prior state was
+      // snapshotted there) — reset local editing state to the restored draft.
+      setPage(restoredDraft);
+      setDraftPageId(restoredDraft.id);
+      const restoredSections = normalizeSections(restoredDraft.sections);
+      setSections(restoredSections);
+      rebuildPreviewHtml(restoredSections);
+      setUndoStack([]);
+      setRedoStack([]);
+      setIsDirty(false);
+      setPreviewVersion(null);
+      setPreviewVersionHtml("");
+      clearSelection();
+      showSuccessToast("Version restored", "Now editing the restored draft");
+    },
+    [projectId, draftPageId, rebuildPreviewHtml, clearSelection]
+  );
+
+  // --- Back navigation with unsaved-changes guard ---
+  const handleBackClick = useCallback(() => {
+    if (isDirty) {
+      setShowLeaveModal(true);
+      return;
+    }
+    navigate(`/admin/websites/${projectId}`);
+  }, [isDirty, navigate, projectId]);
 
   // --- Current chat messages for selected element ---
   const currentChatMessages = selectedInfo
@@ -1265,7 +1405,6 @@ function PageEditorInner() {
 
       {/* Editor toolbar */}
       <EditorToolbar
-        projectId={projectId!}
         pagePath={page.path}
         pageVersion={page.version}
         pageStatus={page.status}
@@ -1273,7 +1412,9 @@ function PageEditorInner() {
         onDeviceChange={setDevice}
         activeView={activeView}
         onViewChange={handleViewChange}
+        onBack={handleBackClick}
         onUndo={handleUndo}
+        onRedo={handleRedo}
         onSave={handleSave}
         onPublish={handlePublish}
         onRegenerate={
@@ -1281,11 +1422,35 @@ function PageEditorInner() {
             ? () => setRegenerateModalOpen(true)
             : undefined
         }
-        canUndo={editHistory.length > 0}
+        canUndo={undoStack.length > 0}
+        canRedo={redoStack.length > 0}
         isSaving={isSaving}
         isPublishing={isPublishing}
         isDirty={isDirty}
       />
+
+      {/* Version preview banner */}
+      {previewVersion && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-between">
+          <span className="text-xs text-amber-700 font-medium">
+            Previewing v{previewVersion.version} — editing is disabled
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleRestoreVersion(previewVersion.id)}
+              className="text-xs px-2.5 py-1 rounded-md bg-alloro-orange text-white hover:bg-alloro-orange/90 transition-colors"
+            >
+              Restore this version
+            </button>
+            <button
+              onClick={handleExitPreview}
+              className="text-xs px-2.5 py-1 rounded-md border border-amber-300 text-amber-700 hover:bg-amber-100 transition-colors"
+            >
+              Exit preview
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Error banner */}
       {editError && (
@@ -1386,13 +1551,15 @@ function PageEditorInner() {
                 ) : (
                   <iframe
                     ref={iframeRef}
-                    srcDoc={prepareHtmlForPreview(previewHtml)}
+                    srcDoc={prepareHtmlForPreview(
+                      previewVersion ? previewVersionHtml : previewHtml
+                    )}
                     sandbox="allow-same-origin allow-scripts"
-                    onLoad={handleIframeLoad}
+                    onLoad={previewVersion ? undefined : handleIframeLoad}
                     className="w-full h-full border-0 bg-white"
                   />
                 )}
-                {!isLivePreview && (
+                {!isLivePreview && !previewVersion && (
                   <div className="absolute inset-0 pointer-events-none">
                     <InlineEditorPopover
                       selectedInfo={selectedInfo}
@@ -1423,9 +1590,33 @@ function PageEditorInner() {
             mediaApi={mediaApi}
             externalAction={pendingSidebarAction !== ("__deferred__" as QuickActionType) ? pendingSidebarAction : null}
             onExternalActionHandled={() => setPendingSidebarAction(null)}
+            showHistory={true}
+            historyPageId={draftPageId}
+            fetchVersions={fetchAdminVersions}
+            allowRestorePublished={true}
+            onPreviewVersion={handlePreviewVersion}
+            onRestoreVersion={handleRestoreVersion}
+            isPreviewingVersion={!!previewVersion}
+            previewVersionId={previewVersion?.id || null}
+            onExitPreview={handleExitPreview}
           />
         )}
       </div>
+
+      {/* Leave-without-saving Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showLeaveModal}
+        onClose={() => setShowLeaveModal(false)}
+        onConfirm={() => {
+          setShowLeaveModal(false);
+          navigate(`/admin/websites/${projectId}`);
+        }}
+        title="Leave Editor?"
+        message="You have unsaved changes. If you leave now they will be lost."
+        confirmText="Leave"
+        cancelText="Keep Editing"
+        type="warning"
+      />
 
       {/* Publish Confirmation Modal */}
       <ConfirmModal

@@ -18,6 +18,10 @@ interface Props {
   isPreviewMode: boolean;
   previewVersionId: string | null;
   onExitPreview: () => void;
+  /** Override the version list source (defaults to the user-website endpoint). */
+  fetchVersions?: (pageId: string) => Promise<PageVersion[]>;
+  /** Allow restoring published rows too (admin restores into the draft). */
+  allowRestorePublished?: boolean;
 }
 
 const STATUS_CONFIG: Record<
@@ -48,6 +52,8 @@ export default function VersionHistoryTab({
   isPreviewMode,
   previewVersionId,
   onExitPreview,
+  fetchVersions,
+  allowRestorePublished = false,
 }: Props) {
   const [versions, setVersions] = useState<PageVersion[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,16 +63,20 @@ export default function VersionHistoryTab({
     if (!pageId) return;
     try {
       setLoading(true);
-      const res = await apiGet({
-        path: `/user/website/pages/${pageId}/versions`,
-      });
-      setVersions(res.data?.versions || []);
+      if (fetchVersions) {
+        setVersions(await fetchVersions(pageId));
+      } else {
+        const res = await apiGet({
+          path: `/user/website/pages/${pageId}/versions`,
+        });
+        setVersions(res.data?.versions || []);
+      }
     } catch {
       toast.error("Failed to load version history");
     } finally {
       setLoading(false);
     }
-  }, [pageId]);
+  }, [pageId, fetchVersions]);
 
   useEffect(() => {
     loadVersions();
@@ -174,7 +184,8 @@ export default function VersionHistoryTab({
                     {isPreviewing ? "Previewing" : "Preview"}
                   </button>
                 )}
-                {version.status === "inactive" && (
+                {(version.status === "inactive" ||
+                  (allowRestorePublished && version.status === "published")) && (
                   <button
                     onClick={() => handleRestore(version.id)}
                     disabled={restoring === version.id}
