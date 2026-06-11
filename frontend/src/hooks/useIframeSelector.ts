@@ -821,6 +821,65 @@ export function useIframeSelector(
       return doc.body.dataset.alloroCanvasEditing === "true";
     }
 
+    function isEditorChromeClick(target: Element) {
+      return Boolean(
+        target.closest?.("#alloro-selected-label") ||
+          target.closest?.("#alloro-action-panel") ||
+          target.closest?.("#alloro-rich-toolbar") ||
+          target.closest?.('textarea[data-alloro-canvas-editor="true"]'),
+      );
+    }
+
+    function resolveEditableClickTarget(clickTarget: Element): Element | null {
+      // Shortcode pills (loops) are read-only placeholders — never selectable.
+      if (clickTarget.closest?.("[data-alloro-shortcode]")) return null;
+
+      // Content-first: the precise element under the cursor wins over any
+      // tagged ancestor — tag it on demand so the edit pipeline can key off
+      // the class. Container clicks (section padding, tagged cards) fall
+      // back to the nearest alloro-tagged ancestor.
+      let target = findAutoTagCandidate(clickTarget);
+      if (target) {
+        ensureGeneratedAlloroClass(target, doc);
+        return target;
+      }
+
+      target = findAlloroElement(clickTarget);
+      if (!target) return null;
+      // Header/footer are Layout Editor territory in page editors.
+      if (sectionsOnly && !target.closest("[data-alloro-section]")) return null;
+      return target;
+    }
+
+    doc.body.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      const clickTarget = e.target as Element;
+      if (isEditorChromeClick(clickTarget)) return;
+      if (isCanvasTextEditingActive()) return;
+
+      const target = resolveEditableClickTarget(clickTarget);
+      if (!target) return;
+      const info = buildSelectedInfo(target);
+      if (!info?.canCanvasEditText) return;
+
+      // Start text editing before Chrome's native mousedown/click focus path
+      // can put focus back on the iframe or sidebar. Starting on click is too
+      // late for the sandboxed preview: the session opens and immediately loses
+      // its caret, leaving only the blue selected outline.
+      e.preventDefault();
+      e.stopPropagation();
+
+      doc
+        .querySelectorAll("[data-alloro-selected]")
+        .forEach((el) => el.removeAttribute("data-alloro-selected"));
+      target.setAttribute("data-alloro-selected", "true");
+      showLabel(target, info.alloroClass, "selected");
+      setSelectedInfo(info);
+
+      const caretOffset = caretCharOffsetFromPoint(doc, target, e.clientX, e.clientY);
+      beginCanvasTextEditing(target, caretOffset);
+    }, true);
+
     // Event delegation on the body — survives DOM mutations
     doc.body.addEventListener("mouseover", (e) => {
       if (isCanvasTextEditingActive()) return;
@@ -873,11 +932,7 @@ export function useIframeSelector(
       // swallowed. The session's blur also schedules finish() a tick later;
       // that becomes a no-op via the isFinished guard.
       if (isCanvasTextEditingActive()) {
-        if (
-          clickTarget.closest?.('textarea[data-alloro-canvas-editor="true"]') ||
-          clickTarget.closest?.("[data-alloro-editing='true']") ||
-          clickTarget.closest?.("#alloro-rich-toolbar")
-        ) {
+        if (isEditorChromeClick(clickTarget) || clickTarget.closest?.("[data-alloro-editing='true']")) {
           e.stopPropagation();
           return;
         }
@@ -892,30 +947,13 @@ export function useIframeSelector(
       if (clickTarget.closest?.("a")) e.preventDefault();
 
       // Ignore clicks on action buttons or the action input panel
-      if (
-        clickTarget.closest?.("#alloro-selected-label") ||
-        clickTarget.closest?.("#alloro-action-panel")
-      ) return;
+      if (isEditorChromeClick(clickTarget)) return;
 
       // Dismiss action panel on any other click
       hideActionPanel();
 
-      // Shortcode pills (loops) are read-only placeholders — never selectable.
-      if (clickTarget.closest?.("[data-alloro-shortcode]")) return;
-
-      // Content-first: the precise element under the cursor wins over any
-      // tagged ancestor — tag it on demand so the edit pipeline can key off
-      // the class. Container clicks (section padding, tagged cards) fall
-      // back to the nearest alloro-tagged ancestor.
-      let target = findAutoTagCandidate(clickTarget);
-      if (target) {
-        ensureGeneratedAlloroClass(target, doc);
-      } else {
-        target = findAlloroElement(clickTarget);
-        if (!target) return;
-        // Header/footer are Layout Editor territory in page editors.
-        if (sectionsOnly && !target.closest("[data-alloro-section]")) return;
-      }
+      const target = resolveEditableClickTarget(clickTarget);
+      if (!target) return;
       const cls = getAlloroClass(target)!;
       const elIsComponent = isComponent(cls);
 
