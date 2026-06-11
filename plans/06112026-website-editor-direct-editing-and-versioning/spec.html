@@ -367,6 +367,12 @@
         </ul>
         <p><strong>Reason:</strong> Spec-code parity record at execution time.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Selection priority in <code>useIframeSelector</code> flipped to <em>content-first</em>. T1 originally only auto-tagged elements with NO <code>alloro-tpl-*</code> ancestor — so clicking text inside a tagged section/component root still selected the tagged ancestor (user hit this on an eyebrow heading: got section background controls instead of text editing). Now the precise basic element under the cursor (p/span/headings/a/img/…) always wins — auto-tagged on demand — and the tagged ancestor is the fallback for container clicks (section padding, tagged cards). Hover preview follows the same priority. Combined with click-to-type canvas/rich editing, inline on-page editing is the primary path and the sidebar is supportive.</p>
+        <p><strong>Reason:</strong> User QA: "reject alloro-tpl stuff and just edit elements directly, especially text inline."</p>
+        <p><strong>Updated Done criteria:</strong> none added — covered by the existing "untagged p/span/a/img are selectable and editable" item, now including elements nested inside tagged ancestors.</p>
+      </article>
     </section>
   </main>
 </body>

@@ -119,20 +119,28 @@ function findAutoTagCandidate(el: Element | null): Element | null {
 }
 
 /**
- * Resolve the effective hover target: alloro-classed ancestor first, then an
- * untagged auto-tag candidate. The candidate gets a synthetic component class
- * for label styling and precedence only — it is never written to the DOM
- * (hover must not mutate content that later gets persisted).
+ * Resolve the effective hover target — CONTENT-FIRST: the precise basic
+ * element under the cursor (text, link, image) wins over any alloro-tagged
+ * ancestor, so users always preview/edit exactly what they point at. Tagged
+ * ancestors (sections, component cards) are the fallback for container
+ * hovers. Untagged candidates get a synthetic component class for label
+ * styling and precedence only — never written to the DOM on hover (hover
+ * must not mutate content that later gets persisted).
  */
 function resolveHoverTarget(origin: Element): { target: Element; cls: string } | null {
+  const candidate = findAutoTagCandidate(origin);
+  if (candidate) {
+    const existing = getAlloroClass(candidate);
+    return {
+      target: candidate,
+      cls:
+        existing ||
+        `${ALLORO_PREFIX}m-component-${candidate.tagName.toLowerCase()}`,
+    };
+  }
   const tagged = findAlloroElement(origin);
   if (tagged) return { target: tagged, cls: getAlloroClass(tagged)! };
-  const candidate = findAutoTagCandidate(origin);
-  if (!candidate) return null;
-  return {
-    target: candidate,
-    cls: `${ALLORO_PREFIX}m-component-${candidate.tagName.toLowerCase()}`,
-  };
+  return null;
 }
 
 /**
@@ -772,14 +780,16 @@ export function useIframeSelector(
       // Dismiss action panel on any other click
       hideActionPanel();
 
-      let target = findAlloroElement(clickTarget);
-      if (!target) {
-        // Untagged content inside a section — tag it now so the existing
-        // selection/edit pipeline can key off the class.
-        const candidate = findAutoTagCandidate(clickTarget);
-        if (!candidate) return;
-        ensureGeneratedAlloroClass(candidate, doc);
-        target = candidate;
+      // Content-first: the precise element under the cursor wins over any
+      // tagged ancestor — tag it on demand so the edit pipeline can key off
+      // the class. Container clicks (section padding, tagged cards) fall
+      // back to the nearest alloro-tagged ancestor.
+      let target = findAutoTagCandidate(clickTarget);
+      if (target) {
+        ensureGeneratedAlloroClass(target, doc);
+      } else {
+        target = findAlloroElement(clickTarget);
+        if (!target) return;
       }
       const cls = getAlloroClass(target)!;
       const elIsComponent = isComponent(cls);
@@ -806,14 +816,14 @@ export function useIframeSelector(
 
     doc.body.addEventListener("dblclick", (e) => {
       if (isCanvasTextEditingActive()) return;
-      let target = findAlloroElement(e.target as Element);
-      if (!target) {
-        // Untagged content inside a section — the preceding click normally
-        // tags it already; this keeps dblclick safe on its own.
-        const candidate = findAutoTagCandidate(e.target as Element);
-        if (!candidate) return;
-        ensureGeneratedAlloroClass(candidate, doc);
-        target = candidate;
+      // Same content-first resolution as click; the preceding click normally
+      // tags the element already — this keeps dblclick safe on its own.
+      let target = findAutoTagCandidate(e.target as Element);
+      if (target) {
+        ensureGeneratedAlloroClass(target, doc);
+      } else {
+        target = findAlloroElement(e.target as Element);
+        if (!target) return;
       }
 
       const info = buildSelectedInfo(target);
