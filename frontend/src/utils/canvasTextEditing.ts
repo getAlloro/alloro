@@ -64,9 +64,16 @@ type ElementStyleSnapshot = {
 
 const CANVAS_EDITOR_ATTR = "data-alloro-canvas-editor";
 const ELEMENT_STYLE_PROPS_TO_HIDE_TEXT = ["color", "-webkit-text-fill-color", "text-shadow"];
+const INITIAL_BLUR_GRACE_MS = 200;
+
+export function isCanvasHtmlElement(element: Element | null): element is HTMLElement {
+  if (!element) return false;
+  const view = element.ownerDocument.defaultView;
+  return view ? element instanceof view.HTMLElement : element instanceof HTMLElement;
+}
 
 export function getCanvasTextEditEligibility(element: Element | null): CanvasTextEditEligibility {
-  if (!(element instanceof HTMLElement)) {
+  if (!isCanvasHtmlElement(element)) {
     return { canEdit: false, reason: "This selection is not editable text." };
   }
 
@@ -99,7 +106,7 @@ export function startCanvasTextEdit({
   onFinish,
   caretOffset,
 }: CanvasTextEditOptions): CanvasTextEditSession | null {
-  if (!(element instanceof HTMLElement)) return null;
+  if (!isCanvasHtmlElement(element)) return null;
   // Plain mode only — rich-eligible elements (inline anchors) must go through
   // startRichTextEdit, otherwise replace-text would destroy their markup.
   if (getCanvasTextEditEligibility(element).mode !== "plain") return null;
@@ -112,6 +119,7 @@ export function startCanvasTextEdit({
   const originalStyles = captureElementStyles(textStyleTargets);
   const textarea = createCanvasTextarea(doc, element, computed, originalText);
   let isFinished = false;
+  const initialBlurGraceEndsAt = Date.now() + INITIAL_BLUR_GRACE_MS;
 
   const cleanup = () => {
     textarea.removeEventListener("blur", handleBlur);
@@ -141,7 +149,15 @@ export function startCanvasTextEdit({
   };
 
   function handleBlur() {
-    window.setTimeout(() => finish(true), 0);
+    window.setTimeout(() => {
+      if (isFinished) return;
+      if (doc.activeElement === textarea) return;
+      if (Date.now() < initialBlurGraceEndsAt) {
+        textarea.focus({ preventScroll: true });
+        return;
+      }
+      finish(true);
+    }, 0);
   }
 
   function handleKeyDown(event: KeyboardEvent) {
@@ -277,7 +293,7 @@ function getTextStyleTargets(element: HTMLElement): HTMLElement[] {
   return [
     element,
     ...Array.from(element.querySelectorAll(SAFE_INLINE_TEXT_CHILD_TAGS_SELECTOR))
-      .filter((child): child is HTMLElement => child instanceof HTMLElement),
+      .filter(isCanvasHtmlElement),
   ];
 }
 

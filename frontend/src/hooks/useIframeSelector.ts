@@ -668,6 +668,7 @@ export function useIframeSelector(
 
     if (doc.body.dataset.alloroSelectorReady === "true") return;
     doc.body.dataset.alloroSelectorReady = "true";
+    let ignoreNextCanvasEditClick = false;
 
     // Remove any existing action input panel
     function hideActionPanel() {
@@ -877,7 +878,18 @@ export function useIframeSelector(
       setSelectedInfo(info);
 
       const caretOffset = caretCharOffsetFromPoint(doc, target, e.clientX, e.clientY);
-      beginCanvasTextEditing(target, caretOffset);
+      if (beginCanvasTextEditing(target, caretOffset)) {
+        ignoreNextCanvasEditClick = true;
+      }
+    }, true);
+
+    doc.body.addEventListener("mouseup", (e) => {
+      if (!ignoreNextCanvasEditClick) return;
+      const clickTarget = e.target as Element;
+      if (!isEditorChromeClick(clickTarget) && !clickTarget.closest?.("[data-alloro-editing='true']")) return;
+
+      e.preventDefault();
+      e.stopPropagation();
     }, true);
 
     // Event delegation on the body — survives DOM mutations
@@ -925,6 +937,15 @@ export function useIframeSelector(
 
     doc.body.addEventListener("click", (e) => {
       const clickTarget = e.target as Element;
+
+      if (ignoreNextCanvasEditClick) {
+        ignoreNextCanvasEditClick = false;
+        if (isCanvasTextEditingActive()) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+      }
 
       // A click while a canvas/rich session is active must COMMIT that session
       // (pinned to its own element via makeCommitHandler) and clear the flag
