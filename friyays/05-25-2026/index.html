@@ -22,25 +22,26 @@
           <h1 id="page-title">This week's Alloro feature roundup</h1>
           <p>
             Coverage window: Thursday, May 21, 2026 through Sunday, May 31,
-            2026. Compiled evidence runs through the latest checked
-            <strong>dev/dave</strong> commit dated May 28, 2026 and the latest
-            checked commit on <strong>main</strong> dated May 27, 2026.
+            2026, plus shipped-feature inventory moved out of the fresh
+            06-01-2026 package on June 8, 2026. This page is the deployed
+            archive; row-level states still distinguish main, dev, and
+            production evidence.
           </p>
         </div>
         <aside class="hero-panel" aria-label="Release state summary">
           <div class="date-kicker">05-25-2026 inaugural edition</div>
           <div class="status-stack">
             <div class="status-pill">
-              <strong>Production workflow evidence</strong
-              ><span>Website editor, forms, rankings, onboarding</span>
+              <strong>Status: Deployed</strong
+              ><span>Package-level archive status</span>
             </div>
             <div class="status-pill">
-              <strong>Dev workflow evidence</strong
-              ><span>GBP Automation, GBP Posts, Mission Control</span>
+              <strong>Latest move</strong
+              ><span>06-01 entries consolidated here on Jun 8</span>
             </div>
             <div class="status-pill">
-              <strong>Needs decision</strong
-              ><span>Final email scope before send</span>
+              <strong>Evidence rule</strong
+              ><span>Feature rows keep exact deployment state</span>
             </div>
           </div>
         </aside>
@@ -52,10 +53,10 @@
             <p class="eyebrow">Release state</p>
             <h2 id="release-state">Evidence before excitement</h2>
             <p class="section-subtitle">
-              Some items have production workflow evidence. Newer GBP
-              Automation, Mission Control, and navigation improvements have
-              successful dev workflow evidence but still need production
-              confirmation before being sent as live customer announcements.
+              This edition is deployed as the archive for the inaugural and
+              moved shipped-feature inventory. Individual rows keep exact
+              evidence so customer-facing copy does not confuse dev-deployed,
+              production-deployed, and user-verified work.
             </p>
           </div>
         </div>
@@ -417,13 +418,13 @@
           <div>
             <p class="eyebrow">Moved shipped-feature inventory</p>
             <h2 id="main-shipped-carryover">
-              Already on main, not repeated in the current dev-only Friyay
+              Deployed and pushed items, not repeated in the fresh Friyay
             </h2>
             <p class="section-subtitle">
-              These items were removed from the 06-01-2026 dev-only Friyay after
-              checking <code>origin/main</code> on June 8, 2026. They stay here
-              as shipped-feature inventory so current Friyay copy does not
-              double-count work already on main.
+              These items were removed from the 06-01-2026 package after the
+              June 8, 2026 consolidation pass. They stay here as deployed
+              inventory so the fresh Friyay package does not double-count work
+              that has already been pushed or shipped.
             </p>
           </div>
         </div>
@@ -440,6 +441,33 @@
               </tr>
             </thead>
             <tbody>
+              <tr>
+                <td>Admin/operator</td>
+                <td>Mission Control product telemetry and drilldowns</td>
+                <td>Alloro admins and operators</td>
+                <td><span class="tag good">Deployed to dev</span></td>
+                <td>No</td>
+                <td>
+                  Authenticated first-party usage dashboard with client-default
+                  aggregates, explicit admin/pilot filters, Clarity
+                  replay/heatmap linkout, organization drilldowns, user
+                  drilldowns, and breadcrumb navigation. Moved from the
+                  06-01-2026 package after push/deploy verification.
+                </td>
+              </tr>
+              <tr>
+                <td>Operations</td>
+                <td>Worker stall watchdog and Redis hardening</td>
+                <td>Alloro engineering and operators</td>
+                <td><span class="tag good">Deployed to dev</span></td>
+                <td>No</td>
+                <td>
+                  Out-of-process worker stall detection and Redis connection
+                  hardening so stalled background processing can alert instead
+                  of sitting silently behind an online process. Moved from the
+                  06-01-2026 package after push/deploy verification.
+                </td>
+              </tr>
               <tr>
                 <td>Client view</td>
                 <td>PMS File Manager</td>
@@ -652,6 +680,13 @@
             ><span
               >Feature states are explicit and not collapsed into a vague
               "done."</span
+            >
+          </li>
+          <li>
+            <span class="box done">x</span
+            ><span
+              >06-01-2026 entries were moved into this deployed archive and the
+              06-01-2026 package was reset fresh.</span
             >
           </li>
           <li>

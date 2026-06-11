@@ -151,6 +151,15 @@ Required files in each weekly folder:
 - `email.html` - branded customer-ready email HTML in plain language, focused on user value rather than implementation detail.
 - `styles.css` - shared Alloro-branded styling for the Friyay page and email preview.
 
+Status requirements:
+
+- Every `index.html` must show a package-level Friyay status in the first hero viewport.
+- Allowed package statuses are `Fresh`, `Drafting`, `Needs verification`, `Ready for review`, `Deployed`, and `Archived`.
+- `Fresh` means the weekly package is an empty shell ready for new inventory.
+- `Deployed` means the Friyay package itself has been pushed/deployed or intentionally archived as shipped inventory; it does not automatically mean every row is production-live.
+- Row-level feature states must remain precise: drafted, implemented locally, committed, pushed, deployed to dev, deployed to production, user-verified, needs classification, or needs verification.
+- When content is moved from one Friyay package to another, move the inventory into the destination package, update the destination status, and leave the source package as a `Fresh` shell so the same item is not counted twice.
+
 Optional files:
 
 - `assets/` - screenshots, product captures, or other visual assets referenced by `index.html`.
