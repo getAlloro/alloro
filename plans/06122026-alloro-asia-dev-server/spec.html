@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Alloro Asia Dev Server Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Completed</span>
+      </div>
+      <h1>Alloro Asia Dev Server</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06122026-alloro-asia-dev-server</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 4</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Alloro needs an Asia dev server that can receive the same <code>dev/dave</code> deployment artifact as the existing dev EC2 host while using a local Postgres copy of the dev database.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Provision <code>ssh alloro-asia</code> with the base runtime required by the app, clone the current dev database into local Postgres, place server-managed config files without printing secrets, and update the dev deploy workflow so one build artifact can deploy to both dev targets.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>.github/workflows/dev.yml</code> - current dev deployment pipeline for <code>dev/dave</code>.</li>
+        <li><code>ecosystem.config.js</code> - PM2 process contract for backend and worker.</li>
+        <li><code>package.json</code> - app build, start, and migration scripts.</li>
+      </ul>
+      <h3>Server Facts</h3>
+      <ul>
+        <li><code>alloro-dev</code> uses Ubuntu 24.04, Node 22.18, PM2 6, Apache, Redis, and <code>/etc/alloro/dev.env</code>.</li>
+        <li><code>alloro-asia</code> starts as a blank Ubuntu 24.04 DigitalOcean droplet with only SSH, git, curl, and rsync.</li>
+        <li>The dev source database reports PostgreSQL 17.9, so the Asia local database must run PostgreSQL 17 rather than Ubuntu 24.04's default PostgreSQL 16 package.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>.github/workflows/main.yml</code> - closest deploy workflow analog for bundle, server config, migration, PM2 reload, and health check structure.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Do not print database credentials, API keys, tokens, or full env contents.</li>
+            <li>Keep existing <code>alloro-dev</code> deployment behavior intact.</li>
+            <li>Keep repo edits scoped to the deploy workflow and this plan folder.</li>
+            <li>Use local Postgres on <code>alloro-asia</code> for the cloned dev database.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not copy prod-only services like MySQL, Docker, or n8n unless explicitly requested.</li>
+            <li>Do not run destructive commands against the existing dev database.</li>
+            <li>Do not manually deploy the Alloro app outside the GitHub Actions path.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>DNS cutover, public domain setup, production traffic, and production database changes.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 4</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li>Deployment topology changes can break <code>dev/dave</code> deploys. <strong>Mitigation:</strong> build once, publish an artifact, and keep the existing EC2 deploy as its own job.</li>
+        <li>Copying env files can leak secrets. <strong>Mitigation:</strong> transfer files over SSH/SCP only and never print values.</li>
+        <li>Database cloning can accidentally target production or destroy a local target. <strong>Mitigation:</strong> read DB source only from <code>alloro-dev:/etc/alloro/dev.env</code> and only drop/recreate the local Asia database.</li>
+        <li>The request conflicts with itself: "do not set up anything around Alloro yet" versus "deploy to Asia on <code>dev/dave</code>". <strong>Mitigation:</strong> set up server prerequisites and workflow readiness, but do not manually start a production-like app outside the workflow.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>dev/dave</code> GitHub Actions deploys, <code>alloro-dev</code> deploy reliability, <code>alloro-asia</code> local Postgres state, and any services that use copied dev env values.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>This is not a quick infrastructure tweak. It mixes server bootstrap, secrets movement, database cloning, and CI topology. Future-us will hate this if the deploy shape is not made explicit.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Asia Base Runtime</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Install Node via NVM, PM2, Apache, Redis, PostgreSQL 17, Certbot, build/runtime packages, and Puppeteer browser support.</dd></div>
+          <div><dt>Files</dt><dd>Server only</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>node -v</code>, <code>pm2 -v</code>, <code>psql --version</code>, service checks</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Asia Dev Database Copy</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create local Postgres role/database on Asia, stream a custom-format dump from <code>alloro-dev</code>, restore locally, and update copied dev env DB keys to local values.</dd></div>
+          <div><dt>Files</dt><dd><code>/etc/alloro/dev.env</code>, <code>/etc/alloro/dev-google-key.json</code> on Asia</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Local row/table count checks and no secret output</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: Dual Dev Deploy Workflow</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Refactor <code>dev.yml</code> to build once, upload a bundle artifact, then deploy independently to existing dev and Asia.</dd></div>
+          <div><dt>Files</dt><dd><code>.github/workflows/dev.yml</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Workflow YAML parses and secret list is documented</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> Asia server has Node 22, PM2, Apache, Redis, PostgreSQL 17, and browser automation support.</li>
+        <li><input type="checkbox" checked disabled> Dev database has been restored into local Asia Postgres without printing secrets.</li>
+        <li><input type="checkbox" checked disabled> <code>.github/workflows/dev.yml</code> deploys the same build artifact to both targets.</li>
+        <li><input type="checkbox" checked disabled> <code>dev-asia.getalloro.com</code> has an Apache host and HTTPS certificate.</li>
+        <li><input type="checkbox" checked disabled> Required GitHub secrets are listed for the user.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Updated the database runtime requirement from generic PostgreSQL to PostgreSQL 17 after the source dev database reported server version 17.9.</p>
+        <p><strong>Reason:</strong> Execution discovery: <code>pg_dump</code> 16 cannot dump a PostgreSQL 17 source, and restoring a 17 dump into a 16 target would be an unsupported downgrade path.</p>
+        <p><strong>Updated Done criteria:</strong> Asia local Postgres must be PostgreSQL 17 with pgvector available before restoring the dev dump.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Added the <code>dev-asia.getalloro.com</code> Apache vhost, issued a Let's Encrypt HTTPS certificate, enabled HTTP-to-HTTPS redirect, and configured the local Certbot default email as <code>dave@getalloro.com</code>.</p>
+        <p><strong>Reason:</strong> User follow-up after pointing DNS for the new Asia dev hostname.</p>
+        <p><strong>Updated Done criteria:</strong> The Asia dev hostname must resolve to the droplet, Apache must expose HTTP/HTTPS vhosts, and TLS must validate even before the app is deployed.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

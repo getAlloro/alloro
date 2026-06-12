@@ -1,22 +1,17 @@
-name: Build Frontend + Backend and Deploy to Dev
+name: Build Frontend + Backend and Deploy to Dev Targets
 
 on:
   push:
     branches: [dev/dave]
 
-# Serialize deploys so overlapping runs never race on TARGET_DIR (the cause of
-# intermittent "rm: ... Directory not empty" failures in the clean step).
+# Serialize dev deploys so overlapping runs never race on TARGET_DIR.
 concurrency:
   group: deploy-dev
   cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
-    env:
-      TARGET_DIR: /var/www/signals
-      SERVER_ENV_FILE: /etc/alloro/dev.env
-      SERVER_GOOGLE_KEY_FILE: /etc/alloro/dev-google-key.json
 
     steps:
       - name: Checkout repo
@@ -26,18 +21,6 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22
-
-      - name: Verify server-managed config
-        uses: appleboy/ssh-action@v1.2.1
-        with:
-          host: ${{ secrets.DEV_EC2_HOST }}
-          username: ${{ secrets.DEV_EC2_USER }}
-          port: ${{ secrets.DEV_EC2_PORT }}
-          key: ${{ secrets.DEV_EC2_KEY }}
-          script: |
-            set -euo pipefail
-            test -f "${{ env.SERVER_ENV_FILE }}"
-            test -f "${{ env.SERVER_GOOGLE_KEY_FILE }}"
 
       - name: Install backend dependencies
         run: npm ci
@@ -118,6 +101,40 @@ jobs:
           module.exports = { production: base, development: base, test: base };
           EOF
 
+      - name: Upload deploy bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: alloro-dev-bundle
+          path: bundle
+          retention-days: 1
+
+  deploy-dev:
+    runs-on: ubuntu-latest
+    needs: build
+    env:
+      TARGET_DIR: /var/www/signals
+      SERVER_ENV_FILE: /etc/alloro/dev.env
+      SERVER_GOOGLE_KEY_FILE: /etc/alloro/dev-google-key.json
+
+    steps:
+      - name: Download deploy bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: alloro-dev-bundle
+          path: bundle
+
+      - name: Verify server-managed config
+        uses: appleboy/ssh-action@v1.2.1
+        with:
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ${{ secrets.DEV_EC2_USER }}
+          port: ${{ secrets.DEV_EC2_PORT }}
+          key: ${{ secrets.DEV_EC2_KEY }}
+          script: |
+            set -euo pipefail
+            test -f "${{ env.SERVER_ENV_FILE }}"
+            test -f "${{ env.SERVER_GOOGLE_KEY_FILE }}"
+
       - name: Clean remote target dir
         uses: appleboy/ssh-action@v1.2.1
         with:
@@ -128,17 +145,12 @@ jobs:
           script: |
             set -euo pipefail
             mkdir -p "${{ env.TARGET_DIR }}"
-            # Atomically move the previous release aside, then delete it best-effort.
-            # A direct `rm -rf "$TARGET_DIR"/*` races with the live app / overlapping
-            # deploys and intermittently dies with "Directory not empty"; renaming the
-            # top-level entries is atomic and never blocks the deploy on deleting a
-            # deep, possibly root-owned node_modules tree before the new release lands.
             TRASH="${{ env.TARGET_DIR }}/.trash-$$"
             mkdir -p "$TRASH"
             find "${{ env.TARGET_DIR }}" -mindepth 1 -maxdepth 1 ! -name '.trash-*' -exec mv -t "$TRASH" {} +
             rm -rf "${{ env.TARGET_DIR }}"/.trash-* 2>/dev/null || echo "WARN: some leftover files could not be removed; they will be swept on the next deploy"
 
-      - name: Upload bundle to EC2
+      - name: Upload bundle to dev EC2
         uses: appleboy/scp-action@v0.1.5
         with:
           host: ${{ secrets.DEV_EC2_HOST }}
@@ -193,6 +205,119 @@ jobs:
           username: ${{ secrets.DEV_EC2_USER }}
           port: ${{ secrets.DEV_EC2_PORT }}
           key: ${{ secrets.DEV_EC2_KEY }}
+          script: |
+            set -euo pipefail
+            for attempt in $(seq 1 12); do
+              if ! STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/health/db); then
+                STATUS="000"
+              fi
+              if [ "$STATUS" = "200" ]; then
+                echo "Health check passed (HTTP $STATUS)"
+                exit 0
+              fi
+              echo "Health check attempt $attempt failed (HTTP $STATUS)"
+              sleep 5
+            done
+            echo "Health check failed after 12 attempts"
+            exit 1
+
+  deploy-asia:
+    runs-on: ubuntu-latest
+    needs: build
+    env:
+      TARGET_DIR: /var/www/signals
+      SERVER_ENV_FILE: /etc/alloro/dev.env
+      SERVER_GOOGLE_KEY_FILE: /etc/alloro/dev-google-key.json
+
+    steps:
+      - name: Download deploy bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: alloro-dev-bundle
+          path: bundle
+
+      - name: Verify server-managed config
+        uses: appleboy/ssh-action@v1.2.1
+        with:
+          host: ${{ secrets.ASIA_EC2_HOST }}
+          username: ${{ secrets.ASIA_EC2_USER }}
+          port: ${{ secrets.ASIA_EC2_PORT }}
+          key: ${{ secrets.ASIA_EC2_KEY }}
+          script: |
+            set -euo pipefail
+            test -f "${{ env.SERVER_ENV_FILE }}"
+            test -f "${{ env.SERVER_GOOGLE_KEY_FILE }}"
+
+      - name: Clean remote target dir
+        uses: appleboy/ssh-action@v1.2.1
+        with:
+          host: ${{ secrets.ASIA_EC2_HOST }}
+          username: ${{ secrets.ASIA_EC2_USER }}
+          port: ${{ secrets.ASIA_EC2_PORT }}
+          key: ${{ secrets.ASIA_EC2_KEY }}
+          script: |
+            set -euo pipefail
+            mkdir -p "${{ env.TARGET_DIR }}"
+            TRASH="${{ env.TARGET_DIR }}/.trash-$$"
+            mkdir -p "$TRASH"
+            find "${{ env.TARGET_DIR }}" -mindepth 1 -maxdepth 1 ! -name '.trash-*' -exec mv -t "$TRASH" {} +
+            rm -rf "${{ env.TARGET_DIR }}"/.trash-* 2>/dev/null || echo "WARN: some leftover files could not be removed; they will be swept on the next deploy"
+
+      - name: Upload bundle to Asia dev
+        uses: appleboy/scp-action@v0.1.5
+        with:
+          host: ${{ secrets.ASIA_EC2_HOST }}
+          username: ${{ secrets.ASIA_EC2_USER }}
+          port: ${{ secrets.ASIA_EC2_PORT }}
+          key: ${{ secrets.ASIA_EC2_KEY }}
+          source: "bundle/**"
+          target: ${{ env.TARGET_DIR }}
+          strip_components: 1
+
+      - name: Link server config and run migrations
+        uses: appleboy/ssh-action@v1.2.1
+        with:
+          host: ${{ secrets.ASIA_EC2_HOST }}
+          username: ${{ secrets.ASIA_EC2_USER }}
+          port: ${{ secrets.ASIA_EC2_PORT }}
+          key: ${{ secrets.ASIA_EC2_KEY }}
+          script: |
+            set -euo pipefail
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+            nvm use node
+            cd "${{ env.TARGET_DIR }}"
+            ln -sfn "${{ env.SERVER_ENV_FILE }}" .env
+            ln -sfn "${{ env.SERVER_GOOGLE_KEY_FILE }}" signals-google-key.json
+            test -f .env
+            test -f signals-google-key.json
+            npm run db:migrate
+
+      - name: Reload PM2
+        uses: appleboy/ssh-action@v1.2.1
+        with:
+          host: ${{ secrets.ASIA_EC2_HOST }}
+          username: ${{ secrets.ASIA_EC2_USER }}
+          port: ${{ secrets.ASIA_EC2_PORT }}
+          key: ${{ secrets.ASIA_EC2_KEY }}
+          script: |
+            set -euo pipefail
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+            nvm use node
+            cd "${{ env.TARGET_DIR }}"
+            pm2 reload ecosystem.config.js || pm2 start ecosystem.config.js
+            pm2 save
+
+      - name: Post-deploy health check
+        uses: appleboy/ssh-action@v1.2.1
+        with:
+          host: ${{ secrets.ASIA_EC2_HOST }}
+          username: ${{ secrets.ASIA_EC2_USER }}
+          port: ${{ secrets.ASIA_EC2_PORT }}
+          key: ${{ secrets.ASIA_EC2_KEY }}
           script: |
             set -euo pipefail
             for attempt in $(seq 1 12); do

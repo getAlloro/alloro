@@ -2,6 +2,24 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.118] - June 2026
+
+### Asia Dev Server Deployment Target
+
+Adds a second dev deployment target in Asia while keeping the existing `dev/dave` EC2 dev deploy intact. The new server at `dev-asia.getalloro.com` is provisioned with the app runtime, local PostgreSQL 17, Redis, Apache, HTTPS, and a cloned copy of the current dev database.
+
+**Key Changes:**
+
+- Provisioned the Asia dev host with Node 22.18, PM2 6, Apache, Redis, PostgreSQL 17, pgvector, and Puppeteer Chrome support.
+- Restored the current dev database into local Asia Postgres and rewired the Asia server env to use local Postgres/Redis while preserving the server-managed env/key-file deploy model.
+- Refactored the `dev/dave` workflow to build once, upload one bundle artifact, then deploy independently to the existing EC2 dev server and the new Asia dev server.
+- Added Apache and Let's Encrypt HTTPS for `dev-asia.getalloro.com`.
+
+**Commits:**
+
+- `.github/workflows/dev.yml` - split the single dev deploy into one build job plus `deploy-dev` and `deploy-asia` jobs that consume the same artifact.
+- `plans/06122026-alloro-asia-dev-server/` - execution spec and risk notes for the new Asia dev server.
+
 ## [0.0.117] - June 2026
 
 ### Website Editor: Direct Editing, Versioning & Responsive Controls
