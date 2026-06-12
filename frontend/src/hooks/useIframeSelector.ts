@@ -22,6 +22,7 @@ import {
   type CanvasTextEditSession,
 } from "../utils/canvasTextEditing";
 import { startRichTextEdit, type RichTextEditSession } from "../utils/richTextEditing";
+import type { DirectEditorOperation } from "../utils/editorDirectOperations";
 
 const ALLORO_PREFIX = "alloro-tpl-";
 
@@ -547,6 +548,9 @@ export type UseIframeSelectorOptions = {
    * selected. Shortcode pills are always excluded regardless.
    */
   sectionsOnly?: boolean;
+  /** Fired on every canvas-text keystroke so the host can mark the editor
+   *  dirty immediately (Save/Publish appear) instead of only on commit. */
+  onDirty?: () => void;
 };
 
 export function useIframeSelector(
@@ -564,8 +568,14 @@ export function useIframeSelector(
   const [isCanvasTextEditing, setIsCanvasTextEditing] = useState(false);
   const currentHoveredComponentRef = useRef<Element | null>(null);
   const canvasTextSessionRef = useRef<CanvasTextEditSession | RichTextEditSession | null>(null);
+  // Mode + target of the active canvas session so the host can flush an
+  // in-progress edit synchronously on Save/Publish.
+  const activeCanvasModeRef = useRef<"plain" | "rich" | null>(null);
+  const activeCanvasTargetRef = useRef<string | null>(null);
   const quickActionRef = useRef(onQuickAction);
   quickActionRef.current = onQuickAction;
+  const onDirtyRef = useRef(options?.onDirty);
+  onDirtyRef.current = options?.onDirty;
 
   const clearSelection = useCallback(() => {
     canvasTextSessionRef.current?.cancel();
@@ -627,7 +637,12 @@ export function useIframeSelector(
         });
       };
       const targetAlloroClass = getAlloroClass(target);
+      activeCanvasModeRef.current = eligibility.mode ?? null;
+      activeCanvasTargetRef.current = targetAlloroClass ?? null;
       const syncDraftText = (value: string) => {
+        // Typing should mark the editor dirty immediately so Save/Publish
+        // appear before the session commits (on blur).
+        onDirtyRef.current?.();
         if (!targetAlloroClass) return;
         setSelectedInfo((prev) =>
           prev?.alloroClass === targetAlloroClass
@@ -647,6 +662,8 @@ export function useIframeSelector(
           delete doc.body.dataset.alloroCanvasEditing;
           setIsCanvasTextEditing(false);
           canvasTextSessionRef.current = null;
+          activeCanvasModeRef.current = null;
+          activeCanvasTargetRef.current = null;
           // Clear the session's draft mirror — a stale draftText makes the
           // sidebar Content field snap back and drop keystrokes after a
           // commit (the commit path never rebuilds selectedInfo).
@@ -1001,6 +1018,31 @@ export function useIframeSelector(
     });
   }, [iframeRef, selectedInfo]);
 
+  // Synchronously capture an in-progress canvas edit so Save/Publish persist
+  // it without the user first clicking away (the commit-on-blur is deferred,
+  // so a Save click would otherwise read the pre-edit content). Returns the
+  // edit to apply through the host's direct-edit pipeline, or null when no
+  // session is active. Ends the session.
+  const flushCanvasTextEdit = useCallback((): {
+    operation: DirectEditorOperation;
+    targetAlloroClass: string;
+  } | null => {
+    const session = canvasTextSessionRef.current;
+    const mode = activeCanvasModeRef.current;
+    const targetAlloroClass = activeCanvasTargetRef.current;
+    if (!session || !mode || !targetAlloroClass) return null;
+    const value = session.getValue();
+    // Cancel (not commit) — the captured value is applied via the host below,
+    // so cancel just restores the element to its pre-session markup and tears
+    // the session down without firing the deferred commit path.
+    session.cancel();
+    const operation: DirectEditorOperation =
+      mode === "rich"
+        ? { type: "replace-inline-html", html: value }
+        : { type: "replace-text", value };
+    return { operation, targetAlloroClass };
+  }, []);
+
   return {
     selectedInfo,
     setSelectedInfo,
@@ -1008,6 +1050,7 @@ export function useIframeSelector(
     setupListeners,
     toggleHidden,
     beginCanvasTextEditing,
+    flushCanvasTextEdit,
     isCanvasTextEditing,
   };
 }

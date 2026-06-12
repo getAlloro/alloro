@@ -419,9 +419,11 @@ export function DFYWebsite() {
     clearSelection,
     setupListeners,
     beginCanvasTextEditing,
+    flushCanvasTextEdit,
     isCanvasTextEditing,
   } = useIframeSelector(iframeRef, handleIframeQuickAction, {
     sectionsOnly: true,
+    onDirty: () => setIsDirty(true),
   });
 
   // User-facing API wrappers (routes don't need projectId — inferred from auth)
@@ -964,6 +966,10 @@ export function DFYWebsite() {
         }
         setRedoStack([]);
         setSections(updatedSections);
+        // Keep the ref in lockstep so a synchronous flush-then-save (Save while
+        // an inline edit is mid-flight) reads the just-applied content rather
+        // than the stale render-time value.
+        sectionsRef.current = updatedSections;
         // No rebuildHtml here — the operation already mutated the iframe DOM
         // in place; re-setting srcDoc reloads the preview on every font-size
         // step / color change and jumps the scroll. Mark htmlContent stale so
@@ -1161,12 +1167,18 @@ export function DFYWebsite() {
   const performSave = useCallback(
     async (force = false) => {
       if (!selectedPage || !project || isSaving) return;
+      // Flush any in-progress inline edit into sections FIRST, so a Save click
+      // mid-typing persists the typed change instead of the pre-edit content
+      // (the commit-on-blur is deferred and would otherwise lose the race).
+      const flushed = flushCanvasTextEdit();
+      if (flushed) handleApplyDirectEdit(flushed.operation, flushed.targetAlloroClass);
+      const sectionsToSave = sectionsRef.current;
       setIsSaving(true);
       try {
         const res = await apiPatch({
           path: `/user/website/pages/${selectedPage.id}/save`,
           passedData: {
-            sections,
+            sections: sectionsToSave,
             expected_updated_at: selectedPage.updated_at,
             force,
           },
@@ -1182,7 +1194,7 @@ export function DFYWebsite() {
         if (res?.data?.updated_at) {
           const savedAt = res.data.updated_at;
           setSelectedPage((prev) =>
-            prev ? { ...prev, updated_at: savedAt, sections } : prev,
+            prev ? { ...prev, updated_at: savedAt, sections: sectionsToSave } : prev,
           );
           // Keep the pages list fresh too — reopening this page from the
           // Pages tab would otherwise regress expected_updated_at (spurious
@@ -1190,7 +1202,7 @@ export function DFYWebsite() {
           setPages((prev) =>
             prev.map((p) =>
               p.id === selectedPage.id
-                ? { ...p, updated_at: savedAt, sections }
+                ? { ...p, updated_at: savedAt, sections: sectionsToSave }
                 : p,
             ),
           );
@@ -1204,7 +1216,7 @@ export function DFYWebsite() {
         setIsSaving(false);
       }
     },
-    [selectedPage, project, sections, isSaving, clearBackup],
+    [selectedPage, project, isSaving, clearBackup, flushCanvasTextEdit, handleApplyDirectEdit],
   );
 
   const handleSave = useCallback(() => performSave(), [performSave]);

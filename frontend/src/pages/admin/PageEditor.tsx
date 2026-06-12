@@ -508,9 +508,13 @@ function PageEditorInner() {
     clearSelection,
     setupListeners,
     beginCanvasTextEditing,
+    flushCanvasTextEdit,
     isCanvasTextEditing,
   } =
-    useIframeSelector(iframeRef, handleIframeQuickAction, { sectionsOnly: true });
+    useIframeSelector(iframeRef, handleIframeQuickAction, {
+      sectionsOnly: true,
+      onDirty: () => setIsDirty(true),
+    });
 
   // Regenerate component modal (Plan B T14)
   const [regenerateModalOpen, setRegenerateModalOpen] = useState(false);
@@ -1161,6 +1165,9 @@ function PageEditorInner() {
           pushUndoSnapshot(previousSections);
         }
         setSections(updatedSections);
+        // Keep the ref in lockstep so a synchronous flush-then-save reads the
+        // just-applied content (Save while an inline edit is mid-flight).
+        sectionsRef.current = updatedSections;
         htmlStaleRef.current = true;
         liveTextRef.current = null;
         setIsDirty(true);
@@ -1275,6 +1282,11 @@ function PageEditorInner() {
     async (note?: string | null, force = false) => {
       if (!projectId || !draftPageId || isSaving) return;
 
+      // Flush any in-progress inline edit into sections first, so a Save click
+      // mid-typing persists the typed change instead of the pre-edit content.
+      const flushed = flushCanvasTextEdit();
+      if (flushed) handleApplyDirectEdit(flushed.operation, flushed.targetAlloroClass);
+
       try {
         setIsSaving(true);
         const res = await updatePageSections(
@@ -1309,7 +1321,7 @@ function PageEditorInner() {
         setIsSaving(false);
       }
     },
-    [projectId, draftPageId, isSaving, page?.updated_at, clearBackup]
+    [projectId, draftPageId, isSaving, page?.updated_at, clearBackup, flushCanvasTextEdit, handleApplyDirectEdit]
   );
 
   const handleSave = useCallback(() => performSave(), [performSave]);
@@ -1339,10 +1351,17 @@ function PageEditorInner() {
   const handlePublishConfirmed = useCallback(async () => {
     if (!projectId || !draftPageId) return;
 
+    // Flush any in-progress inline edit so Publish ships the typed change even
+    // if the user never clicked away from the canvas first.
+    const flushed = flushCanvasTextEdit();
+    if (flushed) handleApplyDirectEdit(flushed.operation, flushed.targetAlloroClass);
+
     try {
       setIsPublishing(true);
 
-      if (isDirty) {
+      // `flushed` forces the pre-publish save when an inline edit was just
+      // captured (the closure `isDirty` predates it).
+      if (isDirty || flushed) {
         // The pre-publish save must honor the same optimistic-concurrency
         // guard as a normal Save — without it, Publish silently overwrites
         // concurrent edits and ships them live.
@@ -1413,7 +1432,7 @@ function PageEditorInner() {
     } finally {
       setIsPublishing(false);
     }
-  }, [projectId, draftPageId, isDirty, page?.updated_at, clearBackup]);
+  }, [projectId, draftPageId, isDirty, page?.updated_at, clearBackup, flushCanvasTextEdit, handleApplyDirectEdit]);
 
   // --- View switching ---
   const handleViewChange = useCallback(
