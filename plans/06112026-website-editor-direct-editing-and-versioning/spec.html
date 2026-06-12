@@ -11,7 +11,7 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
-        <span class="status-pill status-pending">In Progress — Rev 30</span>
+        <span class="status-pill status-pending">In Progress — Rev 31</span>
       </div>
       <h1>Website Editor: Direct Editing &amp; Versioning</h1>
       <dl class="meta-grid">
@@ -781,6 +781,12 @@
         <p><strong>Change:</strong> Inline typing now marks the editor dirty immediately and Save/Publish capture the in-progress edit without clicking away. Two problems: (1) canvas typing only mirrored <code>draftText</code> — it never set <code>isDirty</code>, so Save/Publish stayed hidden until the commit-on-blur; (2) the commit is deferred (blur → <code>setTimeout(0)</code> → quick-action → effect), so a Save click read the pre-edit <code>sections</code> and lost the race ("I have to click outside to persist"). Fix: <strong>(a)</strong> a new <code>onDirty</code> option on <code>useIframeSelector</code> fires on every keystroke → hosts <code>setIsDirty(true)</code> (buttons appear instantly, both modes); <strong>(b)</strong> a new <code>flushCanvasTextEdit()</code> reads the active session's current value via new <code>getValue()</code> on the plain/rich sessions (plain → textarea value → <code>replace-text</code>; rich → sanitized innerHTML → <code>replace-inline-html</code>), ends the session, and returns the edit; <code>performSave</code>/<code>handlePublishConfirmed</code> apply it synchronously through <code>handleApplyDirectEdit</code> (which now also updates <code>sectionsRef.current</code> in lockstep) before reading sections. DFY <code>performSave</code> switched from the stale <code>sections</code> closure to <code>sectionsRef.current</code>. Also fixes Cmd+S mid-session (a previously-deferred concern).</p>
         <p><strong>Reason:</strong> User QA: "when I start typing the change should already be detected (Save/Publish should appear); this case I have to click outside so the change is persisted."</p>
         <p><strong>Updated Done criteria:</strong> none new — makes existing save/publish behavior correct mid-edit; frontend tsc + eslint clean (pre-existing warnings only).</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 31 - 2026-06-12</h3>
+        <p><strong>Change:</strong> The SIZE label was wrong ("XL" on a paragraph that renders smaller). Root cause (verified in live data — the paragraph is <code>text-base md:text-lg lg:text-xl</code>): Rev 28's <code>readTierClass</code> returned the <em>highest</em> responsive class present (<code>lg:text-xl</code> → "XL"), but the editor's desktop preview is narrower than 1024px, so the browser actually renders <code>md:text-lg</code> (18px = "Large"). The label described <em>real desktop</em>, not <em>what's on screen</em>. Fix: stop guessing the active breakpoint — read the <strong>computed</strong> font size of the live element (browser has already resolved which class applies) and map it to the scale. New <code>fontSizePx</code> on <code>SelectedInfo</code> (set in both <code>buildSelectedInfo</code>s from <code>getComputedStyle</code>); <code>getSelectedFontSizeLabel</code> reads it; <code>stepFontSize</code> steps from the computed px too (so label, preview, and edits agree — and a desktop edit still collapses every responsive variant into one <code>md:</code> class). <code>fontSizePx</code> is refreshed on viewport change: DFY via the hook's on-load path (iframe swap), admin via an effect on <code>device</code> (width-only change, no reload). Removed the now-unused <code>currentSizeIndex</code>.</p>
+        <p><strong>Reason:</strong> User QA: "is this actually XL?" — the label didn't match the rendered size; confirmed against <code>website_builder.pages</code>.</p>
+        <p><strong>Updated Done criteria:</strong> none — the SIZE label now always matches the rendered size at the current preview width; tsc + eslint clean.</p>
       </article>
     </section>
   </main>

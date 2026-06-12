@@ -516,6 +516,25 @@ function PageEditorInner() {
       onDirty: () => setIsDirty(true),
     });
 
+  // The device toggle changes the iframe width WITHOUT reloading it (so the
+  // hook's on-load font-size refresh never fires) — re-read the selected
+  // element's rendered size so the size label tracks the new breakpoint.
+  const selectedAlloroClass = selectedInfo?.alloroClass;
+  useEffect(() => {
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc || !selectedAlloroClass) return;
+    const el = doc.querySelector(`.${CSS.escape(selectedAlloroClass)}`);
+    const win = el?.ownerDocument.defaultView;
+    if (!el || !win) return;
+    const px = parseFloat(win.getComputedStyle(el).fontSize);
+    const next = Number.isFinite(px) ? px : undefined;
+    setSelectedInfo((prev) =>
+      prev && prev.alloroClass === selectedAlloroClass && prev.fontSizePx !== next
+        ? { ...prev, fontSizePx: next }
+        : prev,
+    );
+  }, [device, selectedAlloroClass, setSelectedInfo]);
+
   // Regenerate component modal (Plan B T14)
   const [regenerateModalOpen, setRegenerateModalOpen] = useState(false);
 

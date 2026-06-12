@@ -345,7 +345,7 @@ export default function SelectedElementEditorPanel({
               <Minus className="h-4 w-4" />
             </button>
             <span className="flex-1 rounded-lg border border-gray-200 bg-[var(--ec-raised)] py-2 text-center text-xs font-semibold text-gray-700">
-              {getSelectedFontSizeLabel(selectedInfo, editViewport)}
+              {getSelectedFontSizeLabel(selectedInfo)}
             </span>
             <button
               onClick={() => stepFontSize("up")}
