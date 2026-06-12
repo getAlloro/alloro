@@ -11,7 +11,7 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
-        <span class="status-pill status-pending">In Progress — Rev 33</span>
+        <span class="status-pill status-pending">In Progress — Rev 34</span>
       </div>
       <h1>Website Editor: Direct Editing &amp; Versioning</h1>
       <dl class="meta-grid">
@@ -799,6 +799,12 @@
         <p><strong>Change:</strong> Aligned the admin editor's preview toggle with the 2-tier (mobile + desktop) editing model by removing the stray <strong>Tablet (768px)</strong> device option. Editing was already strictly 2-tier — size/alignment/visibility write base (mobile) or <code>md:</code> (desktop), and <code>editViewport</code> mapped both desktop and tablet to the desktop tier — so the tablet preview never represented a distinct editable breakpoint. <code>device</code> is now <code>"desktop" | "mobile"</code> across <code>EditorToolbar</code> + <code>PageEditor</code> (DFY was already desktop/mobile only). Note: the admin "desktop" preview renders at the available pane width; on a narrow pane (&lt;1024px) it shows the <code>md:</code> step of a responsive ladder rather than the true <code>lg:</code>/<code>xl:</code> desktop size — the SIZE label (Rev 31) honestly reflects whatever is rendered. Forcing a true-desktop preview width is a separate, optional change.</p>
         <p><strong>Reason:</strong> User: "we'll only adapt the mobile and desktop viewport, are we doing that already?" — editing yes, but the admin tablet preview was inconsistent with that.</p>
         <p><strong>Updated Done criteria:</strong> none — both editors now expose exactly mobile + desktop; real FE tsc + eslint clean.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 34 - 2026-06-12</h3>
+        <p><strong>Change:</strong> The admin "desktop" preview now renders at a fixed true-desktop viewport (<code>DESKTOP_PREVIEW_WIDTH = 1280px</code>) scaled to fit the pane, instead of filling the (often &lt;1024px) pane and showing the <code>md:</code> step. A <code>ResizeObserver</code> on the preview pane (<code>observePreviewArea</code> callback ref on both the visual and code-view preview containers) measures available width; <code>desktopScale = min(1, paneWidth/1280)</code>; the device frame is sized to the scaled footprint and the iframe is rendered at 1280px with <code>transform: scale()</code> + <code>transformOrigin: top left</code> (mobile stays 375px, unscaled). So the desktop preview shows the real <code>lg:</code>/<code>xl:</code> sizes a visitor sees, and the Rev 31 computed-size label reads the true desktop size. Same scaling pattern the customer (DFY) editor already uses, but pinned to a fixed 1280px rather than a percentage.</p>
+        <p><strong>Reason:</strong> User chose "force true desktop width" — the editor pane is narrower than a real desktop, so the previous 100%-of-pane desktop preview misrepresented desktop sizing.</p>
+        <p><strong>Updated Done criteria:</strong> none — manual: desktop preview shows real desktop (lg:/xl:) sizes scaled to fit; selection/click/caret still work through the scaled iframe (same as DFY). Real FE tsc + eslint clean.</p>
       </article>
     </section>
   </main>

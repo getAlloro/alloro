@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo, type DragEvent, type ChangeEvent } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo, type DragEvent, type ChangeEvent, type CSSProperties } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   fetchPage,
@@ -145,6 +145,11 @@ const MAX_CHAT_MESSAGES_PER_COMPONENT = 50;
  * window coalesce into a single undo entry so the stack stays usable.
  */
 const CODE_EDIT_UNDO_COALESCE_MS = 2500;
+
+// The desktop preview renders at a fixed true-desktop viewport width (so it
+// shows the real lg:/xl: sizes a visitor sees) and scales to fit the pane —
+// the editor pane is usually narrower than a real desktop.
+const DESKTOP_PREVIEW_WIDTH = 1280;
 
 function chatMapToObject(map: Map<string, ChatMessage[]>): EditChatHistory {
   const obj: EditChatHistory = {};
@@ -447,6 +452,37 @@ function PageEditorInner() {
   const [device, setDevice] = useState<"desktop" | "mobile">(
     "desktop"
   );
+
+  // Measure the preview pane so the desktop preview can render a fixed
+  // true-desktop viewport scaled to fit (see DESKTOP_PREVIEW_WIDTH).
+  const [previewAreaWidth, setPreviewAreaWidth] = useState(0);
+  const previewAreaObserverRef = useRef<ResizeObserver | null>(null);
+  const observePreviewArea = useCallback((el: HTMLDivElement | null) => {
+    previewAreaObserverRef.current?.disconnect();
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      setPreviewAreaWidth(entries[0].contentRect.width);
+    });
+    ro.observe(el);
+    previewAreaObserverRef.current = ro;
+  }, []);
+  const desktopScale =
+    previewAreaWidth > 0
+      ? Math.min(1, previewAreaWidth / DESKTOP_PREVIEW_WIDTH)
+      : 1;
+  const deviceFrameStyle: CSSProperties =
+    device === "desktop"
+      ? { width: `${DESKTOP_PREVIEW_WIDTH * desktopScale}px`, maxWidth: "100%" }
+      : { width: "375px", maxWidth: "100%" };
+  const deviceIframeStyle: CSSProperties =
+    device === "desktop"
+      ? {
+          width: `${DESKTOP_PREVIEW_WIDTH}px`,
+          height: `${100 / desktopScale}%`,
+          transform: `scale(${desktopScale})`,
+          transformOrigin: "top left",
+        }
+      : { width: "100%", height: "100%" };
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -1873,31 +1909,26 @@ function PageEditorInner() {
                 onSave={handleSave}
               />
             </div>
-            <div className="flex-1 bg-gray-100 p-4 overflow-hidden flex items-start justify-center">
+            <div ref={observePreviewArea} className="flex-1 bg-gray-100 p-4 overflow-hidden flex items-start justify-center">
               <div
                 className="relative h-full rounded-xl overflow-hidden shadow-lg border border-gray-200 transition-all duration-300 mx-auto bg-white"
-                style={{
-                  width: device === "desktop" ? "100%" : "375px",
-                  maxWidth: "100%",
-                }}
+                style={deviceFrameStyle}
               >
                 <iframe
                   srcDoc={prepareHtmlForPreview(previewHtml)}
                   sandbox="allow-same-origin allow-scripts"
-                  className="w-full h-full border-0 bg-white"
+                  className="border-0 bg-white"
+                  style={deviceIframeStyle}
                 />
               </div>
             </div>
           </>
         ) : (
           <>
-            <div className="flex-1 bg-gray-100 p-4 overflow-hidden flex items-start justify-center">
+            <div ref={observePreviewArea} className="flex-1 bg-gray-100 p-4 overflow-hidden flex items-start justify-center">
               <div
-                className="h-full rounded-xl overflow-hidden shadow-lg border border-gray-200 transition-all duration-300 mx-auto bg-white"
-                style={{
-                  width: device === "desktop" ? "100%" : "375px",
-                  maxWidth: "100%",
-                }}
+                className="relative h-full rounded-xl overflow-hidden shadow-lg border border-gray-200 transition-all duration-300 mx-auto bg-white"
+                style={deviceFrameStyle}
               >
                 {isLivePreview && regeneratingSectionNames.size === 0 ? (
                   <ProgressivePagePreview
@@ -1912,7 +1943,8 @@ function PageEditorInner() {
                     )}
                     sandbox="allow-same-origin allow-scripts"
                     onLoad={previewVersion ? undefined : handleIframeLoad}
-                    className="w-full h-full border-0 bg-white"
+                    className="border-0 bg-white"
+                    style={deviceIframeStyle}
                   />
                 )}
                 {!isLivePreview && !previewVersion && (
