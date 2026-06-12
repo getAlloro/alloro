@@ -18,6 +18,7 @@
 import { useCallback, useRef, useState } from "react";
 import {
   getCanvasTextEditEligibility,
+  hasDirectText,
   startCanvasTextEdit,
   type CanvasTextEditSession,
 } from "../utils/canvasTextEditing";
@@ -179,10 +180,22 @@ const AUTO_TAG_ELIGIBLE_TAGS = new Set([
  * Only elements inside a [data-alloro-section] wrapper qualify — header/footer
  * content (LayoutEditor) has no section wrappers and stays untouched.
  */
+/** The site footer is chrome (consistent across pages, edited elsewhere) — it
+ *  must never hover/select in the page editor, whether it's a semantic
+ *  `<footer>` or a section named "footer". */
+function isFooterChrome(el: Element | null): boolean {
+  if (!el) return false;
+  if (el.closest("footer")) return true;
+  const section = el.closest("[data-alloro-section]");
+  return (section?.getAttribute("data-alloro-section")?.toLowerCase() || "").includes(
+    "footer",
+  );
+}
+
 function findAutoTagCandidate(el: Element | null): Element | null {
   while (el) {
     if (
-      AUTO_TAG_ELIGIBLE_TAGS.has(el.tagName.toLowerCase()) &&
+      (AUTO_TAG_ELIGIBLE_TAGS.has(el.tagName.toLowerCase()) || hasDirectText(el)) &&
       el.closest("[data-alloro-section]")
     ) {
       return el;
@@ -208,6 +221,7 @@ function resolveHoverTarget(
   // Shortcode pills (post/review/menu loops) are read-only placeholders —
   // their content is server-resolved and never directly editable.
   if (origin.closest("[data-alloro-shortcode]")) return null;
+  if (isFooterChrome(origin)) return null;
 
   const candidate = findAutoTagCandidate(origin);
   if (candidate) {
@@ -764,6 +778,7 @@ export function useIframeSelector(
     function resolveEditableClickTarget(clickTarget: Element): Element | null {
       // Shortcode pills (loops) are read-only placeholders — never selectable.
       if (clickTarget.closest?.("[data-alloro-shortcode]")) return null;
+      if (isFooterChrome(clickTarget)) return null;
 
       // Content-first: the precise element under the cursor wins over any
       // tagged ancestor — tag it on demand so the edit pipeline can key off

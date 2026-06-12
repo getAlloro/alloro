@@ -76,13 +76,25 @@ export function isCanvasHtmlElement(element: Element | null): element is HTMLEle
   return view ? element instanceof view.HTMLElement : element instanceof HTMLElement;
 }
 
+/** True when the element directly contains non-whitespace text (e.g. a
+ *  `<div class="num">` holding "3.4" + a `<span>`). Such "unwrapped" text is
+ *  editable even though the element isn't a known text tag — but a pure
+ *  container (only element children + whitespace) is not. */
+export function hasDirectText(element: Element): boolean {
+  return Array.from(element.childNodes).some(
+    (node) => node.nodeType === 3 && (node.textContent || "").trim().length > 0,
+  );
+}
+
 export function getCanvasTextEditEligibility(element: Element | null): CanvasTextEditEligibility {
   if (!isCanvasHtmlElement(element)) {
     return { canEdit: false, reason: "This selection is not editable text." };
   }
 
   const tagName = element.tagName.toLowerCase();
-  if (!CANVAS_TEXT_TAGS.has(tagName)) {
+  // Editable when it's a known text tag OR it directly holds text (unwrapped
+  // text like a stat number). A pure container has neither.
+  if (!CANVAS_TEXT_TAGS.has(tagName) && !hasDirectText(element)) {
     return { canEdit: false, reason: "This element does not support canvas text editing." };
   }
 
