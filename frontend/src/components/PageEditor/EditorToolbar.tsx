@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, Undo2, Redo2, Save, Upload, Monitor, Tablet, Smartphone, Loader2, Code, BarChart3, Sparkles, ChevronDown, Replace } from "lucide-react";
+import { ArrowLeft, Undo2, Redo2, Save, Upload, Monitor, Smartphone, Loader2, Code, BarChart3, Sparkles, ChevronDown, Replace } from "lucide-react";
 
 type EditorView = "visual" | "code" | "seo";
 
@@ -7,8 +7,8 @@ interface EditorToolbarProps {
   pagePath: string;
   pageVersion: number;
   pageStatus: string;
-  device: "desktop" | "tablet" | "mobile";
-  onDeviceChange: (device: "desktop" | "tablet" | "mobile") => void;
+  device: "desktop" | "mobile";
+  onDeviceChange: (device: "desktop" | "mobile") => void;
   activeView: EditorView;
   onViewChange: (view: EditorView) => void;
   onBack: () => void;
@@ -95,8 +95,7 @@ export default function EditorToolbar({
         {/* Device icons — grouped */}
         {(
           [
-            { key: "desktop", icon: Monitor, title: "Desktop (100%)" },
-            { key: "tablet", icon: Tablet, title: "Tablet (768px)" },
+            { key: "desktop", icon: Monitor, title: "Desktop" },
             { key: "mobile", icon: Smartphone, title: "Mobile (375px)" },
           ] as const
         ).map(({ key, icon: Icon, title }) => (
