@@ -11,7 +11,7 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
-        <span class="status-pill status-pending">In Progress — Rev 31</span>
+        <span class="status-pill status-pending">In Progress — Rev 32</span>
       </div>
       <h1>Website Editor: Direct Editing &amp; Versioning</h1>
       <dl class="meta-grid">
@@ -787,6 +787,12 @@
         <p><strong>Change:</strong> The SIZE label was wrong ("XL" on a paragraph that renders smaller). Root cause (verified in live data — the paragraph is <code>text-base md:text-lg lg:text-xl</code>): Rev 28's <code>readTierClass</code> returned the <em>highest</em> responsive class present (<code>lg:text-xl</code> → "XL"), but the editor's desktop preview is narrower than 1024px, so the browser actually renders <code>md:text-lg</code> (18px = "Large"). The label described <em>real desktop</em>, not <em>what's on screen</em>. Fix: stop guessing the active breakpoint — read the <strong>computed</strong> font size of the live element (browser has already resolved which class applies) and map it to the scale. New <code>fontSizePx</code> on <code>SelectedInfo</code> (set in both <code>buildSelectedInfo</code>s from <code>getComputedStyle</code>); <code>getSelectedFontSizeLabel</code> reads it; <code>stepFontSize</code> steps from the computed px too (so label, preview, and edits agree — and a desktop edit still collapses every responsive variant into one <code>md:</code> class). <code>fontSizePx</code> is refreshed on viewport change: DFY via the hook's on-load path (iframe swap), admin via an effect on <code>device</code> (width-only change, no reload). Removed the now-unused <code>currentSizeIndex</code>.</p>
         <p><strong>Reason:</strong> User QA: "is this actually XL?" — the label didn't match the rendered size; confirmed against <code>website_builder.pages</code>.</p>
         <p><strong>Updated Done criteria:</strong> none — the SIZE label now always matches the rendered size at the current preview width; tsc + eslint clean.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 32 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Fixed a frontend type error that CI caught but my local gate missed. <code>handleRestoreVersion</code> (added Rev 20) used <code>err instanceof ApiError</code>, but <code>ApiError</code> is a <em>type alias</em> (<code>Error &amp; {code,status}</code>), not a class — TS2693 + TS18046. Replaced with <code>err instanceof Error ? err.message : null</code> (an ApiError IS an Error). <strong>Gate post-mortem:</strong> the error survived ~11 revs because <code>frontend/tsconfig.json</code> is a Vite solution config with <code>"files": []</code> + project references, so plain <code>npx tsc --noEmit</code> checks ZERO files and always exits 0. The real frontend type-check is <code>npx tsc -p tsconfig.app.json --noEmit</code> (or <code>tsc -b</code>, which <code>npm run build</code>/CI run) — now used going forward. Backend root tsconfig uses <code>include:["src"]</code> so its gate was always valid.</p>
+        <p><strong>Reason:</strong> User reported the CI build error (TS2693 at PageEditor.tsx:1597).</p>
+        <p><strong>Updated Done criteria:</strong> none — <code>npx tsc -p tsconfig.app.json --noEmit</code> (real FE check) + backend <code>tsc</code> now both clean.</p>
       </article>
     </section>
   </main>
