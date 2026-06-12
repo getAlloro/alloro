@@ -211,6 +211,7 @@ export default function EditorSidebar({
                     onSend={onSendEdit}
                     isLoading={isEditing}
                     disabled={isPreviewingVersion}
+                    selectionLabel={selectedInfo.friendlyName}
                     mediaApi={mediaApi}
                     primaryColor={primaryColor}
                     accentColor={accentColor}

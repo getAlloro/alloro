@@ -15,7 +15,7 @@
       </div>
       <h1>Website Editor: Direct Editing &amp; Versioning</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>In Progress — Rev 20 executed (Rev 21), manual QA pending</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>In Progress — Rev 23 (preview read-only + sidebar UI polish) shipped, manual QA pending</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/06112026-website-editor-direct-editing-and-versioning</dd></div>
         <div><dt>Size</dt><dd>Large (~25 files)</dd></div>
         <div><dt>Risk</dt><dd>Level 2</dd></div>
@@ -431,11 +431,41 @@
       </article>
 
       <article class="task-card">
+        <h3>T31: Dark-themed content textarea (Rev 23)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>The CONTENT textarea in the selected-element panel must drop the native light scrollbar and the drag-resize grip, and grow taller before scrolling. Add a cobalt-scoped <code>::-webkit-scrollbar</code> + <code>scrollbar-color</code> rule so every scroll surface in the sidebar is dark; switch the textarea to <code>resize-none</code> with a taller min-height and an explicit max-height that scrolls.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/index.css</code>, <code>frontend/src/components/PageEditor/SelectedElementEditorPanel.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: scrollbar renders dark; no resize handle; box is taller and scrolls past max-height.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T32: AI editor requires a selection (Rev 23)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>The AI editor (ChatPanel) must gate every entry point on a live selection: with nothing selected (or while previewing a version), disable the input/upload/browse/send and show "Select an element and tell me what to change." With a selection, the empty state names the element instead of the generic example. Pass <code>selectionLabel</code> from <code>EditorSidebar</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/PageEditor/ChatPanel.tsx</code>, <code>frontend/src/components/PageEditor/EditorSidebar.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: no selection → input disabled + guidance copy; selection → input enabled.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T33: Selected-element pill in the chat (Rev 23)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Pin a chip at the top of the AI chat window showing the selected element's friendly name (e.g. "Editing: Paragraph", "Editing: Image"), so the target of the next AI edit is always visible. Reuse <code>selectedInfo.friendlyName</code>; style with the cobalt tokens.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/PageEditor/ChatPanel.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T32</dd></div>
+          <div><dt>Verify</dt><dd>Manual: selecting a paragraph then an image updates the pill label accordingly.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
         <h3>T9: Verification pipeline</h3>
         <dl>
           <div><dt>Do</dt><dd>Run type-check + lint for backend and frontend; execute the manual QA checklist in Done.</dd></div>
           <div><dt>Files</dt><dd>n/a</dd></div>
-          <div><dt>Depends on</dt><dd>T1–T8, T10–T30</dd></div>
+          <div><dt>Depends on</dt><dd>T1–T8, T10–T33</dd></div>
           <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> (root + frontend), <code>npm run lint</code></dd></div>
         </dl>
       </article>
@@ -469,6 +499,9 @@
         <li><input type="checkbox" disabled> Manual (Rev 20): a save racing an active edit session persists no <code>contenteditable</code>/transparent-text/regen artifacts</li>
         <li><input type="checkbox" disabled> Manual (Rev 20): DFY restore/AI failures show real errors (no false "Version restored"); restore keeps the current page open; no spurious 409 after Pages-tab round-trip</li>
         <li><input type="checkbox" disabled> Manual (Rev 20): comment-led sections are editable; trailing script/style siblings survive edit+save; device-toggle remounts don't revert unsaved edits</li>
+        <li><input type="checkbox" disabled> Manual (Rev 23): CONTENT textarea has a dark scrollbar, no resize grip, and a taller box that scrolls past its max-height</li>
+        <li><input type="checkbox" disabled> Manual (Rev 23): AI editor is disabled with "Select an element and tell me what to change" when nothing is selected; enabled when an element is selected</li>
+        <li><input type="checkbox" disabled> Manual (Rev 23): a pill at the top of the AI chat names the selected element and updates as the selection changes</li>
       </ul>
     </section>
 
@@ -607,6 +640,18 @@
         <p><strong>Change:</strong> Rev 20 (T19–T30) executed across backend and both editor hosts. Three small additions beyond the planned task text, all within the same intent: (1) the admin stale-html rebuild also fires on <em>view switches</em> (visual → code/seo unmounts the iframe — same remount-reversion hazard as exit-preview, which the plan only named explicitly); (2) the regen gate message says "regeneration works from the last saved draft" rather than the drafted "regen reloads the preview" (the swap is in-place; the real loss vector is server-side regeneration from saved state); (3) <code>handlePublishConfirmed</code>'s dependency array was corrected to include <code>page?.updated_at</code>/<code>clearBackup</code>/<code>project</code> — required for the new 409 guard to compare against a fresh timestamp, and it clears a pre-existing exhaustive-deps lint warning.</p>
         <p><strong>Reason:</strong> Execution deviation: remount-boundary coverage and guard correctness discovered while wiring T21/T25 into the admin host.</p>
         <p><strong>Updated Done criteria:</strong> none — Rev 20's eight items stand; tsc (frontend + backend) and eslint on all ten touched files pass with zero new findings.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 22 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Made the customer (DFY) version preview genuinely read-only. Both DFY preview iframes attached the click-to-edit listeners unconditionally via <code>onLoad={handleIframeLoad}</code>, so entering a version preview re-bound the mousedown-capture inline-editing listeners to the preview DOM — clicking text started a <code>contentEditable</code> session on the previewed version's content (the <code>previewVersion ? null : selectedInfo</code> guard only hid the popover UI, not the iframe edit entry). Gated both DFY iframe <code>onLoad</code> on <code>previewVersion ? undefined : handleIframeLoad</code>, mirroring the admin <code>PageEditor</code> which was already correct. Editing is now possible only after Restore. Verified the other three DFY <code>setupListeners()</code> calls fire only inside active-edit handlers, so <code>onLoad</code> is the sole attach path during preview.</p>
+        <p><strong>Reason:</strong> User QA ("double check the preview feature so it actually previews… and can only be edited if restored"); confirmed the hole against HEAD before fixing. Shipped as a <code>-q</code> quickfix (commits 17e37356 PR-branch / 65fa37a4 dev/dave); logged here retroactively for spec-code parity.</p>
+        <p><strong>Updated Done criteria:</strong> none new — covered by the existing Rev 20 preview/restore items; tsc clean both checkouts.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 23 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Editor sidebar UI polish (T31–T33). <strong>T31:</strong> the CONTENT textarea drops the native light scrollbar (new cobalt-scoped <code>::-webkit-scrollbar</code> + <code>scrollbar-color</code> rule covers every scroll surface in <code>.editor-cobalt</code>) and the drag-resize grip (<code>resize-none</code>), and grows taller before scrolling (min-h 150px, max-h 340px). <strong>T32:</strong> the AI editor (ChatPanel) now gates every entry point — input, upload, browse, send, drag-drop — on a live selection via a new <code>selectionLabel</code> prop; with nothing selected (or while previewing) it shows "Select an element and tell me what to change," and with a selection the empty state names the element instead of the generic example. <strong>T33:</strong> a pill pinned at the top of the AI chat shows the selected element's friendly name ("Editing: Paragraph"), styled with the cobalt tokens. All three changes live entirely in the shared <code>ChatPanel</code>/<code>EditorSidebar</code>/<code>SelectedElementEditorPanel</code> + <code>index.css</code>, so all three hosts (admin PageEditor, LayoutEditor, DFYWebsite) inherit them with no host edits.</p>
+        <p><strong>Reason:</strong> User-requested UI updates from two annotated screenshots (dark sliders / no expand handle / taller content box; AI editor must require a selection; selected-element pill at the top of the chat).</p>
+        <p><strong>Updated Done criteria:</strong> three new checklist items covering T31–T33 (see Done). tsc (frontend) + eslint on the three changed components pass with zero findings.</p>
       </article>
     </section>
   </main>
