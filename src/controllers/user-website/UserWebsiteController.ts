@@ -1189,8 +1189,29 @@ export async function savePageSections(
       .first();
     if (!page) return res.status(404).json({ error: "Page not found" });
 
-    // Optimistic concurrency: reject when the row changed since the client
-    // loaded it, unless the client explicitly forces the overwrite.
+    // Customer saves write the LIVE published row in place — never history
+    // rows or drafts (an inactive id here would rewrite version history).
+    if (page.status !== "published") {
+      return res.status(400).json({
+        error: "INVALID_STATUS",
+        message: "Only the live page can be edited here.",
+      });
+    }
+
+    // Read-only orgs can browse but not write (same gate as restore).
+    const project = await db("website_builder.projects")
+      .where("id", projectId)
+      .first();
+    if (project?.is_read_only) {
+      return res.status(403).json({
+        error: "READ_ONLY",
+        message:
+          "Your website is in read-only mode. Please upgrade to continue editing.",
+      });
+    }
+
+    // Optimistic concurrency fast-path: reject when the row changed since
+    // the client loaded it, unless the client explicitly forces.
     if (
       expected_updated_at &&
       !force &&
@@ -1208,9 +1229,18 @@ export async function savePageSections(
     // before overwriting it (user-side saves write the live page in place).
     await snapshotPageStateIfChanged(page);
 
-    // Update the page sections directly
-    const [updatedPage] = await db("website_builder.pages")
-      .where("id", pageId)
+    // Update the page sections directly. The write is conditional on the
+    // expected timestamp (1ms range — updated_at has microsecond precision,
+    // the client echo is millisecond-truncated) so two racing writers can't
+    // both pass the JS check above and both land.
+    let updateQuery = db("website_builder.pages").where("id", pageId);
+    if (expected_updated_at && !force) {
+      const expected = new Date(expected_updated_at);
+      updateQuery = updateQuery
+        .where("updated_at", ">=", expected)
+        .where("updated_at", "<", new Date(expected.getTime() + 1));
+    }
+    const [updatedPage] = await updateQuery
       .update({
         sections: JSON.stringify(sections),
         change_source: "save",
@@ -1218,9 +1248,17 @@ export async function savePageSections(
       })
       .returning(["updated_at"]);
 
+    if (!updatedPage) {
+      return res.status(409).json({
+        error: "STALE_WRITE",
+        message:
+          "This page changed since you loaded it. Review the latest version or save anyway.",
+      });
+    }
+
     return res.json({
       success: true,
-      data: { updated_at: updatedPage?.updated_at },
+      data: { updated_at: updatedPage.updated_at },
     });
   } catch (error) {
     return handleError(res, error, "Save page sections");

@@ -31,6 +31,9 @@ export type SelectedElementEditorPanelProps = {
   accentColor?: string | null;
 };
 
+/** Typing pause that flushes the sidebar's plain-text auto-apply. */
+const TEXT_APPLY_DEBOUNCE_MS = 400;
+
 const LABEL_CLS = "text-[10px] font-bold uppercase tracking-wider text-gray-400";
 const FIELD_CLS =
   "w-full rounded-lg border border-gray-200 bg-[var(--ec-raised)] px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-alloro-orange focus:ring-2 focus:ring-alloro-orange/20 disabled:opacity-50";
@@ -122,9 +125,59 @@ export default function SelectedElementEditorPanel({
     onExternalActionHandled?.();
   }, [externalAction, onApplyDirectEdit, onExternalActionHandled, onToggleHidden]);
 
+  // Sidebar text commits are replace-text (sets textContent) — safe ONLY for
+  // elements with no inline children. Rich elements (anchors, spans, br…)
+  // must be edited on the page, where contentEditable preserves markup;
+  // applying replace-text would flatten their children on the first keystroke.
+  const isRichTextContent = selectedInfo.canvasTextEditMode === "rich";
+
+  // Debounce the plain-text auto-apply so a typing burst lands as one edit
+  // (one undo entry, one section extraction) instead of one per character.
+  const textDebounceRef = useRef<number | null>(null);
+  const pendingTextRef = useRef<string | null>(null);
+
+  const cancelPendingTextApply = () => {
+    if (textDebounceRef.current) {
+      window.clearTimeout(textDebounceRef.current);
+      textDebounceRef.current = null;
+    }
+    pendingTextRef.current = null;
+  };
+
+  const flushTextApply = () => {
+    if (textDebounceRef.current) {
+      window.clearTimeout(textDebounceRef.current);
+      textDebounceRef.current = null;
+    }
+    const pending = pendingTextRef.current;
+    pendingTextRef.current = null;
+    if (pending == null) return;
+    onApplyDirectEdit({ type: "replace-text", value: pending });
+  };
+  const flushTextApplyRef = useRef(flushTextApply);
+  flushTextApplyRef.current = flushTextApply;
+
+  // Never let a pending apply leak across a selection change — it would
+  // write this element's text into the next one.
+  useEffect(() => {
+    return () => {
+      if (textDebounceRef.current) {
+        window.clearTimeout(textDebounceRef.current);
+        textDebounceRef.current = null;
+      }
+      pendingTextRef.current = null;
+    };
+  }, [selectedInfo.alloroClass]);
+
   const handleTextInput = (value: string) => {
     setTextValue(value);
-    onApplyDirectEdit({ type: "replace-text", value });
+    if (isRichTextContent) return;
+    pendingTextRef.current = value;
+    if (textDebounceRef.current) window.clearTimeout(textDebounceRef.current);
+    textDebounceRef.current = window.setTimeout(
+      () => flushTextApplyRef.current(),
+      TEXT_APPLY_DEBOUNCE_MS,
+    );
   };
   const applyLink = () => {
     const href = linkValue.trim();
@@ -184,14 +237,29 @@ export default function SelectedElementEditorPanel({
             ref={textAreaRef}
             value={textValue}
             onChange={(e) => handleTextInput(e.target.value)}
+            onBlur={() => {
+              if (!isRichTextContent) flushTextApply();
+            }}
             onKeyDown={(e) => {
-              if (e.key === "Escape") setTextValue(getSelectedTextValue(selectedInfo));
+              if (e.key === "Escape") {
+                cancelPendingTextApply();
+                setTextValue(getSelectedTextValue(selectedInfo));
+              }
             }}
             disabled={isEditing}
+            readOnly={isRichTextContent}
             rows={4}
             placeholder="Enter text…"
-            className={`${FIELD_CLS} min-h-[96px] resize-y leading-5`}
+            className={`${FIELD_CLS} min-h-[96px] resize-y leading-5 ${
+              isRichTextContent ? "opacity-60" : ""
+            }`}
           />
+          {isRichTextContent && (
+            <p className="text-[11px] leading-4 text-gray-400">
+              This text contains links or formatting — edit it directly on the
+              page so they're preserved.
+            </p>
+          )}
         </section>
       )}
 

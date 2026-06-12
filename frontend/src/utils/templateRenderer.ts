@@ -152,8 +152,47 @@ function injectCodeSnippets(
  * live iframe DOM, regardless of whether the template uses alloro-tpl-* classes.
  */
 function tagSectionRoot(sectionName: string, html: string): string {
-  // Match the first opening HTML tag (e.g., <section ...>, <div ...>)
-  return html.replace(/^(\s*<\w+)/, `$1 data-alloro-section="${sectionName}"`);
+  // Match the first opening HTML tag (e.g., <section ...>, <div ...>),
+  // skipping leading whitespace AND HTML comments — real template sections
+  // start with a comment header block, and without the skip those sections
+  // never get a marker: the editor is completely dead on them and the first
+  // save strips the comments.
+  return html.replace(
+    /^((?:\s|<!--[\s\S]*?-->)*)(<\w+)/,
+    `$1$2 data-alloro-section="${sectionName}"`,
+  );
+}
+
+/**
+ * True when the section content is NOT exactly one element (leading/trailing
+ * comments, text, or sibling elements like a trailing <script>). Tagging the
+ * first element of such content makes extraction (which serializes only the
+ * tagged element) silently drop the other nodes on the first edit+save —
+ * those sections get a wrapper div instead.
+ */
+function needsSectionWrapper(html: string): boolean {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  const meaningful = Array.from(template.content.childNodes).filter(
+    (node) =>
+      !(node.nodeType === Node.TEXT_NODE && !(node.textContent || "").trim()),
+  );
+  return !(meaningful.length === 1 && meaningful[0].nodeType === Node.ELEMENT_NODE);
+}
+
+/**
+ * Mark a section's root for extraction. Single-element sections are tagged
+ * in place (byte-identical output to before); anything else is wrapped in a
+ * plain block div (NOT display:contents — regen overlays and diff outlines
+ * need a real box) flagged data-alloro-section-wrapper so extraction knows
+ * to persist innerHTML rather than the wrapper itself.
+ */
+function markSectionRoot(sectionName: string, html: string): string {
+  if (!needsSectionWrapper(html)) {
+    return tagSectionRoot(sectionName, html);
+  }
+  const escapedName = sectionName.replace(/"/g, "&quot;");
+  return `<div data-alloro-section="${escapedName}" data-alloro-section-wrapper="true">${html}</div>`;
 }
 
 const SHORTCODE_LABELS: Record<string, string> = {
@@ -288,7 +327,7 @@ export function renderPage(
   // root for tagSectionRoot and the regenerate overlay.
   const mainContent = sectionsToRender
     .map((s) =>
-      tagSectionRoot(
+      markSectionRoot(
         s.name,
         renderShortcodePlaceholders(stripEditorStateAttrs(s.content)),
       ),

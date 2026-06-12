@@ -83,17 +83,12 @@ export function getCanvasTextEditEligibility(element: Element | null): CanvasTex
     return { canEdit: false, reason: "This element does not support canvas text editing." };
   }
 
-  const childTags = Array.from(element.querySelectorAll("*")).map((child) =>
-    child.tagName.toLowerCase(),
-  );
-
-  // Anything beyond plain-safe inline children (anchors, or any other nested
-  // markup) routes to the contentEditable "rich" path: it edits the element
-  // in place with a native caret and preserves structure, and the commit
-  // sanitizer is the safety net for unsupported markup. Previously this
-  // returned canEdit:false, which silently disabled inline editing for common
-  // headings/paragraphs that carry a stray nested element.
-  if (childTags.some((tagName) => !SAFE_INLINE_TEXT_CHILD_TAGS.has(tagName))) {
+  // "plain" (textarea overlay + replace-text commit) is only safe when the
+  // element has NO element children at all — replace-text sets textContent,
+  // which destroys spans/br/strong children just as surely as anchors.
+  // Anything with element children edits via the contentEditable rich path,
+  // which preserves markup (the commit sanitizer is the safety net).
+  if (element.querySelectorAll("*").length > 0) {
     return { canEdit: true, mode: "rich" };
   }
 

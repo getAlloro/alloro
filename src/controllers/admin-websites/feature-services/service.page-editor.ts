@@ -60,12 +60,9 @@ export async function createPage(
 
   const newVersion = latestPage ? latestPage.version + 1 : 1;
 
-  // Mark existing drafts as inactive
-  await db(PAGES_TABLE)
-    .where({ project_id: projectId, path, status: "draft" })
-    .update({ status: "inactive", updated_at: db.fn.now() });
-
-  // Create new page
+  // Create new page — all writes in one transaction so a crash can never
+  // leave the path with two published rows (insert-published landed but the
+  // previous published was not yet retired).
   const insertData: Record<string, any> = {
     project_id: projectId,
     path,
@@ -83,17 +80,26 @@ export async function createPage(
     insertData.display_name = display_name;
   }
 
-  const [page] = await db(PAGES_TABLE)
-    .insert(insertData)
-    .returning("*");
+  const page = await db.transaction(async (trx) => {
+    // Mark existing drafts as inactive
+    await trx(PAGES_TABLE)
+      .where({ project_id: projectId, path, status: "draft" })
+      .update({ status: "inactive", updated_at: trx.fn.now() });
 
-  // If publishing, mark previous published as inactive
-  if (publish) {
-    await db(PAGES_TABLE)
-      .where({ project_id: projectId, path, status: "published" })
-      .whereNot("id", page.id)
-      .update({ status: "inactive", updated_at: db.fn.now() });
-  }
+    const [created] = await trx(PAGES_TABLE)
+      .insert(insertData)
+      .returning("*");
+
+    // If publishing, mark previous published as inactive
+    if (publish) {
+      await trx(PAGES_TABLE)
+        .where({ project_id: projectId, path, status: "published" })
+        .whereNot("id", created.id)
+        .update({ status: "inactive", updated_at: trx.fn.now() });
+    }
+
+    return created;
+  });
 
   console.log(
     `[Admin Websites] \u2713 Created page ID: ${page.id}, version: ${newVersion}`
@@ -117,8 +123,11 @@ export async function publishPage(
     `[Admin Websites] Publishing page ID: ${pageId} for project ID: ${projectId}`
   );
 
-  // Get the page
-  const page = await db(PAGES_TABLE).where("id", pageId).first();
+  // Get the page \u2014 scoped to the project so a pageId from another project
+  // can never be published through this route.
+  const page = await db(PAGES_TABLE)
+    .where({ id: pageId, project_id: projectId })
+    .first();
 
   if (!page) {
     return {
@@ -131,24 +140,36 @@ export async function publishPage(
     };
   }
 
-  // Unpublish any currently published page for this project+path
-  await db(PAGES_TABLE)
-    .where({
-      project_id: page.project_id,
-      path: page.path,
-      status: "published",
-    })
-    .update({ status: "inactive", updated_at: db.fn.now() });
+  // Idempotent: re-publishing an already-published page is a success no-op
+  // (a retry after a crashed/lost response must not transit it through
+  // "inactive" or error out).
+  if (page.status === "published") {
+    return { page };
+  }
 
-  // Publish this page
-  const [publishedPage] = await db(PAGES_TABLE)
-    .where("id", pageId)
-    .update({
-      status: "published",
-      change_source: "publish",
-      updated_at: db.fn.now(),
-    })
-    .returning("*");
+  // Unpublish-then-publish atomically \u2014 a crash between the two statements
+  // would otherwise leave the path with NO published row (page down on the
+  // live site) until someone manually re-publishes.
+  const publishedPage = await db.transaction(async (trx) => {
+    await trx(PAGES_TABLE)
+      .where({
+        project_id: page.project_id,
+        path: page.path,
+        status: "published",
+      })
+      .whereNot("id", pageId)
+      .update({ status: "inactive", updated_at: trx.fn.now() });
+
+    const [row] = await trx(PAGES_TABLE)
+      .where("id", pageId)
+      .update({
+        status: "published",
+        change_source: "publish",
+        updated_at: trx.fn.now(),
+      })
+      .returning("*");
+    return row;
+  });
 
   console.log(`[Admin Websites] \u2713 Published page ID: ${pageId}`);
 
@@ -274,10 +295,34 @@ export async function updatePage(
     updatePayload.edit_chat_history = JSON.stringify(edit_chat_history);
   }
 
-  const [updatedPage] = await db(PAGES_TABLE)
-    .where("id", pageId)
+  // Atomic concurrency: the JS comparison above is check-then-act \u2014 two
+  // writers can both pass it inside the same window. Make the write itself
+  // conditional on the expected timestamp so exactly one wins. Matched as a
+  // 1ms range because updated_at carries microsecond precision while the
+  // client echoes the millisecond-truncated ISO string.
+  let updateQuery = db(PAGES_TABLE).where("id", pageId);
+  if (data.expected_updated_at && !data.force) {
+    const expected = new Date(data.expected_updated_at);
+    updateQuery = updateQuery
+      .where("updated_at", ">=", expected)
+      .where("updated_at", "<", new Date(expected.getTime() + 1));
+  }
+
+  const [updatedPage] = await updateQuery
     .update(updatePayload)
     .returning("*");
+
+  if (!updatedPage) {
+    return {
+      page: null,
+      error: {
+        status: 409,
+        code: "STALE_WRITE",
+        message:
+          "This page changed since you loaded it. Review the latest version or save anyway.",
+      },
+    };
+  }
 
   console.log(`[Admin Websites] \u2713 Updated page ID: ${pageId}`);
 
@@ -435,9 +480,12 @@ export async function createDraft(
 
   if (existingDraft) {
     // Check if the published page has been updated since this draft was last
-    // touched. If so, the draft is stale — refresh its sections from the
-    // published version. Compared against the draft's updated_at (not
-    // created_at) so saved draft edits are never silently clobbered.
+    // touched (e.g. a customer save in the DFY editor bumps the published
+    // row). If so, the draft is stale — refresh its sections from the
+    // published version, AFTER preserving the draft's current state as a
+    // restorable history entry: a saved draft's latest content exists only
+    // in this row (save-time snapshots capture the PRE-save state), so the
+    // refresh would otherwise permanently destroy it.
     const publishedUpdated = new Date(sourcePage.updated_at).getTime();
     const draftUpdated = new Date(
       existingDraft.updated_at || existingDraft.created_at
@@ -445,8 +493,10 @@ export async function createDraft(
 
     if (publishedUpdated > draftUpdated) {
       console.log(
-        `[Admin Websites] Stale draft detected (draft created: ${existingDraft.created_at}, published updated: ${sourcePage.updated_at}). Refreshing sections.`
+        `[Admin Websites] Stale draft detected (draft created: ${existingDraft.created_at}, published updated: ${sourcePage.updated_at}). Snapshotting then refreshing sections.`
       );
+
+      await snapshotPageStateIfChanged(existingDraft);
 
       const [refreshedDraft] = await db(PAGES_TABLE)
         .where("id", existingDraft.id)
@@ -454,6 +504,10 @@ export async function createDraft(
           sections: JSON.stringify(normalizeSections(sourcePage.sections)),
           seo_data: sourcePage.seo_data ? JSON.stringify(sourcePage.seo_data) : null,
           edit_chat_history: JSON.stringify({}),
+          // The refreshed draft is a copy of published, not an explicit save —
+          // stale provenance from the replaced content must not survive.
+          change_source: null,
+          revision_note: null,
           updated_at: db.fn.now(),
         })
         .returning("*");
