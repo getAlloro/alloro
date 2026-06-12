@@ -30,21 +30,29 @@ const SAFE_INLINE_TEXT_CHILD_TAGS = new Set([
 ]);
 const SAFE_INLINE_TEXT_CHILD_TAGS_SELECTOR = Array.from(SAFE_INLINE_TEXT_CHILD_TAGS).join(",");
 
-type CanvasTextEditEligibility = {
+export type CanvasTextEditEligibility = {
   canEdit: boolean;
   reason?: string;
+  /** "plain" → textarea overlay (text-only commit); "rich" → contentEditable session (inline HTML commit). */
+  mode?: "plain" | "rich";
 };
 
 export type CanvasTextEditSession = {
   cancel: () => void;
   commit: () => void;
+  /** Current edited value WITHOUT ending the session — used to flush an
+   *  in-progress edit into the document on Save/Publish. */
+  getValue: () => string;
 };
 
 type CanvasTextEditOptions = {
   element: Element;
   onCommit: (value: string) => void;
   onCancel?: () => void;
+  onChange?: (value: string) => void;
   onFinish?: () => void;
+  /** Raw char offset into the element's text to place the caret at (else select all). */
+  caretOffset?: number | null;
 };
 
 type StyleSnapshot = Array<{
@@ -60,9 +68,16 @@ type ElementStyleSnapshot = {
 
 const CANVAS_EDITOR_ATTR = "data-alloro-canvas-editor";
 const ELEMENT_STYLE_PROPS_TO_HIDE_TEXT = ["color", "-webkit-text-fill-color", "text-shadow"];
+const INITIAL_BLUR_GRACE_MS = 200;
+
+export function isCanvasHtmlElement(element: Element | null): element is HTMLElement {
+  if (!element) return false;
+  const view = element.ownerDocument.defaultView;
+  return view ? element instanceof view.HTMLElement : element instanceof HTMLElement;
+}
 
 export function getCanvasTextEditEligibility(element: Element | null): CanvasTextEditEligibility {
-  if (!(element instanceof HTMLElement)) {
+  if (!isCanvasHtmlElement(element)) {
     return { canEdit: false, reason: "This selection is not editable text." };
   }
 
@@ -71,28 +86,30 @@ export function getCanvasTextEditEligibility(element: Element | null): CanvasTex
     return { canEdit: false, reason: "This element does not support canvas text editing." };
   }
 
-  if (hasUnsafeNestedContent(element)) {
-    return { canEdit: false, reason: "Use fallback text editing for nested content." };
+  // "plain" (textarea overlay + replace-text commit) is only safe when the
+  // element has NO element children at all — replace-text sets textContent,
+  // which destroys spans/br/strong children just as surely as anchors.
+  // Anything with element children edits via the contentEditable rich path,
+  // which preserves markup (the commit sanitizer is the safety net).
+  if (element.querySelectorAll("*").length > 0) {
+    return { canEdit: true, mode: "rich" };
   }
 
-  return { canEdit: true };
-}
-
-function hasUnsafeNestedContent(element: HTMLElement): boolean {
-  return Array.from(element.querySelectorAll("*")).some((child) => {
-    const tagName = child.tagName.toLowerCase();
-    return !SAFE_INLINE_TEXT_CHILD_TAGS.has(tagName);
-  });
+  return { canEdit: true, mode: "plain" };
 }
 
 export function startCanvasTextEdit({
   element,
   onCommit,
   onCancel,
+  onChange,
   onFinish,
+  caretOffset,
 }: CanvasTextEditOptions): CanvasTextEditSession | null {
-  if (!(element instanceof HTMLElement)) return null;
-  if (!getCanvasTextEditEligibility(element).canEdit) return null;
+  if (!isCanvasHtmlElement(element)) return null;
+  // Plain mode only — rich-eligible elements (inline anchors) must go through
+  // startRichTextEdit, otherwise replace-text would destroy their markup.
+  if (getCanvasTextEditEligibility(element).mode !== "plain") return null;
 
   const doc = element.ownerDocument;
   const computed = doc.defaultView?.getComputedStyle(element);
@@ -102,6 +119,7 @@ export function startCanvasTextEdit({
   const originalStyles = captureElementStyles(textStyleTargets);
   const textarea = createCanvasTextarea(doc, element, computed, originalText);
   let isFinished = false;
+  const initialBlurGraceEndsAt = Date.now() + INITIAL_BLUR_GRACE_MS;
 
   const cleanup = () => {
     textarea.removeEventListener("blur", handleBlur);
@@ -131,7 +149,15 @@ export function startCanvasTextEdit({
   };
 
   function handleBlur() {
-    window.setTimeout(() => finish(true), 0);
+    window.setTimeout(() => {
+      if (isFinished) return;
+      if (doc.activeElement === textarea) return;
+      if (Date.now() < initialBlurGraceEndsAt) {
+        textarea.focus({ preventScroll: true });
+        return;
+      }
+      finish(true);
+    }, 0);
   }
 
   function handleKeyDown(event: KeyboardEvent) {
@@ -161,6 +187,7 @@ export function startCanvasTextEdit({
 
   function handleInput() {
     resizeCanvasTextarea(textarea);
+    onChange?.(normalizeElementText(textarea.value));
   }
 
   element.setAttribute("data-alloro-editing", "true");
@@ -173,15 +200,28 @@ export function startCanvasTextEdit({
   textarea.addEventListener("input", handleInput);
   doc.body.appendChild(textarea);
 
-  window.setTimeout(() => {
-    textarea.focus({ preventScroll: true });
+  // Focus SYNCHRONOUSLY (the caller runs this inside the user click gesture).
+  // Deferring via setTimeout moved focus outside the gesture, which stops a
+  // contentEditable/textarea inside a sandboxed iframe from painting a caret.
+  textarea.focus({ preventScroll: true });
+  // Land the caret where the user clicked, mapping the raw DOM offset onto
+  // the whitespace-collapsed textarea value. No offset → select all.
+  if (caretOffset != null) {
+    const prefix = (element.textContent || "")
+      .slice(0, caretOffset)
+      .replace(/\s+/g, " ")
+      .replace(/^\s/, "");
+    const pos = Math.max(0, Math.min(prefix.length, textarea.value.length));
+    textarea.setSelectionRange(pos, pos);
+  } else {
     textarea.select();
-    resizeCanvasTextarea(textarea);
-  }, 0);
+  }
+  resizeCanvasTextarea(textarea);
 
   return {
     cancel: () => finish(false),
     commit: () => finish(true),
+    getValue: () => normalizeElementText(textarea.value),
   };
 }
 
@@ -217,9 +257,10 @@ function createCanvasTextarea(
   textarea.style.resize = "none";
   textarea.style.overflow = "hidden";
   textarea.style.background = "rgba(255, 255, 255, 0.08)";
-  textarea.style.border = "2px solid #d66853";
+  textarea.style.border = "0";
   textarea.style.outline = "none";
-  textarea.style.boxShadow = "0 0 0 4px rgba(214, 104, 83, 0.2)";
+  textarea.style.boxShadow = "none";
+  textarea.style.caretColor = "#d66853";
   textarea.style.borderRadius = computed?.borderRadius && computed.borderRadius !== "0px"
     ? computed.borderRadius
     : "8px";
@@ -254,7 +295,7 @@ function getTextStyleTargets(element: HTMLElement): HTMLElement[] {
   return [
     element,
     ...Array.from(element.querySelectorAll(SAFE_INLINE_TEXT_CHILD_TAGS_SELECTOR))
-      .filter((child): child is HTMLElement => child instanceof HTMLElement),
+      .filter(isCanvasHtmlElement),
   ];
 }
 

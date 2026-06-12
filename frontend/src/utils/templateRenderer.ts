@@ -152,8 +152,47 @@ function injectCodeSnippets(
  * live iframe DOM, regardless of whether the template uses alloro-tpl-* classes.
  */
 function tagSectionRoot(sectionName: string, html: string): string {
-  // Match the first opening HTML tag (e.g., <section ...>, <div ...>)
-  return html.replace(/^(\s*<\w+)/, `$1 data-alloro-section="${sectionName}"`);
+  // Match the first opening HTML tag (e.g., <section ...>, <div ...>),
+  // skipping leading whitespace AND HTML comments — real template sections
+  // start with a comment header block, and without the skip those sections
+  // never get a marker: the editor is completely dead on them and the first
+  // save strips the comments.
+  return html.replace(
+    /^((?:\s|<!--[\s\S]*?-->)*)(<\w+)/,
+    `$1$2 data-alloro-section="${sectionName}"`,
+  );
+}
+
+/**
+ * True when the section content is NOT exactly one element (leading/trailing
+ * comments, text, or sibling elements like a trailing <script>). Tagging the
+ * first element of such content makes extraction (which serializes only the
+ * tagged element) silently drop the other nodes on the first edit+save —
+ * those sections get a wrapper div instead.
+ */
+function needsSectionWrapper(html: string): boolean {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  const meaningful = Array.from(template.content.childNodes).filter(
+    (node) =>
+      !(node.nodeType === Node.TEXT_NODE && !(node.textContent || "").trim()),
+  );
+  return !(meaningful.length === 1 && meaningful[0].nodeType === Node.ELEMENT_NODE);
+}
+
+/**
+ * Mark a section's root for extraction. Single-element sections are tagged
+ * in place (byte-identical output to before); anything else is wrapped in a
+ * plain block div (NOT display:contents — regen overlays and diff outlines
+ * need a real box) flagged data-alloro-section-wrapper so extraction knows
+ * to persist innerHTML rather than the wrapper itself.
+ */
+function markSectionRoot(sectionName: string, html: string): string {
+  if (!needsSectionWrapper(html)) {
+    return tagSectionRoot(sectionName, html);
+  }
+  const escapedName = sectionName.replace(/"/g, "&quot;");
+  return `<div data-alloro-section="${escapedName}" data-alloro-section-wrapper="true">${html}</div>`;
 }
 
 const SHORTCODE_LABELS: Record<string, string> = {
@@ -175,6 +214,17 @@ function prettyShortcodeLabel(type: string, raw: string): string {
 }
 
 /**
+ * Strip editor selection/hover/editing state attributes that saves made
+ * before 2026-06-11 baked into content (extraction now strips them at save
+ * time, but already-saved pages still carry them — the editor's injected CSS
+ * would otherwise show stale selection outlines on load). data-alloro-hidden
+ * and data-alloro-section are real content/marker attributes and survive.
+ */
+function stripEditorStateAttrs(html: string): string {
+  return html.replace(/\s+data-alloro-(?:selected|hover|editing)="[^"]*"/gi, "");
+}
+
+/**
  * Replace `{{ post_block … }}` / `{{ review_block … }}` / `{{ menu … }}` and
  * `[post_block …]` / `[review_block …]` tokens with a styled preview
  * placeholder. This is purely cosmetic — the canonical source keeps the
@@ -187,10 +237,29 @@ function prettyShortcodeLabel(type: string, raw: string): string {
 function renderShortcodePlaceholders(html: string): string {
   const placeholder = (type: string, raw: string): string => {
     const label = prettyShortcodeLabel(type, raw);
+    const guidance =
+      type === "menu"
+        ? "The design for this menu is managed by Alloro — manage its links from the Menus tab."
+        : type === "review_block"
+          ? "The design for this block is managed by Alloro — your reviews flow in automatically."
+          : "The design for this block is managed by Alloro — add or update its content from the Posts tab.";
+    // Brace/bracket entities are LOAD-BEARING, not cosmetic: the assembled
+    // page string is sent to the server-side shortcode resolver
+    // (resolve-preview), whose regexes match raw {{ … }} / [ … ] tokens
+    // anywhere in the string. Un-armored token copies inside the pill get
+    // resolved IN PLACE — injecting a full rendered block into the attribute
+    // (breaking its quoting and leaking markup as text) and a duplicate
+    // block into the pill body. Entities render identically but are
+    // invisible to those regexes. getAttribute() decodes them transparently
+    // for the save-path extractor (restoreShortcodeTokens).
     const escapedRaw = raw
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
+      .replace(/>/g, "&gt;")
+      .replace(/\{/g, "&#123;")
+      .replace(/\}/g, "&#125;")
+      .replace(/\[/g, "&#91;")
+      .replace(/\]/g, "&#93;");
     // Attribute-safe encoding: adds `"` escape on top of the text encoding
     // so the pill wrapper can carry the original token in
     // data-alloro-shortcode-original. The save-path extractor
@@ -209,7 +278,9 @@ function renderShortcodePlaceholders(html: string): string {
       `text-transform:uppercase;letter-spacing:0.08em;font-size:12px;` +
       `font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;">` +
       `${label}</div>` +
-      `<div style="font-size:13px;opacity:0.75;">${escapedRaw}</div>` +
+      `<div style="font-size:13px;color:#4b5563;` +
+      `font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;">` +
+      `${guidance}</div>` +
       `</div>`
     );
   };
@@ -256,10 +327,17 @@ export function renderPage(
   // root for tagSectionRoot and the regenerate overlay.
   const mainContent = sectionsToRender
     .map((s) =>
-      tagSectionRoot(s.name, renderShortcodePlaceholders(s.content)),
+      markSectionRoot(
+        s.name,
+        renderShortcodePlaceholders(stripEditorStateAttrs(s.content)),
+      ),
     )
     .join("\n");
-  const pageContent = [header, mainContent, footer].join("\n");
+  const pageContent = [
+    stripEditorStateAttrs(header),
+    mainContent,
+    stripEditorStateAttrs(footer),
+  ].join("\n");
   let finalHtml = wrapper.replace("{{slot}}", pageContent);
 
   // Inject code snippets

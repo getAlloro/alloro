@@ -910,6 +910,17 @@ export const createDraftFromPage = async (
   return response.json();
 };
 
+export type UpdatePageSectionsOptions = {
+  /** Optional note recorded on the saved revision (shown in History). */
+  revisionNote?: string | null;
+  /** Loaded row's updated_at — server returns 409 STALE_WRITE on mismatch. */
+  expectedUpdatedAt?: string | null;
+  /** Overwrite even when the row changed since it was loaded. */
+  force?: boolean;
+};
+
+export type ApiError = Error & { code?: string; status?: number };
+
 /**
  * Update a draft page's sections and/or chat history
  */
@@ -918,10 +929,20 @@ export const updatePageSections = async (
   pageId: string,
   sections: Section[],
   editChatHistory?: EditChatHistory,
+  options?: UpdatePageSectionsOptions,
 ): Promise<{ success: boolean; data: WebsitePage }> => {
   const body: Record<string, unknown> = { sections };
   if (editChatHistory !== undefined) {
     body.edit_chat_history = editChatHistory;
+  }
+  if (options?.revisionNote) {
+    body.revision_note = options.revisionNote;
+  }
+  if (options?.expectedUpdatedAt) {
+    body.expected_updated_at = options.expectedUpdatedAt;
+  }
+  if (options?.force) {
+    body.force = true;
   }
 
   const response = await adminFetch(`${API_BASE}/${projectId}/pages/${pageId}`, {
@@ -931,8 +952,13 @@ export const updatePageSections = async (
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || "Failed to update page");
+    const errorBody = await response.json();
+    const error = new Error(
+      errorBody.message || "Failed to update page",
+    ) as ApiError;
+    error.code = errorBody.error;
+    error.status = response.status;
+    throw error;
   }
 
   return response.json();
@@ -953,6 +979,74 @@ export const publishPage = async (
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.message || "Failed to publish page");
+  }
+
+  return response.json();
+};
+
+export type PageVersionSummary = {
+  id: string;
+  version: number;
+  status: "draft" | "published" | "inactive";
+  created_at: string;
+  updated_at: string;
+};
+
+/**
+ * List version history at a page's path
+ */
+export const fetchPageVersions = async (
+  projectId: string,
+  pageId: string,
+): Promise<{ success: boolean; data: { versions: PageVersionSummary[]; path: string } }> => {
+  const response = await adminFetch(
+    `${API_BASE}/${projectId}/pages/${pageId}/versions`,
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to fetch page versions");
+  }
+
+  return response.json();
+};
+
+/**
+ * Fetch a single version's full content
+ */
+export const fetchPageVersionContent = async (
+  projectId: string,
+  pageId: string,
+  versionId: string,
+): Promise<{ success: boolean; data: WebsitePage }> => {
+  const response = await adminFetch(
+    `${API_BASE}/${projectId}/pages/${pageId}/versions/${versionId}`,
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to fetch page version");
+  }
+
+  return response.json();
+};
+
+/**
+ * Restore a version's content into the current draft (never publishes)
+ */
+export const restorePageVersionIntoDraft = async (
+  projectId: string,
+  pageId: string,
+  versionId: string,
+): Promise<{ success: boolean; data: WebsitePage }> => {
+  const response = await adminFetch(
+    `${API_BASE}/${projectId}/pages/${pageId}/versions/${versionId}/restore`,
+    { method: "POST" },
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to restore page version");
   }
 
   return response.json();

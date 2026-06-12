@@ -77,7 +77,13 @@ function LayoutEditorInner() {
   const [pendingSidebarAction, setPendingSidebarAction] = useState<QuickActionType | null>(null);
   const deferredEditRef = useRef<DirectEditorOperation | null>(null);
   const handleIframeQuickAction = useCallback((payload: QuickActionPayload) => {
-    if ((payload.action === "text" || payload.action === "link") && payload.value) {
+    if (payload.action === "rich-text" && payload.value) {
+      deferredEditRef.current = {
+        type: "replace-inline-html",
+        html: payload.value,
+      };
+      setPendingSidebarAction("__deferred__" as QuickActionType);
+    } else if ((payload.action === "text" || payload.action === "link") && payload.value) {
       deferredEditRef.current = payload.action === "text"
         ? { type: "replace-text", value: payload.value }
         : { type: "update-link", href: payload.value };

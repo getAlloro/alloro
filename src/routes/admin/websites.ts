@@ -731,6 +731,15 @@ router.post("/:id/pages/:pageId/create-draft", ...adminWebsiteAuth, controller.c
 // POST /:id/pages/:pageId/edit — AI edit page component
 router.post("/:id/pages/:pageId/edit", ...adminWebsiteAuth, controller.editPageComponent);
 
+// GET  /:id/pages/:pageId/versions — List versions at the page's path
+router.get("/:id/pages/:pageId/versions", ...adminWebsiteAuth, controller.listPageVersions);
+
+// GET  /:id/pages/:pageId/versions/:versionId — Get version content
+router.get("/:id/pages/:pageId/versions/:versionId", ...adminWebsiteAuth, controller.getPageVersionContent);
+
+// POST /:id/pages/:pageId/versions/:versionId/restore — Restore version into draft
+router.post("/:id/pages/:pageId/versions/:versionId/restore", ...adminWebsiteAuth, controller.restorePageVersion);
+
 // GET  /:id/pages/:pageId — Get single page
 router.get("/:id/pages/:pageId", ...adminWebsiteAuth, controller.getPage);
 

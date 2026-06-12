@@ -4,6 +4,13 @@
  * Extracted from ~/Desktop/dentist-landing-page/components/HtmlPreview.tsx.
  * Provides hover/click selection of alloro-tpl-* elements inside an iframe.
  *
+ * Untagged basic content elements (headings, paragraphs, links, images, …)
+ * inside a [data-alloro-section] wrapper are also selectable — they receive a
+ * generated alloro-tpl-m-component-* class on click so the existing edit
+ * pipeline (which keys off alloroClass) can drive them. Hover never assigns
+ * a class. Header/footer content (LayoutEditor) has no section wrappers, so
+ * its behavior is unchanged.
+ *
  * Uses event delegation on the iframe body so listeners survive DOM mutations
  * (critical for live editing — we mutate the iframe DOM directly after LLM edits).
  */
@@ -14,6 +21,8 @@ import {
   startCanvasTextEdit,
   type CanvasTextEditSession,
 } from "../utils/canvasTextEditing";
+import { startRichTextEdit, type RichTextEditSession } from "../utils/richTextEditing";
+import type { DirectEditorOperation } from "../utils/editorDirectOperations";
 
 const ALLORO_PREFIX = "alloro-tpl-";
 
@@ -36,8 +45,17 @@ export interface SelectedInfo {
   backgroundImage?: string;
   backgroundSize?: string;
   backgroundPosition?: string;
+  /** Rendered font size (px) at the current preview width — the size label
+   *  reads this so it matches what's actually on screen rather than guessing
+   *  which responsive class is active. */
+  fontSizePx?: number;
   canCanvasEditText?: boolean;
+  /** "plain" = textarea overlay (text-only commit); "rich" = contentEditable
+   * (markup-preserving). The sidebar uses this to gate replace-text, which
+   * would flatten a rich element's inline children. */
+  canvasTextEditMode?: "plain" | "rich";
   textEditFallbackReason?: string;
+  draftText?: string;
 }
 
 /** Map HTML tag names to friendly display names. */
@@ -77,6 +95,70 @@ export function getFriendlyName(tagName: string): string {
   return TAG_LABELS[tagName.toLowerCase()] || tagName.charAt(0).toUpperCase() + tagName.slice(1).toLowerCase();
 }
 
+/**
+ * Raw character offset into `element`'s text at the given viewport point —
+ * used to land the edit caret where the user clicked. Returns null when the
+ * point doesn't resolve to a text position inside the element.
+ */
+function caretCharOffsetFromPoint(
+  doc: Document,
+  element: Element,
+  x: number,
+  y: number,
+): number | null {
+  // Pure best-effort: a caret-positioning nicety must NEVER throw out of the
+  // click handler (that would abort the edit and leave only a selection).
+  try {
+    let node: Node | null = null;
+    let offset = 0;
+    const anyDoc = doc as Document & {
+      caretRangeFromPoint?: (x: number, y: number) => Range | null;
+      caretPositionFromPoint?: (
+        x: number,
+        y: number,
+      ) => { offsetNode: Node; offset: number } | null;
+    };
+    if (typeof anyDoc.caretRangeFromPoint === "function") {
+      const range = anyDoc.caretRangeFromPoint(x, y);
+      if (range) {
+        node = range.startContainer;
+        offset = range.startOffset;
+      }
+    } else if (typeof anyDoc.caretPositionFromPoint === "function") {
+      const pos = anyDoc.caretPositionFromPoint(x, y);
+      if (pos) {
+        node = pos.offsetNode;
+        offset = pos.offset;
+      }
+    }
+    if (!node || !element.contains(node)) {
+      return estimateCaretOffsetFromPoint(element, x);
+    }
+
+    let raw = 0;
+    const walker = doc.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    let textNode: Node | null;
+    while ((textNode = walker.nextNode())) {
+      if (textNode === node) return raw + offset;
+      raw += (textNode.textContent || "").length;
+    }
+    return raw || estimateCaretOffsetFromPoint(element, x);
+  } catch {
+    return estimateCaretOffsetFromPoint(element, x);
+  }
+}
+
+function estimateCaretOffsetFromPoint(element: Element, x: number): number | null {
+  const textLength = (element.textContent || "").length;
+  if (!textLength) return null;
+
+  const rect = element.getBoundingClientRect();
+  if (!Number.isFinite(rect.width) || rect.width <= 0) return null;
+
+  const ratio = Math.max(0, Math.min(1, (x - rect.left) / rect.width));
+  return Math.max(0, Math.min(textLength, Math.round(textLength * ratio)));
+}
+
 /** Walk up from a target element to find the nearest alloro-classed ancestor (or self). */
 function findAlloroElement(el: Element | null): Element | null {
   while (el) {
@@ -84,6 +166,87 @@ function findAlloroElement(el: Element | null): Element | null {
     el = el.parentElement;
   }
   return null;
+}
+
+/** Tags eligible for auto-tagging when untagged content is hovered/clicked inside a section. */
+const AUTO_TAG_ELIGIBLE_TAGS = new Set([
+  "p", "span", "a", "h1", "h2", "h3", "h4", "h5", "h6",
+  "li", "button", "blockquote", "figcaption", "img", "video",
+]);
+
+/**
+ * Walk up from a target to find the nearest auto-taggable content element.
+ * Only elements inside a [data-alloro-section] wrapper qualify — header/footer
+ * content (LayoutEditor) has no section wrappers and stays untouched.
+ */
+function findAutoTagCandidate(el: Element | null): Element | null {
+  while (el) {
+    if (
+      AUTO_TAG_ELIGIBLE_TAGS.has(el.tagName.toLowerCase()) &&
+      el.closest("[data-alloro-section]")
+    ) {
+      return el;
+    }
+    el = el.parentElement;
+  }
+  return null;
+}
+
+/**
+ * Resolve the effective hover target — CONTENT-FIRST: the precise basic
+ * element under the cursor (text, link, image) wins over any alloro-tagged
+ * ancestor, so users always preview/edit exactly what they point at. Tagged
+ * ancestors (sections, component cards) are the fallback for container
+ * hovers. Untagged candidates get a synthetic component class for label
+ * styling and precedence only — never written to the DOM on hover (hover
+ * must not mutate content that later gets persisted).
+ */
+function resolveHoverTarget(
+  origin: Element,
+  sectionsOnly: boolean,
+): { target: Element; cls: string } | null {
+  // Shortcode pills (post/review/menu loops) are read-only placeholders —
+  // their content is server-resolved and never directly editable.
+  if (origin.closest("[data-alloro-shortcode]")) return null;
+
+  const candidate = findAutoTagCandidate(origin);
+  if (candidate) {
+    const existing = getAlloroClass(candidate);
+    return {
+      target: candidate,
+      cls:
+        existing ||
+        `${ALLORO_PREFIX}m-component-${candidate.tagName.toLowerCase()}`,
+    };
+  }
+  const tagged = findAlloroElement(origin);
+  if (tagged) {
+    // Page editors restrict selection to page content — header/footer live
+    // on the project and are edited in the Layout Editor.
+    if (sectionsOnly && !tagged.closest("[data-alloro-section]")) return null;
+    return { target: tagged, cls: getAlloroClass(tagged)! };
+  }
+  return null;
+}
+
+/**
+ * Assign a generated component class to an untagged element so the existing
+ * selection/edit pipeline (which queries `.${alloroClass}`) can drive it.
+ * Idempotent — returns the existing alloro class when one is already present.
+ * The "-component-" segment is load-bearing: isComponent() keys off it.
+ */
+function ensureGeneratedAlloroClass(el: Element, doc: Document): string {
+  const existing = getAlloroClass(el);
+  if (existing) return existing;
+  const tag = el.tagName.toLowerCase();
+  let n = 1;
+  let cls = `${ALLORO_PREFIX}m-component-${tag}-${n}`;
+  while (doc.querySelector(`.${CSS.escape(cls)}`)) {
+    n += 1;
+    cls = `${ALLORO_PREFIX}m-component-${tag}-${n}`;
+  }
+  el.classList.add(cls);
+  return cls;
 }
 
 export function getAlloroClass(el: Element): string | null {
@@ -121,6 +284,15 @@ function getElementBackground(el: Element) {
   };
 }
 
+/** Rendered font size in px at the iframe's current width (responsive classes
+ *  resolved by the browser), or undefined when unavailable. */
+function getComputedFontSizePx(el: Element): number | undefined {
+  const win = el.ownerDocument.defaultView;
+  if (!win) return undefined;
+  const px = parseFloat(win.getComputedStyle(el).fontSize);
+  return Number.isFinite(px) ? px : undefined;
+}
+
 function buildSelectedInfo(el: Element): SelectedInfo | null {
   const cls = getAlloroClass(el);
   if (!cls) return null;
@@ -138,7 +310,9 @@ function buildSelectedInfo(el: Element): SelectedInfo | null {
     href: tagName === "a" ? (el as HTMLAnchorElement).getAttribute("href") || undefined : undefined,
     rect: getElementRect(el),
     ...getElementBackground(el),
+    fontSizePx: getComputedFontSizePx(el),
     canCanvasEditText: eligibility.canEdit,
+    canvasTextEditMode: eligibility.mode,
     textEditFallbackReason: eligibility.reason,
   };
 }
@@ -151,41 +325,25 @@ export function prepareHtmlForPreview(html: string): string {
   );
 }
 
-/** Quick action types that can be triggered from the iframe label. */
-export type QuickActionType = "text" | "link" | "media" | "hide" | "text-up" | "text-down";
+/**
+ * Quick action types that can be triggered from the iframe label.
+ * "rich-text" is dispatched only from a rich edit session commit (sanitized
+ * inline HTML) — it is never rendered as a label icon.
+ */
+export type QuickActionType = "text" | "rich-text" | "link" | "media" | "hide" | "text-up" | "text-down";
 
 /** Payload emitted when a quick action with user input is submitted. */
 export interface QuickActionPayload {
   action: QuickActionType;
-  value?: string; // For text/link — the user-entered value
-}
-
-/** Inline SVG icons for quick action buttons (white stroke). */
-const ACTION_ICONS: Record<string, string> = {
-  text: `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></svg>`,
-  media: `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" x2="22" y1="5" y2="5"/><line x1="19" x2="19" y1="2" y2="8"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>`,
-  link: `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`,
-  hide: `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/></svg>`,
-  "text-up": `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><text x="2" y="16" font-size="14" font-weight="bold" fill="currentColor" stroke="none" font-family="sans-serif">A</text><line x1="18" y1="7" x2="18" y2="17"/><line x1="14" y1="12" x2="22" y2="12"/></svg>`,
-  "text-down": `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><text x="2" y="16" font-size="14" font-weight="bold" fill="currentColor" stroke="none" font-family="sans-serif">A</text><line x1="14" y1="12" x2="22" y2="12"/></svg>`,
-};
-
-/** Arrow-right SVG for the submit button inside the inline input. */
-const SUBMIT_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>`;
-
-const TEXT_TAGS = new Set(["p", "span", "h1", "h2", "h3", "h4", "h5", "h6", "a", "button", "li", "blockquote", "figcaption"]);
-const IMAGE_TAGS = new Set(["img", "video"]);
-const LINK_TAGS = new Set(["a"]);
-
-/** Build the list of quick action types available for a given tag. */
-function getActionsForTag(tagName: string): QuickActionType[] {
-  const actions: QuickActionType[] = [];
-  if (TEXT_TAGS.has(tagName)) actions.push("text");
-  if (TEXT_TAGS.has(tagName)) actions.push("text-up", "text-down");
-  if (IMAGE_TAGS.has(tagName)) actions.push("media");
-  if (LINK_TAGS.has(tagName)) actions.push("link");
-  actions.push("hide");
-  return actions;
+  value?: string; // For text/link — the user-entered value; for rich-text — sanitized inline HTML
+  /**
+   * The alloro class of the element the edit targets, captured when the
+   * session started. Lets the host apply the commit against THAT element even
+   * if the selection has already moved on (committing element A while
+   * re-selecting element B in the same click). Without this the deferred apply
+   * resolves against the live selection and writes A's text into B.
+   */
+  targetAlloroClass?: string;
 }
 
 /** CSS injected into the iframe to enable the selector UX. */
@@ -194,6 +352,15 @@ const SELECTOR_CSS = `
   a, button, form, input, select, textarea {
     pointer-events: none !important;
     cursor: default !important;
+  }
+
+  /* Untagged links/buttons inside sections must stay clickable so they can be
+     selected — navigation is suppressed in the click handler instead. Form
+     controls stay dead. */
+  [data-alloro-section] a,
+  [data-alloro-section] button {
+    pointer-events: auto !important;
+    cursor: pointer !important;
   }
 
   textarea[data-alloro-canvas-editor="true"] {
@@ -213,13 +380,18 @@ const SELECTOR_CSS = `
     cursor: text !important;
     caret-color: #d66853 !important;
     outline: 2px solid #d66853 !important;
-    outline-offset: 6px !important;
+    outline-offset: 4px !important;
+    box-shadow: none !important;
     user-select: text !important;
     -webkit-user-select: text !important;
   }
 
-  [data-alloro-editing="true"]:focus {
-    box-shadow: 0 0 0 4px rgba(214, 104, 83, 0.2) !important;
+  [data-alloro-editing="true"]:focus,
+  [data-alloro-editing="true"]:focus-visible,
+  [data-alloro-editing="true"]:active {
+    outline: 2px solid #d66853 !important;
+    outline-offset: 4px !important;
+    box-shadow: none !important;
   }
 
   /* Keep hidden/invisible overlays from intercepting events */
@@ -240,24 +412,27 @@ const SELECTOR_CSS = `
   }
 
   /* Hover highlight */
-  [data-alloro-hover="true"] {
+  [data-alloro-hover="true"]:not([data-alloro-selected="true"]):not([data-alloro-editing="true"]),
+  [class*="${ALLORO_PREFIX}"]:hover:not([data-alloro-selected="true"]):not([data-alloro-editing="true"]) {
     outline: 2px dashed #3b82f6 !important;
-    outline-offset: 6px !important;
+    outline-offset: 5px !important;
   }
 
-  /* Selected highlight */
+  /* Selected/focused/active highlight */
   [data-alloro-selected="true"] {
-    outline: 2px solid #2563eb !important;
-    outline-offset: 6px !important;
+    outline: 2px solid #d66853 !important;
+    outline-offset: 4px !important;
+    box-shadow: none !important;
   }
 
-  /* Both hover and selected — selected wins */
-  [data-alloro-selected="true"][data-alloro-hover="true"] {
-    outline: 2px solid #2563eb !important;
-  }
-
+  [data-alloro-selected="true"]:focus,
+  [data-alloro-selected="true"]:focus-visible,
+  [data-alloro-selected="true"]:active,
+  [data-alloro-selected="true"][data-alloro-hover="true"],
   [data-alloro-selected="true"][data-alloro-editing="true"] {
-    outline-color: #d66853 !important;
+    outline: 2px solid #d66853 !important;
+    outline-offset: 4px !important;
+    box-shadow: none !important;
   }
 
   /* Label injected into the DOM */
@@ -380,16 +555,41 @@ const SELECTOR_CSS = `
   }
 `;
 
+export type UseIframeSelectorOptions = {
+  /**
+   * Restrict selection to elements inside [data-alloro-section] — page
+   * editors set this so header/footer (Layout Editor territory) can't be
+   * selected. Shortcode pills are always excluded regardless.
+   */
+  sectionsOnly?: boolean;
+  /** Fired on every canvas-text keystroke so the host can mark the editor
+   *  dirty immediately (Save/Publish appear) instead of only on commit. */
+  onDirty?: () => void;
+};
+
 export function useIframeSelector(
   iframeRef: React.RefObject<HTMLIFrameElement | null>,
-  onQuickAction?: (payload: QuickActionPayload) => void
+  onQuickAction?: (payload: QuickActionPayload) => void,
+  options?: UseIframeSelectorOptions
 ) {
+  const sectionsOnly = options?.sectionsOnly ?? false;
   const [selectedInfo, setSelectedInfo] = useState<SelectedInfo | null>(null);
+  // Mirror of selectedInfo so setupListeners (a stable callback) can re-apply
+  // the on-canvas selection outline after an iframe (re)load without depending
+  // on selectedInfo and re-attaching listeners on every selection.
+  const selectedInfoRef = useRef<SelectedInfo | null>(null);
+  selectedInfoRef.current = selectedInfo;
   const [isCanvasTextEditing, setIsCanvasTextEditing] = useState(false);
   const currentHoveredComponentRef = useRef<Element | null>(null);
-  const canvasTextSessionRef = useRef<CanvasTextEditSession | null>(null);
+  const canvasTextSessionRef = useRef<CanvasTextEditSession | RichTextEditSession | null>(null);
+  // Mode + target of the active canvas session so the host can flush an
+  // in-progress edit synchronously on Save/Publish.
+  const activeCanvasModeRef = useRef<"plain" | "rich" | null>(null);
+  const activeCanvasTargetRef = useRef<string | null>(null);
   const quickActionRef = useRef(onQuickAction);
   quickActionRef.current = onQuickAction;
+  const onDirtyRef = useRef(options?.onDirty);
+  onDirtyRef.current = options?.onDirty;
 
   const clearSelection = useCallback(() => {
     canvasTextSessionRef.current?.cancel();
@@ -399,9 +599,15 @@ export function useIframeSelector(
     const doc = iframeRef.current?.contentDocument;
     if (!doc) return;
     delete doc.body.dataset.alloroCanvasEditing;
+    currentHoveredComponentRef.current = null;
     doc
       .querySelectorAll("[data-alloro-selected]")
       .forEach((el) => el.removeAttribute("data-alloro-selected"));
+    doc
+      .querySelectorAll("[data-alloro-hover]")
+      .forEach((el) => el.removeAttribute("data-alloro-hover"));
+    const hoverLabel = doc.getElementById("alloro-hover-label");
+    if (hoverLabel) hoverLabel.remove();
     const selectedLabel = doc.getElementById("alloro-selected-label");
     if (selectedLabel) selectedLabel.remove();
     const actionPanel = doc.getElementById("alloro-action-panel");
@@ -409,7 +615,7 @@ export function useIframeSelector(
   }, [iframeRef]);
 
   const beginCanvasTextEditing = useCallback(
-    (element?: Element | null) => {
+    (element?: Element | null, caretOffset?: number | null) => {
       const doc = iframeRef.current?.contentDocument;
       const target = element || (selectedInfo
         ? doc?.querySelector(`.${CSS.escape(selectedInfo.alloroClass)}`)
@@ -420,6 +626,10 @@ export function useIframeSelector(
       if (!eligibility.canEdit) return false;
 
       canvasTextSessionRef.current?.cancel();
+      currentHoveredComponentRef.current = null;
+      doc
+        .querySelectorAll("[data-alloro-hover]")
+        .forEach((el) => el.removeAttribute("data-alloro-hover"));
       doc.getElementById("alloro-hover-label")?.remove();
       doc.getElementById("alloro-action-panel")?.remove();
       doc.body.dataset.alloroCanvasEditing = "true";
@@ -428,14 +638,36 @@ export function useIframeSelector(
       const info = buildSelectedInfo(target);
       if (info) setSelectedInfo(info);
 
-      const session = startCanvasTextEdit({
+      const makeCommitHandler = (action: QuickActionType) => (value: string) => {
+        delete doc.body.dataset.alloroCanvasEditing;
+        setIsCanvasTextEditing(false);
+        canvasTextSessionRef.current = null;
+        // Pin the commit to the element this session edited so the host applies
+        // it there regardless of what is selected when the deferred apply runs.
+        quickActionRef.current?.({
+          action,
+          value,
+          targetAlloroClass: getAlloroClass(target) || undefined,
+        });
+      };
+      const targetAlloroClass = getAlloroClass(target);
+      activeCanvasModeRef.current = eligibility.mode ?? null;
+      activeCanvasTargetRef.current = targetAlloroClass ?? null;
+      const syncDraftText = (value: string) => {
+        // Typing should mark the editor dirty immediately so Save/Publish
+        // appear before the session commits (on blur).
+        onDirtyRef.current?.();
+        if (!targetAlloroClass) return;
+        setSelectedInfo((prev) =>
+          prev?.alloroClass === targetAlloroClass
+            ? { ...prev, draftText: value }
+            : prev,
+        );
+      };
+      const sharedOptions = {
         element: target,
-        onCommit: (value) => {
-          delete doc.body.dataset.alloroCanvasEditing;
-          setIsCanvasTextEditing(false);
-          canvasTextSessionRef.current = null;
-          quickActionRef.current?.({ action: "text", value });
-        },
+        caretOffset,
+        onChange: syncDraftText,
         onCancel: () => {
           const freshInfo = buildSelectedInfo(target);
           if (freshInfo) setSelectedInfo(freshInfo);
@@ -444,8 +676,22 @@ export function useIframeSelector(
           delete doc.body.dataset.alloroCanvasEditing;
           setIsCanvasTextEditing(false);
           canvasTextSessionRef.current = null;
+          activeCanvasModeRef.current = null;
+          activeCanvasTargetRef.current = null;
+          // Clear the session's draft mirror — a stale draftText makes the
+          // sidebar Content field snap back and drop keystrokes after a
+          // commit (the commit path never rebuilds selectedInfo).
+          setSelectedInfo((prev) =>
+            prev?.alloroClass === targetAlloroClass && prev?.draftText !== undefined
+              ? { ...prev, draftText: undefined }
+              : prev,
+          );
         },
-      });
+      };
+
+      const session = eligibility.mode === "rich"
+        ? startRichTextEdit({ ...sharedOptions, onCommit: makeCommitHandler("rich-text") })
+        : startCanvasTextEdit({ ...sharedOptions, onCommit: makeCommitHandler("text") });
 
       canvasTextSessionRef.current = session;
       if (!session) {
@@ -472,6 +718,7 @@ export function useIframeSelector(
 
     if (doc.body.dataset.alloroSelectorReady === "true") return;
     doc.body.dataset.alloroSelectorReady = "true";
+    let ignoreNextCanvasEditClick = false;
 
     // Remove any existing action input panel
     function hideActionPanel() {
@@ -479,139 +726,11 @@ export function useIframeSelector(
       if (panel) panel.remove();
     }
 
-    // Show an inline text input panel below the selected label
-    function showActionPanel(action: "text" | "link", labelEl: HTMLElement, href?: string) {
-      hideActionPanel();
-
-      const panel = doc.createElement("div");
-      panel.id = "alloro-action-panel";
-
-      const input = doc.createElement("input");
-      input.type = "text";
-      input.placeholder = action === "text" ? "Enter new text..." : "Enter URL...";
-      if (action === "link" && href) input.value = href;
-
-      const submitBtn = doc.createElement("button");
-      submitBtn.className = "alloro-action-submit";
-      submitBtn.innerHTML = SUBMIT_ICON;
-      submitBtn.title = "Apply";
-
-      const submit = () => {
-        const val = input.value.trim();
-        if (!val) return;
-        quickActionRef.current?.({ action, value: val });
-        hideActionPanel();
-      };
-
-      input.addEventListener("keydown", (ev) => {
-        if (ev.key === "Enter") { ev.preventDefault(); submit(); }
-        if (ev.key === "Escape") { ev.preventDefault(); hideActionPanel(); }
-        ev.stopPropagation();
-      });
-      // Prevent all key events from bubbling to the page
-      input.addEventListener("keyup", (ev) => ev.stopPropagation());
-      input.addEventListener("keypress", (ev) => ev.stopPropagation());
-      submitBtn.addEventListener("click", (ev) => { ev.stopPropagation(); ev.preventDefault(); submit(); });
-
-      panel.appendChild(input);
-      panel.appendChild(submitBtn);
-      doc.body.appendChild(panel);
-
-      // Position below the label
-      const labelRect = labelEl.getBoundingClientRect();
-      const scrollTop = doc.documentElement.scrollTop || doc.body.scrollTop;
-      const scrollLeft = doc.documentElement.scrollLeft || doc.body.scrollLeft;
-      panel.style.top = (labelRect.bottom + scrollTop + 4) + "px";
-      panel.style.left = (labelRect.left + scrollLeft) + "px";
-
-      // Focus the input
-      setTimeout(() => input.focus(), 0);
-    }
-
     // Label helpers
-    function showLabel(
-      el: Element,
-      cls: string,
-      variant: "hover" | "selected"
-    ) {
-      const labelId =
-        variant === "hover" ? "alloro-hover-label" : "alloro-selected-label";
-      let label = doc.getElementById(labelId);
-      if (!label) {
-        label = doc.createElement("div");
-        label.id = labelId;
-        label.className = "alloro-label";
-        doc.body.appendChild(label);
-      }
-
-      const elType = isComponent(cls) ? "component" : "section";
-      const tagName = el.tagName.toLowerCase();
-
-      // Build label content
-      label.innerHTML = "";
-      label.className =
-        "alloro-label alloro-label--" +
-        (variant === "selected" ? "selected-" : "") +
-        elType;
-
-      // Text span for the friendly name
-      const textSpan = doc.createElement("span");
-      textSpan.textContent = getFriendlyName(tagName);
-      label.appendChild(textSpan);
-
-      // Add action icons only for selected labels
-      if (variant === "selected") {
-        const actions = getActionsForTag(tagName);
-        if (actions.length > 0) {
-          const sep = doc.createElement("span");
-          sep.className = "alloro-label-sep";
-          label.appendChild(sep);
-
-          const currentLabel = label; // capture for closure
-          for (const action of actions) {
-            const btn = doc.createElement("button");
-            btn.className = "alloro-action-btn";
-            btn.setAttribute("data-alloro-action", action);
-            btn.innerHTML = ACTION_ICONS[action] || "";
-            btn.title = action === "text" ? "Edit text"
-              : action === "media" ? "Change image"
-              : action === "link" ? "Change link"
-              : action === "text-up" ? "Increase text size"
-              : action === "text-down" ? "Decrease text size"
-              : "Toggle visibility";
-            btn.addEventListener("click", (ev) => {
-              ev.stopPropagation();
-              ev.preventDefault();
-              if (action === "text-up" || action === "text-down") {
-                quickActionRef.current?.({ action });
-              } else if (action === "text") {
-                if (!beginCanvasTextEditing(el)) {
-                  showActionPanel(action, currentLabel);
-                }
-              } else if (action === "link") {
-                // Show inline input below the label
-                const hrefVal = action === "link"
-                  ? (el.tagName.toLowerCase() === "a" ? (el as HTMLAnchorElement).getAttribute("href") || "" : "")
-                  : undefined;
-                showActionPanel(action, currentLabel, hrefVal || undefined);
-              } else {
-                // Media and hide — dispatch directly to parent
-                quickActionRef.current?.({ action });
-              }
-            });
-            label.appendChild(btn);
-          }
-        }
-      }
-
-      const rect = el.getBoundingClientRect();
-      const scrollTop =
-        doc.documentElement.scrollTop || doc.body.scrollTop;
-      const scrollLeft =
-        doc.documentElement.scrollLeft || doc.body.scrollLeft;
-      label.style.position = "absolute";
-      label.style.top = rect.top + scrollTop - 26 + "px";
-      label.style.left = rect.left + scrollLeft + "px";
+    function showLabel(...args: [Element, string, "hover" | "selected"]) {
+      void args;
+      // Intentionally no-op. The sidebar owns editing controls; canvas chrome
+      // is limited to hover/selected outlines so it never overlaps content.
     }
 
     function hideLabel(variant: "hover" | "selected") {
@@ -621,16 +740,98 @@ export function useIframeSelector(
       if (label) label.remove();
     }
 
+    function clearHoverState() {
+      currentHoveredComponentRef.current = null;
+      doc
+        .querySelectorAll("[data-alloro-hover]")
+        .forEach((el) => el.removeAttribute("data-alloro-hover"));
+      hideLabel("hover");
+    }
+
     function isCanvasTextEditingActive() {
       return doc.body.dataset.alloroCanvasEditing === "true";
     }
 
+    function isEditorChromeClick(target: Element) {
+      return Boolean(
+        target.closest?.("#alloro-selected-label") ||
+          target.closest?.("#alloro-action-panel") ||
+          target.closest?.("#alloro-rich-toolbar") ||
+          target.closest?.('textarea[data-alloro-canvas-editor="true"]'),
+      );
+    }
+
+    function resolveEditableClickTarget(clickTarget: Element): Element | null {
+      // Shortcode pills (loops) are read-only placeholders — never selectable.
+      if (clickTarget.closest?.("[data-alloro-shortcode]")) return null;
+
+      // Content-first: the precise element under the cursor wins over any
+      // tagged ancestor — tag it on demand so the edit pipeline can key off
+      // the class. Container clicks (section padding, tagged cards) fall
+      // back to the nearest alloro-tagged ancestor.
+      let target = findAutoTagCandidate(clickTarget);
+      if (target) {
+        ensureGeneratedAlloroClass(target, doc);
+        return target;
+      }
+
+      target = findAlloroElement(clickTarget);
+      if (!target) return null;
+      // Header/footer are Layout Editor territory in page editors.
+      if (sectionsOnly && !target.closest("[data-alloro-section]")) return null;
+      return target;
+    }
+
+    doc.body.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      const clickTarget = e.target as Element;
+      if (isEditorChromeClick(clickTarget)) return;
+      if (isCanvasTextEditingActive()) return;
+
+      const target = resolveEditableClickTarget(clickTarget);
+      if (!target) return;
+      const info = buildSelectedInfo(target);
+      if (!info?.canCanvasEditText) return;
+
+      // Start text editing before Chrome's native mousedown/click focus path
+      // can put focus back on the iframe or sidebar. Starting on click is too
+      // late for the sandboxed preview: the session opens and immediately loses
+      // its caret, leaving only the blue selected outline.
+      e.preventDefault();
+      e.stopPropagation();
+
+      doc
+        .querySelectorAll("[data-alloro-selected]")
+        .forEach((el) => el.removeAttribute("data-alloro-selected"));
+      clearHoverState();
+      target.setAttribute("data-alloro-selected", "true");
+      showLabel(target, info.alloroClass, "selected");
+      setSelectedInfo(info);
+
+      const caretOffset = caretCharOffsetFromPoint(doc, target, e.clientX, e.clientY);
+      if (beginCanvasTextEditing(target, caretOffset)) {
+        ignoreNextCanvasEditClick = true;
+      }
+    }, true);
+
+    doc.body.addEventListener("mouseup", (e) => {
+      if (!ignoreNextCanvasEditClick) return;
+      const clickTarget = e.target as Element;
+      if (!isEditorChromeClick(clickTarget) && !clickTarget.closest?.("[data-alloro-editing='true']")) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+    }, true);
+
     // Event delegation on the body — survives DOM mutations
     doc.body.addEventListener("mouseover", (e) => {
-      if (isCanvasTextEditingActive()) return;
-      const target = findAlloroElement(e.target as Element);
-      if (!target) return;
-      const cls = getAlloroClass(target)!;
+      if (isCanvasTextEditingActive()) {
+        clearHoverState();
+        return;
+      }
+      const resolved = resolveHoverTarget(e.target as Element, sectionsOnly);
+      if (!resolved) return;
+      const { target, cls } = resolved;
       const elIsComponent = isComponent(cls);
 
       if (elIsComponent) {
@@ -652,10 +853,13 @@ export function useIframeSelector(
     });
 
     doc.body.addEventListener("mouseout", (e) => {
-      if (isCanvasTextEditingActive()) return;
-      const target = findAlloroElement(e.target as Element);
-      if (!target) return;
-      const cls = getAlloroClass(target)!;
+      if (isCanvasTextEditingActive()) {
+        clearHoverState();
+        return;
+      }
+      const resolved = resolveHoverTarget(e.target as Element, sectionsOnly);
+      if (!resolved) return;
+      const { target, cls } = resolved;
 
       target.removeAttribute("data-alloro-hover");
       if (isComponent(cls)) {
@@ -669,19 +873,45 @@ export function useIframeSelector(
     });
 
     doc.body.addEventListener("click", (e) => {
-      if (isCanvasTextEditingActive()) return;
       const clickTarget = e.target as Element;
 
+      if (ignoreNextCanvasEditClick) {
+        ignoreNextCanvasEditClick = false;
+        if (isCanvasTextEditingActive()) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+      }
+
+      // A click while a canvas/rich session is active must COMMIT that session
+      // (pinned to its own element via makeCommitHandler) and clear the flag
+      // synchronously so THIS same click can re-select — instead of being
+      // swallowed. The session's blur also schedules finish() a tick later;
+      // that becomes a no-op via the isFinished guard.
+      if (isCanvasTextEditingActive()) {
+        if (isEditorChromeClick(clickTarget) || clickTarget.closest?.("[data-alloro-editing='true']")) {
+          e.stopPropagation();
+          return;
+        }
+        canvasTextSessionRef.current?.commit();
+        canvasTextSessionRef.current = null;
+        delete doc.body.dataset.alloroCanvasEditing;
+      }
+
+      // Anchors are pointer-enabled inside sections — navigation must never
+      // fire in the editor, whether the click lands on a selectable element
+      // or not.
+      if (clickTarget.closest?.("a")) e.preventDefault();
+
       // Ignore clicks on action buttons or the action input panel
-      if (
-        clickTarget.closest?.("#alloro-selected-label") ||
-        clickTarget.closest?.("#alloro-action-panel")
-      ) return;
+      if (isEditorChromeClick(clickTarget)) return;
 
       // Dismiss action panel on any other click
       hideActionPanel();
+      clearHoverState();
 
-      const target = findAlloroElement(clickTarget);
+      const target = resolveEditableClickTarget(clickTarget);
       if (!target) return;
       const cls = getAlloroClass(target)!;
       const elIsComponent = isComponent(cls);
@@ -702,14 +932,29 @@ export function useIframeSelector(
       const info = buildSelectedInfo(target);
       if (info) setSelectedInfo(info);
       if (info?.canCanvasEditText) {
-        window.setTimeout(() => beginCanvasTextEditing(target), 0);
+        // Capture the caret offset now (element intact, no overlay yet) so the
+        // edit caret lands exactly where the user clicked. Begin SYNCHRONOUSLY
+        // (within the click gesture) so the iframe caret actually paints —
+        // deferring with setTimeout focused outside the gesture and showed no
+        // caret.
+        const caretOffset = caretCharOffsetFromPoint(doc, target, e.clientX, e.clientY);
+        beginCanvasTextEditing(target, caretOffset);
       }
     });
 
     doc.body.addEventListener("dblclick", (e) => {
       if (isCanvasTextEditingActive()) return;
-      const target = findAlloroElement(e.target as Element);
-      if (!target) return;
+      // Same content-first resolution as click; the preceding click normally
+      // tags the element already — this keeps dblclick safe on its own.
+      if ((e.target as Element).closest?.("[data-alloro-shortcode]")) return;
+      let target = findAutoTagCandidate(e.target as Element);
+      if (target) {
+        ensureGeneratedAlloroClass(target, doc);
+      } else {
+        target = findAlloroElement(e.target as Element);
+        if (!target) return;
+        if (sectionsOnly && !target.closest("[data-alloro-section]")) return;
+      }
 
       const info = buildSelectedInfo(target);
       if (!info?.canCanvasEditText) return;
@@ -719,12 +964,60 @@ export function useIframeSelector(
       doc
         .querySelectorAll("[data-alloro-selected]")
         .forEach((el) => el.removeAttribute("data-alloro-selected"));
+      clearHoverState();
       target.setAttribute("data-alloro-selected", "true");
       showLabel(target, info.alloroClass, "selected");
       setSelectedInfo(info);
       beginCanvasTextEditing(target);
     });
-  }, [beginCanvasTextEditing, iframeRef]);
+
+    // Keep the selected element's rect live as the page scrolls so the React
+    // popover tracks the element instead of floating in the viewport. The
+    // in-iframe label is absolutely positioned and already scrolls with
+    // content; this is only to sync the out-of-iframe overlay.
+    let scrollRaf = 0;
+    const handleScroll = () => {
+      if (scrollRaf) return;
+      scrollRaf = window.requestAnimationFrame(() => {
+        scrollRaf = 0;
+        const sel = doc.querySelector("[data-alloro-selected]");
+        if (!sel) return;
+        const r = sel.getBoundingClientRect();
+        setSelectedInfo((prev) =>
+          prev
+            ? {
+                ...prev,
+                rect: { top: r.top, left: r.left, width: r.width, height: r.height },
+              }
+            : prev,
+        );
+      });
+    };
+    doc.addEventListener("scroll", handleScroll, true);
+    doc.defaultView?.addEventListener("scroll", handleScroll, { passive: true });
+
+    // Re-apply the selection outline after an iframe (re)load. Switching the
+    // viewport toggle remounts the iframe (or swaps to a separate desktop/
+    // mobile iframe) with a fresh DOM that has lost the `data-alloro-selected`
+    // marker, even though selectedInfo — and the sidebar — persist. Without
+    // this the element stays selected logically but shows no outline.
+    const persisted = selectedInfoRef.current;
+    if (persisted) {
+      const selectedEl = doc.querySelector(`.${CSS.escape(persisted.alloroClass)}`);
+      if (selectedEl) {
+        selectedEl.setAttribute("data-alloro-selected", "true");
+        // The new iframe renders at the new viewport width, so the element's
+        // computed font size changes — refresh it so the size label reflects
+        // what this breakpoint actually renders.
+        const px = getComputedFontSizePx(selectedEl);
+        setSelectedInfo((prev) =>
+          prev && prev.alloroClass === persisted.alloroClass && prev.fontSizePx !== px
+            ? { ...prev, fontSizePx: px }
+            : prev,
+        );
+      }
+    }
+  }, [beginCanvasTextEditing, iframeRef, sectionsOnly]);
 
   const toggleHidden = useCallback(() => {
     if (!selectedInfo) return;
@@ -750,6 +1043,31 @@ export function useIframeSelector(
     });
   }, [iframeRef, selectedInfo]);
 
+  // Synchronously capture an in-progress canvas edit so Save/Publish persist
+  // it without the user first clicking away (the commit-on-blur is deferred,
+  // so a Save click would otherwise read the pre-edit content). Returns the
+  // edit to apply through the host's direct-edit pipeline, or null when no
+  // session is active. Ends the session.
+  const flushCanvasTextEdit = useCallback((): {
+    operation: DirectEditorOperation;
+    targetAlloroClass: string;
+  } | null => {
+    const session = canvasTextSessionRef.current;
+    const mode = activeCanvasModeRef.current;
+    const targetAlloroClass = activeCanvasTargetRef.current;
+    if (!session || !mode || !targetAlloroClass) return null;
+    const value = session.getValue();
+    // Cancel (not commit) — the captured value is applied via the host below,
+    // so cancel just restores the element to its pre-session markup and tears
+    // the session down without firing the deferred commit path.
+    session.cancel();
+    const operation: DirectEditorOperation =
+      mode === "rich"
+        ? { type: "replace-inline-html", html: value }
+        : { type: "replace-text", value };
+    return { operation, targetAlloroClass };
+  }, []);
+
   return {
     selectedInfo,
     setSelectedInfo,
@@ -757,6 +1075,7 @@ export function useIframeSelector(
     setupListeners,
     toggleHidden,
     beginCanvasTextEditing,
+    flushCanvasTextEdit,
     isCanvasTextEditing,
   };
 }

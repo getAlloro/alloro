@@ -1,15 +1,39 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Eye, EyeOff, ImagePlus, Link, Minus, Pencil, Plus } from "lucide-react";
+import {
+  AlignCenter,
+  AlignJustify,
+  AlignLeft,
+  AlignRight,
+  Eraser,
+  Eye,
+  EyeOff,
+  ImagePlus,
+  Minus,
+  Monitor,
+  Plus,
+  Smartphone,
+  X,
+} from "lucide-react";
 import type { SelectedInfo, QuickActionType } from "../../hooks/useIframeSelector";
 import {
   getDirectOperationAvailability,
   getSelectedTextValue,
+  getSelectedAltText,
+  getSelectedFontSizeLabel,
+  getSelectedTextAlign,
+  getSelectedResponsiveVisibility,
+  getSelectedBackgroundColorValue,
+  BACKGROUND_SIZE_PRESETS,
+  BACKGROUND_POSITION_PRESETS,
+  type BackgroundSizePreset,
+  type BackgroundPositionPreset,
+  type EditViewport,
   type DirectEditorOperation,
 } from "../../utils/editorDirectOperations";
-import { InlineIconButton } from "./InlineEditorControls";
 import MediaBrowser from "./MediaBrowser";
+import TextStyleControls from "./TextStyleControls";
 import type { MediaApi, MediaItem } from "./MediaBrowser";
-type ActiveAction = "text" | "link" | "media" | null;
+
 export type SelectedElementEditorPanelProps = {
   selectedInfo: SelectedInfo;
   isEditing: boolean;
@@ -18,7 +42,32 @@ export type SelectedElementEditorPanelProps = {
   onExternalActionHandled?: () => void;
   onApplyDirectEdit: (operation: DirectEditorOperation) => void;
   onToggleHidden?: () => void;
+  /** True while an in-canvas text session is active — the sidebar must not steal focus. */
+  isCanvasTextEditing?: boolean;
+  /** Deprecated: text edits are now applied immediately through onApplyDirectEdit. */
+  onLiveTextPreview?: (value: string) => void;
+  /** Deprecated: text edits are now applied immediately and are not reverted on unmount. */
+  onLiveTextRevert?: () => void;
+  /** Brand colors for the text-style swatches. */
+  primaryColor?: string | null;
+  accentColor?: string | null;
+  /** The active preview breakpoint — size/alignment/visibility edits target
+   *  this tier (base class for mobile, `md:` for desktop). */
+  editViewport?: EditViewport;
 };
+
+/** Typing pause that flushes the sidebar's plain-text auto-apply. */
+const TEXT_APPLY_DEBOUNCE_MS = 400;
+
+const LABEL_CLS = "text-[10px] font-bold uppercase tracking-wider text-gray-400";
+const FIELD_CLS =
+  "w-full rounded-lg border border-gray-200 bg-[var(--ec-raised)] px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-alloro-orange focus:ring-2 focus:ring-alloro-orange/20 disabled:opacity-50";
+const APPLY_CLS =
+  "inline-flex items-center justify-center gap-1.5 rounded-lg bg-alloro-orange px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-alloro-orange/90 disabled:opacity-30";
+const STEP_CLS =
+  "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600 transition hover:bg-gray-200 disabled:opacity-40";
+const BG_SWATCHES = ["#ffffff", "#f8fafc", "#111827", "#d66853", "#06b6d4"];
+
 export default function SelectedElementEditorPanel({
   selectedInfo,
   isEditing,
@@ -27,166 +76,546 @@ export default function SelectedElementEditorPanel({
   onExternalActionHandled,
   onApplyDirectEdit,
   onToggleHidden,
+  isCanvasTextEditing = false,
+  primaryColor,
+  accentColor,
+  editViewport = "desktop",
 }: SelectedElementEditorPanelProps) {
-  const [activeAction, setActiveAction] = useState<ActiveAction>(null);
-  const [actionInput, setActionInput] = useState("");
+  const [textValue, setTextValue] = useState("");
+  const [linkValue, setLinkValue] = useState("");
+  const [altValue, setAltValue] = useState("");
+  const [showMedia, setShowMedia] = useState(false);
+  const [bgColor, setBgColor] = useState("#ffffff");
+  const [showBgMedia, setShowBgMedia] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const linkInputRef = useRef<HTMLInputElement>(null);
-  const { canEditText, canChangeMedia, canChangeLink, canAdjustTextSize } =
-    getDirectOperationAvailability(selectedInfo, Boolean(mediaApi));
+
+  const {
+    canEditText,
+    canChangeMedia,
+    canChangeLink,
+    canAdjustTextSize,
+    canEditAltText,
+    canStyleText,
+    canEditBackground,
+    canEditAlign,
+    canEditResponsiveVisibility,
+  } = getDirectOperationAvailability(selectedInfo, Boolean(mediaApi));
+
+  const currentAlign = getSelectedTextAlign(selectedInfo, editViewport);
+  const visibleInViewport = getSelectedResponsiveVisibility(selectedInfo, editViewport);
+  const viewportLabel = editViewport === "mobile" ? "mobile" : "desktop";
+
+  const hasBackgroundImage = Boolean(
+    selectedInfo.backgroundImage && selectedInfo.backgroundImage !== "none",
+  );
+
+  // Hydrate every field from the freshly-selected element.
   useEffect(() => {
-    if (canEditText) {
-      setActiveAction("text");
-      setActionInput(getSelectedTextValue(selectedInfo));
+    setTextValue(getSelectedTextValue(selectedInfo));
+    setLinkValue(selectedInfo.href || "");
+    setAltValue(getSelectedAltText(selectedInfo));
+    setBgColor(getSelectedBackgroundColorValue(selectedInfo));
+    setShowMedia(false);
+    setShowBgMedia(false);
+  }, [selectedInfo]);
+
+  // The sidebar Content field must never grab focus when the element can be
+  // edited directly on the page — focusing here blurs (and ends) that on-page
+  // caret session. Only auto-focus the sidebar for text that can't be edited
+  // in-canvas (e.g. nested-content elements that fall back to the sidebar).
+  const isCanvasEditingRef = useRef(isCanvasTextEditing);
+  isCanvasEditingRef.current = isCanvasTextEditing;
+  useEffect(() => {
+    if (
+      isCanvasTextEditing ||
+      selectedInfo.canCanvasEditText ||
+      !canEditText
+    ) {
       return;
     }
-    setActiveAction(null);
-    setActionInput("");
-  }, [canEditText, selectedInfo, selectedInfo.alloroClass, selectedInfo.outerHtml]);
+    const id = window.setTimeout(() => {
+      if (isCanvasEditingRef.current) return;
+      textAreaRef.current?.focus();
+    }, 50);
+    return () => window.clearTimeout(id);
+  }, [
+    selectedInfo.alloroClass,
+    selectedInfo.canCanvasEditText,
+    canEditText,
+    isCanvasTextEditing,
+  ]);
+
+  // Quick-actions dispatched from the iframe label icons.
   useEffect(() => {
     if (!externalAction) return;
-
     if (externalAction === "hide") {
-      if (onToggleHidden) {
-        onToggleHidden();
-      } else {
-        onApplyDirectEdit({ type: "toggle-hidden" });
-      }
+      if (onToggleHidden) onToggleHidden();
+      else onApplyDirectEdit({ type: "toggle-hidden" });
     } else if (externalAction === "text-up" || externalAction === "text-down") {
       onApplyDirectEdit({
         type: "step-font-size",
         direction: externalAction === "text-up" ? "up" : "down",
+        viewport: editViewport,
       });
     } else if (externalAction === "text") {
-      setActiveAction("text");
-      setActionInput(getSelectedTextValue(selectedInfo));
+      textAreaRef.current?.focus();
     } else if (externalAction === "link") {
-      setActiveAction("link");
-      setActionInput(selectedInfo.href || "");
-    } else {
-      setActiveAction("media");
-      setActionInput("");
+      linkInputRef.current?.focus();
+    } else if (externalAction === "media") {
+      setShowMedia(true);
     }
     onExternalActionHandled?.();
-  }, [externalAction, onApplyDirectEdit, onExternalActionHandled, onToggleHidden, selectedInfo]);
+  }, [externalAction, onApplyDirectEdit, onExternalActionHandled, onToggleHidden, editViewport]);
+
+  // Sidebar text commits are replace-text (sets textContent) — safe ONLY for
+  // elements with no inline children. Rich elements (anchors, spans, br…)
+  // must be edited on the page, where contentEditable preserves markup;
+  // applying replace-text would flatten their children on the first keystroke.
+  const isRichTextContent = selectedInfo.canvasTextEditMode === "rich";
+
+  // Debounce the plain-text auto-apply so a typing burst lands as one edit
+  // (one undo entry, one section extraction) instead of one per character.
+  const textDebounceRef = useRef<number | null>(null);
+  const pendingTextRef = useRef<string | null>(null);
+
+  const cancelPendingTextApply = () => {
+    if (textDebounceRef.current) {
+      window.clearTimeout(textDebounceRef.current);
+      textDebounceRef.current = null;
+    }
+    pendingTextRef.current = null;
+  };
+
+  const flushTextApply = () => {
+    if (textDebounceRef.current) {
+      window.clearTimeout(textDebounceRef.current);
+      textDebounceRef.current = null;
+    }
+    const pending = pendingTextRef.current;
+    pendingTextRef.current = null;
+    if (pending == null) return;
+    onApplyDirectEdit({ type: "replace-text", value: pending });
+  };
+  const flushTextApplyRef = useRef(flushTextApply);
+  flushTextApplyRef.current = flushTextApply;
+
+  // Never let a pending apply leak across a selection change — it would
+  // write this element's text into the next one.
   useEffect(() => {
-    if (activeAction === "text") {
-      window.setTimeout(() => textAreaRef.current?.focus(), 50);
-    }
-    if (activeAction === "link") {
-      window.setTimeout(() => linkInputRef.current?.focus(), 50);
-    }
-  }, [activeAction]);
-  const applyText = () => {
-    const nextText = actionInput.trim();
-    if (!nextText) return;
-    onApplyDirectEdit({ type: "replace-text", value: nextText });
+    return () => {
+      if (textDebounceRef.current) {
+        window.clearTimeout(textDebounceRef.current);
+        textDebounceRef.current = null;
+      }
+      pendingTextRef.current = null;
+    };
+  }, [selectedInfo.alloroClass]);
+
+  const handleTextInput = (value: string) => {
+    setTextValue(value);
+    if (isRichTextContent) return;
+    pendingTextRef.current = value;
+    if (textDebounceRef.current) window.clearTimeout(textDebounceRef.current);
+    textDebounceRef.current = window.setTimeout(
+      () => flushTextApplyRef.current(),
+      TEXT_APPLY_DEBOUNCE_MS,
+    );
   };
   const applyLink = () => {
-    const href = actionInput.trim();
+    const href = linkValue.trim();
     if (!href) return;
     onApplyDirectEdit({ type: "update-link", href });
-    setActiveAction(null);
-    setActionInput("");
   };
+  const applyAlt = () => onApplyDirectEdit({ type: "set-alt-text", value: altValue });
   const handleMediaSelect = (media: MediaItem) => {
     onApplyDirectEdit({ type: "replace-media", media });
-    setActiveAction(null);
+    setShowMedia(false);
   };
-  const openTextAction = () => {
-    setActiveAction("text");
-    setActionInput(getSelectedTextValue(selectedInfo));
+  const handleBgMediaSelect = (media: MediaItem) => {
+    onApplyDirectEdit({ type: "set-background-image", media });
+    setShowBgMedia(false);
   };
-  const openLinkAction = () => {
-    setActiveAction("link");
-    setActionInput(selectedInfo.href || "");
-  };
-  const handleToggleVisibility = () => {
-    if (onToggleHidden) {
-      onToggleHidden();
-      return;
-    }
-    onApplyDirectEdit({ type: "toggle-hidden" });
-  };
-  const stepFontSize = (direction: "up" | "down") => {
-    onApplyDirectEdit({ type: "step-font-size", direction });
-  };
-  const handleTextKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-      event.preventDefault();
-      applyText();
-    }
-    if (event.key === "Escape") {
-      setActionInput(getSelectedTextValue(selectedInfo));
-    }
-  };
-  const handleLinkKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      applyLink();
-    }
-    if (event.key === "Escape") setActionInput(selectedInfo.href || "");
-  };
+  const stepFontSize = (direction: "up" | "down") =>
+    onApplyDirectEdit({ type: "step-font-size", direction, viewport: editViewport });
+  const setAlign = (align: "left" | "center" | "right" | "justify") =>
+    onApplyDirectEdit({ type: "set-text-align", align, viewport: editViewport });
+  const setViewportVisible = (visible: boolean) =>
+    onApplyDirectEdit({ type: "set-responsive-visibility", visible, viewport: editViewport });
+
   return (
-    <div className="border-b border-gray-100 bg-gray-50">
-      <div className="flex items-center justify-between px-4 py-2">
+    <div className="flex flex-col gap-5 border-b border-gray-200 bg-gray-50 px-5 py-4">
+      {/* Element header */}
+      <div className="flex items-center justify-between">
         <div className="flex min-w-0 items-center gap-2">
-          <span className={`h-2 w-2 shrink-0 rounded-full ${selectedInfo.type === "section" ? "bg-purple-500" : "bg-blue-500"}`} />
-          <span className="text-xs font-semibold text-gray-700">{selectedInfo.friendlyName}</span>
+          <span
+            className={`h-2 w-2 shrink-0 rounded-full ${selectedInfo.type === "section" ? "bg-purple-400" : "bg-[var(--ec-cobalt)]"}`}
+          />
+          <span className="text-sm font-semibold text-gray-900">
+            {selectedInfo.friendlyName}
+          </span>
           {selectedInfo.isHidden && (
             <span className="shrink-0 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
               Hidden
             </span>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {canEditText && <InlineIconButton emphasis={activeAction === "text"} disabled={isEditing} label="Edit text" onClick={openTextAction}><Pencil className="h-3.5 w-3.5" /></InlineIconButton>}
-          {canAdjustTextSize && (
-            <>
-              <InlineIconButton disabled={isEditing} label="Decrease text size" onClick={() => stepFontSize("down")}><Minus className="h-3.5 w-3.5" /></InlineIconButton>
-              <InlineIconButton disabled={isEditing} label="Increase text size" onClick={() => stepFontSize("up")}><Plus className="h-3.5 w-3.5" /></InlineIconButton>
-            </>
+        <button
+          type="button"
+          onClick={() =>
+            onToggleHidden
+              ? onToggleHidden()
+              : onApplyDirectEdit({ type: "toggle-hidden" })
+          }
+          aria-label={selectedInfo.isHidden ? "Show element" : "Hide element"}
+          title={selectedInfo.isHidden ? "Show element" : "Hide element"}
+          className="flex h-9 items-center gap-1.5 rounded-lg bg-gray-100 px-3 text-xs font-semibold text-gray-600 transition hover:bg-gray-200"
+        >
+          {selectedInfo.isHidden ? (
+            <Eye className="h-3.5 w-3.5" />
+          ) : (
+            <EyeOff className="h-3.5 w-3.5" />
           )}
-          {canChangeMedia && <InlineIconButton emphasis={activeAction === "media"} disabled={isEditing} label="Change media" onClick={() => setActiveAction(activeAction === "media" ? null : "media")}><ImagePlus className="h-3.5 w-3.5" /></InlineIconButton>}
-          {canChangeLink && <InlineIconButton emphasis={activeAction === "link"} disabled={isEditing} label="Change link" onClick={openLinkAction}><Link className="h-3.5 w-3.5" /></InlineIconButton>}
-          <InlineIconButton emphasis={selectedInfo.isHidden} label={selectedInfo.isHidden ? "Unhide element" : "Hide element"} onClick={handleToggleVisibility}>{selectedInfo.isHidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}</InlineIconButton>
-        </div>
+          {selectedInfo.isHidden ? "Show" : "Hide"}
+        </button>
       </div>
 
-      {activeAction === "text" && (
-        <div className="px-4 pb-3">
+      {/* Content (editable text) */}
+      {canEditText && (
+        <section className="space-y-1.5">
+          <p className={LABEL_CLS}>Content</p>
           <textarea
             ref={textAreaRef}
-            value={actionInput}
-            onChange={(event) => setActionInput(event.target.value)}
-            onKeyDown={handleTextKeyDown}
+            value={textValue}
+            onChange={(e) => handleTextInput(e.target.value)}
+            onBlur={() => {
+              if (!isRichTextContent) flushTextApply();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                cancelPendingTextApply();
+                setTextValue(getSelectedTextValue(selectedInfo));
+              }
+            }}
             disabled={isEditing}
-            rows={5}
-            placeholder="Enter new text..."
-            className="min-h-[112px] w-full resize-y rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm leading-5 text-gray-900 outline-none transition focus:border-alloro-orange focus:ring-2 focus:ring-alloro-orange/20 disabled:opacity-50"
+            readOnly={isRichTextContent}
+            rows={6}
+            placeholder="Enter text…"
+            className={`${FIELD_CLS} max-h-[340px] min-h-[150px] resize-none overflow-y-auto leading-5 ${
+              isRichTextContent ? "opacity-60" : ""
+            }`}
           />
-          <div className="mt-2 flex justify-end">
-            <button onClick={applyText} disabled={isEditing || !actionInput.trim()} className="inline-flex items-center gap-1.5 rounded-lg bg-alloro-orange px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-alloro-orange/90 disabled:opacity-30">
-              <Check className="h-3.5 w-3.5" />
+          {isRichTextContent && (
+            <p className="text-[11px] leading-4 text-gray-400">
+              This text contains links or formatting — edit it directly on the
+              page so they're preserved.
+            </p>
+          )}
+        </section>
+      )}
+
+      {/* Responsive-scope banner — size/alignment/visibility below target the
+          active preview breakpoint. */}
+      {(canAdjustTextSize || canEditAlign || canEditResponsiveVisibility) && (
+        <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-[var(--ec-raised)] px-3 py-2 text-[11px] font-medium text-gray-400">
+          {editViewport === "mobile" ? (
+            <Smartphone className="h-3.5 w-3.5 shrink-0 text-[var(--ec-cobalt)]" />
+          ) : (
+            <Monitor className="h-3.5 w-3.5 shrink-0 text-[var(--ec-cobalt)]" />
+          )}
+          <span>
+            Size, alignment &amp; visibility apply to the{" "}
+            <span className="font-semibold text-gray-200">{viewportLabel}</span>{" "}
+            view. Switch the device toggle to edit the other.
+          </span>
+        </div>
+      )}
+
+      {/* Size */}
+      {canAdjustTextSize && (
+        <section className="space-y-1.5">
+          <p className={LABEL_CLS}>Size · {viewportLabel}</p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => stepFontSize("down")}
+              disabled={isEditing}
+              aria-label="Decrease text size"
+              className={STEP_CLS}
+            >
+              <Minus className="h-4 w-4" />
+            </button>
+            <span className="flex-1 rounded-lg border border-gray-200 bg-[var(--ec-raised)] py-2 text-center text-xs font-semibold text-gray-700">
+              {getSelectedFontSizeLabel(selectedInfo)}
+            </span>
+            <button
+              onClick={() => stepFontSize("up")}
+              disabled={isEditing}
+              aria-label="Increase text size"
+              className={STEP_CLS}
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+        </section>
+      )}
+
+      {/* Alignment */}
+      {canEditAlign && (
+        <section className="space-y-1.5">
+          <p className={LABEL_CLS}>Align · {viewportLabel}</p>
+          <div className="flex items-center gap-2">
+            {([
+              ["left", AlignLeft],
+              ["center", AlignCenter],
+              ["right", AlignRight],
+              ["justify", AlignJustify],
+            ] as const).map(([align, Icon]) => (
+              <button
+                key={align}
+                onClick={() => setAlign(align)}
+                disabled={isEditing}
+                aria-label={`Align ${align}`}
+                aria-pressed={currentAlign === align}
+                title={`Align ${align}`}
+                className={`flex h-9 flex-1 items-center justify-center rounded-lg border transition disabled:opacity-50 ${
+                  currentAlign === align
+                    ? "border-alloro-orange bg-alloro-orange text-white"
+                    : "border-gray-200 bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Color + font family */}
+      {canStyleText && (
+        <TextStyleControls
+          selectedInfo={selectedInfo}
+          isEditing={isEditing}
+          onApplyDirectEdit={onApplyDirectEdit}
+          primaryColor={primaryColor}
+          accentColor={accentColor}
+        />
+      )}
+
+      {/* Link */}
+      {canChangeLink && (
+        <section className="space-y-1.5">
+          <p className={LABEL_CLS}>Link</p>
+          <div className="flex items-center gap-2">
+            <input
+              ref={linkInputRef}
+              type="text"
+              value={linkValue}
+              onChange={(e) => setLinkValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  applyLink();
+                }
+                if (e.key === "Escape") setLinkValue(selectedInfo.href || "");
+              }}
+              placeholder="https://…"
+              className={`${FIELD_CLS} text-xs`}
+            />
+            <button onClick={applyLink} disabled={!linkValue.trim()} className={APPLY_CLS}>
               Apply
             </button>
           </div>
-        </div>
+        </section>
       )}
 
-      {activeAction === "link" && (
-        <div className="px-4 pb-2">
-          <div className="flex items-center gap-1.5">
-            <input ref={linkInputRef} type="text" value={actionInput} onChange={(event) => setActionInput(event.target.value)} onKeyDown={handleLinkKeyDown} placeholder="Enter URL..." className="flex-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-900 outline-none transition focus:border-alloro-orange focus:ring-1 focus:ring-alloro-orange/20" />
-            <button onClick={applyLink} disabled={!actionInput.trim()} className="rounded-lg bg-alloro-orange px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-alloro-orange/90 disabled:opacity-30">Apply</button>
+      {/* Photo (replace) */}
+      {canChangeMedia && (
+        <section className="space-y-1.5">
+          <p className={LABEL_CLS}>Photo</p>
+          <button
+            onClick={() => setShowMedia((open) => !open)}
+            disabled={isEditing}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-200 disabled:opacity-40"
+          >
+            <ImagePlus className="h-3.5 w-3.5" />
+            {showMedia ? "Close library" : "Replace photo"}
+          </button>
+          {showMedia && mediaApi && (
+            <MediaBrowser
+              mediaApi={mediaApi}
+              onSelect={handleMediaSelect}
+              onClose={() => setShowMedia(false)}
+            />
+          )}
+        </section>
+      )}
+
+      {/* Alt text */}
+      {canEditAltText && (
+        <section className="space-y-1.5">
+          <p className={LABEL_CLS}>Alt text</p>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={altValue}
+              onChange={(e) => setAltValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  applyAlt();
+                }
+                if (e.key === "Escape") setAltValue(getSelectedAltText(selectedInfo));
+              }}
+              placeholder="Describe this image…"
+              className={`${FIELD_CLS} text-xs`}
+            />
+            <button onClick={applyAlt} disabled={isEditing} className={APPLY_CLS}>
+              Apply
+            </button>
           </div>
-        </div>
+        </section>
       )}
 
-      {activeAction === "media" && mediaApi && (
-        <div className="px-4 pb-2">
-          <MediaBrowser mediaApi={mediaApi} onSelect={handleMediaSelect} onClose={() => setActiveAction(null)} />
-        </div>
+      {/* Background (sections + containers) */}
+      {canEditBackground && (
+        <section className="space-y-2">
+          <p className={LABEL_CLS}>Background</p>
+          <div className="flex flex-wrap items-center gap-2">
+            {BG_SWATCHES.map((color) => (
+              <button
+                key={color}
+                type="button"
+                disabled={isEditing}
+                onClick={() => onApplyDirectEdit({ type: "set-background-color", color })}
+                title={`Background ${color}`}
+                aria-label={`Set background ${color}`}
+                className="h-6 w-6 rounded-full border border-gray-300 shadow-sm transition hover:scale-105 disabled:opacity-40"
+                style={{ backgroundColor: color }}
+              />
+            ))}
+            <label
+              title="Custom background color"
+              className="h-6 w-6 cursor-pointer overflow-hidden rounded-full border border-gray-300 bg-[conic-gradient(red,yellow,lime,cyan,blue,magenta,red)] hover:border-gray-500"
+            >
+              <input
+                type="color"
+                value={bgColor}
+                disabled={isEditing}
+                onChange={(e) => setBgColor(e.target.value)}
+                onBlur={() => onApplyDirectEdit({ type: "set-background-color", color: bgColor })}
+                className="h-full w-full cursor-pointer opacity-0"
+                aria-label="Custom background color"
+              />
+            </label>
+            <button
+              onClick={() => onApplyDirectEdit({ type: "clear-background-color" })}
+              disabled={isEditing}
+              title="Clear background color"
+              aria-label="Clear background color"
+              className="flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 text-gray-400 transition hover:border-gray-500 hover:text-gray-600 disabled:opacity-40"
+            >
+              <Eraser className="h-3 w-3" />
+            </button>
+          </div>
+
+          {mediaApi && (
+            <button
+              onClick={() => setShowBgMedia((open) => !open)}
+              disabled={isEditing}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-200 disabled:opacity-40"
+            >
+              <ImagePlus className="h-3.5 w-3.5" />
+              {showBgMedia
+                ? "Close library"
+                : hasBackgroundImage
+                  ? "Replace background image"
+                  : "Add background image"}
+            </button>
+          )}
+          {showBgMedia && mediaApi && (
+            <MediaBrowser
+              mediaApi={mediaApi}
+              onSelect={handleBgMediaSelect}
+              onClose={() => setShowBgMedia(false)}
+            />
+          )}
+
+          {hasBackgroundImage && (
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedInfo.backgroundSize || "cover"}
+                disabled={isEditing}
+                onChange={(e) =>
+                  onApplyDirectEdit({
+                    type: "set-background-size",
+                    size: e.target.value as BackgroundSizePreset,
+                  })
+                }
+                className={`${FIELD_CLS} text-xs`}
+                aria-label="Background size"
+              >
+                {BACKGROUND_SIZE_PRESETS.map((size) => (
+                  <option key={size} value={size}>{size}</option>
+                ))}
+              </select>
+              <select
+                value={selectedInfo.backgroundPosition || "center center"}
+                disabled={isEditing}
+                onChange={(e) =>
+                  onApplyDirectEdit({
+                    type: "set-background-position",
+                    position: e.target.value as BackgroundPositionPreset,
+                  })
+                }
+                className={`${FIELD_CLS} text-xs`}
+                aria-label="Background position"
+              >
+                {BACKGROUND_POSITION_PRESETS.map((position) => (
+                  <option key={position} value={position}>{position}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => onApplyDirectEdit({ type: "clear-background-image" })}
+                disabled={isEditing}
+                title="Remove background image"
+                aria-label="Remove background image"
+                className={STEP_CLS}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Visibility on the active breakpoint (Tailwind responsive hide — keeps
+          the element in the HTML, unlike the header Hide which removes it). */}
+      {canEditResponsiveVisibility && (
+        <section className="space-y-1.5">
+          <p className={LABEL_CLS}>Visibility · {viewportLabel}</p>
+          <button
+            onClick={() => setViewportVisible(!visibleInViewport)}
+            disabled={isEditing}
+            aria-pressed={!visibleInViewport}
+            className={`flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition disabled:opacity-50 ${
+              visibleInViewport
+                ? "border-gray-200 bg-gray-100 text-gray-700 hover:bg-gray-200"
+                : "border-alloro-orange bg-alloro-orange/10 text-alloro-orange"
+            }`}
+          >
+            {visibleInViewport ? (
+              <>
+                <EyeOff className="h-3.5 w-3.5" />
+                Hide on {viewportLabel}
+              </>
+            ) : (
+              <>
+                <Eye className="h-3.5 w-3.5" />
+                Hidden on {viewportLabel} — show
+              </>
+            )}
+          </button>
+        </section>
       )}
     </div>
   );

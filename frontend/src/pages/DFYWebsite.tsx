@@ -9,8 +9,6 @@ import {
   ArrowLeft,
   Monitor,
   Smartphone,
-  Undo2,
-  Redo2,
   RotateCcw,
   Loader2,
   Save,
@@ -53,6 +51,8 @@ import {
 } from "../utils/editorDirectOperations";
 import EditorSidebar from "../components/PageEditor/EditorSidebar";
 import InlineEditorPopover from "../components/PageEditor/InlineEditorPopover";
+import { ConfirmModal } from "../components/settings/ConfirmModal";
+import { useLocalDraftBackup } from "../hooks/useLocalDraftBackup";
 import type { ChatMessage } from "../components/PageEditor/ChatPanel";
 import type { PageVersion } from "../components/PageEditor/VersionHistoryTab";
 import type { Section } from "../api/templates";
@@ -89,8 +89,15 @@ interface Project {
 }
 
 const DESKTOP_SCALE = 0.7;
+/** Window in which consecutive same-element text applies share one undo entry. */
+const TEXT_UNDO_COALESCE_MS = 2500;
 const WEBSITE_TABS = ["overview", "editor", "submissions", "posts", "menus", "pages"] as const;
 type WebsiteTab = typeof WEBSITE_TABS[number];
+
+type SectionHistoryEntry = {
+  sections: Section[];
+  changedSectionNames?: string[];
+};
 
 function parseWebsiteTab(value: string | null): WebsiteTab | null {
   return WEBSITE_TABS.includes(value as WebsiteTab)
@@ -132,13 +139,20 @@ export function DFYWebsite() {
   const [chatMap, setChatMap] = useState<Map<string, ChatMessage[]>>(new Map());
   const [isEditing, setIsEditing] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
-  const [undoStack, setUndoStack] = useState<Section[][]>([]);
-  const [redoStack, setRedoStack] = useState<Section[][]>([]);
+  const [undoStack, setUndoStack] = useState<SectionHistoryEntry[]>([]);
+  const [redoStack, setRedoStack] = useState<SectionHistoryEntry[]>([]);
   const [isDirty, setIsDirty] = useState(false);
   const [isResolving, setIsResolving] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [pendingSidebarAction, setPendingSidebarAction] =
     useState<QuickActionType | null>(null);
+
+  // Optimistic-concurrency conflict (409 STALE_WRITE) on save
+  const [showConflictModal, setShowConflictModal] = useState(false);
+
+  // Crash-recovery prompt (localStorage backup newer than the server row)
+  const [recoveryPrompt, setRecoveryPrompt] = useState<Section[] | null>(null);
+  const recoveryCheckedRef = useRef<string | null>(null);
 
   const { setCollapsed } = useSidebar();
   const mediaApi = useMemo(() => userWebsiteMediaApi, []);
@@ -175,10 +189,64 @@ export function DFYWebsite() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const sectionsRef = useRef(sections);
   sectionsRef.current = sections;
+
+  // The element currently being live-previewed from the sidebar textarea —
+  // stored WITH its class so revert always targets the previewed element,
+  // even after the selection has moved on (visual only; restored on abandon).
+  const liveTextRef = useRef<{ alloroClass: string; html: string } | null>(null);
+
+  // Crash-recovery backup (localStorage mirror of dirty sections)
+  const { clearBackup, readBackup } = useLocalDraftBackup({
+    pageId: selectedPage?.id ?? null,
+    sections,
+    isDirty,
+  });
+
+  // Offer recovery once per page when a backup is newer than the server row.
+  useEffect(() => {
+    if (!selectedPage || activeView !== "editor") return;
+    if (recoveryCheckedRef.current === selectedPage.id) return;
+    recoveryCheckedRef.current = selectedPage.id;
+
+    const backup = readBackup(selectedPage.id);
+    if (!backup) return;
+    if (backup.savedAt > new Date(selectedPage.updated_at).getTime()) {
+      setRecoveryPrompt(backup.sections);
+    }
+  }, [selectedPage, activeView, readBackup]);
+
+  // --- Cmd/Ctrl+S saves (never the browser dialog) ---
+  // Ref indirection keeps the listener identity stable; the actual save
+  // handler is assigned after it's defined below.
+  const saveRef = useRef<() => void>(() => {});
+
+  const handleSaveShortcut = useCallback((e: KeyboardEvent) => {
+    if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "s") return;
+    e.preventDefault();
+    saveRef.current();
+  }, []);
+
+  useEffect(() => {
+    if (activeView !== "editor") return;
+    window.addEventListener("keydown", handleSaveShortcut);
+    return () => window.removeEventListener("keydown", handleSaveShortcut);
+  }, [activeView, handleSaveShortcut]);
   const deferredEditRef = useRef<DirectEditorOperation | null>(null);
+  // The element a deferred commit is pinned to (from the canvas session that
+  // emitted it) so it applies there even if the selection has moved on.
+  const deferredTargetRef = useRef<string | undefined>(undefined);
   // Tracks the page whose editor HTML is already assembled, so re-entering the
   // editor tab (e.g. from the overview) doesn't rebuild and clobber unsaved edits.
   const assembledPageIdRef = useRef<string | null>(null);
+  // True when in-place iframe mutations have outrun htmlContent. Any iframe
+  // remount (viewport toggle, editor re-entry) must rebuild from sections
+  // first, or the stale srcDoc visually reverts the edits and the NEXT
+  // edit's extraction persists that reversion.
+  const htmlStaleRef = useRef(false);
+  // Coalesce consecutive sidebar text applies on the same element into one
+  // undo entry (the field debounces, but a long sentence still flushes
+  // several times).
+  const textUndoCoalesceRef = useRef<{ cls: string; at: number } | null>(null);
 
   // Collapse the sidebar only while the page editor is open; expand it for the
   // overview and every other (non-editor) view. Restore on unmount.
@@ -186,6 +254,14 @@ export function DFYWebsite() {
     setCollapsed(activeView === "editor");
     return () => setCollapsed(false);
   }, [activeView, setCollapsed]);
+
+  // Hide the global support FAB while the editor view is open so it never
+  // overlaps the sidebar (see index.css [data-editor-fullscreen]).
+  useEffect(() => {
+    if (activeView !== "editor") return;
+    document.body.setAttribute("data-editor-fullscreen", "true");
+    return () => document.body.removeAttribute("data-editor-fullscreen");
+  }, [activeView]);
 
   // Normalize legacy links like ?view=submissions to the new ?tab= permalink.
   useEffect(() => {
@@ -288,15 +364,30 @@ export function DFYWebsite() {
         undefined,
         project.id,
       );
+      htmlStaleRef.current = false;
       setHtmlContent(html);
     },
     [project],
   );
 
+  // The desktop and mobile previews are separate <iframe> elements, so the
+  // viewport toggle remounts — rebuild first when in-place edits made the
+  // current htmlContent stale.
+  useEffect(() => {
+    if (htmlStaleRef.current) rebuildHtml(sectionsRef.current);
+  }, [viewportMode, rebuildHtml]);
+
   // Quick action handler from iframe label icons
   const handleIframeQuickAction = useCallback(
     (payload: QuickActionPayload) => {
-      if (
+      deferredTargetRef.current = payload.targetAlloroClass;
+      if (payload.action === "rich-text" && payload.value) {
+        deferredEditRef.current = {
+          type: "replace-inline-html",
+          html: payload.value,
+        };
+        setPendingSidebarAction("__deferred__" as QuickActionType);
+      } else if (
         (payload.action === "text" || payload.action === "link") &&
         payload.value
       ) {
@@ -328,8 +419,12 @@ export function DFYWebsite() {
     clearSelection,
     setupListeners,
     beginCanvasTextEditing,
+    flushCanvasTextEdit,
     isCanvasTextEditing,
-  } = useIframeSelector(iframeRef, handleIframeQuickAction);
+  } = useIframeSelector(iframeRef, handleIframeQuickAction, {
+    sectionsOnly: true,
+    onDirty: () => setIsDirty(true),
+  });
 
   // User-facing API wrappers (routes don't need projectId — inferred from auth)
   const userFetchRecipients = async (_projectId: string) =>
@@ -535,7 +630,14 @@ export function DFYWebsite() {
     // a page that's already built so returning from the overview/other tabs
     // preserves unsaved edits.
     if (activeView !== "editor") return;
-    if (assembledPageIdRef.current === selectedPage.id) return;
+    if (assembledPageIdRef.current === selectedPage.id) {
+      // Re-entering the editor for an already-built page: the iframe is
+      // about to remount, and in-place edits may have outrun htmlContent —
+      // rebuild from sections so the edits don't visually revert (and then
+      // get persisted as a reversion by the next extraction).
+      if (htmlStaleRef.current) rebuildHtml(sectionsRef.current);
+      return;
+    }
     assembledPageIdRef.current = selectedPage.id;
 
     const pageSections = normalizeSections(selectedPage.sections);
@@ -551,6 +653,7 @@ export function DFYWebsite() {
       undefined,
       project.id,
     );
+    htmlStaleRef.current = false;
     setHtmlContent(html);
 
     // Reset editor state for new page
@@ -559,7 +662,7 @@ export function DFYWebsite() {
     setRedoStack([]);
     setEditError(null);
     setIsDirty(false);
-  }, [selectedPage, project, activeView]);
+  }, [selectedPage, project, activeView, rebuildHtml]);
 
   const fetchWebsite = async () => {
     try {
@@ -578,7 +681,15 @@ export function DFYWebsite() {
         }
 
         if (data.pages?.length > 0) {
-          setSelectedPage(data.pages[0]);
+          // Preserve the current selection by PATH — a restore replaces the
+          // row at the path with a new id, and resetting to pages[0] would
+          // silently swap the editor to the wrong page.
+          setSelectedPage((prev) => {
+            const samePath = prev
+              ? data.pages.find((p: Page) => p.path === prev.path)
+              : undefined;
+            return samePath ?? data.pages[0];
+          });
         }
       }
     } catch (error) {
@@ -588,10 +699,14 @@ export function DFYWebsite() {
     }
   };
 
-  // --- Handle iframe load: set up selector listeners ---
+  // --- Handle iframe load: set up selector listeners + save shortcut ---
   const handleIframeLoad = useCallback(() => {
     setupListeners();
-  }, [setupListeners]);
+    iframeRef.current?.contentDocument?.addEventListener(
+      "keydown",
+      handleSaveShortcut,
+    );
+  }, [setupListeners, handleSaveShortcut]);
 
   // --- Handle edit send (ported from admin PageEditor) ---
   const handleSendEdit = useCallback(
@@ -645,6 +760,12 @@ export function DFYWebsite() {
           },
         });
 
+        // apiPost swallows HTTP errors and returns the error body — a 4xx/5xx
+        // here must surface as a failure, not masquerade as a silent success.
+        if (!result || result.error) {
+          throw new Error(result?.message || result?.error || "Edit failed");
+        }
+
         // Handle rejection
         if (result.rejected) {
           const rejectionMessage: ChatMessage = {
@@ -672,10 +793,25 @@ export function DFYWebsite() {
             throw new Error(`Invalid HTML: ${validation.error}`);
           }
 
-          setUndoStack((prev) => [...prev, structuredClone(sections)]);
+          const iframe = iframeRef.current;
+          const changedSectionName =
+            iframe?.contentDocument
+              ?.querySelector(`.${CSS.escape(alloroClass)}`)
+              ?.closest("[data-alloro-section]")
+              ?.getAttribute("data-alloro-section") || undefined;
+          const changedSectionNames = changedSectionName
+            ? [changedSectionName]
+            : undefined;
+
+          setUndoStack((prev) => [
+            ...prev,
+            {
+              sections: structuredClone(sections),
+              changedSectionNames,
+            },
+          ]);
           setRedoStack([]);
 
-          const iframe = iframeRef.current;
           if (iframe?.contentDocument) {
             const scrollY = iframe.contentWindow?.scrollY || 0;
             const scrollX = iframe.contentWindow?.scrollX || 0;
@@ -691,7 +827,9 @@ export function DFYWebsite() {
               sectionsRef.current,
             );
             setSections(updatedSections);
-            rebuildHtml(updatedSections);
+            // No rebuildHtml here — the DOM is already mutated in place;
+            // re-setting srcDoc reloads the iframe and jumps the scroll.
+            htmlStaleRef.current = true;
             setIsDirty(true);
 
             setupListeners();
@@ -757,17 +895,25 @@ export function DFYWebsite() {
   );
 
   const handleApplyDirectEdit = useCallback(
-    (operation: DirectEditorOperation) => {
+    (operation: DirectEditorOperation, overrideAlloroClass?: string) => {
+      // When a commit is pinned to a specific element (committing element A
+      // while B is now selected), operate on A and DON'T write the selection
+      // back — otherwise we'd clobber B's caret/selection.
+      const isOverride =
+        !!overrideAlloroClass && overrideAlloroClass !== selectedInfo?.alloroClass;
       if (!selectedInfo) return;
+      const opInfo = isOverride
+        ? { ...selectedInfo, alloroClass: overrideAlloroClass! }
+        : selectedInfo;
 
       const iframe = iframeRef.current;
       const doc = iframe?.contentDocument;
       if (!doc) return;
 
-      const selectedElement = doc.querySelector(
-        `.${CSS.escape(selectedInfo.alloroClass)}`,
+      const targetElement = doc.querySelector(
+        `.${CSS.escape(opInfo.alloroClass)}`,
       );
-      if (selectedElement && !selectedElement.closest("[data-alloro-section]")) {
+      if (targetElement && !targetElement.closest("[data-alloro-section]")) {
         setEditError("Header/footer components can't be edited from the page editor.");
         return;
       }
@@ -778,9 +924,9 @@ export function DFYWebsite() {
         const scrollX = iframe.contentWindow?.scrollX || 0;
         const previousSections = structuredClone(sectionsRef.current);
 
-        const result = applyDirectEditorOperation(doc, selectedInfo, operation);
+        const result = applyDirectEditorOperation(doc, opInfo, operation);
         if (!result.changed) {
-          setSelectedInfo(result.selectedInfo);
+          if (!isOverride) setSelectedInfo(result.selectedInfo);
           return;
         }
         const updatedSections = extractSectionsFromDom(
@@ -788,19 +934,96 @@ export function DFYWebsite() {
           sectionsRef.current,
         );
 
-        setUndoStack((prev) => [...prev, previousSections]);
+        const changedSectionName =
+          targetElement
+            ?.closest("[data-alloro-section]")
+            ?.getAttribute("data-alloro-section") || undefined;
+        const changedSectionNames = changedSectionName
+          ? [changedSectionName]
+          : undefined;
+
+        // Consecutive text applies on the same element coalesce into one
+        // undo entry (the debounced sidebar flushes mid-sentence); redo
+        // still clears — the content changed either way.
+        const now = Date.now();
+        const coalesceText =
+          operation.type === "replace-text" &&
+          textUndoCoalesceRef.current?.cls === opInfo.alloroClass &&
+          now - textUndoCoalesceRef.current.at < TEXT_UNDO_COALESCE_MS;
+        textUndoCoalesceRef.current =
+          operation.type === "replace-text"
+            ? { cls: opInfo.alloroClass, at: now }
+            : null;
+
+        if (!coalesceText) {
+          setUndoStack((prev) => [
+            ...prev,
+            {
+              sections: previousSections,
+              changedSectionNames,
+            },
+          ]);
+        }
         setRedoStack([]);
         setSections(updatedSections);
-        rebuildHtml(updatedSections);
+        // Keep the ref in lockstep so a synchronous flush-then-save (Save while
+        // an inline edit is mid-flight) reads the just-applied content rather
+        // than the stale render-time value.
+        sectionsRef.current = updatedSections;
+        // No rebuildHtml here — the operation already mutated the iframe DOM
+        // in place; re-setting srcDoc reloads the preview on every font-size
+        // step / color change and jumps the scroll. Mark htmlContent stale so
+        // remount boundaries rebuild from sections.
+        htmlStaleRef.current = true;
+        liveTextRef.current = null;
         setIsDirty(true);
         setupListeners();
         iframe.contentWindow?.scrollTo(scrollX, scrollY);
-        setSelectedInfo(result.selectedInfo);
+        if (!isOverride) setSelectedInfo(result.selectedInfo);
       } catch (err) {
         setEditError(err instanceof Error ? err.message : "Direct edit failed");
       }
     },
-    [selectedInfo, rebuildHtml, setupListeners, setSelectedInfo],
+    [selectedInfo, setupListeners, setSelectedInfo],
+  );
+
+  // --- Live text preview: mirror sidebar typing into the iframe element ---
+  // Visual only — sections update on Apply; an abandoned preview reverts.
+  const handleLiveTextRevert = useCallback(() => {
+    const ref = liveTextRef.current;
+    if (!ref) return;
+    const doc = iframeRef.current?.contentDocument;
+    const el = doc?.querySelector(
+      `.${CSS.escape(ref.alloroClass)}`,
+    ) as HTMLElement | null;
+    if (el) el.innerHTML = ref.html;
+    liveTextRef.current = null;
+  }, []);
+
+  const handleLiveTextPreview = useCallback(
+    (value: string) => {
+      if (!selectedInfo) return;
+      const doc = iframeRef.current?.contentDocument;
+      const el = doc?.querySelector(
+        `.${CSS.escape(selectedInfo.alloroClass)}`,
+      ) as HTMLElement | null;
+      if (!el) return;
+      // Holding a preview for a different element — revert it before starting.
+      if (
+        liveTextRef.current &&
+        liveTextRef.current.alloroClass !== selectedInfo.alloroClass
+      ) {
+        handleLiveTextRevert();
+      }
+      if (!liveTextRef.current) {
+        liveTextRef.current = {
+          alloroClass: selectedInfo.alloroClass,
+          html: el.innerHTML,
+        };
+      }
+      el.textContent = value;
+    },
+    [selectedInfo, handleLiveTextRevert],
   );
 
   // Process deferred quick-action edits from iframe input panel
@@ -810,9 +1033,11 @@ export function DFYWebsite() {
       pendingSidebarAction === ("__deferred__" as QuickActionType)
     ) {
       const operation = deferredEditRef.current;
+      const targetCls = deferredTargetRef.current;
       deferredEditRef.current = null;
+      deferredTargetRef.current = undefined;
       setPendingSidebarAction(null);
-      handleApplyDirectEdit(operation);
+      handleApplyDirectEdit(operation, targetCls);
     }
   }, [pendingSidebarAction, handleApplyDirectEdit]);
 
@@ -821,71 +1046,186 @@ export function DFYWebsite() {
     handleApplyDirectEdit({ type: "toggle-hidden" });
   }, [handleApplyDirectEdit]);
 
+  const syncPreviewDomFromSections = useCallback(
+    (nextSections: Section[], changedSectionNames?: string[]) => {
+      if (!project) return;
+
+      const buildFullHtml = () =>
+        assemblePageHtml(
+          project.wrapper || "{{slot}}",
+          project.header || "",
+          project.footer || "",
+          nextSections,
+          undefined,
+          undefined,
+          undefined,
+          project.id,
+        );
+
+      const iframe = iframeRef.current;
+      const doc = iframe?.contentDocument;
+      if (!iframe?.contentWindow || !doc?.body || !changedSectionNames?.length) {
+        setHtmlContent(buildFullHtml());
+        return;
+      }
+
+      try {
+        const scrollY = iframe.contentWindow.scrollY || 0;
+        const scrollX = iframe.contentWindow.scrollX || 0;
+        let patched = false;
+
+        for (const sectionName of changedSectionNames) {
+          const nextSection = nextSections.find(
+            (section) => section.name === sectionName,
+          );
+          const liveSection = doc.querySelector(
+            `[data-alloro-section="${CSS.escape(sectionName)}"]`,
+          );
+          if (!nextSection || !liveSection) continue;
+
+          const sectionHtml = assemblePageHtml(
+            "{{slot}}",
+            "",
+            "",
+            [nextSection],
+          );
+          const nextDoc = new DOMParser().parseFromString(
+            prepareHtmlForPreview(sectionHtml),
+            "text/html",
+          );
+          const nextSectionEl = nextDoc.querySelector(
+            `[data-alloro-section="${CSS.escape(sectionName)}"]`,
+          );
+          if (!nextSectionEl) continue;
+
+          liveSection.replaceWith(doc.importNode(nextSectionEl, true));
+          patched = true;
+        }
+
+        if (!patched) {
+          htmlStaleRef.current = false;
+          setHtmlContent(buildFullHtml());
+          return;
+        }
+
+        // Patched the live DOM in place — htmlContent is now behind it.
+        htmlStaleRef.current = true;
+        setupListeners();
+        iframe.contentWindow.scrollTo(scrollX, scrollY);
+      } catch (err) {
+        console.error("Failed to sync preview DOM:", err);
+        htmlStaleRef.current = false;
+        setHtmlContent(buildFullHtml());
+      }
+    },
+    [project, setupListeners],
+  );
+
   // --- Undo ---
   const handleUndo = useCallback(() => {
     if (undoStack.length === 0 || !project) return;
 
-    const previousSections = undoStack[undoStack.length - 1];
+    const previousEntry = undoStack[undoStack.length - 1];
+    const previousSections = previousEntry.sections;
     setUndoStack((prev) => prev.slice(0, -1));
-    setRedoStack((prev) => [...prev, structuredClone(sections)]);
+    setRedoStack((prev) => [
+      ...prev,
+      {
+        sections: structuredClone(sections),
+        changedSectionNames: previousEntry.changedSectionNames,
+      },
+    ]);
     setSections(previousSections);
     setIsDirty(true);
-
-    const html = assemblePageHtml(
-      project.wrapper || "{{slot}}",
-      project.header || "",
-      project.footer || "",
-      previousSections,
-      undefined,
-      undefined,
-      undefined,
-      project.id,
-    );
-    setHtmlContent(html);
     clearSelection();
-  }, [undoStack, sections, project, clearSelection]);
+    syncPreviewDomFromSections(previousSections, previousEntry.changedSectionNames);
+  }, [undoStack, sections, project, clearSelection, syncPreviewDomFromSections]);
 
   // --- Redo ---
   const handleRedo = useCallback(() => {
     if (redoStack.length === 0 || !project) return;
 
-    const nextSections = redoStack[redoStack.length - 1];
+    const nextEntry = redoStack[redoStack.length - 1];
+    const nextSections = nextEntry.sections;
     setRedoStack((prev) => prev.slice(0, -1));
-    setUndoStack((prev) => [...prev, structuredClone(sections)]);
+    setUndoStack((prev) => [
+      ...prev,
+      {
+        sections: structuredClone(sections),
+        changedSectionNames: nextEntry.changedSectionNames,
+      },
+    ]);
     setSections(nextSections);
     setIsDirty(true);
-
-    const html = assemblePageHtml(
-      project.wrapper || "{{slot}}",
-      project.header || "",
-      project.footer || "",
-      nextSections,
-      undefined,
-      undefined,
-      undefined,
-      project.id,
-    );
-    setHtmlContent(html);
     clearSelection();
-  }, [redoStack, sections, project, clearSelection]);
+    syncPreviewDomFromSections(nextSections, nextEntry.changedSectionNames);
+  }, [redoStack, sections, project, clearSelection, syncPreviewDomFromSections]);
 
   // --- Save & Publish ---
-  const handleSave = useCallback(async () => {
-    if (!selectedPage || !project || isSaving) return;
-    setIsSaving(true);
-    try {
-      await apiPatch({
-        path: `/user/website/pages/${selectedPage.id}/save`,
-        passedData: { sections },
-      });
-      setIsDirty(false);
-      toast.success("Changes saved & published");
-    } catch {
-      toast.error("Failed to save changes");
-    } finally {
-      setIsSaving(false);
-    }
-  }, [selectedPage, project, sections, isSaving]);
+  // Note: apiPatch swallows HTTP errors and returns the error body, so the
+  // 409 STALE_WRITE conflict is detected on the returned object, not in catch.
+  const performSave = useCallback(
+    async (force = false) => {
+      if (!selectedPage || !project || isSaving) return;
+      // Flush any in-progress inline edit into sections FIRST, so a Save click
+      // mid-typing persists the typed change instead of the pre-edit content
+      // (the commit-on-blur is deferred and would otherwise lose the race).
+      const flushed = flushCanvasTextEdit();
+      if (flushed) handleApplyDirectEdit(flushed.operation, flushed.targetAlloroClass);
+      const sectionsToSave = sectionsRef.current;
+      setIsSaving(true);
+      try {
+        const res = await apiPatch({
+          path: `/user/website/pages/${selectedPage.id}/save`,
+          passedData: {
+            sections: sectionsToSave,
+            expected_updated_at: selectedPage.updated_at,
+            force,
+          },
+        });
+        if (res?.error === "STALE_WRITE") {
+          setShowConflictModal(true);
+          return;
+        }
+        if (!res?.success) {
+          toast.error(res?.message || "Failed to save changes");
+          return;
+        }
+        if (res?.data?.updated_at) {
+          const savedAt = res.data.updated_at;
+          setSelectedPage((prev) =>
+            prev ? { ...prev, updated_at: savedAt, sections: sectionsToSave } : prev,
+          );
+          // Keep the pages list fresh too — reopening this page from the
+          // Pages tab would otherwise regress expected_updated_at (spurious
+          // 409 that trains "Save Anyway") and reload pre-save content.
+          setPages((prev) =>
+            prev.map((p) =>
+              p.id === selectedPage.id
+                ? { ...p, updated_at: savedAt, sections: sectionsToSave }
+                : p,
+            ),
+          );
+        }
+        setIsDirty(false);
+        clearBackup();
+        toast.success("Changes saved & published");
+      } catch {
+        toast.error("Failed to save changes");
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [selectedPage, project, isSaving, clearBackup, flushCanvasTextEdit, handleApplyDirectEdit],
+  );
+
+  const handleSave = useCallback(() => performSave(), [performSave]);
+  const handleForceSave = useCallback(() => {
+    setShowConflictModal(false);
+    performSave(true);
+  }, [performSave]);
+
+  saveRef.current = handleSave;
 
   // --- Version preview ---
   const handlePreviewVersion = useCallback(
@@ -925,9 +1265,15 @@ export function DFYWebsite() {
   const handleRestoreVersion = useCallback(
     async (versionId: string) => {
       if (!selectedPage) return;
-      await apiPost({
+      const res = await apiPost({
         path: `/user/website/pages/${selectedPage.id}/versions/${versionId}/restore`,
       });
+      // apiPost swallows HTTP errors — a 403 READ_ONLY / 404 / 500 must not
+      // toast "restored" and exit preview while the live site is unchanged.
+      if (!res?.success) {
+        toast.error(res?.message || "Failed to restore version");
+        return;
+      }
       setPreviewVersion(null);
       setPreviewHtmlContent("");
       toast.success("Version restored");
@@ -1138,26 +1484,6 @@ export function DFYWebsite() {
               <Smartphone size={13} />
             </button>
           </div>
-          {(undoStack.length > 0 || redoStack.length > 0) && (
-            <div className="flex items-center gap-0.5">
-              <button
-                onClick={handleUndo}
-                disabled={undoStack.length === 0}
-                className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-30"
-                title="Undo"
-              >
-                <Undo2 size={13} />
-              </button>
-              <button
-                onClick={handleRedo}
-                disabled={redoStack.length === 0}
-                className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-30"
-                title="Redo"
-              >
-                <Redo2 size={13} />
-              </button>
-            </div>
-          )}
           {isDirty && (
             <button
               onClick={handleSave}
@@ -1327,7 +1653,7 @@ export function DFYWebsite() {
                     className="border-0"
                     title="Page Preview"
                     sandbox="allow-same-origin allow-scripts"
-                    onLoad={handleIframeLoad}
+                    onLoad={previewVersion ? undefined : handleIframeLoad}
                   />
                   <div
                     className="absolute left-0 top-0 pointer-events-none"
@@ -1359,7 +1685,7 @@ export function DFYWebsite() {
                       className="w-full h-full border-0"
                       title="Page Preview"
                       sandbox="allow-same-origin allow-scripts"
-                      onLoad={handleIframeLoad}
+                      onLoad={previewVersion ? undefined : handleIframeLoad}
                     />
                     <div className="absolute inset-0 pointer-events-none">
                       <InlineEditorPopover
@@ -1446,9 +1772,53 @@ export function DFYWebsite() {
             onExternalActionHandled={() => setPendingSidebarAction(null)}
             primaryColor={project?.primary_color}
             accentColor={project?.accent_color}
+            isCanvasTextEditing={isCanvasTextEditing}
+            onLiveTextPreview={handleLiveTextPreview}
+            onLiveTextRevert={handleLiveTextRevert}
+            canUndo={undoStack.length > 0}
+            canRedo={redoStack.length > 0}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+            editViewport={viewportMode}
           />
         </div>
       )}
+
+      {/* Save Conflict Modal (409 STALE_WRITE) */}
+      <ConfirmModal
+        isOpen={showConflictModal}
+        onClose={() => setShowConflictModal(false)}
+        onConfirm={handleForceSave}
+        title="Page Changed Elsewhere"
+        message="This page was saved from somewhere else after you loaded it. Saving anyway overwrites that version (it stays in History). Keep editing to review first — your work is also backed up locally."
+        confirmText="Save Anyway"
+        cancelText="Keep Editing"
+        type="warning"
+      />
+
+      {/* Crash Recovery Modal */}
+      <ConfirmModal
+        isOpen={recoveryPrompt !== null}
+        onClose={() => setRecoveryPrompt(null)}
+        onConfirm={() => {
+          if (recoveryPrompt) {
+            setUndoStack((prev) => [
+              ...prev,
+              { sections: structuredClone(sectionsRef.current) },
+            ]);
+            setRedoStack([]);
+            setSections(recoveryPrompt);
+            rebuildHtml(recoveryPrompt);
+            setIsDirty(true);
+          }
+          setRecoveryPrompt(null);
+        }}
+        title="Recover Unsaved Changes?"
+        message="We found unsaved edits from a previous session that are newer than the saved page. Recover them into the editor?"
+        confirmText="Recover"
+        cancelText="Not Now"
+        type="info"
+      />
 
       {/* Custom Domain Modal */}
       {project && (

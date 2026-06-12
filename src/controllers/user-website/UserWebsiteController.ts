@@ -32,6 +32,7 @@ import { resolveRybbitTimeZone } from "../../utils/rybbit/rybbit-time-zone";
 import { FormSubmissionModel } from "../../models/website-builder/FormSubmissionModel";
 import { WebsiteIntegrationModel } from "../../models/website-builder/WebsiteIntegrationModel";
 import { db } from "../../database/connection";
+import { snapshotPageStateIfChanged } from "../../utils/website-utils/pageSnapshots";
 import * as formDetection from "../admin-websites/feature-services/service.form-detection";
 import { upsertFormCatalogPreferences } from "../../services/formCatalogPreferenceService";
 import { upsertFormRecipientRule } from "../../services/formRecipientRuleService";
@@ -1177,7 +1178,7 @@ export async function savePageSections(
     if (!projectId) return res.status(404).json({ error: "No website found" });
 
     const { pageId } = req.params;
-    const { sections } = req.body;
+    const { sections, expected_updated_at, force } = req.body;
     if (!sections || !Array.isArray(sections)) {
       return res.status(400).json({ error: "sections array is required" });
     }
@@ -1188,15 +1189,88 @@ export async function savePageSections(
       .first();
     if (!page) return res.status(404).json({ error: "Page not found" });
 
-    // Update the page sections directly
-    await db("website_builder.pages")
-      .where("id", pageId)
+    // Customer saves write the LIVE published row in place — never history
+    // rows or drafts (an inactive id here would rewrite version history).
+    if (page.status !== "published") {
+      return res.status(400).json({
+        error: "INVALID_STATUS",
+        message: "Only the live page can be edited here.",
+      });
+    }
+
+    // Read-only orgs can browse but not write (same gate as restore).
+    const project = await db("website_builder.projects")
+      .where("id", projectId)
+      .first();
+    if (project?.is_read_only) {
+      return res.status(403).json({
+        error: "READ_ONLY",
+        message:
+          "Your website is in read-only mode. Please upgrade to continue editing.",
+      });
+    }
+
+    // Optimistic concurrency fast-path: reject when the row changed since
+    // the client loaded it, unless the client explicitly forces.
+    if (
+      expected_updated_at &&
+      !force &&
+      new Date(page.updated_at).getTime() !==
+        new Date(expected_updated_at).getTime()
+    ) {
+      return res.status(409).json({
+        error: "STALE_WRITE",
+        message:
+          "This page changed since you loaded it. Review the latest version or save anyway.",
+      });
+    }
+
+    // Preserve the page's pre-save state as a restorable history entry
+    // before overwriting it (user-side saves write the live page in place).
+    await snapshotPageStateIfChanged(page);
+
+    // Keep the live page as the newest version. The snapshot above takes
+    // max+1, so without this the live row would carry a LOWER version than
+    // its own archived history and sink beneath it in the History tab (the
+    // "latest version is Archived" bug).
+    const newest = await db("website_builder.pages")
+      .where({ project_id: page.project_id, path: page.path })
+      .orderBy("version", "desc")
+      .first();
+    const nextVersion = (newest?.version ?? page.version) + 1;
+
+    // Update the page sections directly. The write is conditional on the
+    // expected timestamp (1ms range — updated_at has microsecond precision,
+    // the client echo is millisecond-truncated) so two racing writers can't
+    // both pass the JS check above and both land.
+    let updateQuery = db("website_builder.pages").where("id", pageId);
+    if (expected_updated_at && !force) {
+      const expected = new Date(expected_updated_at);
+      updateQuery = updateQuery
+        .where("updated_at", ">=", expected)
+        .where("updated_at", "<", new Date(expected.getTime() + 1));
+    }
+    const [updatedPage] = await updateQuery
       .update({
         sections: JSON.stringify(sections),
+        version: nextVersion,
+        change_source: "save",
         updated_at: db.fn.now(),
-      });
+      })
+      .returning(["updated_at"]);
 
-    return res.json({ success: true });
+    if (!updatedPage) {
+      return res.status(409).json({
+        error: "STALE_WRITE",
+        message:
+          "This page changed since you loaded it. Review the latest version or save anyway.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: { updated_at: updatedPage.updated_at },
+    });
   } catch (error) {
     return handleError(res, error, "Save page sections");
   }

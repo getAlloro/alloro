@@ -1175,3 +1175,138 @@ mark.hl {
   -webkit-text-fill-color: #D66853;
   animation: cogitating-dot 1s ease-in-out infinite;
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   Editor sidebar — cobalt dark theme
+   Scoped utility overrides (mirrors the .minds-theme approach) so the
+   page-editor sidebar renders dark without touching component JSX. The
+   alloro-orange primary accents intentionally ride through unchanged.
+   ════════════════════════════════════════════════════════════════════ */
+.editor-cobalt {
+  --ec-base: #212d40;        /* sidebar shell — matches the left nav rail */
+  --ec-surface: #27344a;     /* element panel, lifted off the shell */
+  --ec-raised: #1a2433;      /* recessed inputs/textarea (rail footer tone) */
+  --ec-control: #2e3d56;     /* buttons, chips */
+  --ec-border: rgba(255, 255, 255, 0.09);
+  --ec-border-strong: rgba(255, 255, 255, 0.16);
+  --ec-text: #f1f5fb;
+  --ec-text-2: #c7d2e4;
+  --ec-text-muted: #8a99b3;
+  --ec-cobalt: #5b8bf5;
+  color: var(--ec-text);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+
+/* Dark scrollbars throughout the cobalt sidebar — the content textarea and
+   scroll panels must never show the light native track. */
+.editor-cobalt ::-webkit-scrollbar { width: 8px; height: 8px; }
+.editor-cobalt ::-webkit-scrollbar-track { background: transparent; }
+.editor-cobalt ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+}
+.editor-cobalt ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+/* Surfaces */
+.editor-cobalt .bg-white { background-color: var(--ec-surface) !important; }
+.editor-cobalt .bg-gray-50 { background-color: var(--ec-raised) !important; }
+.editor-cobalt .bg-gray-100 { background-color: var(--ec-control) !important; }
+.editor-cobalt .hover\:bg-gray-200:hover { background-color: var(--ec-border-strong) !important; }
+.editor-cobalt .bg-gray-200 { background-color: var(--ec-border-strong) !important; }
+
+/* Borders & dividers */
+.editor-cobalt .border-gray-100,
+.editor-cobalt .border-gray-200 { border-color: var(--ec-border) !important; }
+.editor-cobalt .border-gray-300 { border-color: var(--ec-border-strong) !important; }
+.editor-cobalt .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: var(--ec-border) !important; }
+
+/* Text */
+.editor-cobalt .text-gray-900,
+.editor-cobalt .text-gray-800 { color: var(--ec-text) !important; }
+.editor-cobalt .text-gray-700,
+.editor-cobalt .text-gray-600 { color: var(--ec-text-2) !important; }
+.editor-cobalt .text-gray-500,
+.editor-cobalt .text-gray-400,
+.editor-cobalt .text-gray-300 { color: var(--ec-text-muted) !important; }
+.editor-cobalt .hover\:text-gray-600:hover,
+.editor-cobalt .hover\:text-gray-700:hover,
+.editor-cobalt .hover\:text-gray-900:hover { color: var(--ec-text) !important; }
+
+/* Inputs */
+.editor-cobalt input,
+.editor-cobalt textarea {
+  color: var(--ec-text);
+  caret-color: var(--ec-cobalt);
+}
+.editor-cobalt input::placeholder,
+.editor-cobalt textarea::placeholder { color: var(--ec-text-muted) !important; }
+
+/* Cobalt-tinted info chips (attached media, links) */
+.editor-cobalt .bg-blue-50 { background-color: rgba(61, 111, 229, 0.14) !important; }
+.editor-cobalt .border-blue-200 { border-color: rgba(61, 111, 229, 0.34) !important; }
+.editor-cobalt .text-blue-700,
+.editor-cobalt .text-blue-600 { color: #9bbcff !important; }
+
+/* Error states stay legible on dark */
+.editor-cobalt .bg-red-50 { background-color: rgba(239, 68, 68, 0.12) !important; }
+.editor-cobalt .border-red-200 { border-color: rgba(239, 68, 68, 0.32) !important; }
+.editor-cobalt .text-red-600,
+.editor-cobalt .text-red-700,
+.editor-cobalt .text-red-500 { color: #fca5a5 !important; }
+
+/* Amber preview banners (version history) */
+.editor-cobalt .bg-amber-50,
+.editor-cobalt .bg-amber-50\/60,
+.editor-cobalt .bg-amber-50\/50 { background-color: rgba(217, 119, 6, 0.14) !important; }
+.editor-cobalt .border-amber-200 { border-color: rgba(217, 119, 6, 0.34) !important; }
+.editor-cobalt .text-amber-700,
+.editor-cobalt .text-amber-600,
+.editor-cobalt .text-amber-800 { color: #fcd9a3 !important; }
+
+/* Status badges in version history — keep readable */
+.editor-cobalt .bg-green-50 { background-color: rgba(34, 197, 94, 0.14) !important; }
+.editor-cobalt .text-green-600,
+.editor-cobalt .text-green-700 { color: #86efac !important; }
+
+/* Version history rows need dark-sidebar semantics, not generic table hovers. */
+.editor-cobalt .page-version-row {
+  background: transparent;
+}
+
+.editor-cobalt .page-version-row:hover {
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+.editor-cobalt .page-version-row.page-version-row--active,
+.editor-cobalt .page-version-row.page-version-row--active:hover {
+  background: rgba(214, 104, 83, 0.13) !important;
+  box-shadow:
+    inset 3px 0 0 rgba(214, 104, 83, 0.95),
+    inset 0 0 0 1px rgba(214, 104, 83, 0.24);
+}
+
+.editor-cobalt .page-version-action {
+  background: var(--ec-control);
+  color: var(--ec-text-2);
+}
+
+.editor-cobalt .page-version-action:hover {
+  background: var(--ec-border-strong);
+  color: var(--ec-text);
+}
+
+.editor-cobalt .page-version-action.page-version-action--active,
+.editor-cobalt .page-version-action.page-version-action--active:hover {
+  background: rgba(214, 104, 83, 0.28) !important;
+  color: #fff3ee !important;
+  box-shadow: inset 0 0 0 1px rgba(214, 104, 83, 0.48);
+}
+
+/* Hide the global support FAB while a full-screen editor is open so it
+   never overlaps the sidebar. Editors toggle the body attribute on mount. */
+body[data-editor-fullscreen="true"] [data-support-capture-exclude] {
+  display: none !important;
+}

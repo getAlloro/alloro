@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Clock, Eye, RotateCcw, CheckCircle, FileEdit, Archive } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { apiGet } from "../../api";
+import type { SectionDiffEntry } from "../../utils/sectionDiff";
 
 export interface PageVersion {
   id: string;
@@ -9,7 +10,17 @@ export interface PageVersion {
   status: "draft" | "published" | "inactive";
   created_at: string;
   updated_at: string;
+  change_source?: string | null;
+  revision_note?: string | null;
 }
+
+const SOURCE_LABELS: Record<string, string> = {
+  save: "Saved",
+  publish: "Published",
+  restore: "Restored",
+  "restore-section": "Section restore",
+  "find-replace": "Find & replace",
+};
 
 interface Props {
   pageId: string | null;
@@ -18,6 +29,14 @@ interface Props {
   isPreviewMode: boolean;
   previewVersionId: string | null;
   onExitPreview: () => void;
+  /** Override the version list source (defaults to the user-website endpoint). */
+  fetchVersions?: (pageId: string) => Promise<PageVersion[]>;
+  /** Allow restoring published rows too (admin restores into the draft). */
+  allowRestorePublished?: boolean;
+  /** Per-section diff vs the current draft for the previewed version. */
+  previewDiff?: SectionDiffEntry[] | null;
+  /** Restore a single section from the previewed version into the draft. */
+  onRestoreSection?: (name: string) => void;
 }
 
 const STATUS_CONFIG: Record<
@@ -27,17 +46,17 @@ const STATUS_CONFIG: Record<
   draft: {
     label: "Draft",
     icon: FileEdit,
-    color: "text-blue-600 bg-blue-50 border-blue-200",
+    color: "text-[#9bbcff] bg-[#3d6fe5]/15 border-[#3d6fe5]/35",
   },
   published: {
     label: "Live",
     icon: CheckCircle,
-    color: "text-green-600 bg-green-50 border-green-200",
+    color: "text-[#86efac] bg-[#22c55e]/15 border-[#22c55e]/35",
   },
   inactive: {
     label: "Archived",
     icon: Archive,
-    color: "text-gray-500 bg-gray-50 border-gray-200",
+    color: "text-[color:var(--ec-text-muted)] bg-[var(--ec-raised)] border-[color:var(--ec-border)]",
   },
 };
 
@@ -48,6 +67,10 @@ export default function VersionHistoryTab({
   isPreviewMode,
   previewVersionId,
   onExitPreview,
+  fetchVersions,
+  allowRestorePublished = false,
+  previewDiff,
+  onRestoreSection,
 }: Props) {
   const [versions, setVersions] = useState<PageVersion[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,16 +80,20 @@ export default function VersionHistoryTab({
     if (!pageId) return;
     try {
       setLoading(true);
-      const res = await apiGet({
-        path: `/user/website/pages/${pageId}/versions`,
-      });
-      setVersions(res.data?.versions || []);
+      if (fetchVersions) {
+        setVersions(await fetchVersions(pageId));
+      } else {
+        const res = await apiGet({
+          path: `/user/website/pages/${pageId}/versions`,
+        });
+        setVersions(res.data?.versions || []);
+      }
     } catch {
       toast.error("Failed to load version history");
     } finally {
       setLoading(false);
     }
-  }, [pageId]);
+  }, [pageId, fetchVersions]);
 
   useEffect(() => {
     loadVersions();
@@ -115,22 +142,22 @@ export default function VersionHistoryTab({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto bg-[var(--ec-base)]">
       {isPreviewMode && (
-        <div className="px-4 py-2.5 bg-amber-50 border-b border-amber-200">
-          <p className="text-xs text-amber-700 font-medium">
+        <div className="border-b border-alloro-orange/25 bg-alloro-orange/10 px-4 py-2.5">
+          <p className="text-xs font-medium text-[#f3c7b7]">
             Preview mode — editing disabled
           </p>
           <button
             onClick={onExitPreview}
-            className="text-xs text-amber-600 hover:text-amber-800 underline mt-1"
+            className="mt-1 text-xs text-alloro-orange underline transition-colors hover:text-[#f3c7b7]"
           >
             Exit preview
           </button>
         </div>
       )}
 
-      <div className="divide-y divide-gray-100">
+      <div className="divide-y divide-white/10">
         {versions.map((version) => {
           const config = STATUS_CONFIG[version.status] || STATUS_CONFIG.inactive;
           const StatusIcon = config.icon;
@@ -139,11 +166,13 @@ export default function VersionHistoryTab({
           return (
             <div
               key={version.id}
-              className={`px-4 py-3 ${isPreviewing ? "bg-amber-50/50" : "hover:bg-gray-50"} transition-colors`}
+              className={`page-version-row px-4 py-3 transition-colors ${
+                isPreviewing ? "page-version-row--active" : ""
+              }`}
             >
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-gray-800">
+                  <span className="text-sm font-semibold text-[color:var(--ec-text)]">
                     v{version.version}
                   </span>
                   <span
@@ -153,10 +182,55 @@ export default function VersionHistoryTab({
                     {config.label}
                   </span>
                 </div>
-                <span className="text-[11px] text-gray-400">
-                  {relativeTime(version.updated_at)}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  {version.change_source && (
+                    <span className="text-[10px] text-[color:var(--ec-text-muted)]">
+                      {SOURCE_LABELS[version.change_source] || version.change_source}
+                    </span>
+                  )}
+                  <span className="text-[11px] text-[color:var(--ec-text-muted)]">
+                    {relativeTime(version.updated_at)}
+                  </span>
+                </div>
               </div>
+
+              {version.revision_note && (
+                <p className="mt-0.5 truncate text-[11px] italic text-[color:var(--ec-text-muted)]" title={version.revision_note}>
+                  "{version.revision_note}"
+                </p>
+              )}
+
+              {isPreviewing && previewDiff && previewDiff.length > 0 && (
+                <div className="mt-2 rounded-lg border border-alloro-orange/25 bg-alloro-orange/10 px-2.5 py-2">
+                  <p className="mb-1 text-[11px] font-semibold text-[#f3c7b7]">
+                    {previewDiff.length} section{previewDiff.length === 1 ? "" : "s"} differ from the draft
+                  </p>
+                  <div className="space-y-1">
+                    {previewDiff.map((entry) => (
+                      <div key={entry.name} className="flex items-center justify-between gap-2">
+                        <span className="truncate text-[11px] text-[color:var(--ec-text-2)]">
+                          {entry.name}
+                          <span className="text-[#f3c7b7]/70">
+                            {entry.status === "added"
+                              ? " (not in draft)"
+                              : entry.status === "removed"
+                                ? " (only in draft)"
+                                : ""}
+                          </span>
+                        </span>
+                        {onRestoreSection && entry.status !== "removed" && (
+                          <button
+                            onClick={() => onRestoreSection(entry.name)}
+                            className="shrink-0 rounded bg-alloro-orange/15 px-1.5 py-0.5 text-[10px] text-[#f3c7b7] transition-colors hover:bg-alloro-orange/25"
+                          >
+                            Restore section
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="flex items-center gap-1.5 mt-2">
                 {version.status !== "draft" && (
@@ -164,17 +238,16 @@ export default function VersionHistoryTab({
                     onClick={() =>
                       isPreviewing ? onExitPreview() : onPreview(version)
                     }
-                    className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-                      isPreviewing
-                        ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
-                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    className={`page-version-action flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium transition-colors ${
+                      isPreviewing ? "page-version-action--active" : ""
                     }`}
                   >
-                    <Eye size={11} />
-                    {isPreviewing ? "Previewing" : "Preview"}
+                    {isPreviewing ? <FileEdit size={11} /> : <Eye size={11} />}
+                    {isPreviewing ? "Editing" : "Preview"}
                   </button>
                 )}
-                {version.status === "inactive" && (
+                {(version.status === "inactive" ||
+                  (allowRestorePublished && version.status === "published")) && (
                   <button
                     onClick={() => handleRestore(version.id)}
                     disabled={restoring === version.id}
@@ -197,8 +270,8 @@ export default function VersionHistoryTab({
 
       {versions.length === 0 && (
         <div className="flex-1 flex flex-col items-center justify-center py-8 px-6">
-          <Clock className="text-gray-300 mb-2" size={24} />
-          <p className="text-sm text-gray-400 text-center">
+          <Clock className="mb-2 text-[color:var(--ec-text-muted)]" size={24} />
+          <p className="text-center text-sm text-[color:var(--ec-text-muted)]">
             No version history yet
           </p>
         </div>

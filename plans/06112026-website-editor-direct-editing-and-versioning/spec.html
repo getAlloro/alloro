@@ -1,0 +1,812 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Website Editor: Direct Editing &amp; Versioning Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Completed</span>
+      </div>
+      <h1>Website Editor: Direct Editing &amp; Versioning</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed — Rev 34; PR #131 → main, mirrored on dev/dave; changelog 0.0.111</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06112026-website-editor-direct-editing-and-versioning</dd></div>
+        <div><dt>Size</dt><dd>Large (~25 files)</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The website editor is AI-first by accident: only elements the generator happened to tag with an <code>alloro-tpl-*</code> class are selectable, so plain <code>&lt;p&gt;</code>/<code>&lt;span&gt;</code>/<code>&lt;a&gt;</code>/<code>&lt;img&gt;</code> elements force users into the AI chat. Saves never create snapshots anywhere, so "revert to version" has nothing meaningful to revert to — and restore silently drops <code>seo_data</code>. The admin editor additionally lacks redo, a refresh guard, and any version history UI, while autosave fires every 800ms making save points meaningless.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>A fully functional manual-editing workflow across both editor surfaces (admin <code>PageEditor</code> and customer <code>DFYWebsite</code>):</p>
+      <ul>
+        <li>Every basic content element (<code>p, span, a, h1–h6, li, button, blockquote, figcaption, img, video</code>) inside a page section is click-selectable and directly editable (text, link href, media swap, font-size step, hide) — no AI required. No element deletion or reordering.</li>
+        <li>Admin editor: working undo <em>and</em> redo (buttons + Cmd/Ctrl+Z / Shift+Cmd/Ctrl+Z), covering AI edits, direct edits, and code-view edits.</li>
+        <li>Admin editor: autosave removed. Explicit Save only. Every content write snapshots the prior state, creating restorable versions.</li>
+        <li>Admin editor: History tab (preview + restore-into-draft) wired into the existing <code>EditorSidebar</code>.</li>
+        <li>Both surfaces: refresh/close with unsaved changes prompts confirmation; admin Back link gets an in-app dirty guard.</li>
+        <li>User-side restore fixed to carry <code>seo_data</code>, <code>display_name</code>, <code>template_page_id</code>; snapshot growth pruned.</li>
+        <li>Constrained rich-text editing: bold/italic/link formatting inside mixed-content paragraphs via a sanitized contentEditable session (Rev 1).</li>
+        <li>Cmd/Ctrl+S save shortcut, localStorage crash recovery, and optimistic-concurrency conflict detection on both surfaces (Rev 1).</li>
+        <li>Save notes + provenance badges in version history, backed by two nullable columns on <code>pages</code> (Rev 1, migration).</li>
+        <li>Version diff badges + per-section restore in admin History (Rev 1).</li>
+        <li>Image upload-in-place + alt-text editing; admin site-wide find &amp; replace; pre-publish lint warnings (Rev 1).</li>
+      </ul>
+      <p><strong>Done when:</strong> an admin can edit any paragraph/link/photo by clicking it, undo/redo freely, save deliberately, see each save in History, preview and restore any version into the draft, and never lose work to a refresh.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/hooks/useIframeSelector.ts</code> — iframe hover/click selection; only matches <code>alloro-tpl-*</code> classes (lines 81–94); shared by PageEditor, LayoutEditor, DFYWebsite.</li>
+        <li><code>frontend/src/pages/admin/PageEditor.tsx</code> — admin editor orchestrator; autosave (line 770), undo-only history (line 1017), no beforeunload, no History tab.</li>
+        <li><code>frontend/src/pages/DFYWebsite.tsx</code> — user editor; reference analog for redo (lines 825–870) and beforeunload (line 224); version preview/restore handlers (lines 891–937).</li>
+        <li><code>frontend/src/components/PageEditor/EditorToolbar.tsx</code> — toolbar; has Undo button, needs Redo.</li>
+        <li><code>frontend/src/components/PageEditor/EditorSidebar.tsx</code> — already accepts <code>showHistory</code> + version props; admin just never passes them.</li>
+        <li><code>frontend/src/components/PageEditor/VersionHistoryTab.tsx</code> — hardcodes <code>/user/website/...</code> endpoint (line 61); needs parameterized fetchers.</li>
+        <li><code>frontend/src/utils/editorDirectOperations.ts</code> — direct ops (replace-text, update-link, replace-media, step-font-size, toggle-hidden, backgrounds); already supports all required tags.</li>
+        <li><code>frontend/src/utils/canvasTextEditing.ts</code> — in-canvas textarea editing + eligibility rules.</li>
+        <li><code>frontend/src/api/websites.ts</code> — admin API module; needs version-history calls.</li>
+        <li><code>src/routes/admin/websites.ts</code> — admin route registry; needs versions/restore routes.</li>
+        <li><code>src/controllers/admin-websites/feature-services/service.page-editor.ts</code> — updatePage (line 176), publishPage (line 108), createDraft (line 353, stale-draft clobber bug at ~400–410).</li>
+        <li><code>src/controllers/user-website/UserWebsiteController.ts</code> — savePageSections (line 1168) overwrites live page with no snapshot.</li>
+        <li><code>src/controllers/user-website/user-website-services/userWebsite.service.ts</code> — getPageVersions/getPageVersionContent/restorePageVersion (lines 360–510); restore drops seo_data.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Undo/redo stacks + beforeunload: copy the working implementation in <code>DFYWebsite.tsx</code>.</li>
+        <li>Admin endpoints: thin controller + feature-service pattern, error objects with <code>{status, code, message}</code>, as in <code>service.page-editor.ts</code>.</li>
+        <li>Version model: page rows at the same <code>project_id + path</code>, <code>status ∈ draft|published|inactive</code>, monotonically increasing <code>version</code> (see <code>restorePageVersion</code> for the insert pattern).</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>frontend/src/pages/DFYWebsite.tsx</code> — closest existing analog for undo/redo, beforeunload, and version preview/restore wiring.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Reuse the existing <code>pages</code>-row version model — no schema change, no migration.</li>
+            <li>Auto-tagging only fires inside <code>[data-alloro-section]</code> (LayoutEditor stays untouched).</li>
+            <li>Admin restore loads the version into the current <em>draft</em> — never auto-publishes.</li>
+            <li>User-side save/restore keeps its publish-live semantics (only fixed + snapshotted).</li>
+            <li>Snapshot rule: on every content write (save/restore/find-replace), snapshot the about-to-be-overwritten state iff it differs from the newest history entry.</li>
+            <li>Keep <code>VersionHistoryTab</code> backward-compatible with DFYWebsite.</li>
+            <li>Rich-text commits pass through an allowlist node-rebuild serializer (never trust raw <code>innerHTML</code>); <code>a[href]</code> normalized via <code>normalizeEditorHref</code>.</li>
+            <li>Migration is additive + nullable only (<code>change_source</code>, <code>revision_note</code>); repo migration file follows the <code>src/database/migrations</code> TS analog.</li>
+            <li>Find &amp; replace writes to <em>draft</em> rows only (creating drafts where needed); never touches published rows directly.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No new dependencies.</li>
+            <li>No element deletion or drag-reorder capability.</li>
+            <li>No changes to AI edit flow, prompts, or generation pipeline.</li>
+            <li>No modification of the renderer handoff (sections JSONB contract unchanged).</li>
+            <li>No refactor of unrelated editor code.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>AI-as-reviewer "suggest improvements" mode — needs its own design pass (suggestion source, cost, accept/reject UX); separate plan.</li>
+        <li>LayoutEditor (header/footer/wrapper) version history.</li>
+        <li>SEO-data versioning UI (snapshots carry <code>seo_data</code>, but History UI shows section content only).</li>
+        <li>Removing/redesigning the AI chat sidebar.</li>
+        <li>Regex / case-transforming find &amp; replace (plain text + tel/mailto hrefs only).</li>
+        <li>Lint as a publish blocker — warnings are advisory, publish always allowed.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 overall — one Level 3-class item (in-house HTML sanitization = security exposure) mitigated by design, see below.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li>Auto-tagging persists editor-generated classes into saved content. <strong>Mitigation:</strong> classes are already the addressing scheme for saved sections; use a deterministic <code>alloro-tpl-m-</code> prefix, assign only on user click, only inside section markers.</li>
+        <li>Removing autosave shifts data-loss risk to the user. <strong>Mitigation:</strong> beforeunload guard + in-app Back-link guard + existing "Unsaved changes" badge; undo/redo stacks survive until navigation.</li>
+        <li>Page-row snapshots grow the <code>pages</code> table. <strong>Mitigation:</strong> differs-check dedupe + prune inactive rows beyond 20 per path (never touch draft/published rows). Alternatives considered: (B) dedicated snapshots table — cleaner but needs migration + new UI; (C) provenance column — needs migration. A chosen for zero schema change and full reuse of existing history UI/endpoints.</li>
+        <li><code>replace-text</code> sets <code>textContent</code> and destroys inline children (e.g. <code>&lt;a&gt;</code> inside <code>&lt;p&gt;</code>). <strong>Mitigation:</strong> auto-tagging lets users select the child element directly; canvas editing already refuses unsafe nested content. Documented limitation; rich-text editing deferred.</li>
+        <li>Stale-draft refresh clobbers saved draft edits (compares published <code>updated_at</code> vs draft <code>created_at</code>). <strong>Mitigation:</strong> T8 changes comparison to draft <code>updated_at</code>.</li>
+        <li><strong>(L3-class, Rev 1)</strong> Rich-text editing introduces an HTML injection surface — committed markup is persisted and rendered on live customer sites. <strong>Mitigation:</strong> allowlist serializer that rebuilds nodes (<code>strong, em, b, i, u, small, sup, sub, mark, br, span, a</code>), strips all attributes except <code>href</code> (normalized) and existing classes, and drops anything else; Escape always restores the original; covered by an explicit sanitizer test in Done.</li>
+        <li>(Rev 1) Find &amp; replace fans one action out across many pages. <strong>Mitigation:</strong> drafts only, per-page snapshot + concurrency check, explicit per-match selection before applying, summary of pages touched.</li>
+        <li>(Rev 1) localStorage backups could resurrect stale content after a publish/restore. <strong>Mitigation:</strong> backup keyed by draft page id, cleared on save/publish/restore, offered only when newer than the server row's <code>updated_at</code>.</li>
+        <li>(Rev 1) Image-size lint needs HEAD requests to S3 which CORS may block. <strong>Mitigation:</strong> best-effort — skip the size check silently on failure; other checks are pure DOM.</li>
+        <li>(Rev 1) Additive migration on the shared <code>website_builder.pages</code> table. <strong>Mitigation:</strong> nullable columns, no backfill, no index — zero impact on existing readers.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>useIframeSelector</code> is consumed by PageEditor, LayoutEditor, and DFYWebsite (auto-tag gated to section markers so LayoutEditor is unaffected). <code>VersionHistoryTab</code> + <code>EditorSidebar</code> are consumed by DFYWebsite (props stay backward-compatible). <code>updatePageSections</code> API is called only by the admin editor. <code>savePageSections</code> endpoint is called only by DFYWebsite. <code>createDraft</code> is called from admin page-load and publish flows. (Rev 1) <code>MediaBrowser</code> is shared by both surfaces — upload-in-place must degrade gracefully if a surface's media API lacks upload. The publish confirmation in <code>PageEditor</code> is extended locally; the shared <code>settings/ConfirmModal</code> is not modified. <code>canvasTextEditing</code> eligibility changes affect PageEditor, LayoutEditor, and DFYWebsite equally — the rich-text path must be additive (plain-text elements keep the existing textarea flow).</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Reusing page rows as snapshots overloads one table with two meanings (live workflow states + history). A dedicated snapshots table is the textbook answer — but it costs a migration, duplicate endpoints, and a merged-history UI for marginal benefit at current scale. With dedupe + pruning, row reuse is the pragmatic call; revisit if snapshot volume or listing performance becomes a problem.</li>
+        <li>Keeping user-side save = publish-live is a product decision being preserved, not endorsed; a draft workflow for customers would be safer but is a separate feature.</li>
+        <li>(Rev 1) This is now a release-sized plan (~25 files, 17 feature tasks). Recommend executing in two milestones with a commit each: <strong>M1 = T1–T9</strong> (core editing + versioning) and <strong>M2 = T10–T18</strong> (feature layer). M2 depends on M1 landing clean; cramming both into one pass raises regression risk for no benefit.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Auto-tag selectable basic elements</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>useIframeSelector</code>, when a click/hover target has no <code>alloro-tpl-*</code> ancestor but is (or is inside) an eligible basic element (<code>p, span, a, h1–h6, li, button, blockquote, figcaption, img, video</code>) within <code>[data-alloro-section]</code>, assign a generated unique class (<code>alloro-tpl-m-&lt;tag&gt;-&lt;n&gt;</code>) to the nearest eligible element and proceed with normal selection. Hover highlighting must work on untagged eligible elements too. Idempotent: re-clicks reuse the assigned class.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/hooks/useIframeSelector.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: click an untagged <code>&lt;p&gt;</code>, <code>&lt;a&gt;</code>, and <code>&lt;img&gt;</code> in a section → selection label + inline popover appear; text/link/photo edits apply; LayoutEditor behavior unchanged.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Undo/redo with keyboard shortcuts (admin)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Port DFYWebsite's <code>undoStack</code>/<code>redoStack</code> pattern into <code>PageEditor.tsx</code> (replace single <code>editHistory</code>): push on AI edits, direct edits, and code-view edits (<code>handleCodeSectionsChange</code> currently skips history); clear redo on new edit. Add Redo button to <code>EditorToolbar</code>. Bind Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z on both the parent document and the iframe document (re-bind on iframe load; skip while canvas text editing is active).</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/admin/PageEditor.tsx</code>, <code>frontend/src/components/PageEditor/EditorToolbar.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: chain edit → undo → redo across AI, direct, and code edits; keyboard shortcuts work with focus inside the iframe.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Remove autosave; explicit Save only (admin)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Delete <code>scheduleSave</code>/<code>saveTimeoutRef</code> and all call sites in <code>PageEditor.tsx</code>; edits only set <code>isDirty</code>. Save button persists sections + chat history. Pre-publish save-if-dirty stays. Undo/redo no longer triggers network writes.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/admin/PageEditor.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2 (same file)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: edit → no PATCH in network tab until Save clicked; Save clears dirty badge.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Unsaved-changes guards (admin)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>beforeunload</code> handler gated on <code>isDirty</code> (DFYWebsite line 224 pattern). Intercept the toolbar Back link when dirty with the existing <code>ConfirmModal</code> ("Leave without saving?").</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/admin/PageEditor.tsx</code>, <code>frontend/src/components/PageEditor/EditorToolbar.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3</dd></div>
+          <div><dt>Verify</dt><dd>Manual: dirty editor + refresh → browser prompt; dirty + Back → confirm modal; clean editor → no prompts.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Snapshot-on-write (backend, both surfaces)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New shared helper (e.g. <code>src/utils/website-utils/pageSnapshots.ts</code>, styled after <code>pageEditorService.ts</code>): given a page row about to be overwritten, insert an <code>inactive</code> copy (sections, seo_data, display_name, template_page_id, page_type) at <code>version = latest+1</code> iff its sections differ from the newest inactive/published row at that path; then prune inactive rows beyond 20 per path (oldest first). Call it from admin <code>updatePage</code> (explicit save path) and user <code>savePageSections</code> before applying new sections. Restore paths reuse the same helper (T6/T7).</dd></div>
+          <div><dt>Files</dt><dd><code>src/utils/website-utils/pageSnapshots.ts</code> (new), <code>src/controllers/admin-websites/feature-services/service.page-editor.ts</code>, <code>src/controllers/user-website/UserWebsiteController.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: two saves with different content → two history rows; save with identical content → no new row; 21st snapshot prunes the oldest.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Admin version history (endpoints + UI)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add admin routes <code>GET /:id/pages/:pageId/versions</code>, <code>GET /:id/pages/:pageId/versions/:versionId</code>, <code>POST /:id/pages/:pageId/versions/:versionId/restore</code> following the feature-service pattern; admin restore snapshots the current draft state (T5 helper) then replaces the draft's sections/seo_data in place — no publish. Add API functions to <code>frontend/src/api/websites.ts</code>. Parameterize <code>VersionHistoryTab</code> with injectable fetchers (default = current user endpoints, so DFYWebsite is unchanged). Wire <code>showHistory</code>, preview (read-only iframe of version content), restore, and exit-preview into <code>PageEditor.tsx</code>, mirroring DFYWebsite lines 891–937 and 1380–1440.</dd></div>
+          <div><dt>Files</dt><dd><code>src/routes/admin/websites.ts</code>, <code>src/controllers/admin-websites/feature-services/service.page-editor.ts</code> (or sibling service), admin websites controller, <code>frontend/src/api/websites.ts</code>, <code>frontend/src/components/PageEditor/VersionHistoryTab.tsx</code>, <code>frontend/src/pages/admin/PageEditor.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3, T4, T5</dd></div>
+          <div><dt>Verify</dt><dd>Manual: History tab lists versions; Preview shows version read-only with editing disabled; Restore loads content into draft (dirty until saved or auto-saved per restore design), page stays unpublished; DFYWebsite history still works.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: Fix user-side restore + prune</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>restorePageVersion</code>, carry <code>seo_data</code>, <code>display_name</code>, <code>template_page_id</code>, <code>page_type</code> into both inserted rows; snapshot the pre-restore published state via the T5 helper inside the same transaction.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/user-website/user-website-services/userWebsite.service.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T5</dd></div>
+          <div><dt>Verify</dt><dd>Manual: restore a version on a page with SEO data → restored published row retains seo_data; pre-restore state appears in history.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T8: Fix stale-draft clobber</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>createDraft</code>, compare published <code>updated_at</code> against draft <code>updated_at</code> (not <code>created_at</code>) before refreshing draft sections, so saved draft edits are never silently overwritten.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.page-editor.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: edit + save draft, touch published row's updated_at, reload editor → draft edits intact.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T10: Save keyboard shortcut (Rev 1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Bind Cmd/Ctrl+S on both surfaces (parent document + iframe document, alongside the T2 undo/redo bindings): <code>preventDefault</code> always; trigger Save only when dirty and not already saving. Skip while canvas/rich-text editing is active.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/admin/PageEditor.tsx</code>, <code>frontend/src/pages/DFYWebsite.tsx</code> (shared hook <code>frontend/src/hooks/useEditorKeyboard.ts</code> if T2's bindings are extracted)</dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3</dd></div>
+          <div><dt>Verify</dt><dd>Manual: Cmd+S saves with focus inside and outside the iframe; never triggers the browser save dialog.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T11: localStorage crash recovery (Rev 1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New hook <code>useLocalDraftBackup(pageId, sections, isDirty)</code>: debounce-mirror dirty sections to <code>localStorage</code> (<code>alloro-editor-recovery:{pageId}</code>); clear on successful save/publish/restore. On editor load, if a backup exists, differs from server sections, and is newer than the page row's <code>updated_at</code>, prompt "Recover unsaved changes?" (recover → load sections + mark dirty; discard → clear). Wire into both surfaces.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/hooks/useLocalDraftBackup.ts</code> (new), <code>frontend/src/pages/admin/PageEditor.tsx</code>, <code>frontend/src/pages/DFYWebsite.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3</dd></div>
+          <div><dt>Verify</dt><dd>Manual: edit → kill tab → reopen → recovery prompt restores edits; after Save, no prompt on reload.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T12: Optimistic concurrency guard (Rev 1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Save calls send <code>expectedUpdatedAt</code> (the page row's <code>updated_at</code> as loaded). Backend (<code>updatePage</code>, <code>savePageSections</code>) returns 409 <code>{code:"STALE_WRITE"}</code> on mismatch. Frontend conflict modal: "Reload latest" (refetch, local backup keeps unsaved work) or "Save anyway" (retry with <code>force: true</code>). Refresh the tracked timestamp after every successful save.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.page-editor.ts</code>, <code>src/controllers/user-website/UserWebsiteController.ts</code>, <code>frontend/src/api/websites.ts</code>, <code>frontend/src/pages/admin/PageEditor.tsx</code>, <code>frontend/src/pages/DFYWebsite.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T5</dd></div>
+          <div><dt>Verify</dt><dd>Manual: open the same page in two tabs, save in both → second save gets the conflict modal; both paths (reload / save anyway) behave.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T13: Constrained rich-text editing (Rev 1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>For canvas-eligible text elements that currently fail eligibility due to safe inline children (<code>hasUnsafeNestedContent</code> passes but mixed content exists): start a contentEditable session on the element inside the iframe with a floating mini-toolbar (Bold, Italic, Link, Clear formatting). On commit, serialize through an allowlist node-rebuild sanitizer (<code>strong, em, b, i, u, small, sup, sub, mark, br, span, a</code>; strip all attributes except <code>a[href]</code> via <code>normalizeEditorHref</code> and existing <code>class</code>); apply via new direct op <code>replace-inline-html</code> so undo/redo and dirty tracking work unchanged. Escape cancels and restores the original markup. Plain-text elements keep the existing textarea flow.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/utils/richTextEditing.ts</code> (new), <code>frontend/src/utils/canvasTextEditing.ts</code>, <code>frontend/src/utils/editorDirectOperations.ts</code>, <code>frontend/src/hooks/useIframeSelector.ts</code>, <code>frontend/src/components/PageEditor/InlineEditorPopover.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2</dd></div>
+          <div><dt>Verify</dt><dd>Manual: bold/italic/link inside a paragraph with an existing inline link — link survives; pasting HTML with <code>&lt;script&gt;</code>/<code>onclick</code>/<code>style</code> commits stripped-clean markup; Escape restores original; undo reverts the commit.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T14: Save notes + provenance (Rev 1, migration)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Migration: add nullable <code>change_source</code> VARCHAR(20) and <code>revision_note</code> VARCHAR(255) to <code>website_builder.pages</code> (scaffolds in <code>migrations/</code>; repo file follows the <code>src/database/migrations</code> TS analog). Snapshot helper stamps <code>change_source</code> (<code>save | publish | restore | restore-section | find-replace</code>). Save button becomes a split-button with "Save with note…" capturing an optional note onto the snapshot row. <code>VersionHistoryTab</code> renders a source badge + note line.</dd></div>
+          <div><dt>Files</dt><dd>repo knex migration (new), <code>src/utils/website-utils/pageSnapshots.ts</code>, <code>src/controllers/admin-websites/feature-services/service.page-editor.ts</code>, <code>src/controllers/user-website/user-website-services/userWebsite.service.ts</code>, <code>frontend/src/components/PageEditor/VersionHistoryTab.tsx</code>, <code>frontend/src/components/PageEditor/EditorToolbar.tsx</code>, <code>frontend/src/pages/admin/PageEditor.tsx</code>, <code>frontend/src/api/websites.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T5, T6</dd></div>
+          <div><dt>Verify</dt><dd><code>npx knex migrate:latest</code> locally; Manual: "Save with note" → note + Save badge visible in History.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T15: Version diff + section-level restore (Rev 1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New <code>sectionDiff.ts</code>: per-section content-hash compare between a history version and the current draft. In admin History preview: badge the version list entry ("3 sections differ"), outline changed sections in the preview iframe, and offer "Restore this section" per changed section — swaps only that section into the draft (undo push, dirty; saved via the normal Save flow).</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/utils/sectionDiff.ts</code> (new), <code>frontend/src/components/PageEditor/VersionHistoryTab.tsx</code>, <code>frontend/src/pages/admin/PageEditor.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T6</dd></div>
+          <div><dt>Verify</dt><dd>Manual: edit one section, save, open History → exactly that section flagged; restore it → draft matches the old version for that section only.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T16: Image upload-in-place + alt text (Rev 1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add "Upload from device" to <code>MediaBrowser</code> (use the surface's media API upload if available — verify <code>createAdminWebsiteMediaApi</code> and the DFY media API during execution; hide the button when the API lacks upload). Add an alt-text input to the image edit controls backed by a new direct op <code>set-alt-text</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/PageEditor/MediaBrowser.tsx</code>, <code>frontend/src/utils/editorDirectOperations.ts</code>, <code>frontend/src/components/PageEditor/SelectedElementEditorPanel.tsx</code>, <code>frontend/src/api/websiteMedia.ts</code> (verify)</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Manual: upload a photo from the picker and swap it onto an image; edit alt text → persists through save and appears in saved sections.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T17: Site-wide find &amp; replace, admin (Rev 1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Project-level modal (entry on the admin website detail page + editor toolbar): client-side search across all pages' sections (DOMParser text-node walk, plus <code>tel:</code>/<code>mailto:</code> hrefs), case-sensitivity toggle, match list with context and per-match checkboxes. Apply writes per page to <em>draft</em> rows only (creating drafts via the existing flow where needed), through the normal save endpoints so T5 snapshots and T12 concurrency apply. Finish with a summary of pages touched + "review &amp; publish per page" notice.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/Admin/FindReplaceModal.tsx</code> (new), admin website detail page (locate entry point during execution), <code>frontend/src/components/PageEditor/EditorToolbar.tsx</code>, <code>frontend/src/api/websites.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T5, T12</dd></div>
+          <div><dt>Verify</dt><dd>Manual: replace a phone number appearing on 3 pages (text + tel: link) → 3 drafts updated, 3 snapshots created, published rows untouched until publish.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T18: Pre-publish lint warnings (Rev 1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New <code>publishLint.ts</code> running on the assembled draft DOM at Publish time: images with missing/empty alt; internal links (<code>href</code> starting with <code>/</code>) that match no project page path; heading-level jumps within a section; images over ~500KB via best-effort HEAD <code>content-length</code> (skip silently on CORS failure). Render results as advisory warning chips in the publish confirmation (extend the publish modal locally in <code>PageEditor</code> — do not modify the shared <code>settings/ConfirmModal</code>). Publish is always allowed.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/utils/publishLint.ts</code> (new), <code>frontend/src/pages/admin/PageEditor.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3, T4</dd></div>
+          <div><dt>Verify</dt><dd>Manual: page with an alt-less image and a dead internal link → both chips appear; clean page → no chips; publish works in both cases.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T19: Snapshot before createDraft stale-refresh (Rev 20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>createDraft</code>'s stale-refresh branch, call <code>snapshotPageStateIfChanged(existingDraft)</code> immediately before the refresh UPDATE so the draft's last-saved state becomes a restorable history entry (mirrors <code>updatePage</code> and <code>restoreVersionIntoDraft</code>). Also set <code>change_source: null, revision_note: null</code> in the refresh payload (the refreshed draft is a copy of published, not a save) and correct the now-false comment. The refresh itself must still happen — the fix only preserves history first.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.page-editor.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: save draft edits → bump the published row (customer save) → reopen editor → draft refreshed BUT the saved state appears in History and restores cleanly.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T20: Transactional, idempotent publish (Rev 20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Wrap <code>publishPage</code>'s unpublish+publish in one <code>db.transaction</code> (pattern: user-side restore). Scope the page fetch by <code>project_id</code>; if the row is already published return success (idempotent retry); add <code>whereNot("id", pageId)</code> to the unpublish so re-publishing never transits through inactive. Give <code>createPage(publish: true)</code> the same transaction so its insert-then-unpublish window can't leave two published rows.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.page-editor.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Code review of the transaction + manual: publish twice in a row → second is a clean no-op; published row count at path is always exactly one.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T21: Pre-publish save honors the 409 guard (Rev 20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>handlePublishConfirmed</code>'s dirty save must send <code>expectedUpdatedAt</code> (and refresh <code>page.updated_at</code> from the response). On STALE_WRITE, close the publish modal and show the existing conflict modal; its "Save Anyway" path resumes publish with <code>force</code>. No silent overwrite path may remain from Publish.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/admin/PageEditor.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: two tabs, edit in both, Publish in the stale one → conflict modal, not a published overwrite.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T22: Stop inline-markup flattening + tame auto-apply (Rev 20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>(a) Eligibility: canvas mode is "plain" ONLY when the element has zero element children (<code>querySelectorAll("*").length === 0</code>); any children → "rich" (contentEditable preserves spans/br/strong/anchors). (b) Surface <code>canvasTextEditMode</code> on <code>SelectedInfo</code> from both <code>buildSelectedInfo</code> implementations. (c) Sidebar Content field: for rich elements, disable the per-keystroke <code>replace-text</code> auto-apply and show a hint ("contains links/formatting — edit directly on the page"); for plain elements keep auto-apply but debounce ~400ms and coalesce undo snapshots to one per typing burst (reuse the <code>CODE_EDIT_UNDO_COALESCE_MS</code> pattern) so the stack stops gaining one full-page clone per character.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/utils/canvasTextEditing.ts</code>, <code>frontend/src/hooks/useIframeSelector.ts</code>, <code>frontend/src/utils/editorDirectOperations.ts</code>, <code>frontend/src/components/PageEditor/SelectedElementEditorPanel.tsx</code>, both host pages for coalesced undo</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: heading with inline link — sidebar typing can't flatten it; on-page edit preserves it; typing a sentence in a plain paragraph = one undo entry.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T23: Serializer hygiene for mid-session saves + draftText reset (Rev 20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>(a) <code>serializeSectionElement</code>: on the clone, for the root and every <code>[data-alloro-editing]</code> descendant, remove <code>contenteditable</code> and the hide-text inline props (<code>color</code>, <code>-webkit-text-fill-color</code>, <code>text-shadow</code>) and any regen-overlay artifacts before persisting — a save that races an active session must never publish invisible text. (b) Clear <code>selectedInfo.draftText</code> in the session's <code>onFinish</code> so post-commit sidebar typing stops snapping back and dropping keystrokes.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/utils/htmlReplacer.ts</code>, <code>frontend/src/hooks/useIframeSelector.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: edit A, click B (commits A, opens B), Escape, Save → saved sections carry no <code>color:transparent</code>/<code>contenteditable</code>; sidebar typing after an on-page commit keeps every keystroke.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T24: Surface DFY failures honestly (Rev 20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>apiPost</code>/<code>apiPatch</code> swallow HTTP errors — guard every consumer that currently assumes success: DFY <code>handleRestoreVersion</code> (403 READ_ONLY currently toasts "Version restored"), DFY <code>handleSendEdit</code> AI failures, and the admin preview-banner restore (unhandled rejection). Check <code>res?.success</code>, toast the real <code>message</code>, and never clear preview/editor state on failure.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/DFYWebsite.tsx</code>, <code>frontend/src/pages/admin/PageEditor.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: restore as a read-only org → error toast, preview state intact, no false success.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T25: Rebuild htmlContent at iframe remount boundaries (Rev 20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In-place edits leave <code>htmlContent</code> stale; any iframe remount (device toggle, preview exit, regen swap, DFY view switch) reloads pre-edit HTML and the next edit's extraction then clobbers the unsaved edits in <code>sections</code>. Track staleness and rebuild <code>htmlContent</code> from <code>sections</code> exactly at remount boundaries — never per edit (the no-reload invariant stays).</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/admin/PageEditor.tsx</code>, <code>frontend/src/pages/DFYWebsite.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: edit 3 headlines, toggle device width, edits persist visually; further editing + save keeps all three.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T26: DFY restore targeting + pages-list freshness (Rev 20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>(a) <code>fetchWebsite</code> preserves the current selection by PATH instead of resetting to <code>pages[0]</code>. (b) <code>performSave</code> success also patches the <code>pages</code> array entry (updated_at + sections) so reopening a page from the Pages tab doesn't regress <code>expected_updated_at</code> (spurious 409s that train "Save Anyway") or load pre-save content.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/DFYWebsite.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: restore /services → editor stays on /services; save → Pages tab → reopen → no 409, current content.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T27: Tag comment-led sections + preserve multi-root sections (Rev 20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>(a) <code>tagSectionRoot</code> regex skips leading whitespace/HTML comments so template sections starting with <code>&lt;!-- … --&gt;</code> get their <code>data-alloro-section</code> marker (today the editor is completely dead on those pages and the first save strips the comments). (b) Multi-root sections: wrap section content in a plain block div at render time and extract via <code>innerHTML</code> so trailing <code>&lt;script&gt;</code>/<code>&lt;style&gt;</code>/comment siblings survive edit+save (NOT <code>display:contents</code> — regen overlays and diff outlines need a box).</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/utils/templateRenderer.ts</code>, <code>frontend/src/utils/htmlReplacer.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: page with comment-led sections is editable; section with trailing script keeps it through edit+save (inspect stored sections).</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T28: Regeneration vs editing guard (Rev 20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>(a) Gate Regenerate on a clean tree (isDirty → "Save your changes before regenerating", matching the Find &amp; Replace precedent). (b) Strip regen-overlay artifacts (<code>alloro-regenerating</code> classes, <code>data-alloro-regen-overlay</code> nodes) in <code>serializeSectionElement</code> so they can never persist. (c) Regen kickoff/completion paths must not reload the iframe from stale <code>htmlContent</code> (pairs with T25) and the poll loop must not overwrite locally-edited sections.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/admin/PageEditor.tsx</code>, <code>frontend/src/utils/htmlReplacer.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T25</dd></div>
+          <div><dt>Verify</dt><dd>Manual: regenerate with unsaved edits → blocked with message; after a clean regen + edit + save, stored content has no overlay artifacts.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T29: Atomic concurrency check (Rev 20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Replace the check-then-act 409 guard with a conditional write in both save paths: <code>UPDATE … WHERE id = ? AND updated_at = ?</code> (when <code>expected_updated_at</code> present and not forced); zero rows updated → 409 STALE_WRITE. Closes the TOCTOU window where two writers both pass the JS comparison.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.page-editor.ts</code>, <code>src/controllers/user-website/UserWebsiteController.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Code review + manual two-tab race still yields exactly one winner and one 409.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T30: DFY save validates row state (Rev 20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>savePageSections</code> must reject rows whose <code>status</code> isn't the customer-editable state (published) and enforce the same read-only/tier gate the restore endpoint already applies — today it can rewrite inactive history rows and bypass read-only mode.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/user-website/UserWebsiteController.ts</code>, <code>src/controllers/user-website/user-website-services/userWebsite.service.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual/API: PATCH an inactive row id → 400; save as read-only org → 403.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T31: Dark-themed content textarea (Rev 23)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>The CONTENT textarea in the selected-element panel must drop the native light scrollbar and the drag-resize grip, and grow taller before scrolling. Add a cobalt-scoped <code>::-webkit-scrollbar</code> + <code>scrollbar-color</code> rule so every scroll surface in the sidebar is dark; switch the textarea to <code>resize-none</code> with a taller min-height and an explicit max-height that scrolls.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/index.css</code>, <code>frontend/src/components/PageEditor/SelectedElementEditorPanel.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: scrollbar renders dark; no resize handle; box is taller and scrolls past max-height.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T32: AI editor requires a selection (Rev 23)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>The AI editor (ChatPanel) must gate every entry point on a live selection: with nothing selected (or while previewing a version), disable the input/upload/browse/send and show "Select an element and tell me what to change." With a selection, the empty state names the element instead of the generic example. Pass <code>selectionLabel</code> from <code>EditorSidebar</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/PageEditor/ChatPanel.tsx</code>, <code>frontend/src/components/PageEditor/EditorSidebar.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: no selection → input disabled + guidance copy; selection → input enabled.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T33: Selected-element pill in the chat (Rev 23)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Pin a chip at the top of the AI chat window showing the selected element's friendly name (e.g. "Editing: Paragraph", "Editing: Image"), so the target of the next AI edit is always visible. Reuse <code>selectedInfo.friendlyName</code>; style with the cobalt tokens.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/PageEditor/ChatPanel.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T32</dd></div>
+          <div><dt>Verify</dt><dd>Manual: selecting a paragraph then an image updates the pill label accordingly.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T34: Remove the floating rich-text toolbar (Rev 24)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Delete the in-canvas B/I/Link/Clear/Done/✕ overlay from rich-text editing. Rich elements still edit contentEditable-in-place (commit on blur, Escape to cancel, Enter inserts a line break); whole-element formatting moves to the sidebar. Strip the toolbar DOM/CSS/handlers; keep the sanitizer, the contentEditable session, and the <code>[data-alloro-editing]</code> pointer/select rule.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/utils/richTextEditing.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T36 (sidebar B/I replaces the toolbar's formatting)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: selecting a rich element (e.g. a button/link with an inner arrow) shows no floating toolbar; typing + click-away still commits.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T35: Background controls for containers (Rev 24)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Surface the existing (orphaned) background operations in the sidebar for both sections and plain containers. Add a sidebar-styled "Background" section (color swatches + custom color + clear; background image add/replace/clear + size/position when an image is set). Relax the <code>assertSection</code> gate and <code>canEditBackground</code> to also allow block-container tags (<code>div</code>, <code>section</code>, <code>header</code>…).</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/utils/editorDirectOperations.ts</code>, <code>frontend/src/components/PageEditor/SelectedElementEditorPanel.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: selecting a container div shows Background controls; color + image apply in place.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T36: Bold/italic toggles in the sidebar (Rev 24)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>toggle-bold</code>/<code>toggle-italic</code> direct operations (inline-style based, so they survive Tailwind purge; any pre-existing weight class is normalized) plus getters, and a "Style" row of B/I toggle buttons in <code>TextStyleControls</code> for heading/text elements. Pressed state reflects the element's current bold/italic.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/utils/editorDirectOperations.ts</code>, <code>frontend/src/components/PageEditor/TextStyleControls.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: toggling B/I on a heading and a paragraph bolds/italicizes the whole element and reflects the active state.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T37: Keep the live/draft row as the newest version on save (Rev 26)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>On each content save, bump the edited row's <code>version</code> to (max at path)+1 AFTER snapshotting. The snapshot helper assigns the snapshot <code>max+1</code>, so without this the live draft (admin) / live page (DFY) keeps a lower number than its own archived history and sinks below it in the History tab — making the newest version read as "Archived." Apply to both <code>updatePage</code> (admin) and <code>savePageSections</code> (DFY).</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.page-editor.ts</code>, <code>src/controllers/user-website/UserWebsiteController.ts</code>, <code>frontend/src/pages/admin/PageEditor.tsx</code> (reflect new version in the toolbar)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: save a few times → the editable row stays at the top labeled Draft/Live; snapshots sit below it. Existing inverted rows self-heal on the next save.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T38: Don't reload the preview on publish (Rev 26)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>handlePublishConfirmed</code> rebuilt <code>htmlContent</code> after publish, swapping the iframe srcDoc and flashing/reloading the preview — even though the canvas already shows exactly the just-published content. Skip the rebuild; adopt the new draft's sections and leave <code>htmlStaleRef</code> as-is (publish doesn't change content, so freshness is unchanged).</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/admin/PageEditor.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: Publish → the preview does not flash/reload; the version label advances and a new draft is active.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T39: Breakpoint-aware font size (Rev 27)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Make the size stepper target the active preview breakpoint: mobile view writes the base <code>text-*</code> class, desktop view writes <code>md:text-*</code>, so the two tiers keep independent sizes (Tailwind mobile-first; base applies until <code>md:</code> overrides ≥768px). The size label reads the active tier. Introduce <code>EditViewport</code> + base/<code>md:</code> tier helpers; thread the active viewport from both hosts (admin <code>device</code>, DFY <code>viewportMode</code>) → <code>EditorSidebar</code> → panel.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/utils/editorDirectOperations.ts</code>, <code>frontend/src/components/PageEditor/SelectedElementEditorPanel.tsx</code>, <code>EditorSidebar.tsx</code>, <code>pages/admin/PageEditor.tsx</code>, <code>pages/DFYWebsite.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: bump size in desktop view → only desktop changes; toggle to mobile → original size; bump there → only mobile changes.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T40: Per-breakpoint text alignment (Rev 27)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New <code>set-text-align</code> op (left/center/right/justify) writing base or <code>md:text-{align}</code> per the active viewport. Sidebar "Align" row (text elements + containers) reflecting the active-tier alignment.</dd></div>
+          <div><dt>Files</dt><dd><code>editorDirectOperations.ts</code>, <code>SelectedElementEditorPanel.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T39</dd></div>
+          <div><dt>Verify</dt><dd>Manual: center on mobile / left on desktop persists independently per tier.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T41: Per-breakpoint visibility (Rev 27)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New <code>set-responsive-visibility</code> op using <code>max-md:hidden</code> (hide on mobile) / <code>md:hidden</code> (hide on desktop) — independent classes, no display-type guessing, and it keeps the element in the HTML (unlike the header Hide, which is a hard server-side removal). Sidebar "Visibility · {viewport}" toggle.</dd></div>
+          <div><dt>Files</dt><dd><code>editorDirectOperations.ts</code>, <code>SelectedElementEditorPanel.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T39</dd></div>
+          <div><dt>Verify</dt><dd>Manual: hide on mobile → element gone in 375px preview, present on desktop; and vice versa.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T9: Verification pipeline</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Run type-check + lint for backend and frontend; execute the manual QA checklist in Done.</dd></div>
+          <div><dt>Files</dt><dd>n/a</dd></div>
+          <div><dt>Depends on</dt><dd>T1–T8, T10–T41</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> (root + frontend), <code>npm run lint</code></dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> — zero errors (backend root + frontend)</li>
+        <li><input type="checkbox" disabled> <code>npm run lint</code> — pass</li>
+        <li><input type="checkbox" disabled> Manual: untagged <code>p</code>/<code>span</code>/<code>a</code>/<code>img</code> in a section are selectable and editable (text, href, photo swap) without AI</li>
+        <li><input type="checkbox" disabled> Manual: undo + redo work via buttons and Cmd/Ctrl+Z / Shift+Cmd/Ctrl+Z, including code-view edits</li>
+        <li><input type="checkbox" disabled> Manual: no network save fires until Save is clicked; each distinct Save adds a restorable version</li>
+        <li><input type="checkbox" disabled> Manual: refresh/close and Back with unsaved changes prompt for confirmation</li>
+        <li><input type="checkbox" disabled> Manual: admin History tab lists, previews, and restores versions into the draft without publishing</li>
+        <li><input type="checkbox" disabled> Manual: user-side (DFYWebsite) save, history, and restore still work; restore retains SEO data</li>
+        <li><input type="checkbox" disabled> No regressions in LayoutEditor selection/editing and AI chat editing on both surfaces</li>
+        <li><input type="checkbox" disabled> Manual (Rev 1): Cmd/Ctrl+S saves on both surfaces without triggering the browser dialog</li>
+        <li><input type="checkbox" disabled> Manual (Rev 1): killed tab with dirty edits → recovery prompt restores them; clean save → no prompt</li>
+        <li><input type="checkbox" disabled> Manual (Rev 1): concurrent save from a second tab → 409 conflict modal; both resolution paths work</li>
+        <li><input type="checkbox" disabled> Manual (Rev 1): rich-text bold/italic/link preserves existing inline links; pasted <code>&lt;script&gt;</code>/<code>onclick</code>/<code>style</code> markup is stripped on commit</li>
+        <li><input type="checkbox" disabled> <code>npx knex migrate:latest</code> applies cleanly (Rev 1); save-with-note shows source badge + note in History</li>
+        <li><input type="checkbox" disabled> Manual (Rev 1): version diff flags exactly the changed sections; single-section restore touches only that section</li>
+        <li><input type="checkbox" disabled> Manual (Rev 1): upload-from-device + alt-text edit persist through save</li>
+        <li><input type="checkbox" disabled> Manual (Rev 1): find &amp; replace updates drafts only, with snapshots, across multiple pages (text + tel: hrefs)</li>
+        <li><input type="checkbox" disabled> Manual (Rev 1): publish lint chips appear for missing alt + dead internal link; publish never blocked</li>
+        <li><input type="checkbox" disabled> Manual (Rev 20): saved draft + customer publish-bump + editor reopen → refreshed draft's prior state is in History and restores</li>
+        <li><input type="checkbox" disabled> Manual (Rev 20): publish is idempotent; exactly one published row per path at all times</li>
+        <li><input type="checkbox" disabled> Manual (Rev 20): publishing with stale local state hits the conflict modal — no silent overwrite ships live</li>
+        <li><input type="checkbox" disabled> Manual (Rev 20): sidebar typing can never flatten inline links; a typed sentence costs one undo entry, not one per character</li>
+        <li><input type="checkbox" disabled> Manual (Rev 20): a save racing an active edit session persists no <code>contenteditable</code>/transparent-text/regen artifacts</li>
+        <li><input type="checkbox" disabled> Manual (Rev 20): DFY restore/AI failures show real errors (no false "Version restored"); restore keeps the current page open; no spurious 409 after Pages-tab round-trip</li>
+        <li><input type="checkbox" disabled> Manual (Rev 20): comment-led sections are editable; trailing script/style siblings survive edit+save; device-toggle remounts don't revert unsaved edits</li>
+        <li><input type="checkbox" disabled> Manual (Rev 23): CONTENT textarea has a dark scrollbar, no resize grip, and a taller box that scrolls past its max-height</li>
+        <li><input type="checkbox" disabled> Manual (Rev 23): AI editor is disabled with "Select an element and tell me what to change" when nothing is selected; enabled when an element is selected</li>
+        <li><input type="checkbox" disabled> Manual (Rev 23): a pill at the top of the AI chat names the selected element and updates as the selection changes</li>
+        <li><input type="checkbox" disabled> Manual (Rev 24): no floating B/I/Link toolbar appears over a selected rich element; in-place typing still commits on click-away</li>
+        <li><input type="checkbox" disabled> Manual (Rev 24): selecting a container shows Background controls (color + image); they apply in place</li>
+        <li><input type="checkbox" disabled> Manual (Rev 24): sidebar Bold/Italic toggles a heading and a paragraph and shows the active state</li>
+        <li><input type="checkbox" disabled> Manual (Rev 26): saving a few times keeps the editable row at the top (Draft/Live), with snapshots below — the newest version is never "Archived"</li>
+        <li><input type="checkbox" disabled> Manual (Rev 26): Publish does not flash/reload the preview</li>
+        <li><input type="checkbox" disabled> Manual (Rev 27): font size / alignment edited in desktop view change only desktop; in mobile view only mobile (independent per breakpoint)</li>
+        <li><input type="checkbox" disabled> Manual (Rev 27): per-breakpoint Hide removes an element from the 375px preview only (or desktop only), and it survives save/publish on the live site</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Added nine feature tasks (T10–T18): Cmd/Ctrl+S save shortcut, localStorage crash recovery, optimistic concurrency guard, constrained rich-text editing, save notes + provenance (first DB migration in this plan — <code>change_source</code>/<code>revision_note</code> on <code>pages</code>), version diff + section-level restore, image upload-in-place + alt text, admin site-wide find &amp; replace, and pre-publish lint warnings. Rich-text editing and provenance labels moved from Out of Scope into scope. AI-as-reviewer explicitly excluded pending its own design pass. Size revised ~13 → ~25 files; T9 (verification) now depends on all tasks; recommended two-milestone execution (M1: T1–T9, M2: T10–T18).</p>
+        <p><strong>Reason:</strong> User requested all suggestions from the feature review be folded into this plan, including rich-text editing.</p>
+        <p><strong>Updated Done criteria:</strong> Ten new checklist items covering the Rev 1 features (see Done).</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-06-11 (execution log)</h3>
+        <p><strong>Change:</strong> All tasks T1–T18 implemented in two commits (M1: core editing + versioning; M2: feature layer). Migration <code>20260611000000_add_page_revision_metadata</code> applied to the local DB (batch 122); NOT applied on dev/prod. Documented deviations:</p>
+        <ul>
+          <li>Auto-tag class format is <code>alloro-tpl-m-component-{tag}-{n}</code> (spec said <code>alloro-tpl-m-{tag}-{n}</code>) — the <code>-component-</code> token is required by <code>isComponent()</code> type detection.</li>
+          <li>Conflict modal offers "Save Anyway / Keep Editing" instead of a three-way with "Reload latest" — the shared ConfirmModal is two-action; reload is covered by browser refresh + the local crash backup.</li>
+          <li>User-side restore needed no extra pre-restore snapshot call: the superseded draft/published rows transition to <code>inactive</code> and ARE the history entries; only field-carrying, artifact guard, and pruning were added.</li>
+          <li>Provenance (<code>change_source</code>/<code>revision_note</code>) is stamped on the live row at write time and travels onto snapshots when copied — same History UX as stamping snapshots directly, simpler data flow.</li>
+          <li><code>richTextEditing.ts</code> is 458 lines (over the 300-line soft cap) — toolbar UI + session lifecycle + sanitizer; helpers extracted.</li>
+          <li>DFY crash-recovery check is timestamp-based only (admin also deep-compares sections — DFY's Page row doesn't carry sections client-side at check time).</li>
+          <li>ESLint not runnable in this worktree (missing <code>@eslint/js</code> in node_modules; backend has no flat config) — environment issue, tsc green on both sides.</li>
+        </ul>
+        <p><strong>Reason:</strong> Spec-code parity record at execution time.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Selection priority in <code>useIframeSelector</code> flipped to <em>content-first</em>. T1 originally only auto-tagged elements with NO <code>alloro-tpl-*</code> ancestor — so clicking text inside a tagged section/component root still selected the tagged ancestor (user hit this on an eyebrow heading: got section background controls instead of text editing). Now the precise basic element under the cursor (p/span/headings/a/img/…) always wins — auto-tagged on demand — and the tagged ancestor is the fallback for container clicks (section padding, tagged cards). Hover preview follows the same priority. Combined with click-to-type canvas/rich editing, inline on-page editing is the primary path and the sidebar is supportive.</p>
+        <p><strong>Reason:</strong> User QA: "reject alloro-tpl stuff and just edit elements directly, especially text inline."</p>
+        <p><strong>Updated Done criteria:</strong> none added — covered by the existing "untagged p/span/a/img are selectable and editable" item, now including elements nested inside tagged ancestors.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 4 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Live editing polish, both surfaces. (1) Direct edits no longer reload the preview — the DFY editor rebuilt the iframe <code>srcDoc</code> after every in-place mutation (font-size steps flashed + scroll-jumped); both rebuild calls removed to match the admin editor's in-place model. (2) New text-style direct ops + sidebar controls: text color (brand swatches + custom picker + reset, inline <code>color</code> style) and serif/sans toggle (Tailwind <code>font-serif</code>/<code>font-sans</code> classes), live in-place. (3) Type-on-page fixed: the sidebar panel auto-focused its textarea ~50ms after selection, blurring (and committing) the just-started canvas text session — focus is now suppressed while canvas editing is active. (4) Sidebar textarea typing now live-previews into the iframe element (visual only; Apply commits, abandoning reverts the original markup).</p>
+        <p><strong>Reason:</strong> User QA on the DFY editor: preview reloaded on font-size changes; inline type-on-page never engaged; requested font color + serif/sans controls.</p>
+        <p><strong>Updated Done criteria:</strong> font size/color/family changes apply with no iframe reload; clicking text starts on-page typing without the sidebar stealing focus.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 5 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Loop (shortcode) duplication fix + selection scoping. Root cause of the duplicated/broken doctor & blog grids: the editor's shortcode pill carries the raw <code>&#123;&#123; post_block … &#125;&#125;</code> token in its attribute and label, and the DFY preview sends the assembled HTML through the server resolver whose regex resolved those copies <em>inside the pill</em> — injecting a rendered grid into the attribute (breaking quoting, leaking markup as text) and a duplicate grid into the pill body. Token copies are now entity-armored (braces/brackets) so resolver regexes can't match them; header/footer menu tokens stay raw and resolve normally. Extraction now also strips editor state attributes (hover/selected/editing) before persisting. Selection scoping: shortcode pills are never selectable; page editors pass <code>sectionsOnly</code> so header/footer can't be selected (Layout Editor unchanged).</p>
+        <p><strong>Reason:</strong> User QA: duplicate loop renders + leaked markup text; request to disallow editing of loops, header, and footer.</p>
+        <p><strong>Updated Done criteria:</strong> loops render once as read-only pills with no leaked markup; hover/click ignores pills and header/footer in both page editors.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 6 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Editor sidebar UX pass. (1) Cobalt-dark theme via a new scoped <code>.editor-cobalt</code> block in <code>index.css</code> — mirrors the existing <code>.minds-theme</code> utility-override approach (no component JSX churn); orange primary accents preserved, surfaces tinted cobalt navy, errors/chips kept legible. (2) De-AI-first restructure of <code>EditorSidebar</code>: tabs are now <strong>Edit / History (/ Debug)</strong> with Edit as default; direct controls (text, color, font, link, photo) are the primary surface, and the AI chat is demoted into a collapsed <strong>"AI Editor — Tell Alloro what to change"</strong> dropdown at the bottom. (3) Global support FAB hidden while an editor is open (<code>body[data-editor-fullscreen]</code> set by both editors) so the bug icon never overlaps the sidebar.</p>
+        <p><strong>Reason:</strong> User: dark cobalt sidebar; make it intuitive / not AI-first; stop the bug icon overlapping the chat input.</p>
+        <p><strong>Updated Done criteria:</strong> sidebar renders cobalt-dark; direct controls lead with AI behind a dropdown; FAB does not overlap the sidebar.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 7 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Cobalt palette + tool layout polish. (1) Retuned <code>.editor-cobalt</code> to the left nav rail's exact <code>#212D40</code> (shell), with a lifted <code>#27344a</code> element panel, recessed <code>#1a2433</code> inputs and <code>#2e3d56</code> controls — was too dark/desaturated before. (2) Rebuilt <code>SelectedElementEditorPanel</code> from a cramped top-corner icon row into a spacious, labeled inspector: <strong>Content</strong> (always-visible text field), <strong>Size</strong> (−/readout/+), <strong>Color</strong> + <strong>Font</strong> (roomy labeled rows in <code>TextStyleControls</code>), <strong>Link</strong>, <strong>Photo</strong>, <strong>Alt text</strong> — each a labeled section with breathing room, separate field state so they coexist, and the panel scrolls within the sidebar. New <code>getSelectedFontSizeLabel</code> helper drives the size readout.</p>
+        <p><strong>Reason:</strong> User: cobalt didn't match the left sidebar; tools were cramped to the top corner — "we can do better."</p>
+        <p><strong>Updated Done criteria:</strong> sidebar cobalt matches the nav rail; element controls are spacious labeled sections, not a cramped icon row.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 8 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Two editing bugs. (1) <strong>Content carryover</strong>: the live-preview revert keyed off the <em>current</em> selection, so switching heading → paragraph → heading without applying reverted the wrong element and stamped one element's text onto another. The live-preview ref now stores <code>{ alloroClass, html }</code> and revert targets the element it actually previewed (both editors); switching elements reverts the prior preview first. (2) <strong>Caret at click</strong>: canvas/rich editing selected-all on focus; now the click coordinate is mapped to a character offset (<code>caretCharOffsetFromPoint</code>) and the caret lands exactly where clicked — textarea <code>setSelectionRange</code> for plain text, a collapsed DOM range (<code>placeCaretAtOffset</code>) for rich.</p>
+        <p><strong>Reason:</strong> User QA: editing heading then paragraph carried the paragraph's content onto the heading; clicking text dropped the caret at the start instead of the click point.</p>
+        <p><strong>Updated Done criteria:</strong> switching elements never carries content across; the type caret appears where the user clicks.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 9 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Regression from Rev 8 — clicking text selected the element but never entered edit mode (no caret). Two causes, both fixed: (1) <code>caretCharOffsetFromPoint</code> runs synchronously in the click handler <em>after</em> selection is set but <em>before</em> the edit is scheduled, so any throw there aborted editing while leaving the element selected — its whole body is now wrapped so it can never throw (returns null → caret falls back to select-all, editing still starts). (2) The sidebar Content field auto-focused ~50ms after selection, blurring/ending the just-started on-page caret session — it now never competes for focus when the element supports in-canvas editing (<code>canCanvasEditText</code>), with a fire-time re-check as backstop.</p>
+        <p><strong>Reason:</strong> User QA: clicking heading/paragraph/link no longer entered edit mode; caret didn't display.</p>
+        <p><strong>Updated Done criteria:</strong> clicking editable text reliably starts on-page editing with a visible caret.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 10 - 2026-06-11</h3>
+        <p><strong>Change:</strong> The real root cause of "can't edit / no caret" (Rev 8/9 chased the wrong layer). <code>getCanvasTextEditEligibility</code> returned <code>canEdit:false</code> for any text element with a descendant outside a tiny allowlist — so common headings/paragraphs carrying a stray nested element were silently <strong>un-editable</strong> (no pencil, no caret). Now any text-tag element with non-plain children routes to the contentEditable "rich" path (native caret at click, structure preserved, commit sanitizer as the safety net) instead of being disabled. Also: (C) the −/+ size stepper now sets an inline <code>font-size</code> (computed-based ±10%) so it can't be overridden by responsive <code>md:text-*</code> classes — previously it swapped <code>text-*</code> classes that the responsive class beat, so nothing changed; the size readout reads the inline px. (B) the inline popover now tracks the element on scroll via an rAF-throttled live-rect update in the selector hook, instead of floating in the viewport.</p>
+        <p><strong>Reason:</strong> User QA: heading inline editing disabled by default with no caret; size −/+ didn't update; popover floated/detached on scroll.</p>
+        <p><strong>Updated Done criteria:</strong> all text elements are inline-editable with a caret; size −/+ visibly changes the text; the popover stays anchored to its element while scrolling.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 11 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Two inline-editing bugs, diagnosed via a parallel adversarial workflow (4 expert traces + 3 verifiers). (1) <strong>No on-page caret</strong> — the edit element was focused two macrotasks after the click (begin deferred via <code>setTimeout</code>, then focus deferred again), i.e. OUTSIDE the user gesture, so a contentEditable/textarea in a sandboxed iframe never painted a caret. Removed both defers: begin + focus now run synchronously inside the click. (2) <strong>Click toggles editing on/off</strong> — the click handler early-returned whenever a session was active (flag cleared only later in a deferred blur), swallowing every other click. Now a click while editing COMMITS the active session and proceeds to re-select in the same gesture. The verifier caught that a naive commit re-introduces the Rev 8 cross-element contamination (the commit's deferred apply resolves against the LIVE selection), so the commit is now <strong>target-pinned</strong>: the session emits its element's class (<code>QuickActionPayload.targetAlloroClass</code>), and <code>handleApplyDirectEdit</code> takes an <code>overrideAlloroClass</code> to apply against that element and skip the selection write-back. (#3 sidebar auto-Apply deferred — it changes the undo/live-preview contract and ships separately.)</p>
+        <p><strong>Reason:</strong> User QA: no caret in the on-page editor (only the sidebar textbox); clicking text edits once then can't edit again.</p>
+        <p><strong>Updated Done criteria:</strong> clicking text shows an on-page caret immediately; switching elements mid-edit commits the prior one to its own element and opens the next — no swallowed clicks, no content carryover.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 12 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Refined the Rev 11 click behavior. A click inside the active on-page editor itself — the plain textarea overlay, the rich contentEditable element, or the rich toolbar — now stays inside that editor instead of bubbling into the selector's "commit current session, then re-select" path. Clicks outside the active editor still commit and can move selection to the next element. The plain textarea overlay also gets an explicit orange caret color, and failed browser caret coordinate lookups now fall back to an estimated character offset instead of selecting the whole text block. Verification cleanup also removed two admin editor typecheck blockers: an unused DOM replacement return and an overly narrow project state type that hid <code>pages</code> from the publisher lint path.</p>
+        <p><strong>Reason:</strong> User QA: first click showed the edit state but no visible caret; clicking the same text again removed the sidebar highlight/edit state and made the text uneditable.</p>
+        <p><strong>Updated Done criteria:</strong> clicking inside active inline text keeps editing active and lets the caret move; clicking outside commits and moves cleanly to the next element.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 13 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Inline text editing now starts from the iframe <code>mousedown</code> capture path for editable text, before Chrome's default click/focus behavior can move focus back to the iframe or sidebar. The selector reuses one target resolver for mousedown and click, ignores editor chrome consistently, and leaves the later click event inside the already-active editor instead of toggling the session off.</p>
+        <p><strong>Reason:</strong> Computer-use QA on the logged-in pilot window confirmed the real state: clicking the heading selected it and focused the iframe/sidebar path, but no on-page editable textarea/contentEditable caret became usable; clicking again kept selection without inline editing.</p>
+        <p><strong>Updated Done criteria:</strong> first click on editable text opens a visible inline caret/editor; second click on the same text moves/keeps the inline caret instead of dropping back to sidebar-only editing.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 14 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Fixed the iframe realm check in the inline text editor utilities. <code>canvasTextEditing</code> and <code>richTextEditing</code> now validate preview nodes against <code>element.ownerDocument.defaultView.HTMLElement</code> instead of the parent app window's <code>HTMLElement</code>, so real iframe headings/paragraphs are no longer rejected before the textarea/contentEditable session can start.</p>
+        <p><strong>Reason:</strong> Computer-use QA after Rev 13 still reproduced the bug in the logged-in pilot window: the heading selected and the toolbar appeared, but no inline editor/caret opened. The remaining failure was the cross-window <code>instanceof HTMLElement</code> guard, not deployment or branch state.</p>
+        <p><strong>Updated Done criteria:</strong> first and repeated clicks on iframe text must start/keep an active inline editor with a visible caret in the real <code>localhost:3000</code> pilot window.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 15 - 2026-06-11</h3>
+        <p><strong>Change:</strong> Kept the mousedown-created inline editor alive through mouse release. The selector now suppresses the matching mouseup/click after it starts a canvas edit, and the plain textarea tolerates the first brief blur by refocusing during a small initial grace window.</p>
+        <p><strong>Reason:</strong> User QA after Rev 14 narrowed the failure: the caret and typing worked only while the mouse button was held, then the release/click path killed the editor and rejected subsequent keyboard input.</p>
+        <p><strong>Updated Done criteria:</strong> clicking and releasing editable preview text must leave the inline editor focused with a visible caret so normal typing continues after release.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 16 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Cleaned up selection chrome after switching elements. The iframe selector now clears stale hover state whenever selection or inline editing starts, so a previously hovered heading cannot keep its dashed blue outline after paragraph/button selection. Both the in-iframe label/action panel and the React <code>InlineEditorPopover</code> now position above or below the selected element with measured spacing instead of using fixed offsets that overlap text and buttons.</p>
+        <p><strong>Reason:</strong> User QA: after clicking heading → paragraph → button, the old heading outline stayed visible and the floating control covered the active paragraph/button.</p>
+        <p><strong>Updated Done criteria:</strong> switching selected elements leaves only the active element outlined; floating inline controls must not cover the selected element.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 17 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Collapsed editor selection chrome to a single non-layout ring. Hover remains a blue dashed outline; selected, focused, active, and editing states use one orange outline. The plain textarea overlay no longer adds its own border or shadow, so it does not shrink the text box and force extra wrapping while editing.</p>
+        <p><strong>Reason:</strong> User QA: selected links/buttons showed a double orange outline, and the inline textarea border reduced available text width enough to wrap text differently.</p>
+        <p><strong>Updated Done criteria:</strong> selected/focused/active elements show one orange outline; hover shows blue; inline text editing does not change text wrapping because of editor border chrome.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 18 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Fixed the React inline popover's scaled-preview measurement. <code>InlineEditorPopover</code> now measures its unscaled layout size with <code>offsetWidth</code>/<code>offsetHeight</code> instead of the CSS-transformed visual rect, keeps a minimum unscaled toolbar footprint after resize callbacks, and uses a larger anchor gap so the toolbar clears small text elements in the scaled DFY desktop preview.</p>
+        <p><strong>Reason:</strong> User QA: the floating white toolbar still overlapped the selected eyebrow/text element in the scaled preview.</p>
+        <p><strong>Updated Done criteria:</strong> the React inline toolbar must clear selected text elements in desktop scaled preview, including compact eyebrow text.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 19 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Removed the floating preview control surfaces now that the sidebar owns element controls. The iframe selector now keeps canvas chrome to outlines only, restores a visible dashed blue hover outline, and continues using orange for selected/editing state. Sidebar Content edits now auto-apply through the direct edit pipeline without an Apply button, and active inline canvas typing mirrors draft text into the sidebar textarea immediately.</p>
+        <p><strong>Reason:</strong> User QA: the floating controls still competed with page content, hover outlines disappeared, and sidebar text editing should be live instead of Apply-gated.</p>
+        <p><strong>Updated Done criteria:</strong> no floating canvas toolbar appears; hover shows dashed blue outline; selected/editing state stays orange; sidebar Content typing applies immediately and inline canvas typing updates the sidebar field while typing.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 20 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Reliability fix round planned from a 48-agent adversarial audit of the save/publish/draft/restore/undo flow (39 confirmed findings; full verified report referenced in project memory). Twelve tasks added, T19–T30: <strong>T19</strong> snapshot before createDraft stale-refresh (the one CRITICAL — a customer DFY save bumps <code>published.updated_at</code> and the next admin editor open silently destroys the admin's saved draft with no history entry); <strong>T20</strong> transactional + idempotent publish (crash window today can leave a path with zero — or via createPage, two — published rows); <strong>T21</strong> pre-publish dirty save must honor the 409 guard (today Publish silently overwrites concurrent edits and ships them live); <strong>T22</strong> stop inline-markup flattening (plain canvas mode only for element-childless text; sidebar auto-apply gated off rich elements, debounced + undo-coalesced for plain — today one keystroke in the sidebar destroys inline links and pushes one full-page undo clone per character); <strong>T23</strong> serializer strips mid-session artifacts (<code>contenteditable</code>, transparent-text styles) + clears stale <code>draftText</code> (keystroke snap-back); <strong>T24</strong> DFY restore/AI-edit failures surface real errors instead of toasting success; <strong>T25</strong> htmlContent rebuilt at iframe remount boundaries (device toggle currently reverts unsaved edits, and the next edit persists the reversion); <strong>T26</strong> DFY restore keeps the current page selected + pages-list freshness (kills spurious 409s that train "Save Anyway"); <strong>T27</strong> comment-led sections get section markers (editor is fully dead on such pages today) + multi-root sections keep trailing script/style siblings; <strong>T28</strong> regeneration gated on a clean tree + overlay artifacts stripped; <strong>T29</strong> conditional-UPDATE concurrency (closes the TOCTOU on the 409 check); <strong>T30</strong> DFY save validates row status + read-only tier. Deferred to a later rev (hardening, documented in the audit): version-number unique constraint, restore-while-dirty confirmation, Cmd+S during an inline session, scroll-driven selectedInfo churn wiping unapplied inputs, clock-skew in crash recovery, dead live-preview machinery removal.</p>
+        <p><strong>Reason:</strong> User-requested reliability audit ("check on bugs… especially save, publish, draft, restore, undo/redo"); every finding adversarially verified against HEAD before planning.</p>
+        <p><strong>Updated Done criteria:</strong> eight new checklist items covering T19–T30 (see Done).</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 21 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Rev 20 (T19–T30) executed across backend and both editor hosts. Three small additions beyond the planned task text, all within the same intent: (1) the admin stale-html rebuild also fires on <em>view switches</em> (visual → code/seo unmounts the iframe — same remount-reversion hazard as exit-preview, which the plan only named explicitly); (2) the regen gate message says "regeneration works from the last saved draft" rather than the drafted "regen reloads the preview" (the swap is in-place; the real loss vector is server-side regeneration from saved state); (3) <code>handlePublishConfirmed</code>'s dependency array was corrected to include <code>page?.updated_at</code>/<code>clearBackup</code>/<code>project</code> — required for the new 409 guard to compare against a fresh timestamp, and it clears a pre-existing exhaustive-deps lint warning.</p>
+        <p><strong>Reason:</strong> Execution deviation: remount-boundary coverage and guard correctness discovered while wiring T21/T25 into the admin host.</p>
+        <p><strong>Updated Done criteria:</strong> none — Rev 20's eight items stand; tsc (frontend + backend) and eslint on all ten touched files pass with zero new findings.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 22 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Made the customer (DFY) version preview genuinely read-only. Both DFY preview iframes attached the click-to-edit listeners unconditionally via <code>onLoad={handleIframeLoad}</code>, so entering a version preview re-bound the mousedown-capture inline-editing listeners to the preview DOM — clicking text started a <code>contentEditable</code> session on the previewed version's content (the <code>previewVersion ? null : selectedInfo</code> guard only hid the popover UI, not the iframe edit entry). Gated both DFY iframe <code>onLoad</code> on <code>previewVersion ? undefined : handleIframeLoad</code>, mirroring the admin <code>PageEditor</code> which was already correct. Editing is now possible only after Restore. Verified the other three DFY <code>setupListeners()</code> calls fire only inside active-edit handlers, so <code>onLoad</code> is the sole attach path during preview.</p>
+        <p><strong>Reason:</strong> User QA ("double check the preview feature so it actually previews… and can only be edited if restored"); confirmed the hole against HEAD before fixing. Shipped as a <code>-q</code> quickfix (commits 17e37356 PR-branch / 65fa37a4 dev/dave); logged here retroactively for spec-code parity.</p>
+        <p><strong>Updated Done criteria:</strong> none new — covered by the existing Rev 20 preview/restore items; tsc clean both checkouts.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 23 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Editor sidebar UI polish (T31–T33). <strong>T31:</strong> the CONTENT textarea drops the native light scrollbar (new cobalt-scoped <code>::-webkit-scrollbar</code> + <code>scrollbar-color</code> rule covers every scroll surface in <code>.editor-cobalt</code>) and the drag-resize grip (<code>resize-none</code>), and grows taller before scrolling (min-h 150px, max-h 340px). <strong>T32:</strong> the AI editor (ChatPanel) now gates every entry point — input, upload, browse, send, drag-drop — on a live selection via a new <code>selectionLabel</code> prop; with nothing selected (or while previewing) it shows "Select an element and tell me what to change," and with a selection the empty state names the element instead of the generic example. <strong>T33:</strong> a pill pinned at the top of the AI chat shows the selected element's friendly name ("Editing: Paragraph"), styled with the cobalt tokens. All three changes live entirely in the shared <code>ChatPanel</code>/<code>EditorSidebar</code>/<code>SelectedElementEditorPanel</code> + <code>index.css</code>, so all three hosts (admin PageEditor, LayoutEditor, DFYWebsite) inherit them with no host edits.</p>
+        <p><strong>Reason:</strong> User-requested UI updates from two annotated screenshots (dark sliders / no expand handle / taller content box; AI editor must require a selection; selected-element pill at the top of the chat).</p>
+        <p><strong>Updated Done criteria:</strong> three new checklist items covering T31–T33 (see Done). tsc (frontend) + eslint on the three changed components pass with zero findings.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 24 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Element-control round (T34–T36). <strong>T34:</strong> removed the floating rich-text toolbar (the B/I/Link/Clear/Done/✕ overlay) — the last in-canvas control surface, inconsistent with Rev 19's "sidebar owns controls." Rich elements still edit contentEditable-in-place (commit on blur, Escape cancels, Enter → line break); the sanitizer and the <code>[data-alloro-editing]</code> pointer/select rule are preserved, and all the toolbar DOM/CSS/link-input/exec-command/clear-formatting code is deleted. <strong>T35:</strong> wired the previously orphaned background operations into the sidebar for sections AND plain containers — a new "Background" section (color swatches + custom + clear; image add/replace/clear + size/position) and a relaxed <code>canEditBackground</code>/<code>assertBackgroundEligible</code> gate that allows block-container tags, so a selected "Container" div finally has controls beyond Hide. <strong>T36:</strong> added <code>toggle-bold</code>/<code>toggle-italic</code> direct operations (inline-style based to survive Tailwind purge; pre-existing weight classes normalized) + getters, and a "Style" B/I toggle row in <code>TextStyleControls</code> for heading/text elements with active-state reflection. All shared components, so admin PageEditor + LayoutEditor + DFYWebsite inherit with no host edits.</p>
+        <p><strong>Reason:</strong> User-requested ("remove this link overlay; add controls to container type; for heading and text add bold/italic toggle in the sidebar"). <strong>Tradeoff (flagged):</strong> removing the toolbar also removes in-canvas inline-link-on-a-sub-selection and partial (selection-scoped) bold/italic — whole-element bold/italic now lives in the sidebar (T36) and whole-element links remain in the sidebar Link field; sub-span link/format editing is intentionally out of scope for the simplified editor.</p>
+        <p><strong>Updated Done criteria:</strong> three new checklist items covering T34–T36 (see Done). tsc (frontend) + eslint on the four changed files pass with zero findings.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 25 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Compacted the text Bold/Italic + Serif/Sans controls (from Rev 24's two stacked two-column grids) into a single inline row of four equal-width compact buttons under one "Style" label in <code>TextStyleControls</code> — B / I as glyphs, Serif / Sans as short words in their own font. No behavior change.</p>
+        <p><strong>Reason:</strong> User QA: "these 4 can be inline and compact."</p>
+        <p><strong>Updated Done criteria:</strong> none — same controls, denser layout; tsc + eslint clean.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 26 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Two version-history/publish fixes (T37–T38). <strong>T37:</strong> the newest version read as "Archived." Root cause — <code>snapshotPageStateIfChanged</code> gives the pre-save snapshot <code>max+1</code> (the highest number), while the save left the edited row at its old, lower number, so historical snapshots sorted above the live draft (History orders by <code>version</code> desc). Fix: after snapshotting, bump the edited row's <code>version</code> to (current max)+1 in both <code>updatePage</code> (admin draft) and <code>savePageSections</code> (DFY live page), so the editable row is always pinned to the top; <code>performSave</code> reflects the new version in the toolbar. Existing inverted rows self-heal on the next save. <strong>T38:</strong> Publish flashed/reloaded the preview — <code>handlePublishConfirmed</code> rebuilt <code>htmlContent</code> (srcDoc swap) after publishing even though the canvas already showed the just-published content. Skip the rebuild; adopt the new draft's sections and leave <code>htmlStaleRef</code> untouched (publish doesn't change content).</p>
+        <p><strong>Reason:</strong> User QA from a History-tab screenshot ("the latest one marked archive… does not look right") + "when publishing can we prevent the re-render loading of preview since we have the newest changes anyways."</p>
+        <p><strong>Updated Done criteria:</strong> two new checklist items covering T37–T38 (see Done). Backend + frontend tsc and eslint on the changed files pass (only the pre-existing load-effect deps warning remains).</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 27 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Breakpoint-aware editing (T39–T41). The editor's viewport toggle (desktop/mobile) now doubles as a <em>breakpoint selector</em>: size, alignment, and visibility edits target the active tier — mobile view writes the base Tailwind class, desktop view writes the <code>md:</code> variant. Tailwind is mobile-first (base applies until <code>md:</code> overrides ≥768px) and the preview's 375px mobile frame genuinely never triggers <code>md:</code>, so it's WYSIWYG. Infrastructure: <code>EditViewport</code> type + <code>readTierClass</code>/<code>setTierClass</code> helpers (clear only the active tier so the other breakpoint's value survives); <code>editViewport</code> threaded host→sidebar→panel. <strong>T39</strong> size stepper writes base vs <code>md:text-*</code>; label reads the active tier. <strong>T40</strong> new <code>set-text-align</code> (base/<code>md:text-{align}</code>) + sidebar Align row. <strong>T41</strong> new <code>set-responsive-visibility</code> using <code>max-md:hidden</code>/<code>md:hidden</code> (independent classes, no display-type guessing; element stays in the HTML, distinct from the header Hide's hard server-side removal). A scope banner names which view the edits affect. <strong>Recommended against (and not built):</strong> responsive color / font-family / bold-italic — they don't vary by breakpoint in real designs and the latter three are inline styles that can't be responsive.</p>
+        <p><strong>Reason:</strong> User: "we have phone/mobile view, we should have different styling for an element on desktop vs mobile… font size as the responsive element, what else?" Chose Size + alignment + visibility. <strong>Key enabler:</strong> live sites compile Tailwind v4 JIT from the saved HTML (<code>@tailwindcss/node</code>, class extraction), so any responsive class written into the HTML gets CSS — no purge risk, and the authoring preview ships the Tailwind Play CDN so new classes render live (same mechanism the existing size stepper already relied on).</p>
+        <p><strong>Updated Done criteria:</strong> two new checklist items covering T39–T41 (see Done). Frontend tsc + eslint on the five changed files pass (only the pre-existing load-effect deps warning remains). LayoutEditor (header/footer) has no viewport toggle → defaults to the desktop tier.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 28 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Bug fix for Rev 27 — "font change is not working" on real templates. The tier helpers only handled the base + <code>md:</code> classes, but production pages size text with a mix of responsive prefixes (verified against the live data: <code>lg:text-5xl</code>/<code>6xl</code>/<code>7xl</code>, <code>sm:text-4xl</code>/<code>5xl</code>, alongside <code>md:</code>). So a heading like <code>text-4xl lg:text-5xl</code> read as its base size (mislabelled) and, on a desktop size edit, the new <code>md:text-*</code> was silently overridden by the surviving <code>lg:text-*</code> at ≥1024px → no visible change. Fix: <code>readTierClass</code> now returns the highest-breakpoint variant present (2xl→sm), and a desktop edit via <code>setTierClass</code> collapses EVERY responsive prefix in the group into a single <code>md:</code> class (so no leftover <code>lg:</code>/<code>xl:</code> can win), preserving the base class as the mobile tier. Applies to size and alignment (both go through the shared helper). The old Rev 27 code regressed this because the prior (pre-Rev-27) stepper nuked every text-size class; the per-tier rewrite narrowed that to <code>md:</code> only.</p>
+        <p><strong>Reason:</strong> User QA on the One Endo project ("now font change is not working"); root cause confirmed by sampling <code>website_builder.pages</code> responsive text classes.</p>
+        <p><strong>Updated Done criteria:</strong> none new — this makes the Rev 27 items actually pass on templates using non-<code>md:</code> breakpoints; tsc + eslint clean.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 29 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Restore the on-canvas selection outline after a viewport switch. Toggling desktop/mobile remounts the preview iframe (DFY swaps to a separate desktop/mobile iframe) with a fresh DOM that has lost the <code>data-alloro-selected</code> marker the outline CSS keys off — so the element stayed selected logically (sidebar still worked) but showed no outline. Fix: <code>setupListeners</code> (runs on every iframe load) now re-applies <code>data-alloro-selected</code> to the element matching the persisted <code>selectedInfo</code> (mirrored via a ref so the stable callback isn't re-created per selection). Editor-only chrome — the serializer already strips selection attrs, so it never leaks into saved content. Also restores selection after any iframe reload (e.g. exiting version preview).</p>
+        <p><strong>Reason:</strong> User QA: "when I switch between viewports the selector is gone — but the sidebar still works and seems like it has it selected still."</p>
+        <p><strong>Updated Done criteria:</strong> none — visual-chrome fix; tsc + eslint clean.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 30 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Inline typing now marks the editor dirty immediately and Save/Publish capture the in-progress edit without clicking away. Two problems: (1) canvas typing only mirrored <code>draftText</code> — it never set <code>isDirty</code>, so Save/Publish stayed hidden until the commit-on-blur; (2) the commit is deferred (blur → <code>setTimeout(0)</code> → quick-action → effect), so a Save click read the pre-edit <code>sections</code> and lost the race ("I have to click outside to persist"). Fix: <strong>(a)</strong> a new <code>onDirty</code> option on <code>useIframeSelector</code> fires on every keystroke → hosts <code>setIsDirty(true)</code> (buttons appear instantly, both modes); <strong>(b)</strong> a new <code>flushCanvasTextEdit()</code> reads the active session's current value via new <code>getValue()</code> on the plain/rich sessions (plain → textarea value → <code>replace-text</code>; rich → sanitized innerHTML → <code>replace-inline-html</code>), ends the session, and returns the edit; <code>performSave</code>/<code>handlePublishConfirmed</code> apply it synchronously through <code>handleApplyDirectEdit</code> (which now also updates <code>sectionsRef.current</code> in lockstep) before reading sections. DFY <code>performSave</code> switched from the stale <code>sections</code> closure to <code>sectionsRef.current</code>. Also fixes Cmd+S mid-session (a previously-deferred concern).</p>
+        <p><strong>Reason:</strong> User QA: "when I start typing the change should already be detected (Save/Publish should appear); this case I have to click outside so the change is persisted."</p>
+        <p><strong>Updated Done criteria:</strong> none new — makes existing save/publish behavior correct mid-edit; frontend tsc + eslint clean (pre-existing warnings only).</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 31 - 2026-06-12</h3>
+        <p><strong>Change:</strong> The SIZE label was wrong ("XL" on a paragraph that renders smaller). Root cause (verified in live data — the paragraph is <code>text-base md:text-lg lg:text-xl</code>): Rev 28's <code>readTierClass</code> returned the <em>highest</em> responsive class present (<code>lg:text-xl</code> → "XL"), but the editor's desktop preview is narrower than 1024px, so the browser actually renders <code>md:text-lg</code> (18px = "Large"). The label described <em>real desktop</em>, not <em>what's on screen</em>. Fix: stop guessing the active breakpoint — read the <strong>computed</strong> font size of the live element (browser has already resolved which class applies) and map it to the scale. New <code>fontSizePx</code> on <code>SelectedInfo</code> (set in both <code>buildSelectedInfo</code>s from <code>getComputedStyle</code>); <code>getSelectedFontSizeLabel</code> reads it; <code>stepFontSize</code> steps from the computed px too (so label, preview, and edits agree — and a desktop edit still collapses every responsive variant into one <code>md:</code> class). <code>fontSizePx</code> is refreshed on viewport change: DFY via the hook's on-load path (iframe swap), admin via an effect on <code>device</code> (width-only change, no reload). Removed the now-unused <code>currentSizeIndex</code>.</p>
+        <p><strong>Reason:</strong> User QA: "is this actually XL?" — the label didn't match the rendered size; confirmed against <code>website_builder.pages</code>.</p>
+        <p><strong>Updated Done criteria:</strong> none — the SIZE label now always matches the rendered size at the current preview width; tsc + eslint clean.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 32 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Fixed a frontend type error that CI caught but my local gate missed. <code>handleRestoreVersion</code> (added Rev 20) used <code>err instanceof ApiError</code>, but <code>ApiError</code> is a <em>type alias</em> (<code>Error &amp; {code,status}</code>), not a class — TS2693 + TS18046. Replaced with <code>err instanceof Error ? err.message : null</code> (an ApiError IS an Error). <strong>Gate post-mortem:</strong> the error survived ~11 revs because <code>frontend/tsconfig.json</code> is a Vite solution config with <code>"files": []</code> + project references, so plain <code>npx tsc --noEmit</code> checks ZERO files and always exits 0. The real frontend type-check is <code>npx tsc -p tsconfig.app.json --noEmit</code> (or <code>tsc -b</code>, which <code>npm run build</code>/CI run) — now used going forward. Backend root tsconfig uses <code>include:["src"]</code> so its gate was always valid.</p>
+        <p><strong>Reason:</strong> User reported the CI build error (TS2693 at PageEditor.tsx:1597).</p>
+        <p><strong>Updated Done criteria:</strong> none — <code>npx tsc -p tsconfig.app.json --noEmit</code> (real FE check) + backend <code>tsc</code> now both clean.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 33 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Aligned the admin editor's preview toggle with the 2-tier (mobile + desktop) editing model by removing the stray <strong>Tablet (768px)</strong> device option. Editing was already strictly 2-tier — size/alignment/visibility write base (mobile) or <code>md:</code> (desktop), and <code>editViewport</code> mapped both desktop and tablet to the desktop tier — so the tablet preview never represented a distinct editable breakpoint. <code>device</code> is now <code>"desktop" | "mobile"</code> across <code>EditorToolbar</code> + <code>PageEditor</code> (DFY was already desktop/mobile only). Note: the admin "desktop" preview renders at the available pane width; on a narrow pane (&lt;1024px) it shows the <code>md:</code> step of a responsive ladder rather than the true <code>lg:</code>/<code>xl:</code> desktop size — the SIZE label (Rev 31) honestly reflects whatever is rendered. Forcing a true-desktop preview width is a separate, optional change.</p>
+        <p><strong>Reason:</strong> User: "we'll only adapt the mobile and desktop viewport, are we doing that already?" — editing yes, but the admin tablet preview was inconsistent with that.</p>
+        <p><strong>Updated Done criteria:</strong> none — both editors now expose exactly mobile + desktop; real FE tsc + eslint clean.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 34 - 2026-06-12</h3>
+        <p><strong>Change:</strong> The admin "desktop" preview now renders at a fixed true-desktop viewport (<code>DESKTOP_PREVIEW_WIDTH = 1280px</code>) scaled to fit the pane, instead of filling the (often &lt;1024px) pane and showing the <code>md:</code> step. A <code>ResizeObserver</code> on the preview pane (<code>observePreviewArea</code> callback ref on both the visual and code-view preview containers) measures available width; <code>desktopScale = min(1, paneWidth/1280)</code>; the device frame is sized to the scaled footprint and the iframe is rendered at 1280px with <code>transform: scale()</code> + <code>transformOrigin: top left</code> (mobile stays 375px, unscaled). So the desktop preview shows the real <code>lg:</code>/<code>xl:</code> sizes a visitor sees, and the Rev 31 computed-size label reads the true desktop size. Same scaling pattern the customer (DFY) editor already uses, but pinned to a fixed 1280px rather than a percentage.</p>
+        <p><strong>Reason:</strong> User chose "force true desktop width" — the editor pane is narrower than a real desktop, so the previous 100%-of-pane desktop preview misrepresented desktop sizing.</p>
+        <p><strong>Updated Done criteria:</strong> none — manual: desktop preview shows real desktop (lg:/xl:) sizes scaled to fit; selection/click/caret still work through the scaled iframe (same as DFY). Real FE tsc + eslint clean.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

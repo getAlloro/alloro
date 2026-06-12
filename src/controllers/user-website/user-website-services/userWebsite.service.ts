@@ -15,6 +15,7 @@
 
 import { v4 as uuid } from "uuid";
 import { db } from "../../../database/connection";
+import { pruneInactiveSnapshots } from "../../../utils/website-utils/pageSnapshots";
 import { OrganizationModel } from "../../../models/OrganizationModel";
 import { ProjectModel } from "../../../models/website-builder/ProjectModel";
 import { PageModel } from "../../../models/website-builder/PageModel";
@@ -375,7 +376,15 @@ export async function listPageVersions(orgId: number, pageId: string) {
   const versions = await db(PAGES_TABLE)
     .where({ project_id: project.id, path: page.path })
     .orderBy("version", "desc")
-    .select("id", "version", "status", "created_at", "updated_at");
+    .select(
+      "id",
+      "version",
+      "status",
+      "created_at",
+      "updated_at",
+      "change_source",
+      "revision_note"
+    );
 
   return { versions, path: page.path };
 }
@@ -448,6 +457,14 @@ export async function restorePageVersion(
     throw err;
   }
 
+  if (targetVersion.page_type === "artifact") {
+    const err: any = new Error(
+      "Artifact pages cannot be restored from version history"
+    );
+    err.statusCode = 400;
+    throw err;
+  }
+
   const latestPage = await db(PAGES_TABLE)
     .where({ project_id: project.id, path: targetVersion.path })
     .orderBy("version", "desc")
@@ -459,6 +476,24 @@ export async function restorePageVersion(
     typeof targetVersion.sections === "string"
       ? targetVersion.sections
       : JSON.stringify(targetVersion.sections);
+
+  // Carry the target version's full page state — restoring sections alone
+  // silently destroys the page's SEO data, display name, and the
+  // template_page_id that per-section regeneration depends on.
+  const carriedFields = {
+    seo_data: targetVersion.seo_data
+      ? JSON.stringify(
+          typeof targetVersion.seo_data === "string"
+            ? JSON.parse(targetVersion.seo_data)
+            : targetVersion.seo_data
+        )
+      : null,
+    display_name: targetVersion.display_name || null,
+    template_page_id: targetVersion.template_page_id || null,
+    page_type: targetVersion.page_type || "sections",
+    generation_status: "ready",
+    change_source: "restore",
+  };
 
   const result = await db.transaction(async (trx) => {
     // Mark current draft(s) as inactive
@@ -479,7 +514,7 @@ export async function restorePageVersion(
       })
       .update({ status: "inactive", updated_at: trx.fn.now() });
 
-    // Create new published version (copy of target's sections)
+    // Create new published version (copy of target's full state)
     const [publishedPage] = await trx(PAGES_TABLE)
       .insert({
         project_id: project.id,
@@ -487,6 +522,7 @@ export async function restorePageVersion(
         version: latestVersionNum + 1,
         status: "published",
         sections: sectionsData,
+        ...carriedFields,
       })
       .returning("*");
 
@@ -498,11 +534,16 @@ export async function restorePageVersion(
         version: latestVersionNum + 2,
         status: "draft",
         sections: sectionsData,
+        ...carriedFields,
       })
       .returning("*");
 
     return { publishedPage, draftPage };
   });
+
+  // The superseded draft/published rows stay behind as inactive history;
+  // enforce the retention cap so restores don't grow the table unbounded.
+  await pruneInactiveSnapshots(project.id, targetVersion.path);
 
   console.log(
     `[User/Website] ✓ Restored version ${targetVersion.version} → published v${latestVersionNum + 1}, draft v${latestVersionNum + 2}`
