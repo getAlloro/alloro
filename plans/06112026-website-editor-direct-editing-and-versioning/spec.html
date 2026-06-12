@@ -11,11 +11,11 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
-        <span class="status-pill status-pending">In Progress</span>
+        <span class="status-pill status-pending">Needs Revision</span>
       </div>
       <h1>Website Editor: Direct Editing &amp; Versioning</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>In Progress — built, manual QA pending</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>Needs Revision — Rev 20 reliability fixes planned</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/06112026-website-editor-direct-editing-and-versioning</dd></div>
         <div><dt>Size</dt><dd>Large (~25 files)</dd></div>
         <div><dt>Risk</dt><dd>Level 2</dd></div>
@@ -311,11 +311,131 @@
       </article>
 
       <article class="task-card">
+        <h3>T19: Snapshot before createDraft stale-refresh (Rev 20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>createDraft</code>'s stale-refresh branch, call <code>snapshotPageStateIfChanged(existingDraft)</code> immediately before the refresh UPDATE so the draft's last-saved state becomes a restorable history entry (mirrors <code>updatePage</code> and <code>restoreVersionIntoDraft</code>). Also set <code>change_source: null, revision_note: null</code> in the refresh payload (the refreshed draft is a copy of published, not a save) and correct the now-false comment. The refresh itself must still happen — the fix only preserves history first.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.page-editor.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: save draft edits → bump the published row (customer save) → reopen editor → draft refreshed BUT the saved state appears in History and restores cleanly.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T20: Transactional, idempotent publish (Rev 20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Wrap <code>publishPage</code>'s unpublish+publish in one <code>db.transaction</code> (pattern: user-side restore). Scope the page fetch by <code>project_id</code>; if the row is already published return success (idempotent retry); add <code>whereNot("id", pageId)</code> to the unpublish so re-publishing never transits through inactive. Give <code>createPage(publish: true)</code> the same transaction so its insert-then-unpublish window can't leave two published rows.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.page-editor.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Code review of the transaction + manual: publish twice in a row → second is a clean no-op; published row count at path is always exactly one.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T21: Pre-publish save honors the 409 guard (Rev 20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>handlePublishConfirmed</code>'s dirty save must send <code>expectedUpdatedAt</code> (and refresh <code>page.updated_at</code> from the response). On STALE_WRITE, close the publish modal and show the existing conflict modal; its "Save Anyway" path resumes publish with <code>force</code>. No silent overwrite path may remain from Publish.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/admin/PageEditor.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: two tabs, edit in both, Publish in the stale one → conflict modal, not a published overwrite.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T22: Stop inline-markup flattening + tame auto-apply (Rev 20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>(a) Eligibility: canvas mode is "plain" ONLY when the element has zero element children (<code>querySelectorAll("*").length === 0</code>); any children → "rich" (contentEditable preserves spans/br/strong/anchors). (b) Surface <code>canvasTextEditMode</code> on <code>SelectedInfo</code> from both <code>buildSelectedInfo</code> implementations. (c) Sidebar Content field: for rich elements, disable the per-keystroke <code>replace-text</code> auto-apply and show a hint ("contains links/formatting — edit directly on the page"); for plain elements keep auto-apply but debounce ~400ms and coalesce undo snapshots to one per typing burst (reuse the <code>CODE_EDIT_UNDO_COALESCE_MS</code> pattern) so the stack stops gaining one full-page clone per character.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/utils/canvasTextEditing.ts</code>, <code>frontend/src/hooks/useIframeSelector.ts</code>, <code>frontend/src/utils/editorDirectOperations.ts</code>, <code>frontend/src/components/PageEditor/SelectedElementEditorPanel.tsx</code>, both host pages for coalesced undo</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: heading with inline link — sidebar typing can't flatten it; on-page edit preserves it; typing a sentence in a plain paragraph = one undo entry.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T23: Serializer hygiene for mid-session saves + draftText reset (Rev 20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>(a) <code>serializeSectionElement</code>: on the clone, for the root and every <code>[data-alloro-editing]</code> descendant, remove <code>contenteditable</code> and the hide-text inline props (<code>color</code>, <code>-webkit-text-fill-color</code>, <code>text-shadow</code>) and any regen-overlay artifacts before persisting — a save that races an active session must never publish invisible text. (b) Clear <code>selectedInfo.draftText</code> in the session's <code>onFinish</code> so post-commit sidebar typing stops snapping back and dropping keystrokes.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/utils/htmlReplacer.ts</code>, <code>frontend/src/hooks/useIframeSelector.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: edit A, click B (commits A, opens B), Escape, Save → saved sections carry no <code>color:transparent</code>/<code>contenteditable</code>; sidebar typing after an on-page commit keeps every keystroke.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T24: Surface DFY failures honestly (Rev 20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>apiPost</code>/<code>apiPatch</code> swallow HTTP errors — guard every consumer that currently assumes success: DFY <code>handleRestoreVersion</code> (403 READ_ONLY currently toasts "Version restored"), DFY <code>handleSendEdit</code> AI failures, and the admin preview-banner restore (unhandled rejection). Check <code>res?.success</code>, toast the real <code>message</code>, and never clear preview/editor state on failure.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/DFYWebsite.tsx</code>, <code>frontend/src/pages/admin/PageEditor.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: restore as a read-only org → error toast, preview state intact, no false success.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T25: Rebuild htmlContent at iframe remount boundaries (Rev 20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In-place edits leave <code>htmlContent</code> stale; any iframe remount (device toggle, preview exit, regen swap, DFY view switch) reloads pre-edit HTML and the next edit's extraction then clobbers the unsaved edits in <code>sections</code>. Track staleness and rebuild <code>htmlContent</code> from <code>sections</code> exactly at remount boundaries — never per edit (the no-reload invariant stays).</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/admin/PageEditor.tsx</code>, <code>frontend/src/pages/DFYWebsite.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: edit 3 headlines, toggle device width, edits persist visually; further editing + save keeps all three.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T26: DFY restore targeting + pages-list freshness (Rev 20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>(a) <code>fetchWebsite</code> preserves the current selection by PATH instead of resetting to <code>pages[0]</code>. (b) <code>performSave</code> success also patches the <code>pages</code> array entry (updated_at + sections) so reopening a page from the Pages tab doesn't regress <code>expected_updated_at</code> (spurious 409s that train "Save Anyway") or load pre-save content.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/DFYWebsite.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: restore /services → editor stays on /services; save → Pages tab → reopen → no 409, current content.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T27: Tag comment-led sections + preserve multi-root sections (Rev 20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>(a) <code>tagSectionRoot</code> regex skips leading whitespace/HTML comments so template sections starting with <code>&lt;!-- … --&gt;</code> get their <code>data-alloro-section</code> marker (today the editor is completely dead on those pages and the first save strips the comments). (b) Multi-root sections: wrap section content in a plain block div at render time and extract via <code>innerHTML</code> so trailing <code>&lt;script&gt;</code>/<code>&lt;style&gt;</code>/comment siblings survive edit+save (NOT <code>display:contents</code> — regen overlays and diff outlines need a box).</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/utils/templateRenderer.ts</code>, <code>frontend/src/utils/htmlReplacer.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: page with comment-led sections is editable; section with trailing script keeps it through edit+save (inspect stored sections).</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T28: Regeneration vs editing guard (Rev 20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>(a) Gate Regenerate on a clean tree (isDirty → "Save your changes before regenerating", matching the Find &amp; Replace precedent). (b) Strip regen-overlay artifacts (<code>alloro-regenerating</code> classes, <code>data-alloro-regen-overlay</code> nodes) in <code>serializeSectionElement</code> so they can never persist. (c) Regen kickoff/completion paths must not reload the iframe from stale <code>htmlContent</code> (pairs with T25) and the poll loop must not overwrite locally-edited sections.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/admin/PageEditor.tsx</code>, <code>frontend/src/utils/htmlReplacer.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T25</dd></div>
+          <div><dt>Verify</dt><dd>Manual: regenerate with unsaved edits → blocked with message; after a clean regen + edit + save, stored content has no overlay artifacts.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T29: Atomic concurrency check (Rev 20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Replace the check-then-act 409 guard with a conditional write in both save paths: <code>UPDATE … WHERE id = ? AND updated_at = ?</code> (when <code>expected_updated_at</code> present and not forced); zero rows updated → 409 STALE_WRITE. Closes the TOCTOU window where two writers both pass the JS comparison.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.page-editor.ts</code>, <code>src/controllers/user-website/UserWebsiteController.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Code review + manual two-tab race still yields exactly one winner and one 409.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T30: DFY save validates row state (Rev 20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>savePageSections</code> must reject rows whose <code>status</code> isn't the customer-editable state (published) and enforce the same read-only/tier gate the restore endpoint already applies — today it can rewrite inactive history rows and bypass read-only mode.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/user-website/UserWebsiteController.ts</code>, <code>src/controllers/user-website/user-website-services/userWebsite.service.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual/API: PATCH an inactive row id → 400; save as read-only org → 403.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
         <h3>T9: Verification pipeline</h3>
         <dl>
           <div><dt>Do</dt><dd>Run type-check + lint for backend and frontend; execute the manual QA checklist in Done.</dd></div>
           <div><dt>Files</dt><dd>n/a</dd></div>
-          <div><dt>Depends on</dt><dd>T1–T8, T10–T18</dd></div>
+          <div><dt>Depends on</dt><dd>T1–T8, T10–T30</dd></div>
           <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> (root + frontend), <code>npm run lint</code></dd></div>
         </dl>
       </article>
@@ -342,6 +462,13 @@
         <li><input type="checkbox" disabled> Manual (Rev 1): upload-from-device + alt-text edit persist through save</li>
         <li><input type="checkbox" disabled> Manual (Rev 1): find &amp; replace updates drafts only, with snapshots, across multiple pages (text + tel: hrefs)</li>
         <li><input type="checkbox" disabled> Manual (Rev 1): publish lint chips appear for missing alt + dead internal link; publish never blocked</li>
+        <li><input type="checkbox" disabled> Manual (Rev 20): saved draft + customer publish-bump + editor reopen → refreshed draft's prior state is in History and restores</li>
+        <li><input type="checkbox" disabled> Manual (Rev 20): publish is idempotent; exactly one published row per path at all times</li>
+        <li><input type="checkbox" disabled> Manual (Rev 20): publishing with stale local state hits the conflict modal — no silent overwrite ships live</li>
+        <li><input type="checkbox" disabled> Manual (Rev 20): sidebar typing can never flatten inline links; a typed sentence costs one undo entry, not one per character</li>
+        <li><input type="checkbox" disabled> Manual (Rev 20): a save racing an active edit session persists no <code>contenteditable</code>/transparent-text/regen artifacts</li>
+        <li><input type="checkbox" disabled> Manual (Rev 20): DFY restore/AI failures show real errors (no false "Version restored"); restore keeps the current page open; no spurious 409 after Pages-tab round-trip</li>
+        <li><input type="checkbox" disabled> Manual (Rev 20): comment-led sections are editable; trailing script/style siblings survive edit+save; device-toggle remounts don't revert unsaved edits</li>
       </ul>
     </section>
 
@@ -468,6 +595,12 @@
         <p><strong>Change:</strong> Removed the floating preview control surfaces now that the sidebar owns element controls. The iframe selector now keeps canvas chrome to outlines only, restores a visible dashed blue hover outline, and continues using orange for selected/editing state. Sidebar Content edits now auto-apply through the direct edit pipeline without an Apply button, and active inline canvas typing mirrors draft text into the sidebar textarea immediately.</p>
         <p><strong>Reason:</strong> User QA: the floating controls still competed with page content, hover outlines disappeared, and sidebar text editing should be live instead of Apply-gated.</p>
         <p><strong>Updated Done criteria:</strong> no floating canvas toolbar appears; hover shows dashed blue outline; selected/editing state stays orange; sidebar Content typing applies immediately and inline canvas typing updates the sidebar field while typing.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 20 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Reliability fix round planned from a 48-agent adversarial audit of the save/publish/draft/restore/undo flow (39 confirmed findings; full verified report referenced in project memory). Twelve tasks added, T19–T30: <strong>T19</strong> snapshot before createDraft stale-refresh (the one CRITICAL — a customer DFY save bumps <code>published.updated_at</code> and the next admin editor open silently destroys the admin's saved draft with no history entry); <strong>T20</strong> transactional + idempotent publish (crash window today can leave a path with zero — or via createPage, two — published rows); <strong>T21</strong> pre-publish dirty save must honor the 409 guard (today Publish silently overwrites concurrent edits and ships them live); <strong>T22</strong> stop inline-markup flattening (plain canvas mode only for element-childless text; sidebar auto-apply gated off rich elements, debounced + undo-coalesced for plain — today one keystroke in the sidebar destroys inline links and pushes one full-page undo clone per character); <strong>T23</strong> serializer strips mid-session artifacts (<code>contenteditable</code>, transparent-text styles) + clears stale <code>draftText</code> (keystroke snap-back); <strong>T24</strong> DFY restore/AI-edit failures surface real errors instead of toasting success; <strong>T25</strong> htmlContent rebuilt at iframe remount boundaries (device toggle currently reverts unsaved edits, and the next edit persists the reversion); <strong>T26</strong> DFY restore keeps the current page selected + pages-list freshness (kills spurious 409s that train "Save Anyway"); <strong>T27</strong> comment-led sections get section markers (editor is fully dead on such pages today) + multi-root sections keep trailing script/style siblings; <strong>T28</strong> regeneration gated on a clean tree + overlay artifacts stripped; <strong>T29</strong> conditional-UPDATE concurrency (closes the TOCTOU on the 409 check); <strong>T30</strong> DFY save validates row status + read-only tier. Deferred to a later rev (hardening, documented in the audit): version-number unique constraint, restore-while-dirty confirmation, Cmd+S during an inline session, scroll-driven selectedInfo churn wiping unapplied inputs, clock-skew in crash recovery, dead live-preview machinery removal.</p>
+        <p><strong>Reason:</strong> User-requested reliability audit ("check on bugs… especially save, publish, draft, restore, undo/redo"); every finding adversarially verified against HEAD before planning.</p>
+        <p><strong>Updated Done criteria:</strong> eight new checklist items covering T19–T30 (see Done).</p>
       </article>
     </section>
   </main>
