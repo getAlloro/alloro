@@ -1,16 +1,33 @@
 import { useEffect, useRef, useState } from "react";
-import { Eraser, Eye, EyeOff, ImagePlus, Minus, Plus, X } from "lucide-react";
+import {
+  AlignCenter,
+  AlignJustify,
+  AlignLeft,
+  AlignRight,
+  Eraser,
+  Eye,
+  EyeOff,
+  ImagePlus,
+  Minus,
+  Monitor,
+  Plus,
+  Smartphone,
+  X,
+} from "lucide-react";
 import type { SelectedInfo, QuickActionType } from "../../hooks/useIframeSelector";
 import {
   getDirectOperationAvailability,
   getSelectedTextValue,
   getSelectedAltText,
   getSelectedFontSizeLabel,
+  getSelectedTextAlign,
+  getSelectedResponsiveVisibility,
   getSelectedBackgroundColorValue,
   BACKGROUND_SIZE_PRESETS,
   BACKGROUND_POSITION_PRESETS,
   type BackgroundSizePreset,
   type BackgroundPositionPreset,
+  type EditViewport,
   type DirectEditorOperation,
 } from "../../utils/editorDirectOperations";
 import MediaBrowser from "./MediaBrowser";
@@ -34,6 +51,9 @@ export type SelectedElementEditorPanelProps = {
   /** Brand colors for the text-style swatches. */
   primaryColor?: string | null;
   accentColor?: string | null;
+  /** The active preview breakpoint — size/alignment/visibility edits target
+   *  this tier (base class for mobile, `md:` for desktop). */
+  editViewport?: EditViewport;
 };
 
 /** Typing pause that flushes the sidebar's plain-text auto-apply. */
@@ -59,6 +79,7 @@ export default function SelectedElementEditorPanel({
   isCanvasTextEditing = false,
   primaryColor,
   accentColor,
+  editViewport = "desktop",
 }: SelectedElementEditorPanelProps) {
   const [textValue, setTextValue] = useState("");
   const [linkValue, setLinkValue] = useState("");
@@ -77,7 +98,13 @@ export default function SelectedElementEditorPanel({
     canEditAltText,
     canStyleText,
     canEditBackground,
+    canEditAlign,
+    canEditResponsiveVisibility,
   } = getDirectOperationAvailability(selectedInfo, Boolean(mediaApi));
+
+  const currentAlign = getSelectedTextAlign(selectedInfo, editViewport);
+  const visibleInViewport = getSelectedResponsiveVisibility(selectedInfo, editViewport);
+  const viewportLabel = editViewport === "mobile" ? "mobile" : "desktop";
 
   const hasBackgroundImage = Boolean(
     selectedInfo.backgroundImage && selectedInfo.backgroundImage !== "none",
@@ -129,6 +156,7 @@ export default function SelectedElementEditorPanel({
       onApplyDirectEdit({
         type: "step-font-size",
         direction: externalAction === "text-up" ? "up" : "down",
+        viewport: editViewport,
       });
     } else if (externalAction === "text") {
       textAreaRef.current?.focus();
@@ -138,7 +166,7 @@ export default function SelectedElementEditorPanel({
       setShowMedia(true);
     }
     onExternalActionHandled?.();
-  }, [externalAction, onApplyDirectEdit, onExternalActionHandled, onToggleHidden]);
+  }, [externalAction, onApplyDirectEdit, onExternalActionHandled, onToggleHidden, editViewport]);
 
   // Sidebar text commits are replace-text (sets textContent) — safe ONLY for
   // elements with no inline children. Rich elements (anchors, spans, br…)
@@ -209,7 +237,11 @@ export default function SelectedElementEditorPanel({
     setShowBgMedia(false);
   };
   const stepFontSize = (direction: "up" | "down") =>
-    onApplyDirectEdit({ type: "step-font-size", direction });
+    onApplyDirectEdit({ type: "step-font-size", direction, viewport: editViewport });
+  const setAlign = (align: "left" | "center" | "right" | "justify") =>
+    onApplyDirectEdit({ type: "set-text-align", align, viewport: editViewport });
+  const setViewportVisible = (visible: boolean) =>
+    onApplyDirectEdit({ type: "set-responsive-visibility", visible, viewport: editViewport });
 
   return (
     <div className="flex flex-col gap-5 border-b border-gray-200 bg-gray-50 px-5 py-4">
@@ -282,10 +314,27 @@ export default function SelectedElementEditorPanel({
         </section>
       )}
 
+      {/* Responsive-scope banner — size/alignment/visibility below target the
+          active preview breakpoint. */}
+      {(canAdjustTextSize || canEditAlign || canEditResponsiveVisibility) && (
+        <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-[var(--ec-raised)] px-3 py-2 text-[11px] font-medium text-gray-400">
+          {editViewport === "mobile" ? (
+            <Smartphone className="h-3.5 w-3.5 shrink-0 text-[var(--ec-cobalt)]" />
+          ) : (
+            <Monitor className="h-3.5 w-3.5 shrink-0 text-[var(--ec-cobalt)]" />
+          )}
+          <span>
+            Size, alignment &amp; visibility apply to the{" "}
+            <span className="font-semibold text-gray-200">{viewportLabel}</span>{" "}
+            view. Switch the device toggle to edit the other.
+          </span>
+        </div>
+      )}
+
       {/* Size */}
       {canAdjustTextSize && (
         <section className="space-y-1.5">
-          <p className={LABEL_CLS}>Size</p>
+          <p className={LABEL_CLS}>Size · {viewportLabel}</p>
           <div className="flex items-center gap-2">
             <button
               onClick={() => stepFontSize("down")}
@@ -296,7 +345,7 @@ export default function SelectedElementEditorPanel({
               <Minus className="h-4 w-4" />
             </button>
             <span className="flex-1 rounded-lg border border-gray-200 bg-[var(--ec-raised)] py-2 text-center text-xs font-semibold text-gray-700">
-              {getSelectedFontSizeLabel(selectedInfo)}
+              {getSelectedFontSizeLabel(selectedInfo, editViewport)}
             </span>
             <button
               onClick={() => stepFontSize("up")}
@@ -306,6 +355,37 @@ export default function SelectedElementEditorPanel({
             >
               <Plus className="h-4 w-4" />
             </button>
+          </div>
+        </section>
+      )}
+
+      {/* Alignment */}
+      {canEditAlign && (
+        <section className="space-y-1.5">
+          <p className={LABEL_CLS}>Align · {viewportLabel}</p>
+          <div className="flex items-center gap-2">
+            {([
+              ["left", AlignLeft],
+              ["center", AlignCenter],
+              ["right", AlignRight],
+              ["justify", AlignJustify],
+            ] as const).map(([align, Icon]) => (
+              <button
+                key={align}
+                onClick={() => setAlign(align)}
+                disabled={isEditing}
+                aria-label={`Align ${align}`}
+                aria-pressed={currentAlign === align}
+                title={`Align ${align}`}
+                className={`flex h-9 flex-1 items-center justify-center rounded-lg border transition disabled:opacity-50 ${
+                  currentAlign === align
+                    ? "border-alloro-orange bg-alloro-orange text-white"
+                    : "border-gray-200 bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+              </button>
+            ))}
           </div>
         </section>
       )}
@@ -505,6 +585,36 @@ export default function SelectedElementEditorPanel({
               </button>
             </div>
           )}
+        </section>
+      )}
+
+      {/* Visibility on the active breakpoint (Tailwind responsive hide — keeps
+          the element in the HTML, unlike the header Hide which removes it). */}
+      {canEditResponsiveVisibility && (
+        <section className="space-y-1.5">
+          <p className={LABEL_CLS}>Visibility · {viewportLabel}</p>
+          <button
+            onClick={() => setViewportVisible(!visibleInViewport)}
+            disabled={isEditing}
+            aria-pressed={!visibleInViewport}
+            className={`flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition disabled:opacity-50 ${
+              visibleInViewport
+                ? "border-gray-200 bg-gray-100 text-gray-700 hover:bg-gray-200"
+                : "border-alloro-orange bg-alloro-orange/10 text-alloro-orange"
+            }`}
+          >
+            {visibleInViewport ? (
+              <>
+                <EyeOff className="h-3.5 w-3.5" />
+                Hide on {viewportLabel}
+              </>
+            ) : (
+              <>
+                <Eye className="h-3.5 w-3.5" />
+                Hidden on {viewportLabel} — show
+              </>
+            )}
+          </button>
         </section>
       )}
     </div>

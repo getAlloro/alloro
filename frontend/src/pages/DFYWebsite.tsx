@@ -1767,6 +1767,7 @@ export function DFYWebsite() {
             canRedo={redoStack.length > 0}
             onUndo={handleUndo}
             onRedo={handleRedo}
+            editViewport={viewportMode}
           />
         </div>
       )}

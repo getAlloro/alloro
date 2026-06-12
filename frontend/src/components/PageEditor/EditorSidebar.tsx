@@ -3,7 +3,7 @@ import { Sparkles, ChevronDown, Undo2, Redo2 } from "lucide-react";
 import type { SelectedInfo } from "../../hooks/useIframeSelector";
 import type { QuickActionType } from "../../hooks/useIframeSelector";
 import type { EditDebugInfo } from "../../api/websites";
-import type { DirectEditorOperation } from "../../utils/editorDirectOperations";
+import type { DirectEditorOperation, EditViewport } from "../../utils/editorDirectOperations";
 import ChatPanel from "./ChatPanel";
 import DebugPanel from "./DebugPanel";
 import SelectedElementEditorPanel from "./SelectedElementEditorPanel";
@@ -68,6 +68,8 @@ export type EditorSidebarProps = {
   onUndo?: () => void;
   /** Redo the latest undone editor change. */
   onRedo?: () => void;
+  /** Active preview breakpoint — size/alignment/visibility edits target it. */
+  editViewport?: EditViewport;
 };
 
 export default function EditorSidebar({
@@ -103,6 +105,7 @@ export default function EditorSidebar({
   canRedo = false,
   onUndo,
   onRedo,
+  editViewport = "desktop",
 }: EditorSidebarProps) {
   const [tab, setTab] = useState<"edit" | "debug" | "history">("edit");
   const [aiOpen, setAiOpen] = useState(false);
@@ -179,6 +182,7 @@ export default function EditorSidebar({
                 onLiveTextRevert={onLiveTextRevert}
                 primaryColor={primaryColor}
                 accentColor={accentColor}
+                editViewport={editViewport}
               />
               <p className="px-5 py-4 text-[11px] leading-5 text-gray-400">
                 Tip: click text on the page to type directly. Changes preview live —
