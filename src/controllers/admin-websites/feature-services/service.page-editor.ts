@@ -283,6 +283,16 @@ export async function updatePage(
     // Preserve the draft's pre-save state as a restorable history entry
     // before overwriting it (deduped + pruned inside the helper).
     await snapshotPageStateIfChanged(page);
+    // Keep the draft as the newest version. The snapshot above takes
+    // max+1, so without this the live draft would carry a LOWER version
+    // than its own archived history and sink below it in the History tab
+    // (the "latest version is Archived" bug). Bumping the draft above the
+    // snapshot keeps it pinned to the top as the current editable version.
+    const newest = await db(PAGES_TABLE)
+      .where({ project_id: page.project_id, path: page.path })
+      .orderBy("version", "desc")
+      .first();
+    updatePayload.version = (newest?.version ?? page.version) + 1;
     updatePayload.sections = JSON.stringify(sections);
     updatePayload.change_source = "save";
     updatePayload.revision_note =
