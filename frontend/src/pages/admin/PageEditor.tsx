@@ -444,7 +444,7 @@ function PageEditorInner() {
   const [showFindReplace, setShowFindReplace] = useState(false);
 
   // UI state
-  const [device, setDevice] = useState<"desktop" | "tablet" | "mobile">(
+  const [device, setDevice] = useState<"desktop" | "mobile">(
     "desktop"
   );
   const [isEditing, setIsEditing] = useState(false);
@@ -1877,12 +1877,7 @@ function PageEditorInner() {
               <div
                 className="relative h-full rounded-xl overflow-hidden shadow-lg border border-gray-200 transition-all duration-300 mx-auto bg-white"
                 style={{
-                  width:
-                    device === "desktop"
-                      ? "100%"
-                      : device === "tablet"
-                        ? "768px"
-                        : "375px",
+                  width: device === "desktop" ? "100%" : "375px",
                   maxWidth: "100%",
                 }}
               >
@@ -1900,12 +1895,7 @@ function PageEditorInner() {
               <div
                 className="h-full rounded-xl overflow-hidden shadow-lg border border-gray-200 transition-all duration-300 mx-auto bg-white"
                 style={{
-                  width:
-                    device === "desktop"
-                      ? "100%"
-                      : device === "tablet"
-                        ? "768px"
-                        : "375px",
+                  width: device === "desktop" ? "100%" : "375px",
                   maxWidth: "100%",
                 }}
               >
@@ -1961,7 +1951,7 @@ function PageEditorInner() {
             onLiveTextRevert={handleLiveTextRevert}
             primaryColor={project?.primary_color}
             accentColor={project?.accent_color}
-            editViewport={device === "mobile" ? "mobile" : "desktop"}
+            editViewport={device}
             showHistory={true}
             historyPageId={draftPageId}
             fetchVersions={fetchAdminVersions}

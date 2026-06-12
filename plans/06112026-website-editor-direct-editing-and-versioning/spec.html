@@ -11,7 +11,7 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
-        <span class="status-pill status-pending">In Progress — Rev 32</span>
+        <span class="status-pill status-pending">In Progress — Rev 33</span>
       </div>
       <h1>Website Editor: Direct Editing &amp; Versioning</h1>
       <dl class="meta-grid">
@@ -793,6 +793,12 @@
         <p><strong>Change:</strong> Fixed a frontend type error that CI caught but my local gate missed. <code>handleRestoreVersion</code> (added Rev 20) used <code>err instanceof ApiError</code>, but <code>ApiError</code> is a <em>type alias</em> (<code>Error &amp; {code,status}</code>), not a class — TS2693 + TS18046. Replaced with <code>err instanceof Error ? err.message : null</code> (an ApiError IS an Error). <strong>Gate post-mortem:</strong> the error survived ~11 revs because <code>frontend/tsconfig.json</code> is a Vite solution config with <code>"files": []</code> + project references, so plain <code>npx tsc --noEmit</code> checks ZERO files and always exits 0. The real frontend type-check is <code>npx tsc -p tsconfig.app.json --noEmit</code> (or <code>tsc -b</code>, which <code>npm run build</code>/CI run) — now used going forward. Backend root tsconfig uses <code>include:["src"]</code> so its gate was always valid.</p>
         <p><strong>Reason:</strong> User reported the CI build error (TS2693 at PageEditor.tsx:1597).</p>
         <p><strong>Updated Done criteria:</strong> none — <code>npx tsc -p tsconfig.app.json --noEmit</code> (real FE check) + backend <code>tsc</code> now both clean.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 33 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Aligned the admin editor's preview toggle with the 2-tier (mobile + desktop) editing model by removing the stray <strong>Tablet (768px)</strong> device option. Editing was already strictly 2-tier — size/alignment/visibility write base (mobile) or <code>md:</code> (desktop), and <code>editViewport</code> mapped both desktop and tablet to the desktop tier — so the tablet preview never represented a distinct editable breakpoint. <code>device</code> is now <code>"desktop" | "mobile"</code> across <code>EditorToolbar</code> + <code>PageEditor</code> (DFY was already desktop/mobile only). Note: the admin "desktop" preview renders at the available pane width; on a narrow pane (&lt;1024px) it shows the <code>md:</code> step of a responsive ladder rather than the true <code>lg:</code>/<code>xl:</code> desktop size — the SIZE label (Rev 31) honestly reflects whatever is rendered. Forcing a true-desktop preview width is a separate, optional change.</p>
+        <p><strong>Reason:</strong> User: "we'll only adapt the mobile and desktop viewport, are we doing that already?" — editing yes, but the admin tablet preview was inconsistent with that.</p>
+        <p><strong>Updated Done criteria:</strong> none — both editors now expose exactly mobile + desktop; real FE tsc + eslint clean.</p>
       </article>
     </section>
   </main>
