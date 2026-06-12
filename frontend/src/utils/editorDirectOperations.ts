@@ -86,25 +86,6 @@ function nearestScaleIndex(px: number): number {
   return best;
 }
 
-/** The element's current size step, read from a base text-* class, then a
- * responsive variant, then nearest computed size. */
-function currentSizeIndex(el: HTMLElement): number {
-  const base = TEXT_SIZE_SCALE.findIndex((c) => el.classList.contains(c));
-  if (base !== -1) return base;
-
-  for (const cls of Array.from(el.classList)) {
-    const match = /^(?:sm|md|lg|xl|2xl):text-(xs|sm|base|lg|xl|[2-9]xl)$/.exec(cls);
-    if (match) {
-      const idx = TEXT_SIZE_SCALE.indexOf(`text-${match[1]}`);
-      if (idx !== -1) return idx;
-    }
-  }
-
-  const win = el.ownerDocument.defaultView;
-  const px = win ? parseFloat(win.getComputedStyle(el).fontSize) : 16;
-  return nearestScaleIndex(Number.isNaN(px) ? 16 : px);
-}
-
 /** Which breakpoint tier an edit targets. "mobile" writes the base (unprefixed)
  *  Tailwind class; "desktop" writes the `md:` variant — Tailwind is mobile-first,
  *  so base applies everywhere until a `md:` class overrides it ≥768px. The editor's
@@ -238,20 +219,16 @@ export function getSelectedTextColor(selectedInfo: SelectedInfo | null): string 
 /** Human-readable current text size (e.g. "Large") or "Default". */
 export function getSelectedFontSizeLabel(
   selectedInfo: SelectedInfo | null,
-  viewport: EditViewport = "desktop",
 ): string {
   if (!selectedInfo || !EDITOR_TEXT_TAGS.has(selectedInfo.tagName)) return "Default";
 
-  const template = document.createElement("template");
-  template.innerHTML = selectedInfo.outerHtml;
-  const el = template.content.firstElementChild as HTMLElement | null;
-  if (!el) return "Default";
-
-  // Read the size for the tier being edited (desktop falls back to the base
-  // class, which applies to desktop until a `md:` override exists).
-  const cls = readTierClass(el, TEXT_SIZE_SCALE, viewport);
-  if (cls) return TEXT_SIZE_LABELS[cls] || cls.replace("text-", "").toUpperCase();
-  return "Default";
+  // Use the size THAT'S ACTUALLY RENDERED at the current preview width — the
+  // browser has already resolved which responsive class (base/md:/lg:/xl:) is
+  // active, so the label matches what's on screen instead of guessing a
+  // breakpoint that may not apply at the preview's width.
+  if (selectedInfo.fontSizePx == null) return "Default";
+  const token = TEXT_SIZE_SCALE[nearestScaleIndex(selectedInfo.fontSizePx)];
+  return TEXT_SIZE_LABELS[token] || token.replace("text-", "").toUpperCase();
 }
 
 /** Active-tier text alignment ("left" | "center" | "right" | "justify") or
@@ -680,13 +657,15 @@ function stepFontSize(
   direction: "up" | "down",
   viewport: EditViewport,
 ) {
-  // Step through the named Tailwind scale (text-base → text-xl → text-2xl …),
-  // but only for the tier being edited: mobile writes the base class, desktop
-  // writes `md:text-*`, so the two breakpoints keep independent sizes.
+  // Step from the size THAT'S ACTUALLY RENDERED at the current preview width
+  // (computed), not from a guessed responsive class — so the step matches the
+  // label and what's on screen. mobile writes the base class, desktop writes
+  // `md:text-*` (setTierClass collapses any other responsive variant into it),
+  // so the two breakpoints keep independent, unambiguous sizes.
   const el = element as HTMLElement;
-  const currentClass = readTierClass(el, TEXT_SIZE_SCALE, viewport);
-  let index = currentClass ? TEXT_SIZE_SCALE.indexOf(currentClass) : -1;
-  if (index === -1) index = currentSizeIndex(el);
+  const win = el.ownerDocument.defaultView;
+  const px = win ? parseFloat(win.getComputedStyle(el).fontSize) : NaN;
+  const index = nearestScaleIndex(Number.isFinite(px) ? px : 16);
   const nextIndex =
     direction === "up"
       ? Math.min(index + 1, TEXT_SIZE_SCALE.length - 1)
@@ -695,8 +674,6 @@ function stepFontSize(
   // An inline font-size from an earlier session overrides classes at every
   // breakpoint — drop it so the chosen class actually renders.
   el.style.removeProperty("font-size");
-  // setTierClass clears only this tier's size classes, preserving the other
-  // breakpoint's value.
   setTierClass(el, TEXT_SIZE_SCALE, TEXT_SIZE_SCALE[nextIndex], viewport);
 }
 
@@ -733,6 +710,10 @@ function buildSelectedInfo(
   const canvasEligibility = getCanvasTextEditEligibility(element);
   const href =
     tagName === "a" ? element.getAttribute("href") || undefined : undefined;
+  const win = element.ownerDocument.defaultView;
+  const computedPx = win
+    ? parseFloat(win.getComputedStyle(element).fontSize)
+    : NaN;
 
   return {
     ...previous,
@@ -751,6 +732,7 @@ function buildSelectedInfo(
     backgroundImage: style.backgroundImage || "",
     backgroundSize: style.backgroundSize || "",
     backgroundPosition: style.backgroundPosition || "",
+    fontSizePx: Number.isFinite(computedPx) ? computedPx : undefined,
     canCanvasEditText: canvasEligibility.canEdit,
     canvasTextEditMode: canvasEligibility.mode,
     textEditFallbackReason: canvasEligibility.reason,

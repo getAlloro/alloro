@@ -45,6 +45,10 @@ export interface SelectedInfo {
   backgroundImage?: string;
   backgroundSize?: string;
   backgroundPosition?: string;
+  /** Rendered font size (px) at the current preview width — the size label
+   *  reads this so it matches what's actually on screen rather than guessing
+   *  which responsive class is active. */
+  fontSizePx?: number;
   canCanvasEditText?: boolean;
   /** "plain" = textarea overlay (text-only commit); "rich" = contentEditable
    * (markup-preserving). The sidebar uses this to gate replace-text, which
@@ -280,6 +284,15 @@ function getElementBackground(el: Element) {
   };
 }
 
+/** Rendered font size in px at the iframe's current width (responsive classes
+ *  resolved by the browser), or undefined when unavailable. */
+function getComputedFontSizePx(el: Element): number | undefined {
+  const win = el.ownerDocument.defaultView;
+  if (!win) return undefined;
+  const px = parseFloat(win.getComputedStyle(el).fontSize);
+  return Number.isFinite(px) ? px : undefined;
+}
+
 function buildSelectedInfo(el: Element): SelectedInfo | null {
   const cls = getAlloroClass(el);
   if (!cls) return null;
@@ -297,6 +310,7 @@ function buildSelectedInfo(el: Element): SelectedInfo | null {
     href: tagName === "a" ? (el as HTMLAnchorElement).getAttribute("href") || undefined : undefined,
     rect: getElementRect(el),
     ...getElementBackground(el),
+    fontSizePx: getComputedFontSizePx(el),
     canCanvasEditText: eligibility.canEdit,
     canvasTextEditMode: eligibility.mode,
     textEditFallbackReason: eligibility.reason,
@@ -990,7 +1004,18 @@ export function useIframeSelector(
     const persisted = selectedInfoRef.current;
     if (persisted) {
       const selectedEl = doc.querySelector(`.${CSS.escape(persisted.alloroClass)}`);
-      if (selectedEl) selectedEl.setAttribute("data-alloro-selected", "true");
+      if (selectedEl) {
+        selectedEl.setAttribute("data-alloro-selected", "true");
+        // The new iframe renders at the new viewport width, so the element's
+        // computed font size changes — refresh it so the size label reflects
+        // what this breakpoint actually renders.
+        const px = getComputedFontSizePx(selectedEl);
+        setSelectedInfo((prev) =>
+          prev && prev.alloroClass === persisted.alloroClass && prev.fontSizePx !== px
+            ? { ...prev, fontSizePx: px }
+            : prev,
+        );
+      }
     }
   }, [beginCanvasTextEditing, iframeRef, sectionsOnly]);
 
