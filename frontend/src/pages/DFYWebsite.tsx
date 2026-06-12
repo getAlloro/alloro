@@ -1641,7 +1641,7 @@ export function DFYWebsite() {
                     className="border-0"
                     title="Page Preview"
                     sandbox="allow-same-origin allow-scripts"
-                    onLoad={handleIframeLoad}
+                    onLoad={previewVersion ? undefined : handleIframeLoad}
                   />
                   <div
                     className="absolute left-0 top-0 pointer-events-none"
@@ -1673,7 +1673,7 @@ export function DFYWebsite() {
                       className="w-full h-full border-0"
                       title="Page Preview"
                       sandbox="allow-same-origin allow-scripts"
-                      onLoad={handleIframeLoad}
+                      onLoad={previewVersion ? undefined : handleIframeLoad}
                     />
                     <div className="absolute inset-0 pointer-events-none">
                       <InlineEditorPopover
