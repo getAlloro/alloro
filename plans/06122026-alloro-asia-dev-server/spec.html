@@ -149,6 +149,12 @@
         <p><strong>Reason:</strong> User follow-up after pointing DNS for the new Asia dev hostname.</p>
         <p><strong>Updated Done criteria:</strong> The Asia dev hostname must resolve to the droplet, Apache must expose HTTP/HTTPS vhosts, and TLS must validate even before the app is deployed.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Changed the GitHub Actions handoff between the build job and deploy jobs from a raw uploaded directory to a compressed tarball that preserves hidden directories, symlinks, and executable bits.</p>
+        <p><strong>Reason:</strong> First deploy run failed on both targets because the artifact handoff dropped <code>node_modules/.bin</code>, causing <code>npm run db:migrate</code> to fail with <code>knex: not found</code>.</p>
+        <p><strong>Updated Done criteria:</strong> The deploy artifact must preserve <code>node_modules/.bin</code> so migrations can run on both dev targets.</p>
+      </article>
     </section>
   </main>
 </body>

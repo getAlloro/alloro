@@ -100,12 +100,13 @@ jobs:
 
           module.exports = { production: base, development: base, test: base };
           EOF
+          tar -czf alloro-dev-bundle.tar.gz -C bundle .
 
       - name: Upload deploy bundle
         uses: actions/upload-artifact@v4
         with:
           name: alloro-dev-bundle
-          path: bundle
+          path: alloro-dev-bundle.tar.gz
           retention-days: 1
 
   deploy-dev:
@@ -121,7 +122,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: alloro-dev-bundle
-          path: bundle
+          path: .
 
       - name: Verify server-managed config
         uses: appleboy/ssh-action@v1.2.1
@@ -150,16 +151,27 @@ jobs:
             find "${{ env.TARGET_DIR }}" -mindepth 1 -maxdepth 1 ! -name '.trash-*' -exec mv -t "$TRASH" {} +
             rm -rf "${{ env.TARGET_DIR }}"/.trash-* 2>/dev/null || echo "WARN: some leftover files could not be removed; they will be swept on the next deploy"
 
-      - name: Upload bundle to dev EC2
+      - name: Upload bundle archive to dev EC2
         uses: appleboy/scp-action@v0.1.5
         with:
           host: ${{ secrets.DEV_EC2_HOST }}
           username: ${{ secrets.DEV_EC2_USER }}
           port: ${{ secrets.DEV_EC2_PORT }}
           key: ${{ secrets.DEV_EC2_KEY }}
-          source: "bundle/**"
+          source: "alloro-dev-bundle.tar.gz"
           target: ${{ env.TARGET_DIR }}
-          strip_components: 1
+
+      - name: Extract bundle on dev EC2
+        uses: appleboy/ssh-action@v1.2.1
+        with:
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ${{ secrets.DEV_EC2_USER }}
+          port: ${{ secrets.DEV_EC2_PORT }}
+          key: ${{ secrets.DEV_EC2_KEY }}
+          script: |
+            set -euo pipefail
+            tar -xzf "${{ env.TARGET_DIR }}/alloro-dev-bundle.tar.gz" -C "${{ env.TARGET_DIR }}"
+            rm -f "${{ env.TARGET_DIR }}/alloro-dev-bundle.tar.gz"
 
       - name: Link server config and run migrations
         uses: appleboy/ssh-action@v1.2.1
@@ -234,7 +246,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: alloro-dev-bundle
-          path: bundle
+          path: .
 
       - name: Verify server-managed config
         uses: appleboy/ssh-action@v1.2.1
@@ -263,16 +275,27 @@ jobs:
             find "${{ env.TARGET_DIR }}" -mindepth 1 -maxdepth 1 ! -name '.trash-*' -exec mv -t "$TRASH" {} +
             rm -rf "${{ env.TARGET_DIR }}"/.trash-* 2>/dev/null || echo "WARN: some leftover files could not be removed; they will be swept on the next deploy"
 
-      - name: Upload bundle to Asia dev
+      - name: Upload bundle archive to Asia dev
         uses: appleboy/scp-action@v0.1.5
         with:
           host: ${{ secrets.ASIA_EC2_HOST }}
           username: ${{ secrets.ASIA_EC2_USER }}
           port: ${{ secrets.ASIA_EC2_PORT }}
           key: ${{ secrets.ASIA_EC2_KEY }}
-          source: "bundle/**"
+          source: "alloro-dev-bundle.tar.gz"
           target: ${{ env.TARGET_DIR }}
-          strip_components: 1
+
+      - name: Extract bundle on Asia dev
+        uses: appleboy/ssh-action@v1.2.1
+        with:
+          host: ${{ secrets.ASIA_EC2_HOST }}
+          username: ${{ secrets.ASIA_EC2_USER }}
+          port: ${{ secrets.ASIA_EC2_PORT }}
+          key: ${{ secrets.ASIA_EC2_KEY }}
+          script: |
+            set -euo pipefail
+            tar -xzf "${{ env.TARGET_DIR }}/alloro-dev-bundle.tar.gz" -C "${{ env.TARGET_DIR }}"
+            rm -f "${{ env.TARGET_DIR }}/alloro-dev-bundle.tar.gz"
 
       - name: Link server config and run migrations
         uses: appleboy/ssh-action@v1.2.1
