@@ -15,7 +15,7 @@
       </div>
       <h1>Website Editor: Direct Editing &amp; Versioning</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>In Progress — Rev 24 (toolbar removal + container/bold-italic controls) shipped, manual QA pending</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>In Progress — Rev 25 (compact inline style row) shipped, manual QA pending</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/06112026-website-editor-direct-editing-and-versioning</dd></div>
         <div><dt>Size</dt><dd>Large (~25 files)</dd></div>
         <div><dt>Risk</dt><dd>Level 2</dd></div>
@@ -691,6 +691,12 @@
         <p><strong>Change:</strong> Element-control round (T34–T36). <strong>T34:</strong> removed the floating rich-text toolbar (the B/I/Link/Clear/Done/✕ overlay) — the last in-canvas control surface, inconsistent with Rev 19's "sidebar owns controls." Rich elements still edit contentEditable-in-place (commit on blur, Escape cancels, Enter → line break); the sanitizer and the <code>[data-alloro-editing]</code> pointer/select rule are preserved, and all the toolbar DOM/CSS/link-input/exec-command/clear-formatting code is deleted. <strong>T35:</strong> wired the previously orphaned background operations into the sidebar for sections AND plain containers — a new "Background" section (color swatches + custom + clear; image add/replace/clear + size/position) and a relaxed <code>canEditBackground</code>/<code>assertBackgroundEligible</code> gate that allows block-container tags, so a selected "Container" div finally has controls beyond Hide. <strong>T36:</strong> added <code>toggle-bold</code>/<code>toggle-italic</code> direct operations (inline-style based to survive Tailwind purge; pre-existing weight classes normalized) + getters, and a "Style" B/I toggle row in <code>TextStyleControls</code> for heading/text elements with active-state reflection. All shared components, so admin PageEditor + LayoutEditor + DFYWebsite inherit with no host edits.</p>
         <p><strong>Reason:</strong> User-requested ("remove this link overlay; add controls to container type; for heading and text add bold/italic toggle in the sidebar"). <strong>Tradeoff (flagged):</strong> removing the toolbar also removes in-canvas inline-link-on-a-sub-selection and partial (selection-scoped) bold/italic — whole-element bold/italic now lives in the sidebar (T36) and whole-element links remain in the sidebar Link field; sub-span link/format editing is intentionally out of scope for the simplified editor.</p>
         <p><strong>Updated Done criteria:</strong> three new checklist items covering T34–T36 (see Done). tsc (frontend) + eslint on the four changed files pass with zero findings.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 25 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Compacted the text Bold/Italic + Serif/Sans controls (from Rev 24's two stacked two-column grids) into a single inline row of four equal-width compact buttons under one "Style" label in <code>TextStyleControls</code> — B / I as glyphs, Serif / Sans as short words in their own font. No behavior change.</p>
+        <p><strong>Reason:</strong> User QA: "these 4 can be inline and compact."</p>
+        <p><strong>Updated Done criteria:</strong> none — same controls, denser layout; tsc + eslint clean.</p>
       </article>
     </section>
   </main>

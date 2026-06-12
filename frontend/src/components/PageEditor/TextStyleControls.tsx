@@ -40,6 +40,13 @@ export default function TextStyleControls({
   const isBold = getSelectedBold(selectedInfo);
   const isItalic = getSelectedItalic(selectedInfo);
 
+  const styleBtn = (active: boolean) =>
+    `flex h-9 flex-1 items-center justify-center rounded-lg border text-sm leading-none transition disabled:opacity-50 ${
+      active
+        ? "border-alloro-orange bg-alloro-orange text-white"
+        : "border-gray-200 bg-gray-100 text-gray-600 hover:bg-gray-200"
+    }`;
+
   const swatches = [
     ...BASE_SWATCHES,
     ...(primaryColor ? [primaryColor] : []),
@@ -104,68 +111,45 @@ export default function TextStyleControls({
         </div>
       </section>
 
-      {/* Bold / Italic */}
+      {/* Style: bold / italic / serif / sans — one compact inline row */}
       <section className="space-y-1.5">
         <p className={LABEL_CLS}>Style</p>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => onApplyDirectEdit({ type: "toggle-bold" })}
             disabled={isEditing}
             aria-pressed={isBold}
             title="Bold"
-            className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm transition disabled:opacity-50 ${
-              isBold
-                ? "border-alloro-orange bg-alloro-orange text-white"
-                : "border-gray-200 bg-gray-100 text-gray-600 hover:bg-gray-200"
-            }`}
+            className={styleBtn(isBold)}
           >
             <span className="text-base font-bold">B</span>
-            <span className="text-[11px] font-semibold">Bold</span>
           </button>
           <button
             onClick={() => onApplyDirectEdit({ type: "toggle-italic" })}
             disabled={isEditing}
             aria-pressed={isItalic}
             title="Italic"
-            className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm transition disabled:opacity-50 ${
-              isItalic
-                ? "border-alloro-orange bg-alloro-orange text-white"
-                : "border-gray-200 bg-gray-100 text-gray-600 hover:bg-gray-200"
-            }`}
+            className={styleBtn(isItalic)}
           >
-            <span className="text-base font-serif italic">I</span>
-            <span className="text-[11px] font-semibold">Italic</span>
+            <span className="font-serif text-base italic">I</span>
           </button>
-        </div>
-      </section>
-
-      {/* Font family */}
-      <section className="space-y-1.5">
-        <p className={LABEL_CLS}>Font</p>
-        <div className="grid grid-cols-2 gap-2">
           <button
             onClick={() => toggleFamily("serif")}
             disabled={isEditing}
-            className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 font-serif text-sm transition disabled:opacity-50 ${
-              currentFamily === "serif"
-                ? "border-alloro-orange bg-alloro-orange text-white"
-                : "border-gray-200 bg-gray-100 text-gray-600 hover:bg-gray-200"
-            }`}
+            aria-pressed={currentFamily === "serif"}
+            title="Serif font"
+            className={`${styleBtn(currentFamily === "serif")} font-serif`}
           >
-            <span className="text-base">Aa</span>
-            <span className="text-[11px] font-sans font-semibold">Serif</span>
+            Serif
           </button>
           <button
             onClick={() => toggleFamily("sans")}
             disabled={isEditing}
-            className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 font-sans text-sm transition disabled:opacity-50 ${
-              currentFamily === "sans"
-                ? "border-alloro-orange bg-alloro-orange text-white"
-                : "border-gray-200 bg-gray-100 text-gray-600 hover:bg-gray-200"
-            }`}
+            aria-pressed={currentFamily === "sans"}
+            title="Sans font"
+            className={`${styleBtn(currentFamily === "sans")} font-sans`}
           >
-            <span className="text-base">Aa</span>
-            <span className="text-[11px] font-semibold">Sans</span>
+            Sans
           </button>
         </div>
       </section>
