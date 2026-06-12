@@ -2,6 +2,28 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.119] - June 2026
+
+### Client Dashboard: Search Console Keywords
+
+Surfaces Google Search Console performance to website owners in the DFY dashboard — previously visible only in the admin dashboard. Adds a "Keywords" tab and a "Search keywords" card on the Overview tab, both fed by a new org-scoped endpoint that reuses the existing admin GSC dashboard service untouched.
+
+**Key Changes:**
+
+- New client endpoint `GET /api/user/website/gsc/performance` — resolves the project from the auth-token org (no `projectId` in the URL), reuses `service.gsc-performance.getDashboard`, returns `hasIntegration:false` with a null dashboard when GSC isn't connected. Mirrors the existing Rybbit `getWebsiteAnalytics` pattern.
+- "Keywords" tab in the website dashboard: totals (clicks, impressions, avg position), a clicks + impressions trend, top queries and top pages, with not-connected and collecting-data empty states. Built fresh client-side (does not import admin GSC components); trimmed for owners (no countries/devices).
+- "Search keywords" card on the Overview tab: headline clicks/impressions/avg-position, a clicks sparkline, top 3 queries, and "View all" into the tab. The eyebrow labels the rolling 90-day window; hovering the sparkline swaps the headline to that day's values.
+
+**Commits:**
+
+- `src/controllers/user-website/UserWebsiteController.ts`, `src/routes/user/website.ts` — org-scoped `getGscPerformance` handler + route.
+- `frontend/src/api/websiteGscPerformance.ts`, `frontend/src/hooks/queries/useWebsiteGscPerformance.ts` — API client + shared React Query hook.
+- `frontend/src/components/website/KeywordsTab.tsx` — the Keywords tab.
+- `frontend/src/components/website/WebsiteDashboardTabs.tsx`, `frontend/src/pages/DFYWebsite.tsx` — `"keywords"` pill + render block.
+- `frontend/src/components/website/overview/WebsiteOverview.tsx` — Overview "Search keywords" card with range label + hover.
+- `plans/06112026-client-dashboard-gsc-keywords/` — spec.
+- **Verified:** backend + frontend `tsc` clean; card verified live by the user. Cross-org isolation is code-verified (org-scoped, no `projectId` param), not two-org runtime-tested.
+
 ## [0.0.118] - June 2026
 
 ### Asia Dev Server Deployment Target

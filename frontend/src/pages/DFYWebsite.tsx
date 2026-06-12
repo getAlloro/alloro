@@ -22,6 +22,7 @@ import PostsTab from "../components/Admin/PostsTab";
 import MenusTab from "../components/Admin/MenusTab";
 import RecipientsConfig from "../components/Admin/RecipientsConfig";
 import { WebsiteOverview } from "../components/website/overview/WebsiteOverview";
+import { KeywordsTab } from "../components/website/KeywordsTab";
 import { WebsitePagesTab } from "../components/website/WebsitePagesTab";
 import { WebsiteLoadingSkeleton } from "../components/website/WebsiteLoadingSkeleton";
 import {
@@ -91,7 +92,7 @@ interface Project {
 const DESKTOP_SCALE = 0.7;
 /** Window in which consecutive same-element text applies share one undo entry. */
 const TEXT_UNDO_COALESCE_MS = 2500;
-const WEBSITE_TABS = ["overview", "editor", "submissions", "posts", "menus", "pages"] as const;
+const WEBSITE_TABS = ["overview", "editor", "submissions", "posts", "menus", "pages", "keywords"] as const;
 type WebsiteTab = typeof WEBSITE_TABS[number];
 
 type SectionHistoryEntry = {
@@ -1622,6 +1623,11 @@ export function DFYWebsite() {
             />
           )}
           </div>
+        </div>
+      ) : activeView === "keywords" ? (
+        <div className="flex-1 overflow-y-auto bg-alloro-bg">
+          {dashboardHeader}
+          <KeywordsTab />
         </div>
       ) : (
         <div className="flex flex-1 min-h-0 overflow-hidden" data-wizard-target="website-editor">

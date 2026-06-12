@@ -4,6 +4,7 @@ import {
   Inbox,
   FileText,
   Menu as MenuIcon,
+  Search,
   type LucideIcon,
 } from "lucide-react";
 
@@ -17,7 +18,8 @@ export type WebsiteDashboardView =
   | "pages"
   | "submissions"
   | "posts"
-  | "menus";
+  | "menus"
+  | "keywords";
 
 export type WebsiteDashboardTabsProps = {
   activeView: WebsiteDashboardView;
@@ -42,6 +44,7 @@ export function WebsiteDashboardTabs({
       ? [{ key: "posts" as const, label: "Posts", icon: FileText }]
       : []),
     { key: "menus", label: "Menus", icon: MenuIcon },
+    { key: "keywords", label: "Keywords", icon: Search },
   ];
 
   return (

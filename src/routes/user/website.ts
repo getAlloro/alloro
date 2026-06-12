@@ -107,6 +107,14 @@ userWebsiteRoutes.get(
 );
 
 userWebsiteRoutes.get(
+  "/gsc/performance",
+  authenticateToken,
+  rbacMiddleware,
+  requireRole("admin", "manager"),
+  controller.getGscPerformance
+);
+
+userWebsiteRoutes.get(
   "/gsc",
   authenticateToken,
   rbacMiddleware,

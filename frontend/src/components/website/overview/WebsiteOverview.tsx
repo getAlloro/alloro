@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, BarChart3, Inbox } from "lucide-react";
+import { ChevronRight, BarChart3, Inbox, Search } from "lucide-react";
 import { apiGet } from "../../../api";
 import { InfoTip } from "../../dashboard/shared/InfoTip";
 import {
@@ -18,13 +18,15 @@ import { DetailsModal } from "../../dashboard/shared/DetailsModal";
 import { TrendSparkline } from "../../dashboard/shared/TrendSparkline";
 import { OverviewCard, OverviewCardEmptyState, TrendPill } from "./OverviewCard";
 import { computeWebsiteMetrics, formatConversion } from "./websiteMetrics";
+import { useWebsiteGscPerformance } from "../../../hooks/queries/useWebsiteGscPerformance";
 
 export type WebsiteOverviewTab =
   | "editor"
   | "submissions"
   | "posts"
   | "menus"
-  | "pages";
+  | "pages"
+  | "keywords";
 
 export type WebsiteOverviewProps = {
   pageCount: number;
@@ -34,6 +36,16 @@ export type WebsiteOverviewProps = {
 
 const numberFmt = new Intl.NumberFormat("en-US");
 const fmt = (n: number) => numberFmt.format(Math.round(n));
+
+const GSC_MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+/** "2026-06-10" → "Jun 10" (timezone-safe; no Date construction). */
+function gscDayLabel(iso: string): string {
+  const [, month, day] = iso.split("-");
+  return `${GSC_MONTHS[Number(month) - 1] ?? ""} ${Number(day)}`;
+}
 
 // Line + column-dot colors for the hero funnel: visitors (orange) → leads
 // (navy) → conversion (green). Visitors must match TrendSparkline's hardcoded
@@ -111,6 +123,22 @@ export function WebsiteOverview({
     enabled: !isWizardActive,
     staleTime: 5 * 60 * 1000,
   });
+  const gscQuery = useWebsiteGscPerformance(90, !isWizardActive);
+
+  const gscDash = gscQuery.data?.dashboard ?? null;
+  const gscConnected = !!gscQuery.data?.hasIntegration;
+  const gscHasData = !!gscDash && gscDash.dataDays > 0;
+  const gscTotals = gscDash?.totals;
+  const gscTopQueries = (gscDash?.topQueries ?? []).slice(0, 3);
+  const gscSeries = useMemo(
+    () =>
+      (gscDash?.daily ?? []).map((p) => ({
+        label: gscDayLabel(p.date),
+        clicks: p.clicks,
+        impressions: p.impressions,
+      })),
+    [gscDash],
+  );
 
   const demoCard = wizardDemoData?.websiteCardData as
     | Record<string, unknown>
@@ -149,6 +177,8 @@ export function WebsiteOverview({
     trafficModalHover !== null ? m.visitorDaily[trafficModalHover] : null;
   const leadsModalPoint =
     leadsModalHover !== null ? m.leadSeries[leadsModalHover] : null;
+  const [gscHover, setGscHover] = useState<number | null>(null);
+  const gscPoint = gscHover !== null ? gscSeries[gscHover] ?? null : null;
 
   const leadWord = m.monthLeads === 1 ? "lead" : "leads";
   const insight = m.hasAnalytics
@@ -383,6 +413,85 @@ export function WebsiteOverview({
           )}
         </OverviewCard>
       </div>
+
+      <OverviewCard
+        eyebrow="Search keywords · Last 90 days"
+        infoTip="Clicks and impressions from Google Search Console over the last 90 days. Hover the chart for a single day. The Keywords tab has the full trend, range selector, and top pages."
+        onOpen={() => onOpenTab("keywords")}
+        openLabel="Keyword detail"
+      >
+        {gscQuery.isLoading ? (
+          <div className="h-[150px] animate-pulse rounded-[10px] bg-neutral-100" />
+        ) : gscConnected && gscHasData ? (
+          <div className="grid gap-6 md:grid-cols-2">
+            <div>
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span className="font-display text-[32px] font-medium leading-none tracking-tight text-alloro-navy tabular-nums">
+                  {fmt(gscPoint ? gscPoint.clicks : gscTotals?.clicks ?? 0)}
+                </span>
+                <span className="text-xs font-medium text-[color:var(--color-pm-text-secondary)]">
+                  {gscPoint ? `clicks · ${gscPoint.label}` : "clicks from search"}
+                </span>
+              </div>
+              <div className="mt-1 text-xs text-[color:var(--color-pm-text-secondary)]">
+                {gscPoint
+                  ? `${fmt(gscPoint.impressions)} impressions that day`
+                  : `${fmt(gscTotals?.impressions ?? 0)} impressions · ${
+                      (gscTotals?.position ?? 0) > 0
+                        ? `${(gscTotals?.position ?? 0).toFixed(1)} avg position`
+                        : "—"
+                    }`}
+              </div>
+              <div className="mt-4">
+                <TrendSparkline
+                  data={gscSeries}
+                  valueKey="clicks"
+                  labelKey="label"
+                  height={120}
+                  onActiveIndexChange={setGscHover}
+                />
+              </div>
+            </div>
+            <div>
+              <div className="font-mono-display text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--color-pm-text-secondary)]">
+                Top queries
+              </div>
+              <ul className="mt-3 space-y-2">
+                {gscTopQueries.map((q) => (
+                  <li
+                    key={q.key}
+                    className="flex items-center justify-between gap-3 text-[13px]"
+                  >
+                    <span
+                      className="truncate font-medium text-alloro-navy"
+                      title={q.key}
+                    >
+                      {q.key}
+                    </span>
+                    <span className="shrink-0 tabular-nums text-[color:var(--color-pm-text-secondary)]">
+                      {fmt(q.clicks)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        ) : (
+          <OverviewCardEmptyState
+            icon={<Search size={20} />}
+            title={
+              gscConnected
+                ? "Collecting search data"
+                : "Search Console not connected"
+            }
+            hint={
+              gscConnected
+                ? "Keyword performance appears within a few days of connecting."
+                : "Connect Search Console to see the keywords bringing you traffic."
+            }
+          />
+        )}
+      </OverviewCard>
 
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-[14px] border border-line-soft bg-white px-5 py-4 shadow-premium">
         <span className="font-mono-display text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--color-pm-text-secondary)]">
