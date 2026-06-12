@@ -556,6 +556,11 @@ export function useIframeSelector(
 ) {
   const sectionsOnly = options?.sectionsOnly ?? false;
   const [selectedInfo, setSelectedInfo] = useState<SelectedInfo | null>(null);
+  // Mirror of selectedInfo so setupListeners (a stable callback) can re-apply
+  // the on-canvas selection outline after an iframe (re)load without depending
+  // on selectedInfo and re-attaching listeners on every selection.
+  const selectedInfoRef = useRef<SelectedInfo | null>(null);
+  selectedInfoRef.current = selectedInfo;
   const [isCanvasTextEditing, setIsCanvasTextEditing] = useState(false);
   const currentHoveredComponentRef = useRef<Element | null>(null);
   const canvasTextSessionRef = useRef<CanvasTextEditSession | RichTextEditSession | null>(null);
@@ -959,6 +964,17 @@ export function useIframeSelector(
     };
     doc.addEventListener("scroll", handleScroll, true);
     doc.defaultView?.addEventListener("scroll", handleScroll, { passive: true });
+
+    // Re-apply the selection outline after an iframe (re)load. Switching the
+    // viewport toggle remounts the iframe (or swaps to a separate desktop/
+    // mobile iframe) with a fresh DOM that has lost the `data-alloro-selected`
+    // marker, even though selectedInfo — and the sidebar — persist. Without
+    // this the element stays selected logically but shows no outline.
+    const persisted = selectedInfoRef.current;
+    if (persisted) {
+      const selectedEl = doc.querySelector(`.${CSS.escape(persisted.alloroClass)}`);
+      if (selectedEl) selectedEl.setAttribute("data-alloro-selected", "true");
+    }
   }, [beginCanvasTextEditing, iframeRef, sectionsOnly]);
 
   const toggleHidden = useCallback(() => {
