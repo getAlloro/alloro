@@ -1593,9 +1593,12 @@ function PageEditorInner() {
         );
         restoredDraft = res.data;
       } catch (err) {
+        // ApiError is a type alias (Error & {code,status}), not a class, so it
+        // can't be used with instanceof — an ApiError IS an Error instance.
+        const message = err instanceof Error ? err.message : null;
         setEditError(
-          err instanceof ApiError
-            ? `Restore failed: ${err.message}`
+          message
+            ? `Restore failed: ${message}`
             : "Restore failed — the draft was left unchanged."
         );
         return;
