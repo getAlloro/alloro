@@ -1289,7 +1289,9 @@ function PageEditorInner() {
           }
         );
         setPage((prev) =>
-          prev ? { ...prev, updated_at: res.data.updated_at } : prev
+          prev
+            ? { ...prev, updated_at: res.data.updated_at, version: res.data.version }
+            : prev
         );
         setIsDirty(false);
         clearBackup();
@@ -1381,23 +1383,13 @@ function PageEditorInner() {
       // Update URL to reflect the new draft page ID so refresh loads the correct page
       window.history.replaceState(null, "", `/admin/websites/${projectId}/pages/${newDraft.data.id}/edit`);
 
-      // Reload sections and iframe from the new draft
+      // Adopt the fresh draft's sections, but DON'T rebuild htmlContent — the
+      // canvas already shows exactly this content (we just published it), so a
+      // srcDoc swap here only flashes/reloads the preview for no visual change.
+      // htmlContent's freshness is unchanged by publish (same content), so the
+      // existing htmlStaleRef value still holds — leave it as-is.
       const draftSections: Section[] = normalizeSections(newDraft.data.sections);
       setSections(draftSections);
-      if (project) {
-        const assembled = renderPage(
-          project.wrapper || "{{slot}}",
-          project.header || "",
-          project.footer || "",
-          draftSections,
-          undefined,
-          undefined,
-          undefined,
-          projectId
-        );
-        htmlStaleRef.current = false;
-        setHtmlContent(assembled);
-      }
 
       // Clear chat history, edit history, and the local backup for the fresh draft
       setChatMap(new Map());
@@ -1421,7 +1413,7 @@ function PageEditorInner() {
     } finally {
       setIsPublishing(false);
     }
-  }, [projectId, draftPageId, isDirty, page?.updated_at, clearBackup, project]);
+  }, [projectId, draftPageId, isDirty, page?.updated_at, clearBackup]);
 
   // --- View switching ---
   const handleViewChange = useCallback(

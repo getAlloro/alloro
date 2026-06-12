@@ -15,7 +15,7 @@
       </div>
       <h1>Website Editor: Direct Editing &amp; Versioning</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>In Progress — Rev 25 (compact inline style row) shipped, manual QA pending</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>In Progress — Rev 26 (version-history ordering + no-reload publish) shipped, manual QA pending</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/06112026-website-editor-direct-editing-and-versioning</dd></div>
         <div><dt>Size</dt><dd>Large (~25 files)</dd></div>
         <div><dt>Risk</dt><dd>Level 2</dd></div>
@@ -491,11 +491,31 @@
       </article>
 
       <article class="task-card">
+        <h3>T37: Keep the live/draft row as the newest version on save (Rev 26)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>On each content save, bump the edited row's <code>version</code> to (max at path)+1 AFTER snapshotting. The snapshot helper assigns the snapshot <code>max+1</code>, so without this the live draft (admin) / live page (DFY) keeps a lower number than its own archived history and sinks below it in the History tab — making the newest version read as "Archived." Apply to both <code>updatePage</code> (admin) and <code>savePageSections</code> (DFY).</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.page-editor.ts</code>, <code>src/controllers/user-website/UserWebsiteController.ts</code>, <code>frontend/src/pages/admin/PageEditor.tsx</code> (reflect new version in the toolbar)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: save a few times → the editable row stays at the top labeled Draft/Live; snapshots sit below it. Existing inverted rows self-heal on the next save.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T38: Don't reload the preview on publish (Rev 26)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>handlePublishConfirmed</code> rebuilt <code>htmlContent</code> after publish, swapping the iframe srcDoc and flashing/reloading the preview — even though the canvas already shows exactly the just-published content. Skip the rebuild; adopt the new draft's sections and leave <code>htmlStaleRef</code> as-is (publish doesn't change content, so freshness is unchanged).</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/admin/PageEditor.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: Publish → the preview does not flash/reload; the version label advances and a new draft is active.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
         <h3>T9: Verification pipeline</h3>
         <dl>
           <div><dt>Do</dt><dd>Run type-check + lint for backend and frontend; execute the manual QA checklist in Done.</dd></div>
           <div><dt>Files</dt><dd>n/a</dd></div>
-          <div><dt>Depends on</dt><dd>T1–T8, T10–T36</dd></div>
+          <div><dt>Depends on</dt><dd>T1–T8, T10–T38</dd></div>
           <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> (root + frontend), <code>npm run lint</code></dd></div>
         </dl>
       </article>
@@ -535,6 +555,8 @@
         <li><input type="checkbox" disabled> Manual (Rev 24): no floating B/I/Link toolbar appears over a selected rich element; in-place typing still commits on click-away</li>
         <li><input type="checkbox" disabled> Manual (Rev 24): selecting a container shows Background controls (color + image); they apply in place</li>
         <li><input type="checkbox" disabled> Manual (Rev 24): sidebar Bold/Italic toggles a heading and a paragraph and shows the active state</li>
+        <li><input type="checkbox" disabled> Manual (Rev 26): saving a few times keeps the editable row at the top (Draft/Live), with snapshots below — the newest version is never "Archived"</li>
+        <li><input type="checkbox" disabled> Manual (Rev 26): Publish does not flash/reload the preview</li>
       </ul>
     </section>
 
@@ -697,6 +719,12 @@
         <p><strong>Change:</strong> Compacted the text Bold/Italic + Serif/Sans controls (from Rev 24's two stacked two-column grids) into a single inline row of four equal-width compact buttons under one "Style" label in <code>TextStyleControls</code> — B / I as glyphs, Serif / Sans as short words in their own font. No behavior change.</p>
         <p><strong>Reason:</strong> User QA: "these 4 can be inline and compact."</p>
         <p><strong>Updated Done criteria:</strong> none — same controls, denser layout; tsc + eslint clean.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 26 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Two version-history/publish fixes (T37–T38). <strong>T37:</strong> the newest version read as "Archived." Root cause — <code>snapshotPageStateIfChanged</code> gives the pre-save snapshot <code>max+1</code> (the highest number), while the save left the edited row at its old, lower number, so historical snapshots sorted above the live draft (History orders by <code>version</code> desc). Fix: after snapshotting, bump the edited row's <code>version</code> to (current max)+1 in both <code>updatePage</code> (admin draft) and <code>savePageSections</code> (DFY live page), so the editable row is always pinned to the top; <code>performSave</code> reflects the new version in the toolbar. Existing inverted rows self-heal on the next save. <strong>T38:</strong> Publish flashed/reloaded the preview — <code>handlePublishConfirmed</code> rebuilt <code>htmlContent</code> (srcDoc swap) after publishing even though the canvas already showed the just-published content. Skip the rebuild; adopt the new draft's sections and leave <code>htmlStaleRef</code> untouched (publish doesn't change content).</p>
+        <p><strong>Reason:</strong> User QA from a History-tab screenshot ("the latest one marked archive… does not look right") + "when publishing can we prevent the re-render loading of preview since we have the newest changes anyways."</p>
+        <p><strong>Updated Done criteria:</strong> two new checklist items covering T37–T38 (see Done). Backend + frontend tsc and eslint on the changed files pass (only the pre-existing load-effect deps warning remains).</p>
       </article>
     </section>
   </main>

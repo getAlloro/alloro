@@ -1229,6 +1229,16 @@ export async function savePageSections(
     // before overwriting it (user-side saves write the live page in place).
     await snapshotPageStateIfChanged(page);
 
+    // Keep the live page as the newest version. The snapshot above takes
+    // max+1, so without this the live row would carry a LOWER version than
+    // its own archived history and sink beneath it in the History tab (the
+    // "latest version is Archived" bug).
+    const newest = await db("website_builder.pages")
+      .where({ project_id: page.project_id, path: page.path })
+      .orderBy("version", "desc")
+      .first();
+    const nextVersion = (newest?.version ?? page.version) + 1;
+
     // Update the page sections directly. The write is conditional on the
     // expected timestamp (1ms range — updated_at has microsecond precision,
     // the client echo is millisecond-truncated) so two racing writers can't
@@ -1243,6 +1253,7 @@ export async function savePageSections(
     const [updatedPage] = await updateQuery
       .update({
         sections: JSON.stringify(sections),
+        version: nextVersion,
         change_source: "save",
         updated_at: db.fn.now(),
       })
