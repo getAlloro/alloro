@@ -28,6 +28,9 @@ interface ChatPanelProps {
   mediaApi?: MediaApi;
   primaryColor?: string | null;
   accentColor?: string | null;
+  /** Friendly name of the selected element (e.g. "Paragraph", "Image"), or
+   *  null when nothing is selected — the AI edit has nothing to target. */
+  selectionLabel?: string | null;
 }
 
 type MediaUploadResponse = {
@@ -67,6 +70,7 @@ export default function ChatPanel({
   mediaApi,
   primaryColor,
   accentColor,
+  selectionLabel,
 }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -79,19 +83,25 @@ export default function ChatPanel({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // The AI edit targets the selected element — with nothing selected (or while
+  // previewing a version) every entry point is gated so the user can't fire an
+  // instruction that has nowhere to land.
+  const hasSelection = Boolean(selectionLabel);
+  const blocked = disabled || !hasSelection;
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, isLoading]);
 
   useEffect(() => {
-    if (!disabled && !isLoading) {
+    if (!blocked && !isLoading) {
       inputRef.current?.focus();
     }
-  }, [disabled, isLoading]);
+  }, [blocked, isLoading]);
 
   const handleSubmit = () => {
     const trimmed = input.trim();
-    if (!trimmed || isLoading || disabled) return;
+    if (!trimmed || isLoading || blocked) return;
     const finalInstruction = attachedColor
       ? `${trimmed}\n\nUse color: ${attachedColor}`
       : trimmed;
@@ -161,7 +171,7 @@ export default function ChatPanel({
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (disabled || isLoading || !mediaApi) return;
+    if (blocked || isLoading || !mediaApi) return;
     setIsDragging(true);
   };
 
@@ -176,7 +186,7 @@ export default function ChatPanel({
     e.stopPropagation();
     setIsDragging(false);
 
-    if (disabled || isLoading || !mediaApi) return;
+    if (blocked || isLoading || !mediaApi) return;
 
     const files = Array.from(e.dataTransfer.files);
     const validFiles = files.filter((file) =>
@@ -236,11 +246,26 @@ export default function ChatPanel({
         </div>
       )}
 
+      {/* Selected-element pill — pinned above the conversation so it's always
+          clear which element the next AI edit will target. */}
+      {hasSelection && (
+        <div className="shrink-0 px-4 pt-3">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--ec-cobalt)]" />
+            Editing: {selectionLabel}
+          </span>
+        </div>
+      )}
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-        {messages.length === 0 && !disabled && (
+        {messages.length === 0 && (
           <p className="text-xs text-gray-400 text-center py-4">
-            Describe your edit. Example: "Change the heading text to Welcome"
+            {!hasSelection
+              ? "Select an element and tell me what to change."
+              : disabled
+                ? "Editing is paused while previewing a version."
+                : `Tell Alloro what to change about this ${selectionLabel}.`}
           </p>
         )}
 
@@ -362,7 +387,7 @@ export default function ChatPanel({
             <>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                disabled={disabled || isLoading || uploading}
+                disabled={blocked || isLoading || uploading}
                 className="p-2 rounded-xl bg-gray-100 border border-gray-200 text-gray-600 hover:bg-gray-200 hover:text-alloro-orange transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
                 title="Upload media"
               >
@@ -374,7 +399,7 @@ export default function ChatPanel({
               </button>
               <button
                 onClick={() => setShowMediaLibrary(!showMediaLibrary)}
-                disabled={disabled || isLoading}
+                disabled={blocked || isLoading}
                 className={`p-2 rounded-xl border transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0 ${
                   showMediaLibrary
                     ? "bg-alloro-orange text-white border-alloro-orange"
@@ -400,11 +425,13 @@ export default function ChatPanel({
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={
-              disabled
-                ? "Select an element to edit..."
-                : "Describe your edit..."
+              !hasSelection
+                ? "Select an element first…"
+                : disabled
+                  ? "Editing paused…"
+                  : "Describe your edit…"
             }
-            disabled={disabled || isLoading}
+            disabled={blocked || isLoading}
             rows={1}
             className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-900 placeholder:text-gray-400 resize-none focus:outline-none focus:border-alloro-orange focus:ring-1 focus:ring-alloro-orange/20 disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ minHeight: "36px", maxHeight: "120px" }}
@@ -417,7 +444,7 @@ export default function ChatPanel({
 
           <button
             onClick={handleSubmit}
-            disabled={!input.trim() || isLoading || disabled}
+            disabled={!input.trim() || isLoading || blocked}
             className="p-2 rounded-xl bg-alloro-orange text-white hover:bg-alloro-orange/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0 shadow-sm shadow-alloro-orange/20"
           >
             <Send className="w-3.5 h-3.5" />

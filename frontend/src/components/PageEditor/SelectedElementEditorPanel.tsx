@@ -248,9 +248,9 @@ export default function SelectedElementEditorPanel({
             }}
             disabled={isEditing}
             readOnly={isRichTextContent}
-            rows={4}
+            rows={6}
             placeholder="Enter text…"
-            className={`${FIELD_CLS} min-h-[96px] resize-y leading-5 ${
+            className={`${FIELD_CLS} max-h-[340px] min-h-[150px] resize-none overflow-y-auto leading-5 ${
               isRichTextContent ? "opacity-60" : ""
             }`}
           />

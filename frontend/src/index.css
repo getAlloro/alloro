@@ -1202,6 +1202,20 @@ mark.hl {
   --ec-text-muted: #8a99b3;
   --ec-cobalt: #5b8bf5;
   color: var(--ec-text);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+
+/* Dark scrollbars throughout the cobalt sidebar — the content textarea and
+   scroll panels must never show the light native track. */
+.editor-cobalt ::-webkit-scrollbar { width: 8px; height: 8px; }
+.editor-cobalt ::-webkit-scrollbar-track { background: transparent; }
+.editor-cobalt ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+}
+.editor-cobalt ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.26);
 }
 
 /* Surfaces */
