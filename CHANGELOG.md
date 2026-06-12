@@ -2,6 +2,29 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.117] - June 2026
+
+### Website Editor: Direct Editing, Versioning & Responsive Controls
+
+A ground-up overhaul of the website editor (admin `PageEditor` + customer `DFYWebsite`) so practice sites can be edited directly on the page instead of only through the AI chat — with real version history, reliable saves/publishes, and per-breakpoint styling. Shipped iteratively (spec Rev 1–34) on branch `dave/website-editor` (PR to `main`) and mirrored to `dev/dave`.
+
+**Key Changes:**
+
+- **Direct, in-place editing (not AI-first):** any basic element (`p`/`span`/`a`/`img`/headings/buttons/containers) is selectable and editable on the canvas — type-on-page with the caret at the click point, edit links, swap photos with alt text, set text color and serif/sans font, toggle bold/italic, and align text. The AI editor is demoted into an "AI Editor — Tell Alloro what to change" dropdown that requires a selected element and shows a pill of what's selected. Shortcodes (post/review loops) and header/footer are protected with a "managed by Alloro" treatment.
+- **Versioning that actually works:** autosave removed; explicit **Save** records a deduped, restorable snapshot (pruned to 20/path). History tab **previews** versions read-only and **restores** them (whole-version or per-section), with a per-section diff. The edited row stays the newest version so the live draft never reads as "Archived."
+- **Save/publish reliability:** `Cmd/Ctrl+S`, localStorage crash recovery, optimistic-concurrency conflict modal (conditional-UPDATE 409), transactional + idempotent publish, snapshot-before-refresh so a concurrent customer save can't silently destroy an admin draft, honest error surfacing, and version preview that is genuinely read-only (editable only after Restore). Typing marks the editor dirty immediately and Save/Publish flush the in-progress inline edit without clicking away.
+- **Breakpoint-aware styling (mobile + desktop only):** the viewport toggle doubles as a breakpoint selector — size, alignment, and visibility edits target the active tier (base for mobile, `md:` for desktop). The size label reads the actually-rendered computed size, and the admin desktop preview renders a true 1280px desktop viewport scaled to fit so it shows the real `lg:`/`xl:` sizes a visitor sees.
+- **UI:** cobalt-dark sidebar matching the left nav rail, spacious labeled inspector, dark scrollbars, no preview reload on edits or publish, and the selection outline persists across viewport switches.
+
+**Commits:** (on `dave/website-editor`, PR #131)
+
+- `frontend/src/pages/admin/PageEditor.tsx`, `frontend/src/pages/DFYWebsite.tsx` — host editors: undo/redo, manual save + snapshots, guards, version history, conflict handling, inline-edit flush, breakpoint plumbing, scaled desktop preview.
+- `frontend/src/hooks/useIframeSelector.ts`, `frontend/src/utils/{canvasTextEditing,richTextEditing,editorDirectOperations,htmlReplacer,templateRenderer}.ts` — selection/auto-tagging, in-place direct edits, responsive class tiers, computed size, serializer hygiene, shortcode armoring.
+- `frontend/src/components/PageEditor/*` — sidebar, ChatPanel gating + pill, selected-element inspector, version history tab, text-style controls.
+- `src/controllers/admin-websites/feature-services/{service.page-editor,service.page-versions}.ts`, `src/controllers/user-website/UserWebsiteController.ts`, `src/utils/website-utils/pageSnapshots.ts` — snapshot-on-write, transactional/idempotent publish, restore, conditional-UPDATE concurrency, version bump.
+- `src/database/migrations/20260611000000_add_page_revision_metadata.ts` — `change_source`/`revision_note` provenance columns (run on dev/prod at deploy).
+- **Verified:** `tsc -p tsconfig.app.json --noEmit` (frontend) + backend `tsc` + ESLint green; manual QA by the user across each revision.
+
 ## [0.0.116] - June 2026
 
 ### Disallow Email on Dev & Local
