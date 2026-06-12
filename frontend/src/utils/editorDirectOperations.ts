@@ -27,6 +27,21 @@ export const EDITOR_MEDIA_TAGS = new Set(["img", "video"]);
 export const EDITOR_LINK_TAGS = new Set(["a"]);
 const IMAGE_ONLY_TAGS = new Set(["img"]);
 
+// Block-level containers that can carry a background. Sections always
+// qualify (by type); plain containers qualify by tag so a selected
+// "Container" div gets the same background controls.
+export const EDITOR_CONTAINER_TAGS = new Set([
+  "div",
+  "section",
+  "header",
+  "footer",
+  "main",
+  "article",
+  "aside",
+  "nav",
+  "figure",
+]);
+
 export const BACKGROUND_SIZE_PRESETS = ["cover", "contain", "auto"] as const;
 export const BACKGROUND_POSITION_PRESETS = [
   "center center",
@@ -104,6 +119,8 @@ export type DirectEditorOperation =
   | { type: "set-text-color"; color: string }
   | { type: "clear-text-color" }
   | { type: "set-font-family"; family: "serif" | "sans" | "reset" }
+  | { type: "toggle-bold" }
+  | { type: "toggle-italic" }
   | { type: "toggle-hidden" }
   | { type: "set-background-color"; color: string }
   | { type: "clear-background-color" }
@@ -144,7 +161,8 @@ export function getDirectOperationAvailability(
     canChangeLink: EDITOR_LINK_TAGS.has(tag),
     canAdjustTextSize: canEditText,
     canToggleHidden: Boolean(selectedInfo),
-    canEditBackground: selectedInfo?.type === "section",
+    canEditBackground:
+      selectedInfo?.type === "section" || EDITOR_CONTAINER_TAGS.has(tag),
     canEditAltText: tag === "img",
     canStyleText: canEditText,
   };
@@ -214,6 +232,30 @@ export function getSelectedFontFamily(
   if (el.classList.contains("font-serif")) return "serif";
   if (el.classList.contains("font-sans")) return "sans";
   return null;
+}
+
+function parseSelectedTextElement(
+  selectedInfo: SelectedInfo | null,
+): HTMLElement | null {
+  if (!selectedInfo || !EDITOR_TEXT_TAGS.has(selectedInfo.tagName)) return null;
+  const template = document.createElement("template");
+  template.innerHTML = selectedInfo.outerHtml;
+  return (template.content.firstElementChild as HTMLElement | null) || null;
+}
+
+/** Whether the selected text element renders bold (inline style or class). */
+export function getSelectedBold(selectedInfo: SelectedInfo | null): boolean {
+  const el = parseSelectedTextElement(selectedInfo);
+  if (!el) return false;
+  const weight = el.style.fontWeight;
+  return weight === "bold" || weight === "700" || el.classList.contains("font-bold");
+}
+
+/** Whether the selected text element renders italic (inline style or class). */
+export function getSelectedItalic(selectedInfo: SelectedInfo | null): boolean {
+  const el = parseSelectedTextElement(selectedInfo);
+  if (!el) return false;
+  return el.style.fontStyle === "italic" || el.classList.contains("italic");
 }
 
 /** Current alt attribute value parsed from the selection's outerHTML. */
@@ -320,31 +362,39 @@ export function applyDirectEditorOperation(
         element.classList.add(`font-${operation.family}`);
       }
       break;
+    case "toggle-bold":
+      assertTag(EDITOR_TEXT_TAGS, tagName, "Bold is not available for this element.");
+      toggleBold(element as HTMLElement);
+      break;
+    case "toggle-italic":
+      assertTag(EDITOR_TEXT_TAGS, tagName, "Italic is not available for this element.");
+      toggleItalic(element as HTMLElement);
+      break;
     case "toggle-hidden":
       toggleHiddenAttribute(element);
       break;
     case "set-background-color":
-      assertSection(selectedInfo, "Background color is only available for sections.");
+      assertBackgroundEligible(selectedInfo, tagName, "Background color is only available for sections and containers.");
       setBackgroundColor(element, operation.color);
       break;
     case "clear-background-color":
-      assertSection(selectedInfo, "Background color is only available for sections.");
+      assertBackgroundEligible(selectedInfo, tagName, "Background color is only available for sections and containers.");
       (element as HTMLElement).style.removeProperty("background-color");
       break;
     case "set-background-image":
-      assertSection(selectedInfo, "Background image is only available for sections.");
+      assertBackgroundEligible(selectedInfo, tagName, "Background image is only available for sections and containers.");
       setBackgroundImage(element, operation.media);
       break;
     case "clear-background-image":
-      assertSection(selectedInfo, "Background image is only available for sections.");
+      assertBackgroundEligible(selectedInfo, tagName, "Background image is only available for sections and containers.");
       clearBackgroundImage(element);
       break;
     case "set-background-size":
-      assertSection(selectedInfo, "Background image controls are only available for sections.");
+      assertBackgroundEligible(selectedInfo, tagName, "Background image controls are only available for sections and containers.");
       setBackgroundSize(element, operation.size);
       break;
     case "set-background-position":
-      assertSection(selectedInfo, "Background image controls are only available for sections.");
+      assertBackgroundEligible(selectedInfo, tagName, "Background image controls are only available for sections and containers.");
       setBackgroundPosition(element, operation.position);
       break;
   }
@@ -370,10 +420,40 @@ function assertTag(allowedTags: Set<string>, tagName: string, message: string) {
   }
 }
 
-function assertSection(selectedInfo: SelectedInfo, message: string) {
-  if (selectedInfo.type !== "section") {
+function assertBackgroundEligible(
+  selectedInfo: SelectedInfo,
+  tagName: string,
+  message: string,
+) {
+  if (selectedInfo.type !== "section" && !EDITOR_CONTAINER_TAGS.has(tagName)) {
     throw new Error(message);
   }
+}
+
+const FONT_WEIGHT_CLASSES = [
+  "font-thin", "font-extralight", "font-light", "font-normal",
+  "font-medium", "font-semibold", "font-bold", "font-extrabold", "font-black",
+];
+
+/** Toggle bold via inline style (robust against Tailwind purge), normalizing
+ *  any pre-existing weight class so the result is unambiguous. */
+function toggleBold(element: HTMLElement) {
+  const isBold =
+    element.style.fontWeight === "bold" ||
+    element.style.fontWeight === "700" ||
+    element.classList.contains("font-bold");
+  FONT_WEIGHT_CLASSES.forEach((cls) => element.classList.remove(cls));
+  if (isBold) element.style.removeProperty("font-weight");
+  else element.style.fontWeight = "bold";
+}
+
+/** Toggle italic via inline style, clearing any italic/not-italic class. */
+function toggleItalic(element: HTMLElement) {
+  const isItalic =
+    element.style.fontStyle === "italic" || element.classList.contains("italic");
+  element.classList.remove("italic", "not-italic");
+  if (isItalic) element.style.removeProperty("font-style");
+  else element.style.fontStyle = "italic";
 }
 
 function hasControlCharacter(value: string): boolean {

@@ -4,6 +4,8 @@ import type { SelectedInfo } from "../../hooks/useIframeSelector";
 import {
   getSelectedTextColor,
   getSelectedFontFamily,
+  getSelectedBold,
+  getSelectedItalic,
   type DirectEditorOperation,
 } from "../../utils/editorDirectOperations";
 
@@ -35,6 +37,8 @@ export default function TextStyleControls({
   const colorInputId = useId();
   const currentColor = getSelectedTextColor(selectedInfo);
   const currentFamily = getSelectedFontFamily(selectedInfo);
+  const isBold = getSelectedBold(selectedInfo);
+  const isItalic = getSelectedItalic(selectedInfo);
 
   const swatches = [
     ...BASE_SWATCHES,
@@ -96,6 +100,41 @@ export default function TextStyleControls({
             className="flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 text-gray-400 transition hover:border-gray-500 hover:text-gray-600 disabled:opacity-40"
           >
             <Eraser className="h-3 w-3" />
+          </button>
+        </div>
+      </section>
+
+      {/* Bold / Italic */}
+      <section className="space-y-1.5">
+        <p className={LABEL_CLS}>Style</p>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => onApplyDirectEdit({ type: "toggle-bold" })}
+            disabled={isEditing}
+            aria-pressed={isBold}
+            title="Bold"
+            className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm transition disabled:opacity-50 ${
+              isBold
+                ? "border-alloro-orange bg-alloro-orange text-white"
+                : "border-gray-200 bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            <span className="text-base font-bold">B</span>
+            <span className="text-[11px] font-semibold">Bold</span>
+          </button>
+          <button
+            onClick={() => onApplyDirectEdit({ type: "toggle-italic" })}
+            disabled={isEditing}
+            aria-pressed={isItalic}
+            title="Italic"
+            className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm transition disabled:opacity-50 ${
+              isItalic
+                ? "border-alloro-orange bg-alloro-orange text-white"
+                : "border-gray-200 bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            <span className="text-base font-serif italic">I</span>
+            <span className="text-[11px] font-semibold">Italic</span>
           </button>
         </div>
       </section>
