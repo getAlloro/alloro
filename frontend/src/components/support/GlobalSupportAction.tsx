@@ -71,11 +71,17 @@ export function GlobalSupportAction() {
       launcherButtonRef.current?.blur();
     };
 
+    // Lets other surfaces (e.g. the website editor's beta/report-a-bug pill)
+    // open the launcher menu without a direct ref.
+    const handleOpenRequest = () => setIsOpen(true);
+
     document.addEventListener("pointerdown", handleOutsidePointerDown);
     document.addEventListener("keydown", handleEscape);
+    document.addEventListener("alloro:open-support", handleOpenRequest);
     return () => {
       document.removeEventListener("pointerdown", handleOutsidePointerDown);
       document.removeEventListener("keydown", handleEscape);
+      document.removeEventListener("alloro:open-support", handleOpenRequest);
     };
   }, []);
 

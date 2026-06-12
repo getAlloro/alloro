@@ -11,11 +11,11 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
-        <span class="status-pill status-pending">Completed</span>
+        <span class="status-pill status-pending">In Progress — Rev 35</span>
       </div>
       <h1>Website Editor: Direct Editing &amp; Versioning</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>Completed — Rev 34; PR #131 → main, mirrored on dev/dave; changelog 0.0.111</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>In Progress — Rev 35 (post-finalization editor affordances); PR #131 → main, mirrored on dev/dave; changelog 0.0.111</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/06112026-website-editor-direct-editing-and-versioning</dd></div>
         <div><dt>Size</dt><dd>Large (~25 files)</dd></div>
         <div><dt>Risk</dt><dd>Level 2</dd></div>
@@ -805,6 +805,12 @@
         <p><strong>Change:</strong> The admin "desktop" preview now renders at a fixed true-desktop viewport (<code>DESKTOP_PREVIEW_WIDTH = 1280px</code>) scaled to fit the pane, instead of filling the (often &lt;1024px) pane and showing the <code>md:</code> step. A <code>ResizeObserver</code> on the preview pane (<code>observePreviewArea</code> callback ref on both the visual and code-view preview containers) measures available width; <code>desktopScale = min(1, paneWidth/1280)</code>; the device frame is sized to the scaled footprint and the iframe is rendered at 1280px with <code>transform: scale()</code> + <code>transformOrigin: top left</code> (mobile stays 375px, unscaled). So the desktop preview shows the real <code>lg:</code>/<code>xl:</code> sizes a visitor sees, and the Rev 31 computed-size label reads the true desktop size. Same scaling pattern the customer (DFY) editor already uses, but pinned to a fixed 1280px rather than a percentage.</p>
         <p><strong>Reason:</strong> User chose "force true desktop width" — the editor pane is narrower than a real desktop, so the previous 100%-of-pane desktop preview misrepresented desktop sizing.</p>
         <p><strong>Updated Done criteria:</strong> none — manual: desktop preview shows real desktop (lg:/xl:) sizes scaled to fit; selection/click/caret still work through the scaled iframe (same as DFY). Real FE tsc + eslint clean.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 35 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Post-finalization editor affordances (user batch). <strong>#1/#2 — unwrapped/mixed-content text is editable:</strong> a new <code>hasDirectText</code> helper makes any element that directly holds non-whitespace text (e.g. a <code>&lt;div class="num"&gt;</code> with "3.4" + a <code>&lt;span&gt;</code>) selectable + canvas-editable, not just the known text tags — extended in <code>getCanvasTextEditEligibility</code>, <code>findAutoTagCandidate</code>, and the text-edit apply gate (<code>assertTextEditable</code>). Pure containers (only element children) stay non-text. (No literal HTML-<code>&lt;table&gt;</code> editor exists; #1 was interpreted as this stat-number editing.) <strong>#3 — Delete element:</strong> new <code>delete-element</code> op (removes from markup, reports changed, host clears selection) + a sidebar <strong>Delete</strong> button beside Hide with a two-step confirm (Delete → Confirm, auto-resets); undoable. <strong>#4 — footer not selectable:</strong> <code>isFooterChrome</code> (a <code>&lt;footer&gt;</code> tag or a section named "footer") excluded in both hover + click resolution. <strong>#5/#6 — beta/report-a-bug pill + FAB in the preview:</strong> the DFY "Preview scaled to fit" pill became a clickable "Alloro editor is in beta — found a bug or need a change? Report it" button that dispatches an <code>alloro:open-support</code> event; <code>GlobalSupportAction</code> listens and opens its menu; and the editor CSS now docks the support FAB to the preview's bottom-right (<code>right: calc(380px + 1.5rem)</code>, left of the sidebar) instead of hiding it.</p>
+        <p><strong>Reason:</strong> User-requested 6-item batch after the editor was finalized.</p>
+        <p><strong>Updated Done criteria:</strong> none new. Real FE tsc (<code>tsc -p tsconfig.app.json</code>) + eslint clean. Open: #1 assumed to mean stat-number/unwrapped text (no table editor exists); confirm if a literal table was meant.</p>
       </article>
     </section>
   </main>
