@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { Eye, EyeOff, ImagePlus, Minus, Plus } from "lucide-react";
+import { Eraser, Eye, EyeOff, ImagePlus, Minus, Plus, X } from "lucide-react";
 import type { SelectedInfo, QuickActionType } from "../../hooks/useIframeSelector";
 import {
   getDirectOperationAvailability,
   getSelectedTextValue,
   getSelectedAltText,
   getSelectedFontSizeLabel,
+  getSelectedBackgroundColorValue,
+  BACKGROUND_SIZE_PRESETS,
+  BACKGROUND_POSITION_PRESETS,
+  type BackgroundSizePreset,
+  type BackgroundPositionPreset,
   type DirectEditorOperation,
 } from "../../utils/editorDirectOperations";
 import MediaBrowser from "./MediaBrowser";
@@ -41,6 +46,7 @@ const APPLY_CLS =
   "inline-flex items-center justify-center gap-1.5 rounded-lg bg-alloro-orange px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-alloro-orange/90 disabled:opacity-30";
 const STEP_CLS =
   "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600 transition hover:bg-gray-200 disabled:opacity-40";
+const BG_SWATCHES = ["#ffffff", "#f8fafc", "#111827", "#d66853", "#06b6d4"];
 
 export default function SelectedElementEditorPanel({
   selectedInfo,
@@ -58,6 +64,8 @@ export default function SelectedElementEditorPanel({
   const [linkValue, setLinkValue] = useState("");
   const [altValue, setAltValue] = useState("");
   const [showMedia, setShowMedia] = useState(false);
+  const [bgColor, setBgColor] = useState("#ffffff");
+  const [showBgMedia, setShowBgMedia] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const linkInputRef = useRef<HTMLInputElement>(null);
 
@@ -68,14 +76,21 @@ export default function SelectedElementEditorPanel({
     canAdjustTextSize,
     canEditAltText,
     canStyleText,
+    canEditBackground,
   } = getDirectOperationAvailability(selectedInfo, Boolean(mediaApi));
+
+  const hasBackgroundImage = Boolean(
+    selectedInfo.backgroundImage && selectedInfo.backgroundImage !== "none",
+  );
 
   // Hydrate every field from the freshly-selected element.
   useEffect(() => {
     setTextValue(getSelectedTextValue(selectedInfo));
     setLinkValue(selectedInfo.href || "");
     setAltValue(getSelectedAltText(selectedInfo));
+    setBgColor(getSelectedBackgroundColorValue(selectedInfo));
     setShowMedia(false);
+    setShowBgMedia(false);
   }, [selectedInfo]);
 
   // The sidebar Content field must never grab focus when the element can be
@@ -188,6 +203,10 @@ export default function SelectedElementEditorPanel({
   const handleMediaSelect = (media: MediaItem) => {
     onApplyDirectEdit({ type: "replace-media", media });
     setShowMedia(false);
+  };
+  const handleBgMediaSelect = (media: MediaItem) => {
+    onApplyDirectEdit({ type: "set-background-image", media });
+    setShowBgMedia(false);
   };
   const stepFontSize = (direction: "up" | "down") =>
     onApplyDirectEdit({ type: "step-font-size", direction });
@@ -374,6 +393,118 @@ export default function SelectedElementEditorPanel({
               Apply
             </button>
           </div>
+        </section>
+      )}
+
+      {/* Background (sections + containers) */}
+      {canEditBackground && (
+        <section className="space-y-2">
+          <p className={LABEL_CLS}>Background</p>
+          <div className="flex flex-wrap items-center gap-2">
+            {BG_SWATCHES.map((color) => (
+              <button
+                key={color}
+                type="button"
+                disabled={isEditing}
+                onClick={() => onApplyDirectEdit({ type: "set-background-color", color })}
+                title={`Background ${color}`}
+                aria-label={`Set background ${color}`}
+                className="h-6 w-6 rounded-full border border-gray-300 shadow-sm transition hover:scale-105 disabled:opacity-40"
+                style={{ backgroundColor: color }}
+              />
+            ))}
+            <label
+              title="Custom background color"
+              className="h-6 w-6 cursor-pointer overflow-hidden rounded-full border border-gray-300 bg-[conic-gradient(red,yellow,lime,cyan,blue,magenta,red)] hover:border-gray-500"
+            >
+              <input
+                type="color"
+                value={bgColor}
+                disabled={isEditing}
+                onChange={(e) => setBgColor(e.target.value)}
+                onBlur={() => onApplyDirectEdit({ type: "set-background-color", color: bgColor })}
+                className="h-full w-full cursor-pointer opacity-0"
+                aria-label="Custom background color"
+              />
+            </label>
+            <button
+              onClick={() => onApplyDirectEdit({ type: "clear-background-color" })}
+              disabled={isEditing}
+              title="Clear background color"
+              aria-label="Clear background color"
+              className="flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 text-gray-400 transition hover:border-gray-500 hover:text-gray-600 disabled:opacity-40"
+            >
+              <Eraser className="h-3 w-3" />
+            </button>
+          </div>
+
+          {mediaApi && (
+            <button
+              onClick={() => setShowBgMedia((open) => !open)}
+              disabled={isEditing}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-200 disabled:opacity-40"
+            >
+              <ImagePlus className="h-3.5 w-3.5" />
+              {showBgMedia
+                ? "Close library"
+                : hasBackgroundImage
+                  ? "Replace background image"
+                  : "Add background image"}
+            </button>
+          )}
+          {showBgMedia && mediaApi && (
+            <MediaBrowser
+              mediaApi={mediaApi}
+              onSelect={handleBgMediaSelect}
+              onClose={() => setShowBgMedia(false)}
+            />
+          )}
+
+          {hasBackgroundImage && (
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedInfo.backgroundSize || "cover"}
+                disabled={isEditing}
+                onChange={(e) =>
+                  onApplyDirectEdit({
+                    type: "set-background-size",
+                    size: e.target.value as BackgroundSizePreset,
+                  })
+                }
+                className={`${FIELD_CLS} text-xs`}
+                aria-label="Background size"
+              >
+                {BACKGROUND_SIZE_PRESETS.map((size) => (
+                  <option key={size} value={size}>{size}</option>
+                ))}
+              </select>
+              <select
+                value={selectedInfo.backgroundPosition || "center center"}
+                disabled={isEditing}
+                onChange={(e) =>
+                  onApplyDirectEdit({
+                    type: "set-background-position",
+                    position: e.target.value as BackgroundPositionPreset,
+                  })
+                }
+                className={`${FIELD_CLS} text-xs`}
+                aria-label="Background position"
+              >
+                {BACKGROUND_POSITION_PRESETS.map((position) => (
+                  <option key={position} value={position}>{position}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => onApplyDirectEdit({ type: "clear-background-image" })}
+                disabled={isEditing}
+                title="Remove background image"
+                aria-label="Remove background image"
+                className={STEP_CLS}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </section>
       )}
     </div>
