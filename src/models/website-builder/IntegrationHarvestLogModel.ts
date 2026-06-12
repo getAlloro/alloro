@@ -121,6 +121,25 @@ export class IntegrationHarvestLogModel extends BaseModel {
     return row?.retry_count ?? 0;
   }
 
+  /**
+   * Distinct harvest_dates for an integration where at least one attempt
+   * actually fetched data (max rows_fetched > 0). Used by the clobber-repair
+   * script to find dates that SHOULD have stored data — if the current data row
+   * for one of these is empty/missing, an empty harvest overwrote a good day.
+   */
+  static async findDatesWithDataByIntegration(
+    integrationId: string,
+    trx?: QueryContext,
+  ): Promise<string[]> {
+    const rows = await this.table(trx)
+      .where({ integration_id: integrationId })
+      .groupBy("harvest_date")
+      .havingRaw("max(rows_fetched) > 0")
+      .select(db.raw("harvest_date::text as harvest_date"))
+      .orderBy("harvest_date", "desc");
+    return rows.map((r: { harvest_date: string }) => r.harvest_date);
+  }
+
   static async getSuccessRate(
     integrationId: string,
     days: number = 30,

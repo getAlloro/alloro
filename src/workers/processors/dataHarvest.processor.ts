@@ -110,8 +110,14 @@ async function harvestSingle(integrationId: string, date: string): Promise<void>
   const result = await adapter.fetchData(integration, date);
 
   if (result.ok) {
+    // Only write when the fetch actually returned data. An empty success
+    // (rowCount 0 — a date the provider hasn't finalized yet, or a transient
+    // empty response) must NOT overwrite a previously-good day through the
+    // upsert merge. The attempt is still logged below as success/0 rows.
+    // Rybbit hardcodes rowCount 1, so this is a no-op for it; GSC and Clarity
+    // report real counts and are the platforms this protects.
     const model = DATA_MODELS[integration.platform];
-    if (model) {
+    if (model && result.rowCount > 0) {
       await model.upsert(integration.project_id, date, result.data);
     }
 

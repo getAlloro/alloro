@@ -2,6 +2,27 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.120] - June 2026
+
+### GSC/Clarity Harvest: Empty-Write Guard
+
+Prevents the daily data harvest from overwriting good Search Console / Clarity data with an empty payload. The worker re-harvests a rolling window every run; the data upsert previously fired on any successful fetch regardless of row count, and the GSC/Clarity adapters return `ok` with `rowCount: 0` on an empty response — so a transient empty fetch for an already-populated date could clobber it through the upsert merge.
+
+**Key Changes:**
+
+- Gated the data upsert in the shared `harvestSingle` on `result.rowCount > 0` (all platforms; a no-op for Rybbit, which always reports `rowCount` 1 — the actual fix is for GSC and Clarity, which report real counts). Empty fetches still log the attempt as `success / 0 rows`; they just never overwrite stored data.
+- Added a one-time, dry-run-default repair script that finds dates the harvest log proves once had rows but whose stored data is now empty/missing, and re-enqueues a single-date harvest via the existing harvest queue (idempotent `jobId`). Live dry-run found **0 clobbered dates** across 7 GSC integrations — the guard is pure prevention; no past clobber had occurred.
+- Verified the read paths (`service.gsc-performance`, AI-audit `organizationAuditContextService`) treat absent days as zero, so skipping empty writes is safe — and it improves the AI audit, which previously could anchor on an empty placeholder day.
+
+**Commits:**
+
+- `src/workers/processors/dataHarvest.processor.ts` — gate the data upsert on `result.rowCount > 0`; empty success still logged, never written.
+- `src/models/website-builder/IntegrationHarvestLogModel.ts` — `findDatesWithDataByIntegration` helper for clobber detection.
+- `src/scripts/repairClobberedHarvestData.ts` — dry-run-default GSC/Clarity clobber repair.
+- `plans/06122026-harvest-empty-overwrite-guard/` — spec + risk notes.
+
+**Known open issue (not addressed here):** a separate GSC data-lag gap — e.g. 2026-06-02/03 empty across all properties — where Google's data finalized later than the 4-day harvest window, so it was never captured. This is not a clobber (the harvest log shows `success / 0 rows`, not lost data), so the repair above does not touch it. Recovery needs a broadened in-span gap re-harvest plus a recurring gap sweep; tracked as follow-up.
+
 ## [0.0.119] - June 2026
 
 ### Client Dashboard: Search Console Keywords

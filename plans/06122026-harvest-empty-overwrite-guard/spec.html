@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Harvest Empty-Overwrite Guard Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Completed</span>
+      </div>
+      <h1>Harvest Empty-Overwrite Guard</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed — guard live; dry-run found 0 clobbered dates (no backfill needed)</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06122026-harvest-empty-overwrite-guard</dd></div>
+        <div><dt>Size</dt><dd>Small</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The data harvest can silently overwrite good data with nothing. The daily worker re-harvests a rolling window (GSC = 4 days) every run; the data upsert fires on <em>any</em> <code>result.ok</code> regardless of row count (<code>dataHarvest.processor.ts:112-116</code>); the GSC and Clarity adapters return <code>ok: true, rowCount: 0</code> on an empty fetch (<code>gscHarvestAdapter.ts:101</code>, <code>clarityHarvestAdapter.ts:52</code>); and <code>GscDataModel.upsert</code> unconditionally replaces <code>data</code> on conflict (<code>GscDataModel.ts:41-44</code>). So if a date that already stored real data is re-harvested in-window and GSC returns an empty response that one time — transient hiccup, throttle, momentary inconsistency — the empty payload clobbers the good day. Latent (finalized GSC data is normally stable) but entirely unguarded, and the consequence is a permanently wrong day on the client and admin dashboards once it falls out of the re-harvest window.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Two parts:</p>
+      <ul>
+        <li><strong>Guard (prevents future clobbers):</strong> in the shared <code>harvestSingle</code>, only write data when <code>result.rowCount &gt; 0</code>. Empty fetches still log the attempt (audit trail unchanged) but never write or overwrite stored data. Lives in the platform-agnostic path: fixes GSC and Clarity, and is a no-op for Rybbit (which hardcodes <code>rowCount: 1</code> on success).</li>
+        <li><strong>Backfill repair (fixes past clobbers):</strong> a one-time maintenance script that finds dates where the harvest log shows a prior <code>success</code> with <code>rows_fetched &gt; 0</code> but the stored <code>gsc_data</code> row is now empty or missing, and re-enqueues a single-date harvest for each. Dry-run by default; <code>--apply</code> to enqueue. Idempotent and safe to re-run.</li>
+      </ul>
+      <p><strong>Decisions locked:</strong> "skip empty writes" (not a placeholder-preserving conditional merge); guard + backfill only (no admin rollup panel, no log retention this pass).</p>
+      <p><strong>Done when:</strong> a <code>rowCount: 0</code> harvest no longer writes/overwrites <code>gsc_data</code> (while still logging the attempt), a <code>rowCount &gt; 0</code> harvest still upserts, the AI-audit and dashboard read paths are verified to treat absent days as zero, and the repair script reports/repairs clobbered dates. <code>npx tsc --noEmit</code> clean.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/workers/processors/dataHarvest.processor.ts</code> — <code>harvestSingle</code> success branch (<code>:112-129</code>); the unguarded <code>model.upsert</code> at <code>:113-116</code> is the T1 target. <code>result.rowCount</code> is already in scope.</li>
+        <li><code>src/services/integrations/gscHarvestAdapter.ts:101</code> / <code>clarityHarvestAdapter.ts:52</code> — return real <code>rowCount</code> (can be 0). <code>rybbitHarvestAdapter.ts:58</code> — hardcodes <code>rowCount: 1</code> (guard is a no-op for it).</li>
+        <li><code>src/models/website-builder/GscDataModel.ts:24-45</code> — <code>upsert</code> (merge replaces <code>data</code>); <code>findByProjectAndDate</code> for emptiness checks.</li>
+        <li><code>src/models/website-builder/IntegrationHarvestLogModel.ts</code> — query source for "dates that once had rows_fetched &gt; 0".</li>
+        <li><code>src/workers/queues.ts</code> — <code>getHarvestQueue("daily")</code>.</li>
+        <li><code>src/controllers/admin-websites/feature-services/service.gsc-integration.ts:472-522</code> (<code>queueHistoricBackfill</code>) and <code>WebsiteIntegrationsController.ts:619-641</code> (rerun) — the enqueue analog the repair script mirrors: <code>queue.add(name, { integrationId, harvestDate }, { jobId })</code>.</li>
+        <li><code>src/controllers/admin-websites/feature-services/service.gsc-performance.ts</code> + <code>src/services/ai-seo-audit/organizationAuditContextService.ts</code> — data consumers to verify against the "no empty rows" behavior change.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li><strong>Enqueue:</strong> reuse <code>getHarvestQueue("daily").add(...)</code> with a deterministic <code>jobId</code> (dedupes re-runs), exactly as the rerun endpoint does.</li>
+        <li><strong>Script shape:</strong> standalone runnable under <code>src/scripts/</code> (analog: <code>worker-watchdog.ts</code> for location/bootstrap), dry-run default, explicit <code>--apply</code>, structured console summary per integration.</li>
+        <li><strong>Audit trail stays intact:</strong> the guard changes only the data write, never the <code>IntegrationHarvestLogModel.create</code> call.</li>
+      </ul>
+      <h3>Mechanism</h3>
+      <p class="flow">TODAY (bug):
+  fetch empty → ok:true, rowCount:0 → upsert(empty) → REPLACES good data
+
+GUARD (T1):
+  fetch empty → ok:true, rowCount:0 → log attempt, SKIP upsert → good data preserved
+  fetch data  → ok:true, rowCount:N → log attempt, upsert(data)
+
+REPAIR (T2):
+  for each integration:
+    logDates = harvest_log dates WHERE max(rows_fetched) > 0
+    for d in logDates: if gsc_data[d] missing/empty → enqueue re-harvest(d)</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Gate the data upsert in the shared <code>harvestSingle</code> on <code>result.rowCount &gt; 0</code> (all platforms).</li>
+            <li>Keep logging every attempt, including <code>success / 0 rows</code>.</li>
+            <li>Reuse <code>getHarvestQueue("daily")</code> + deterministic <code>jobId</code> for re-enqueue.</li>
+            <li>Repair script: dry-run by default, idempotent, per-integration summary, total count reported before any enqueue.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Change adapter return shapes or the <code>integration_harvest_logs</code> table.</li>
+            <li>Delete <code>gsc_data</code> rows (unrecoverable clobbered rows stay as zeros; no destructive cleanup).</li>
+            <li>Add a DB migration (no schema change needed).</li>
+            <li>Flood the queue — report totals; rely on <code>jobId</code> dedupe; cap if counts are large.</li>
+            <li>Touch the 4-day window, the cron cadence, or the dashboard read services.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Admin rollup-by-date activity panel; log retention/prune.</li>
+        <li>Rybbit clobber protection — its <code>rowCount</code> is always 1, so this guard does not cover it; a Rybbit-specific emptiness check is a separate concern (noted, not done).</li>
+        <li>Changing harvest frequency or window size.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 (Concern)</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Behavior change — empty days stop getting rows.</strong> For GSC/Clarity, dates with no data no longer get a (zero) <code>gsc_data</code> row, so <code>findLatestReportDate</code> anchors on the last day <em>with</em> data and <code>dataDays</code> counts only real days. <strong>Mitigation:</strong> verify <code>service.gsc-performance.getDashboard</code> and <code>organizationAuditContextService</code> treat absent days as zero (they aggregate present rows; the client sparkline already renders gaps). This is arguably more correct, but it must be confirmed, not assumed.</li>
+        <li><strong>Backfill enqueue flooding.</strong> A fleet-wide repair could enqueue many jobs. <strong>Mitigation:</strong> dry-run default; print the total candidate count; deterministic <code>jobId</code> dedupes; cap/batch on <code>--apply</code>.</li>
+        <li><strong>Re-harvest may still come back empty</strong> (GSC purged data &gt;16 months, or still within lag). <strong>Mitigation:</strong> with the guard, an empty re-harvest simply skips the write — no re-clobber — and the script reports unrecoverable dates.</li>
+        <li><strong>Rybbit remains unprotected</strong> by this guard. <strong>Mitigation:</strong> documented as a known gap; Rybbit's failure mode (zero-stats object, not absent rows) differs and is out of scope.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>harvestSingle</code> is the write path for <strong>all</strong> integrations (gsc/rybbit/clarity) across every customer. The guard only ever skips a genuine <code>rowCount === 0</code> — which for Rybbit never occurs and for GSC/Clarity means "no data" — so no platform loses real data. The repair script touches the harvest queue only.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>The clobber may have already happened and you can't see it.</strong> The guard is necessary but not sufficient — that's exactly why the backfill is bundled. Run the script in dry-run first: if it reports zero candidates, no past damage occurred and the guard is pure prevention; if it reports candidates, those dashboards are currently understated and the repair restores them. Don't ship the guard alone and assume the past is clean.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Empty-write guard in harvestSingle</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>dataHarvest.processor.ts</code>, gate the data write: change <code>if (model)</code> to <code>if (model &amp;&amp; result.rowCount &gt; 0)</code> around the <code>model.upsert(...)</code> call (<code>:113-116</code>). Leave the <code>IntegrationHarvestLogModel.create</code> success log untouched — a 0-row fetch still records <code>success / 0 rows</code>. Add a brief comment explaining empty must not overwrite good data.</dd></div>
+          <div><dt>Files</dt><dd><code>src/workers/processors/dataHarvest.processor.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>. Confirm by reading <code>service.gsc-performance.getDashboard</code> + <code>organizationAuditContextService</code> that absent days are treated as zero (no dependency on empty-row presence). Manual/log trace: a 0-row harvest logs success but does not change <code>gsc_data</code>; an N-row harvest still upserts.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: One-time backfill repair script</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create <code>src/scripts/repairClobberedHarvestData.ts</code>. For each active <code>data_harvest</code>/<code>hybrid</code> integration (GSC + Clarity): from <code>integration_harvest_logs</code> collect <code>harvest_date</code>s where <code>max(rows_fetched) &gt; 0</code>; for each, load the current stored row (<code>GscDataModel.findByProjectAndDate</code> / Clarity equiv) and compute its row count; if missing or empty, mark as a clobbered candidate. Print a per-integration summary and grand total. With <code>--apply</code>, enqueue a single-date re-harvest per candidate via <code>getHarvestQueue("daily").add("repair-harvest", { integrationId, harvestDate }, { jobId: \`repair-${integrationId}-${harvestDate}\` })</code>. Default dry-run prints candidates only. Report dates that re-harvest cannot recover.</dd></div>
+          <div><dt>Files</dt><dd><code>src/scripts/repairClobberedHarvestData.ts</code> (new); optional read-only helper on <code>IntegrationHarvestLogModel</code> if a dates-with-data query doesn't already exist.</dd></div>
+          <div><dt>Depends on</dt><dd>T1 (so re-enqueued harvests can't be re-clobbered mid-repair)</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>. Run dry-run against the live DB: prints candidate counts without enqueuing. Re-running is idempotent (<code>jobId</code> dedupe). Rybbit integrations are not touched.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="task-card">
+        <h3>Rev 1 — 2026-06-12 — Executed (-x)</h3>
+        <p><strong>Change:</strong> T1 — guard in <code>dataHarvest.processor.ts</code>: the data upsert now runs only when <code>result.rowCount &gt; 0</code> (the success log is unchanged, so empty fetches still record <code>success / 0 rows</code>). T2 — added <code>IntegrationHarvestLogModel.findDatesWithDataByIntegration</code> and a dry-run-default repair script <code>src/scripts/repairClobberedHarvestData.ts</code> (GSC + Clarity; re-enqueues via <code>getHarvestQueue("daily")</code> with a deterministic <code>jobId</code>).</p>
+        <p><strong>Read-path verification:</strong> Confirmed <code>service.gsc-performance.getDashboard</code> aggregates only present rows and <code>organizationAuditContextService.resolveGsc</code> anchors on <code>findLatestReportDate</code> + the latest stored day. Net: skipping empty writes is not just safe — it improves the AI audit, which today can anchor on an empty placeholder day and read nothing.</p>
+        <p><strong>Dry-run result (live DB, read-only):</strong> 7 GSC integrations scanned (75 / 512 / 512 / 437 / 459 / 21 / 21 dates-with-data) → <strong>0 clobbered dates</strong>. No past damage; the guard is pure prevention. <code>--apply</code> intentionally NOT run — nothing to repair.</p>
+        <p><strong>Verification:</strong> Backend <code>tsc --noEmit</code> clean. Backend has no eslint config (frontend-only) and no harvest tests — both N/A. Guard's live skip-on-empty behavior will be exercised on the next daily harvest cycle.</p>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> — zero new errors</li>
+        <li><input type="checkbox" checked disabled> A <code>rowCount: 0</code> harvest logs <code>success</code> but does NOT write/overwrite <code>gsc_data</code> (guard in place + tsc-verified; live behavior on next harvest)</li>
+        <li><input type="checkbox" checked disabled> A <code>rowCount &gt; 0</code> harvest still upserts as before</li>
+        <li><input type="checkbox" checked disabled> Verified <code>service.gsc-performance</code> + <code>organizationAuditContextService</code> treat absent days as zero (no empty-row dependency)</li>
+        <li><input type="checkbox" checked disabled> Repair script dry-run reports clobbered dates per integration + total (ran live: 7 integrations, 0 clobbered); idempotent <code>jobId</code> dedupe; <code>--apply</code> not needed</li>
+        <li><input type="checkbox" checked disabled> Rybbit harvests unchanged; no platform skips a <code>rowCount &gt; 0</code> write</li>
+        <li><input type="checkbox" checked disabled> No migration, no adapter/log-table change, no <code>gsc_data</code> deletion</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
