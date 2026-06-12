@@ -12,6 +12,7 @@ import {
   Monitor,
   Plus,
   Smartphone,
+  Trash2,
   X,
 } from "lucide-react";
 import type { SelectedInfo, QuickActionType } from "../../hooks/useIframeSelector";
@@ -87,8 +88,22 @@ export default function SelectedElementEditorPanel({
   const [showMedia, setShowMedia] = useState(false);
   const [bgColor, setBgColor] = useState("#ffffff");
   const [showBgMedia, setShowBgMedia] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const linkInputRef = useRef<HTMLInputElement>(null);
+  const confirmDeleteTimer = useRef<number | null>(null);
+
+  // Two-step delete: first click arms, second click within the window removes.
+  const handleDelete = () => {
+    if (confirmDelete) {
+      if (confirmDeleteTimer.current) window.clearTimeout(confirmDeleteTimer.current);
+      setConfirmDelete(false);
+      onApplyDirectEdit({ type: "delete-element" });
+      return;
+    }
+    setConfirmDelete(true);
+    confirmDeleteTimer.current = window.setTimeout(() => setConfirmDelete(false), 3500);
+  };
 
   const {
     canEditText,
@@ -118,6 +133,7 @@ export default function SelectedElementEditorPanel({
     setBgColor(getSelectedBackgroundColorValue(selectedInfo));
     setShowMedia(false);
     setShowBgMedia(false);
+    setConfirmDelete(false);
   }, [selectedInfo]);
 
   // The sidebar Content field must never grab focus when the element can be
@@ -260,24 +276,44 @@ export default function SelectedElementEditorPanel({
             </span>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() =>
-            onToggleHidden
-              ? onToggleHidden()
-              : onApplyDirectEdit({ type: "toggle-hidden" })
-          }
-          aria-label={selectedInfo.isHidden ? "Show element" : "Hide element"}
-          title={selectedInfo.isHidden ? "Show element" : "Hide element"}
-          className="flex h-9 items-center gap-1.5 rounded-lg bg-gray-100 px-3 text-xs font-semibold text-gray-600 transition hover:bg-gray-200"
-        >
-          {selectedInfo.isHidden ? (
-            <Eye className="h-3.5 w-3.5" />
-          ) : (
-            <EyeOff className="h-3.5 w-3.5" />
-          )}
-          {selectedInfo.isHidden ? "Show" : "Hide"}
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={handleDelete}
+            aria-label="Delete element"
+            title={
+              confirmDelete
+                ? "Click again to remove this element"
+                : "Delete this element from the page"
+            }
+            className={`flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition ${
+              confirmDelete
+                ? "bg-red-500 text-white hover:bg-red-600"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-red-500"
+            }`}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            {confirmDelete ? "Confirm" : "Delete"}
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              onToggleHidden
+                ? onToggleHidden()
+                : onApplyDirectEdit({ type: "toggle-hidden" })
+            }
+            aria-label={selectedInfo.isHidden ? "Show element" : "Hide element"}
+            title={selectedInfo.isHidden ? "Show element" : "Hide element"}
+            className="flex h-9 items-center gap-1.5 rounded-lg bg-gray-100 px-3 text-xs font-semibold text-gray-600 transition hover:bg-gray-200"
+          >
+            {selectedInfo.isHidden ? (
+              <Eye className="h-3.5 w-3.5" />
+            ) : (
+              <EyeOff className="h-3.5 w-3.5" />
+            )}
+            {selectedInfo.isHidden ? "Show" : "Hide"}
+          </button>
+        </div>
       </div>
 
       {/* Content (editable text) */}

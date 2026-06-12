@@ -1228,12 +1228,13 @@ function PageEditorInner() {
         setIsDirty(true);
         setupListeners();
         iframe.contentWindow?.scrollTo(scrollX, scrollY);
-        if (!isOverride) setSelectedInfo(result.selectedInfo);
+        if (operation.type === "delete-element") clearSelection();
+        else if (!isOverride) setSelectedInfo(result.selectedInfo);
       } catch (err) {
         setEditError(err instanceof Error ? err.message : "Direct edit failed");
       }
     },
-    [selectedInfo, pushUndoSnapshot, setupListeners, setSelectedInfo],
+    [selectedInfo, pushUndoSnapshot, setupListeners, setSelectedInfo, clearSelection],
   );
 
   // Process deferred quick-action edits from iframe input panel

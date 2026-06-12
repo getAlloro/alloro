@@ -1,7 +1,7 @@
 import type { MediaItem } from "../api/websiteMedia";
 import { getFriendlyName } from "../hooks/useIframeSelector";
 import type { SelectedInfo } from "../hooks/useIframeSelector";
-import { getCanvasTextEditEligibility } from "./canvasTextEditing";
+import { getCanvasTextEditEligibility, hasDirectText } from "./canvasTextEditing";
 // Import-cycle note: richTextEditing imports normalizeEditorHref from this
 // module. Both sides only call the other inside function bodies (no module-
 // evaluation-time usage), so the ESM cycle is safe and tsc-clean.
@@ -155,6 +155,7 @@ export type DirectEditorOperation =
   | { type: "toggle-bold" }
   | { type: "toggle-italic" }
   | { type: "toggle-hidden" }
+  | { type: "delete-element" }
   | { type: "set-background-color"; color: string }
   | { type: "clear-background-color" }
   | { type: "set-background-image"; media: MediaItem }
@@ -384,11 +385,11 @@ export function applyDirectEditorOperation(
 
   switch (operation.type) {
     case "replace-text":
-      assertTag(EDITOR_TEXT_TAGS, tagName, "Text replacement is not available for this element.");
+      assertTextEditable(element, "Text replacement is not available for this element.");
       element.textContent = operation.value;
       break;
     case "replace-inline-html":
-      assertTag(EDITOR_TEXT_TAGS, tagName, "Rich text replacement is not available for this element.");
+      assertTextEditable(element, "Rich text replacement is not available for this element.");
       // Defense in depth — never trust the caller's markup; re-sanitize here.
       element.innerHTML = sanitizeInlineHtml(operation.html, element.ownerDocument);
       break;
@@ -455,6 +456,12 @@ export function applyDirectEditorOperation(
     case "toggle-hidden":
       toggleHiddenAttribute(element);
       break;
+    case "delete-element":
+      // Remove from the markup. The element is detached, so report the change
+      // explicitly (outerHTML on a detached node is unchanged) and hand the
+      // old selectedInfo back — the host clears the selection after a delete.
+      element.remove();
+      return { element, selectedInfo, changed: true };
     case "set-background-color":
       assertBackgroundEligible(selectedInfo, tagName, "Background color is only available for sections and containers.");
       setBackgroundColor(element, operation.color);
@@ -498,6 +505,14 @@ function findSelectedElement(doc: Document, selectedInfo: SelectedInfo): Element
 
 function assertTag(allowedTags: Set<string>, tagName: string, message: string) {
   if (!allowedTags.has(tagName)) {
+    throw new Error(message);
+  }
+}
+
+/** Text edits apply to known text tags AND to any element directly holding
+ *  text (unwrapped text like a stat number in a `<div>`). */
+function assertTextEditable(element: Element, message: string) {
+  if (!EDITOR_TEXT_TAGS.has(element.tagName.toLowerCase()) && !hasDirectText(element)) {
     throw new Error(message);
   }
 }

@@ -980,12 +980,13 @@ export function DFYWebsite() {
         setIsDirty(true);
         setupListeners();
         iframe.contentWindow?.scrollTo(scrollX, scrollY);
-        if (!isOverride) setSelectedInfo(result.selectedInfo);
+        if (operation.type === "delete-element") clearSelection();
+        else if (!isOverride) setSelectedInfo(result.selectedInfo);
       } catch (err) {
         setEditError(err instanceof Error ? err.message : "Direct edit failed");
       }
     },
-    [selectedInfo, setupListeners, setSelectedInfo],
+    [selectedInfo, setupListeners, setSelectedInfo, clearSelection],
   );
 
   // --- Live text preview: mirror sidebar typing into the iframe element ---
@@ -1743,10 +1744,17 @@ export function DFYWebsite() {
               )}
             </AnimatePresence>
 
-            {viewportMode === "desktop" && !previewVersion && (
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/50 text-white text-[10px] px-3 py-1 rounded-full backdrop-blur-sm">
-                Preview scaled to fit — use View Live for full size
-              </div>
+            {!previewVersion && (
+              <button
+                type="button"
+                onClick={() =>
+                  document.dispatchEvent(new CustomEvent("alloro:open-support"))
+                }
+                className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/55 px-3 py-1.5 text-[10px] text-white backdrop-blur-sm transition-colors hover:bg-black/75"
+              >
+                Alloro editor is in beta — found a bug or need a change?{" "}
+                <span className="font-semibold underline">Report it</span>
+              </button>
             )}
           </div>
 
