@@ -26,6 +26,9 @@ const RICH_STYLE_ID = "alloro-rich-text-styles";
 export type RichTextEditSession = {
   cancel: () => void;
   commit: () => void;
+  /** Current sanitized inline HTML WITHOUT ending the session — used to flush
+   *  an in-progress edit into the document on Save/Publish. */
+  getValue: () => string;
 };
 
 type RichTextEditOptions = {
@@ -219,6 +222,7 @@ export function startRichTextEdit({
   return {
     cancel: () => finish(false),
     commit: () => finish(true),
+    getValue: () => sanitizeInlineHtml(element.innerHTML, doc),
   };
 }
 

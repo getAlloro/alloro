@@ -11,7 +11,7 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
-        <span class="status-pill status-pending">In Progress — Rev 29</span>
+        <span class="status-pill status-pending">In Progress — Rev 30</span>
       </div>
       <h1>Website Editor: Direct Editing &amp; Versioning</h1>
       <dl class="meta-grid">
@@ -775,6 +775,12 @@
         <p><strong>Change:</strong> Restore the on-canvas selection outline after a viewport switch. Toggling desktop/mobile remounts the preview iframe (DFY swaps to a separate desktop/mobile iframe) with a fresh DOM that has lost the <code>data-alloro-selected</code> marker the outline CSS keys off — so the element stayed selected logically (sidebar still worked) but showed no outline. Fix: <code>setupListeners</code> (runs on every iframe load) now re-applies <code>data-alloro-selected</code> to the element matching the persisted <code>selectedInfo</code> (mirrored via a ref so the stable callback isn't re-created per selection). Editor-only chrome — the serializer already strips selection attrs, so it never leaks into saved content. Also restores selection after any iframe reload (e.g. exiting version preview).</p>
         <p><strong>Reason:</strong> User QA: "when I switch between viewports the selector is gone — but the sidebar still works and seems like it has it selected still."</p>
         <p><strong>Updated Done criteria:</strong> none — visual-chrome fix; tsc + eslint clean.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 30 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Inline typing now marks the editor dirty immediately and Save/Publish capture the in-progress edit without clicking away. Two problems: (1) canvas typing only mirrored <code>draftText</code> — it never set <code>isDirty</code>, so Save/Publish stayed hidden until the commit-on-blur; (2) the commit is deferred (blur → <code>setTimeout(0)</code> → quick-action → effect), so a Save click read the pre-edit <code>sections</code> and lost the race ("I have to click outside to persist"). Fix: <strong>(a)</strong> a new <code>onDirty</code> option on <code>useIframeSelector</code> fires on every keystroke → hosts <code>setIsDirty(true)</code> (buttons appear instantly, both modes); <strong>(b)</strong> a new <code>flushCanvasTextEdit()</code> reads the active session's current value via new <code>getValue()</code> on the plain/rich sessions (plain → textarea value → <code>replace-text</code>; rich → sanitized innerHTML → <code>replace-inline-html</code>), ends the session, and returns the edit; <code>performSave</code>/<code>handlePublishConfirmed</code> apply it synchronously through <code>handleApplyDirectEdit</code> (which now also updates <code>sectionsRef.current</code> in lockstep) before reading sections. DFY <code>performSave</code> switched from the stale <code>sections</code> closure to <code>sectionsRef.current</code>. Also fixes Cmd+S mid-session (a previously-deferred concern).</p>
+        <p><strong>Reason:</strong> User QA: "when I start typing the change should already be detected (Save/Publish should appear); this case I have to click outside so the change is persisted."</p>
+        <p><strong>Updated Done criteria:</strong> none new — makes existing save/publish behavior correct mid-edit; frontend tsc + eslint clean (pre-existing warnings only).</p>
       </article>
     </section>
   </main>

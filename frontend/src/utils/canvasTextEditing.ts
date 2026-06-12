@@ -40,6 +40,9 @@ export type CanvasTextEditEligibility = {
 export type CanvasTextEditSession = {
   cancel: () => void;
   commit: () => void;
+  /** Current edited value WITHOUT ending the session — used to flush an
+   *  in-progress edit into the document on Save/Publish. */
+  getValue: () => string;
 };
 
 type CanvasTextEditOptions = {
@@ -218,6 +221,7 @@ export function startCanvasTextEdit({
   return {
     cancel: () => finish(false),
     commit: () => finish(true),
+    getValue: () => normalizeElementText(textarea.value),
   };
 }
 
