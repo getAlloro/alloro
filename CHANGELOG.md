@@ -2,6 +2,22 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.121] - June 2026
+
+### Website Cards: Dynamic Month-Range Label
+
+The Websites overview Traffic and Leads cards now label the actual number of months on the chart instead of a hardcoded "Last 12 mo". The cards plot a trimmed monthly series (leading no-data months dropped, capped at 12 by `computeWebsiteMetrics`), so a practice live for only a few months showed 3 data points under a misleading "Last 12 mo" eyebrow. The label now reads "Last 3 mo" and grows back toward "Last 12 mo" as data accrues; each card reads its own series, so Traffic and Leads can differ honestly.
+
+**Key Changes:**
+
+- Added module-level `monthsRangeLabel(monthsShown)` → `"Last N mo"` (clamped 1–12; empty series falls back to "Last 12 mo", where the card shows its empty state anyway).
+- Traffic eyebrow now derives from `m.visitorSeries.length`; Leads from `m.leadSeriesCompact.length`.
+- Presentational only — no changes to `computeWebsiteMetrics`, chart rendering, the API, or dependencies. Detail-modal captions ("last 12 months") left as-is; they describe the full untrimmed daily/monthly window.
+
+**Commits:**
+
+- `frontend/src/components/website/overview/WebsiteOverview.tsx` — dynamic month-range eyebrow helper wired into both overview cards.
+
 ## [0.0.120] - June 2026
 
 ### GSC/Clarity Harvest: Empty-Write Guard

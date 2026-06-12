@@ -37,6 +37,20 @@ export type WebsiteOverviewProps = {
 const numberFmt = new Intl.NumberFormat("en-US");
 const fmt = (n: number) => numberFmt.format(Math.round(n));
 
+/**
+ * Eyebrow time-window label for the overview cards. The cards plot the trimmed
+ * monthly series (leading no-data months dropped, capped at 12 by
+ * computeWebsiteMetrics), so the real span is usually shorter than the
+ * 12-month fetch window — a practice live for 3 months shows 3 points, not 12.
+ * Label the number of months actually on the chart, not the nominal window.
+ * Falls back to the full window when there's nothing to plot (the card shows
+ * its empty state in that case, so the suffix is moot).
+ */
+function monthsRangeLabel(monthsShown: number): string {
+  const n = Math.min(Math.max(monthsShown, 0), 12);
+  return n > 0 ? `Last ${n} mo` : "Last 12 mo";
+}
+
 const GSC_MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
@@ -332,7 +346,7 @@ export function WebsiteOverview({
 
       <div className="grid gap-5 md:grid-cols-2">
         <OverviewCard
-          eyebrow="Traffic · Last 12 mo"
+          eyebrow={`Traffic · ${monthsRangeLabel(m.visitorSeries.length)}`}
           infoTip="Unique visitors to your website. The headline is this month to date; the chart shows monthly visitors."
           onOpen={m.hasAnalytics ? () => setModal("traffic") : undefined}
           openLabel="Traffic detail"
@@ -373,7 +387,7 @@ export function WebsiteOverview({
         </OverviewCard>
 
         <OverviewCard
-          eyebrow="Leads (form submissions) · Last 12 mo"
+          eyebrow={`Leads (form submissions) · ${monthsRangeLabel(m.leadSeriesCompact.length)}`}
           infoTip="Verified form submissions from your website."
           onOpen={() => setModal("leads")}
           openLabel="Leads detail"
