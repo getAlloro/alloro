@@ -73,10 +73,6 @@ const TEXT_SIZE_SCALE = [
 /** Approx rendered px for each scale step (Tailwind defaults at 16px root). */
 const TEXT_SIZE_PX = [12, 14, 16, 18, 20, 24, 30, 36, 48, 60, 72, 96, 128];
 
-/** Matches a Tailwind text-size class, with or without a responsive prefix. */
-const TEXT_SIZE_CLASS_RE =
-  /^(?:(?:sm|md|lg|xl|2xl):)?text-(?:xs|sm|base|lg|xl|[2-9]xl)$/;
-
 function nearestScaleIndex(px: number): number {
   let best = 0;
   let bestDiff = Infinity;
@@ -109,13 +105,55 @@ function currentSizeIndex(el: HTMLElement): number {
   return nearestScaleIndex(Number.isNaN(px) ? 16 : px);
 }
 
+/** Which breakpoint tier an edit targets. "mobile" writes the base (unprefixed)
+ *  Tailwind class; "desktop" writes the `md:` variant — Tailwind is mobile-first,
+ *  so base applies everywhere until a `md:` class overrides it ≥768px. The editor's
+ *  375px mobile preview never triggers `md:`, so this is WYSIWYG. */
+export type EditViewport = "mobile" | "desktop";
+
+const TEXT_ALIGN_SCALE = ["text-left", "text-center", "text-right", "text-justify"];
+
+/** `md:` for desktop edits, empty (base) for mobile. */
+function tierPrefix(viewport: EditViewport): string {
+  return viewport === "desktop" ? "md:" : "";
+}
+
+/** Find which class from `group` is active for this tier. Desktop falls back to
+ *  the base class (it applies to desktop until a `md:` override exists). */
+function readTierClass(
+  el: Element,
+  group: string[],
+  viewport: EditViewport,
+): string | null {
+  if (viewport === "desktop") {
+    const prefixed = group.find((c) => el.classList.contains(`md:${c}`));
+    if (prefixed) return prefixed;
+  }
+  return group.find((c) => el.classList.contains(c)) || null;
+}
+
+/** Set the active tier's class within `group`, clearing only that tier so the
+ *  other breakpoint's value is preserved. */
+function setTierClass(
+  el: Element,
+  group: string[],
+  value: string | null,
+  viewport: EditViewport,
+): void {
+  const prefix = tierPrefix(viewport);
+  group.forEach((c) => el.classList.remove(`${prefix}${c}`));
+  if (value) el.classList.add(`${prefix}${value}`);
+}
+
 export type DirectEditorOperation =
   | { type: "replace-text"; value: string }
   | { type: "replace-inline-html"; html: string }
   | { type: "update-link"; href: string }
   | { type: "replace-media"; media: MediaItem }
   | { type: "set-alt-text"; value: string }
-  | { type: "step-font-size"; direction: "up" | "down" }
+  | { type: "step-font-size"; direction: "up" | "down"; viewport?: EditViewport }
+  | { type: "set-text-align"; align: "left" | "center" | "right" | "justify"; viewport?: EditViewport }
+  | { type: "set-responsive-visibility"; visible: boolean; viewport?: EditViewport }
   | { type: "set-text-color"; color: string }
   | { type: "clear-text-color" }
   | { type: "set-font-family"; family: "serif" | "sans" | "reset" }
@@ -139,6 +177,8 @@ export type DirectOperationAvailability = {
   canEditBackground: boolean;
   canEditAltText: boolean;
   canStyleText: boolean;
+  canEditAlign: boolean;
+  canEditResponsiveVisibility: boolean;
 };
 
 export type DirectEditorOperationResult = {
@@ -165,6 +205,8 @@ export function getDirectOperationAvailability(
       selectedInfo?.type === "section" || EDITOR_CONTAINER_TAGS.has(tag),
     canEditAltText: tag === "img",
     canStyleText: canEditText,
+    canEditAlign: canEditText || EDITOR_CONTAINER_TAGS.has(tag),
+    canEditResponsiveVisibility: Boolean(selectedInfo),
   };
 }
 
@@ -180,7 +222,10 @@ export function getSelectedTextColor(selectedInfo: SelectedInfo | null): string 
 }
 
 /** Human-readable current text size (e.g. "Large") or "Default". */
-export function getSelectedFontSizeLabel(selectedInfo: SelectedInfo | null): string {
+export function getSelectedFontSizeLabel(
+  selectedInfo: SelectedInfo | null,
+  viewport: EditViewport = "desktop",
+): string {
   if (!selectedInfo || !EDITOR_TEXT_TAGS.has(selectedInfo.tagName)) return "Default";
 
   const template = document.createElement("template");
@@ -188,19 +233,44 @@ export function getSelectedFontSizeLabel(selectedInfo: SelectedInfo | null): str
   const el = template.content.firstElementChild as HTMLElement | null;
   if (!el) return "Default";
 
-  // Prefer a base text-* class; fall back to a responsive variant's size so a
-  // heading that's only `md:text-7xl` still reads "7XL" before any step.
-  const base = TEXT_SIZE_SCALE.find((c) => el.classList.contains(c));
-  if (base) return TEXT_SIZE_LABELS[base] || base.replace("text-", "");
-
-  for (const cls of Array.from(el.classList)) {
-    const match = /^(?:sm|md|lg|xl|2xl):text-(xs|sm|base|lg|xl|[2-9]xl)$/.exec(cls);
-    if (match) {
-      const token = `text-${match[1]}`;
-      return TEXT_SIZE_LABELS[token] || match[1].toUpperCase();
-    }
-  }
+  // Read the size for the tier being edited (desktop falls back to the base
+  // class, which applies to desktop until a `md:` override exists).
+  const cls = readTierClass(el, TEXT_SIZE_SCALE, viewport);
+  if (cls) return TEXT_SIZE_LABELS[cls] || cls.replace("text-", "").toUpperCase();
   return "Default";
+}
+
+/** Active-tier text alignment ("left" | "center" | "right" | "justify") or
+ *  null when none is set for that breakpoint. */
+export function getSelectedTextAlign(
+  selectedInfo: SelectedInfo | null,
+  viewport: EditViewport = "desktop",
+): "left" | "center" | "right" | "justify" | null {
+  if (!selectedInfo) return null;
+  const tag = selectedInfo.tagName;
+  if (!EDITOR_TEXT_TAGS.has(tag) && !EDITOR_CONTAINER_TAGS.has(tag)) return null;
+
+  const template = document.createElement("template");
+  template.innerHTML = selectedInfo.outerHtml;
+  const el = template.content.firstElementChild as HTMLElement | null;
+  if (!el) return null;
+  const cls = readTierClass(el, TEXT_ALIGN_SCALE, viewport);
+  return cls ? (cls.replace("text-", "") as "left" | "center" | "right" | "justify") : null;
+}
+
+/** Whether the element is visible in the given tier (false = hidden there). */
+export function getSelectedResponsiveVisibility(
+  selectedInfo: SelectedInfo | null,
+  viewport: EditViewport = "desktop",
+): boolean {
+  if (!selectedInfo) return true;
+  const template = document.createElement("template");
+  template.innerHTML = selectedInfo.outerHtml;
+  const el = template.content.firstElementChild as HTMLElement | null;
+  if (!el) return true;
+  const cls = viewport === "desktop" ? "md:hidden" : "max-md:hidden";
+  // A plain `hidden` (hidden everywhere) also reads as hidden in both tiers.
+  return !el.classList.contains(cls) && !el.classList.contains("hidden");
 }
 
 const TEXT_SIZE_LABELS: Record<string, string> = {
@@ -345,7 +415,28 @@ export function applyDirectEditorOperation(
       break;
     case "step-font-size":
       assertTag(EDITOR_TEXT_TAGS, tagName, "Font size controls are not available for this element.");
-      stepFontSize(element, operation.direction);
+      stepFontSize(element, operation.direction, operation.viewport ?? "desktop");
+      break;
+    case "set-text-align": {
+      const alignable =
+        EDITOR_TEXT_TAGS.has(tagName) || EDITOR_CONTAINER_TAGS.has(tagName);
+      if (!alignable) {
+        throw new Error("Text alignment is not available for this element.");
+      }
+      setTierClass(
+        element,
+        TEXT_ALIGN_SCALE,
+        `text-${operation.align}`,
+        operation.viewport ?? "desktop",
+      );
+      break;
+    }
+    case "set-responsive-visibility":
+      setResponsiveVisibility(
+        element,
+        operation.visible,
+        operation.viewport ?? "desktop",
+      );
       break;
     case "set-text-color":
       assertTag(EDITOR_TEXT_TAGS, tagName, "Text color is not available for this element.");
@@ -570,24 +661,43 @@ function toHex(value: number): string {
   return Math.max(0, Math.min(255, value)).toString(16).padStart(2, "0");
 }
 
-function stepFontSize(element: Element, direction: "up" | "down") {
-  // Step through the named Tailwind scale (text-base → text-xl → text-2xl …).
-  // To make the chosen class actually render we must remove EVERY existing
-  // text-size class — including responsive variants like `md:text-7xl` that
-  // would otherwise override a base swap at their breakpoint — plus any inline
-  // font-size left by an earlier session.
+function stepFontSize(
+  element: Element,
+  direction: "up" | "down",
+  viewport: EditViewport,
+) {
+  // Step through the named Tailwind scale (text-base → text-xl → text-2xl …),
+  // but only for the tier being edited: mobile writes the base class, desktop
+  // writes `md:text-*`, so the two breakpoints keep independent sizes.
   const el = element as HTMLElement;
-  const index = currentSizeIndex(el);
+  const currentClass = readTierClass(el, TEXT_SIZE_SCALE, viewport);
+  let index = currentClass ? TEXT_SIZE_SCALE.indexOf(currentClass) : -1;
+  if (index === -1) index = currentSizeIndex(el);
   const nextIndex =
     direction === "up"
       ? Math.min(index + 1, TEXT_SIZE_SCALE.length - 1)
       : Math.max(index - 1, 0);
 
-  Array.from(el.classList).forEach((cls) => {
-    if (TEXT_SIZE_CLASS_RE.test(cls)) el.classList.remove(cls);
-  });
+  // An inline font-size from an earlier session overrides classes at every
+  // breakpoint — drop it so the chosen class actually renders.
   el.style.removeProperty("font-size");
-  el.classList.add(TEXT_SIZE_SCALE[nextIndex]);
+  // setTierClass clears only this tier's size classes, preserving the other
+  // breakpoint's value.
+  setTierClass(el, TEXT_SIZE_SCALE, TEXT_SIZE_SCALE[nextIndex], viewport);
+}
+
+/** Responsive show/hide for the active tier. Mobile → `max-md:hidden` (hidden
+ *  below 768px); desktop → `md:hidden` (hidden at/above 768px). Independent
+ *  classes, so each breakpoint toggles without disturbing the other or the
+ *  element's natural display. */
+function setResponsiveVisibility(
+  element: Element,
+  visible: boolean,
+  viewport: EditViewport,
+) {
+  const cls = viewport === "desktop" ? "md:hidden" : "max-md:hidden";
+  if (visible) element.classList.remove(cls);
+  else element.classList.add(cls);
 }
 
 function toggleHiddenAttribute(element: Element) {

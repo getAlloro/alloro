@@ -1920,6 +1920,7 @@ function PageEditorInner() {
             onLiveTextRevert={handleLiveTextRevert}
             primaryColor={project?.primary_color}
             accentColor={project?.accent_color}
+            editViewport={device === "mobile" ? "mobile" : "desktop"}
             showHistory={true}
             historyPageId={draftPageId}
             fetchVersions={fetchAdminVersions}

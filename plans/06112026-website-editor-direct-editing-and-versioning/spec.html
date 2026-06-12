@@ -15,7 +15,7 @@
       </div>
       <h1>Website Editor: Direct Editing &amp; Versioning</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>In Progress — Rev 26 (version-history ordering + no-reload publish) shipped, manual QA pending</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>In Progress — Rev 27 (breakpoint-aware size/align/visibility) shipped, manual QA pending</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/06112026-website-editor-direct-editing-and-versioning</dd></div>
         <div><dt>Size</dt><dd>Large (~25 files)</dd></div>
         <div><dt>Risk</dt><dd>Level 2</dd></div>
@@ -511,11 +511,41 @@
       </article>
 
       <article class="task-card">
+        <h3>T39: Breakpoint-aware font size (Rev 27)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Make the size stepper target the active preview breakpoint: mobile view writes the base <code>text-*</code> class, desktop view writes <code>md:text-*</code>, so the two tiers keep independent sizes (Tailwind mobile-first; base applies until <code>md:</code> overrides ≥768px). The size label reads the active tier. Introduce <code>EditViewport</code> + base/<code>md:</code> tier helpers; thread the active viewport from both hosts (admin <code>device</code>, DFY <code>viewportMode</code>) → <code>EditorSidebar</code> → panel.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/utils/editorDirectOperations.ts</code>, <code>frontend/src/components/PageEditor/SelectedElementEditorPanel.tsx</code>, <code>EditorSidebar.tsx</code>, <code>pages/admin/PageEditor.tsx</code>, <code>pages/DFYWebsite.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: bump size in desktop view → only desktop changes; toggle to mobile → original size; bump there → only mobile changes.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T40: Per-breakpoint text alignment (Rev 27)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New <code>set-text-align</code> op (left/center/right/justify) writing base or <code>md:text-{align}</code> per the active viewport. Sidebar "Align" row (text elements + containers) reflecting the active-tier alignment.</dd></div>
+          <div><dt>Files</dt><dd><code>editorDirectOperations.ts</code>, <code>SelectedElementEditorPanel.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T39</dd></div>
+          <div><dt>Verify</dt><dd>Manual: center on mobile / left on desktop persists independently per tier.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T41: Per-breakpoint visibility (Rev 27)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New <code>set-responsive-visibility</code> op using <code>max-md:hidden</code> (hide on mobile) / <code>md:hidden</code> (hide on desktop) — independent classes, no display-type guessing, and it keeps the element in the HTML (unlike the header Hide, which is a hard server-side removal). Sidebar "Visibility · {viewport}" toggle.</dd></div>
+          <div><dt>Files</dt><dd><code>editorDirectOperations.ts</code>, <code>SelectedElementEditorPanel.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T39</dd></div>
+          <div><dt>Verify</dt><dd>Manual: hide on mobile → element gone in 375px preview, present on desktop; and vice versa.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
         <h3>T9: Verification pipeline</h3>
         <dl>
           <div><dt>Do</dt><dd>Run type-check + lint for backend and frontend; execute the manual QA checklist in Done.</dd></div>
           <div><dt>Files</dt><dd>n/a</dd></div>
-          <div><dt>Depends on</dt><dd>T1–T8, T10–T38</dd></div>
+          <div><dt>Depends on</dt><dd>T1–T8, T10–T41</dd></div>
           <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> (root + frontend), <code>npm run lint</code></dd></div>
         </dl>
       </article>
@@ -557,6 +587,8 @@
         <li><input type="checkbox" disabled> Manual (Rev 24): sidebar Bold/Italic toggles a heading and a paragraph and shows the active state</li>
         <li><input type="checkbox" disabled> Manual (Rev 26): saving a few times keeps the editable row at the top (Draft/Live), with snapshots below — the newest version is never "Archived"</li>
         <li><input type="checkbox" disabled> Manual (Rev 26): Publish does not flash/reload the preview</li>
+        <li><input type="checkbox" disabled> Manual (Rev 27): font size / alignment edited in desktop view change only desktop; in mobile view only mobile (independent per breakpoint)</li>
+        <li><input type="checkbox" disabled> Manual (Rev 27): per-breakpoint Hide removes an element from the 375px preview only (or desktop only), and it survives save/publish on the live site</li>
       </ul>
     </section>
 
@@ -725,6 +757,12 @@
         <p><strong>Change:</strong> Two version-history/publish fixes (T37–T38). <strong>T37:</strong> the newest version read as "Archived." Root cause — <code>snapshotPageStateIfChanged</code> gives the pre-save snapshot <code>max+1</code> (the highest number), while the save left the edited row at its old, lower number, so historical snapshots sorted above the live draft (History orders by <code>version</code> desc). Fix: after snapshotting, bump the edited row's <code>version</code> to (current max)+1 in both <code>updatePage</code> (admin draft) and <code>savePageSections</code> (DFY live page), so the editable row is always pinned to the top; <code>performSave</code> reflects the new version in the toolbar. Existing inverted rows self-heal on the next save. <strong>T38:</strong> Publish flashed/reloaded the preview — <code>handlePublishConfirmed</code> rebuilt <code>htmlContent</code> (srcDoc swap) after publishing even though the canvas already showed the just-published content. Skip the rebuild; adopt the new draft's sections and leave <code>htmlStaleRef</code> untouched (publish doesn't change content).</p>
         <p><strong>Reason:</strong> User QA from a History-tab screenshot ("the latest one marked archive… does not look right") + "when publishing can we prevent the re-render loading of preview since we have the newest changes anyways."</p>
         <p><strong>Updated Done criteria:</strong> two new checklist items covering T37–T38 (see Done). Backend + frontend tsc and eslint on the changed files pass (only the pre-existing load-effect deps warning remains).</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 27 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Breakpoint-aware editing (T39–T41). The editor's viewport toggle (desktop/mobile) now doubles as a <em>breakpoint selector</em>: size, alignment, and visibility edits target the active tier — mobile view writes the base Tailwind class, desktop view writes the <code>md:</code> variant. Tailwind is mobile-first (base applies until <code>md:</code> overrides ≥768px) and the preview's 375px mobile frame genuinely never triggers <code>md:</code>, so it's WYSIWYG. Infrastructure: <code>EditViewport</code> type + <code>readTierClass</code>/<code>setTierClass</code> helpers (clear only the active tier so the other breakpoint's value survives); <code>editViewport</code> threaded host→sidebar→panel. <strong>T39</strong> size stepper writes base vs <code>md:text-*</code>; label reads the active tier. <strong>T40</strong> new <code>set-text-align</code> (base/<code>md:text-{align}</code>) + sidebar Align row. <strong>T41</strong> new <code>set-responsive-visibility</code> using <code>max-md:hidden</code>/<code>md:hidden</code> (independent classes, no display-type guessing; element stays in the HTML, distinct from the header Hide's hard server-side removal). A scope banner names which view the edits affect. <strong>Recommended against (and not built):</strong> responsive color / font-family / bold-italic — they don't vary by breakpoint in real designs and the latter three are inline styles that can't be responsive.</p>
+        <p><strong>Reason:</strong> User: "we have phone/mobile view, we should have different styling for an element on desktop vs mobile… font size as the responsive element, what else?" Chose Size + alignment + visibility. <strong>Key enabler:</strong> live sites compile Tailwind v4 JIT from the saved HTML (<code>@tailwindcss/node</code>, class extraction), so any responsive class written into the HTML gets CSS — no purge risk, and the authoring preview ships the Tailwind Play CDN so new classes render live (same mechanism the existing size stepper already relied on).</p>
+        <p><strong>Updated Done criteria:</strong> two new checklist items covering T39–T41 (see Done). Frontend tsc + eslint on the five changed files pass (only the pre-existing load-effect deps warning remains). LayoutEditor (header/footer) has no viewport toggle → defaults to the desktop tier.</p>
       </article>
     </section>
   </main>
