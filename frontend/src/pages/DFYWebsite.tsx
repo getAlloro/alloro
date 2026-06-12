@@ -89,6 +89,8 @@ interface Project {
 }
 
 const DESKTOP_SCALE = 0.7;
+/** Window in which consecutive same-element text applies share one undo entry. */
+const TEXT_UNDO_COALESCE_MS = 2500;
 const WEBSITE_TABS = ["overview", "editor", "submissions", "posts", "menus", "pages"] as const;
 type WebsiteTab = typeof WEBSITE_TABS[number];
 
@@ -236,6 +238,15 @@ export function DFYWebsite() {
   // Tracks the page whose editor HTML is already assembled, so re-entering the
   // editor tab (e.g. from the overview) doesn't rebuild and clobber unsaved edits.
   const assembledPageIdRef = useRef<string | null>(null);
+  // True when in-place iframe mutations have outrun htmlContent. Any iframe
+  // remount (viewport toggle, editor re-entry) must rebuild from sections
+  // first, or the stale srcDoc visually reverts the edits and the NEXT
+  // edit's extraction persists that reversion.
+  const htmlStaleRef = useRef(false);
+  // Coalesce consecutive sidebar text applies on the same element into one
+  // undo entry (the field debounces, but a long sentence still flushes
+  // several times).
+  const textUndoCoalesceRef = useRef<{ cls: string; at: number } | null>(null);
 
   // Collapse the sidebar only while the page editor is open; expand it for the
   // overview and every other (non-editor) view. Restore on unmount.
@@ -353,10 +364,18 @@ export function DFYWebsite() {
         undefined,
         project.id,
       );
+      htmlStaleRef.current = false;
       setHtmlContent(html);
     },
     [project],
   );
+
+  // The desktop and mobile previews are separate <iframe> elements, so the
+  // viewport toggle remounts — rebuild first when in-place edits made the
+  // current htmlContent stale.
+  useEffect(() => {
+    if (htmlStaleRef.current) rebuildHtml(sectionsRef.current);
+  }, [viewportMode, rebuildHtml]);
 
   // Quick action handler from iframe label icons
   const handleIframeQuickAction = useCallback(
@@ -609,7 +628,14 @@ export function DFYWebsite() {
     // a page that's already built so returning from the overview/other tabs
     // preserves unsaved edits.
     if (activeView !== "editor") return;
-    if (assembledPageIdRef.current === selectedPage.id) return;
+    if (assembledPageIdRef.current === selectedPage.id) {
+      // Re-entering the editor for an already-built page: the iframe is
+      // about to remount, and in-place edits may have outrun htmlContent —
+      // rebuild from sections so the edits don't visually revert (and then
+      // get persisted as a reversion by the next extraction).
+      if (htmlStaleRef.current) rebuildHtml(sectionsRef.current);
+      return;
+    }
     assembledPageIdRef.current = selectedPage.id;
 
     const pageSections = normalizeSections(selectedPage.sections);
@@ -625,6 +651,7 @@ export function DFYWebsite() {
       undefined,
       project.id,
     );
+    htmlStaleRef.current = false;
     setHtmlContent(html);
 
     // Reset editor state for new page
@@ -633,7 +660,7 @@ export function DFYWebsite() {
     setRedoStack([]);
     setEditError(null);
     setIsDirty(false);
-  }, [selectedPage, project, activeView]);
+  }, [selectedPage, project, activeView, rebuildHtml]);
 
   const fetchWebsite = async () => {
     try {
@@ -652,7 +679,15 @@ export function DFYWebsite() {
         }
 
         if (data.pages?.length > 0) {
-          setSelectedPage(data.pages[0]);
+          // Preserve the current selection by PATH — a restore replaces the
+          // row at the path with a new id, and resetting to pages[0] would
+          // silently swap the editor to the wrong page.
+          setSelectedPage((prev) => {
+            const samePath = prev
+              ? data.pages.find((p: Page) => p.path === prev.path)
+              : undefined;
+            return samePath ?? data.pages[0];
+          });
         }
       }
     } catch (error) {
@@ -723,6 +758,12 @@ export function DFYWebsite() {
           },
         });
 
+        // apiPost swallows HTTP errors and returns the error body — a 4xx/5xx
+        // here must surface as a failure, not masquerade as a silent success.
+        if (!result || result.error) {
+          throw new Error(result?.message || result?.error || "Edit failed");
+        }
+
         // Handle rejection
         if (result.rejected) {
           const rejectionMessage: ChatMessage = {
@@ -786,6 +827,7 @@ export function DFYWebsite() {
             setSections(updatedSections);
             // No rebuildHtml here — the DOM is already mutated in place;
             // re-setting srcDoc reloads the iframe and jumps the scroll.
+            htmlStaleRef.current = true;
             setIsDirty(true);
 
             setupListeners();
@@ -898,18 +940,35 @@ export function DFYWebsite() {
           ? [changedSectionName]
           : undefined;
 
-        setUndoStack((prev) => [
-          ...prev,
-          {
-            sections: previousSections,
-            changedSectionNames,
-          },
-        ]);
+        // Consecutive text applies on the same element coalesce into one
+        // undo entry (the debounced sidebar flushes mid-sentence); redo
+        // still clears — the content changed either way.
+        const now = Date.now();
+        const coalesceText =
+          operation.type === "replace-text" &&
+          textUndoCoalesceRef.current?.cls === opInfo.alloroClass &&
+          now - textUndoCoalesceRef.current.at < TEXT_UNDO_COALESCE_MS;
+        textUndoCoalesceRef.current =
+          operation.type === "replace-text"
+            ? { cls: opInfo.alloroClass, at: now }
+            : null;
+
+        if (!coalesceText) {
+          setUndoStack((prev) => [
+            ...prev,
+            {
+              sections: previousSections,
+              changedSectionNames,
+            },
+          ]);
+        }
         setRedoStack([]);
         setSections(updatedSections);
         // No rebuildHtml here — the operation already mutated the iframe DOM
         // in place; re-setting srcDoc reloads the preview on every font-size
-        // step / color change and jumps the scroll.
+        // step / color change and jumps the scroll. Mark htmlContent stale so
+        // remount boundaries rebuild from sections.
+        htmlStaleRef.current = true;
         liveTextRef.current = null;
         setIsDirty(true);
         setupListeners();
@@ -1038,14 +1097,18 @@ export function DFYWebsite() {
         }
 
         if (!patched) {
+          htmlStaleRef.current = false;
           setHtmlContent(buildFullHtml());
           return;
         }
 
+        // Patched the live DOM in place — htmlContent is now behind it.
+        htmlStaleRef.current = true;
         setupListeners();
         iframe.contentWindow.scrollTo(scrollX, scrollY);
       } catch (err) {
         console.error("Failed to sync preview DOM:", err);
+        htmlStaleRef.current = false;
         setHtmlContent(buildFullHtml());
       }
     },
@@ -1117,8 +1180,19 @@ export function DFYWebsite() {
           return;
         }
         if (res?.data?.updated_at) {
+          const savedAt = res.data.updated_at;
           setSelectedPage((prev) =>
-            prev ? { ...prev, updated_at: res.data.updated_at } : prev,
+            prev ? { ...prev, updated_at: savedAt, sections } : prev,
+          );
+          // Keep the pages list fresh too — reopening this page from the
+          // Pages tab would otherwise regress expected_updated_at (spurious
+          // 409 that trains "Save Anyway") and reload pre-save content.
+          setPages((prev) =>
+            prev.map((p) =>
+              p.id === selectedPage.id
+                ? { ...p, updated_at: savedAt, sections }
+                : p,
+            ),
           );
         }
         setIsDirty(false);
@@ -1179,9 +1253,15 @@ export function DFYWebsite() {
   const handleRestoreVersion = useCallback(
     async (versionId: string) => {
       if (!selectedPage) return;
-      await apiPost({
+      const res = await apiPost({
         path: `/user/website/pages/${selectedPage.id}/versions/${versionId}/restore`,
       });
+      // apiPost swallows HTTP errors — a 403 READ_ONLY / 404 / 500 must not
+      // toast "restored" and exit preview while the live site is unchanged.
+      if (!res?.success) {
+        toast.error(res?.message || "Failed to restore version");
+        return;
+      }
       setPreviewVersion(null);
       setPreviewHtmlContent("");
       toast.success("Version restored");

@@ -11,11 +11,11 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
-        <span class="status-pill status-pending">Needs Revision</span>
+        <span class="status-pill status-pending">In Progress</span>
       </div>
       <h1>Website Editor: Direct Editing &amp; Versioning</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>Needs Revision — Rev 20 reliability fixes planned</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>In Progress — Rev 20 executed (Rev 21), manual QA pending</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/06112026-website-editor-direct-editing-and-versioning</dd></div>
         <div><dt>Size</dt><dd>Large (~25 files)</dd></div>
         <div><dt>Risk</dt><dd>Level 2</dd></div>
@@ -601,6 +601,12 @@
         <p><strong>Change:</strong> Reliability fix round planned from a 48-agent adversarial audit of the save/publish/draft/restore/undo flow (39 confirmed findings; full verified report referenced in project memory). Twelve tasks added, T19–T30: <strong>T19</strong> snapshot before createDraft stale-refresh (the one CRITICAL — a customer DFY save bumps <code>published.updated_at</code> and the next admin editor open silently destroys the admin's saved draft with no history entry); <strong>T20</strong> transactional + idempotent publish (crash window today can leave a path with zero — or via createPage, two — published rows); <strong>T21</strong> pre-publish dirty save must honor the 409 guard (today Publish silently overwrites concurrent edits and ships them live); <strong>T22</strong> stop inline-markup flattening (plain canvas mode only for element-childless text; sidebar auto-apply gated off rich elements, debounced + undo-coalesced for plain — today one keystroke in the sidebar destroys inline links and pushes one full-page undo clone per character); <strong>T23</strong> serializer strips mid-session artifacts (<code>contenteditable</code>, transparent-text styles) + clears stale <code>draftText</code> (keystroke snap-back); <strong>T24</strong> DFY restore/AI-edit failures surface real errors instead of toasting success; <strong>T25</strong> htmlContent rebuilt at iframe remount boundaries (device toggle currently reverts unsaved edits, and the next edit persists the reversion); <strong>T26</strong> DFY restore keeps the current page selected + pages-list freshness (kills spurious 409s that train "Save Anyway"); <strong>T27</strong> comment-led sections get section markers (editor is fully dead on such pages today) + multi-root sections keep trailing script/style siblings; <strong>T28</strong> regeneration gated on a clean tree + overlay artifacts stripped; <strong>T29</strong> conditional-UPDATE concurrency (closes the TOCTOU on the 409 check); <strong>T30</strong> DFY save validates row status + read-only tier. Deferred to a later rev (hardening, documented in the audit): version-number unique constraint, restore-while-dirty confirmation, Cmd+S during an inline session, scroll-driven selectedInfo churn wiping unapplied inputs, clock-skew in crash recovery, dead live-preview machinery removal.</p>
         <p><strong>Reason:</strong> User-requested reliability audit ("check on bugs… especially save, publish, draft, restore, undo/redo"); every finding adversarially verified against HEAD before planning.</p>
         <p><strong>Updated Done criteria:</strong> eight new checklist items covering T19–T30 (see Done).</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 21 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Rev 20 (T19–T30) executed across backend and both editor hosts. Three small additions beyond the planned task text, all within the same intent: (1) the admin stale-html rebuild also fires on <em>view switches</em> (visual → code/seo unmounts the iframe — same remount-reversion hazard as exit-preview, which the plan only named explicitly); (2) the regen gate message says "regeneration works from the last saved draft" rather than the drafted "regen reloads the preview" (the swap is in-place; the real loss vector is server-side regeneration from saved state); (3) <code>handlePublishConfirmed</code>'s dependency array was corrected to include <code>page?.updated_at</code>/<code>clearBackup</code>/<code>project</code> — required for the new 409 guard to compare against a fresh timestamp, and it clears a pre-existing exhaustive-deps lint warning.</p>
+        <p><strong>Reason:</strong> Execution deviation: remount-boundary coverage and guard correctness discovered while wiring T21/T25 into the admin host.</p>
+        <p><strong>Updated Done criteria:</strong> none — Rev 20's eight items stand; tsc (frontend + backend) and eslint on all ten touched files pass with zero new findings.</p>
       </article>
     </section>
   </main>

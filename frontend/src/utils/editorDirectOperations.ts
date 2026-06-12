@@ -548,6 +548,7 @@ function buildSelectedInfo(
     backgroundSize: style.backgroundSize || "",
     backgroundPosition: style.backgroundPosition || "",
     canCanvasEditText: canvasEligibility.canEdit,
+    canvasTextEditMode: canvasEligibility.mode,
     textEditFallbackReason: canvasEligibility.reason,
   };
 }

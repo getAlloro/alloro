@@ -738,6 +738,10 @@ function PageEditorInner() {
                   // <section> so we swap the section element itself.
                   const newWrap = doc.createElement("div");
                   newWrap.setAttribute("data-alloro-section", name);
+                  // Wrapper-marked so extraction persists the CHILDREN —
+                  // without this the swap div itself gets baked into the
+                  // stored section on the next edit+save.
+                  newWrap.setAttribute("data-alloro-section-wrapper", "true");
                   newWrap.appendChild(frag);
                   target.replaceWith(newWrap);
                 }
@@ -836,6 +840,14 @@ function PageEditorInner() {
   // stored WITH its class so revert always targets the previewed element,
   // even after the selection has moved on (visual only; restored on abandon).
   const liveTextRef = useRef<{ alloroClass: string; html: string } | null>(null);
+
+  // True when in-place iframe mutations have outrun htmlContent — any srcDoc
+  // swap (exit version preview, regen) must rebuild from sections first or
+  // the iframe visually reverts the edits.
+  const htmlStaleRef = useRef(false);
+  // Coalesce consecutive sidebar text applies on the same element into one
+  // undo entry.
+  const textUndoCoalesceRef = useRef<{ cls: string; at: number } | null>(null);
 
   // --- Crash-recovery backup (localStorage mirror of dirty sections) ---
   const { clearBackup, readBackup } = useLocalDraftBackup({
@@ -1028,6 +1040,7 @@ function PageEditorInner() {
           // Use sectionsRef.current (not closure `sections`) to avoid stale data
           const updatedSections = extractSectionsFromDom(iframe.contentDocument, sectionsRef.current);
           setSections(updatedSections);
+          htmlStaleRef.current = true;
 
           setIsDirty(true);
           setupListeners();
@@ -1129,8 +1142,26 @@ function PageEditorInner() {
         }
         const updatedSections = extractSectionsFromDom(doc, sectionsRef.current);
 
-        pushUndoSnapshot(previousSections);
+        // Consecutive text applies on the same element coalesce into one
+        // undo entry (the debounced sidebar flushes mid-sentence); redo
+        // still clears — the content changed either way.
+        const now = Date.now();
+        const coalesceText =
+          operation.type === "replace-text" &&
+          textUndoCoalesceRef.current?.cls === opInfo.alloroClass &&
+          now - textUndoCoalesceRef.current.at < CODE_EDIT_UNDO_COALESCE_MS;
+        textUndoCoalesceRef.current =
+          operation.type === "replace-text"
+            ? { cls: opInfo.alloroClass, at: now }
+            : null;
+
+        if (coalesceText) {
+          setRedoStack([]);
+        } else {
+          pushUndoSnapshot(previousSections);
+        }
         setSections(updatedSections);
+        htmlStaleRef.current = true;
         liveTextRef.current = null;
         setIsDirty(true);
         setupListeners();
@@ -1168,6 +1199,7 @@ function PageEditorInner() {
         undefined,
         projectId
       );
+      htmlStaleRef.current = false;
       setHtmlContent(assembled);
     },
     [project, projectId]
@@ -1309,12 +1341,30 @@ function PageEditorInner() {
       setIsPublishing(true);
 
       if (isDirty) {
-        await updatePageSections(
-          projectId,
-          draftPageId,
-          sections,
-          chatMapToObject(chatMap)
-        );
+        // The pre-publish save must honor the same optimistic-concurrency
+        // guard as a normal Save — without it, Publish silently overwrites
+        // concurrent edits and ships them live.
+        try {
+          const saveRes = await updatePageSections(
+            projectId,
+            draftPageId,
+            sectionsRef.current,
+            chatMapToObject(chatMapRef.current),
+            { expectedUpdatedAt: page?.updated_at ?? null }
+          );
+          setPage((prev) =>
+            prev ? { ...prev, updated_at: saveRes.data.updated_at } : prev
+          );
+          setIsDirty(false);
+          clearBackup();
+        } catch (saveErr) {
+          if ((saveErr as ApiError).code === "STALE_WRITE") {
+            setShowPublishModal(false);
+            setShowConflictModal(true);
+            return;
+          }
+          throw saveErr;
+        }
       }
 
       await publishPage(projectId, draftPageId);
@@ -1345,6 +1395,7 @@ function PageEditorInner() {
           undefined,
           projectId
         );
+        htmlStaleRef.current = false;
         setHtmlContent(assembled);
       }
 
@@ -1370,7 +1421,7 @@ function PageEditorInner() {
     } finally {
       setIsPublishing(false);
     }
-  }, [projectId, draftPageId, sections, chatMap, isDirty]);
+  }, [projectId, draftPageId, isDirty, page?.updated_at, clearBackup, project]);
 
   // --- View switching ---
   const handleViewChange = useCallback(
@@ -1380,9 +1431,14 @@ function PageEditorInner() {
         clearSelection();
       }
 
+      // Leaving the visual view unmounts the iframe; if in-place edits made
+      // htmlContent stale, the remount would show (and later persist) the
+      // pre-edit markup.
+      if (htmlStaleRef.current) rebuildPreviewHtml(sectionsRef.current);
+
       setActiveView(view);
     },
-    [clearSelection]
+    [clearSelection, rebuildPreviewHtml]
   );
 
   // --- Handle sections change from SectionsEditor (code view) ---
@@ -1451,10 +1507,15 @@ function PageEditorInner() {
   );
 
   const handleExitPreview = useCallback(() => {
+    // The iframe srcDoc swaps back from the version preview — rebuild from
+    // sections first when in-place edits made htmlContent stale, or the
+    // editor visually reverts those edits (and the next extraction would
+    // persist the reversion).
+    if (htmlStaleRef.current) rebuildPreviewHtml(sectionsRef.current);
     setPreviewVersion(null);
     setPreviewVersionHtml("");
     setPreviewVersionSections(null);
-  }, []);
+  }, [rebuildPreviewHtml]);
 
   // Per-section diff between the previewed version and the current draft
   const previewDiff = useMemo(
@@ -1493,12 +1554,22 @@ function PageEditorInner() {
   const handleRestoreVersion = useCallback(
     async (versionId: string) => {
       if (!projectId || !draftPageId) return;
-      const res = await restorePageVersionIntoDraft(
-        projectId,
-        draftPageId,
-        versionId
-      );
-      const restoredDraft = res.data;
+      let restoredDraft;
+      try {
+        const res = await restorePageVersionIntoDraft(
+          projectId,
+          draftPageId,
+          versionId
+        );
+        restoredDraft = res.data;
+      } catch (err) {
+        setEditError(
+          err instanceof ApiError
+            ? `Restore failed: ${err.message}`
+            : "Restore failed — the draft was left unchanged."
+        );
+        return;
+      }
 
       // The restore replaced the draft server-side (its prior state was
       // snapshotted there) — reset local editing state to the restored draft.
@@ -1666,7 +1737,17 @@ function PageEditorInner() {
         onPublish={handlePublish}
         onRegenerate={
           !isLivePreview && !loading && sections.length > 0 && activeView === "visual"
-            ? () => setRegenerateModalOpen(true)
+            ? () => {
+                // Regen rebuilds the section from the SAVED draft server-side —
+                // unsaved local edits to it would silently vanish in the swap.
+                if (isDirty) {
+                  setEditError(
+                    "Save your changes before regenerating a section — regeneration works from the last saved draft."
+                  );
+                  return;
+                }
+                setRegenerateModalOpen(true);
+              }
             : undefined
         }
         onFindReplace={

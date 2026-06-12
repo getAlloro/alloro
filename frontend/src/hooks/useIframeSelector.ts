@@ -45,6 +45,10 @@ export interface SelectedInfo {
   backgroundSize?: string;
   backgroundPosition?: string;
   canCanvasEditText?: boolean;
+  /** "plain" = textarea overlay (text-only commit); "rich" = contentEditable
+   * (markup-preserving). The sidebar uses this to gate replace-text, which
+   * would flatten a rich element's inline children. */
+  canvasTextEditMode?: "plain" | "rich";
   textEditFallbackReason?: string;
   draftText?: string;
 }
@@ -293,6 +297,7 @@ function buildSelectedInfo(el: Element): SelectedInfo | null {
     rect: getElementRect(el),
     ...getElementBackground(el),
     canCanvasEditText: eligibility.canEdit,
+    canvasTextEditMode: eligibility.mode,
     textEditFallbackReason: eligibility.reason,
   };
 }
@@ -637,6 +642,14 @@ export function useIframeSelector(
           delete doc.body.dataset.alloroCanvasEditing;
           setIsCanvasTextEditing(false);
           canvasTextSessionRef.current = null;
+          // Clear the session's draft mirror — a stale draftText makes the
+          // sidebar Content field snap back and drop keystrokes after a
+          // commit (the commit path never rebuilds selectedInfo).
+          setSelectedInfo((prev) =>
+            prev?.alloroClass === targetAlloroClass && prev?.draftText !== undefined
+              ? { ...prev, draftText: undefined }
+              : prev,
+          );
         },
       };
 

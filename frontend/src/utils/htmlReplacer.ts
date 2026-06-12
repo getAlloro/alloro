@@ -152,17 +152,76 @@ function restoreShortcodeTokens(html: string): string {
   return doc.body.innerHTML;
 }
 
+/** Inline styles the canvas text editor uses to hide the real element text
+ * while its overlay is shown — must never persist (published invisible text). */
+const SESSION_HIDE_TEXT_PROPS = ["color", "-webkit-text-fill-color", "text-shadow"];
+
+/** Classes the regenerate overlay injects into a section root mid-rebuild. */
+const REGEN_OVERLAY_CLASSES = [
+  "alloro-regenerating",
+  "opacity-50",
+  "animate-pulse",
+  "pointer-events-none",
+];
+
+/**
+ * Strip live editing-session state from a clone before persistence. A save
+ * can race an active canvas/rich session (commit-then-reselect applies the
+ * prior element's edit while a new session is already open) — without this,
+ * contenteditable and the transparent-text hide styles get published.
+ */
+function stripCanvasSessionArtifacts(clone: Element): void {
+  const sessionRoots: Element[] = [];
+  if (clone.hasAttribute("data-alloro-editing")) sessionRoots.push(clone);
+  clone
+    .querySelectorAll('[data-alloro-editing="true"]')
+    .forEach((el) => sessionRoots.push(el));
+
+  for (const root of sessionRoots) {
+    root.removeAttribute("contenteditable");
+    const targets: Element[] = [root, ...Array.from(root.querySelectorAll("*"))];
+    for (const target of targets) {
+      const style = (target as HTMLElement).style;
+      if (!style) continue;
+      for (const prop of SESSION_HIDE_TEXT_PROPS) {
+        style.removeProperty(prop);
+      }
+      if (!style.length) target.removeAttribute("style");
+    }
+  }
+
+  // Stray canvas textarea overlays / regen overlay pills can never persist.
+  clone
+    .querySelectorAll("[data-alloro-canvas-editor], [data-alloro-regen-overlay]")
+    .forEach((el) => el.remove());
+
+  // Regen pulse classes injected into the section root mid-rebuild.
+  for (const cls of REGEN_OVERLAY_CLASSES.slice(0, 1)) {
+    if (clone.classList.contains(cls)) {
+      clone.classList.remove(...REGEN_OVERLAY_CLASSES);
+    }
+  }
+  clone.querySelectorAll(".alloro-regenerating").forEach((el) => {
+    el.classList.remove(...REGEN_OVERLAY_CLASSES);
+  });
+}
+
 /**
  * Serialize an element for persistence: clone it, strip editor-only state
  * attributes (selection/hover/editing markers leak into saved content and
- * render on the public site otherwise), and restore shortcode pills back to
- * their raw tokens.
+ * render on the public site otherwise) and live-session artifacts, and
+ * restore shortcode pills back to their raw tokens.
  */
 function serializeSectionElement(el: Element, stripSectionMarker: boolean): string {
   const clone = el.cloneNode(true) as Element;
   if (stripSectionMarker) {
     clone.removeAttribute("data-alloro-section");
   }
+
+  // Session artifacts must be stripped while data-alloro-editing markers are
+  // still present (they scope the strip), so this runs first.
+  stripCanvasSessionArtifacts(clone);
+
   const editorAttrs = [
     "data-alloro-hover",
     "data-alloro-selected",
@@ -173,6 +232,12 @@ function serializeSectionElement(el: Element, stripSectionMarker: boolean): stri
     clone.querySelectorAll(`[${attr}]`).forEach((child) => {
       child.removeAttribute(attr);
     });
+  }
+
+  // Wrapper-marked sections (multi-root / comment-led content) persist their
+  // CHILDREN — the wrapper div is render-time chrome, not content.
+  if (clone.hasAttribute("data-alloro-section-wrapper")) {
+    return restoreShortcodeTokens(clone.innerHTML);
   }
   return restoreShortcodeTokens(clone.outerHTML);
 }
