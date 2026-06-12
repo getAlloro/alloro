@@ -113,36 +113,50 @@ export type EditViewport = "mobile" | "desktop";
 
 const TEXT_ALIGN_SCALE = ["text-left", "text-center", "text-right", "text-justify"];
 
-/** `md:` for desktop edits, empty (base) for mobile. */
-function tierPrefix(viewport: EditViewport): string {
-  return viewport === "desktop" ? "md:" : "";
-}
+// Every Tailwind responsive prefix, largest breakpoint first. Templates size
+// text with whichever prefix they like (`sm:`/`lg:`/`xl:`…), so a desktop edit
+// must consider ALL of them — handling only `md:` lets an existing `lg:text-*`
+// silently override the change (the "font change not working" bug).
+const RESPONSIVE_PREFIXES = ["2xl:", "xl:", "lg:", "md:", "sm:"];
 
-/** Find which class from `group` is active for this tier. Desktop falls back to
- *  the base class (it applies to desktop until a `md:` override exists). */
+/** The class from `group` that's effective for this tier. Desktop returns the
+ *  highest-breakpoint responsive variant present (what actually wins on a wide
+ *  screen), falling back to the base class; mobile (375px preview shows only
+ *  base utilities) returns the base class. */
 function readTierClass(
   el: Element,
   group: string[],
   viewport: EditViewport,
 ): string | null {
   if (viewport === "desktop") {
-    const prefixed = group.find((c) => el.classList.contains(`md:${c}`));
-    if (prefixed) return prefixed;
+    for (const prefix of RESPONSIVE_PREFIXES) {
+      const found = group.find((c) => el.classList.contains(`${prefix}${c}`));
+      if (found) return found;
+    }
   }
   return group.find((c) => el.classList.contains(c)) || null;
 }
 
-/** Set the active tier's class within `group`, clearing only that tier so the
- *  other breakpoint's value is preserved. */
+/** Set the active tier's class within `group`. Desktop edits collapse EVERY
+ *  responsive variant in the group into a single `md:` class so it is the sole
+ *  desktop override (no leftover `lg:`/`xl:` can win), while the base class —
+ *  the mobile tier — is preserved. Mobile edits write the base class and clear
+ *  only the base, leaving the desktop (`md:`) value intact. */
 function setTierClass(
   el: Element,
   group: string[],
   value: string | null,
   viewport: EditViewport,
 ): void {
-  const prefix = tierPrefix(viewport);
-  group.forEach((c) => el.classList.remove(`${prefix}${c}`));
-  if (value) el.classList.add(`${prefix}${value}`);
+  if (viewport === "desktop") {
+    group.forEach((c) =>
+      RESPONSIVE_PREFIXES.forEach((p) => el.classList.remove(`${p}${c}`)),
+    );
+    if (value) el.classList.add(`md:${value}`);
+    return;
+  }
+  group.forEach((c) => el.classList.remove(c));
+  if (value) el.classList.add(value);
 }
 
 export type DirectEditorOperation =
