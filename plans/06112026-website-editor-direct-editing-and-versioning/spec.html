@@ -11,7 +11,7 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
-        <span class="status-pill status-pending">In Progress — Rev 28</span>
+        <span class="status-pill status-pending">In Progress — Rev 29</span>
       </div>
       <h1>Website Editor: Direct Editing &amp; Versioning</h1>
       <dl class="meta-grid">
@@ -769,6 +769,12 @@
         <p><strong>Change:</strong> Bug fix for Rev 27 — "font change is not working" on real templates. The tier helpers only handled the base + <code>md:</code> classes, but production pages size text with a mix of responsive prefixes (verified against the live data: <code>lg:text-5xl</code>/<code>6xl</code>/<code>7xl</code>, <code>sm:text-4xl</code>/<code>5xl</code>, alongside <code>md:</code>). So a heading like <code>text-4xl lg:text-5xl</code> read as its base size (mislabelled) and, on a desktop size edit, the new <code>md:text-*</code> was silently overridden by the surviving <code>lg:text-*</code> at ≥1024px → no visible change. Fix: <code>readTierClass</code> now returns the highest-breakpoint variant present (2xl→sm), and a desktop edit via <code>setTierClass</code> collapses EVERY responsive prefix in the group into a single <code>md:</code> class (so no leftover <code>lg:</code>/<code>xl:</code> can win), preserving the base class as the mobile tier. Applies to size and alignment (both go through the shared helper). The old Rev 27 code regressed this because the prior (pre-Rev-27) stepper nuked every text-size class; the per-tier rewrite narrowed that to <code>md:</code> only.</p>
         <p><strong>Reason:</strong> User QA on the One Endo project ("now font change is not working"); root cause confirmed by sampling <code>website_builder.pages</code> responsive text classes.</p>
         <p><strong>Updated Done criteria:</strong> none new — this makes the Rev 27 items actually pass on templates using non-<code>md:</code> breakpoints; tsc + eslint clean.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 29 - 2026-06-12</h3>
+        <p><strong>Change:</strong> Restore the on-canvas selection outline after a viewport switch. Toggling desktop/mobile remounts the preview iframe (DFY swaps to a separate desktop/mobile iframe) with a fresh DOM that has lost the <code>data-alloro-selected</code> marker the outline CSS keys off — so the element stayed selected logically (sidebar still worked) but showed no outline. Fix: <code>setupListeners</code> (runs on every iframe load) now re-applies <code>data-alloro-selected</code> to the element matching the persisted <code>selectedInfo</code> (mirrored via a ref so the stable callback isn't re-created per selection). Editor-only chrome — the serializer already strips selection attrs, so it never leaks into saved content. Also restores selection after any iframe reload (e.g. exiting version preview).</p>
+        <p><strong>Reason:</strong> User QA: "when I switch between viewports the selector is gone — but the sidebar still works and seems like it has it selected still."</p>
+        <p><strong>Updated Done criteria:</strong> none — visual-chrome fix; tsc + eslint clean.</p>
       </article>
     </section>
   </main>
