@@ -61,13 +61,17 @@ function gscDayLabel(iso: string): string {
   return `${GSC_MONTHS[Number(month) - 1] ?? ""} ${Number(day)}`;
 }
 
-// Line + column-dot colors for the hero funnel: visitors (orange) → leads
-// (navy) → conversion (green). Visitors must match TrendSparkline's hardcoded
-// primary; leads/conversion are passed as the secondary/tertiary line colors.
+// Column-dot / line colors for the hero funnel: visitors (orange) → leads
+// (green) → conversion (navy). Visitors must match TrendSparkline's hardcoded
+// primary; leads is passed as the chart's secondary line color. Leads is GREEN
+// (#14 — it read as black/navy before). Conversion is no longer plotted as a
+// line (#14 — removed from the chart to avoid the early-month pace artifact);
+// its color is only the column dot now, so it takes navy to stay distinct from
+// the green leads line/column.
 const FUNNEL_COLORS = {
   visitors: "var(--color-alloro-orange)",
-  leads: "var(--color-alloro-navy)",
-  conversion: "#4F8A5B",
+  leads: "#4F8A5B",
+  conversion: "var(--color-alloro-navy)",
 } as const;
 
 interface ListResponse {
@@ -187,12 +191,39 @@ export function WebsiteOverview({
   const funnelPoint = funnelHover !== null ? m.funnelSeries[funnelHover] : null;
   const trafficPoint = trafficHover !== null ? m.visitorSeries[trafficHover] : null;
   const leadsPoint = leadsHover !== null ? m.leadSeriesCompact[leadsHover] : null;
+  // #16: the leads modal graph is the LAST 3 MONTHS (the owner asked for a
+  // tighter, recent window rather than a 12-month line). Slice the monthly
+  // series and label the real span of what's shown — never a nominal range
+  // that doesn't match the chart.
+  const leadsModalSeries = useMemo(
+    () => m.leadSeries.slice(-3),
+    [m.leadSeries],
+  );
   const trafficModalPoint =
     trafficModalHover !== null ? m.visitorDaily[trafficModalHover] : null;
   const leadsModalPoint =
-    leadsModalHover !== null ? m.leadSeries[leadsModalHover] : null;
+    leadsModalHover !== null ? leadsModalSeries[leadsModalHover] : null;
   const [gscHover, setGscHover] = useState<number | null>(null);
   const gscPoint = gscHover !== null ? gscSeries[gscHover] ?? null : null;
+
+  // #15/#16: honest chart-title spans — describe what the chart actually plots
+  // (its real first→last point), not a nominal "last 12 months". Traffic uses
+  // the daily series; leads uses the 3-month slice above.
+  const trafficDailySpan = (() => {
+    const pts = m.visitorDaily;
+    if (pts.length === 0) return "Daily visitors";
+    const first = pts[0]?.label;
+    const last = pts[pts.length - 1]?.label;
+    return first && last ? `Daily visitors · ${first} – ${last}` : "Daily visitors";
+  })();
+  const leadsMonthlySpan = (() => {
+    if (leadsModalSeries.length === 0) return "Verified leads";
+    const first = leadsModalSeries[0]?.label;
+    const last = leadsModalSeries[leadsModalSeries.length - 1]?.label;
+    return first && last && first !== last
+      ? `Verified leads · ${first} – ${last}`
+      : `Verified leads · ${last ?? ""}`.trim();
+  })();
 
   const leadWord = m.monthLeads === 1 ? "lead" : "leads";
   const insight = m.hasAnalytics
@@ -202,22 +233,32 @@ export function WebsiteOverview({
     ? [`${fmt(m.monthVisitors)} visitors`, `${m.monthLeads} ${leadWord}`]
     : [`${m.monthLeads} ${leadWord}`];
 
+  // #14: the headline conversion is the LAST FULL MONTH's settled rate, not the
+  // month-to-date pace (early in a month MTD produced absurd headline numbers
+  // like "1,066%"). A settled full-month figure is honest and stable. When
+  // there's no prior full month of analytics yet, fall back to the leads count.
+  const hasSettledConversion = m.hasAnalytics && m.prevConversionRate > 0;
   const score = (
     <div className="flex flex-col items-center text-center">
       <span className="font-display text-[52px] font-medium leading-none tracking-tight text-alloro-navy tabular-nums">
-        {m.hasAnalytics ? formatConversion(m.conversionRate) : m.monthLeads}
+        {hasSettledConversion ? formatConversion(m.prevConversionRate) : m.monthLeads}
       </span>
       <span className="mt-2 text-[11px] font-semibold text-[color:var(--color-pm-text-secondary)]">
-        {m.hasAnalytics ? "so far this month" : "leads this month"}
+        {hasSettledConversion ? "last full month" : "leads this month"}
       </span>
-      {m.hasAnalytics && (
+      {hasSettledConversion && (
         <span className="mt-2 max-w-[210px] text-[10px] font-medium leading-snug text-[color:var(--color-pm-text-secondary)]/70">
-          Calculated from this month's data so far — updates daily.
+          A settled full-month figure — not affected by partial early-month data.
         </span>
       )}
     </div>
   );
 
+  // #14/#17: the funnel shows the two funnel STAGES — visitors → leads — over
+  // the monthly series. Conversion is intentionally NOT a funnel column or a
+  // chart line here (it lived as an early-month MTD artifact); it now appears
+  // only as the settled headline card above. This also resolves the "monthly
+  // vs this month" duplication (#17) — the trio reads as one consistent frame.
   const funnelCols = [
     {
       key: "visitors",
@@ -242,19 +283,11 @@ export function WebsiteOverview({
       color: FUNNEL_COLORS.leads,
       value: String(funnelPoint ? funnelPoint.leads : m.monthLeads),
     },
-    {
-      key: "conversion",
-      label: "Conversion rate",
-      color: FUNNEL_COLORS.conversion,
-      value: m.hasAnalytics
-        ? formatConversion(funnelPoint ? funnelPoint.conversion : m.conversionRate)
-        : "—",
-    },
   ];
 
   const estimateSummary = (
     <div className="flex h-full flex-col justify-between gap-4">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         {funnelCols.map((col) => (
           <div key={col.key}>
             <div className="flex items-center gap-1.5">
@@ -278,9 +311,7 @@ export function WebsiteOverview({
             data={m.funnelSeries}
             valueKey="visitorsN"
             secondaryKey="leadsN"
-            tertiaryKey="conversionN"
             secondaryColor={FUNNEL_COLORS.leads}
-            tertiaryColor={FUNNEL_COLORS.conversion}
             labelKey="monthName"
             height={110}
             showArea={false}
@@ -290,7 +321,7 @@ export function WebsiteOverview({
       )}
       {m.hasAnalytics && (
         <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--color-pm-text-secondary)]">
-          {funnelPoint ? funnelPoint.monthName : "This month · to date"}
+          {funnelPoint ? funnelPoint.monthName : "Monthly · visitors and leads"}
         </div>
       )}
     </div>
@@ -338,8 +369,8 @@ export function WebsiteOverview({
         insight={insight}
         insightHighlights={insightHighlights}
         score={score}
-        scoreLabel="Conversion rate"
-        scoreTooltip="Verified leads ÷ unique visitors so far this month. It's partial early-month data and updates every day as more visitors and leads come in."
+        scoreLabel="Last month's conversion rate"
+        scoreTooltip="Verified leads ÷ unique visitors for the last full calendar month. A retroactive, settled figure — it doesn't move with partial early-month data."
         estimateSummary={estimateSummary}
         actions={actions}
       />
@@ -410,8 +441,10 @@ export function WebsiteOverview({
                 {!leadsPoint && <TrendPill deltaPct={m.leadsPaceDeltaPct} />}
               </div>
               <div className="mt-1 text-xs text-[color:var(--color-pm-text-secondary)]">
-                {m.hasAnalytics
-                  ? `${formatConversion(m.conversionRate)} of visitors converted this month`
+                {/* #14/#17: show last month's settled count for comparison
+                    instead of the volatile month-to-date conversion %. */}
+                {m.prevMonthLeads > 0
+                  ? `${m.prevMonthLeads} last month`
                   : `${fmt(stats?.allCount ?? 0)} all-time`}
               </div>
               <div className="mt-4">
@@ -444,17 +477,15 @@ export function WebsiteOverview({
                   {fmt(gscPoint ? gscPoint.clicks : gscTotals?.clicks ?? 0)}
                 </span>
                 <span className="text-xs font-medium text-[color:var(--color-pm-text-secondary)]">
-                  {gscPoint ? `clicks · ${gscPoint.label}` : "clicks from search"}
+                  {/* #18: name the source — these are Google Search clicks. */}
+                  {gscPoint ? `clicks · ${gscPoint.label}` : "clicks from Google Search"}
                 </span>
               </div>
               <div className="mt-1 text-xs text-[color:var(--color-pm-text-secondary)]">
+                {/* #18: avg position removed — it contradicted Local Rankings. */}
                 {gscPoint
                   ? `${fmt(gscPoint.impressions)} impressions that day`
-                  : `${fmt(gscTotals?.impressions ?? 0)} impressions · ${
-                      (gscTotals?.position ?? 0) > 0
-                        ? `${(gscTotals?.position ?? 0).toFixed(1)} avg position`
-                        : "—"
-                    }`}
+                  : `${fmt(gscTotals?.impressions ?? 0)} impressions in search`}
               </div>
               <div className="mt-4">
                 <TrendSparkline
@@ -576,7 +607,7 @@ export function WebsiteOverview({
                 ? trafficModalPoint.noData
                   ? `No data · ${trafficModalPoint.label}`
                   : `${trafficModalPoint.label}: ${fmt(trafficModalPoint.visitors ?? 0)} visitors`
-                : "Daily visitors · last 12 months"}
+                : trafficDailySpan}
             </div>
             <TrendSparkline
               data={m.visitorDaily}
@@ -591,11 +622,13 @@ export function WebsiteOverview({
 
       <DetailsModal
         open={modal === "leads"}
-        title="Leads & conversion"
+        title="Leads & Conversion"
         eyebrow="Form submissions"
         onClose={() => setModal(null)}
       >
         <div className="space-y-5">
+          {/* #16: All time sits next to Last month; Conversion is the previous
+              full month (retroactive), matching the headline framing. */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <ModalStat
               label="This month"
@@ -608,25 +641,29 @@ export function WebsiteOverview({
               tip="Verified leads in the previous full month."
             />
             <ModalStat
-              label="Conversion"
-              sub="this month"
-              value={m.hasAnalytics ? formatConversion(m.conversionRate) : "—"}
-              tip="Verified leads ÷ unique visitors so far this month."
-            />
-            <ModalStat
               label="All time"
               value={fmt(stats?.allCount ?? 0)}
               tip="Total verified leads ever received from your website forms."
+            />
+            <ModalStat
+              label="Conversion"
+              sub="last month"
+              value={
+                m.hasAnalytics && m.prevConversionRate > 0
+                  ? formatConversion(m.prevConversionRate)
+                  : "—"
+              }
+              tip="Verified leads ÷ unique visitors for the last full month — a settled, retroactive figure."
             />
           </div>
           <div className="rounded-[14px] border border-line-soft bg-white p-4 shadow-premium">
             <div className="mb-3 font-mono-display text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--color-pm-text-secondary)]">
               {leadsModalPoint
                 ? `Verified leads · ${leadsModalPoint.label}: ${leadsModalPoint.leads}`
-                : "Verified leads · last 12 months"}
+                : leadsMonthlySpan}
             </div>
             <TrendSparkline
-              data={m.leadSeries}
+              data={leadsModalSeries}
               valueKey="leads"
               labelKey="label"
               height={220}

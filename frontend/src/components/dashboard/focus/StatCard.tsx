@@ -33,6 +33,18 @@ export interface StatCardProps {
   trailingTone?: StatusTone | null;
   /** Dot color tone. */
   dotTone: StatusTone;
+  /**
+   * Small line under the value — usually the card's timeframe window
+   * (e.g. "April 2026", "all-time"). Every card states its window (#1/#23).
+   */
+  sub?: string | null;
+  /**
+   * Optional tone for the sub line. `null` (default) renders it muted —
+   * correct for timeframe windows. A StatusTone tints it, for when the sub
+   * is a status nudge rather than a date (e.g. Local rank's "Google Post
+   * Due" moved below the value).
+   */
+  subTone?: StatusTone | null;
   /** Route to navigate to on click. Omit to render a non-clickable card. */
   href?: string;
   /** Optional onboarding-wizard spotlight target id. */
@@ -45,6 +57,8 @@ export function StatCard({
   trailing,
   trailingTone = null,
   dotTone,
+  sub,
+  subTone = null,
   href,
   wizardTarget,
 }: StatCardProps) {
@@ -92,6 +106,15 @@ export function StatCard({
           </span>
         ) : null}
       </span>
+
+      {sub ? (
+        <span
+          className={`mt-1 text-[11px] ${subTone ? "font-semibold" : "font-medium text-ink-muted"}`}
+          style={subTone ? { color: TONE_COLOR[subTone] } : undefined}
+        >
+          {sub}
+        </span>
+      ) : null}
     </button>
   );
 }

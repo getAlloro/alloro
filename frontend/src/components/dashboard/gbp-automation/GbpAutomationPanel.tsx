@@ -315,6 +315,9 @@ export function GbpAutomationPanel({
             repliedReviews={data.repliedReviews}
             workItems={data.workItems}
             reviewMonths={reviewMonths}
+            // Client surface: the internal "Safe" safety badge is noise for the
+            // practice owner — hide it (Blocked / Safety review still show).
+            hideSafeBadge
             needsReplyMonth={needsReplyMonth}
             repliedMonth={repliedMonth}
             isReady={isReady}
@@ -322,7 +325,12 @@ export function GbpAutomationPanel({
             isBusy={isBusy}
             replyOps={hideReplyOpsCards ? undefined : data.readiness.replyOps}
             recentWindowDays={reviewWindowDays}
-            initialNeedsReplyRange={reviewWindowDays ? "last30" : undefined}
+            // Promoted /gbp-manager page: default the Needs-Reply list to the
+            // capped "Latest 10" view (refreshes down toward 0 as reviews are
+            // handled) rather than the full recent window. The wider 60-day
+            // and All-loaded ranges remain one click away. Spec: plans/
+            // 06132026-reviews-posts-clarity (T2).
+            initialNeedsReplyRange={reviewWindowDays ? "latest" : undefined}
             onGenerate={(reviewId) =>
               handle(
                 () => actions.generateDraft.mutateAsync(reviewId),
@@ -408,6 +416,8 @@ export function GbpAutomationPanel({
           publishedPosts={publishedPostsData?.posts || []}
           publishedPostsPagination={publishedPostsData?.pagination}
           nextPostGenerationAt={data.settings.next_post_generation_at}
+          // Client surface: the Posts tab was bare — add the visibility note (#10).
+          showVisibilityNote
           isBusy={isBusy}
           isLoadingPublishedPosts={isLoadingPublishedPosts}
           onPublishedPostsPageChange={setPublishedPostPage}
@@ -481,6 +491,9 @@ export function GbpAutomationPanel({
             settingsDraft={settingsDraft}
             readiness={readiness}
             diagnosticsConfirmed={diagnosticsConfirmed}
+            // Client surface: enabling/disabling automation is admin-only (#11).
+            // The toggles are hidden here; Diagnostics still shows their status.
+            hideAutomationToggles
             isBusy={isBusy}
             isRefreshingDiagnostics={isFetching}
             isSyncingReviews={actions.syncReviews.isPending}

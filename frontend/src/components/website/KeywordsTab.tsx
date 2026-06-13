@@ -2,32 +2,53 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Hourglass, ArrowRight } from "lucide-react";
 import { TrendSparkline } from "../dashboard/shared/TrendSparkline";
-import { InfoTip } from "../dashboard/shared/InfoTip";
 import { useWebsiteGscPerformance } from "../../hooks/queries/useWebsiteGscPerformance";
 import type { GscDimensionRow } from "../../api/websiteGscPerformance";
+import { windowLabel } from "../../utils/timeframe";
 
 /**
  * Keywords tab — owner-facing Google Search Console performance.
  *
- * Trimmed for clients (per spec): totals (clicks, impressions, avg position),
- * clicks + impressions trend, and top queries / top pages. Countries, devices,
- * and per-dimension CTR are intentionally omitted. Reads the org-scoped GSC
+ * Trimmed for clients: totals (clicks, impressions), clicks + impressions
+ * trend, and top queries / top pages. Countries, devices, per-dimension CTR,
+ * and Avg Position are intentionally omitted — avg position read as a ranking
+ * number that contradicted Local Rankings (#12/#13). Reads the org-scoped GSC
  * endpoint via `useWebsiteGscPerformance`; renders not-connected and
  * collecting-data empty states. Built fresh — does not import admin GSC UI.
  *
  * Clicks and impressions live on very different scales, so they render as two
  * separate sparklines rather than one shared-axis chart (which would flatten
- * clicks to near-zero).
+ * clicks to near-zero). Each chart now shows an x-axis label row and updates a
+ * headline read-out on hover so the owner can read the per-day numbers (#12).
  *
- * Spec: plans/06112026-client-dashboard-gsc-keywords/spec.html (T3).
+ * Honest window (#12): the range toggle filters server-side correctly
+ * (service.gsc-performance.ts derives fromDate = latestReportDate − (rangeDays
+ * − 1) and queries GscDataModel.findByProjectAndDateRange). 3M/6M/12M can
+ * nonetheless render IDENTICAL data — not a bug: the daily harvest history is
+ * shorter than the window, so any range ≥ the stored history returns every
+ * stored row (the same set). `dashboard.dataDays` is the real count. We label
+ * the ACTUAL span and note when history is shorter than requested, instead of
+ * pretending the window changed. Truly differentiating 6M vs 12M requires
+ * accruing/backfilling more harvest history — a separate data-layer effort,
+ * out of scope here (see plans/06132026-website-analytics-clarity, T8).
+ *
+ * Spec: plans/06132026-website-analytics-clarity/spec.html (T4/T8).
  */
 
 const RANGES = [
-  { days: 28, label: "28D" },
-  { days: 90, label: "3M" },
-  { days: 180, label: "6M" },
-  { days: 365, label: "12M" },
+  { days: 28, key: "28d" },
+  { days: 90, key: "3m" },
+  { days: 180, key: "6m" },
+  { days: 365, key: "12m" },
 ] as const;
+
+/** Spelled-out window label for a range (the locked time-format standard). */
+const WINDOW_LABELS_BY_DAYS: Record<number, string> = {
+  28: windowLabel("28d"),
+  90: windowLabel("3m"),
+  180: windowLabel("6m"),
+  365: windowLabel("12m"),
+};
 
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -36,7 +57,6 @@ const MONTHS = [
 
 const numberFmt = new Intl.NumberFormat("en-US");
 const fmt = (n: number) => numberFmt.format(Math.round(n));
-const fmtPosition = (n: number) => (n > 0 ? n.toFixed(1) : "—");
 
 /** "2026-06-11" → "Jun 11" without constructing a Date (timezone-safe). */
 function shortDate(iso: string): string {
@@ -58,12 +78,10 @@ function StatTile({
   label,
   value,
   hint,
-  infoTip,
 }: {
   label: string;
   value: string;
   hint?: string;
-  infoTip?: string;
 }) {
   return (
     <div className="rounded-[14px] border border-line-soft bg-white p-5 shadow-premium">
@@ -71,7 +89,6 @@ function StatTile({
         <span className="font-mono-display text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--color-pm-text-secondary)]">
           {label}
         </span>
-        {infoTip ? <InfoTip content={infoTip} placement="bottom" /> : null}
       </div>
       <div className="mt-2 font-display text-[32px] font-medium leading-none tracking-tight text-alloro-navy tabular-nums">
         {value}
@@ -118,8 +135,7 @@ function KeywordTable({
                 {column === "query" ? "Query" : "Page"}
               </th>
               <th className="px-3 py-2.5 text-right font-bold">Clicks</th>
-              <th className="px-3 py-2.5 text-right font-bold">Impr.</th>
-              <th className="px-5 py-2.5 text-right font-bold">Avg pos</th>
+              <th className="px-5 py-2.5 text-right font-bold">Impr.</th>
             </tr>
           </thead>
           <tbody>
@@ -137,11 +153,8 @@ function KeywordTable({
                 <td className="px-3 py-2.5 text-right tabular-nums text-alloro-navy">
                   {fmt(row.clicks)}
                 </td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-[color:var(--color-pm-text-secondary)]">
-                  {fmt(row.impressions)}
-                </td>
                 <td className="px-5 py-2.5 text-right tabular-nums text-[color:var(--color-pm-text-secondary)]">
-                  {fmtPosition(row.position)}
+                  {fmt(row.impressions)}
                 </td>
               </tr>
             ))}
@@ -152,21 +165,50 @@ function KeywordTable({
   );
 }
 
+/**
+ * Trend card with a hover read-out (#12): hovering the chart shows that day's
+ * exact value + date in the card headline (no floating tooltip — the shared
+ * sparkline drives `onActiveIndexChange`), and the x-axis label row is on so
+ * the owner can read the timeline. The headline defaults to the total for the
+ * window when nothing is hovered.
+ */
 function TrendCard({
   title,
+  unit,
+  total,
   data,
   valueKey,
 }: {
   title: string;
-  data: Array<Record<string, unknown>>;
-  valueKey: string;
+  unit: string;
+  total: number;
+  data: Array<{ label: string; clicks: number; impressions: number }>;
+  valueKey: "clicks" | "impressions";
 }) {
+  const [hover, setHover] = useState<number | null>(null);
+  const point = hover !== null ? data[hover] ?? null : null;
   return (
     <div className="rounded-[14px] border border-line-soft bg-white p-5 shadow-premium">
-      <div className="mb-3 font-mono-display text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--color-pm-text-secondary)]">
+      <div className="mb-2 font-mono-display text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--color-pm-text-secondary)]">
         {title}
       </div>
-      <TrendSparkline data={data} valueKey={valueKey} labelKey="label" height={150} />
+      <div className="flex flex-wrap items-baseline gap-2">
+        <span className="font-display text-[26px] font-medium leading-none tracking-tight text-alloro-navy tabular-nums">
+          {fmt(point ? point[valueKey] : total)}
+        </span>
+        <span className="text-[11px] font-medium text-[color:var(--color-pm-text-secondary)]">
+          {point ? `${unit} · ${point.label}` : `${unit} · this window`}
+        </span>
+      </div>
+      <div className="mt-3">
+        <TrendSparkline
+          data={data}
+          valueKey={valueKey}
+          labelKey="label"
+          height={140}
+          onActiveIndexChange={setHover}
+        />
+      </div>
     </div>
   );
 }
@@ -252,10 +294,18 @@ export function KeywordsTab() {
     );
   }
 
-  const rangeLabel =
+  // Honest window label (#12): describe the ACTUAL stored span, not the
+  // nominal toggle. When the harvest history is shorter than the requested
+  // window every range ≥ history returns the same rows — say so plainly rather
+  // than implying the window changed.
+  const exactRange =
     dashboard.fromDate && dashboard.toDate
       ? `${shortDate(dashboard.fromDate)} – ${shortDate(dashboard.toDate)}`
       : `Last ${dashboard.dataDays} days`;
+  const historyShorterThanWindow = dashboard.dataDays < rangeDays;
+  const rangeLabel = historyShorterThanWindow
+    ? `${exactRange} · all ${dashboard.dataDays} days available`
+    : exactRange;
 
   return (
     <div className={shellCls}>
@@ -276,38 +326,57 @@ export function KeywordsTab() {
                 key={r.days}
                 type="button"
                 onClick={() => setRangeDays(r.days)}
-                className={`rounded-[7px] px-3 py-1.5 text-[11px] font-black uppercase tracking-widest transition-colors focus:outline-none ${
+                className={`rounded-[7px] px-3 py-1.5 text-[11px] font-black uppercase tracking-wide transition-colors focus:outline-none ${
                   active
                     ? "bg-alloro-navy text-white"
                     : "text-slate-500 hover:bg-slate-50 hover:text-alloro-navy"
                 }`}
               >
-                {r.label}
+                {WINDOW_LABELS_BY_DAYS[r.days] ?? windowLabel(r.key)}
               </button>
             );
           })}
         </div>
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-3">
-        <StatTile label="Clicks" value={fmt(totals?.clicks ?? 0)} hint="Visits from Google search" />
+      <div className="grid gap-5 sm:grid-cols-2">
+        <StatTile
+          label="Clicks"
+          value={fmt(totals?.clicks ?? 0)}
+          hint="Visits from Google search in this window"
+        />
         <StatTile
           label="Impressions"
           value={fmt(totals?.impressions ?? 0)}
-          hint="Times you appeared in search"
-        />
-        <StatTile
-          label="Avg position"
-          value={fmtPosition(totals?.position ?? 0)}
-          hint="Average search rank"
-          infoTip="Your average position in Google results. Lower is better — position 1 is the top."
+          hint="Times you appeared in search in this window"
         />
       </div>
 
       <div className="grid gap-5 md:grid-cols-2">
-        <TrendCard title="Clicks · daily" data={series} valueKey="clicks" />
-        <TrendCard title="Impressions · daily" data={series} valueKey="impressions" />
+        <TrendCard
+          title="Clicks · daily"
+          unit="clicks"
+          total={totals?.clicks ?? 0}
+          data={series}
+          valueKey="clicks"
+        />
+        <TrendCard
+          title="Impressions · daily"
+          unit="impressions"
+          total={totals?.impressions ?? 0}
+          data={series}
+          valueKey="impressions"
+        />
       </div>
+
+      {/* Explainer (#13) — owners weren't sure what these two tables show. */}
+      <p className="text-[12px] leading-relaxed text-[color:var(--color-pm-text-secondary)]">
+        <span className="font-semibold text-alloro-navy">Top queries</span> are
+        the search terms people typed on Google to find you;{" "}
+        <span className="font-semibold text-alloro-navy">Top pages</span> are the
+        pages of your site they landed on. Clicks and impressions match the
+        window selected above.
+      </p>
 
       <KeywordTable
         title="Top queries"

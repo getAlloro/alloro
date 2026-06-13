@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { ArrowUp, ChevronRight } from "lucide-react";
 import { ActionBanner } from "../../dashboard/ActionBanner";
+import { PeriodToggle } from "../../dashboard/PeriodToggle";
+import { InsightCue, type InsightTrend } from "../../dashboard/InsightCue";
+import { formatDataMonth, TO_DATE } from "../../../utils/timeframe";
 import { PmsEmptyDashboardState } from "./PmsEmptyDashboardState";
 import { PmsProcessingStatusCard } from "./PmsProcessingStatusCard";
 import { PmsEyebrow } from "./primitives";
@@ -10,7 +13,7 @@ import { buildSourceDetailLookup, buildSourceTrendLookup } from "./sourceTrend";
 import {
   bucketByPeriod,
   scopedTotals,
-  periodCardLabel,
+  latestMonthKey,
   periodChartLabel,
   type HubTrendDatum,
   type Period,
@@ -35,44 +38,25 @@ import type { PmsDashboardSurfaceProps } from "./PmsDashboardSurface";
  * Spec: plans/06102026-referrals-hub-simplification/spec.html (T4, Rev 2)
  */
 
-function PeriodToggle({
-  period,
-  onChange,
-}: {
-  period: Period;
-  onChange: (p: Period) => void;
-}) {
-  const options: Period[] = ["MONTH", "QTR", "YTD"];
-  return (
-    <div className="inline-flex rounded-full bg-[#EDEAE5] p-0.5">
-      {options.map((o) => {
-        const active = period === o;
-        return (
-          <button
-            key={o}
-            type="button"
-            onClick={() => onChange(o)}
-            className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider transition-colors ${
-              active
-                ? "bg-white text-alloro-navy shadow-sm"
-                : "text-ink-muted hover:text-alloro-navy"
-            }`}
-          >
-            {o}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+/** MONTH/QTR/YTD options for the shared terracotta PeriodToggle. MONTH names
+ *  the latest uploaded month in the tile; QTR/YTD are cumulative to-date
+ *  measures, abbreviated per the standard (tooltips spell them out). */
+const PERIOD_OPTIONS: { key: Period; label: string; tooltip?: string }[] = [
+  { key: "MONTH", label: "Month" },
+  { key: "QTR", label: TO_DATE.QTD.label, tooltip: TO_DATE.QTD.full },
+  { key: "YTD", label: TO_DATE.YTD.label, tooltip: TO_DATE.YTD.full },
+];
 
 function StatTile({
   label,
   value,
+  sub,
   isLoading,
 }: {
   label: string;
   value: string;
+  /** Optional second line under the value (e.g. the YTD figure, "All-time"). */
+  sub?: string;
   isLoading: boolean;
 }) {
   return (
@@ -83,9 +67,16 @@ function StatTile({
       {isLoading ? (
         <div className="h-7 w-24 animate-pulse rounded-lg bg-line-soft" />
       ) : (
-        <span className="font-display text-2xl font-medium leading-none tracking-tight tabular-nums text-alloro-navy">
-          {value}
-        </span>
+        <>
+          <span className="font-display text-2xl font-medium leading-none tracking-tight tabular-nums text-alloro-navy">
+            {value}
+          </span>
+          {sub ? (
+            <span className="mt-1.5 block text-[11px] font-semibold uppercase tracking-wide text-ink-muted tabular-nums">
+              {sub}
+            </span>
+          ) : null}
+        </>
       )}
     </div>
   );
@@ -166,9 +157,32 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
 
   const trendData = bucketByPeriod(monthlyData, period);
   const scoped = scopedTotals(monthlyData, period);
-  // Fixed YTD reference tile — derived from the months series so it stays a
-  // true year-to-date figure (totalProduction prop is all-time source sum).
+  // YTD reference — derived from the months series so it stays a true
+  // year-to-date figure (totalProduction prop is all-time source sum). Shown
+  // as the secondary line BESIDE the monthly production number (#3.3), not a
+  // standalone tile.
   const ytd = scopedTotals(monthlyData, "YTD");
+  // The named latest uploaded month ("April 2026") for the MONTH-period label —
+  // never a bare "this mo" (#3.1). Anchored to the same latest key the chart
+  // and totals use.
+  const namedMonth = formatDataMonth(latestMonthKey(monthlyData));
+  // Spelled period label for the production/referrals tiles: MONTH names the
+  // month; QTR/YTD use their full to-date wording.
+  const periodLabel =
+    period === "MONTH" ? namedMonth || "Latest month" : period === "QTR" ? TO_DATE.QTD.full : TO_DATE.YTD.full;
+
+  // One-line trend cue (#3.4): compare the last two production buckets of the
+  // ACTIVE series so the cue tracks the toggled view. up → "strong",
+  // down → "spend time here", flat → "holding" (also when < 2 buckets).
+  const trend: InsightTrend = (() => {
+    if (trendData.length < 2) return "flat";
+    const last = trendData[trendData.length - 1].production;
+    const prev = trendData[trendData.length - 2].production;
+    if (last > prev) return "up";
+    if (last < prev) return "down";
+    return "flat";
+  })();
+
   const trendFor = buildSourceTrendLookup(referralData);
   const detailFor = buildSourceDetailLookup(referralData);
 
@@ -188,25 +202,40 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
       : { title: rawFix.title, description: rawFix.description || null }
     : null;
 
-  // `slot` is the React key — labels can collide (YTD period relabels tile 1
-  // to "YTD" while tile 4 is always "YTD"), and duplicate keys corrupt
-  // reconciliation (tiles visibly duplicate when toggling periods).
-  // Hovering a chart point scopes production + referrals to that bucket;
-  // SOURCES stays the all-time count (no per-month source data in keyData)
-  // and YTD is always the fixed annual reference.
-  const tiles: { slot: string; label: string; value: string }[] = [
+  // `slot` is the React key — labels can collide (e.g. a hovered bucket and
+  // the period label), and duplicate keys corrupt reconciliation (tiles
+  // visibly duplicate when toggling periods).
+  // Hovering a chart point scopes production + referrals to that bucket.
+  // The YTD figure rides BESIDE the monthly production number as a sub-line
+  // (#3.3), shown only off-YTD and when not hovering a specific bucket — on
+  // YTD the headline already IS the year-to-date number, and a hovered bucket
+  // is a point-in-time read where a YTD anchor would mislead.
+  // SOURCES carries no per-period data in keyData, so it is explicitly marked
+  // all-time (#3.2) rather than silently ignoring the toggle.
+  const showYtdSub = period !== "YTD" && !hovered;
+  const tiles: {
+    slot: string;
+    label: string;
+    value: string;
+    sub?: string;
+  }[] = [
     {
       slot: "period-production",
-      label: hovered ? hovered.fullLabel : periodCardLabel(period),
+      label: hovered ? hovered.fullLabel : periodLabel,
       value: formatCompactCurrency(hovered ? hovered.production : scoped.production),
+      sub: showYtdSub ? `YTD ${formatCompactCurrency(ytd.production)}` : undefined,
     },
     {
       slot: "referrals",
-      label: "Referrals",
+      label: hovered ? `Referrals · ${hovered.fullLabel}` : `Referrals · ${periodLabel}`,
       value: String(hovered ? hovered.referrals : scoped.referrals),
     },
-    { slot: "sources", label: "Sources", value: String(topSources.length) },
-    { slot: "ytd", label: "YTD", value: formatCompactCurrency(ytd.production) },
+    {
+      slot: "sources",
+      label: "Sources",
+      value: String(topSources.length),
+      sub: "All-time",
+    },
   ];
 
   return (
@@ -218,7 +247,12 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
         <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-ink-muted">
           Referrals Hub
         </span>
-        <PeriodToggle period={period} onChange={handlePeriodChange} />
+        <PeriodToggle
+          options={PERIOD_OPTIONS}
+          active={period}
+          onChange={handlePeriodChange}
+          ariaLabel="Referrals timeframe"
+        />
       </div>
 
       {isProcessingInsights && <PmsProcessingStatusCard />}
@@ -241,9 +275,12 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
             onHoverChange={setHovered}
           />
 
-          <div data-wizard-target="pms-vitals" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {/* One-line read on the trend (#3.4) — strong / spend-time-here. */}
+          {trendData.length >= 2 && <InsightCue trend={trend} />}
+
+          <div data-wizard-target="pms-vitals" className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {tiles.map((t) => (
-              <StatTile key={t.slot} label={t.label} value={t.value} isLoading={isLoading} />
+              <StatTile key={t.slot} label={t.label} value={t.value} sub={t.sub} isLoading={isLoading} />
             ))}
           </div>
 

@@ -2,6 +2,35 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.123] - June 2026
+
+### Dashboard Revamp — 24-Item Feedback Round (Plans 0–5)
+
+A full clarity pass over the client dashboard so it reads as one product: every number now states its timeframe, the time-format is standardized, cross-surface data reconciles, and one-line insight cues replace removed context. Driven by the owner's 24-item "Dashboard Revamp Review" and QA'd in a live One Endodontics pilot.
+
+**Key Changes:**
+
+- **Timeframe foundation (Plan 0):** new shared `utils/timeframe.ts` — spelled durations ("28 Days", "3 Months"), abbreviated to-date (MTD/QTD/YTD), `formatDataMonth` named-month labeler, and `currentMonthLabel` (UTC, matches the metrics window) — plus `PeriodToggle` (terracotta active pill) and `InsightCue` (one-line trend cue) primitives.
+- **Practice Hub (#1, #2, #22, #23, #24):** every stat card labels its window with a named month; Referrals shows the signed month-over-month delta ("42 down"); Local rank's status moved to a tinted sub-line below the number; Reviews shows this-month new reviews labeled with the current month; the "1 thing" action card is one subject + a short rationale (agent prompt + schema cap); a one-line production cue.
+- **Referrals Hub (#3, #4):** MONTH/QTD/YTD toggle that re-scopes the tiles; named-month tiles with the YTD figure beside the monthly one.
+- **Local Rankings (#5, #6):** removed the dormant period toggle and the manual "Update location" refresh banner; map zooms in; reviews read from the canonical dashboard-metrics source (resolves the 163-vs-152 split); "Rating vs Market"; competitors strip moved up below the hero with a "Manage competitor list" label.
+- **Reviews & Posts (#7–#11):** terracotta active tab; self-explaining review stats; "Reply Drafts" → "Drafts Ready for Review"; internal "Safe" badge hidden client-side; stray range count removed; Posts "why it matters" blurb; client automation toggles hidden in Settings; review cards switched from grayish (slate-50) to white.
+- **Website (#12–#21):** nav reordered with page-vs-post descriptions moved into a tab (i) tooltip; honest timeframe-span labels on Keywords; "Avg Position" removed; conversion reframed as last full month (no month-to-date artifact); green leads line; axis-honest Traffic/Leads popouts; "/" page reads as "Home"; orange post-score number removed.
+- **Cross-cutting:** one time-format standard everywhere (#22); data validity — every figure carries a labeled window and the latest uploaded month is named (#23); one-line insight cues restored (#24).
+- **Convention:** `AGENTS.md` updated — plan specs are now self-contained `spec.html` (inline `<style>`, no separate `spec.css`).
+
+**Commits:**
+
+- `frontend/src/utils/timeframe.ts` (new) — shared time-format helpers; `frontend/src/components/dashboard/InsightCue.tsx` + `PeriodToggle.tsx` (new) — dashboard primitives.
+- `frontend/src/components/dashboard/focus/` — `StatCardRow` / `StatCard` / `statusRules` (referral delta, Local-rank sub-line + `subTone`, this-month reviews); `ProductionPanel` (insight cue).
+- `frontend/src/components/dashboard/RankingsDashboard.tsx` + `rankings-hub/RankingsHubSurface.tsx` / `RankingsMapCard.tsx` — refresh banner + dead code removed, map zoom, canonical reviews, competitors strip + "Manage competitor list".
+- `frontend/src/components/PMS/dashboard/PmsHubSurface.tsx` / `pmsPeriod.ts` — Referrals timeframe toggle.
+- `frontend/src/components/dashboard/gbp-automation/*` + `frontend/src/pages/GbpManagerPage.tsx` — Reviews & Posts clarity (tabs, stats, drafts rename, Safe badge, range count, posts blurb, settings, white cards).
+- `frontend/src/components/website/*` + `frontend/src/pages/DFYWebsite.tsx` + `frontend/src/components/Admin/PostsTab.tsx` — nav reorder, tab (i) tooltip, Keywords labels, conversion validity, Pages "Home", post-score removal.
+- `src/agents/monthlyAgents/Summary.md` + `src/controllers/agents/types/agent-output-schemas.ts` — one-subject action directive + rationale length cap.
+- `AGENTS.md` — self-contained `spec.html` convention.
+- `plans/06132026-*` (6 plan folders) — specs marked Completed.
+
 ## [0.0.122] - June 2026
 
 ### Auth: OTP Login Codes Bypass Email Interception

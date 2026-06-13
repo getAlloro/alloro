@@ -51,7 +51,7 @@ export function GbpEligibleReviewRow({
       : "bg-alloro-orange hover:bg-alloro-orange/90";
 
   return (
-    <div className="rounded-[10px] border border-slate-200 bg-slate-50 p-3">
+    <div className="rounded-[10px] border border-slate-200 bg-white p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">

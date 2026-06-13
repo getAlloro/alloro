@@ -137,6 +137,16 @@ export function bucketByPeriod(
     });
 }
 
+/**
+ * The latest uploaded month KEY (display-label form, e.g. "Apr 2026") — the
+ * canonical "current" anchor the surface names via formatDataMonth. Reuses the
+ * same ascending sort scopedTotals/bucketByPeriod use, so "latest" is identical
+ * across the chart, the tiles, and the named-month label. Null when no months.
+ */
+export function latestMonthKey(months: PmsDashboardMonth[]): string | null {
+  return sortAsc(months).at(-1)?.month ?? null;
+}
+
 /** Headline totals scoped to the selected period (anchored to latest data month). */
 export function scopedTotals(
   months: PmsDashboardMonth[],
@@ -166,11 +176,6 @@ export function scopedTotals(
       return p && p.year === lp?.year && quarterOf(p.month) === lastQ;
     }),
   );
-}
-
-/** Label for the period-scoped production stat tile. */
-export function periodCardLabel(period: Period): string {
-  return period === "MONTH" ? "This mo" : period === "QTR" ? "This qtr" : "YTD";
 }
 
 /** Label appended to the chart eyebrow. */

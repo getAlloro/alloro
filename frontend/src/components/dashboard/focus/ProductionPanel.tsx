@@ -9,6 +9,7 @@ import {
 } from "../../../contexts/OnboardingWizardContext";
 import { FocusTrendChart, type FocusTrendDatum } from "./FocusTrendChart";
 import { parseYM } from "../../PMS/dashboard/pmsPeriod";
+import { InsightCue } from "../InsightCue";
 import { TONE_COLOR } from "./statusRules";
 
 /**
@@ -193,6 +194,12 @@ export function ProductionPanel() {
           valueLabel={(value) => `${compactCurrency(value)} production`}
         />
       </div>
+
+      {change != null && (
+        <div className="mt-4">
+          <InsightCue trend={up ? "up" : "down"} />
+        </div>
+      )}
     </Shell>
   );
 }

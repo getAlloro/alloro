@@ -19,6 +19,22 @@ function formatDate(value: string): string {
       });
 }
 
+/**
+ * Human label for a page row. The "/" route is the homepage — owners don't
+ * recognize it as a bare slash (#19), so surface it as "Home".
+ *
+ * TODO(#19 rename): the feedback also asks to let owners rename a page's label
+ * from this list. Pages currently carry only `path` + `status` (no editable
+ * `display_label` column, no rename endpoint — confirmed in PageModel /
+ * UserWebsiteController). A real rename needs a backend field + endpoint +
+ * migration, which is its own small plan. Shipping the honest "Home" label now
+ * rather than a rename input that would silently drop on reload.
+ */
+function pageLabel(path: string): string {
+  const p = (path || "/").trim();
+  return p === "/" ? "Home" : p;
+}
+
 function StatusPill({ status }: { status: string }) {
   const normalized = (status || "").toLowerCase();
   const published = normalized === "published" || normalized === "live";
@@ -87,10 +103,13 @@ export function WebsitePagesTab({
                     <FileText size={16} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-mono text-[13px] font-semibold text-alloro-navy">
-                      {page.path || "/"}
+                    <span className="block truncate text-[13px] font-semibold text-alloro-navy">
+                      {pageLabel(page.path)}
                     </span>
                     <span className="mt-0.5 block text-[11px] text-[color:var(--color-pm-text-secondary)]">
+                      {page.path !== "/" && (
+                        <span className="font-mono">{page.path || "/"} · </span>
+                      )}
                       Updated {formatDate(page.updated_at)}
                     </span>
                   </span>

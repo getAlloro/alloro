@@ -53,13 +53,18 @@ export type GbpClientReviewsPanelProps = {
   recentWindowDays?: number;
   /** Needs-Reply range tab selected on mount (default "latest"). */
   initialNeedsReplyRange?: GbpReviewRange;
+  /**
+   * Hide the reassuring "Safe" badge on reply/draft rows. Set true by the
+   * client /gbp-manager surface; the admin reviews panel leaves it false.
+   */
+  hideSafeBadge?: boolean;
 };
 
 type ReviewsManagerTab = "needsReply" | "drafts" | "replied";
 
 const REVIEW_TABS: Array<{ key: ReviewsManagerTab; label: string }> = [
   { key: "needsReply", label: "Needs Reply" },
-  { key: "drafts", label: "Reply Drafts" },
+  { key: "drafts", label: "Drafts Ready for Review" },
   { key: "replied", label: "Replied" },
 ];
 
@@ -90,6 +95,7 @@ export function GbpClientReviewsPanel({
   onRepliedMonthChange,
   recentWindowDays,
   initialNeedsReplyRange,
+  hideSafeBadge = false,
 }: GbpClientReviewsPanelProps) {
   const [activeTab, setActiveTab] = useState<ReviewsManagerTab>("needsReply");
   const sourceReviews = [...reviews, ...repliedReviews];
@@ -131,12 +137,14 @@ export function GbpClientReviewsPanel({
           onSelectedMonthChange={onNeedsReplyMonthChange}
           recentWindowDays={recentWindowDays}
           initialRange={initialNeedsReplyRange}
+          hideSafeBadge={hideSafeBadge}
         />
       ) : activeTab === "drafts" ? (
         <GbpReplyDraftsPanel
           reviews={sourceReviews}
           workItems={workItems}
           isBusy={isBusy}
+          hideSafeBadge={hideSafeBadge}
           onSave={onSaveWorkItemDraft}
           onApprove={onApproveWorkItemDraft}
           onDeploy={onDeployWorkItemDraft}

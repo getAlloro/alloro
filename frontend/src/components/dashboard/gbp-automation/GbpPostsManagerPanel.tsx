@@ -33,6 +33,12 @@ export type GbpPostsManagerPanelProps = {
   onRegeneratePost: (workItemId: string) => void | Promise<unknown>;
   onDeployPost: (input: GbpLocalPostDeployInput) => void | Promise<unknown>;
   onDelete: (workItemId: string) => void | Promise<unknown>;
+  /**
+   * Show a short "why Google Posts matter" note above the tabs. Set true by the
+   * client /gbp-manager surface (the Posts tab was otherwise bare, #10). The
+   * admin work-items panel does not use this component, so it defaults off.
+   */
+  showVisibilityNote?: boolean;
 };
 
 type PostTab = "published" | "drafts";
@@ -59,6 +65,7 @@ export function GbpPostsManagerPanel({
   onRegeneratePost,
   onDeployPost,
   onDelete,
+  showVisibilityNote = false,
 }: GbpPostsManagerPanelProps) {
   const [activePostTab, setActivePostTab] = useState<PostTab>("published");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -93,6 +100,13 @@ export function GbpPostsManagerPanel({
 
   return (
     <section className="rounded-[14px] border border-line-soft bg-white p-5 shadow-premium">
+      {showVisibilityNote && (
+        <p className="mb-4 text-[13px] font-medium leading-relaxed text-ink-muted">
+          Fresh Google Posts keep your Business Profile active and give Google
+          new, recent content to surface — which helps your practice show up in
+          local Map and Search results. Aim for a post every week or two.
+        </p>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="inline-flex rounded-[10px] bg-slate-100 p-1">
           {(["published", "drafts"] as const).map((tab) => {

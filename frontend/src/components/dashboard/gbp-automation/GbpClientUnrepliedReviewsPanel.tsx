@@ -39,6 +39,8 @@ export type GbpClientUnrepliedReviewsPanelProps = {
   recentWindowDays?: number;
   /** Range tab selected on mount (default "latest"). */
   initialRange?: GbpReviewRange;
+  /** Hide the reassuring "Safe" badge on reply drafts (client view). */
+  hideSafeBadge?: boolean;
 };
 
 const DRAFT_AVAILABLE_STATUSES = new Set(["draft", "awaiting_approval", "approved"]);
@@ -98,6 +100,7 @@ export function GbpClientUnrepliedReviewsPanel({
   onSelectedMonthChange,
   recentWindowDays = 30,
   initialRange = "latest",
+  hideSafeBadge = false,
 }: GbpClientUnrepliedReviewsPanelProps) {
   const [range, setRange] = useState<GbpReviewRange>(initialRange);
   const [expandedReviewId, setExpandedReviewId] = useState<string | null>(null);
@@ -131,10 +134,6 @@ export function GbpClientUnrepliedReviewsPanel({
     return actionableReviews.slice(0, 10);
   }, [actionableReviews, range, recentWindowDays, selectedMonth]);
   const isAllLoaded = range === "all";
-  const displayedReviewCount =
-    isLoading && isAllLoaded
-      ? selectedMonthCount(monthBuckets, selectedMonth)
-      : visibleReviews.length;
   const handleRangeChange = (nextRange: GbpReviewRange) => {
     setRange(nextRange);
     onSelectedMonthChange(
@@ -146,7 +145,6 @@ export function GbpClientUnrepliedReviewsPanel({
     <div className="space-y-3">
       {replyOps && <GbpClientReplyOpsCards replyOps={replyOps} />}
       <GbpReviewRangeControls
-        count={displayedReviewCount}
         range={range}
         onRangeChange={handleRangeChange}
         recentWindowDays={recentWindowDays}
@@ -190,6 +188,7 @@ export function GbpClientUnrepliedReviewsPanel({
                         item={item}
                         isBusy={isBusy}
                         isGenerating={isGenerating}
+                        hideSafeBadge={hideSafeBadge}
                         onSaveDraft={onSaveDraft}
                         onDeployDraft={onDeployDraft}
                         onGenerateDraft={async (reviewId) => {

@@ -9,6 +9,11 @@ import {
 } from "../../../contexts/OnboardingWizardContext";
 import { StatCard } from "./StatCard";
 import {
+  formatDataMonth,
+  monthSortValue,
+  currentMonthLabel,
+} from "../../../utils/timeframe";
+import {
   referralStatus,
   localRankStatus,
   reviewTone,
@@ -33,6 +38,10 @@ interface CardModel {
   trailing: string | null;
   trailingTone: StatusTone | null;
   dotTone: StatusTone;
+  /** Timeframe window line under the value (e.g. "April 2026", "all-time"). */
+  sub?: string | null;
+  /** Tone for the sub line — tinted for status subs (Local rank), else muted. */
+  subTone?: StatusTone | null;
   href?: string;
   wizardTarget?: string;
 }
@@ -64,104 +73,128 @@ export function StatCardRow() {
     // ---- Demo data path (onboarding tour) ------------------------------
     const dm = wizard.dashboardMetrics;
     const months = wizard.pmsCardData.months;
-    const thisRef = months.at(-1)?.totalReferrals ?? null;
+    const latest = months.at(-1) ?? null;
+    const thisRef = latest?.totalReferrals ?? null;
     const priorRef = months.at(-2)?.totalReferrals ?? null;
     const refStatus = referralStatus(thisRef, priorRef);
     const rankStatus = localRankStatus(null); // demo has no days_since_last_post
     const rating = dm.reviews.average_rating;
+    const demoMonth = formatDataMonth(latest?.month);
 
     cards = [
       {
         label: "Referrals",
-        value: String(dm.pms.total_referrals),
+        value: thisRef != null ? String(thisRef) : String(dm.pms.total_referrals),
         trailing: refStatus.text,
         trailingTone: refStatus.tone,
         dotTone: refStatus.tone,
+        sub: demoMonth || null,
         href: REFERRALS_HREF,
       },
       {
         label: "Local rank",
         value: `#${dm.ranking.position}`,
-        trailing: rankStatus.text,
-        trailingTone: rankStatus.tone,
+        trailing: null,
+        trailingTone: null,
         dotTone: rankStatus.tone,
+        // Status nudge ("Google Post Due") sits below the rank, not beside it.
+        sub: rankStatus.text,
+        subTone: rankStatus.tone,
         href: RANK_HREF,
         wizardTarget: "dashboard-visibility",
       },
       {
         label: "Reviews",
-        value: String(dm.reviews.total),
+        value: String(dm.reviews.this_month),
         trailing: ratingText(rating),
         trailingTone: null,
         dotTone: reviewTone(rating),
+        sub: currentMonthLabel(),
         href: REVIEWS_HREF,
       },
       {
-        label: "Form subs",
+        label: "Form Submissions",
         value: String(dm.form_submissions.total),
-        trailing: "this mo",
+        trailing: null,
         trailingTone: null,
         dotTone: formSubsTone(dm.form_submissions.total),
+        sub: demoMonth || null,
         href: FORMS_HREF,
         wizardTarget: "dashboard-website",
       },
     ];
   } else {
     // ---- Real data path ------------------------------------------------
-    const pms = metrics.data?.pms;
     const ranking = metrics.data?.ranking;
     const gbp = metrics.data?.gbp;
     const reviews = metrics.data?.reviews;
 
-    const sortedMonths = [...(keyData.data?.months ?? [])].sort((a, b) =>
-      a.month.localeCompare(b.month),
+    // Chronological — month keys can be display labels ("Apr 2026"); a plain
+    // localeCompare misorders them (same bug as the backend monthKey fix).
+    const sortedMonths = [...(keyData.data?.months ?? [])].sort(
+      (a, b) => monthSortValue(a.month) - monthSortValue(b.month),
     );
-    const thisRef = sortedMonths.at(-1)?.totalReferrals ?? null;
+    const latestMonth = sortedMonths.at(-1) ?? null;
+    const thisRef = latestMonth?.totalReferrals ?? null;
     const priorRef = sortedMonths.at(-2)?.totalReferrals ?? null;
-    const refStatus = referralStatus(
-      pms?.total_referrals != null ? thisRef : null,
-      priorRef,
-    );
+    const refStatus = referralStatus(thisRef, priorRef);
+    const referralsMonth = formatDataMonth(latestMonth?.month);
 
     const rankStatus = localRankStatus(gbp?.days_since_last_post ?? null);
     const position = ranking?.position ?? null;
     const rating = reviews?.current_rating ?? null;
-    const reviewCount = reviews?.total_review_count ?? null;
+    // Reviews card shows THIS MONTH's new reviews, not the all-time total.
+    // reviews_this_month is bounded to the current calendar month: the metrics
+    // endpoint sets dateRange = 1st-of-month..today (UTC) and the GBP review
+    // window is filtered by createTime within that range (DashboardController →
+    // computeDashboardMetrics → review window). So it is labeled with the current
+    // month (currentMonthLabel). The standing rating (current_rating, the all-time
+    // Google average) sits beside it — we store no month-scoped average. All-time
+    // total lives on the Reviews & Posts page and Local Rankings' all-time line.
+    const reviewsThisMonth = reviews?.reviews_this_month ?? null;
 
-    const thisMonthSubs = timeseries.data?.at(-1)?.total ?? null;
+    const latestSubs = timeseries.data?.at(-1) ?? null;
+    const thisMonthSubs = latestSubs?.total ?? null;
+    const submissionsMonth = formatDataMonth(latestSubs?.month);
 
     cards = [
       {
         label: "Referrals",
-        value: pms?.total_referrals != null ? String(pms.total_referrals) : "—",
+        value: thisRef != null ? String(thisRef) : "—",
         trailing: refStatus.text,
         trailingTone: refStatus.tone,
         dotTone: refStatus.tone,
+        sub: referralsMonth || null,
         href: REFERRALS_HREF,
       },
       {
         label: "Local rank",
         value: position != null ? `#${position}` : "—",
-        trailing: rankStatus.text,
-        trailingTone: rankStatus.tone,
+        trailing: null,
+        trailingTone: null,
         dotTone: rankStatus.tone,
+        // Status nudge ("Google Post Due") sits below the rank, not beside it.
+        sub: rankStatus.text,
+        subTone: rankStatus.tone,
         href: RANK_HREF,
         wizardTarget: "dashboard-visibility",
       },
       {
         label: "Reviews",
-        value: reviewCount != null ? String(reviewCount) : "—",
+        value: reviewsThisMonth != null ? String(reviewsThisMonth) : "—",
         trailing: ratingText(rating),
         trailingTone: null,
         dotTone: reviewTone(rating),
+        sub: currentMonthLabel(),
         href: REVIEWS_HREF,
       },
       {
-        label: "Form subs",
+        label: "Form Submissions",
         value: thisMonthSubs != null ? String(thisMonthSubs) : "—",
-        trailing: "this mo",
+        trailing: null,
         trailingTone: null,
         dotTone: formSubsTone(thisMonthSubs),
+        sub: submissionsMonth || null,
         href: FORMS_HREF,
         wizardTarget: "dashboard-website",
       },

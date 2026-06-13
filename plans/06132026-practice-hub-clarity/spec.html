@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Practice Hub Clarity Spec</title>
+  <style>
+    :root { color-scheme: light; --paper: #ffffff; --ink: #080808; --muted: #5f5f5f; --line: #d8d8d8; --soft: #f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.5; }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Completed</span>
+      </div>
+      <h1>Practice Hub Clarity</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed — 2026-06-13</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06132026-practice-hub-clarity</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p><strong>Plan 1 of the dashboard-revamp feedback round</strong> — covers PDF items <strong>#1</strong> (stat-card clarity: every value needs a labeled timeframe; three are unlabeled all-time) and <strong>#2</strong> (the "1 thing" action card is too wordy and reads as 2 tasks). Consumes the Plan 0 primitives. This is the simplest surface to prove the new standard on, and the agent fix in #2 has a confirmed root cause.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Done when:</p>
+      <ul>
+        <li><strong>Agent (#2):</strong> the Practice Hub "1 thing that matters" card describes <em>one subject + one concrete next step</em> in <em>1–2 sentences</em> — no more two-office "do both" paragraphs.</li>
+        <li><strong>Cards (#1):</strong> every stat card states its window (mixed-but-labeled): Referrals = latest month (named), Reviews = all-time total + rating (labeled, clarified "all reviews"), Form Submissions = latest month (named), Local Rank = current. "post due" → "Google Post Due". "Form Subs" → "Form Submissions".</li>
+        <li><strong>Review number reconciles (#1):</strong> the Practice Hub review total is declared the canonical source; the 163-vs-152 split is resolved at the source-of-truth level (Local Rankings switches to it in Plan 3 — dependency noted, not executed here).</li>
+        <li><strong>Insight (#24):</strong> a one-line <code>InsightCue</code> on the production trend (up = "strong", down = "spend time here").</li>
+        <li><code>tsc</code> (both) + eslint clean.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Confirmed in code (the findings driving this plan)</h3>
+      <ul>
+        <li><strong>Cards have no shared window:</strong> <code>StatCardRow.tsx</code> — Referrals = <code>dm.pms.total_referrals</code> (ALL-TIME sum; a <code>total_referrals_this_month</code> already exists), Reviews = <code>reviews.total_review_count</code> (ALL-TIME), Form Subs value = <code>form_submissions.total</code> but labeled "this mo" (mislabel), Local Rank = snapshot.</li>
+        <li><strong>Review mismatch 163 vs 152:</strong> Practice Hub 163 = <code>dashboard-metrics</code> summing <code>loc.data.reviews.allTime.totalReviewCount</code> (live GBP aggregation). Local Rankings 152 = <code>service.apify.ts</code> scrape snapshot from the last ranking run. Two pipelines, two fetch moments.</li>
+        <li><strong>Agent "2 tasks" root cause:</strong> <code>Summary.md</code> CROSS-SOURCE CONSOLIDATION RULE (lines 154–178) tells it to merge signals into one action citing both; combined with an <strong>uncapped</strong> <code>rationale</code> (<code>z.string().min(1)</code>, no max in <code>agent-output-schemas.ts</code>), the agent synthesizes multi-subject paragraphs (Chancellor Crossing AND Neibauer).</li>
+      </ul>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/agents/monthlyAgents/Summary.md</code> — RULES (line ~35), CONSOLIDATION RULE (~154), OUTPUT example (~212 rationale).</li>
+        <li><code>src/controllers/agents/types/agent-output-schemas.ts</code> — <code>TopActionSchema.rationale</code> (line ~370, no max), <code>SummaryV2OutputSchema</code>.</li>
+        <li><code>frontend/src/components/dashboard/focus/StatCardRow.tsx</code> — the four cards (real branch ~line 69, wizard branch ~line 121).</li>
+        <li><code>frontend/src/components/dashboard/focus/StatCard.tsx</code> — presentational tile (value + trailing).</li>
+        <li><code>frontend/src/components/dashboard/focus/ProductionPanel.tsx</code> — where the <code>InsightCue</code> lands (it already holds the YTD trend + month-over-month change).</li>
+        <li><code>src/utils/dashboard-metrics/service.dashboard-metrics.ts</code> — <code>total_referrals_this_month</code> (~line 625), <code>total_review_count</code> (~177), <code>form_submissions</code> via <code>buildFormSubmissionsMetrics</code> (~449/852).</li>
+        <li><strong>Plan 0 primitives consumed:</strong> <code>utils/timeframe.ts</code> (<code>formatDataMonth</code>), <code>InsightCue.tsx</code>.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Named-month labels via <code>formatDataMonth</code> (Plan 0) — never a bare "this mo".</li>
+        <li>Agent edits are prompt + schema only; no change to the monthly pipeline or task-creator.</li>
+        <li>Card trailing labels stay terse; the window is the trailing text or a small sub.</li>
+      </ul>
+      <p><strong>Reference files:</strong> <code>OneThingBanner.tsx</code> (already on the shared ActionBanner), <code>ProductionPanel.tsx</code> (trend source for the cue), <code>monthKey.ts</code> (the backend month-sort fix this builds on).</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Cards mixed-but-labeled per the locked decision (Referrals & Form Submissions = latest month named; Reviews = all-time + rating; Local Rank = current).</li>
+            <li>Agent: one subject + one next step; rationale 1–2 sentences; keep the same-entity consolidation behavior (only forbid multi-subject synthesis).</li>
+            <li>Declare <code>dashboard-metrics.reviews</code> the canonical review total + rating source.</li>
+            <li>Consume Plan 0's <code>formatDataMonth</code> + <code>InsightCue</code> (don't re-implement).</li>
+            <li>Read the agent md + schema + StatCardRow before editing (no edit-from-memory).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No change to the monthly agent pipeline / task-creator / supporting_metrics contract (still 3).</li>
+            <li>Do NOT execute the Local Rankings review-source switch here (that's Plan 3 — only declare the canonical).</li>
+            <li>No hard schema cap so tight it could reject a whole monthly run (see Pushback).</li>
+            <li>No new endpoints.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Local Rankings reviews card switching to the canonical source — Plan 3 (dependency).</li>
+        <li>domain_summaries rendering (unused on the simplified hub; left as-is).</li>
+        <li>Other surfaces' timeframe work (Plans 2–5).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 — an agent-prompt change affects the monthly output (not retroactive); the schema guard must not be brittle; the review-source reconciliation crosses into Plan 3.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>R1 — Brittle rationale cap (Level 2).</strong> A tight schema <code>.max()</code> on <code>rationale</code> is fail-closed: if the agent writes one char over, the WHOLE monthly summary rejects and the doctor sees no action. <strong>Mitigation:</strong> prompt-tighten to 1–2 sentences + update the worked example, AND add a <em>generous</em> schema guard (<code>.max(400)</code>, a runaway backstop ~3 sentences) rather than a tight 280. Enforcement without realistic rejection.</li>
+        <li><strong>R2 — Consolidation regression (Level 2).</strong> Over-correcting the consolidation rule could break legitimate same-entity merges. <strong>Mitigation:</strong> keep "same entity → may reference both signals"; add only a "ONE subject, ONE next step; never bundle multiple offices/sources/factors into a do-all action" constraint.</li>
+        <li><strong>R3 — Agent change not retroactive (Level 1).</strong> Takes effect on the next monthly run per location. <strong>Mitigation:</strong> note it; existing cards reflect old output until the next run.</li>
+        <li><strong>R4 — Form-subs field semantics (Level 1).</strong> Must confirm whether <code>form_submissions.total</code> is all-time vs this-month and where the latest-month count lives (the wizard branch uses <code>timeseries.at(-1).total</code>). <strong>Mitigation:</strong> read <code>buildFormSubmissionsMetrics</code> at execution; use the latest-month value for the card.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>Summary.md</code> + schema (monthly Summary agent output, all orgs, next run); <code>StatCardRow</code>/<code>StatCard</code> (Practice Hub only); <code>ProductionPanel</code> (one cue line). The canonical-review decision is documented here but its rankings-side wiring is Plan 3.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>You asked to "limit the sentence" — a hard schema cap is the literal enforcement, but rejecting a doctor's entire monthly action over prose length is worse than a slightly long action. Recommendation: tight <em>prompt</em> guidance (the real lever) + a generous schema backstop. If you want hard enforcement at exactly 2 sentences, the safe place is a deterministic truncate in the task-creator (never rejects) — flag if you want that instead.</li>
+        <li>Referrals card as "latest month" makes 853 (all-time) drop to a smaller monthly number. That's the honest, labeled figure — but confirm you'd rather see "April: 181" than "all-time: 853" on this card.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Agent — one subject, capped rationale (#2)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>Summary.md</code>: add an explicit "ONE subject + ONE concrete next step; never bundle multiple offices/sources/factors into a single do-all action" rule; scope the CONSOLIDATION RULE to same-entity only (it may cite both signals but must stay one subject); add "rationale: 1–2 sentences, ≤ ~2 sentences of plain language" guidance; tighten the OUTPUT example rationale (line ~212) to 2 sentences.</dd></div>
+          <div><dt>Files</dt><dd><code>src/agents/monthlyAgents/Summary.md</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual prompt review; no schema break.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Schema backstop (#2)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>agent-output-schemas.ts</code>: <code>rationale: z.string().min(1).max(400)</code> — generous runaway guard (NOT a tight cap; see R1). Comment why.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/agents/types/agent-output-schemas.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>backend <code>tsc</code>.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Stat-card windows + labels (#1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>StatCardRow.tsx</code> (both branches): Referrals value → <code>total_referrals_this_month</code>, sub = <code>formatDataMonth(latestMonth)</code>; Reviews value stays <code>total_review_count</code>, sub = "all-time" + trailing "all reviews"; Form Submissions → rename label "Form Submissions", value = latest-month count, sub = named month; Local Rank trailing "post due" → "Google Post Due". Use Plan 0 <code>formatDataMonth</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>StatCardRow.tsx</code>, <code>StatCard.tsx</code> (if a sub/label prop tweak is needed)</dd></div>
+          <div><dt>Depends on</dt><dd>Plan 0 (formatDataMonth)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: each card shows a labeled window; Reviews reads as all-reviews total.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Canonical review source (#1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Document in-code (comment) that <code>dashboard-metrics.reviews.total_review_count</code> + <code>currentRating</code> is the single source of truth for the practice's own review total/rating across surfaces. Practice Hub already uses it (no change needed beyond the label). Add a Plan-3 TODO note where Local Rankings reads <code>rawData.client_gbp</code> so the switch is unambiguous.</dd></div>
+          <div><dt>Files</dt><dd><code>StatCardRow.tsx</code> (comment), cross-ref note for <code>RankingsHubSurface.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: PH review number unchanged; Plan-3 dependency recorded.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Production InsightCue (#24)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>ProductionPanel.tsx</code>: render Plan 0 <code>InsightCue</code> driven by the existing month-over-month <code>production_change_30d</code> sign (up → "strong", down → "spend time here"). One line, below the chart.</dd></div>
+          <div><dt>Files</dt><dd><code>ProductionPanel.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>Plan 0 (InsightCue)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: cue reflects trend direction.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Verification</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Frontend + backend <code>tsc</code>; eslint on touched files; confirm agent JSON still validates against the schema; manual Practice Hub render.</dd></div>
+          <div><dt>Files</dt><dd>—</dd></div>
+          <div><dt>Depends on</dt><dd>T1–T5</dd></div>
+          <div><dt>Verify</dt><dd>clean tsc (both) + eslint</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> Agent writes one subject + 1–2 sentence rationale (prompt + example updated)</li>
+        <li><input type="checkbox" disabled> Schema rationale backstop added (generous, non-rejecting)</li>
+        <li><input type="checkbox" disabled> Each card shows a labeled window; "Form Submissions" + "Google Post Due" renamed; Reviews reads as all-reviews total</li>
+        <li><input type="checkbox" disabled> Canonical review source documented; Plan-3 rankings switch noted</li>
+        <li><input type="checkbox" disabled> One-line production cue renders by trend direction</li>
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> (frontend + backend) + eslint clean</li>
+        <li><input type="checkbox" disabled> Manual: Practice Hub reads clearly, no unlabeled numbers</li>
+        <li><input type="checkbox" disabled> (Rev 1) Referrals trailing shows signed month-over-month magnitude ("31 down"/"31 up")</li>
+        <li><input type="checkbox" disabled> (Rev 1) Local rank status ("Google Post Due") renders as a tinted sub line below the rank, not beside it</li>
+        <li><input type="checkbox" disabled> (Rev 2) Reviews card shows rolling-30d new-review count labeled "last 30 days" (Option A)</li>
+        <li><input type="checkbox" disabled> (Rev 3) Reviews window label CORRECTED to the current month ("June 2026") — reviews_this_month is month-to-date, not 30 days</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="task-card">
+        <h3>Rev 1 - 2026-06-13</h3>
+        <p><strong>Change:</strong> Stat-card refinements from owner QA of the live Practice Hub.</p>
+        <p><strong>Reason:</strong> <em>User QA</em> — the cards needed to show change magnitude and a cleaner rank line.</p>
+        <ul>
+          <li><strong>#1 Referrals magnitude:</strong> <code>referralStatus()</code> (statusRules.ts) now returns the signed delta vs the prior month — "31 down" (warn) / "31 up" (positive) / "no change" (neutral) — instead of the words "healthy"/"down". Both Practice Hub data paths (real + wizard) pick this up automatically. So the card reads e.g. <code>279 · 31 down</code> with the month sub unchanged.</li>
+          <li><strong>#2 Local rank sub:</strong> the value line is now just <code>#N</code>; the status nudge ("Google Post Due" / "current") moved to the sub line below the number. Added an optional <code>subTone</code> to <code>StatCard</code> so a status sub stays tinted (amber/green) while timeframe subs stay muted grey. No new dependency; purely additive prop defaulting to muted.</li>
+          <li><strong>#3 Reviews "this month" — BLOCKED on a data decision (not yet built):</strong> the only recent-reviews figure stored is <code>reviews.window.newReviews</code>, which the ranking pipeline treats as a <em>rolling 30-day</em> count (<code>service.ranking-pipeline.ts:1598</code> aliases it <code>reviewsLast30d</code>), and there is <em>no</em> month-scoped average rating field. Labeling that number "June 2026" would misrepresent a 30-day rolling count as a calendar month — the exact mislabel #23 removed — so it was NOT shipped. Options surfaced to owner: (A) honest "last 30 days" framing, frontend-only; (B) add a true calendar-month count + month-avg rating to the metrics service (backend + contract change); (C) keep the all-time anchor. Awaiting decision; a follow-up Rev will record the chosen path.</li>
+          <li><strong>Verification:</strong> <code>tsc -p tsconfig.app.json --noEmit</code> = 0 errors; <code>eslint</code> on statusRules.ts / StatCard.tsx / StatCardRow.tsx — clean.</li>
+        </ul>
+      </article>
+      <article class="task-card">
+        <h3>Rev 2 - 2026-06-13</h3>
+        <p><strong>Change:</strong> #3 Reviews card resolved — Option A (honest "last 30 days" framing), shipped.</p>
+        <p><strong>Reason:</strong> <em>User QA</em> — owner chose the frontend-only honest label over a backend calendar-month build.</p>
+        <ul>
+          <li><strong>#3 Reviews:</strong> the card now shows <code>reviews.reviews_this_month</code> (a rolling 30-day new-review count) with sub <code>last 30 days</code>, replacing the all-time <code>1,483 · all reviews · all-time</code>. The number and its window now agree, and it matches Local Rankings' "37 reviews last 30 days". Wizard demo path uses the demo object's <code>reviews.this_month</code> (8). No backend change; the all-time total is retained on the Reviews &amp; Posts page and Local Rankings' all-time line. The stale "canonical all-time" comment in <code>StatCardRow</code> was replaced to document the rolling-30d choice.</li>
+          <li><strong>Rating shown:</strong> <code>current_rating</code> — the practice's standing overall Google rating, NOT a 30-day-scoped average (we store no window-scoped average). Rendered as a plain "5.0★" with no "this month's average" claim, to avoid a data mislabel.</li>
+          <li><strong>Verification:</strong> <code>tsc -p tsconfig.app.json --noEmit</code> = 0 errors; <code>eslint</code> on StatCardRow.tsx — clean.</li>
+        </ul>
+      </article>
+      <article class="task-card">
+        <h3>Rev 3 - 2026-06-13</h3>
+        <p><strong>Change:</strong> Reviews card window label CORRECTED — from "last 30 days" (Rev 2) to the current calendar month (e.g. "June 2026").</p>
+        <p><strong>Reason:</strong> <em>Execution deviation</em> — Rev 2 mislabeled the window. A full trace of the data path shows <code>reviews_this_month</code> is a <strong>current-calendar-month-to-date</strong> count, not rolling 30 days.</p>
+        <ul>
+          <li><strong>The trace:</strong> <code>DashboardController</code> builds <code>dateRange = { start: 1st-of-month, end: today }</code> in UTC and passes it to <code>computeDashboardMetrics</code>; the GBP review window is filtered by <code>createTime</code> within that range (<code>listAllReviewsInRangeREST</code>). So the figure is "new reviews this month so far." Rev 2 instead trusted the <code>reviewsLast30d</code> alias in <code>service.ranking-pipeline.ts:1598</code>, which is a <em>misnomer</em> for the same calendar-month field — that was the error.</li>
+          <li><strong>Fix:</strong> added <code>currentMonthLabel()</code> to <code>utils/timeframe.ts</code> (current month in UTC, to match the metrics window) and set the Reviews card sub to it in both data paths. The stale "rolling 30-day" comment in <code>StatCardRow</code> was rewritten to document the real window. This actually realizes the owner's original #3 ask ("show this month, label it like the next card").</li>
+          <li><strong>Cross-surface note:</strong> Local Rankings' "N reviews last 30 days" is a DIFFERENT, genuinely-30-day number sourced from the Apify scrape (<code>client_gbp.reviewsLast30d</code>), correctly labeled there — no conflict with this card's month-to-date count. The standing rating shown remains <code>current_rating</code> (all-time Google average); still no month-scoped average stored.</li>
+          <li><strong>Verification:</strong> <code>tsc -p tsconfig.app.json --noEmit</code> = 0 errors; <code>eslint</code> on timeframe.ts + StatCardRow.tsx — clean.</li>
+        </ul>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

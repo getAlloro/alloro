@@ -17,8 +17,27 @@ import {
  * `getLocationCompetitors` endpoint, which returns competitor lat/lng AND the
  * practice's own location in one call.
  *
- * Spec: plans/06102026-local-rankings-simplification/spec.html (T1)
+ * Geocoding note (investigated for feedback #5 — "is competitor X really that
+ * far outside town?"): all coordinates are Google-Places-sourced, not from a
+ * custom geocoder. The practice's lat/lng come from `locations.client_lat/
+ * client_lng` (written by Places lookup / ranking-history resolution); each
+ * competitor's lat/lng is the Place Details `location.latitude/longitude`
+ * surfaced verbatim by the backend. There is no lat/lng transform or rounding
+ * step that could be "off." A pin that reads far out is a genuinely distant
+ * competitor pulled from the 25-mile discovery radius
+ * (DEFAULT_COMPETITOR_DISCOVERY_RADIUS_METERS = 40234), not a coordinate bug —
+ * so we don't move pins; we just cap the bounds-fit zoom (FIT_MAX_ZOOM) so one
+ * far competitor can't zoom the whole map out and hide the local cluster.
+ *
+ * Spec: plans/06102026-local-rankings-simplification/spec.html (T1);
+ * zoom cap + geocoding doc: plans/06132026-local-rankings-clarity (T3).
  */
+
+// Cap how far the bounds-fit zooms OUT. Without this, a single competitor near
+// the edge of the 25-mile discovery radius drags fitBounds to a city-wide
+// zoom-out. 14 keeps the practice + nearby competitors readable while still
+// honoring fitBounds when everything is already close in.
+const FIT_MAX_ZOOM = 14;
 
 function makeCompetitorIcon(label: number | string): L.DivIcon {
   return L.divIcon({
@@ -49,7 +68,7 @@ function FitBounds({ points }: { points: [number, number][] }) {
       map.setView(points[0], 13);
       return;
     }
-    map.fitBounds(points, { padding: [36, 36] });
+    map.fitBounds(points, { padding: [36, 36], maxZoom: FIT_MAX_ZOOM });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   return null;

@@ -33,6 +33,8 @@ export type GbpClientDraftsPanelProps = {
   onDeletePublishedPost?: (name: string) => void | Promise<unknown>;
   isGeneratingPostDraft?: boolean;
   nextPostGenerationAt?: string | null;
+  /** Show the "why Google Posts matter" note (client Posts tab, #10). */
+  showVisibilityNote?: boolean;
 };
 
 export function GbpClientDraftsPanel({
@@ -53,12 +55,14 @@ export function GbpClientDraftsPanel({
   onDeletePublishedPost,
   isGeneratingPostDraft = false,
   nextPostGenerationAt,
+  showVisibilityNote = false,
 }: GbpClientDraftsPanelProps) {
   return (
     <div className="mt-4 space-y-3">
       <GbpPostsManagerPanel
         reviews={reviews}
         workItems={workItems}
+        showVisibilityNote={showVisibilityNote}
         publishedPosts={publishedPosts}
         publishedPostsPagination={publishedPostsPagination}
         nextPostGenerationAt={nextPostGenerationAt}

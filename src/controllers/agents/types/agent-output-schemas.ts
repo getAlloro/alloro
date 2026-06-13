@@ -367,7 +367,11 @@ export const TopActionSchema = z.object({
     "pms-data-quality",
     "referral",
   ]),
-  rationale: z.string().min(1),
+  // Generous runaway backstop (~3 sentences). The real "1-2 sentences" lever
+  // is the prompt guidance in Summary.md — a TIGHT cap here would fail-closed
+  // and reject the doctor's entire monthly action over prose length, which is
+  // worse than a slightly long rationale. plans/06132026-practice-hub-clarity.
+  rationale: z.string().min(1).max(400),
   highlights: z.array(z.string()).max(2).default([]),
   supporting_metrics: z.array(SupportingMetricSchema).length(3),
   outcome: z.object({

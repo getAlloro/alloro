@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reviews &amp; Posts Clarity Spec</title>
+  <style>
+    :root { color-scheme: light; --paper: #ffffff; --ink: #080808; --muted: #5f5f5f; --line: #d8d8d8; --soft: #f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.5; }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Completed</span>
+      </div>
+      <h1>Reviews &amp; Posts Clarity</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed — 2026-06-13</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06132026-reviews-posts-clarity</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p><strong>Plan 4 of the dashboard-revamp feedback round</strong> — covers PDF items <strong>#7–#11</strong> ("Reviews and Posts" / Alloro Engage at <code>/gbp-manager</code>). The owner found the page's labels ambiguous (which stats mean what, "60d", the "safe" internal badge leaking to the client, two near-identical reply sub-tabs, a confusing standalone count, a bare Posts tab, and admin-only automation toggles exposed to the client). This plan clarifies copy + trims controls without changing any data pipeline.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Done when:</p>
+      <ul>
+        <li><strong>#7:</strong> page tab toggle uses the <em>terracotta</em> active pill (was navy); "Needs reply" stat reads "Reviews needing reply" with sub "received in last 60 days"; "Last review" reads "Days since last review" (received, not replied); "Coverage" gains a "% of reviews replied" definition; the Needs-Reply list defaults to a focused recent view capped ~10.</li>
+        <li><strong>#8:</strong> the "Reply Drafts" sub-tab is renamed "Drafts Ready for Review"; the reassuring internal "Safe" badge is removed from the client view (Blocked / Safety review stay; admin still sees Safe).</li>
+        <li><strong>#9:</strong> the standalone review-count number on the left of the range controls is removed; range buttons stay.</li>
+        <li><strong>#10:</strong> the Posts tab gets a 1–2 sentence "why Google Posts help local visibility" blurb at the top (client only).</li>
+        <li><strong>#11:</strong> Settings "Next post generation" line is clarified to explain it is the next auto-draft time; the two automation toggles (Review replies / Google post drafts) are removed from the CLIENT settings tab (admin keeps them); Diagnostics + sync controls stay.</li>
+        <li><code>tsc -p tsconfig.app.json</code> + eslint (touched files) clean; admin GBP surface still renders.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Confirmed in code</h3>
+      <ul>
+        <li><strong>Page toggle navy:</strong> <code>GbpManagerPage.tsx</code> lines 88–107 render an inline pill group with <code>bg-alloro-navy text-white</code> active.</li>
+        <li><strong>Stat copy:</strong> <code>GbpManagerPage.tsx</code> lines 116–145 — "Needs reply"/"last 60d", "Last review"/"keep it fresh", "Coverage"/"replied".</li>
+        <li><strong>Needs-Reply default already focused:</strong> the panel passes <code>initialNeedsReplyRange="last30"</code> when <code>reviewWindowDays</code> is set (line 325); <code>GbpClientUnrepliedReviewsPanel</code> "latest" range already <code>.slice(0,10)</code>. The owner wants the DEFAULT to be the capped recent view — confirm the on-mount range.</li>
+        <li><strong>Reply Drafts sub-tab:</strong> <code>GbpClientReviewsPanel.tsx</code> <code>REVIEW_TABS</code> line 60–64 (<code>label: "Reply Drafts"</code>). Same file's tab pill is also navy-active (left as-is — owner item is the page-level toggle; left for consistency note).</li>
+        <li><strong>"Safe" badge (two sites):</strong> <code>GbpReplyWorkItemCard.tsx</code> <code>safetyBadge()</code> (lines 25–34, render 97–103) and <code>GbpReviewReplySlot.tsx</code> <code>safetyLabel()</code> (lines 29–34, render 149–161). Both default to "Safe" for a clean <code>safety_status</code>.</li>
+        <li><strong>Standalone count:</strong> <code>GbpReviewRangeControls.tsx</code> renders <code>reviewCountLabel(count)</code> as a non-clickable <code>&lt;span&gt;</code> on the left (lines 31–32).</li>
+        <li><strong>Bare Posts tab:</strong> <code>GbpPostsManagerPanel.tsx</code> has tabs + header but no explanatory blurb. (Admin uses a DIFFERENT component — <code>AdminGbpWorkItemsPanel</code> — so this is client-only.)</li>
+        <li><strong>Settings toggles:</strong> <code>GbpSettingsSection.tsx</code> "Next post generation" line 174–176; "Review replies" toggle block 179–206; "Google post drafts" toggle block 227–254; Diagnostics + sync stay. SHARED with admin via <code>AdminGbpSettingsPanel</code> → <code>OrgGbpAutomationTab</code> (admin wants the toggles).</li>
+      </ul>
+      <h3>Admin-compatibility map (shared components)</h3>
+      <ul>
+        <li><code>GbpSettingsSection</code> — also rendered by <code>AdminGbpSettingsPanel</code> (admin). Removal of the two toggles is gated by a new <code>hideAutomationToggles</code> prop (default <code>false</code> → admin unchanged); <code>GbpManagerPage</code> path sets it <code>true</code>.</li>
+        <li><code>GbpReplyWorkItemCard</code> + <code>GbpReviewReplySlot</code> — both shared with admin (<code>AdminGbpReviewsPanel</code> → <code>GbpReplyDraftsPanel</code>, <code>AdminGbpNeedsReplyPanel</code> → <code>GbpReviewReplySlot</code>). "Safe" suppression gated by a new <code>hideSafeBadge</code> prop (default <code>false</code> → admin keeps Safe); client path threads it <code>true</code>.</li>
+        <li><code>GbpPostsManagerPanel</code> — NOT used by admin (admin uses <code>AdminGbpWorkItemsPanel</code>). Posts blurb threaded via a <code>showVisibilityNote</code> prop so the component stays generic; set true from the client path.</li>
+        <li><code>GbpReviewRangeControls</code> — only consumed by <code>GbpClientUnrepliedReviewsPanel</code>; admin's needs-reply panel does not use it. Count removal is global-safe but done by dropping the <code>count</code> prop usage in the control + caller.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Terracotta active pill = the locked PeriodToggle recipe (<code>bg-alloro-orange text-white</code> active, muted inactive). Match it inline on the page toggle.</li>
+        <li>Prop-additive only on shared components; defaults preserve old (admin) behavior.</li>
+        <li>One-line cues / terse subs; spelled durations.</li>
+      </ul>
+      <p><strong>Reference files:</strong> <code>PeriodToggle.tsx</code> (terracotta active recipe), <code>StatBox.tsx</code> (label/value/sub shape), <code>OrgGbpAutomationTab.tsx</code> (admin render path to protect).</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Stay in <code>pages/GbpManagerPage.tsx</code> + <code>components/dashboard/gbp-automation/*</code>.</li>
+            <li>Gate every shared-component change with a prop defaulting to old behavior; set the new behavior only from the <code>GbpManagerPage</code> → <code>GbpAutomationPanel</code> path.</li>
+            <li>Keep Blocked / Safety review badges; only the reassuring "Safe" label is suppressed on the client.</li>
+            <li>Read each file before editing.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do NOT edit <code>index.css</code>, <code>statusRules.ts</code>, or shared primitives (PeriodToggle/InsightCue/StatBox/timeframe) — other agents own those.</li>
+            <li>Do NOT break the admin GBP render (settings toggles, safety badges must persist for admin).</li>
+            <li>No data-pipeline / endpoint / schema changes.</li>
+            <li>No new dependencies. No git operations.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Backend automation-permission move to admin-only (this plan only hides the toggles in the client UI; enable/disable stays a settings field the admin tab still writes).</li>
+        <li>The inner Reviews sub-tab pill staying navy (only the page-level toggle is in the owner's #7 — noted, not changed).</li>
+        <li>Other surfaces (Plans 1–3, 5).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 — four of the touched components are SHARED with the admin GBP surface; a non-gated removal would silently break admin.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>R1 — Admin breakage via shared components (Level 2).</strong> <code>GbpSettingsSection</code>, <code>GbpReplyWorkItemCard</code>, <code>GbpReviewReplySlot</code> all render in admin. <strong>Mitigation:</strong> prop-additive gating (<code>hideAutomationToggles</code>, <code>hideSafeBadge</code>) defaulting to current behavior; admin call sites pass nothing → unchanged.</li>
+        <li><strong>R2 — Removing "Safe" hides genuine warnings (Level 1).</strong> <strong>Mitigation:</strong> suppress only the clean "Safe" label; keep Blocked + Safety review on the client too.</li>
+        <li><strong>R3 — Removing the standalone count loses the "all loaded" total cue (Level 1).</strong> <strong>Mitigation:</strong> the panel already renders a "Showing {month}" line for the All-loaded range; the dropped count is redundant. No replacement needed.</li>
+        <li><strong>R4 — Hiding client toggles diverges client vs admin state view (Level 1).</strong> <strong>Mitigation:</strong> the read-only Diagnostics box already surfaces "Review replies enabled / Google post drafts enabled" yes/no, so the client still sees status — just can't flip it.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>GbpManagerPage</code> (client only); <code>GbpSettingsSection</code> / <code>GbpReplyWorkItemCard</code> / <code>GbpReviewReplySlot</code> / <code>GbpPostsManagerPanel</code> (shared — guarded by props); <code>GbpReviewRangeControls</code> + <code>GbpClientUnrepliedReviewsPanel</code> + <code>GbpClientReviewsPanel</code> + <code>GbpAutomationPanel</code> (client thread-through).</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Item #11 says enable/disable "becomes admin-only." This plan only HIDES the client toggles; the underlying permission is still a writable settings field (admin writes it). True server-side role enforcement is a backend change out of this plan's boundary — flagged, not executed.</li>
+        <li>Item #8 offered "remove if truly redundant." Keeping "Drafts Ready for Review" as a rename is the safer call: the sub-tab shows AI-generated drafts awaiting human approve/publish, which is a distinct state from "Needs Reply" (no draft yet). Removal would strand in-flight drafts. Rename chosen.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Page toggle terracotta + stat copy (#7)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>GbpManagerPage.tsx</code>: active pill → <code>bg-alloro-orange text-white</code>, inactive muted (drop navy). Stats: "Needs reply" → label "Reviews needing reply", sub "received in last 60 days"; "Last review" → label "Days since last review", value stays day-delta, sub "since a review came in"; "Coverage" → sub "% of reviews you've replied to".</dd></div>
+          <div><dt>Files</dt><dd><code>pages/GbpManagerPage.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: active tab terracotta; each stat self-explains.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Needs-Reply default to capped recent view (#7)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Confirm/lock the on-mount range so the Needs-Reply list defaults to the focused recent window capped ~10. Page already passes <code>reviewWindowDays=60</code> → <code>initialNeedsReplyRange="last30"</code>. Keep "Latest 10" as the true on-mount default (caps to 10, refreshes down as handled) per the owner's "≤10, refreshing to 0" wording; ensure the page path produces that.</dd></div>
+          <div><dt>Files</dt><dd><code>GbpAutomationPanel.tsx</code>, <code>GbpClientReviewsPanel.tsx</code>, <code>GbpClientUnrepliedReviewsPanel.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: list opens at ≤10 recent items.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Rename Reply Drafts → Drafts Ready for Review (#8)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>GbpClientReviewsPanel.tsx</code> <code>REVIEW_TABS</code>: <code>label: "Drafts Ready for Review"</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>GbpClientReviewsPanel.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: sub-tab label updated.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Remove client-facing "Safe" badge (gated) (#8)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>GbpReplyWorkItemCard.tsx</code> + <code>GbpReviewReplySlot.tsx</code>: add <code>hideSafeBadge?: boolean</code> (default false). When true, suppress ONLY the clean "Safe" label (Blocked / Safety review still render). Thread the prop client-only: <code>GbpAutomationPanel</code> (client) → <code>GbpClientReviewsPanel</code> → <code>GbpReplyDraftsPanel</code> → <code>GbpReplyWorkItemCard</code>, and → <code>GbpClientUnrepliedReviewsPanel</code> → <code>GbpReviewReplySlot</code>. Admin call sites pass nothing.</dd></div>
+          <div><dt>Files</dt><dd><code>GbpReplyWorkItemCard.tsx</code>, <code>GbpReviewReplySlot.tsx</code>, <code>GbpReplyDraftsPanel.tsx</code>, <code>GbpClientUnrepliedReviewsPanel.tsx</code>, <code>GbpClientReviewsPanel.tsx</code>, <code>GbpAutomationPanel.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: client shows no green "Safe"; admin still does; tsc.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Remove standalone count from range controls (#9)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>GbpReviewRangeControls.tsx</code>: drop the leading <code>&lt;span&gt;</code> count + the <code>count</code> prop + <code>reviewCountLabel</code>. Update the only caller (<code>GbpClientUnrepliedReviewsPanel.tsx</code>) to stop passing <code>count</code> and remove the now-unused <code>displayedReviewCount</code>/<code>selectedMonthCount</code> bits if they become dead.</dd></div>
+          <div><dt>Files</dt><dd><code>GbpReviewRangeControls.tsx</code>, <code>GbpClientUnrepliedReviewsPanel.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: only range buttons remain; tsc/eslint (no unused).</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Posts "why this matters" blurb (gated) (#10)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>GbpPostsManagerPanel.tsx</code>: add <code>showVisibilityNote?: boolean</code> (default false); when true render a 1–2 sentence note at the top about Google Posts boosting local visibility/freshness. Thread true through <code>GbpClientDraftsPanel</code> from the client <code>GbpAutomationPanel</code> posts path.</dd></div>
+          <div><dt>Files</dt><dd><code>GbpPostsManagerPanel.tsx</code>, <code>GbpClientDraftsPanel.tsx</code>, <code>GbpAutomationPanel.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: blurb shows on client Posts tab; admin unaffected.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: Settings — clarify next-gen + hide client toggles (gated) (#11)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>GbpSettingsSection.tsx</code>: add <code>hideAutomationToggles?: boolean</code> (default false). When true: hide the "Review replies" and "Google post drafts" toggle blocks; keep Diagnostics + both sync blocks. Clarify the next-gen line to "Next automatic post draft: {label}". Set <code>hideAutomationToggles</code> true from the client path (<code>GbpAutomationPanel</code>); admin (<code>AdminGbpSettingsPanel</code>) passes nothing → toggles stay.</dd></div>
+          <div><dt>Files</dt><dd><code>GbpSettingsSection.tsx</code>, <code>GbpAutomationPanel.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: client settings shows no toggles, admin still does; tsc.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T8: Verification</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>tsc -p tsconfig.app.json</code> (frontend) clean; <code>npx eslint</code> on every touched file; confirm admin GBP tab still type-checks (shared props optional).</dd></div>
+          <div><dt>Files</dt><dd>—</dd></div>
+          <div><dt>Depends on</dt><dd>T1–T7</dd></div>
+          <div><dt>Verify</dt><dd>clean tsc + eslint</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled>Page tab toggle terracotta-active; three stats self-explain (reviews needing reply / days since last review / % replied)</li>
+        <li><input type="checkbox" checked disabled>Needs-Reply list defaults to ≤10 recent items</li>
+        <li><input type="checkbox" checked disabled>"Reply Drafts" renamed "Drafts Ready for Review"</li>
+        <li><input type="checkbox" checked disabled>Client-facing "Safe" badge gone (Blocked/Safety review kept); admin still shows Safe</li>
+        <li><input type="checkbox" checked disabled>Standalone range-controls count removed; range buttons intact</li>
+        <li><input type="checkbox" checked disabled>Posts tab has a "why Google Posts matter" blurb (client only)</li>
+        <li><input type="checkbox" checked disabled>Settings next-gen line clarified; client automation toggles hidden; admin toggles intact; Diagnostics + sync kept</li>
+        <li><input type="checkbox" checked disabled><code>tsc -p tsconfig.app.json</code> + eslint (touched files) clean; admin GBP render unbroken</li>
+        <li><input type="checkbox" disabled>(Rev 1) Client review-row cards are white (was grayish slate-50)</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="task-card">
+        <h3>Rev 1 - 2026-06-13</h3>
+        <p><strong>Change:</strong> Client review cards switched from grayish to white.</p>
+        <p><strong>Reason:</strong> <em>User QA</em> — the <code>bg-slate-50</code> cards read as a cool/muddy gray on the warm parchment page and looked odd.</p>
+        <ul>
+          <li><strong>Did:</strong> changed the card background <code>bg-slate-50</code> → <code>bg-white</code> on the two client review-row components — <code>GbpEligibleReviewRow.tsx</code> (Needs Reply) and <code>GbpClientRepliedReviewRow.tsx</code> (Replied). Border (<code>border-slate-200</code>) kept for definition. Deliberately did NOT touch reply textareas, hover states, skeletons, empty-state placeholders, or the admin work-item cards.</li>
+          <li><strong>Confirmed:</strong> in the live pilot, all 10 Needs-Reply cards compute <code>background: rgb(255,255,255)</code>.</li>
+          <li><strong>Flagged (not changed):</strong> the gray REPLY buttons are <code>bg-alloro-navy</code> at <code>disabled:opacity-50</code> — a faded-navy <em>disabled state</em>, not a color choice. Left as-is; worth a separate look at why they render disabled in the client view if that's unexpected.</li>
+          <li><strong>Verification:</strong> <code>tsc -p tsconfig.app.json --noEmit</code> = 0 errors; <code>eslint</code> on both files — clean.</li>
+        </ul>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

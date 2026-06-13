@@ -2,6 +2,7 @@ import { useMemo, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronRight, Star } from "lucide-react";
 import { useGbpPublishedLocalPosts } from "../../../hooks/queries/useGbpAutomationQueries";
+import { useDashboardMetrics } from "../../../hooks/queries/useDashboardMetrics";
 import {
   buildCompetitorComparisonRows,
   getComparisonInsight,
@@ -10,23 +11,22 @@ import { ActionBanner } from "../ActionBanner";
 import { StatBox } from "../StatBox";
 import { TONE_COLOR } from "../focus/statusRules";
 import { RankingsMapCard } from "./RankingsMapCard";
-import {
-  RANKING_PERIODS,
-  PERIOD_TOGGLE_ENABLED,
-  PERIOD_DISABLED_TOOLTIP,
-  type RankingPeriod,
-} from "./rankingPeriod";
 import type { RankingResult } from "../RankingsDashboard";
 
 /**
  * RankingsHubSurface — simplified Local Rankings surface (redesign).
  *
  * Rendered by RankingsDashboard's Overview branch in place of
- * PerformanceDashboard. Anchors on rank + competitor map, three vitals, and
- * one action. The Visibility Score and Practice Health score are dropped
- * entirely. The MONTH/QTR/YTD toggle ships disabled (see rankingPeriod.ts).
+ * PerformanceDashboard. Anchors on rank + competitor map, the competitors
+ * strip, three vitals, and one action. The Visibility Score and Practice
+ * Health score are dropped entirely.
  *
- * Spec: plans/06102026-local-rankings-simplification/spec.html (T3)
+ * The dormant MONTH/QTR/YTD toggle was removed (feedback #5) — it rendered
+ * permanently greyed (PERIOD_TOGGLE_ENABLED=false) with no wired state.
+ * rankingPeriod.ts is kept as the future enable point.
+ *
+ * Spec: plans/06102026-local-rankings-simplification/spec.html (T3);
+ * clarity pass: plans/06132026-local-rankings-clarity (T1, T4, T5).
  */
 
 const POST_OVERDUE_DAYS = 15; // mirrors GbpEngagementSummaryCard
@@ -36,30 +36,6 @@ function daysSince(value: string | null | undefined): number | null {
   const ts = new Date(value).getTime();
   if (!Number.isFinite(ts)) return null;
   return Math.max(0, Math.floor((Date.now() - ts) / 86_400_000));
-}
-
-function PeriodToggle() {
-  // Disabled until enough ranking history accumulates (PERIOD_TOGGLE_ENABLED).
-  return (
-    <div
-      className="inline-flex rounded-full bg-[#EDEAE5] p-0.5"
-      title={PERIOD_TOGGLE_ENABLED ? undefined : PERIOD_DISABLED_TOOLTIP}
-    >
-      {RANKING_PERIODS.map((p: RankingPeriod, i) => (
-        <button
-          key={p}
-          type="button"
-          disabled={!PERIOD_TOGGLE_ENABLED}
-          aria-disabled={!PERIOD_TOGGLE_ENABLED}
-          className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider transition-colors ${
-            i === 0 ? "bg-white text-alloro-navy shadow-sm" : "text-alloro-navy/45"
-          } ${PERIOD_TOGGLE_ENABLED ? "" : "cursor-not-allowed"}`}
-        >
-          {p}
-        </button>
-      ))}
-    </div>
-  );
 }
 
 export function RankingsHubSurface({
@@ -78,9 +54,20 @@ export function RankingsHubSurface({
   const compCount = result.selectedCompetitorSearchResults?.length ?? 0;
   const nearby = compCount > 0 ? compCount + 1 : result.totalCompetitors;
 
+  // Canonical review total + rating (feedback #5 + cross-plan): read from
+  // dashboard-metrics — the SAME source Practice Hub uses — so both surfaces
+  // show one number (resolves the 163-vs-152 split where Rankings was reading
+  // the per-run scrape snapshot in rawData.client_gbp). Fall back to the
+  // scrape values while metrics are still loading so the card never blanks.
+  const { data: metrics } = useDashboardMetrics(organizationId, locationId);
   const clientGbp = result.rawData?.client_gbp ?? null;
-  const avgRating = clientGbp?.averageRating ?? null;
-  const reviewCount = clientGbp?.totalReviewCount ?? null;
+  const avgRating =
+    metrics?.reviews?.current_rating ?? clientGbp?.averageRating ?? null;
+  const reviewCount =
+    metrics?.reviews?.total_review_count ?? clientGbp?.totalReviewCount ?? null;
+  // 30-day review velocity keeps its existing source: dashboard-metrics has no
+  // rolling-30d field (reviews_this_month is a calendar-month count). Relabeled
+  // only — see the Reviews StatBox sub below.
   const reviewsLast30d = clientGbp?.reviewsLast30d ?? 0;
 
   const competitors = result.rawData?.competitors ?? [];
@@ -129,10 +116,6 @@ export function RankingsHubSurface({
 
   return (
     <div className="mx-auto w-full max-w-[960px] space-y-6">
-      <div className="flex items-center justify-end">
-        <PeriodToggle />
-      </div>
-
       {/* Hero: rank + competitor map */}
       <section
         data-wizard-target="rankings-score"
@@ -189,12 +172,41 @@ export function RankingsHubSurface({
         />
       </section>
 
+      {/* Competitors strip → manage competitors. Moved up (feedback #6) to sit
+          directly below the rank+map hero, above the vitals. */}
+      {result.locationId && (
+        <button
+          type="button"
+          data-wizard-target="rankings-competitors"
+          onClick={() =>
+            navigate(
+              `/dashboard/competitors/${result.locationId}/onboarding?mode=reselect`,
+            )
+          }
+          className="group flex w-full items-center justify-between gap-3 rounded-[14px] border border-line-soft bg-white px-5 py-4 text-left shadow-premium transition-colors hover:border-alloro-orange/40"
+        >
+          <span className="flex items-center gap-2.5 min-w-0">
+            <span
+              className="h-2 w-2 shrink-0 rounded-full"
+              style={{ background: TONE_COLOR.positive }}
+            />
+            <span className="truncate text-[14px] font-semibold text-alloro-navy">
+              {comparisonInsight}
+            </span>
+          </span>
+          <span className="flex shrink-0 items-center gap-1 text-[10px] font-black uppercase tracking-widest text-ink-muted transition-colors group-hover:text-alloro-orange">
+            <span className="hidden sm:inline">Manage competitor list</span>
+            <ChevronRight size={16} />
+          </span>
+        </button>
+      )}
+
       {/* Three vitals */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatBox
           label="Reviews"
           value={reviewsValue}
-          sub={`+${reviewsLast30d} / 30d`}
+          sub={`All-time total · ${reviewsLast30d} ${reviewsLast30d === 1 ? "review" : "reviews"} last 30 days`}
         />
         <StatBox
           label="Last post"
@@ -203,13 +215,13 @@ export function RankingsHubSurface({
           tone={postOverdue ? "warn" : "ink"}
         />
         <StatBox
-          label="Rating vs mkt"
+          label="Rating vs Market"
           value={
             avgRating !== null
               ? `${avgRating.toFixed(1)} / ${(marketAvgRating ?? 4.5).toFixed(1)}`
               : "—"
           }
-          sub="you / market"
+          sub="Google rating · you / market"
         />
       </div>
 
@@ -222,31 +234,6 @@ export function RankingsHubSurface({
           description={topAction.description ?? null}
           wizardTarget="rankings-action"
         />
-      )}
-
-      {/* Bottom strip → manage competitors */}
-      {result.locationId && (
-        <button
-          type="button"
-          data-wizard-target="rankings-competitors"
-          onClick={() =>
-            navigate(
-              `/dashboard/competitors/${result.locationId}/onboarding?mode=reselect`,
-            )
-          }
-          className="flex w-full items-center justify-between gap-3 rounded-[14px] border border-line-soft bg-white px-5 py-4 text-left shadow-premium transition-colors hover:border-alloro-orange/40"
-        >
-          <span className="flex items-center gap-2.5 min-w-0">
-            <span
-              className="h-2 w-2 shrink-0 rounded-full"
-              style={{ background: TONE_COLOR.positive }}
-            />
-            <span className="truncate text-[14px] font-semibold text-alloro-navy">
-              {comparisonInsight}
-            </span>
-          </span>
-          <ChevronRight size={18} className="shrink-0 text-ink-muted" />
-        </button>
       )}
     </div>
   );

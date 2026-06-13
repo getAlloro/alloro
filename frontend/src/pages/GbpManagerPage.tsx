@@ -93,9 +93,9 @@ export function GbpManagerPage() {
                   key={key}
                   type="button"
                   onClick={() => setActiveView(key)}
-                  className={`inline-flex items-center justify-center gap-2 rounded-[9px] px-4 py-2.5 text-[11px] font-black uppercase tracking-widest transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-alloro-navy/20 ${
+                  className={`inline-flex items-center justify-center gap-2 rounded-[9px] px-4 py-2.5 text-[11px] font-black uppercase tracking-widest transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-alloro-orange/30 ${
                     isActive
-                      ? "bg-alloro-navy text-white shadow-sm"
+                      ? "bg-alloro-orange text-white shadow-sm"
                       : "text-slate-500 hover:bg-slate-50 hover:text-alloro-navy"
                   }`}
                 >
@@ -116,21 +116,21 @@ export function GbpManagerPage() {
             {activeView === "reviews" && data && (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <StatBox
-                  label="Needs reply"
+                  label="Reviews needing reply"
                   value={String(needsReplyInWindow)}
-                  sub={`last ${REVIEW_WINDOW_DAYS}d`}
+                  sub={`received in last ${REVIEW_WINDOW_DAYS} days`}
                   tone={needsReplyInWindow > 0 ? "warn" : "ink"}
                 />
                 <StatBox
-                  label="Last review"
+                  label="Days since last review"
                   value={
                     lastReviewDays === null
                       ? "—"
                       : lastReviewDays === 0
                         ? "Today"
-                        : `${lastReviewDays}d ago`
+                        : `${lastReviewDays}d`
                   }
-                  sub="keep it fresh"
+                  sub="since a review came in"
                   tone={
                     lastReviewDays !== null && lastReviewDays > FRESH_REVIEW_WARN_DAYS
                       ? "warn"
@@ -140,7 +140,7 @@ export function GbpManagerPage() {
                 <StatBox
                   label="Coverage"
                   value={coveragePercent === null ? "—" : `${coveragePercent}%`}
-                  sub="replied"
+                  sub="of reviews you've replied to"
                 />
               </div>
             )}

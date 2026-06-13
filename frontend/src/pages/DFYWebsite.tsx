@@ -1431,6 +1431,10 @@ export function DFYWebsite() {
         </div>
       </div>
       <div className="mt-6">
+        {/*
+          Tab descriptions moved into the trailing (i) tooltip on the tab bar
+          itself (#20, Rev) — replaces the always-on page-vs-post blurb.
+        */}
         <WebsiteDashboardTabs
           activeView={activeView as WebsiteDashboardView}
           hasPosts={!!project?.template_id}

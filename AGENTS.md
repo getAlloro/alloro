@@ -4,10 +4,10 @@ These are repo-local operating notes for `/Users/rustinedave/Desktop/alloro`. Th
 
 ## Plan Specs
 
-All Alloro plan folders must use the global HTML/CSS spec artifact format:
+All Alloro plan folders must use the global self-contained HTML spec artifact format:
 
-- Create `spec.html` for the consolidated plan/spec content and `spec.css` for styling.
-- Do not create new `spec.md` files. Legacy `spec.md` files may be read for historical context, but active continued work must be migrated to `spec.html` and `spec.css` before execution.
+- Create a single self-contained `spec.html` for the consolidated plan/spec content, with all styling embedded in an in-page `<style>` block in the `<head>`. Do not create a separate `spec.css`.
+- Do not create new `spec.md` files. Legacy `spec.md` files may be read for historical context, but active continued work must be migrated to a self-contained `spec.html` before execution. Legacy folders that still carry a separate `spec.css` keep working; new specs embed styles inline.
 - Use `plans/{MMDDYYYY}-{feature-slug}/` for plan folder names. Do not include ticket numbers or placeholder ticket segments.
 - Preserve the old spec structure: Why, What, Context, Constraints, Risk, Tasks, Done, and Revision Log when needed.
 - Use a modern black-and-white visual design with clear cards, strong type hierarchy, restrained borders, and no decorative color palettes.

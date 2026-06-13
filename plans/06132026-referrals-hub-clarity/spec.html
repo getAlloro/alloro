@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Referrals Hub Clarity Spec</title>
+  <style>
+    :root { color-scheme: light; --paper: #ffffff; --ink: #080808; --muted: #5f5f5f; --line: #d8d8d8; --soft: #f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.5; }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Completed</span>
+      </div>
+      <h1>Referrals Hub Clarity</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed — 2026-06-13</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06132026-referrals-hub-clarity</dd></div>
+        <div><dt>Size</dt><dd>Small</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p><strong>Plan 2 of the dashboard-revamp feedback round</strong> — covers PDF item <strong>#3 ("Referrals Hub")</strong>. The Referrals Hub (<code>/pmsStatistics</code>, <code>PmsHubSurface</code>) shows a "This mo" tile that never names the month, a MONTH/QTR/YTD toggle that only re-scopes 2 of 4 tiles, a YTD figure stranded in a separate tile away from the monthly production it should sit beside, and no one-line read on whether the trend is good or bad. Consumes the Plan 0 primitives (shared <code>PeriodToggle</code>, <code>formatDataMonth</code>, <code>InsightCue</code>) so this surface matches the new standard the other hubs adopt.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Done when:</p>
+      <ul>
+        <li><strong>#3.1 Named month:</strong> the period-scoped production + referrals tiles, when MONTH is active, read the actual latest uploaded month via <code>formatDataMonth</code> ("April 2026") — never "This mo". The referrals tile clarifies "Referrals · April 2026".</li>
+        <li><strong>#3.2 Toggle drives every tile (or fixed ones are marked):</strong> the shared terracotta <code>PeriodToggle</code> replaces the local white-pill one. Labels: <code>Month</code> / <code>QTD</code> / <code>YTD</code>. Production + referrals re-scope on toggle. The Sources tile carries no per-period data (keyData has no per-month source counts) so it is explicitly marked all-time ("All-time" sub) rather than silently ignoring the toggle.</li>
+        <li><strong>#3.3 YTD beside monthly:</strong> the standalone YTD tile is removed; the YTD production figure renders as a secondary line inside the period-production tile, directly beneath the period number — so monthly and YTD sit together. (Hidden when the active period already IS YTD, to avoid a duplicate.)</li>
+        <li><strong>#3.4 InsightCue:</strong> one <code>InsightCue</code> below the chart, driven by latest-vs-previous production bucket of the active series (up → strong, down → spend time here, flat → holding). One line only.</li>
+        <li><code>eslint</code> clean on the touched files (orchestrator runs authoritative <code>tsc</code>).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Confirmed in code (the findings driving this plan)</h3>
+      <ul>
+        <li><strong>Local PeriodToggle:</strong> <code>PmsHubSurface.tsx</code> lines 38–67 define a private white-active-pill toggle over <code>Period = "MONTH"|"QTR"|"YTD"</code>. Plan 0's shared <code>PeriodToggle</code> (terracotta active) is label-agnostic and takes <code>options=[{key,label,tooltip?}]</code>.</li>
+        <li><strong>"This mo" mislabel:</strong> tile 1's label is <code>periodCardLabel(period)</code> → returns the bare string "This mo" / "This qtr" / "YTD" (<code>pmsPeriod.ts</code> line 172). No month name.</li>
+        <li><strong>Only 2 of 4 tiles re-scope:</strong> the <code>tiles</code> array (lines 197–210) — tile 1 (production) + tile 2 (referrals) use <code>scoped</code>/<code>hovered</code>; tile 3 (Sources) is a fixed <code>topSources.length</code>; tile 4 is a fixed YTD (<code>scopedTotals(monthlyData,"YTD")</code>). The toggle changes the first two only.</li>
+        <li><strong>Month key format:</strong> the orchestrator (<code>PMSVisualPillars.tsx</code> line 870) maps each month through <code>formatMonthLabel</code> → "Apr 2026" before passing <code>monthlyData</code> down. <code>parseYM</code> + <code>formatDataMonth</code> both handle that display-label form, so the latest key resolves to "April 2026" cleanly.</li>
+        <li><strong>Latest-month anchor:</strong> <code>scopedTotals</code>/<code>bucketByPeriod</code> already sort ascending and anchor "current" to <code>sorted.at(-1)</code>. The surface needs that same latest key for the named label — added as a tiny exported <code>latestMonthKey</code> helper in <code>pmsPeriod.ts</code> rather than re-sorting in the component.</li>
+      </ul>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/components/PMS/dashboard/PmsHubSurface.tsx</code> — the surface: local <code>PeriodToggle</code> (delete), local <code>StatTile</code> (add a <code>sub</code> slot), the <code>tiles</code> array, hover scrubbing.</li>
+        <li><code>frontend/src/components/PMS/dashboard/pmsPeriod.ts</code> — <code>scopedTotals</code>, <code>bucketByPeriod</code>, <code>periodCardLabel</code> (only consumer is this surface); add <code>latestMonthKey</code>.</li>
+        <li><strong>Plan 0 primitives consumed:</strong> <code>components/dashboard/PeriodToggle.tsx</code>, <code>utils/timeframe.ts</code> (<code>formatDataMonth</code>, <code>TO_DATE</code>), <code>components/dashboard/InsightCue.tsx</code>.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Named-month labels via <code>formatDataMonth</code> — never a bare "This mo".</li>
+        <li>Shared terracotta <code>PeriodToggle</code> — do not re-implement a pill toggle.</li>
+        <li>One-line <code>InsightCue</code> — no paragraph, no AI call (client-derived trend).</li>
+        <li>Tile token recipe stays the existing <code>rounded-[14px] border border-line-soft bg-white shadow-premium</code> (the redesigned surface look).</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>plans/06132026-practice-hub-clarity/spec.html</code> (sibling Plan 1, same round, same primitives) — closest analog for structure + the InsightCue landing pattern.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Replace the local toggle with the shared terracotta <code>PeriodToggle</code>; labels <code>Month</code> / <code>QTD</code> / <code>YTD</code>.</li>
+            <li>MONTH-period tiles named via <code>formatDataMonth(latestMonthKey)</code>.</li>
+            <li>YTD figure rendered beside (beneath) the monthly production number, same tile.</li>
+            <li>Sources tile explicitly marked all-time (it has no per-period data).</li>
+            <li>One <code>InsightCue</code>, one line, client-derived from the production series.</li>
+            <li>Read each file before editing (no edit-from-memory).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do NOT edit <code>index.css</code>, <code>statusRules.ts</code>, or any shared primitive (owned/complete elsewhere).</li>
+            <li>Do NOT recreate the Plan 0 primitives — import them.</li>
+            <li>Do NOT change the data pipeline, the upstream Referral-Engine fetch, or the 1-Action banner logic.</li>
+            <li>Do NOT touch <code>PMSVisualPillars.tsx</code> unless strictly required (it is not — the YTD-beside-monthly layout is internal to the surface).</li>
+            <li>No git operations — changes stay uncommitted for a later QA pass.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Per-period source breakdown (no per-month source data exists in keyData — Sources stays all-time, marked).</li>
+        <li>Other surfaces' timeframe work (Plans 1, 3–5).</li>
+        <li>The chart's own chrome / velocity / mix (already intentionally dropped on this surface).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 — purely presentational, single surface, no backend; the only real care points are concurrent edits by sibling agents and not double-counting YTD.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>R1 — Concurrent edits (Level 2).</strong> Three other agents edit other surfaces simultaneously. <strong>Mitigation:</strong> stay strictly inside <code>PmsHubSurface.tsx</code> + <code>pmsPeriod.ts</code> (both exclusively this surface's); never touch shared primitives / <code>index.css</code> / <code>statusRules.ts</code>; run file-scoped eslint only (no full-project tsc — sibling in-flight edits would throw false errors; orchestrator runs authoritative tsc after).</li>
+        <li><strong>R2 — Duplicate YTD (Level 1).</strong> When the active period is YTD, the primary number already is the YTD figure; also showing a "YTD" secondary would duplicate it. <strong>Mitigation:</strong> render the YTD secondary only when <code>period !== "YTD"</code> and not hovering (hover shows a specific bucket; YTD anchor stays meaningful there).</li>
+        <li><strong>R3 — Trend direction source (Level 1).</strong> The InsightCue must reflect a real signal. <strong>Mitigation:</strong> derive from the LAST two production buckets of the ACTIVE series (<code>trendData</code>) so the cue tracks the toggled view; flat when &lt;2 buckets or equal.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>PmsHubSurface.tsx</code> (Referrals Hub only) + <code>pmsPeriod.ts</code> (helpers consumed only by that surface; <code>parseYM</code> is also imported by <code>utils/timeframe.ts</code> — the new <code>latestMonthKey</code> is additive and does not touch <code>parseYM</code>). No other consumers.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Sources genuinely has no per-period data, so "make the toggle drive EVERY tile" is not literally possible for it without backend work that is out of scope. The honest fix is the spec's second option — mark it all-time. Flagging so the owner knows Sources is intentionally fixed, not a missed wire-up.</li>
+        <li>Labels <code>Month</code> / <code>QTD</code> / <code>YTD</code> are mixed (one spelled noun, two abbreviations) per the explicit item-#3 instruction. This is intentional: the MONTH bucket is a single calendar month (named in the tile), whereas QTR/YTD are cumulative to-date measures that the locked standard abbreviates. Tooltips spell QTD/YTD out via <code>TO_DATE</code>.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: latestMonthKey helper (#3.1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>pmsPeriod.ts</code>: add <code>export function latestMonthKey(months): string | null</code> — sort ascending (reuse the existing internal sort) and return <code>sorted.at(-1)?.month ?? null</code>. The canonical "latest uploaded month" key the surface names.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/PMS/dashboard/pmsPeriod.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>eslint; returns "Apr 2026"-form key.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Shared terracotta PeriodToggle (#3.2)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>PmsHubSurface.tsx</code>: delete the local <code>PeriodToggle</code> (lines 38–67); import the shared one from <code>../../dashboard/PeriodToggle</code>; render with <code>options=[{key:"MONTH",label:"Month"},{key:"QTR",label:"QTD",tooltip:TO_DATE.QTD.full},{key:"YTD",label:"YTD",tooltip:TO_DATE.YTD.full}]</code>, <code>active={period}</code>, <code>onChange={handlePeriodChange}</code>, <code>ariaLabel="Referrals timeframe"</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>PmsHubSurface.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>Plan 0 (PeriodToggle, TO_DATE)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: terracotta active pill; toggle still drives scope.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Named-month label + YTD-beside-monthly tile (#3.1, #3.3)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>PmsHubSurface.tsx</code>: add a <code>sub?: string</code> slot to local <code>StatTile</code> (small muted line under the value). Compute <code>latest = latestMonthKey(monthlyData)</code> + <code>namedMonth = formatDataMonth(latest)</code>. Production tile label = (hover ? fullLabel : MONTH→namedMonth, QTR→"Quarter to date", YTD→"Year to date"); <code>sub</code> = YTD figure (<code>formatCompactCurrency(ytd.production)</code> prefixed "YTD") shown only when <code>period!=="YTD" &amp;&amp; !hovered</code>. Referrals tile label = (hover ? fullLabel : MONTH→namedMonth else QTD/YTD wording), with the clarifier so it reads "Referrals · {named month}". Remove the standalone YTD tile (slot "ytd").</dd></div>
+          <div><dt>Files</dt><dd><code>PmsHubSurface.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1, Plan 0 (formatDataMonth)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: MONTH names the month; YTD sits under monthly production; 3 tiles.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Mark Sources tile all-time (#3.2)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>PmsHubSurface.tsx</code>: Sources tile <code>sub="All-time"</code> so the intentionally-fixed tile is explicitly labeled (not a silent toggle miss).</dd></div>
+          <div><dt>Files</dt><dd><code>PmsHubSurface.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3</dd></div>
+          <div><dt>Verify</dt><dd>Manual: Sources tile reads "All-time".</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Production/referrals InsightCue (#3.4)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>PmsHubSurface.tsx</code>: import <code>InsightCue</code>; derive trend from the last two production buckets of <code>trendData</code> (up if last&gt;prev, down if last&lt;prev, flat otherwise / &lt;2 buckets); render one <code>InsightCue</code> directly below the chart. No custom message needed (primitive defaults: up "This is strong.", down "Spend time here.").</dd></div>
+          <div><dt>Files</dt><dd><code>PmsHubSurface.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>Plan 0 (InsightCue)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: cue flips with toggled trend direction; one line.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Verification</h3>
+        <dl>
+          <div><dt>Do</dt><dd>File-scoped <code>npx eslint</code> on the two changed files; fix lint in-file. NO full-project tsc (sibling agents' in-flight edits → false errors; orchestrator runs authoritative tsc after).</dd></div>
+          <div><dt>Files</dt><dd>—</dd></div>
+          <div><dt>Depends on</dt><dd>T1–T5</dd></div>
+          <div><dt>Verify</dt><dd>eslint clean on touched files.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> MONTH-period tiles name the actual latest month ("April 2026"); referrals reads "Referrals · {named month}"</li>
+        <li><input type="checkbox" checked disabled> Shared terracotta <code>PeriodToggle</code> in place; labels Month / QTD / YTD; production + referrals re-scope</li>
+        <li><input type="checkbox" checked disabled> YTD production sits beside (beneath) the monthly production number; standalone YTD tile removed</li>
+        <li><input type="checkbox" checked disabled> Sources tile explicitly marked all-time (intentionally fixed)</li>
+        <li><input type="checkbox" checked disabled> One-line <code>InsightCue</code> renders by production trend direction</li>
+        <li><input type="checkbox" checked disabled> <code>eslint</code> clean on <code>PmsHubSurface.tsx</code> + <code>pmsPeriod.ts</code> (exit 0)</li>
+        <li><input type="checkbox" disabled> Manual: Referrals Hub reads clearly, no unlabeled / bare-"this mo" numbers (owner visual QA — pending)</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

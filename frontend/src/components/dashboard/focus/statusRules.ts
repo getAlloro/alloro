@@ -34,23 +34,31 @@ export interface CardStatus {
   tone: StatusTone;
 }
 
-/** Referrals: "healthy" when this month ≥ prior month, else "down". */
+/**
+ * Referrals: signed delta vs the prior month — "31 up" (positive) or
+ * "31 down" (warn) — so owners see HOW MUCH it moved, not just a word
+ * (dashboard feedback). Neutral with no label when the count is unknown,
+ * there is no prior month to compare, or the two months are equal.
+ */
 export function referralStatus(
   thisMonth: number | null,
   priorMonth: number | null,
 ): CardStatus {
-  if (thisMonth === null) return { text: null, tone: "neutral" };
-  if (priorMonth === null) return { text: "healthy", tone: "positive" };
-  return thisMonth >= priorMonth
-    ? { text: "healthy", tone: "positive" }
-    : { text: "down", tone: "warn" };
+  if (thisMonth === null || priorMonth === null) {
+    return { text: null, tone: "neutral" };
+  }
+  const delta = thisMonth - priorMonth;
+  if (delta === 0) return { text: "no change", tone: "neutral" };
+  return delta > 0
+    ? { text: `${delta} up`, tone: "positive" }
+    : { text: `${Math.abs(delta)} down`, tone: "warn" };
 }
 
-/** Local rank: "post due" when the last GBP post is ≥ 30 days old (or unknown). */
+/** Local rank: "Google Post Due" when the last GBP post is ≥ 30 days old (or unknown). */
 export const POST_DUE_DAYS = 30;
 export function localRankStatus(daysSinceLastPost: number | null): CardStatus {
   if (daysSinceLastPost === null || daysSinceLastPost >= POST_DUE_DAYS) {
-    return { text: "post due", tone: "warn" };
+    return { text: "Google Post Due", tone: "warn" };
   }
   return { text: "current", tone: "positive" };
 }

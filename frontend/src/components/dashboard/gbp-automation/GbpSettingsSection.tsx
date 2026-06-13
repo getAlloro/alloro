@@ -21,6 +21,15 @@ export type GbpSettingsSectionProps = {
   onSyncPosts: () => void;
   onReviewReplyEnabledChange: (enabled: boolean) => void;
   onPostGenerationEnabledChange: (enabled: boolean) => void;
+  /**
+   * Hide the "Review replies" + "Google post drafts" enable/disable toggles
+   * (client /gbp-manager surface, #11) — enabling/disabling is an admin-only
+   * control. The read-only Diagnostics box still surfaces their on/off status,
+   * and the sync controls stay. Default false keeps the admin settings panel
+   * (AdminGbpSettingsPanel → OrgGbpAutomationTab) unchanged.
+   * Spec: plans/06132026-reviews-posts-clarity (T7).
+   */
+  hideAutomationToggles?: boolean;
 };
 
 function syncHealthLabel(sync: GbpReadiness["syncHealth"], noun: string): string {
@@ -151,6 +160,7 @@ export function GbpSettingsSection({
   onSyncPosts,
   onReviewReplyEnabledChange,
   onPostGenerationEnabledChange,
+  hideAutomationToggles = false,
 }: GbpSettingsSectionProps) {
   const isReviewReplyEnabled = Boolean(settingsDraft.review_reply_enabled);
   const isPostGenerationEnabled = Boolean(settingsDraft.local_post_generation_enabled);
@@ -172,38 +182,43 @@ export function GbpSettingsSection({
   return (
     <section className="rounded-[14px] border border-line-soft bg-white p-5 shadow-premium">
       <p className="text-xs font-semibold text-gray-500">
-        Next post generation: {nextPostLabel(settingsDraft.next_post_generation_at)}
+        Next automatic post draft in {nextPostLabel(settingsDraft.next_post_generation_at)}
+        <span className="font-medium text-gray-400">
+          {" "}— when Alloro will generate the next Google Post draft for review.
+        </span>
       </p>
 
       <div className="mt-4 space-y-4">
-        <div className="flex items-center justify-between gap-4 rounded-xl border border-gray-200 p-4">
-          <div>
-            <p id="gbp-review-replies-label" className="text-sm font-bold text-gray-900">
-              Review replies
-            </p>
-            <p className="mt-1 text-xs font-medium text-gray-500">
-              {reviewReplyStatusText}
-            </p>
+        {!hideAutomationToggles && (
+          <div className="flex items-center justify-between gap-4 rounded-xl border border-gray-200 p-4">
+            <div>
+              <p id="gbp-review-replies-label" className="text-sm font-bold text-gray-900">
+                Review replies
+              </p>
+              <p className="mt-1 text-xs font-medium text-gray-500">
+                {reviewReplyStatusText}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={isReviewReplyEnabled}
+              aria-disabled={isSwitchDisabled}
+              aria-labelledby="gbp-review-replies-label"
+              disabled={isSwitchDisabled}
+              onClick={() => onReviewReplyEnabledChange(!isReviewReplyEnabled)}
+              className={`relative h-7 w-12 shrink-0 rounded-full p-0.5 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-alloro-orange/40 disabled:cursor-not-allowed disabled:opacity-60 ${
+                isReviewReplyEnabled ? "bg-alloro-orange" : "bg-gray-200"
+              }`}
+            >
+              <span
+                className={`block h-6 w-6 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                  isReviewReplyEnabled ? "translate-x-5" : "translate-x-0"
+                } ${isSavingReviewReplies ? "animate-pulse" : ""}`}
+              />
+            </button>
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={isReviewReplyEnabled}
-            aria-disabled={isSwitchDisabled}
-            aria-labelledby="gbp-review-replies-label"
-            disabled={isSwitchDisabled}
-            onClick={() => onReviewReplyEnabledChange(!isReviewReplyEnabled)}
-            className={`relative h-7 w-12 shrink-0 rounded-full p-0.5 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-alloro-orange/40 disabled:cursor-not-allowed disabled:opacity-60 ${
-              isReviewReplyEnabled ? "bg-alloro-orange" : "bg-gray-200"
-            }`}
-          >
-            <span
-              className={`block h-6 w-6 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                isReviewReplyEnabled ? "translate-x-5" : "translate-x-0"
-              } ${isSavingReviewReplies ? "animate-pulse" : ""}`}
-            />
-          </button>
-        </div>
+        )}
 
         <div className="flex flex-col gap-3 rounded-xl border border-gray-200 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -224,34 +239,36 @@ export function GbpSettingsSection({
           </button>
         </div>
 
-        <div className="flex items-center justify-between gap-4 rounded-xl border border-gray-200 p-4">
-          <div>
-            <p id="gbp-local-posts-label" className="text-sm font-bold text-gray-900">
-              Google post drafts
-            </p>
-            <p className="mt-1 text-xs font-medium text-gray-500">
-              {postDraftStatusText}
-            </p>
+        {!hideAutomationToggles && (
+          <div className="flex items-center justify-between gap-4 rounded-xl border border-gray-200 p-4">
+            <div>
+              <p id="gbp-local-posts-label" className="text-sm font-bold text-gray-900">
+                Google post drafts
+              </p>
+              <p className="mt-1 text-xs font-medium text-gray-500">
+                {postDraftStatusText}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={isPostGenerationEnabled}
+              aria-disabled={isPostSwitchDisabled}
+              aria-labelledby="gbp-local-posts-label"
+              disabled={isPostSwitchDisabled}
+              onClick={() => onPostGenerationEnabledChange(!isPostGenerationEnabled)}
+              className={`relative h-7 w-12 shrink-0 rounded-full p-0.5 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-alloro-orange/40 disabled:cursor-not-allowed disabled:opacity-60 ${
+                isPostGenerationEnabled ? "bg-alloro-orange" : "bg-gray-200"
+              }`}
+            >
+              <span
+                className={`block h-6 w-6 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                  isPostGenerationEnabled ? "translate-x-5" : "translate-x-0"
+                } ${isSavingPostDrafts ? "animate-pulse" : ""}`}
+              />
+            </button>
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={isPostGenerationEnabled}
-            aria-disabled={isPostSwitchDisabled}
-            aria-labelledby="gbp-local-posts-label"
-            disabled={isPostSwitchDisabled}
-            onClick={() => onPostGenerationEnabledChange(!isPostGenerationEnabled)}
-            className={`relative h-7 w-12 shrink-0 rounded-full p-0.5 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-alloro-orange/40 disabled:cursor-not-allowed disabled:opacity-60 ${
-              isPostGenerationEnabled ? "bg-alloro-orange" : "bg-gray-200"
-            }`}
-          >
-            <span
-              className={`block h-6 w-6 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                isPostGenerationEnabled ? "translate-x-5" : "translate-x-0"
-              } ${isSavingPostDrafts ? "animate-pulse" : ""}`}
-            />
-          </button>
-        </div>
+        )}
 
         <div className="flex flex-col gap-3 rounded-xl border border-gray-200 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
