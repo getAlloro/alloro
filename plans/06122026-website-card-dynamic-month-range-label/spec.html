@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Website Card Dynamic Month-Range Label Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Completed</span>
+      </div>
+      <h1>Website Card Dynamic Month-Range Label</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06122026-website-card-dynamic-month-range-label</dd></div>
+        <div><dt>Size</dt><dd>Small</dd></div>
+        <div><dt>Risk</dt><dd>Level 1</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The Websites overview Traffic and Leads cards hardcode the eyebrow as
+      "Last 12 mo", but the charts plot the <em>trimmed</em> monthly series —
+      leading no-data months dropped, capped at 12. A practice live for only a
+      few months (e.g. Apr/May/Jun) shows 3 data points while the label still
+      claims 12 months. The label misrepresents what the chart shows.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Both card eyebrows derive their month count from the actual plotted
+      series length instead of a hardcoded 12. "Last 12 mo" becomes "Last 3 mo"
+      when only 3 months are charted, and grows back to "Last 12 mo" once a year
+      of data accrues. Each card reads its own series, so Traffic and Leads can
+      legitimately differ.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/components/website/overview/WebsiteOverview.tsx</code> - renders the two OverviewCards with the hardcoded eyebrows</li>
+        <li><code>frontend/src/components/website/overview/websiteMetrics.ts</code> - source of <code>visitorSeries</code> (trimmed, sliced to last 12) and <code>leadSeriesCompact</code> (trimmed leads); read-only, unchanged</li>
+        <li><code>frontend/src/components/website/overview/OverviewCard.tsx</code> - eyebrow is a plain <code>string</code> prop; unchanged</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Inline pluralization/format helpers already live module-level in this file (<code>fmt</code>, <code>durationLabel</code>, <code>gscDayLabel</code>) — the new <code>monthsRangeLabel</code> sits beside them.</li>
+        <li>Sibling GSC card uses "Last 90 days"; the "Last N mo" voice is preserved for design consistency.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>frontend/src/components/website/overview/WebsiteOverview.tsx</code> - existing <code>fmt</code> helper for the module-level format-helper shape.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Count = the series actually charted (<code>m.visitorSeries.length</code> / <code>m.leadSeriesCompact.length</code>).</li>
+            <li>Preserve the "Last N mo" abbreviated voice.</li>
+            <li>Cap at 12 and fall back gracefully when the series is empty.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No new dependencies.</li>
+            <li>No backend / API changes.</li>
+            <li>No changes to <code>computeWebsiteMetrics</code> or chart rendering.</li>
+            <li>No refactor of unrelated card code.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>The detail-modal chart captions ("Daily visitors · last 12 months", "Verified leads · last 12 months") — they describe the full daily/untrimmed window, a separate surface. Noted as a possible follow-up.</li>
+        <li>The "Search keywords · Last 90 days" GSC card.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 1 (cosmetic label, presentational only)</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li>Series with interior month gaps count plotted points, not calendar span. <strong>Mitigation:</strong> acceptable — the label matches the number of points the sparkline actually draws, which is what the viewer sees; contiguous monthly data is the normal case.</li>
+        <li>Singular reads "Last 1 mo". <strong>Mitigation:</strong> the "mo" abbreviation is number-agnostic, consistent with "12 mo"; acceptable.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>WebsiteOverview.tsx</code> only — the new helper is file-local and the eyebrow prop is a string consumed solely by <code>OverviewCard</code>.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>"Last 3 mo" can read as a deliberate 3-month lookback rather than "only 3 months exist". Considered acceptable: it is honest about what is plotted and matches the card family's "Last …" voice. Alternative "Showing 3 months" was rejected to avoid breaking the established eyebrow voice.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Dynamic month-range eyebrow</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add module-level <code>monthsRangeLabel(monthsShown)</code> → "Last N mo" (clamped 1–12, empty → "Last 12 mo"). Wire both eyebrows: Traffic uses <code>m.visitorSeries.length</code>, Leads uses <code>m.leadSeriesCompact.length</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/website/overview/WebsiteOverview.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc -p frontend/tsconfig.app.json</code> + eslint; Manual: card eyebrow reads "Last 3 mo" on a 3-month practice.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> <code>tsc -p frontend/tsconfig.app.json</code> - zero new errors</li>
+        <li><input type="checkbox" checked disabled> <code>eslint</code> on the changed file - clean</li>
+        <li><input type="checkbox" disabled> Manual: Traffic + Leads eyebrows reflect the real month count (user-verified in browser)</li>
+        <li><input type="checkbox" checked disabled> No regressions — chart rendering and metrics untouched</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

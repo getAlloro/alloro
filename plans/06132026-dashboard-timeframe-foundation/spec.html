@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard Timeframe Foundation Spec</title>
+  <style>
+    :root { color-scheme: light; --paper: #ffffff; --ink: #080808; --muted: #5f5f5f; --line: #d8d8d8; --soft: #f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.5; }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Completed</span>
+      </div>
+      <h1>Dashboard Timeframe Foundation</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed — 2026-06-13</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06132026-dashboard-timeframe-foundation</dd></div>
+        <div><dt>Size</dt><dd>Small-Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p><strong>Plan 0 of the dashboard-revamp feedback round.</strong> The owner's 24-item review (PDF 6-12) lands three cross-cutting requirements that every later plan depends on: <strong>#22</strong> one time-representation standard across all boards, <strong>#23</strong> the data-validity ship-blocker (numbers "change by screen" because timeframes are inconsistent and unlabeled), and <strong>#24</strong> add back light one-line insight cues. This plan builds the shared primitives so Plans 1–5 consume one source of truth instead of each reinventing labels/toggles/cues. Nothing convincing ships until these exist.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Three presentational/util primitives — no surface is rewired here (adoption happens in Plans 1–5). Done when:</p>
+      <ul>
+        <li>A <code>timeframe</code> util exports the canonical labels per the locked standard: durations spelled out (<code>"3 Months"</code>, <code>"28 Days"</code>, <code>"30 Days"</code>) and to-date abbreviated (<code>MTD</code>, <code>QTD</code>, <code>YTD</code>), plus <code>formatDataMonth(monthKey)</code> → <code>"April 2026"</code> (the named-month labeler, dual-format like <code>pmsPeriod.parseYM</code>).</li>
+        <li>A shared <code>PeriodToggle</code> component: terracotta active pill, muted inactive (the locked "terracotta active-pill" decision), label-agnostic (<code>options: {key,label}[]</code>), accessible.</li>
+        <li>A shared <code>InsightCue</code> component: one line, fed a trend direction (<code>up | down | flat</code>) + optional action text, renders the locked copy pattern — up = "This is strong", down = "Spend time here" + the one action — in the shared status tones.</li>
+        <li><code>tsc</code> + eslint clean. No visual change to any existing page in this plan (primitives are added, not yet wired).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Locked decisions feeding this plan</h3>
+      <ul>
+        <li>Time format: spelled durations + MTD/QTD/YTD (one scheme, all boards).</li>
+        <li>Period anchor: latest <em>uploaded</em> month, named explicitly — never a bare "this month".</li>
+        <li>Toggles: terracotta active pill, muted inactive (preserves "terracotta = attention", still pops).</li>
+        <li>Insights: one-line cues only (no AI blurb yet).</li>
+      </ul>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/components/PMS/dashboard/pmsPeriod.ts</code> — already exports <code>parseYM</code> (dual "YYYY-MM" / "Apr 2026" parsing). The new <code>formatDataMonth</code> reuses this rather than re-implementing.</li>
+        <li><code>frontend/src/utils/</code> — shared util home (existing: <code>pmDateFormat.ts</code> etc., but those are PM-module-specific; this is a general dashboard util). New <code>timeframe.ts</code> here.</li>
+        <li><code>frontend/src/components/dashboard/</code> — home for the new <code>PeriodToggle.tsx</code> + <code>InsightCue.tsx</code> (alongside the existing shared <code>ActionBanner.tsx</code> / <code>StatBox.tsx</code> from the consistency pass).</li>
+        <li><code>frontend/src/components/dashboard/focus/statusRules.ts</code> — <code>TONE_COLOR</code> (positive/warn/critical/neutral) is the tone source <code>InsightCue</code> consumes.</li>
+        <li>Existing ad-hoc period toggles the shared one will eventually replace (NOT in this plan): <code>PmsHubSurface</code> PeriodToggle (Plan 2), the dormant <code>RankingsHubSurface</code> PeriodToggle (Plan 3 removes it).</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Shared dashboard component idiom: typed props exported, presentational, tokens only (matches <code>ActionBanner</code>/<code>StatBox</code>).</li>
+        <li>Tones via <code>TONE_COLOR</code> import — never raw hex.</li>
+        <li>Terracotta = <code>alloro-orange</code> token.</li>
+      </ul>
+      <p><strong>Reference files:</strong> <code>ActionBanner.tsx</code> + <code>StatBox.tsx</code> (component idiom), <code>RankingsDashboardViewTabs.tsx</code> (pill-toggle markup to generalize), <code>pmsPeriod.ts</code> (parseYM).</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Primitives only — do NOT rewire any existing surface in this plan.</li>
+            <li>Label-agnostic <code>PeriodToggle</code> (each consuming plan sets its own option labels).</li>
+            <li>Tokens only; terracotta-active per the locked decision.</li>
+            <li><code>formatDataMonth</code> reuses <code>parseYM</code> (no third month parser).</li>
+            <li>Ship together with Plan 1 (Practice Hub) so the primitives have a live consumer on first commit.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No backend changes.</li>
+            <li>No AI/agent-fed insight content (cues are client-derived from trend direction).</li>
+            <li>No change to the existing toggles' behavior yet (Plans 2/3 own that).</li>
+            <li>No new dependencies.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Wiring the primitives into surfaces (Plans 1–5).</li>
+        <li>The backend month-key util already exists (<code>src/utils/pms/monthKey.ts</code>) — this is the frontend counterpart for display only.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 — low individual risk, but these primitives are consumed app-wide, so their API shape needs to be right the first time.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>R1 — API churn (Level 2).</strong> If <code>PeriodToggle</code>/<code>InsightCue</code> props are wrong, every later plan eats a refactor. <strong>Mitigation:</strong> keep them minimal + label-agnostic; model on the proven <code>StatBox</code>/<code>ActionBanner</code> shapes.</li>
+        <li><strong>R2 — Unconsumed exports (Level 1).</strong> <code>PeriodToggle</code>'s first consumer is Plan 2; if Plan 0 commits alone it's an exported-but-unused component (not a <code>noUnusedLocals</code> error — exports are fine). <strong>Mitigation:</strong> ship Plan 0 + Plan 1 together; <code>InsightCue</code> + <code>timeframe</code> get consumed immediately by Practice Hub.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> additive only — three new files + (optionally) re-exporting from an index. No existing import changes, so nothing can regress in this plan.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>"Month" in the Referrals toggle is neither a spelled duration nor a to-date measure — it's a single named month. The standard (#22) doesn't cover it. Resolution deferred to Plan 2: the toggle pill stays "Month" but the tile/label shows the named month via <code>formatDataMonth</code>. Foundation stays label-agnostic so Plan 2 can make that call without touching the primitive.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: timeframe util</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New <code>frontend/src/utils/timeframe.ts</code>: canonical label constants (durations "3 Months"/"28 Days"/"30 Days"; to-date MTD/QTD/YTD with full-name tooltips "Month to Date" etc.); <code>formatDataMonth(monthKey): string</code> → "April 2026" (import <code>parseYM</code> from pmsPeriod, full month name + year); a small <code>TimeframeKey</code> type.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/utils/timeframe.ts</code> (new)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc</code>; node-check formatDataMonth on both "2026-04" and "Apr 2026".</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: PeriodToggle component</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New <code>frontend/src/components/dashboard/PeriodToggle.tsx</code>: props <code>{ options: {key,label,tooltip?}[]; active; onChange }</code>; terracotta active pill (<code>bg-alloro-orange text-white</code>), muted inactive; keyboard-accessible; matches the rounded pill-group markup from RankingsDashboardViewTabs but generalized + recolored.</dd></div>
+          <div><dt>Files</dt><dd><code>PeriodToggle.tsx</code> (new)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc</code>; eslint.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: InsightCue component</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New <code>frontend/src/components/dashboard/InsightCue.tsx</code>: props <code>{ trend: "up"|"down"|"flat"; message?: string; action?: string }</code>; renders one line with a tone dot (positive/warn/neutral via <code>TONE_COLOR</code>) + the locked copy default (up→"This is strong", down→"Spend time here", flat→neutral note) — overridable via <code>message</code>; optional one action phrase. Compact, single-line, no card chrome (drops into a surface).</dd></div>
+          <div><dt>Files</dt><dd><code>InsightCue.tsx</code> (new)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc</code>; eslint.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Verification</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Frontend <code>tsc -p tsconfig.app.json</code> + eslint on the 3 new files; confirm no existing import touched (additive-only diff).</dd></div>
+          <div><dt>Files</dt><dd>—</dd></div>
+          <div><dt>Depends on</dt><dd>T1–T3</dd></div>
+          <div><dt>Verify</dt><dd>clean tsc + eslint</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>timeframe.ts</code> exports duration/to-date labels + <code>formatDataMonth</code> (handles both key formats)</li>
+        <li><input type="checkbox" disabled> <code>PeriodToggle</code> renders terracotta-active, label-agnostic, accessible</li>
+        <li><input type="checkbox" disabled> <code>InsightCue</code> renders the locked up/down/flat one-liners via shared tones</li>
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit -p tsconfig.app.json</code> clean; eslint clean on new files</li>
+        <li><input type="checkbox" disabled> Additive-only — no existing surface changed</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

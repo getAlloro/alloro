@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Referrals Hub Simplification Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">In Progress</span>
+      </div>
+      <h1>Referrals Hub Simplification</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>In Progress — built, awaiting visual + wizard QA</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06102026-referrals-hub-simplification</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The Referrals Hub (<code>/pmsStatistics</code>) is dense: an AI executive-summary card, growth-opportunity cards, a doctor/self mix card, a velocity card, a full ranked-sources modal, and a chart carrying its own headline + "view pace" chrome — all orchestrated by the ~1500-line <code>PMSVisualPillars.tsx</code>. This is the second of four dashboard simplifications (after Practice Hub). It collapses the analytics view into: header + period toggle → one dual-line chart → four stat tiles → upload CTA → top-3 sources w/ trend → one action line.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Build a new slim surface <code>PmsHubSurface.tsx</code> as a drop-in for <code>PmsDashboardSurface</code> (identical props), rendered by <code>PMSVisualPillars</code>. Done when:</p>
+      <ul>
+        <li>Header reads "REFERRALS HUB" with an interactive <strong>MONTH / QTR / YTD</strong> segmented toggle.</li>
+        <li>A dual-line (production + referrals) chart re-buckets per the selected period.</li>
+        <li>Four stat tiles: production (period-scoped, relabels THIS MO / THIS QTR / YTD), REFERRALS (period-scoped), SOURCES (active count), YTD (fixed annual reference).</li>
+        <li>Upload CTA preserved (reuse <code>PmsIngestionCard</code>).</li>
+        <li>Top-3 sources show rank · name · refs · % · trend arrow (trend from Referral-Engine <code>trend_label</code>, name-matched, <code>—</code> fallback).</li>
+        <li>One "1 ACTION" banner: "Protect your top N sources — X% of all referrals" (frontend heuristic).</li>
+        <li>Heavy sections no longer rendered; <code>PMSVisualPillars</code> plumbing (upload/automation/file-manager) untouched.</li>
+        <li>Onboarding wizard not broken. <code>npx tsc --noEmit</code> + lint clean.</li>
+      </ul>
+      <p><strong>No backend change</strong> — toggle aggregation + action are frontend-derived; trend reuses already-fetched RE data.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/components/PMS/PMSVisualPillars.tsx:1377</code> — sole render site of the surface (swap target); owns all upload/automation/file-manager plumbing.</li>
+        <li><code>frontend/src/components/PMS/dashboard/PmsDashboardSurface.tsx</code> — current surface; the props contract (<code>PmsDashboardSurfaceProps = PmsDashboardData + callbacks</code>) the new surface must mirror. Left on disk.</li>
+        <li><code>frontend/src/components/PMS/dashboard/types.ts</code> — <code>PmsDashboardMonth</code> (month, totalReferrals, doctorReferrals, selfReferrals, productionTotal), <code>PmsDashboardData</code>.</li>
+        <li><code>frontend/src/components/PMS/dashboard/PmsProductionChart.tsx</code> — dual-line recharts reference (orange production / green referrals); reused as the pattern for the new lean chart.</li>
+        <li><code>frontend/src/components/PMS/dashboard/PmsVitalsRow.tsx</code> — stat-tile style reference.</li>
+        <li><code>frontend/src/components/PMS/dashboard/PmsIngestionCard.tsx</code> — reused upload CTA (carries <code>data-wizard-target="pms-upload"</code>).</li>
+        <li><code>frontend/src/components/PMS/ReferralMatrices.tsx</code> — <code>ReferralEngineData</code>; <code>doctor_referral_matrix[].referrer_name</code>, <code>non_doctor_referral_matrix[].source_label</code>, both with <code>trend_label</code> ∈ increasing/decreasing/new/dormant/stable.</li>
+        <li><code>frontend/src/api/pms.ts</code> — <code>PmsKeyDataSource</code> (rank, name, referrals, production, percentage).</li>
+        <li><code>frontend/src/components/dashboard/focus/statusRules.ts</code> — reuse <code>TONE_COLOR</code> for trend-arrow tones (Practice Hub).</li>
+        <li><code>frontend/src/components/onboarding-wizard/wizardConfig.ts</code> — pms steps: <code>pms-vitals</code>, <code>pms-insights</code>, <code>pms-velocity</code>, <code>pms-upload</code>.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Dual-line recharts config + alloro-orange/green colors from <code>PmsProductionChart</code>.</li>
+        <li>Warm card shells (<code>PmsCardShell</code>/<code>PmsEyebrow</code> in <code>dashboard/primitives.tsx</code>).</li>
+        <li>Period aggregation as pure functions (no fetch); chart consumes pre-bucketed <code>PmsDashboardMonth[]</code>-shaped rows.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>PmsDashboardSurface.tsx</code> — the new surface mirrors its prop signature exactly so the orchestrator swap is one line.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>New surface accepts the identical <code>PmsDashboardSurfaceProps</code>.</li>
+            <li>Keep <code>usePmsKeyData</code>, the Referral-Engine fetch, automation polling, file-manager plumbing.</li>
+            <li>Period aggregation + the action heuristic are pure frontend (from <code>monthlyData</code>/<code>topSources</code>).</li>
+            <li>Reuse <code>PmsIngestionCard</code> for upload; preserve its <code>pms-upload</code> wizard target.</li>
+            <li>Leave retired component files on disk; only stop rendering them.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No backend change. No new dependencies.</li>
+            <li>Do not gut or rewrite <code>PMSVisualPillars</code> — change only the render line + retire heavy child renders.</li>
+            <li>Do not touch other dashboard tabs or the Referral Engine page.</li>
+            <li>Do not remove the RE fetch (owner kept it for trends + action).</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Backend per-source trend on <code>sources[]</code>; quarter/YTD backend params.</li>
+        <li>Rankings + Reviews&amp;Posts redesigns (later passes).</li>
+        <li>Redesigning the file manager, automation timeline, or manual-entry modal.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 (Structural — swapping the surface inside a 1500-line orchestrator on the primary analytics page).</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>R1 — Orchestrator swap.</strong> <strong>Mitigation:</strong> drop-in with identical props; only <code>PMSVisualPillars.tsx:1377</code> changes; plumbing untouched.</li>
+        <li><strong>R2 — Fuzzy trend matching.</strong> RE <code>source_label</code>/<code>referrer_name</code> may not equal keyData <code>sources[].name</code>. <strong>Mitigation:</strong> normalized (trim/lowercase) match; <code>—</code> fallback; accept partial coverage.</li>
+        <li><strong>R3 — Toggle "both" semantics</strong> are a best-guess contract (see Tasks T2). <strong>Mitigation:</strong> documented + tunable.</li>
+        <li><strong>R4 — Minimal network reduction.</strong> RE fetch kept by decision → win is render weight, not fewer calls. Not a regression; stated for honesty.</li>
+        <li><strong>R5 — Wizard re-point.</strong> <code>pms-insights</code>/<code>pms-velocity</code> targets lose their elements. <strong>Mitigation:</strong> re-point <code>pms-insights</code> → action banner, trim <code>pms-velocity</code>, keep <code>pms-vitals</code> (stat tiles) + <code>pms-upload</code>.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>PMSVisualPillars.tsx</code> (1 render line), new surface + helpers, <code>wizardConfig.ts</code>. Retired components (<code>PmsReferralsMeaningCard</code>, <code>PmsGrowthOpportunities</code>, <code>PmsReferralMixCard</code>, <code>PmsVelocityCard</code>, <code>PmsTopSourcesCard</code>, <code>PmsProductionChart</code>, <code>PmsDashboardSurface</code>) retained on disk; no other consumers verified before retiring.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Reusing <code>PmsIngestionCard</code> keeps its 12-month availability calendar — heavier than the mockup's bare dashed CTA. Recommended (lower risk, preserves function); flag if you want the lean CTA instead.</li>
+        <li>If real fetch reduction matters more than keeping AI-derived trends, reconsider dropping the RE fetch (would move trend to backend or drop arrows).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Lean dual-line chart</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New <code>PmsHubTrendChart.tsx</code> — dual-line (production orange / referrals green) + legend, consuming pre-bucketed rows. Reuse <code>PmsProductionChart</code>'s recharts config/colors but drop the headline number, "view pace" button, and velocity modal. Title "Production &amp; referrals · {period label}".</dd></div>
+          <div><dt>Files</dt><dd><code>components/PMS/dashboard/PmsHubTrendChart.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc</code>; renders with monthly + quarterly arrays.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Period aggregation helpers</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>pmsPeriod.ts</code> pure helpers. <code>bucketByPeriod(months, period)</code> → series rows for the chart (MONTH = monthly; QTR = quarterly sums w/ "Qn 'YY" labels; YTD = current-year months). <code>scopedTotals(months, period)</code> → {production, referrals} for the selected window (MONTH = latest month; QTR = current quarter; YTD = current year). <strong>Card contract:</strong> tile 1 relabels THIS MO/THIS QTR/YTD with scoped production; tile 2 = scoped referrals; tile 3 = SOURCES count (fixed); tile 4 = YTD production (fixed). Documented + tunable.</dd></div>
+          <div><dt>Files</dt><dd><code>components/PMS/dashboard/pmsPeriod.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc</code>; spot-check bucket sums.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Source-trend lookup</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>sourceTrend.ts</code> — build a normalized name→<code>trend_label</code> map from <code>referralData</code> (doctor + non-doctor matrices), expose <code>trendFor(sourceName)</code> → arrow + tone (increasing/new→▲ positive, decreasing/dormant→▼ warn, stable/unmatched→— neutral). Reuse <code>TONE_COLOR</code> from focus <code>statusRules</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>components/PMS/dashboard/sourceTrend.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc</code></dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: PmsHubSurface</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New surface with the same <code>PmsDashboardSurfaceProps</code>. Compose: lean header (REFERRALS HUB + MONTH/QTR/YTD toggle, local <code>useState</code>) → <code>PmsHubTrendChart</code> (period-bucketed) → 4 stat tiles (T2 contract) → reuse <code>PmsIngestionCard</code> → top-3 sources list w/ trend (T3) → 1-ACTION banner ("Protect your top 2 sources — {pct}% of all referrals" from <code>topSources</code>/<code>totalReferrals</code>). Preserve <code>PmsEmptyDashboardState</code> + <code>PmsProcessingStatusCard</code> branches. Put <code>data-wizard-target="pms-vitals"</code> on the tiles, <code>pms-insights</code> on the action banner.</dd></div>
+          <div><dt>Files</dt><dd><code>components/PMS/dashboard/PmsHubSurface.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2, T3</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc</code>; manual render in all three periods.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Swap render in PMSVisualPillars</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Replace <code>&lt;PmsDashboardSurface .../&gt;</code> at line 1377 with <code>&lt;PmsHubSurface .../&gt;</code> (same props). Update the import. No other change to the orchestrator.</dd></div>
+          <div><dt>Files</dt><dd><code>components/PMS/PMSVisualPillars.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T4</dd></div>
+          <div><dt>Verify</dt><dd>Manual: page renders; upload/file-manager/automation still work; heavy sections gone.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Wizard re-point</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>wizardConfig.ts</code>: keep <code>pms-vitals</code> (now stat tiles) + <code>pms-upload</code>; re-point <code>pms-insights</code> → action banner and refresh copy; trim <code>pms-velocity</code> (velocity cut). Verify no orphaned selector.</dd></div>
+          <div><dt>Files</dt><dd><code>components/onboarding-wizard/wizardConfig.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T4, T5</dd></div>
+          <div><dt>Verify</dt><dd>Manual: pms tour steps anchor to real elements.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: Verification</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Import/export integrity; full <code>tsc</code> + lint on touched files; confirm retired components have no other live consumers.</dd></div>
+          <div><dt>Files</dt><dd>—</dd></div>
+          <div><dt>Depends on</dt><dd>T1–T6</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit -p frontend/tsconfig.app.json</code>, <code>eslint</code></dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="task-card">
+        <h3>Rev 1 — 2026-06-10 (execution)</h3>
+        <ul>
+          <li>Built T1–T6 as specced: new <code>PmsHubSurface</code> swapped in at <code>PMSVisualPillars.tsx:1377</code> (one render line + import), new <code>PmsHubTrendChart</code>, <code>pmsPeriod.ts</code>, <code>sourceTrend.ts</code>; wizard <code>pms-velocity</code> trimmed, <code>pms-insights</code> re-pointed to the 1-action banner.</li>
+          <li><strong>Container width</strong> set to <code>max-w-[1080px]</code> (down from the old surface's 1320px) for consistency with the Practice Hub pass.</li>
+          <li><strong>Stat tiles</strong> use the existing <code>formatCompactCurrency</code> → renders "$230.0K" / "$1.9M" (one-decimal), not the mockup's bare "$230k". Kept for consistency with the existing PMS formatting; trivial to change if you want bare-k.</li>
+          <li>Retired components (<code>PmsReferralsMeaningCard</code>, <code>PmsGrowthOpportunities</code>, <code>PmsReferralMixCard</code>, <code>PmsVelocityCard</code>, <code>PmsTopSourcesCard</code>, <code>PmsProductionChart</code>, <code>PmsDashboardSurface</code>) left on disk; <code>PmsDashboardSurface</code> still referenced via its exported props type.</li>
+        </ul>
+        <p><strong>Build:</strong> frontend <code>tsc</code> clean for all touched files (only pre-existing ai-seo-audit errors remain); eslint 0 errors (pre-existing <code>exhaustive-deps</code> warnings in <code>PMSVisualPillars</code> hooks untouched).</p>
+        <p><strong>Pending:</strong> user visual QA across MONTH/QTR/YTD + a pass through the pms onboarding tour; confirm upload / file-manager / automation still work through the new surface.</p>
+      </article>
+    </section>
+
+    <article class="task-card" style="margin-top:14px">
+      <h3>Rev 2 — 2026-06-10</h3>
+      <ul>
+        <li><strong>Alert banner centered.</strong> The orchestrator's "May 2026 PMS data ready?" <code>DashboardAlertStack</code> rendered in the 1320px <code>&lt;main&gt;</code> while the surface is 1080px — misaligned. Wrapped it in <code>mx-auto w-full max-w-[1080px]</code> (PMSVisualPillars) so it centers with the content, matching Practice Hub.</li>
+        <li><strong>Lean upload CTA.</strong> Replaced the heavy reused <code>PmsIngestionCard</code> (Upload/Manage buttons + availability calendar) with a lean dashed CTA ("Upload your latest data / Re-upload a month to overwrite it") that opens the data-manager months side panel via <code>onOpenDataManager</code> (falls back to <code>onOpenManualEntry</code> if unwired). Dropped the <code>buildAvailabilityMonths</code> helper. Reverses the Rev-1 reuse decision per owner. <code>pms-upload</code> wizard target moved to the new CTA.</li>
+      </ul>
+      <p>tsc + eslint clean on touched files.</p>
+    </article>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> — frontend, zero new errors</li>
+        <li><input type="checkbox" disabled> <code>eslint</code> clean on touched files</li>
+        <li><input type="checkbox" disabled> Manual: header + MONTH/QTR/YTD toggle rescopes chart + stats</li>
+        <li><input type="checkbox" disabled> Manual: dual-line chart renders in all three periods</li>
+        <li><input type="checkbox" disabled> Manual: 4 stat tiles (THIS MO/QTR/YTD relabel + REFERRALS + SOURCES + YTD)</li>
+        <li><input type="checkbox" disabled> Manual: top-3 sources show trend arrows (or — when unmatched)</li>
+        <li><input type="checkbox" disabled> Manual: 1-ACTION banner shows top-2-source share</li>
+        <li><input type="checkbox" disabled> Manual: upload / file-manager / automation processing still work</li>
+        <li><input type="checkbox" disabled> Manual: pms onboarding tour not broken</li>
+        <li><input type="checkbox" disabled> No regressions in other dashboard tabs</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

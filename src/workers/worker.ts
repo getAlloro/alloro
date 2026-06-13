@@ -24,6 +24,7 @@ import {
   processPageGenerate,
 } from "./processors/websiteGeneration.processor";
 import { processIdentityWarmup } from "./processors/identityWarmup.processor";
+import { processAiSeoAudit } from "./processors/aiSeoAudit.processor";
 import { processLayoutGenerate } from "./processors/websiteLayouts.processor";
 import { processPostImport } from "./processors/postImporter.processor";
 import { processCrmPush } from "./processors/crmPush.processor";
@@ -314,6 +315,22 @@ const wbIdentityWarmupWorker = new Worker(
   }
 );
 
+// Website Builder — AI/SEO Audit worker (URL collection + external scan + scoring)
+const wbAiSeoAuditWorker = new Worker(
+  "wb-ai-seo-audit",
+  async (job) => {
+    await processAiSeoAudit(job);
+  },
+  {
+    connection: makeConnection(),
+    concurrency: 2,
+    lockDuration: 600000, // 10 min — multi-page fetch + SerpApi + external fetches
+    prefix: '{wb}',
+    removeOnComplete: { count: 50 },
+    removeOnFail: { count: 50 },
+  }
+);
+
 // Website Builder — Project Scrape worker (Apify + website scrape + image analysis)
 const wbProjectScrapeWorker = new Worker(
   "wb-project-scrape",
@@ -443,7 +460,7 @@ const gbpAutomationWorker = new Worker(
 );
 
 // Event handlers
-for (const worker of [scrapeCompareWorker, compilePublishWorker, discoveryWorker, skillTriggerWorker, worksDigestWorker, seoBulkGenerateWorker, reviewSyncWorker, schedulerWorker, scheduleExecWorker, wbBackupWorker, wbRestoreWorker, wbIdentityWarmupWorker, wbLayoutsWorker, wbProjectScrapeWorker, wbPageGenerateWorker, wbPostImportWorker, auditLeadgenWorker, crmHubspotPushWorker, crmMappingValidationWorker, dataHarvestWorker, gbpAutomationWorker]) {
+for (const worker of [scrapeCompareWorker, compilePublishWorker, discoveryWorker, skillTriggerWorker, worksDigestWorker, seoBulkGenerateWorker, reviewSyncWorker, schedulerWorker, scheduleExecWorker, wbBackupWorker, wbRestoreWorker, wbIdentityWarmupWorker, wbAiSeoAuditWorker, wbLayoutsWorker, wbProjectScrapeWorker, wbPageGenerateWorker, wbPostImportWorker, auditLeadgenWorker, crmHubspotPushWorker, crmMappingValidationWorker, dataHarvestWorker, gbpAutomationWorker]) {
   worker.on("completed", (job) => {
     console.log(`[MINDS-WORKER] Job ${job?.id} completed on queue ${worker.name}`);
   });
@@ -472,6 +489,7 @@ async function shutdown(): Promise<void> {
   await wbBackupWorker.close();
   await wbRestoreWorker.close();
   await wbIdentityWarmupWorker.close();
+  await wbAiSeoAuditWorker.close();
   await wbLayoutsWorker.close();
   await wbProjectScrapeWorker.close();
   await wbPageGenerateWorker.close();

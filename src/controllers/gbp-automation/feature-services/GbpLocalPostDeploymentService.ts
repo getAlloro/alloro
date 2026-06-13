@@ -37,21 +37,22 @@ function googleLocationParent(property: {
 }
 
 function buildPayload(item: IGbpWorkItem, content: string): GbpLocalPostPayload {
-  if (!item.featured_image_url) {
-    throw new GbpAutomationError(
-      "GBP_POST_IMAGE_REQUIRED",
-      "Upload a post image before publishing a GBP post."
-    );
-  }
+  // Photo is optional — Google accepts text-only STANDARD posts. Omit the
+  // `media` key entirely (do NOT send null/empty) when there is no image.
+  // plans/06102026-reviews-posts-page (T5).
   return {
     topicType: "STANDARD",
     summary: content,
-    media: [
-      {
-        mediaFormat: "PHOTO",
-        sourceUrl: item.featured_image_url,
-      },
-    ],
+    ...(item.featured_image_url
+      ? {
+          media: [
+            {
+              mediaFormat: "PHOTO" as const,
+              sourceUrl: item.featured_image_url,
+            },
+          ],
+        }
+      : {}),
   };
 }
 

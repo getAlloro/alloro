@@ -1,29 +1,30 @@
 export type GbpReviewRange = "latest" | "last30" | "all";
 
 export type GbpReviewRangeControlsProps = {
-  count: number;
   range: GbpReviewRange;
   onRangeChange: (range: GbpReviewRange) => void;
+  /**
+   * Days covered by the "last30" range key (label follows). The key name is
+   * legacy — the /gbp-manager page widens the window to 60 days.
+   */
+  recentWindowDays?: number;
 };
 
-const RANGE_OPTIONS: Array<{ key: GbpReviewRange; label: string }> = [
-  { key: "latest", label: "Latest 10" },
-  { key: "last30", label: "Last 30 days" },
-  { key: "all", label: "All loaded" },
-];
-
-function reviewCountLabel(count: number): string {
-  return `${count} Review${count === 1 ? "" : "s"}`;
-}
-
 export function GbpReviewRangeControls({
-  count,
   range,
   onRangeChange,
+  recentWindowDays = 30,
 }: GbpReviewRangeControlsProps) {
+  const RANGE_OPTIONS: Array<{ key: GbpReviewRange; label: string }> = [
+    { key: "latest", label: "Latest 10" },
+    { key: "last30", label: `Last ${recentWindowDays} days` },
+    { key: "all", label: "All loaded" },
+  ];
+
+  // The leading review-count number was removed (#9): it was a non-clickable
+  // span that read as a disabled control. The range buttons stand alone now.
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
-      <span className="text-xs font-bold text-slate-500">{reviewCountLabel(count)}</span>
       {RANGE_OPTIONS.map((option) => (
         <button
           key={option.key}

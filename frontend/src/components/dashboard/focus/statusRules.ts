@@ -1,0 +1,76 @@
+/**
+ * statusRules — pure helpers that derive the Practice Hub stat-card status
+ * label + dot tone from raw metric values.
+ *
+ * Centralized so every threshold lives in ONE tunable place. These are
+ * client-side heuristics, NOT product-defined health bands. If the product
+ * later defines real thresholds they belong server-side in the
+ * dashboard-metrics dictionary, not here.
+ *
+ * Spec: plans/06092026-practice-hub-simplification/spec.html (T3)
+ */
+
+export type StatusTone = "positive" | "warn" | "critical" | "neutral";
+
+/**
+ * Dot / status-text colors per tone (warm palette, matches focus cards).
+ *
+ * App-wide status language (plans/06112026-design-consistency-pass):
+ *   positive (green)  = healthy / current / on track
+ *   warn     (yellow) = needs attention soon
+ *   critical (red)    = overdue / failing — act now
+ *   neutral  (stone)  = no signal yet
+ * Every hub's status dot imports from here — no ad-hoc dot colors.
+ */
+export const TONE_COLOR: Record<StatusTone, string> = {
+  positive: "#4F8A5B",
+  warn: "#C2891E",
+  critical: "#B0382E",
+  neutral: "#A8A192",
+};
+
+export interface CardStatus {
+  text: string | null;
+  tone: StatusTone;
+}
+
+/**
+ * Referrals: signed delta vs the prior month — "31 up" (positive) or
+ * "31 down" (warn) — so owners see HOW MUCH it moved, not just a word
+ * (dashboard feedback). Neutral with no label when the count is unknown,
+ * there is no prior month to compare, or the two months are equal.
+ */
+export function referralStatus(
+  thisMonth: number | null,
+  priorMonth: number | null,
+): CardStatus {
+  if (thisMonth === null || priorMonth === null) {
+    return { text: null, tone: "neutral" };
+  }
+  const delta = thisMonth - priorMonth;
+  if (delta === 0) return { text: "no change", tone: "neutral" };
+  return delta > 0
+    ? { text: `${delta} up`, tone: "positive" }
+    : { text: `${Math.abs(delta)} down`, tone: "warn" };
+}
+
+/** Local rank: "Google Post Due" when the last GBP post is ≥ 30 days old (or unknown). */
+export const POST_DUE_DAYS = 30;
+export function localRankStatus(daysSinceLastPost: number | null): CardStatus {
+  if (daysSinceLastPost === null || daysSinceLastPost >= POST_DUE_DAYS) {
+    return { text: "Google Post Due", tone: "warn" };
+  }
+  return { text: "current", tone: "positive" };
+}
+
+/** Reviews: green at 4.5+, amber below, neutral when unknown. */
+export const STRONG_RATING = 4.5;
+export function reviewTone(rating: number | null): StatusTone {
+  if (rating === null) return "neutral";
+  return rating >= STRONG_RATING ? "positive" : "warn";
+}
+
+/** Form subs: green when any submissions this month, neutral when zero. */
+export function formSubsTone(count: number | null): StatusTone {
+  return count ? "positive" : "neutral";
+}

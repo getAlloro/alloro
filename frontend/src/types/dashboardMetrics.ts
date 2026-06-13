@@ -23,6 +23,7 @@ export interface ReviewsMetrics {
   oldest_unanswered_hours: number | null;
   unanswered_count: number;
   current_rating: number | null;
+  total_review_count: number | null;
   rating_change_30d: number | null;
   reviews_this_month: number;
 }

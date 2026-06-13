@@ -264,7 +264,11 @@ const referralTopFixSchema = z.object({
 });
 
 const referralGrowthSummarySchema = z.object({
-  top_three_fixes: z.array(referralTopFixSchema),
+  // Field name is legacy — the agent now emits a single recommended action
+  // (the Referrals Hub 1-ACTION banner shows exactly one). max(1) enforced;
+  // min left open so sparse-data months can validly produce no fix.
+  // plans/06102026-referrals-hub-simplification.
+  top_three_fixes: z.array(referralTopFixSchema).max(1),
   estimated_additional_annual_revenue: z.number(),
 });
 
@@ -363,7 +367,11 @@ export const TopActionSchema = z.object({
     "pms-data-quality",
     "referral",
   ]),
-  rationale: z.string().min(1),
+  // Generous runaway backstop (~3 sentences). The real "1-2 sentences" lever
+  // is the prompt guidance in Summary.md — a TIGHT cap here would fail-closed
+  // and reject the doctor's entire monthly action over prose length, which is
+  // worse than a slightly long rationale. plans/06132026-practice-hub-clarity.
+  rationale: z.string().min(1).max(400),
   highlights: z.array(z.string()).max(2).default([]),
   supporting_metrics: z.array(SupportingMetricSchema).length(3),
   outcome: z.object({
@@ -401,7 +409,10 @@ export const DomainSummarySchema = z.object({
 
 export const SummaryV2OutputSchema = z
   .object({
-    top_actions: z.array(TopActionSchema).min(3).max(5),
+    // Simplified to a single "one thing that matters" action. Upper bound kept
+    // at 5 so older multi-action outputs still validate; the task-creator
+    // persists only the top-ranked entry. plans/06092026-practice-hub-simplification.
+    top_actions: z.array(TopActionSchema).min(1).max(5),
     domain_summaries: z.array(DomainSummarySchema).max(6).optional(),
     data_quality_flags: z.array(z.string()).optional(),
     confidence: z.number().min(0).max(1).optional(),

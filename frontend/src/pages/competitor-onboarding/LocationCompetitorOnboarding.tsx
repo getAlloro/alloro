@@ -580,7 +580,7 @@ export default function LocationCompetitorOnboarding() {
     <div className="min-h-screen bg-alloro-bg font-body text-alloro-textDark pb-32 selection:bg-alloro-orange selection:text-white">
       {!isReselectMode && (
         <header className="glass-header border-b border-black/5">
-          <div className="max-w-[1400px] mx-auto px-6 lg:px-10 py-6 flex items-center gap-5">
+          <div className="max-w-[960px] mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-center gap-5">
             <div className="w-10 h-10 bg-alloro-orange text-white rounded-xl flex items-center justify-center shadow-lg">
               <Sparkles size={20} />
             </div>
@@ -596,7 +596,7 @@ export default function LocationCompetitorOnboarding() {
         </header>
       )}
 
-      <main className="w-full max-w-[1400px] mx-auto px-6 lg:px-10 py-10 lg:py-16 space-y-10">
+      <main className="w-full max-w-[960px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         {error && (
           <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-red-700 text-sm font-medium">
             {error}
@@ -871,16 +871,7 @@ function RadiusControl({
   );
   return (
     <div className="rounded-[14px] border border-line-soft bg-white p-4 shadow-premium">
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
-        <div className="min-w-0">
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-            Automated suggestions
-          </div>
-          <p className="mt-1 text-[11px] font-semibold leading-snug text-slate-500">
-            Refresh Google suggestions by competitor type and area.
-          </p>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end xl:flex-nowrap">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <label className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-black/5 bg-slate-50 px-3 py-2">
             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
               Type
@@ -956,7 +947,6 @@ function RadiusControl({
             )}
             Refresh suggestions
           </button>
-        </div>
       </div>
     </div>
   );
@@ -1080,10 +1070,13 @@ function CuratingStage({
         onComparisonSpecialtyChange={onComparisonSpecialtyChange}
       />
 
-      <div className="lg:grid lg:grid-cols-[0.82fr_1.18fr] lg:items-start lg:gap-8">
+      {/* Default grid alignment (stretch) lets the map column match the
+          competitor-list column's height; min-h keeps it usable when the
+          list is short. */}
+      <div className="lg:grid lg:grid-cols-[0.82fr_1.18fr] lg:gap-6">
         <div
           ref={mapWrapperRef}
-          className="mb-6 h-[300px] overflow-hidden rounded-2xl border border-black/5 lg:sticky lg:top-6 lg:mb-0 lg:h-[380px]"
+          className="mb-5 h-[240px] overflow-hidden rounded-2xl border border-black/5 lg:mb-0 lg:h-auto lg:min-h-[320px]"
         >
           <CompetitorMap
             competitors={competitors}
@@ -1386,7 +1379,7 @@ function CuratingStage({
         </div>
       </div>
 
-      <div className="sticky bottom-6 z-20 bg-alloro-navy rounded-3xl px-8 py-7 shadow-premium flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="sticky bottom-4 z-20 bg-alloro-navy rounded-2xl px-6 py-5 shadow-premium flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           {!isReselectMode && (
             <div className="text-[10px] font-black text-white/50 uppercase tracking-widest mb-1">
@@ -1463,6 +1456,23 @@ function getRadiusBounds(
     [lat - latDelta, lng - lngDelta],
     [lat + latDelta, lng + lngDelta]
   );
+}
+
+// The map wrapper's height now tracks the competitor-list column (grid
+// stretch), so the container resizes as rows are added/removed. Leaflet
+// only measures its canvas once — observe the container and re-measure,
+// otherwise tiles go stale/blank in the newly exposed area.
+function InvalidateOnResize() {
+  const map = useMap();
+  useEffect(() => {
+    const container = map.getContainer();
+    const observer = new ResizeObserver(() => {
+      map.invalidateSize();
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [map]);
+  return null;
 }
 
 // Imperatively pan/zoom to fit the supplied points whenever they change.
@@ -1695,6 +1705,7 @@ function CompetitorMap({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
           subdomains="abcd"
         />
+        <InvalidateOnResize />
         <FitBoundsOnChange
           points={points}
           radiusCenter={radiusCenter}

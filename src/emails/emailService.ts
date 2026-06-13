@@ -10,6 +10,7 @@ import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
 import type { EmailPayload, EmailResult, SendEmailOptions } from "./types";
+import { interceptEmailPayload } from "./emailInterceptor";
 
 dotenv.config();
 
@@ -153,7 +154,7 @@ export async function sendEmail(
   }
 
   // Prepare webhook payload
-  const payload: EmailPayload & { from: string; fromName: string } = {
+  const builtPayload: EmailPayload & { from: string; fromName: string } = {
     subject: options.subject,
     body: options.body,
     recipients: options.recipients,
@@ -163,11 +164,30 @@ export async function sendEmail(
     fromName: options.fromName || DEFAULT_FROM_NAME,
   };
 
+  // Non-production senders get every email rerouted to the intercept
+  // recipient (fail closed) — see emailInterceptor.ts. OTP login codes
+  // opt out via allowLiveSend so the code always reaches the requester,
+  // even on dev/local/CI (user-ratified — see plan 06122026).
+  const { payload, intercepted, originalRecipients } = options.allowLiveSend
+    ? {
+        payload: builtPayload,
+        intercepted: false,
+        originalRecipients: builtPayload.recipients,
+      }
+    : await interceptEmailPayload(builtPayload);
+
+  if (intercepted) {
+    logEmail("INFO", "Email intercepted (non-production sender)", {
+      subject: options.subject,
+      originalRecipients,
+    });
+  }
+
   logEmail("INFO", "Sending email via webhook", {
-    subject: options.subject,
-    recipientCount: options.recipients.length,
-    hasCC: (options.cc?.length || 0) > 0,
-    hasBCC: (options.bcc?.length || 0) > 0,
+    subject: payload.subject,
+    recipientCount: payload.recipients.length,
+    hasCC: (payload.cc?.length || 0) > 0,
+    hasBCC: (payload.bcc?.length || 0) > 0,
   });
 
   try {
@@ -183,8 +203,8 @@ export async function sendEmail(
 
     logEmail("INFO", "Email sent successfully", {
       messageId,
-      subject: options.subject,
-      recipients: options.recipients,
+      subject: payload.subject,
+      recipients: payload.recipients,
       status: response.status,
     });
 
@@ -199,8 +219,8 @@ export async function sendEmail(
 
     logEmail("ERROR", "Failed to send email", {
       error: errorMessage,
-      subject: options.subject,
-      recipients: options.recipients,
+      subject: payload.subject,
+      recipients: payload.recipients,
       status: error.response?.status,
       responseData: error.response?.data,
     });

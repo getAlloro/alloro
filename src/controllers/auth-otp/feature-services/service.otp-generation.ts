@@ -38,6 +38,9 @@ export async function createAndSendOtp(email: string): Promise<boolean> {
       </div>
     `,
     recipients: [email],
+    // OTP codes must reach the requester in every environment, so they
+    // bypass the email interceptor (user-ratified — see plan 06122026).
+    allowLiveSend: true,
   });
 
   return result.success;

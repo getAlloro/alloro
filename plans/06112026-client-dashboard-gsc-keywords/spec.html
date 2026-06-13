@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Client Dashboard GSC Keywords Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Completed</span>
+      </div>
+      <h1>Client Dashboard GSC Keywords</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed — card verified live by user; cross-org isolation code-verified</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06112026-client-dashboard-gsc-keywords</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Google Search Console data is already harvested daily into <code>website_builder.gsc_data</code> and fully visualized in the <strong>admin</strong> dashboard. Clients can <em>connect</em> GSC in <code>/settings/integrations</code> but have nowhere to <em>see</em> their search performance — the data they own is locked behind admin-only routes. This surfaces it: practice owners see what people search to find them, whether they're showing up, and whether it's trending up. Now, because the entire pipeline already exists; this is surfacing, not building.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Two client-facing surfaces in the DFY website dashboard, both fed by one new client-scoped read endpoint:</p>
+      <ul>
+        <li><strong>A "Keywords" tab</strong> in the website dashboard pill nav (alongside Overview / Pages / Submissions / Posts / Menus): totals, a daily clicks/impressions trend chart, a range selector, and top-queries + top-pages tables.</li>
+        <li><strong>A "Search Performance" card</strong> on the Overview tab: 3 headline metrics (clicks, impressions, avg position) + a trend sparkline + top 3 queries, with a "View all →" that opens the Keywords tab.</li>
+        <li><strong>New endpoint</strong> <code>GET /api/user/website/gsc/performance?rangeDays=90</code> that resolves the project from the auth-token org and reuses the existing <code>service.gsc-performance.getDashboard()</code> untouched.</li>
+      </ul>
+      <p><strong>Metrics shown (trimmed for clients):</strong> totals (clicks, impressions, avg position), daily trend, top queries, top pages. Countries / devices / per-dimension CTR are intentionally dropped as analyst noise.</p>
+      <p><strong>Done when:</strong> a logged-in client whose project has an active GSC integration sees their real search data in both surfaces; the not-connected state links to settings; the connected-but-no-data-yet state renders cleanly; <code>npx tsc --noEmit</code> is clean for both <code>frontend/</code> and root.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/routes/user/website.ts</code> — client website routes; GSC routes (<code>/gsc</code>, <code>/gsc/sites</code>, <code>/gsc/connections</code>) and <code>/analytics</code> already live here. Add one route.</li>
+        <li><code>src/controllers/user-website/UserWebsiteController.ts</code> — <code>getWebsiteAnalytics</code> (L651) is the exact analog; imports <code>getDashboard as getRybbitDashboard</code> (L23) from the admin service. Add one handler.</li>
+        <li><code>src/controllers/admin-websites/feature-services/service.gsc-performance.ts</code> — <code>getDashboard(integration, rangeDaysInput)</code>. Reused as-is. <strong>No edits.</strong></li>
+        <li><code>src/models/website-builder/WebsiteIntegrationModel.ts</code> — <code>findByProjectAndPlatform(projectId, "gsc")</code> (L86) returns the integration.</li>
+        <li><code>frontend/src/api/websiteAnalytics.ts</code> — reference analog for the new GSC API client module.</li>
+        <li><code>frontend/src/components/website/overview/WebsiteOverview.tsx</code> — the Rybbit analytics card (uses <code>OverviewCard</code>, <code>TrendSparkline</code>, <code>TrendPill</code>) is the card analog. Add the GSC card here.</li>
+        <li><code>frontend/src/components/website/WebsiteDashboardTabs.tsx</code> — pill-tab definitions (<code>WebsiteDashboardView</code> union + <code>options</code> array). Add <code>"keywords"</code>.</li>
+        <li><code>frontend/src/pages/DFYWebsite.tsx</code> — <code>WEBSITE_TABS</code> (L94) + the <code>activeView === ...</code> render switch (~L1337-1599). Add the keywords case.</li>
+        <li><code>frontend/src/components/Admin/integrations/GscPerformanceDashboard.tsx</code> + <code>GscPerformanceParts.tsx</code> — admin GSC view. <strong>Structural reference only — do not import, do not edit.</strong></li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li><strong>Org-scoped read endpoint:</strong> mirror <code>getWebsiteAnalytics</code> exactly — <code>orgId = req.organizationId</code> → 400; <code>ProjectModel.findByOrganizationId(orgId)</code> → 404; <code>WebsiteIntegrationModel.findByProjectAndPlatform(project.id, "gsc")</code> → <code>{ success: true, hasIntegration: false, … }</code> when absent; else <code>{ success: true, hasIntegration: true, …dashboard }</code>.</li>
+        <li><strong>Route guard:</strong> <code>authenticateToken, rbacMiddleware, requireRole("admin", "manager")</code> — identical to <code>/analytics</code>.</li>
+        <li><strong>Frontend API client:</strong> mirror <code>fetchWebsiteAnalytics</code> — <code>apiGet</code>, no orgId in URL, throw on <code>!success</code>.</li>
+        <li><strong>Card:</strong> mirror the Rybbit <code>analyticsQuery</code> + <code>OverviewCard</code> block in <code>WebsiteOverview.tsx</code>.</li>
+        <li><strong>Charting:</strong> Recharts is already a dependency (the admin GSC chart uses it). Build a fresh client chart; do not import the admin component.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>frontend/src/api/websiteAnalytics.ts</code> + <code>getWebsiteAnalytics</code> in <code>UserWebsiteController.ts:651</code> — the closest existing analog (same harvest→admin-service→client-surface shape, shipped for Rybbit).</p>
+      <h3>Data Flow</h3>
+      <p class="flow">Keywords tab / Overview card
+  → useWebsiteGscPerformance(rangeDays)            [new hook]
+  → fetchWebsiteGscPerformance()                   [new api client]
+  → GET /api/user/website/gsc/performance          [new route]
+  → getGscPerformance()                            [new controller]
+      orgId → ProjectModel.findByOrganizationId
+            → WebsiteIntegrationModel.findByProjectAndPlatform(project.id,"gsc")
+            → service.gsc-performance.getDashboard(integration, rangeDays)   [REUSED]
+      → reads website_builder.gsc_data (already harvested daily)</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Resolve project strictly from <code>req.organizationId</code> (auth token). Never accept a caller-supplied <code>projectId</code>.</li>
+            <li>Reuse <code>service.gsc-performance.getDashboard()</code> with zero changes.</li>
+            <li>Return the full dashboard payload from the endpoint; trim (drop countries/devices) only in the client UI.</li>
+            <li>Handle three states in both surfaces: not-connected (link to <code>/settings/integrations</code>), connected-but-no-data-yet, and has-data.</li>
+            <li>Match the Rybbit analytics precedent for naming, error handling, and response envelope (<code>success</code> / <code>hasIntegration</code>).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Edit or import any <code>components/Admin/</code> GSC component (build fresh client-only — confirmed decision).</li>
+            <li>Edit <code>service.gsc-performance.ts</code> or any harvest / model code.</li>
+            <li>Add new dependencies (Recharts already present).</li>
+            <li>Add countries / devices / per-dimension CTR to the client view.</li>
+            <li>Expose tokens, connection IDs, or another org's data.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Org-level multi-website aggregation (one project per org today).</li>
+        <li>Countries / devices breakdowns, CSV export, period-over-period comparison.</li>
+        <li>Any change to GSC connect/auth flow or the harvest cron.</li>
+        <li>Extracting admin GSC components into a shared library (noted as follow-up debt below).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 (Concern)</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Cross-org data exposure (security).</strong> A client must only ever see their own org's GSC data. <strong>Mitigation:</strong> resolve project solely from <code>req.organizationId</code> via <code>ProjectModel.findByOrganizationId</code>; the endpoint takes no <code>projectId</code> param. Identical to the shipped <code>getWebsiteAnalytics</code> guard.</li>
+        <li><strong>Parallel-copy tech debt.</strong> "Build fresh client-only" means the client keyword table/chart duplicates the admin's. <strong>Mitigation:</strong> accepted deliberately to avoid touching admin code; logged as a future refactor (extract <code>MetricCard</code>/<code>DimensionTable</code>/chart to <code>components/gsc/</code> consumed by both). Not done here.</li>
+        <li><strong>Cross-module import.</strong> User controller imports a service under <code>controllers/admin-websites/feature-services/</code>. <strong>Mitigation:</strong> this is the established pattern — <code>getWebsiteAnalytics</code> already imports the Rybbit dashboard the same way (UserWebsiteController.ts:23). No new drift.</li>
+        <li><strong>Empty / not-yet-harvested data.</strong> A freshly connected property has no rows; legacy payloads may be incomplete. <strong>Mitigation:</strong> explicit empty states; trust the service's <code>limitations[]</code> and <code>dataDays</code> fields.</li>
+        <li><strong>Route ordering.</strong> <code>/gsc/performance</code> must not collide with <code>/gsc</code>. <strong>Mitigation:</strong> exact-path routes (not params) — Express already coexists <code>/gsc</code>, <code>/gsc/sites</code>, <code>/gsc/connections</code>. Place near them.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> Additive. Backend: +1 route, +1 controller export (no existing handler touched). Frontend: edits to <code>WebsiteDashboardTabs.tsx</code> (union + options array — all consumers must handle <code>"keywords"</code>), <code>DFYWebsite.tsx</code> (WEBSITE_TABS + render switch), <code>WebsiteOverview.tsx</code> (new card). New files: api client, hook, KeywordsTab + chart/table parts. No DB migration (tables exist).</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>Building fresh duplicates UI you already have.</strong> The honest best practice is extracting the admin GSC pieces into a shared component both sides consume. We chose fresh to keep the admin view zero-risk and ship faster — that is a reasonable trade, but it <em>is</em> debt. Recommended follow-up: a separate refactor plan to converge on <code>components/gsc/</code> once both views are stable. Do not let the two copies silently diverge.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Client-scoped GSC performance endpoint</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>getGscPerformance(req, res)</code> to <code>UserWebsiteController.ts</code>, mirroring <code>getWebsiteAnalytics</code>: resolve org → project → <code>findByProjectAndPlatform(project.id, "gsc")</code>; return <code>{ success, hasIntegration: false, … }</code> when absent, else <code>{ success, hasIntegration: true, ...getDashboard(integration, req.query.rangeDays) }</code>. Import <code>getDashboard as getGscDashboard</code> from <code>service.gsc-performance</code>. Register <code>GET /gsc/performance</code> in <code>routes/user/website.ts</code> with <code>requireRole("admin","manager")</code>, beside the existing GSC routes.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/user-website/UserWebsiteController.ts</code>, <code>src/routes/user/website.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>; manual: authed <code>GET /api/user/website/gsc/performance?rangeDays=90</code> returns dashboard for a connected org and <code>hasIntegration:false</code> for one without; a different org's token never returns this org's data.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Frontend data layer (API client + hook + types)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create <code>frontend/src/api/websiteGscPerformance.ts</code> mirroring <code>websiteAnalytics.ts</code>: <code>fetchWebsiteGscPerformance(rangeDays = 90)</code> → <code>GET /user/website/gsc/performance?rangeDays=…</code>, throw on <code>!success</code>; export the <code>WebsiteGscPerformance</code> response type (mirrors backend <code>GscPerformanceDashboard</code> + <code>hasIntegration</code>). Add <code>useWebsiteGscPerformance(rangeDays, enabled?)</code> (React Query) so both the card and tab share one fetch/cache.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/api/websiteGscPerformance.ts</code> (new), <code>frontend/src/hooks/queries/useWebsiteGscPerformance.ts</code> (new)</dd></div>
+          <div><dt>Depends on</dt><dd>T1 (response contract)</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> in <code>frontend/</code>; types align with T1 payload.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Keywords tab component</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create <code>frontend/src/components/website/KeywordsTab.tsx</code> (+ small <code>keywords/</code> chart/table parts as needed). Render: range selector, totals row (clicks, impressions, avg position), a Recharts daily clicks/impressions trend, and top-queries + top-pages tables. Use <code>useWebsiteGscPerformance</code>. Handle not-connected (link to <code>/settings/integrations</code>) and no-data states. Match Alloro card/typography conventions (per <code>alloro-frontend</code>); do not import admin components.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/website/KeywordsTab.tsx</code> (new), <code>frontend/src/components/website/keywords/*</code> (new, as needed)</dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>; manual: tab renders real data, both empty states render.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Wire the Keywords tab into the dashboard nav</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>"keywords"</code> to <code>WebsiteDashboardView</code> and an options entry (label "Keywords", a lucide icon e.g. <code>Search</code>) in <code>WebsiteDashboardTabs.tsx</code>. Add <code>"keywords"</code> to <code>WEBSITE_TABS</code> in <code>DFYWebsite.tsx</code> and an <code>activeView === "keywords"</code> render block mounting <code>KeywordsTab</code> with the resolved <code>project</code>. Verify every <code>WebsiteDashboardView</code> consumer handles the new case.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/website/WebsiteDashboardTabs.tsx</code>, <code>frontend/src/pages/DFYWebsite.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>; manual: pill appears, switching to it shows the tab, deep-link <code>?tab=keywords</code> works.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Search Performance card on Overview</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>WebsiteOverview.tsx</code>, add a "Search Performance" <code>OverviewCard</code> mirroring the Rybbit analytics card: 3 headline metrics (clicks, impressions, avg position) + <code>TrendSparkline</code> + top 3 queries, using <code>useWebsiteGscPerformance</code>. "View all →" calls <code>onOpenTab("keywords")</code> (extend the <code>WebsiteOverviewTab</code> wiring to reach the new tab). Empty state links to settings.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/website/overview/WebsiteOverview.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2 (shares hook); T4 for the "View all" target</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>; manual: card shows real metrics, "View all" opens the Keywords tab, empty state links to settings.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="task-card">
+        <h3>Rev 3 — 2026-06-12 — Finalized (-d)</h3>
+        <p><strong>Change:</strong> Marked Completed and committed/pushed on <code>dev/dave</code>. Card verified live by the user (real One Endodontics data, hover + range label working). Cross-org isolation remains code-verified, not two-org runtime-tested — recommended follow-up before any multi-tenant exposure concern.</p>
+        <p><strong>Changelog:</strong> <code>0.0.119</code>.</p>
+      </article>
+      <article class="task-card">
+        <h3>Rev 2 — 2026-06-11 — Overview card range label + hover (-c)</h3>
+        <p><strong>Change:</strong> Overview "Search keywords" card. (1) Eyebrow now reads "Search keywords · Last 90 days" — the headline totals were being misread as "this month"; the card window is a rolling 90 days. (2) Hover interactivity matching the Traffic/Leads cards: hovering a sparkline point swaps the headline to that day's clicks + impressions and shows the date (readable "Jun 10" labels). Added a <code>gscHover</code> state + <code>gscPoint</code> derivation and carried <code>impressions</code> + a <code>gscDayLabel</code> into the series.</p>
+        <p><strong>Reason:</strong> User feedback on the live card — ambiguous range, and they wanted per-day values on hover.</p>
+        <p><strong>Scope:</strong> <code>WebsiteOverview.tsx</code> only. Frontend tsc + eslint clean (the lone remaining warning is the pre-existing <code>timeseries</code> useMemo). Tab is unchanged (it already shows an explicit from–to range + selector).</p>
+      </article>
+      <article class="task-card">
+        <h3>Rev 1 — 2026-06-11 — Executed (-x)</h3>
+        <p><strong>Change:</strong> All five tasks implemented. Backend: <code>getGscPerformance</code> in <code>UserWebsiteController.ts</code> + <code>GET /gsc/performance</code> route (org-scoped, reuses <code>getDashboard</code> from <code>service.gsc-performance</code>, untouched). Frontend: <code>api/websiteGscPerformance.ts</code>, <code>hooks/queries/useWebsiteGscPerformance.ts</code>, <code>components/website/KeywordsTab.tsx</code>, <code>"keywords"</code> wired into <code>WebsiteDashboardTabs</code> + <code>DFYWebsite</code> render switch, and a "Search keywords" card on <code>WebsiteOverview</code>.</p>
+        <p><strong>Deviation (Level 1):</strong> Endpoint <em>nests</em> <code>dashboard: GscPerformanceDashboard | null</code> rather than spreading the 12 dashboard fields flat into the envelope as the spec's T1 shorthand showed. Cleaner no-integration branch (<code>dashboard: null</code>) and a single typed payload. Frontend client + types match the nested shape.</p>
+        <p><strong>Design note:</strong> Clicks and impressions render as two separate <code>TrendSparkline</code>s (not one shared-axis chart) — their scales differ by orders of magnitude, so a shared Y-domain would flatten clicks to near-zero.</p>
+        <p><strong>Verification:</strong> Backend <code>tsc --noEmit</code> clean. Frontend <code>tsc -p tsconfig.app.json --noEmit</code>: zero errors in changed files (6 pre-existing errors remain in <code>Admin/ai-seo-audit/AiSeoAuditRunDetail.tsx</code>, framer-motion <code>ease</code> typing — untouched). ESLint on new files: clean. <code>DFYWebsite.tsx</code> carries 16 pre-existing lint errors outside the three edited hunks (lines 27/95/1460) — not introduced here. Manual UI verification against a live org with a connected GSC property is still pending.</p>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> (root) — zero new errors</li>
+        <li><input type="checkbox" checked disabled> <code>tsc -p tsconfig.app.json --noEmit</code> (frontend) — zero errors in changed files</li>
+        <li><input type="checkbox" checked disabled> Lint passes on new files (pre-existing <code>DFYWebsite.tsx</code> errors noted, not introduced)</li>
+        <li><input type="checkbox" checked disabled> Endpoint returns this org's GSC dashboard (verified live — user's One Endodontics card shows real data). Cross-org isolation is code-verified (org resolved from <code>req.organizationId</code>, no <code>projectId</code> param) but not two-org runtime-tested.</li>
+        <li><input type="checkbox" checked disabled> Overview card: metrics render (verified live by user screenshot, incl. Rev 2 range label + hover). Keywords tab uses the same data path; not separately screenshotted.</li>
+        <li><input type="checkbox" checked disabled> Empty state links to <code>/settings/integrations</code> (code-verified; not exercised live since the user's org has GSC connected)</li>
+        <li><input type="checkbox" checked disabled> No <code>components/Admin/</code> file or <code>service.gsc-performance.ts</code> was modified</li>
+        <li><input type="checkbox" checked disabled> No new dependency added</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

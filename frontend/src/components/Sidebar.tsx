@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
   Activity,
-  CheckSquare,
   Trophy,
-  Bell,
+  Sparkles,
   LogOut,
   ChevronRight,
   AlertTriangle,
@@ -15,19 +14,14 @@ import {
   Globe,
   PanelLeftClose,
   PanelLeftOpen,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useSidebar } from "./Admin/SidebarContext";
 import { apiGet } from "../api/index";
-import { fetchClientTasks } from "../api/tasks";
-import { fetchNotifications } from "../api/notifications";
 import { useIsWizardActive } from "../contexts/OnboardingWizardContext";
-import { useLocationContext } from "../contexts/locationContext";
 import { useAuth } from "../hooks/useAuth";
 import { LocationSwitcher } from "./LocationSwitcher";
-import { getPriorityItem } from "../hooks/useLocalStorage";
-
-type UserRole = "admin" | "manager" | "viewer";
 
 interface SidebarProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -137,84 +131,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navigate = useNavigate();
   const { collapsed, toggleCollapsed } = useSidebar();
   const isWizardActive = useIsWizardActive();
-  const { selectedLocation } = useLocationContext();
   const { billingStatus } = useAuth();
-  const locationId = selectedLocation?.id ?? null;
   const isLockedOut = billingStatus?.isLockedOut ?? false;
-  const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [hasWebsite, setHasWebsite] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [userTaskCount, setUserTaskCount] = useState<number>(0);
-  const [unreadNotificationCount, setUnreadNotificationCount] =
-    useState<number>(0);
   const [unreadSubmissionCount, setUnreadSubmissionCount] = useState<number>(0);
-
-  // Get user role from storage (sessionStorage for pilot mode, localStorage for normal)
-  useEffect(() => {
-    const role = getPriorityItem("user_role") as UserRole | null;
-    setUserRole(role);
-  }, []);
-
-  // Fetch user task count (manual/USER type tasks only)
-  const loadTaskCount = useCallback(async () => {
-    const organizationId = userProfile?.organizationId;
-    if (!organizationId || !onboardingCompleted) return;
-
-    try {
-      const response = await fetchClientTasks(organizationId, locationId);
-      if (response?.success && response.tasks) {
-        // Count only pending USER tasks
-        const pendingUserTasks =
-          response.tasks.USER?.filter(
-            (task) => task.status !== "complete" && task.status !== "archived"
-          ) || [];
-        setUserTaskCount(pendingUserTasks.length);
-      }
-    } catch (err) {
-      console.error("Failed to fetch task count for sidebar:", err);
-    }
-  }, [userProfile?.organizationId, onboardingCompleted, locationId]);
-
-  // Initial load of task count
-  useEffect(() => {
-    loadTaskCount();
-  }, [loadTaskCount]);
-
-  // Listen for task updates from TasksView
-  useEffect(() => {
-    const handleTasksUpdated = () => {
-      loadTaskCount();
-    };
-
-    window.addEventListener("tasks:updated", handleTasksUpdated);
-    return () => {
-      window.removeEventListener("tasks:updated", handleTasksUpdated);
-    };
-  }, [loadTaskCount]);
-
-  // Fetch unread notification count
-  const loadNotificationCount = useCallback(async () => {
-    const organizationId = userProfile?.organizationId;
-    if (!organizationId || !onboardingCompleted) return;
-
-    try {
-      const response = await fetchNotifications(organizationId, locationId);
-      if (response?.success) {
-        setUnreadNotificationCount(response.unreadCount || 0);
-      }
-    } catch (err) {
-      console.error("Failed to fetch notification count for sidebar:", err);
-    }
-  }, [userProfile?.organizationId, onboardingCompleted, locationId]);
-
-  // Initial load and periodic refresh of notification count
-  useEffect(() => {
-    loadNotificationCount();
-
-    // Poll every 3 seconds for real-time notification updates
-    const interval = setInterval(loadNotificationCount, 3000);
-    return () => clearInterval(interval);
-  }, [loadNotificationCount]);
 
   // Check if org has a website project (determines whether Websites nav shows).
   useEffect(() => {
@@ -234,24 +155,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
     checkWebsite();
   }, [userProfile?.organizationId]);
-
-  // Listen for notification updates (when user marks all as read or deletes)
-  useEffect(() => {
-    const handleNotificationsUpdated = () => {
-      loadNotificationCount();
-    };
-
-    window.addEventListener(
-      "notifications:updated",
-      handleNotificationsUpdated
-    );
-    return () => {
-      window.removeEventListener(
-        "notifications:updated",
-        handleNotificationsUpdated
-      );
-    };
-  }, [loadNotificationCount]);
 
   // Fetch unread submission count for sidebar indicator
   const loadSubmissionCount = useCallback(async () => {
@@ -292,7 +195,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     window.location.href = "/signin";
   };
 
-  const canSeeNotifications = userRole !== "viewer";
 
   // Main navigation items
   const mainNavItems = [
@@ -314,40 +216,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
       path: "/rankings",
       showDuringOnboarding: false,
     },
+    {
+      label: "Reviews & Posts",
+      icon: <Sparkles size={18} />,
+      path: "/gbp-manager",
+      showDuringOnboarding: false,
+    },
   ];
-
-  // Execution & Alerts items - dynamic badges and notifications
-  const executionNavItems = useMemo(
-    () => [
-      {
-        label: "To-Do List",
-        icon: <CheckSquare size={18} />,
-        path: "/tasks",
-        showDuringOnboarding: false,
-        badge: userTaskCount > 0 ? String(userTaskCount) : undefined,
-      },
-      {
-        label: "Notifications",
-        icon: <Bell size={18} />,
-        path: "/notifications",
-        showDuringOnboarding: false,
-        hasNotification: unreadNotificationCount > 0,
-      },
-    ],
-    [userTaskCount, unreadNotificationCount]
-  );
 
   // Filter nav items based on onboarding status
   const filteredMainNav = onboardingCompleted
     ? mainNavItems
     : mainNavItems.filter((item) => item.showDuringOnboarding);
 
-  const filteredExecutionNav = onboardingCompleted
-    ? executionNavItems
-    : executionNavItems.filter((item) => item.showDuringOnboarding);
-
   const isActive = (path: string) => {
     if (path === "/dashboard" && location.pathname === "/dashboard")
+      return true;
+    // Competitor management (/dashboard/competitors/:id/onboarding) lives under
+    // the Local Rankings section — keep that tab active while managing the set.
+    if (path === "/rankings" && location.pathname.startsWith("/dashboard/competitors"))
       return true;
     return location.pathname.startsWith(path) && path !== "/dashboard";
   };
@@ -453,7 +340,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ) : (
           <div className="p-10 pb-12 flex items-center justify-between">
             <div
-              className="flex items-center gap-4 group cursor-pointer"
+              className="flex min-w-0 flex-1 items-center gap-4 group cursor-pointer"
               onClick={() => handleNavigate("/dashboard")}
             >
               <img
@@ -461,9 +348,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 alt="Alloro"
                 className="w-10 h-10 rounded-xl shadow-soft-glow transition-transform group-hover:scale-105"
               />
-              <h1 className="font-display font-bold text-2xl tracking-tight leading-none">
-                Alloro
-              </h1>
+              <div className="min-w-0">
+                <h1 className="font-display font-bold text-2xl tracking-tight leading-none">
+                  Alloro
+                </h1>
+                {userProfile?.practiceName && (
+                  <p className="mt-1.5 truncate whitespace-nowrap text-[9px] font-black uppercase tracking-[0.2em] text-white/30">
+                    {userProfile.practiceName}
+                  </p>
+                )}
+              </div>
             </div>
             <button
               onClick={onClose}
@@ -526,47 +420,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   minimized={isMinimized}
                 />
               ))}
-            </div>
-          )}
-
-          {/* Websites */}
-          {!isLockedOut && onboardingCompleted && (hasWebsite || isWizardActive) && (
-            <div className="space-y-1.5">
-              <NavItem
-                icon={<Globe size={18} />}
-                label="Websites"
-                active={isActive("/dfy/website")}
-                onClick={() => handleNavigate("/dfy/website")}
-                hasNotification={unreadSubmissionCount > 0}
-                isLocked={isWizardActive}
-                minimized={isMinimized}
-              />
-            </div>
-          )}
-
-          {/* Execution & Alerts */}
-          {!isLockedOut && onboardingCompleted && (
-            <div className="space-y-1.5">
-              {!isMinimized && (
-                <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] px-4 mb-4">
-                  Execution
-                </div>
-              )}
-              {filteredExecutionNav.map(
-                ({ label, icon, path, badge, hasNotification }) =>
-                  canSeeNotifications || path !== "/notifications" ? (
-                    <NavItem
-                      key={label}
-                      icon={icon}
-                      label={label}
-                      active={isActive(path)}
-                      onClick={() => handleNavigate(path)}
-                      badge={badge}
-                      hasNotification={hasNotification}
-                      isLocked={isWizardActive}
-                      minimized={isMinimized}
-                    />
-                  ) : null
+              {onboardingCompleted && (hasWebsite || isWizardActive) && (
+                <NavItem
+                  icon={<Globe size={18} />}
+                  label="Website"
+                  active={isActive("/dfy/website")}
+                  onClick={() => handleNavigate("/dfy/website")}
+                  hasNotification={unreadSubmissionCount > 0}
+                  isLocked={isWizardActive}
+                  minimized={isMinimized}
+                />
               )}
             </div>
           )}
@@ -594,58 +457,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Location Switcher — hidden when minimized */}
         {!isMinimized && <LocationSwitcher />}
 
-        {/* Footer / Account */}
+        {/* Footer — Settings + Log out */}
         {isMinimized ? (
           <div className="px-2 pt-2 pb-4 mt-auto flex flex-col items-center gap-2">
             <button
               onClick={() => handleNavigate("/settings")}
-              className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-[10px] font-black border border-white/10 hover:border-alloro-orange transition-colors"
+              className="p-2 rounded-xl text-white/40 hover:text-white hover:bg-white/5 transition-all"
               title="Settings"
             >
-              {userProfile?.practiceName?.substring(0, 2).toUpperCase() || "AP"}
+              <SettingsIcon size={16} />
             </button>
             <button
               onClick={() => setShowLogoutConfirm(true)}
-              className="p-1.5 text-white/20 hover:text-red-400 transition-all"
+              className="p-2 rounded-xl text-white/40 hover:text-red-400 hover:bg-white/5 transition-all"
               title="Log out"
             >
-              <LogOut size={14} />
+              <LogOut size={16} />
             </button>
           </div>
         ) : (
-          <div className="px-8 pt-2 pb-8 mt-auto">
-            <div
-              className="bg-white/5 border border-white/5 rounded-2xl p-5 transition-all hover:bg-alloro-sidehover cursor-pointer group"
+          <div className="px-6 pt-2 pb-8 mt-auto space-y-1.5">
+            <NavItem
+              icon={<SettingsIcon size={18} />}
+              label="Settings"
+              active={isActive("/settings")}
               onClick={() => handleNavigate("/settings")}
+              isLocked={isWizardActive}
+              minimized={false}
+            />
+            <button
+              onClick={() => setShowLogoutConfirm(true)}
+              className="w-full flex items-center gap-3.5 px-4 py-3.5 rounded-xl text-white/40 hover:text-red-400 hover:bg-white/5 transition-all duration-300 text-sm font-medium"
             >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-[10px] font-black border border-white/10 group-hover:border-alloro-orange transition-colors">
-                  {userProfile?.practiceName?.substring(0, 2).toUpperCase() ||
-                    "AP"}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-bold text-white truncate">
-                    {userProfile?.practiceName || "Practice"}
-                  </p>
-                  <p className="text-[9px] text-white/20 font-black uppercase tracking-widest mt-0.5">
-                    {userRole === "admin"
-                      ? "Administrator"
-                      : userRole === "manager"
-                      ? "Manager"
-                      : "Viewer"}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowLogoutConfirm(true);
-                }}
-                className="flex items-center gap-2 text-white/20 hover:text-red-400 transition-all w-full text-[9px] font-black uppercase tracking-widest"
-              >
-                <LogOut size={14} /> Disconnect
-              </button>
-            </div>
+              <LogOut size={18} />
+              Log out
+            </button>
           </div>
         )}
       </aside>

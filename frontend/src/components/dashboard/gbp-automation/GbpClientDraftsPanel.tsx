@@ -27,12 +27,14 @@ export type GbpClientDraftsPanelProps = {
   onSavePost: (input: GbpLocalPostSaveInput) => void | Promise<unknown>;
   onRegeneratePost: (workItemId: string) => void | Promise<unknown>;
   onDeployPost: (input: GbpLocalPostDeployInput) => void | Promise<unknown>;
-  onGeneratePostDraft?: (featuredImageUrl: string) => void | Promise<unknown>;
+  onGeneratePostDraft?: (featuredImageUrl: string | null) => void | Promise<unknown>;
   onUploadPostImage: (file: File) => Promise<string>;
   onSavePublishedPost?: (input: GbpPublishedLocalPostInput) => void | Promise<unknown>;
   onDeletePublishedPost?: (name: string) => void | Promise<unknown>;
   isGeneratingPostDraft?: boolean;
   nextPostGenerationAt?: string | null;
+  /** Show the "why Google Posts matter" note (client Posts tab, #10). */
+  showVisibilityNote?: boolean;
 };
 
 export function GbpClientDraftsPanel({
@@ -53,12 +55,14 @@ export function GbpClientDraftsPanel({
   onDeletePublishedPost,
   isGeneratingPostDraft = false,
   nextPostGenerationAt,
+  showVisibilityNote = false,
 }: GbpClientDraftsPanelProps) {
   return (
     <div className="mt-4 space-y-3">
       <GbpPostsManagerPanel
         reviews={reviews}
         workItems={workItems}
+        showVisibilityNote={showVisibilityNote}
         publishedPosts={publishedPosts}
         publishedPostsPagination={publishedPostsPagination}
         nextPostGenerationAt={nextPostGenerationAt}

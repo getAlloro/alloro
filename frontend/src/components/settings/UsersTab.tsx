@@ -225,7 +225,7 @@ export const UsersTab: React.FC = () => {
             <UsersIcon className="w-5 h-5 text-alloro-orange" />
           </div>
           <div>
-            <h2 className="text-xl font-black text-alloro-navy font-heading tracking-tight">
+            <h2 className="font-display text-xl font-medium text-alloro-navy tracking-tight">
               Team Members
             </h2>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
@@ -395,7 +395,7 @@ export const UsersTab: React.FC = () => {
             <div className="p-2 bg-amber-50 rounded-xl">
               <Clock className="w-4 h-4 text-amber-500" />
             </div>
-            <h3 className="text-lg font-black text-alloro-navy font-heading tracking-tight">
+            <h3 className="font-display text-lg font-medium text-alloro-navy tracking-tight">
               Pending Invitations
             </h3>
           </div>
@@ -462,7 +462,7 @@ export const UsersTab: React.FC = () => {
                   <div className="p-3 bg-alloro-orange/10 rounded-2xl">
                     <UserPlus className="w-5 h-5 text-alloro-orange" />
                   </div>
-                  <h3 className="text-lg font-black text-alloro-navy font-heading tracking-tight">
+                  <h3 className="font-display text-lg font-medium text-alloro-navy tracking-tight">
                     Invite Team Member
                   </h3>
                 </div>

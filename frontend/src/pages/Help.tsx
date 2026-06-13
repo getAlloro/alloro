@@ -174,10 +174,10 @@ export default function Help() {
 
   return (
     <div
-      className="pm-light min-h-screen bg-[var(--color-pm-bg-primary)] font-body text-alloro-navy"
+      className="pm-light min-h-screen bg-alloro-bg font-body text-alloro-navy"
       data-wizard-target="support-overview"
     >
-      <div className="mx-auto w-full max-w-[1320px] space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+      <div className="mx-auto w-full max-w-[960px] space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
         <motion.header
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}

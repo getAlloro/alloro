@@ -25,7 +25,7 @@ export type GbpPostsManagerPanelProps = {
   isLoadingPublishedPosts: boolean;
   isGeneratingPostDraft: boolean;
   onPublishedPostsPageChange?: (page: number) => void;
-  onGeneratePostDraft?: (featuredImageUrl: string) => void | Promise<unknown>;
+  onGeneratePostDraft?: (featuredImageUrl: string | null) => void | Promise<unknown>;
   onUploadPostImage: (file: File) => Promise<string>;
   onSavePublishedPost?: (input: GbpPublishedLocalPostInput) => void | Promise<unknown>;
   onDeletePublishedPost?: (name: string) => void | Promise<unknown>;
@@ -33,6 +33,12 @@ export type GbpPostsManagerPanelProps = {
   onRegeneratePost: (workItemId: string) => void | Promise<unknown>;
   onDeployPost: (input: GbpLocalPostDeployInput) => void | Promise<unknown>;
   onDelete: (workItemId: string) => void | Promise<unknown>;
+  /**
+   * Show a short "why Google Posts matter" note above the tabs. Set true by the
+   * client /gbp-manager surface (the Posts tab was otherwise bare, #10). The
+   * admin work-items panel does not use this component, so it defaults off.
+   */
+  showVisibilityNote?: boolean;
 };
 
 type PostTab = "published" | "drafts";
@@ -59,6 +65,7 @@ export function GbpPostsManagerPanel({
   onRegeneratePost,
   onDeployPost,
   onDelete,
+  showVisibilityNote = false,
 }: GbpPostsManagerPanelProps) {
   const [activePostTab, setActivePostTab] = useState<PostTab>("published");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -85,20 +92,57 @@ export function GbpPostsManagerPanel({
     Boolean(publishedPostsPagination && onPublishedPostsPageChange) &&
     !isLoadingPublishedPosts;
 
-  const handleGeneratePostDraft = async (featuredImageUrl: string) => {
+  const handleGeneratePostDraft = async (featuredImageUrl: string | null) => {
     if (!onGeneratePostDraft) return;
     await onGeneratePostDraft(featuredImageUrl);
     setActivePostTab("drafts");
   };
 
   return (
-    <section className="rounded-[14px] border border-slate-200 bg-white p-5">
-      <GbpPostsManagerHeader
-        nextPostGenerationAt={nextPostGenerationAt}
-        isGenerationLocked={isPostGenerationLocked}
-        canCreate={Boolean(onGeneratePostDraft)}
-        onCreateClick={() => setIsCreateModalOpen(true)}
-      />
+    <section className="rounded-[14px] border border-line-soft bg-white p-5 shadow-premium">
+      {showVisibilityNote && (
+        <p className="mb-4 text-[13px] font-medium leading-relaxed text-ink-muted">
+          Fresh Google Posts keep your Business Profile active and give Google
+          new, recent content to surface — which helps your practice show up in
+          local Map and Search results. Aim for a post every week or two.
+        </p>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex rounded-[10px] bg-slate-100 p-1">
+          {(["published", "drafts"] as const).map((tab) => {
+            const isActiveTab = activePostTab === tab;
+            return (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActivePostTab(tab)}
+                className={`rounded-[9px] px-3 py-1.5 text-xs font-bold transition-colors ${
+                  isActiveTab
+                    ? "bg-alloro-navy text-white shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                {tab === "published" ? "Published" : "Drafts"}
+                <span
+                  className={`ml-2 rounded-full px-1.5 py-0.5 text-[10px] ${
+                    isActiveTab ? "bg-white/20" : "bg-slate-200"
+                  }`}
+                >
+                  {tab === "published"
+                    ? (publishedPostsPagination?.total ?? publishedPosts.length)
+                    : postDrafts.length}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <GbpPostsManagerHeader
+          nextPostGenerationAt={nextPostGenerationAt}
+          isGenerationLocked={isPostGenerationLocked}
+          canCreate={Boolean(onGeneratePostDraft)}
+          onCreateClick={() => setIsCreateModalOpen(true)}
+        />
+      </div>
 
       {runningPostGeneration && (
         <div className="mt-4 rounded-[10px] border border-alloro-orange/20 bg-alloro-orange/10 px-3 py-2 text-xs font-bold text-alloro-orange">
@@ -108,28 +152,6 @@ export function GbpPostsManagerPanel({
           </span>
         </div>
       )}
-
-      <div className="mt-5 flex flex-wrap gap-2 border-b border-slate-200">
-        {(["published", "drafts"] as const).map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            onClick={() => setActivePostTab(tab)}
-            className={`border-b-2 px-1 pb-2 text-xs font-black uppercase tracking-widest transition-colors ${
-              activePostTab === tab
-                ? "border-alloro-orange text-alloro-navy"
-                : "border-transparent text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            {tab === "published" ? "Published" : "Drafts"}
-            <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px]">
-              {tab === "published"
-                ? (publishedPostsPagination?.total ?? publishedPosts.length)
-                : postDrafts.length}
-            </span>
-          </button>
-        ))}
-      </div>
 
       {activePostTab === "published" ? (
         <div className="mt-4 space-y-3">

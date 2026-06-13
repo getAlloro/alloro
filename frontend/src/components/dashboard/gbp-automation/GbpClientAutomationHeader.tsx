@@ -19,6 +19,11 @@ export type GbpClientAutomationHeaderProps = {
   readiness: GbpReadiness;
   settings: GbpAutomationSettings;
   onViewChange: (view: ClientGbpView) => void;
+  /**
+   * Render ONLY the readiness alert (no title/tab chrome) — used by the
+   * standalone /gbp-manager page, which owns its own header and tabs.
+   */
+  hideChrome?: boolean;
 };
 
 const READINESS_COPY: Record<GbpReadinessStatus, string> = {
@@ -46,8 +51,25 @@ export function GbpClientAutomationHeader({
   activeView,
   readiness,
   onViewChange,
+  hideChrome = false,
 }: GbpClientAutomationHeaderProps) {
   const shouldShowReadinessAlert = !readiness.ready;
+
+  if (hideChrome) {
+    return shouldShowReadinessAlert ? (
+      <div className="rounded-[10px] border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
+        <p className="flex items-center gap-2 text-sm font-black">
+          <AlertCircle size={14} />
+          {READINESS_COPY[readiness.status]}
+        </p>
+        {readiness.actions.map((action) => (
+          <p key={action} className="mt-1 text-xs font-bold opacity-80">
+            {action}
+          </p>
+        ))}
+      </div>
+    ) : null;
+  }
 
   return (
     <>

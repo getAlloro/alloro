@@ -19,10 +19,12 @@ import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
 import { Settings } from "./pages/Settings";
 import { IntegrationsRoute } from "./pages/settings/IntegrationsRoute";
+import { LocationsRoute } from "./pages/settings/LocationsRoute";
 import { UsersRoute } from "./pages/settings/UsersRoute";
 import { BillingRoute } from "./pages/settings/BillingRoute";
 import { AccountRoute } from "./pages/settings/AccountRoute";
 import { DFYWebsite } from "./pages/DFYWebsite";
+import { GbpManagerPage } from "./pages/GbpManagerPage";
 import { Notifications } from "./pages/Notifications";
 import Help from "./pages/Help";
 import OnboardingPaymentSuccess from "./pages/OnboardingPaymentSuccess";
@@ -176,6 +178,7 @@ function App() {
                       <Route path="/pmsStatistics" element={<Dashboard />} />
                       <Route path="/tasks" element={<Dashboard />} />
                       <Route path="/rankings" element={<Dashboard />} />
+                      <Route path="/gbp-manager" element={<GbpManagerPage />} />
                       <Route path="/referralEngine" element={<Dashboard />} />
                       <Route
                         path="/dashboard/competitors/:locationId/onboarding"
@@ -198,6 +201,7 @@ function App() {
                           path="integrations"
                           element={<IntegrationsRoute />}
                         />
+                        <Route path="locations" element={<LocationsRoute />} />
                         <Route path="users" element={<UsersRoute />} />
                         <Route path="billing" element={<BillingRoute />} />
                         <Route path="account" element={<AccountRoute />} />

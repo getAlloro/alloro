@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Local Rankings Clarity Spec</title>
+  <style>
+    :root { color-scheme: light; --paper: #ffffff; --ink: #080808; --muted: #5f5f5f; --line: #d8d8d8; --soft: #f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.5; }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Completed</span>
+      </div>
+      <h1>Local Rankings Clarity</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed — 2026-06-13</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06132026-local-rankings-clarity</dd></div>
+        <div><dt>Size</dt><dd>Small</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p><strong>Plan 3 of the dashboard-revamp feedback round</strong> — covers PDF items <strong>#5</strong> (Local Rankings clarity: a dead period toggle, a confusing greyed Refresh button, a map zoomed too far out, ambiguous review numbers/labels, and a review total that disagrees with Practice Hub) and <strong>#6</strong> (the competitors strip is buried at the bottom). Consumes the Plan 0 primitives. Resolves the cross-plan <strong>163-vs-152 review mismatch</strong> by switching the Rankings reviews card onto the canonical <code>dashboard-metrics</code> source that Practice Hub (Plan 1) already declares authoritative.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Done when:</p>
+      <ul>
+        <li><strong>Period toggle (#5):</strong> the dormant greyed MONTH/QTR/YTD pill is removed entirely from <code>RankingsHubSurface</code> (it was rendered disabled via <code>PERIOD_TOGGLE_ENABLED=false</code>).</li>
+        <li><strong>Refresh button (#5):</strong> investigated — it is a <em>real working action</em> (<code>reselectAndRun</code>), not a dead control; it is left functional. Finding documented below.</li>
+        <li><strong>Map (#5):</strong> <code>RankingsMapCard</code> defaults to a more zoomed-in view (a <code>maxZoom</code> cap on the bounds-fit) so a single far-flung competitor in the 25-mile discovery radius can't zoom the whole map out. Geocoding accuracy investigated + documented (Places-API-sourced, no custom geocoder bug).</li>
+        <li><strong>Reviews card (#5 + cross-plan):</strong> total review count + rating now read from <code>useDashboardMetrics().data.reviews.total_review_count</code> + <code>current_rating</code> (the same number Practice Hub shows — resolves 163-vs-152); the 30-day velocity keeps its existing source but reads <strong>"15 reviews · last 30 days"</strong>; the total carries an explicit window label.</li>
+        <li><strong>Rating vs Market (#5):</strong> "Rating vs MKT" → "Rating vs Market"; sub clarifies it is the Google star rating (you / market).</li>
+        <li><strong>Competitors strip (#6):</strong> moved up to directly below the rank+map hero, above the three vitals.</li>
+        <li><code>eslint</code> clean on changed files (orchestrator runs full <code>tsc</code>).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Confirmed in code (the findings driving this plan)</h3>
+      <ul>
+        <li><strong>Dead toggle:</strong> <code>RankingsHubSurface.tsx</code> defines a local <code>PeriodToggle()</code> rendered greyed (lines 41–63, render at 132–134); <code>rankingPeriod.ts</code> exports <code>PERIOD_TOGGLE_ENABLED=false</code>. The toggle is decorative — no period state is wired. Removing the toggle UI + its imports is safe; <code>rankingPeriod.ts</code> stays (it is also the future enable point and is referenced read-only).</li>
+        <li><strong>Refresh button is real:</strong> the sole "Refresh rankings" control lives in <code>RankingsDashboard.tsx</code> (header block, lines 859–870), calls <code>handleRefreshRankings()</code> → <code>reselectAndRun()</code> which kicks off a re-rank batch and shows the in-flight banner. It is <code>disabled</code> only when <code>!canRefreshRankings</code> (no <code>locationId</code> or zero saved competitors). For an onboarded client it is fully functional and NOT greyed. Per the locked instruction ("if a real refresh action exists, leave it functional") it is left untouched.</li>
+        <li><strong>Map zooms out on a far competitor:</strong> <code>RankingsMapCard.tsx</code> <code>FitBounds</code> calls <code>map.fitBounds(points, { padding:[36,36] })</code> over the practice + all competitor pins with NO max-zoom. Competitor discovery uses a 25-mile radius (<code>DEFAULT_COMPETITOR_DISCOVERY_RADIUS_METERS = 40234</code>), so one distant competitor (the "Saif outside Fredericksburg" case) drags the fit to a city-wide zoom-out.</li>
+        <li><strong>Geocoding is Places-sourced, not a custom geocoder:</strong> practice coords come from <code>locations.client_lat/client_lng</code>, written by <code>LocationModel.setClientIdentifiers</code> after a Google Places lookup (<code>getClientPhotosViaPlaces</code>) / ranking-history resolution. Competitor coords come from the Places Place Details response (<code>placeDetails.location.latitude/longitude</code>, see <code>buildAddCompetitorInput</code> ~lines 482–489) and are surfaced verbatim by <code>formatLocationCompetitor</code> (<code>lat: Number(c.lat)</code>). There is no lat/lng transform, rounding, or custom geocode step that could be "off." A pin that looks far out is either a genuinely distant competitor selected from the 25-mile radius, or a Places record whose own coordinates are imprecise — neither is an Alloro geocoding bug. No backend change in scope.</li>
+        <li><strong>Review mismatch 163 vs 152:</strong> Rankings currently reads <code>result.rawData.client_gbp.totalReviewCount/averageRating</code> — a scrape snapshot from the last ranking run (the 152). Practice Hub reads <code>dashboard-metrics.reviews.total_review_count/current_rating</code> — the live GBP aggregation (the 163). Switching Rankings to <code>dashboard-metrics</code> makes both surfaces show one number (Plan 1 declared it canonical).</li>
+        <li><strong>Velocity source:</strong> the 30-day count is <code>rawData.client_gbp.reviewsLast30d</code>. <code>dashboard-metrics.reviews</code> has no equivalent rolling-30d field (<code>reviews_this_month</code> is a calendar-month count, not a 30-day window), so the velocity keeps its existing source and is only relabeled.</li>
+      </ul>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/components/dashboard/rankings-hub/RankingsHubSurface.tsx</code> — period toggle removal, reviews card source swap + relabels, strip reorder.</li>
+        <li><code>frontend/src/components/dashboard/rankings-hub/RankingsMapCard.tsx</code> — bounds-fit max-zoom cap + geocoding doc comment.</li>
+        <li><code>frontend/src/components/dashboard/RankingsDashboard.tsx</code> — Refresh control (investigated; no change).</li>
+        <li><strong>Read-only:</strong> <code>hooks/queries/useDashboardMetrics.ts</code> (<code>reviews.total_review_count</code> / <code>current_rating</code>), <code>rankings/competitorComparison.ts</code> (<code>getComparisonInsight</code>), <code>api/practiceRanking.ts</code> (<code>getLocationCompetitors</code> / <code>practiceLocation</code>).</li>
+        <li><strong>Backend (read/document only):</strong> <code>src/controllers/practice-ranking/PracticeRankingController.ts</code> (<code>getLocationCompetitors</code>, <code>formatLocationCompetitor</code>), <code>feature-services/service.location-competitor-onboarding.ts</code> (client + competitor coord resolution), <code>feature-utils/util.competitor-validator.ts</code> (25-mile radius constant).</li>
+        <li><strong>Plan 0 primitives consumed:</strong> the locked durations/labels live in <code>utils/timeframe.ts</code> (windows are spelled out). No new primitive needed here.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Spelled-out window copy ("last 30 days"), never a terse "+15/30d" badge (the #22 standard).</li>
+        <li><code>StatBox</code> stays the tile recipe; only its <code>value</code>/<code>sub</code> strings change.</li>
+        <li>Stay strictly inside the rankings-hub boundary; do not edit shared primitives, <code>index.css</code>, or <code>statusRules.ts</code> (parallel-agent contract).</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>focus/StatCardRow.tsx</code> (Plan 1) — the sibling card surface that already reads the canonical <code>dashboard-metrics.reviews</code> total; mirror its source choice.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Remove the dormant toggle UI + its dead imports from <code>RankingsHubSurface</code>.</li>
+            <li>Reviews total + rating read from <code>useDashboardMetrics().data.reviews</code>; fall back gracefully when metrics are still loading/null.</li>
+            <li>Relabel velocity as "N reviews · last 30 days" and label the total's window.</li>
+            <li>Cap map bounds-fit zoom so the default view is closer in.</li>
+            <li>Move the competitors strip above the three vitals (#6).</li>
+            <li>Read each file before editing (no edit-from-memory).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do NOT remove the Refresh button — it is a working action.</li>
+            <li>Do NOT edit shared primitives (<code>StatBox</code>, <code>ActionBanner</code>, <code>PeriodToggle</code>, <code>InsightCue</code>), <code>index.css</code>, or <code>statusRules.ts</code>.</li>
+            <li>Do NOT change the backend geocoding pipeline (read/document only).</li>
+            <li>Do NOT touch the velocity data source (only its label) — there's no canonical 30-day equivalent.</li>
+            <li>No new endpoints, deps, or git operations.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Improving the Refresh button's disabled-state affordance (no competitors → greyed with no hint). Real but a different change; documented, deferred.</li>
+        <li>Any backend geocoding/radius change.</li>
+        <li>WISHLIST: making the Reviews / Last-post boxes deep-link into Alloro Engage (/gbp-manager). Optional; evaluated at execution.</li>
+        <li>Other surfaces' timeframe work (Plans 1–2, 4–5).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 — a cross-source review-number swap (the displayed total will change for clients whose live count differs from the last scrape) and a query dependency added to a child surface.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>R1 — Review number visibly changes (Level 2).</strong> Switching to <code>dashboard-metrics</code> makes the Rankings total jump from the scrape snapshot (152) to the live aggregate (163). <strong>Mitigation:</strong> that is the intended reconciliation — both hubs now agree. Documented so it isn't mistaken for a regression.</li>
+        <li><strong>R2 — Metrics still loading (Level 2).</strong> <code>useDashboardMetrics</code> is async and is disabled when <code>orgId</code>/<code>locationId</code> are null. <strong>Mitigation:</strong> fall back to the existing <code>rawData.client_gbp</code> values (or "—") while metrics are undefined, so the card never renders blank.</li>
+        <li><strong>R3 — Map maxZoom too tight (Level 1).</strong> A hard cap could over-zoom when competitors are genuinely spread out. <strong>Mitigation:</strong> use a moderate cap (≈13–14) that still respects <code>fitBounds</code> when points are close; it only prevents the pathological zoom-out, not legitimate wider fits.</li>
+        <li><strong>R4 — Parallel-agent collision (Level 2).</strong> Three agents edit sibling surfaces. <strong>Mitigation:</strong> all edits confined to <code>rankings-hub/*</code> + the documented no-op read of <code>RankingsDashboard.tsx</code>; no shared files touched.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>RankingsHubSurface</code> + <code>RankingsMapCard</code> (Local Rankings hub only). <code>RankingsDashboard.tsx</code> is read-only here. The canonical review source is consumed read-only from <code>useDashboardMetrics</code>; no provider change. Backend untouched.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>The owner flagged "Refresh Rankings" as confusing — but it is a real, working re-rank. Removing it would delete a client capability. The honest fix to the <em>confusion</em> is a better disabled-state hint (e.g. "Add competitors to enable"), which is a separate, deferred change. Flagging rather than silently deleting a functional control.</li>
+        <li>The "Saif far outside Fredericksburg" concern is not a geocoding bug — coords are Places-verbatim. If the practice wants only nearby competitors, the lever is the <strong>25-mile discovery radius</strong> or the curated competitor selection, not a coordinate fix. The zoom cap makes the map readable regardless; the radius is a product decision left to the owner.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Remove dormant period toggle (#5)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>RankingsHubSurface.tsx</code>: delete the local <code>PeriodToggle()</code> component, its render row, and the now-unused <code>RANKING_PERIODS</code> / <code>PERIOD_TOGGLE_ENABLED</code> / <code>PERIOD_DISABLED_TOOLTIP</code> / <code>RankingPeriod</code> imports from <code>./rankingPeriod</code>. Leave <code>rankingPeriod.ts</code> in place (future enable point).</dd></div>
+          <div><dt>Files</dt><dd><code>RankingsHubSurface.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>eslint (no unused-import / no-unused-var); toggle gone.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Investigate Refresh control (#5) — document, no change</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Confirm the sole Refresh control (<code>RankingsDashboard.tsx</code>) is a working <code>reselectAndRun</code> action disabled only without saved competitors. Record the finding in this spec + the report. No code change (working action stays).</dd></div>
+          <div><dt>Files</dt><dd>— (read-only <code>RankingsDashboard.tsx</code>)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: control still renders + fires for onboarded clients.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Zoom map in + document geocoding (#5)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>RankingsMapCard.tsx</code>: add a <code>maxZoom</code> cap to the <code>FitBounds</code> <code>fitBounds()</code> call (≈14) so a single far competitor can't zoom the whole map out; keep practice-centered. Add a doc comment recording that coords are Places-API-sourced (no custom geocoder) and that distant pins reflect the 25-mile discovery radius, not a coordinate bug.</dd></div>
+          <div><dt>Files</dt><dd><code>RankingsMapCard.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: default view is tighter; doc comment present.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Reviews card canonical source + relabels (#5 + cross-plan)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>RankingsHubSurface.tsx</code>: import <code>useDashboardMetrics</code>; read <code>reviews.total_review_count</code> + <code>current_rating</code> for the Reviews value (fallback to <code>rawData.client_gbp</code> / "—" while loading). Velocity sub → "<code>{n} reviews · last 30 days</code>" (kept source). Reviews <code>StatBox</code> value labels its window. Rename "Rating vs mkt" → "Rating vs Market"; sub clarifies "Google rating · you / market".</dd></div>
+          <div><dt>Files</dt><dd><code>RankingsHubSurface.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none (Plan 1 already declared the canonical source)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: Rankings review total matches Practice Hub; labels spelled out.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Move competitors strip up (#6)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>RankingsHubSurface.tsx</code>: relocate the bottom competitors strip (the <code>Manage Competitors</code> button + <code>comparisonInsight</code>) to render directly below the rank+map hero <code>section</code> and above the three-vitals grid.</dd></div>
+          <div><dt>Files</dt><dd><code>RankingsHubSurface.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: strip sits between hero and vitals.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Verification</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>npx eslint</code> on changed files from <code>frontend/</code>; confirm no unused imports/vars after the toggle removal. (Full <code>tsc</code> run by orchestrator.)</dd></div>
+          <div><dt>Files</dt><dd>—</dd></div>
+          <div><dt>Depends on</dt><dd>T1, T3, T4, T5</dd></div>
+          <div><dt>Verify</dt><dd>eslint clean on touched files.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> Dormant period toggle + its dead imports removed from RankingsHubSurface</li>
+        <li><input type="checkbox" checked disabled> Refresh control confirmed a working action; left functional; finding documented</li>
+        <li><input type="checkbox" checked disabled> Map defaults to a more zoomed-in view (bounds-fit maxZoom cap = 14); geocoding documented</li>
+        <li><input type="checkbox" checked disabled> Reviews total + rating read from canonical dashboard-metrics (matches Practice Hub)</li>
+        <li><input type="checkbox" checked disabled> Velocity reads "N reviews last 30 days"; total window labeled "All-time total"; "Rating vs Market" clarified</li>
+        <li><input type="checkbox" checked disabled> Competitors strip moved up below the hero, above the vitals (#6)</li>
+        <li><input type="checkbox" checked disabled> <code>npx eslint</code> clean on changed files</li>
+        <li><input type="checkbox" disabled> (Rev 1) "Update location / Refresh local search data" banner removed entirely + dead refresh code cleaned up</li>
+        <li><input type="checkbox" disabled> (Rev 1) Competitors strip chevron now carries a "Manage competitor list" label (sm+)</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="task-card">
+        <h3>Rev 1 - 2026-06-13</h3>
+        <p><strong>Change:</strong> Owner QA of the live Local Rankings surface — banner removed, competitor affordance labeled.</p>
+        <p><strong>Reason:</strong> <em>User QA</em> — declutter the header and make the competitors row's action explicit.</p>
+        <ul>
+          <li><strong>Refresh banner removed (reverses an earlier Done item):</strong> the "Update location / Refresh local search data" banner with the <em>Refresh rankings</em> button is gone from <code>RankingsDashboard.tsx</code>. The original clarity pass <em>kept</em> this control as functional (Done item above); the owner has now chosen to remove it from the client view entirely. Removed the banner JSX plus the dead chain it orphaned: <code>handleRefreshRankings</code>, <code>canRefreshRankings</code>, <code>selectedCompetitorPlaceIds</code>, the <code>getSelectedCompetitorPlaceIds</code> helper, the <code>refreshingRankings</code>/<code>rerankError</code> state, the <code>reselectAndRun</code> import, and the now-unused <code>CompetitorSnapshot</code> type.</li>
+          <li><strong>Capability impact:</strong> there is no longer a manual rerank trigger on this surface. Rankings still refresh on the normal server schedule, and the in-flight progress banner still appears for scheduled/auto-detected reruns (<code>autoDetectedBatchId</code> path). If a manual trigger is wanted later it should live in an admin-only context — recorded as a possible follow-up, not built.</li>
+          <li><strong>Competitors chevron label (#6 follow-up):</strong> the bare <code>ChevronRight</code> on the competitors strip now shows a "Manage competitor list" label (uppercase micro-label, hover-tinted via a <code>group</code> on the button). Hidden below the <code>sm</code> breakpoint to avoid crowding the insight text on narrow screens; the chevron always shows.</li>
+          <li><strong>Verification:</strong> <code>tsc -p tsconfig.app.json --noEmit</code> = 0 errors; <code>eslint</code> on both files — only one pre-existing exhaustive-deps warning (<code>fetchLatestRankings</code> useEffect), untouched by this change.</li>
+        </ul>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

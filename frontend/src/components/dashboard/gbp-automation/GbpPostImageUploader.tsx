@@ -116,11 +116,6 @@ export function GbpPostImageUploader({
         </p>
       )}
       {error && <p className="text-xs font-bold leading-5 text-red-600">{error}</p>}
-      {value && (
-        <p className="truncate text-[10px] font-bold text-slate-400">
-          {value}
-        </p>
-      )}
     </div>
   );
 }

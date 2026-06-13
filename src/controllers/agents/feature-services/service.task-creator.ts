@@ -304,12 +304,15 @@ export async function createTasksFromSummaryV2Output(
       return;
     }
 
-    log(
-      `  [MONTHLY] Creating ${topActions.length} SUMMARY USER task(s) from top_actions`,
-    );
+    // Persist only the single highest-priority action — the "one thing that
+    // matters". The agent now emits one, but slice defensively in case an
+    // older/looser output carries more. plans/06092026-practice-hub-simplification.
+    const sorted = [...topActions]
+      .sort((a, b) => b.priority_score - a.priority_score)
+      .slice(0, 1);
 
-    const sorted = [...topActions].sort(
-      (a, b) => b.priority_score - a.priority_score,
+    log(
+      `  [MONTHLY] Creating ${sorted.length} SUMMARY USER task (top of ${topActions.length}) from top_actions`,
     );
 
     for (let i = 0; i < sorted.length; i++) {

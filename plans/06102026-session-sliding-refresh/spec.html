@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Session Sliding Refresh Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Completed</span>
+      </div>
+      <h1>Session Sliding Refresh</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06102026-session-sliding-refresh</dd></div>
+        <div><dt>Size</dt><dd>Medium (5 files)</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Client sessions hard-expire 7 days after login regardless of activity — a daily-active user gets kicked out mid-session once a week. Admin pilot sessions die after 1 hour, which is too short for real support work.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Sliding session expiry: when an authenticated request arrives with a token past half its 7-day life, the backend re-issues a fresh 7-day token in an <code>x-session-refresh</code> response header; the frontend axios interceptor stores it transparently. Pilot tokens move from 1 hour to 7 days and ride the same refresh path (preserving the <code>isPilot</code> claim). Done = an active user is never logged out; a user inactive for 7+ days still expires; pilot sessions behave identically.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/controllers/auth-otp/feature-services/service.jwt-management.ts</code> - single source of session-token signing (<code>generateToken</code>, 7d)</li>
+        <li><code>src/middleware/auth.ts</code> - <code>authenticateToken</code>, the single verification gate (46 consumer files; pilot + admin + client traffic all pass through it)</li>
+        <li><code>src/controllers/admin/auth/services/PilotSessionService.ts</code> - signs pilot tokens (<code>isPilot: true</code>, currently 1h)</li>
+        <li><code>src/index.ts</code> - hand-rolled CORS middleware; needs <code>Access-Control-Expose-Headers</code> for the refresh header</li>
+        <li><code>frontend/src/api/index.ts</code> - global axios interceptor + <code>getCommonHeaders()</code>; token storage is <code>localStorage.auth_token</code> (normal) vs <code>sessionStorage.token</code> (pilot)</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>All login flows (password, OTP, checkup) issue via <code>generateToken</code> — extend that service rather than scattering new signing sites.</li>
+        <li>Frontend pilot detection mirrors <code>getCommonHeaders()</code>: <code>sessionStorage.pilot_mode === "true"</code> or <code>sessionStorage.token</code> present.</li>
+        <li>Axios normalizes response header names to lowercase — read <code>x-session-refresh</code> lowercase.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/controllers/auth-otp/feature-services/service.jwt-management.ts</code> - the refresh helper lives beside <code>generateToken</code>/<code>verifyToken</code>, matching their style.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Re-sign with a clean payload (<code>userId</code>, <code>email</code>, optional <code>isPilot</code>) — never spread the decoded token (<code>jwt.sign</code> throws when <code>exp</code> exists in payload alongside <code>expiresIn</code>).</li>
+            <li>Preserve <code>isPilot</code> across refresh so pilot UI guards keep working.</li>
+            <li>Expose <code>x-session-refresh</code> via CORS for absolute-URL deployments.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No new dependencies.</li>
+            <li>No change to the 401/403 → <code>session:expired</code> modal flow (explicitly kept as-is).</li>
+            <li>No refresh-token table / server-side session state — stays stateless JWT.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Server-side revocation / logout-everywhere.</li>
+        <li>Proactive client-side expiry checks (frontend keeps reacting to 403s).</li>
+        <li>httpOnly-cookie migration.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li>(L2) Pilot tokens grow from 1h to 7d — a week-long impersonation credential. <strong>Mitigation:</strong> token lives only in <code>sessionStorage</code> (dies with the tab), <code>isPilot</code> claim survives refresh, and rotating <code>JWT_SECRET</code> remains the kill-switch. Accepted by Dave 2026-06-10.</li>
+        <li>(L2) Without <code>Access-Control-Expose-Headers</code>, cross-origin deployments silently never see the refresh header. <strong>Mitigation:</strong> added in the same CORS block in this change.</li>
+        <li>(L1) Parallel requests past the threshold each mint a token. Stateless JWTs — all remain valid; last writer wins. Harmless.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>authenticateToken</code> guards 46 files — change is additive (a response header on success paths only). <code>generateToken</code> callers: AuthPasswordController (3 sites), AuthOtpController, routes/checkup.ts (2 sites) — signature unchanged. Frontend: every API call passes the global interceptor — additive header read.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Sliding JWTs mean a stolen token can be kept alive forever by replaying requests. The stateless design has no revocation; if that ever matters, the fix is a server-side session/deny-list — out of scope today, flagged for the record.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Refresh helper in JWT management service</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>isPilot?</code> to <code>JwtPayload</code>; export <code>SESSION_TOKEN_TTL = "7d"</code>, <code>SESSION_REFRESH_HEADER = "x-session-refresh"</code>, and <code>getRefreshedSessionToken(decoded)</code> returning a fresh 7d token when less than half the lifetime (3.5d) remains, else <code>null</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/auth-otp/feature-services/service.jwt-management.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code></dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Sliding refresh in auth middleware</h3>
+        <dl>
+          <div><dt>Do</dt><dd>After successful <code>jwt.verify</code>, call <code>getRefreshedSessionToken</code>; when it returns a token, set the <code>x-session-refresh</code> response header.</dd></div>
+          <div><dt>Files</dt><dd><code>src/middleware/auth.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code></dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: Pilot tokens to 7 days</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Replace <code>expiresIn: "1h"</code> with the shared <code>SESSION_TOKEN_TTL</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin/auth/services/PilotSessionService.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code></dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T4: CORS-expose the refresh header</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>Access-Control-Expose-Headers: x-session-refresh</code> in the CORS middleware block.</dd></div>
+          <div><dt>Files</dt><dd><code>src/index.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: header present on API responses</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T5: Frontend stores refreshed token</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In the global axios response interceptor (success and error paths), read <code>x-session-refresh</code>; when present write to <code>sessionStorage.token</code> in pilot mode, else <code>localStorage.auth_token</code> — mirroring <code>getCommonHeaders()</code> detection.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/api/index.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> (frontend)</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> (backend) - zero new errors</li>
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> (frontend) - zero new errors</li>
+        <li><input type="checkbox" disabled> Lint passes on touched files</li>
+        <li><input type="checkbox" disabled> Manual: token older than 3.5d triggers <code>x-session-refresh</code> on API responses; fresh token does not</li>
+        <li><input type="checkbox" disabled> Manual: pilot session survives past 1h and keeps <code>isPilot</code></li>
+        <li><input type="checkbox" disabled> No regressions in login / session-expired modal flow</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

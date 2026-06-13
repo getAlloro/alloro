@@ -183,15 +183,18 @@ function backfillRecommendations(
   );
   const next = [...recommendations];
 
+  // The Local Rankings 1-ACTION banner shows a single recommendation. Pad to
+  // 1 (covers an empty LLM result) and cap at 1.
+  // plans/06102026-local-rankings-simplification.
   for (const fallback of SAFE_RECOMMENDATION_BACKFILL) {
-    if (next.length >= 3) break;
+    if (next.length >= 1) break;
     const key = fallback.title?.toLowerCase();
     if (key && titles.has(key)) continue;
     next.push({ ...fallback, priority: next.length + 1 });
     if (key) titles.add(key);
   }
 
-  return next.map((rec, index) => ({ ...rec, priority: index + 1 })).slice(0, 3);
+  return next.map((rec, index) => ({ ...rec, priority: index + 1 })).slice(0, 1);
 }
 
 export function sanitizeRankingLlmAnalysis<T extends Record<string, any>>(

@@ -166,6 +166,14 @@ If additional_data.pms.data_quality_flags contains entries, surface them
 in your output's data_quality_flags array verbatim. These are deterministic
 checks already run on the data before you saw it.
 
+GROWTH OPPORTUNITY RULE
+growth_opportunity_summary.top_three_fixes must contain EXACTLY ONE entry:
+the single highest-impact, most actionable recommendation from this month's
+analysis. The field name is legacy — never output more than one fix. Pick
+the one fix a busy practice owner should do first; fold any secondary
+observations into the matrices' notes instead.
+estimated_additional_annual_revenue reflects that single fix.
+
 OUTPUT — respond with ONLY a valid JSON object, no markdown fences, no explanation, no text before or after:
 {
   "executive_summary": ["string"],

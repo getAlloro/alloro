@@ -40,12 +40,15 @@ import {
 import { useLocationContext } from "../../contexts/locationContext";
 import { apiGet } from "../../api";
 import { getPriorityItem } from "../../hooks/useLocalStorage";
-import { PmsDashboardSurface } from "./dashboard/PmsDashboardSurface";
+import { PmsHubSurface } from "./dashboard/PmsHubSurface";
 import { PmsFileManager } from "./file-manager/PmsFileManager";
 import { derivePmsFocusPeriod } from "../../utils/pmsFocusPeriod";
 import { DashboardAlertStack } from "../dashboard/alerts/DashboardAlertStack";
 import { buildDashboardAlerts } from "../../utils/dashboardAlerts";
-import { useRerunPmsInsights } from "../../hooks/queries/usePmsFileManagerQueries";
+import {
+  useInvalidatePmsFileSurfaces,
+  useRerunPmsInsights,
+} from "../../hooks/queries/usePmsFileManagerQueries";
 
 const COGITATING_PHRASES = [
   "Reading the leaves", "Turning over new leaves", "Tending the garden",
@@ -1086,15 +1089,23 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
     await loadKeyData();
   }, [loadKeyData]);
 
+  const invalidatePmsFileSurfaces = useInvalidatePmsFileSurfaces(
+    organizationId ?? null,
+    locationId ?? null,
+  );
+
   const handleUploadWizardSuccess = useCallback(async () => {
     setShowUploadWizard(false);
     // Set pending state to show processing timeline
     setReferralPending(true);
     setReferralData(null);
+    // The file-manager panel can stay open behind the entry modal now, so
+    // refresh its month grid / job list along with the key data.
+    invalidatePmsFileSurfaces();
     await loadKeyData({ silent: true });
     // Fetch automation status to show timeline progress
     await loadAutomationStatus();
-  }, [loadKeyData, loadAutomationStatus]);
+  }, [invalidatePmsFileSurfaces, loadKeyData, loadAutomationStatus]);
 
   const rerunInsights = useRerunPmsInsights(
     organizationId ?? null,
@@ -1165,7 +1176,7 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
 
   if (!initialLoadComplete) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#F7F5F3]">
+      <div className="flex items-center justify-center min-h-screen bg-alloro-bg">
         <div className="text-center">
           <div className="relative flex items-center justify-center h-16 w-16 mx-auto mb-2">
             <div
@@ -1186,7 +1197,7 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
     if (!connectionStatus.gbpConnected) disconnectedServices.push("Business Profile");
 
     return (
-      <div className="min-h-screen bg-[#F8FAFC] font-body text-alloro-navy flex flex-col items-center justify-center p-8">
+      <div className="min-h-screen bg-alloro-bg font-body text-alloro-navy flex flex-col items-center justify-center p-8">
         <div className="max-w-2xl w-full">
           {/* Welcome header */}
           <div className="text-center mb-10">
@@ -1306,11 +1317,15 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
   });
 
   return (
-    <div className="pm-light min-h-screen bg-[var(--color-pm-bg-primary)] font-body text-alloro-navy">
-      <main className="mx-auto w-full max-w-[1320px] space-y-4 px-4 pb-6 sm:px-6 lg:px-8">
-        {/* Cascaded dashboard alerts — stale-data alert (top) + upload nudge */}
+    <div className="pm-light min-h-screen bg-alloro-bg font-body text-alloro-navy">
+      <main className="mx-auto w-full max-w-[960px] space-y-6 px-4 pb-6 sm:px-6 lg:px-8">
+        {/* Cascaded dashboard alerts — stale-data alert (top) + upload nudge.
+            Shared 960px container width across Practice Hub / Referrals /
+            Rankings; the surface + alerts fill the same centered main. */}
         {!isLoading && !error && keyData && dashboardAlerts.length > 0 && (
-          <DashboardAlertStack alerts={dashboardAlerts} />
+          <div className="w-full">
+            <DashboardAlertStack alerts={dashboardAlerts} />
+          </div>
         )}
 
         {/* Client Approval Banner */}
@@ -1371,10 +1386,8 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
           </motion.div>
         )}
 
-      </main>
-
-      {!error && (keyData || isWizardActive || showDashboardProcessingStatus) && (
-        <PmsDashboardSurface
+        {!error && (keyData || isWizardActive || showDashboardProcessingStatus) && (
+        <PmsHubSurface
           monthlyData={monthlyData}
           topSources={topSources}
           totalProduction={totalProduction}
@@ -1406,6 +1419,7 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
           onOpenSettings={() => navigate('/settings/integrations')}
         />
       )}
+      </main>
 
       {organizationId && locationId && (
         <PmsFileManager
@@ -1421,8 +1435,8 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
             setFileManagerInitialMonth(null);
           }}
           onUploadClick={(targetMonth) => {
-            setShowFileManager(false);
-            setFileManagerInitialMonth(null);
+            // Keep the file-manager panel open — the entry modal overlays it
+            // (z-[100] over the panel's z-[70]), matching the Edit flow.
             setManualEntryTargetMonth(targetMonth ?? null);
             setShowManualEntry(true);
           }}

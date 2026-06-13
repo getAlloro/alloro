@@ -41,14 +41,16 @@ export interface WizardStep {
 }
 
 export const WIZARD_STEPS: WizardStep[] = [
-  // ========== PRACTICE HUB (Dashboard) — 7 steps ==========
+  // ========== PRACTICE HUB (Dashboard) — 5 steps ==========
+  // Simplified redesign: the Trajectory and Action-Queue steps were retired
+  // along with their cards. plans/06092026-practice-hub-simplification.
   {
     id: "dashboard-overview",
     page: "dashboard",
     targetSelector: null,
     title: "Welcome to Practice Hub",
     description:
-      "This is your command center. One top priority, key metrics, and everything you need to run your practice — all on one page.",
+      "This is your command center. One top priority, your production trend, and the four metrics that matter — all on one page.",
     isPageOverview: true,
   },
   {
@@ -57,34 +59,25 @@ export const WIZARD_STEPS: WizardStep[] = [
     targetSelector: "[data-wizard-target='dashboard-hero']",
     title: "Your Top Priority",
     description:
-      "Every month, Alloro surfaces the single most impactful action for your practice. This card shows what it is, why it matters, and exactly what to do.",
+      'Every month, Alloro surfaces the single most impactful action for your practice. This banner shows what it is and why it matters — expand "Details" for the full picture.',
     scrollToElement: true,
   },
   {
-    id: "dashboard-trajectory",
+    id: "dashboard-pms",
     page: "dashboard",
-    targetSelector: "[data-wizard-target='dashboard-trajectory']",
-    title: "Practice Trajectory",
+    targetSelector: "[data-wizard-target='dashboard-pms']",
+    title: "Production",
     description:
-      "A personalized daily briefing from Alloro's intelligence engine. See your production, new patient starts, and visibility score with month-over-month trends.",
-    scrollToElement: true,
-  },
-  {
-    id: "dashboard-queue",
-    page: "dashboard",
-    targetSelector: "[data-wizard-target='dashboard-queue']",
-    title: "Action Queue",
-    description:
-      "After your top priority, these are the next actions ranked by impact. Click any item to jump straight to the details in your To-Do List.",
+      "Your year-to-date production charted across the year, with the month-over-month trend so you can see where you're heading.",
     scrollToElement: true,
   },
   {
     id: "dashboard-website",
     page: "dashboard",
     targetSelector: "[data-wizard-target='dashboard-website']",
-    title: "Website Performance",
+    title: "Form Submissions",
     description:
-      "Track verified form submissions from your website over the last 12 months. See unread leads, flagged entries, and conversion trends at a glance.",
+      "New website leads this month at a glance. Click through to your full submissions inbox.",
     scrollToElement: true,
   },
   {
@@ -93,54 +86,38 @@ export const WIZARD_STEPS: WizardStep[] = [
     targetSelector: "[data-wizard-target='dashboard-visibility']",
     title: "Local Visibility",
     description:
-      "Your estimated Google Maps position, Practice Health score, and the key ranking factors driving your local search visibility.",
-    scrollToElement: true,
-  },
-  {
-    id: "dashboard-pms",
-    page: "dashboard",
-    targetSelector: "[data-wizard-target='dashboard-pms']",
-    title: "PMS Summary",
-    description:
-      "Current-month production, total referrals, and your referral mix (doctor vs. self). See your top referral sources and 12-month production trend.",
+      "Your estimated Google Maps position and whether a fresh Google post is due — the levers that move your local search ranking.",
     scrollToElement: true,
   },
 
-  // ========== REFERRALS HUB (PMS Statistics) — 5 steps ==========
+  // ========== REFERRALS HUB (PMS Statistics) — 4 steps ==========
+  // Simplified redesign: velocity step retired; insights step re-pointed to
+  // the "1 action" banner. plans/06102026-referrals-hub-simplification.
   {
     id: "pms-overview",
     page: "pmsStatistics",
     targetSelector: null,
     title: "Referrals Hub",
     description:
-      "Deep-dive into where your patients come from. Upload PMS data and Alloro analyzes referral patterns, revenue attribution, and growth opportunities.",
+      "See where your patients come from. Switch between month, quarter, and year-to-date to track production and referrals over time.",
     isPageOverview: true,
   },
   {
     id: "pms-vitals",
     page: "pmsStatistics",
     targetSelector: "[data-wizard-target='pms-vitals']",
-    title: "PMS Vitals",
+    title: "Your Numbers",
     description:
-      "Year-to-date production, total referrals, and referral source count — your key PMS health metrics at a glance.",
+      "Production for the selected period, total referrals, your active source count, and year-to-date production — at a glance.",
     scrollToElement: true,
   },
   {
     id: "pms-insights",
     page: "pmsStatistics",
     targetSelector: "[data-wizard-target='pms-insights']",
-    title: "Top Source & Insights",
+    title: "The One Action",
     description:
-      "Your highest-producing referral source at a glance, with the doctor vs. self-referral split. Alloro highlights what matters most.",
-    scrollToElement: true,
-  },
-  {
-    id: "pms-velocity",
-    page: "pmsStatistics",
-    targetSelector: "[data-wizard-target='pms-velocity']",
-    title: "Drill Into the Details",
-    description:
-      "Click to open the full referral trends — production over time, referral mix, and monthly velocity — or see all sources ranked by production.",
+      "Alloro flags the single most important move — like protecting the top sources that drive most of your referrals.",
     scrollToElement: true,
   },
   {
@@ -173,32 +150,26 @@ export const WIZARD_STEPS: WizardStep[] = [
     scrollToElement: true,
   },
 
-  // ========== LOCAL RANKINGS — 4 steps ==========
+  // ========== LOCAL RANKINGS — 3 steps ==========
+  // Simplified redesign: the Visibility/Health score and factor breakdown
+  // were retired, so the "Visibility Drivers" step is gone and the rank step
+  // re-points to the map hero. plans/06102026-local-rankings-simplification.
   {
     id: "rankings-overview",
     page: "rankings",
     targetSelector: null,
     title: "Local Rankings",
     description:
-      "Track how your practice ranks in local Google search results. We scan your area, analyze competitors, and identify what's driving your visibility.",
+      "See exactly where you rank against the practices nearest you, and the one move that protects or improves your position.",
     isPageOverview: true,
   },
   {
     id: "rankings-score",
     page: "rankings",
     targetSelector: "[data-wizard-target='rankings-score']",
-    title: "Practice Performance",
+    title: "Your Rank on the Map",
     description:
-      "Your live Google Maps rank estimate, Practice Health score, and the key metrics that matter — reviews, rating, and search visibility.",
-    scrollToElement: true,
-  },
-  {
-    id: "rankings-factors",
-    page: "rankings",
-    targetSelector: "[data-wizard-target='rankings-factors']",
-    title: "Visibility Drivers",
-    description:
-      "What's working for you and what's holding you back. Each factor is scored and ranked so you know exactly where to improve.",
+      "Your live Google Maps position for one standard search, with every tracked competitor plotted around you.",
     scrollToElement: true,
   },
   {
@@ -207,7 +178,7 @@ export const WIZARD_STEPS: WizardStep[] = [
     targetSelector: "[data-wizard-target='rankings-competitors']",
     title: "Competitor Landscape",
     description:
-      "See who you're competing against in Google Maps. Compare star ratings, review counts, and positions to find your edge.",
+      "How you stack up against the practices you track — open Manage Competitors to adjust the set.",
     scrollToElement: true,
   },
 
@@ -314,9 +285,9 @@ export const WIZARD_STEPS: WizardStep[] = [
     id: "settings-integrations",
     page: "settings",
     targetSelector: "[data-wizard-target='settings-integrations']",
-    title: "Integrations & Locations",
+    title: "Google Integrations",
     description:
-      "Connect Google Business Profiles, Google Search Console, and manage your practice locations. Each location gets its own GBP connection.",
+      "Connect Google Business Profile and Search Console here. Your practice locations have their own Locations tab, where each location gets its own GBP connection.",
     scrollToElement: true,
   },
 

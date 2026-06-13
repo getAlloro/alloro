@@ -21,7 +21,6 @@ import { CompetitorOnboardingBanner } from "./CompetitorOnboardingBanner";
 import { RankingInFlightBanner } from "./RankingInFlightBanner";
 import {
   getInFlightRanking,
-  reselectAndRun,
   type SelectedCompetitorSearchResult,
 } from "../../api/practiceRanking";
 import { RankingsLoadingState } from "./rankings/RankingsLoadingState";
@@ -33,10 +32,11 @@ import { CompetitorComparisonSortMenu } from "./rankings/CompetitorComparisonSor
 import { CompetitorComparisonTable } from "./rankings/CompetitorComparisonTable";
 import { GbpAutomationPanel } from "./gbp-automation/GbpAutomationPanel";
 import { GbpEngagementSummaryCard } from "./gbp-automation/GbpEngagementSummaryCard";
-import {
-  RankingsDashboardViewTabs,
-  type RankingsDashboardView,
-} from "./rankings/RankingsDashboardViewTabs";
+import { RankingsHubSurface } from "./rankings-hub/RankingsHubSurface";
+// The Engage tab moved to its own page (/gbp-manager) — only the view TYPE
+// is still needed for the retained (unreachable) engage branch below.
+// plans/06102026-reviews-posts-page (T6).
+import { type RankingsDashboardView } from "./rankings/RankingsDashboardViewTabs";
 import {
   buildCompetitorComparisonRows,
   getComparisonInsight,
@@ -44,12 +44,11 @@ import {
   type ComparisonSortKey,
 } from "./rankings/competitorComparison";
 
-type CompetitorSnapshot = {
-  competitors?: Array<{
-    place_id?: string | null;
-    placeId?: string | null;
-  }>;
-};
+// Redesign flag: the simplified RankingsHubSurface replaces PerformanceDashboard
+// on the Overview tab. Kept as a const (not deleted) so the legacy tree stays
+// type-checked and trivially restorable; flip to true to fall back.
+// plans/06102026-local-rankings-simplification.
+const USE_LEGACY_RANKINGS_DASHBOARD = false;
 
 // Type for client Google Business Profile data
 interface ClientGbpData {
@@ -90,7 +89,7 @@ interface ClientGbpData {
   };
 }
 
-interface RankingResult {
+export interface RankingResult {
   id: number;
   specialty: string;
   location: string | null;
@@ -272,23 +271,6 @@ interface RankingsDashboardProps {
   locationId?: number | null;
 }
 
-function getSelectedCompetitorPlaceIds(
-  ranking: RankingResult | null,
-): string[] {
-  const fromSelectedResults = (ranking?.selectedCompetitorSearchResults ?? [])
-    .slice()
-    .sort((a, b) => a.selectedOrder - b.selectedOrder)
-    .map((competitor) => competitor.placeId)
-    .filter((placeId): placeId is string => Boolean(placeId));
-
-  if (fromSelectedResults.length > 0) return fromSelectedResults;
-
-  const snapshot = ranking?.competitorSnapshot as CompetitorSnapshot | null;
-  return (snapshot?.competitors ?? [])
-    .map((competitor) => competitor.place_id ?? competitor.placeId ?? null)
-    .filter((placeId): placeId is string => Boolean(placeId));
-}
-
 export function RankingsDashboard({
   organizationId,
   locationId,
@@ -300,8 +282,6 @@ export function RankingsDashboard({
   const [loading, setLoading] = useState(true);
   const [rankings, setRankings] = useState<RankingResult[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [refreshingRankings, setRefreshingRankings] = useState(false);
-  const [rerankError, setRerankError] = useState<string | null>(null);
   const [dashboardView, setDashboardView] =
     useState<RankingsDashboardView>("overview");
 
@@ -783,47 +763,10 @@ export function RankingsDashboard({
     null;
   const selectedGbpAutomationLocationId =
     selectedRanking?.locationId || locationId || null;
-  const selectedCompetitorPlaceIds = getSelectedCompetitorPlaceIds(
-    selectedRanking,
-  );
-  const canRefreshRankings =
-    Boolean(selectedRanking?.locationId) && selectedCompetitorPlaceIds.length > 0;
-
-  async function handleRefreshRankings() {
-    if (!selectedRanking?.locationId || selectedCompetitorPlaceIds.length === 0) {
-      setRerankError("No selected competitors are available for this location.");
-      return;
-    }
-
-    setRefreshingRankings(true);
-    setRerankError(null);
-    try {
-      const res = await reselectAndRun(
-        selectedRanking.locationId,
-        selectedCompetitorPlaceIds,
-        selectedRanking.competitorDiscoveryRadiusMeters ?? undefined,
-      );
-      if (!res?.success) {
-        setRerankError("Could not refresh rankings. Please try again.");
-        return;
-      }
-      setAutoDetectedBatchId(null);
-      setBannerHidden(false);
-      setSearchParams((p) => {
-        const next = new URLSearchParams(p);
-        next.set("batchId", res.batchId);
-        return next;
-      });
-    } catch {
-      setRerankError("Could not refresh rankings. Please try again.");
-    } finally {
-      setRefreshingRankings(false);
-    }
-  }
 
   return (
     <div className="min-h-screen bg-alloro-bg font-body text-alloro-textDark pb-32 selection:bg-alloro-orange selection:text-white">
-      <main className="w-full max-w-[1320px] mx-auto px-6 lg:px-10 py-8 lg:py-10 space-y-6">
+      <main className="w-full max-w-[960px] mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-alloro-navy/45 mb-2">
@@ -837,46 +780,7 @@ export function RankingsDashboard({
             </p>
           </div>
 
-          {selectedRanking?.locationId && (
-            <div className="flex flex-col gap-3 rounded-[14px] border border-line-soft bg-white px-5 py-3.5 shadow-premium lg:min-w-[560px]">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-                  <span className="shrink-0 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    Update location
-                  </span>
-                  <p className="truncate text-[12px] font-semibold text-alloro-navy/55">
-                    Refresh local search data.
-                  </p>
-                </div>
-                <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
-                  <button
-                    type="button"
-                    onClick={handleRefreshRankings}
-                    disabled={!canRefreshRankings || refreshingRankings}
-                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[10px] bg-alloro-orange px-3.5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white transition-colors hover:bg-alloro-orange/90 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <RefreshCw
-                      size={13}
-                      className={refreshingRankings ? "animate-spin" : ""}
-                    />
-                    {refreshingRankings ? "Refreshing" : "Refresh rankings"}
-                  </button>
-                </div>
-              </div>
-              {rerankError && (
-                <p className="flex items-center gap-2 text-[11px] font-bold text-red-600">
-                  <AlertCircle size={13} />
-                  {rerankError}
-                </p>
-              )}
-            </div>
-          )}
         </div>
-
-        <RankingsDashboardViewTabs
-          activeView={dashboardView}
-          onViewChange={setDashboardView}
-        />
 
         {dashboardView === "overview" ? (
           <>
@@ -907,22 +811,33 @@ export function RankingsDashboard({
                 />
               )}
 
-            {/* Selected Location Detail */}
-            {selectedRanking && (
-              <PerformanceDashboard
-                result={selectedRanking}
-                insight={selectedInsight || undefined}
-                onOpenEngage={() => setDashboardView("engage")}
-                engagementSummary={
-                  <GbpEngagementSummaryCard
-                    agentContent={selectedRanking.llmAnalysis?.engagement_card ?? null}
-                    organizationId={organizationId}
-                    locationId={selectedGbpAutomationLocationId}
-                    onOpenEngage={() => setDashboardView("engage")}
-                  />
-                }
-              />
-            )}
+            {/* Selected Location Detail — simplified rankings hub (redesign).
+                The legacy PerformanceDashboard tree is retained behind this
+                flag (referenced so it still type-checks; dead branch is
+                tree-shaken) for a clean delete once the redesign is confirmed.
+                plans/06102026-local-rankings-simplification. */}
+            {selectedRanking &&
+              (USE_LEGACY_RANKINGS_DASHBOARD ? (
+                <PerformanceDashboard
+                  result={selectedRanking}
+                  insight={selectedInsight || undefined}
+                  onOpenEngage={() => setDashboardView("engage")}
+                  engagementSummary={
+                    <GbpEngagementSummaryCard
+                      agentContent={selectedRanking.llmAnalysis?.engagement_card ?? null}
+                      organizationId={organizationId}
+                      locationId={selectedGbpAutomationLocationId}
+                      onOpenEngage={() => setDashboardView("engage")}
+                    />
+                  }
+                />
+              ) : (
+                <RankingsHubSurface
+                  result={selectedRanking}
+                  organizationId={organizationId}
+                  locationId={selectedGbpAutomationLocationId}
+                />
+              ))}
           </>
         ) : (
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">

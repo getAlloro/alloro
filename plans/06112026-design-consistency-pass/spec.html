@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Design Consistency Pass Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Completed</span>
+      </div>
+      <h1>Design Consistency Pass</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed — user-verified 2026-06-11, committed on dev/dave</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06112026-design-consistency-pass</dd></div>
+        <div><dt>Size</dt><dd>Medium-Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The four hub redesigns shipped page by page; this pass makes them read as ONE product per the three-pillar brief: white cards on linen, ink-black text, terracotta as the only accent, the same card recipe and status language everywhere — plus the data-correctness fixes (YTD definition, dead deltas, mislabels) that erode trust in the numbers.</p>
+      <p><strong>Owner decisions locked:</strong> fonts stay as-is (Spectral display + Jakarta body — "one font everywhere" is OFF); numbers are ink by default with terracotta = attention; reveal-next is the lightweight collapse (no backend); Rankings M/Q/YTD toggle stays dormant.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>A client-surface sweep (Practice Hub, Referrals Hub, Local Rankings, Reviews &amp; Posts + shared nav) plus targeted data fixes. Done when:</p>
+      <ul>
+        <li>Global background is linen <code>#F7F3ED</code> (sampled from the approved friyay boards; current <code>--color-alloro-bg</code> is cool-gray #F3F4F6); cards stay white.</li>
+        <li>Primary copy on the four hubs is ink (<code>alloro-navy #11151C</code>), with ONE muted tone for secondary text — no more slate-500/gray-500 mixing.</li>
+        <li>Stat values render ink in the same treatment family as today; terracotta (<code>alloro-orange #D66853</code>) marks ONLY attention states. Hardcoded off-palette hexes (e.g. #B3503E warn in GbpManagerPage StatBox) replaced by tokens.</li>
+        <li>One card recipe — <code>rounded-[14px] border border-line-soft bg-white shadow-premium</code> — across hub surfaces AND the gbp-automation/PMS components that currently use <code>border-slate-200</code>/<code>rounded-2xl border-gray-200</code>.</li>
+        <li>Status dots: shared tone module (green #4F8A5B healthy · amber #C2891E needs-attention · red added for overdue/failing), same semantics on every hub. <code>statusRules.ts</code> TONE_COLOR promoted to the shared source of truth.</li>
+        <li>To-Do List and Notifications hidden from Sidebar (Execution group removed if emptied) and MobileBottomNav; the 3-second notification poll removed with them; routes remain reachable by URL.</li>
+        <li>Action banners (Practice Hub OneThingBanner + Referrals + Rankings 1-ACTION) get "Mark done" → collapses to "Next action arrives with your next analysis." — localStorage keyed, no backend.</li>
+        <li>Referrals top-sources rows are a click-in: inline expand showing the per-month trend (data already computed in <code>sourceTrend.ts</code>).</li>
+        <li>YTD honesty: <code>ProductionPanel</code> no longer sums ALL months under a YTD label when no current-year rows exist (falls to an honest empty/zero state); duplicate-month double-counting in <code>usePmsKeyData</code> ruled out or fixed (the "$2.2M reads wrong" suspect).</li>
+        <li>"New patient starts" mislabel: confirmed dead (lives only in unrendered <code>Trajectory.tsx</code>) — guarded by the dead-file note below.</li>
+        <li>+0% deltas and "phases/sections/prior period" labels: investigated on the live surfaces, fixed where found, or reported back with exact locations if they live in flows needing owner input.</li>
+        <li>Mobile spot-check: 4 hubs render correctly at 375px (no horizontal scroll, grids collapse).</li>
+        <li><code>tsc</code> (both) + eslint clean.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Audit results driving scope</h3>
+      <ul>
+        <li><strong>Already live, verified:</strong> lead-with-visual; Practice Hub Option A; upload bar above Top sources; #1 + map one line; Engage split/60d/timer/photo-optional; scores removed; no keywords box; #1 on one standard query.</li>
+        <li><strong>Already dead:</strong> dark Focus card + "new patient starts = 1,638" — only in retired <code>focus/Hero.tsx</code>/<code>Trajectory.tsx</code>/<code>ActionQueue.tsx</code>/<code>PMSCard.tsx</code> etc., not rendered anywhere. Deleting them is OUT of scope (no drive-by cleanups) — backlog item.</li>
+        <li><strong>Tokens:</strong> <code>frontend/src/index.css</code> @theme — <code>--color-alloro-navy #11151C</code>, <code>--color-alloro-orange #D66853</code>, <code>--color-alloro-bg #F3F4F6</code> (→ linen), <code>--color-line-soft</code>. <code>.minds-theme</code> is scoped to Minds only — untouched.</li>
+        <li><strong>Linen source:</strong> friyays/06-01-2026/styles.css — paper #FFFDF9, soft/linen #F7F3ED, terracotta #D66853.</li>
+      </ul>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/index.css</code> — bg token flip.</li>
+        <li><code>components/dashboard/focus/</code> — ProductionPanel (YTD fallback at ~line 134), OneThingBanner (mark-done), StatCard/StatCardRow + statusRules.ts (tone module + red).</li>
+        <li><code>components/dashboard/DashboardOverview.tsx</code>, <code>rankings-hub/RankingsHubSurface.tsx</code>, <code>PMS/dashboard/PmsHubSurface.tsx</code> + <code>sourceTrend.ts</code>, <code>pages/GbpManagerPage.tsx</code> — sweep + behaviors.</li>
+        <li><code>components/dashboard/gbp-automation/*</code> — card-recipe alignment (border-slate-200 → line-soft) on panel-level cards only (NOT every inner row).</li>
+        <li><code>components/Sidebar.tsx</code> (Execution group + notification poll), <code>MobileBottomNav.tsx</code>.</li>
+        <li><code>hooks/usePmsKeyData.ts</code> — duplicate-month audit.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Text: primary = <code>text-alloro-navy</code>; secondary = ONE muted treatment (<code>text-alloro-navy/55</code>), replacing slate-500/gray-500 on the four hubs.</li>
+        <li>Attention = <code>alloro-orange</code> token only — never raw hexes.</li>
+        <li>Mark-done: localStorage key <code>alloro.action-done.&lt;hub&gt;.&lt;hash(actionText)&gt;</code>; banner collapses, note shows; new action text = new key = banner returns.</li>
+      </ul>
+      <p><strong>Reference files:</strong> <code>RankingsHubSurface.tsx</code> (card recipe + StatBox), <code>statusRules.ts</code> (tone source), friyay <code>styles.css</code> (palette).</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Client surfaces only — admin inherits ONLY via shared components.</li>
+            <li>Fonts untouched (owner decision).</li>
+            <li>Token-only colors; linen exactly #F7F3ED.</li>
+            <li>Keep /tasks and /notifications routes working (nav-hidden, not deleted).</li>
+            <li>Layout untouched except the flagged behaviors (mark-done collapse, sources expand, nav removals).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No backend changes (the source-name dedup is its OWN future plan).</li>
+            <li>No deletion of retired components (backlog).</li>
+            <li>No agent schema changes (reveal-next deferred).</li>
+            <li>No Rankings toggle enablement (<code>PERIOD_TOGGLE_ENABLED</code> stays false).</li>
+            <li>No blanket regex color replacement — each gray→ink change is per-instance judgment (labels/eyebrows may stay muted).</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope (backlog register)</h3>
+      <ul>
+        <li>Backend merge of duplicate referral source names — separate plan, needs merge-rule decision (normalize vs mapping table).</li>
+        <li>Reveal-next action pool (3-item server pool + completion persistence).</li>
+        <li>Rankings M/Q/YTD enablement (one flag when history accrues).</li>
+        <li>Deleting retired focus/rankings legacy components.</li>
+        <li>Admin surface restyle.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Global bg token blast radius (Level 2):</strong> <code>--color-alloro-bg</code> is used app-wide incl. admin and auth screens — linen lands everywhere. <strong>Mitigation:</strong> accepted intentionally ("one product"); verify auth/admin screens don't pair it with same-tone elements (sweep <code>bg-alloro-bg</code> usages once).</li>
+        <li><strong>Gray→ink sweep regressions (Level 2):</strong> 79 files reference gray text; over-inking labels flattens hierarchy. <strong>Mitigation:</strong> scope to the four hub surfaces; two-tone rule (ink primary / navy-55 secondary); user visual QA gate.</li>
+        <li><strong>Card-recipe churn in gbp components (Level 1):</strong> shadow-premium on inner rows would be noisy. <strong>Mitigation:</strong> recipe applies to panel-level cards; inner rows keep light borders.</li>
+        <li><strong>YTD fallback change (Level 2):</strong> practices with only prior-year data go from a big number to an empty state. <strong>Mitigation:</strong> honest empty state with copy ("No {year} data yet — upload to see YTD"), upload CTA; this IS the requested fix.</li>
+        <li><strong>+0% deltas root cause unknown until investigated (Level 1):</strong> may live in a surface needing owner input — report-back is an acceptable T7 outcome.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> index.css token (global); statusRules.ts gains consumers (3 hubs); Sidebar/MobileBottomNav (nav-wide); ProductionPanel/usePmsKeyData (Practice Hub numbers); no backend.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>"Solid black" implemented as ink #11151C, not #000 — it IS the brand black; pure black on linen is harsher.</li>
+        <li>All-terracotta numbers rejected (owner-confirmed): terracotta must keep meaning "look here".</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Tokens + shared tones</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>--color-alloro-bg</code> → #F7F3ED. Add red to <code>statusRules.ts</code> TONE_COLOR (<code>critical</code>) + document the three meanings; export for cross-hub use. Sweep stray warm/off-palette hexes in focus/ + GbpManagerPage to tokens.</dd></div>
+          <div><dt>Files</dt><dd><code>index.css</code>, <code>focus/statusRules.ts</code>, <code>GbpManagerPage.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>grep: no #B3503E/#1F1B16 left in hub surfaces.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Practice Hub sweep + mark-done + YTD honesty</h3>
+        <dl>
+          <div><dt>Do</dt><dd>DashboardOverview + focus/: gray→two-tone text; card recipe; status dots via shared tones. OneThingBanner "Mark done" (localStorage, collapse note). ProductionPanel: remove all-months-as-YTD fallback → honest empty state; audit <code>usePmsKeyData</code> for duplicate-month double counting (the $2.2M suspect) and dedupe by month key if found.</dd></div>
+          <div><dt>Files</dt><dd><code>DashboardOverview.tsx</code>, <code>focus/ProductionPanel.tsx</code>, <code>OneThingBanner.tsx</code>, <code>StatCard.tsx</code>, <code>StatCardRow.tsx</code>, <code>hooks/usePmsKeyData.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Manual: YTD total = sum of current-year months only.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Referrals sweep + sources click-in + labels</h3>
+        <dl>
+          <div><dt>Do</dt><dd>PmsHubSurface: text/card/dot alignment; 1-action banner mark-done; top-source rows expand inline on click to a per-month mini-trend (reuse <code>sourceTrend.ts</code> lookup). Investigate +0% deltas on this surface + clean "prior period"/"phases"/"sections" wording in PMS modals (PMSManualEntryModal, PasteConfirmDialog) — plain-language labels.</dd></div>
+          <div><dt>Files</dt><dd><code>PMS/dashboard/PmsHubSurface.tsx</code>, <code>sourceTrend.ts</code>, <code>PMS/PMSManualEntryModal.tsx</code>, <code>PMS/PasteConfirmDialog.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Manual: source click expands trend; deltas non-zero where prior data exists (or root cause reported).</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Rankings + Engage sweep</h3>
+        <dl>
+          <div><dt>Do</dt><dd>RankingsHubSurface: text/dot alignment, banner mark-done. GbpManagerPage + gbp-automation panel-level cards: border-slate-200 → line-soft recipe; gray-500→two-tone on panel copy; StatBox warn → alloro-orange.</dd></div>
+          <div><dt>Files</dt><dd><code>rankings-hub/RankingsHubSurface.tsx</code>, <code>GbpManagerPage.tsx</code>, <code>gbp-automation/</code> (panel-level cards)</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Side-by-side: all four hubs share card + text + dot language.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Nav cleanup</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Sidebar: remove To-Do List + Notifications items; remove the Execution group if emptied; remove the 3s notification poll + its dead state. MobileBottomNav: remove /tasks + /notifications entries. Routes untouched.</dd></div>
+          <div><dt>Files</dt><dd><code>Sidebar.tsx</code>, <code>MobileBottomNav.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>tsc (no unused vars per noUnusedLocals); /tasks still loads by URL.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Verification</h3>
+        <dl>
+          <div><dt>Do</dt><dd>tsc (frontend; backend untouched but run once), eslint on touched files, 375px spot-check on the four hubs, grep-audit: no slate-500/gray-500 in the four hub surfaces, no off-palette hexes.</dd></div>
+          <div><dt>Files</dt><dd>—</dd></div>
+          <div><dt>Depends on</dt><dd>T1–T5</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> + eslint clean.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="task-card">
+        <h3>Rev 1 — 2026-06-11 (execution)</h3>
+        <p><strong>Change:</strong> T1–T6 built. Deviations and discoveries:</p>
+        <ul>
+          <li><strong>Muted token:</strong> <code>--color-ink-muted #8E8579</code> (the warm stone the hubs + approved boards already use), NOT the spec'd navy/55 — better on linen, far less churn. Also tokenized <code>accent-soft #FAF1EC</code> / <code>accent-soft-line #EFDED4</code> (action-banner tint).</li>
+          <li><strong>Backend bugfix cluster (deviation from "no backend changes", below Level 3):</strong> month keys arrive as BOTH "YYYY-MM" and display labels ("Apr 2026"); FOUR live <code>localeCompare</code> sorts ordered them alphabetically. New <code>src/utils/pms/monthKey.ts</code> (mirrors frontend parseYM) now drives: the aggregator's 12-month cap (was capable of KEEPING THE WRONG 12 MONTHS), per-source trend latest/prior pair, <code>production_change_30d</code> (the +0% deltas root cause), and the "this month" grounding values (were the alphabetically-last month, e.g. "Sep 2025"). Verified ordering in node.</li>
+          <li><strong>$2.2M mechanism confirmed:</strong> labeled month keys failed ProductionPanel's <code>startsWith(year)</code> filter → all-time sum fell back in under the YTD label. Fixed via shared <code>parseYM</code> (now exported from pmsPeriod) + the fallback removed → honest "No {year} data yet" empty state. Backend dedup was already latest-wins per month (no double counting).</li>
+          <li><strong>Shared components extracted:</strong> <code>ActionBanner</code> (one banner + Mark-done across all three hubs; OneThingBanner now wraps it), <code>StatBox</code> (deduped from RankingsHubSurface + GbpManagerPage), <code>PmsHubTopSources</code> (click-in detail from the RE matrices — production, avg/referral, funnel %, notes; named to avoid the retired PmsTopSourcesCard), <code>useActionDone</code> hook (localStorage + private-mode session fallback).</li>
+          <li><strong>Labels investigation:</strong> no user-facing "phases / sections / prior period" strings exist on live surfaces — they died with the replaced dashboards. Reported back; nothing to fix without an owner pointer to a live screen.</li>
+          <li>Sidebar cleanup also removed the now-orphaned task-count fetch (badge consumer gone) and dead location-context wiring.</li>
+        </ul>
+        <p><strong>Build:</strong> frontend + backend <code>tsc</code> clean; eslint 0 errors; grep audits pass (no off-palette hexes, no slate/gray-500 in the hub surfaces).</p>
+        <p><strong>Pending:</strong> user visual QA — linen bg everywhere, banner mark-done behavior, sources click-in, YTD figure, mobile 375px.</p>
+      <article class="task-card">
+        <h3>Rev 2 — 2026-06-11 (QA: linen everywhere + page widths + Log out)</h3>
+        <p><strong>Change:</strong> The linen bg was being painted over on two hubs by page-level wrappers: <code>Dashboard.tsx</code> hardcoded <code>#F7F5F3</code> (Practice Hub + Referrals route through it) and <code>PMSVisualPillars</code> used the PM-module bg token (+ two more stray bgs) — all → <code>bg-alloro-bg</code>. Extended the pass beyond the four hubs per owner: <code>Help</code> (Support) bg → linen + container 1320→960; <code>DFYWebsite</code> (Website) containers 1320→960 (4 spots, editor canvas untouched); <code>Settings</code> main 1100→960. Sidebar "Disconnect" → "Log out".</p>
+        <p><strong>Build:</strong> tsc clean; eslint — only pre-existing DFYWebsite editor errors (any/unused-vars), none from this change.</p>
+      <article class="task-card">
+        <h3>Rev 3 — 2026-06-11 (QA: Website tab containers + submissions compaction)</h3>
+        <p><strong>Change:</strong> Overview and Pages views carried their OWN internal 1320px containers (<code>WebsiteOverview</code>, <code>WebsitePagesTab</code>, + the loading skeleton) — missed by the page-level sweep; all → 960. Submissions tab compacted for 960: forms sidebar 300→240px, header/filter-pill/row paddings and font sizes stepped down one notch, "Mark all as read" → "Mark all read", form cards tightened. <code>FormSubmissionsTab</code> is shared with admin — compaction is moderate and benefits both widths.</p>
+        <p><strong>Build:</strong> tsc clean; eslint 0 errors (1 pre-existing warning).</p>
+      <article class="task-card">
+        <h3>Rev 4 — 2026-06-11 (QA rounds: Settings restructure + sidebar + polish)</h3>
+        <ul>
+          <li><strong>Settings redesigned:</strong> the 5/7 two-column Integrations split → single-column priority stack (banners → Google integrations → practice strip); practice-identity card then removed entirely per owner; <strong>Locations promoted to its own settings tab</strong> (new LocationsRoute + route + tab, wizard step copy updated).</li>
+          <li><strong>Settings typography:</strong> all settings headings moved to the hub serif (<code>font-display font-medium</code>) — discovered <code>font-heading</code> was never defined in the theme (silent sans fallback) across 8 components.</li>
+          <li><strong>Sidebar:</strong> bottom account card replaced with Settings + Log out rows (collapsed mode matches); organization name now under the Alloro wordmark (uppercase, ellipsis-truncated, no wrap); "Disconnect" → "Log out"; dead userRole machinery removed.</li>
+          <li><strong>Background softened:</strong> linen #F7F3ED → parchment <code>#FAF8F3</code> per QA.</li>
+          <li><strong>Website tab:</strong> internal 1320px containers (Overview/Pages/skeleton) → 960; Submissions compacted (sidebar 240px, pills/rows one size down) + animated truncation tooltip on form titles (fires only when actually truncated); sidebar footer caption removed.</li>
+          <li><strong>Investigated, no code change:</strong> the GSC "Missing 1 Required API Access" loop — root causes documented: local <code>GOOGLE_REDIRECT_URI</code> points at production (grants land in prod DB; popup message dropped by origin allowlist) + the reconnect org-resolution bug (<code>organization_users.first()</code>). Both → backlog.</li>
+        </ul>
+      </article>
+
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled checked> <code>npx tsc --noEmit</code> frontend (+ backend smoke) — zero new errors</li>
+        <li><input type="checkbox" disabled checked> eslint clean on touched files</li>
+        <li><input type="checkbox" disabled checked> Manual: linen bg + white cards on all four hubs; one card recipe</li>
+        <li><input type="checkbox" disabled checked> Manual: no gray primary copy on the hubs; terracotta only on attention</li>
+        <li><input type="checkbox" disabled checked> Manual: status dots same colors/meaning on all hubs</li>
+        <li><input type="checkbox" disabled checked> Manual: To-Do/Notifications gone from sidebar + mobile nav; routes still load</li>
+        <li><input type="checkbox" disabled checked> Manual: Mark done collapses banners; reload persists; new action returns</li>
+        <li><input type="checkbox" disabled checked> Manual: source rows click-expand with trend</li>
+        <li><input type="checkbox" disabled checked> Manual: Practice Hub YTD = current-year only (no all-time fallback)</li>
+        <li><input type="checkbox" disabled checked> +0% deltas fixed or root cause reported with locations</li>
+        <li><input type="checkbox" disabled checked> Mobile 375px: no horizontal scroll on the four hubs</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

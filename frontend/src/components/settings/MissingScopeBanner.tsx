@@ -167,12 +167,12 @@ export const MissingScopeBanner: React.FC<MissingScopeBannerProps> = ({
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-r from-red-50 to-amber-50 border-2 border-red-200 rounded-2xl p-6 mb-8"
+        className="bg-gradient-to-r from-red-50 to-amber-50 border-2 border-red-200 rounded-2xl p-5 mb-6"
       >
         <div className="space-y-5">
           {/* Message */}
           <div>
-            <h3 className="font-black text-red-900 text-lg">
+            <h3 className="font-display text-lg font-medium tracking-tight text-red-900">
               Missing {missingCount} Required API Access
               {missingCount > 1 ? "es" : ""}
             </h3>
@@ -188,7 +188,7 @@ export const MissingScopeBanner: React.FC<MissingScopeBannerProps> = ({
             <button
               onClick={handleGrantAccess}
               disabled={isLoading}
-              className="flex items-center justify-center gap-2 px-5 py-3 text-sm font-bold text-white bg-alloro-orange hover:bg-alloro-orange/90 rounded-xl transition-all shadow-lg shadow-alloro-orange/20 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center justify-center gap-2 px-4 py-2 text-[13px] font-bold text-white bg-alloro-orange hover:bg-alloro-orange/90 rounded-xl transition-all shadow-lg shadow-alloro-orange/20 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <>
@@ -204,7 +204,7 @@ export const MissingScopeBanner: React.FC<MissingScopeBannerProps> = ({
             </button>
             <button
               onClick={() => setShowTermsModal(true)}
-              className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold text-slate-600 hover:text-alloro-navy bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all whitespace-nowrap"
+              className="flex items-center justify-center gap-2 px-3.5 py-2 text-[13px] font-bold text-slate-600 hover:text-alloro-navy bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all whitespace-nowrap"
             >
               <FileText size={16} />
               Read our Google API Terms

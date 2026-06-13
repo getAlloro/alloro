@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2, X } from "lucide-react";
+import { Loader2, PenLine, Upload, X } from "lucide-react";
 import { showErrorToast, showSuccessToast } from "../../../lib/toast";
 import {
   useDeletePmsFile,
@@ -68,6 +68,21 @@ export function PmsFileManager({
     () => buildCalendarMonths(files, slots, windowEndMonth),
     [files, slots, windowEndMonth]
   );
+  // Per-location run sequence: "Analysis #1" = this location's first batch
+  // run, chronologically. Computed over the FULL list (including deleted
+  // rows) so numbers stay stable across month filters and deletions.
+  const analysisNumbers = useMemo(() => {
+    const map = new Map<number, number>();
+    [...files]
+      .sort(
+        (a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime() ||
+          a.id - b.id,
+      )
+      .forEach((file, index) => map.set(file.id, index + 1));
+    return map;
+  }, [files]);
+
   const filteredFiles = useMemo(
     () => filterFilesByMonth(files, selectedMonth),
     [files, selectedMonth]
@@ -218,7 +233,7 @@ export function PmsFileManager({
         <div className="fixed inset-0 z-[70]">
           <motion.button
             type="button"
-            aria-label="Close PMS file manager"
+            aria-label="Close revenue manager"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -231,22 +246,22 @@ export function PmsFileManager({
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 32, stiffness: 280 }}
             className="absolute bottom-0 right-0 top-0 flex w-full flex-col border-l border-line-soft bg-white shadow-2xl sm:w-[min(92vw,620px)]"
-            aria-label="PMS file manager"
+            aria-label="Revenue manager"
           >
             <div className="flex items-start justify-between gap-4 border-b border-line-soft bg-white px-5 py-4 sm:px-6">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.24em] text-alloro-orange">
-                  PMS File Manager
+                  Revenue Manager
                 </p>
                 <h2 className="mt-1 font-display text-xl font-medium tracking-tight text-alloro-navy sm:text-2xl">
-                  {locationName ? `${locationName} monthly files` : "Monthly files"}
+                  {locationName ? `${locationName} Revenue References` : "Revenue References"}
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={onClose}
                 className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line-soft bg-white text-alloro-navy transition-all hover:scale-[1.02] hover:border-alloro-orange/40 hover:bg-alloro-orange/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-alloro-orange/25"
-                aria-label="Close PMS file manager"
+                aria-label="Close revenue manager"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -268,36 +283,61 @@ export function PmsFileManager({
                 <PmsMonthSlotGrid
                   months={calendarMonths}
                   selectedMonth={selectedMonth}
-                  canManage={canManage}
-                  isProcessing={actionsBlocked}
                   windowLabel={`${formatMonth(calendarMonths[0]?.month ?? windowEndMonth)} - ${formatMonth(calendarMonths[calendarMonths.length - 1]?.month ?? windowEndMonth)}`}
                   canGoNext={windowEndMonth < lastCompletedMonth()}
                   onSelectMonth={handleSelectMonth}
-                  onUploadMonth={handleUploadMonth}
-                  onEditMonth={handleEditMonth}
                   onPreviousWindow={handlePreviousWindow}
                   onNextWindow={handleNextWindow}
                   onCurrentWindow={handleCurrentWindow}
                 />
-                {selectedMonth && (
-                  <div className="rounded-xl border border-line-soft bg-white px-4 py-3">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-alloro-orange">
-                      Selected month
-                    </p>
-                    <p className="mt-1 font-display text-xl font-semibold text-alloro-navy">
-                      {formatMonth(selectedMonth)}
-                    </p>
-                  </div>
-                )}
+                {selectedMonth &&
+                  (() => {
+                    const selectedSlot =
+                      calendarMonths.find((m) => m.month === selectedMonth) ?? null;
+                    return (
+                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line-soft bg-white px-4 py-3">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-alloro-orange">
+                            Selected month
+                          </p>
+                          <p className="mt-1 font-display text-xl font-semibold text-alloro-navy">
+                            {formatMonth(selectedMonth)}
+                          </p>
+                        </div>
+                        {selectedSlot && canManage && !actionsBlocked && (
+                          <div className="flex items-center gap-2">
+                            {selectedSlot.status === "active" && (
+                              <button
+                                type="button"
+                                onClick={() => handleEditMonth(selectedSlot)}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-line-soft px-3 py-2 text-[10px] font-black uppercase tracking-widest text-alloro-navy transition hover:border-alloro-orange/40 hover:bg-alloro-orange/5"
+                              >
+                                <PenLine className="h-3 w-3" />
+                                Edit data
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleUploadMonth(selectedSlot)}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-alloro-orange px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white transition hover:brightness-110"
+                            >
+                              <Upload className="h-3 w-3" />
+                              {selectedSlot.status === "active" ? "Overwrite data" : "Upload data"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 <PmsFileList
                   files={filteredFiles}
+                  analysisNumbers={analysisNumbers}
                   selectedMonth={selectedMonth}
                   canManage={canManage}
                   isProcessing={actionsBlocked}
                   pendingDeleteId={pendingDeleteId}
                   isDeleting={deleteMutation.isPending}
                   onEdit={(jobId) => openEditor(jobId, "current")}
-                  onViewOriginal={(jobId) => openEditor(jobId, "original")}
                   onHistory={(jobId) => {
                     setEditorJobId(null);
                     setHistoryJobId(jobId);
@@ -319,6 +359,7 @@ export function PmsFileManager({
               file={editorJobId ? selectedFile : null}
               mode={editorMode}
               selectedMonth={selectedMonth}
+              locationName={locationName}
               canEdit={canManage && !actionsBlocked}
               onClose={() => setEditorJobId(null)}
               onSave={handleSave}

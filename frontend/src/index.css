@@ -222,8 +222,9 @@ h1, h2, h3, h4, h5, h6, .font-heading {
    --color-alloro-sidebg: #212D40;
    --color-alloro-sidehover: #11151C;
    
-   /* Dashboard UI */
-   --color-alloro-bg: #F3F4F6;
+   /* Dashboard UI — subtle parchment background (plans/06112026: white cards
+      on warm paper; softened from the friyay-board linen #F7F3ED per QA). */
+   --color-alloro-bg: #FAF8F3;
    --color-alloro-surface: #FFFFFF;
    --color-alloro-success: #22c55e;
    --color-alloro-danger: #ef4444;
@@ -256,6 +257,13 @@ h1, h2, h3, h4, h5, h6, .font-heading {
    --pm-shadow-elevated: 0 4px 16px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.2);
    --pm-shadow-fab: 0 4px 12px rgba(214,104,83,0.35), 0 2px 4px rgba(0,0,0,0.2);
    
+   /* Consistency-pass tokens (plans/06112026-design-consistency-pass):
+      ONE muted text tone + the action-banner tint, replacing per-file
+      hex constants (#8E8579 / #FAF1EC / #EFDED4) across the hubs. */
+   --color-ink-muted: #8E8579;
+   --color-accent-soft: #FAF1EC;
+   --color-accent-soft-line: #EFDED4;
+
    /* Rankings redesign tokens — Plan: 04282026-no-ticket-rankings-page-redesign */
    --color-cream: #FCFAED;
    --color-cream-line: #EDE5C0;

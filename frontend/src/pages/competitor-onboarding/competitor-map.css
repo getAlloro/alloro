@@ -28,7 +28,7 @@
   width: 32px;
   height: 32px;
   font-size: 11px;
-  background: #f47434; /* alloro-orange */
+  background: #d66853; /* brand terracotta — matches rank number / radius circle */
 }
 
 .alloro-pin-practice {
@@ -48,10 +48,10 @@
 
 @keyframes alloro-pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(244, 116, 54, 0.7), 0 4px 10px rgba(15, 23, 42, 0.18);
+    box-shadow: 0 0 0 0 rgba(214, 104, 83, 0.7), 0 4px 10px rgba(15, 23, 42, 0.18);
   }
   100% {
-    box-shadow: 0 0 0 16px rgba(244, 116, 54, 0), 0 4px 10px rgba(15, 23, 42, 0.18);
+    box-shadow: 0 0 0 16px rgba(214, 104, 83, 0), 0 4px 10px rgba(15, 23, 42, 0.18);
   }
 }
 
@@ -63,9 +63,9 @@
 
 @keyframes alloro-row-pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(244, 116, 54, 0.5);
+    box-shadow: 0 0 0 0 rgba(214, 104, 83, 0.5);
   }
   100% {
-    box-shadow: 0 0 0 8px rgba(244, 116, 54, 0);
+    box-shadow: 0 0 0 8px rgba(214, 104, 83, 0);
   }
 }

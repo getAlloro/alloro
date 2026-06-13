@@ -11,7 +11,9 @@ import {
 } from "../../api/pms";
 import { QUERY_KEYS } from "../../lib/queryClient";
 
-function useInvalidatePmsFileSurfaces(
+// Exported so upload flows (e.g. the manual-entry modal overlaying an open
+// file-manager panel) can refresh the same surfaces a file edit/delete does.
+export function useInvalidatePmsFileSurfaces(
   orgId: number | null,
   locationId: number | null
 ) {

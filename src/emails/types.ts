@@ -29,6 +29,12 @@ export interface SendEmailOptions {
   bcc?: string[];
   /** Preheader text (for email previews) */
   preheader?: string;
+  /**
+   * Bypass the email interceptor and send live in every environment.
+   * Reserved for OTP login codes so the requester always receives their
+   * code on dev/local/CI. Do not set this on any other email path.
+   */
+  allowLiveSend?: boolean;
 }
 
 export interface EmailResult {

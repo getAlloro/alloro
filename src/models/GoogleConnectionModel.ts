@@ -1,5 +1,13 @@
 import { BaseModel, QueryContext } from "./BaseModel";
 
+/**
+ * Scope fragment that marks a connection as GBP-capable. Initial signup and
+ * GBP connect flows always request business.manage (OAuthFlowService
+ * REQUIRED_SCOPES); auxiliary connections (e.g. GSC-only admin overrides)
+ * never carry it.
+ */
+const GBP_SCOPE_FRAGMENT = "business.manage";
+
 export interface IGoogleConnection {
   id: number;
   google_user_id: string;
@@ -65,12 +73,22 @@ export class GoogleConnectionModel extends BaseModel {
     );
   }
 
+  /**
+   * The organization's primary Google connection — the GBP-capable row.
+   * Auxiliary connections (GSC-only harvest accounts, admin overrides) are
+   * excluded so they never leak into onboarding status, locations, PMS, or
+   * recipient resolution. Must order rather than require google_property_ids:
+   * during onboarding the primary connection exists before property ids are
+   * saved (GbpOnboardingService.saveGBPSelection).
+   */
   static async findOneByOrganization(
     orgId: number,
     trx?: QueryContext
   ): Promise<IGoogleConnection | undefined> {
     const row = await this.table(trx)
       .where({ organization_id: orgId })
+      .andWhere("scopes", "ilike", `%${GBP_SCOPE_FRAGMENT}%`)
+      .orderByRaw("(google_property_ids is not null) desc, id asc")
       .first();
     return row ? this.deserializeJsonFields(row) : undefined;
   }

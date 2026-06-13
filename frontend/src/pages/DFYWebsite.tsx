@@ -22,6 +22,7 @@ import PostsTab from "../components/Admin/PostsTab";
 import MenusTab from "../components/Admin/MenusTab";
 import RecipientsConfig from "../components/Admin/RecipientsConfig";
 import { WebsiteOverview } from "../components/website/overview/WebsiteOverview";
+import { KeywordsTab } from "../components/website/KeywordsTab";
 import { WebsitePagesTab } from "../components/website/WebsitePagesTab";
 import { WebsiteLoadingSkeleton } from "../components/website/WebsiteLoadingSkeleton";
 import {
@@ -91,7 +92,7 @@ interface Project {
 const DESKTOP_SCALE = 0.7;
 /** Window in which consecutive same-element text applies share one undo entry. */
 const TEXT_UNDO_COALESCE_MS = 2500;
-const WEBSITE_TABS = ["overview", "editor", "submissions", "posts", "menus", "pages"] as const;
+const WEBSITE_TABS = ["overview", "editor", "submissions", "posts", "menus", "pages", "keywords"] as const;
 type WebsiteTab = typeof WEBSITE_TABS[number];
 
 type SectionHistoryEntry = {
@@ -1388,7 +1389,7 @@ export function DFYWebsite() {
   // Shared dashboard header (intro heading + pill tabs + site actions). Rendered
   // INSIDE each non-editor view's scroll area so it scrolls instead of sticking.
   const dashboardHeader = (
-    <div className="mx-auto w-full max-w-[1320px] px-4 pt-8 sm:px-6 lg:px-8 lg:pt-10">
+    <div className="mx-auto w-full max-w-[960px] px-4 pt-8 sm:px-6 lg:px-8 lg:pt-10">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-alloro-navy/45">
@@ -1430,6 +1431,10 @@ export function DFYWebsite() {
         </div>
       </div>
       <div className="mt-6">
+        {/*
+          Tab descriptions moved into the trailing (i) tooltip on the tab bar
+          itself (#20, Rev) — replaces the always-on page-vs-post blurb.
+        */}
         <WebsiteDashboardTabs
           activeView={activeView as WebsiteDashboardView}
           hasPosts={!!project?.template_id}
@@ -1542,7 +1547,7 @@ export function DFYWebsite() {
       ) : activeView === "submissions" ? (
         <div className="flex-1 overflow-y-auto bg-alloro-bg" data-wizard-target="website-submissions">
           {dashboardHeader}
-          <div className="mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-6 lg:px-8">
+          <div className="mx-auto w-full max-w-[960px] px-4 py-6 sm:px-6 lg:px-8">
           {project && (
             <>
               <FormSubmissionsTab
@@ -1579,7 +1584,7 @@ export function DFYWebsite() {
       ) : activeView === "posts" ? (
         <div className="flex-1 overflow-y-auto bg-alloro-bg">
           {dashboardHeader}
-          <div className="mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-6 lg:px-8">
+          <div className="mx-auto w-full max-w-[960px] px-4 py-6 sm:px-6 lg:px-8">
           {project && project.template_id && (
             <PostsTab
               projectId={project.id}
@@ -1603,7 +1608,7 @@ export function DFYWebsite() {
       ) : activeView === "menus" ? (
         <div className="flex-1 overflow-y-auto bg-alloro-bg">
           {dashboardHeader}
-          <div className="mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-6 lg:px-8">
+          <div className="mx-auto w-full max-w-[960px] px-4 py-6 sm:px-6 lg:px-8">
           {project && (
             <MenusTab
               projectId={project.id}
@@ -1623,6 +1628,11 @@ export function DFYWebsite() {
             />
           )}
           </div>
+        </div>
+      ) : activeView === "keywords" ? (
+        <div className="flex-1 overflow-y-auto bg-alloro-bg">
+          {dashboardHeader}
+          <KeywordsTab />
         </div>
       ) : (
         <div className="flex flex-1 min-h-0 overflow-hidden" data-wizard-target="website-editor">

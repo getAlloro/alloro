@@ -26,6 +26,7 @@ import {
   type RybbitMonthlyPoint,
   type RybbitMetricSummary,
 } from "../admin-websites/feature-services/service.rybbit-performance";
+import { getDashboard as getGscDashboard } from "../admin-websites/feature-services/service.gsc-performance";
 import { resolveShortcodes } from "./user-website-services/shortcodeResolver.service";
 import { ProjectModel } from "../../models/website-builder/ProjectModel";
 import { resolveRybbitTimeZone } from "../../utils/rybbit/rybbit-time-zone";
@@ -378,6 +379,41 @@ export async function saveGscIntegration(
     return res.status(201).json({ success: true, data });
   } catch (error) {
     return handleGscError(res, error, "Save Search Console integration");
+  }
+}
+
+/**
+ * GET /api/user/website/gsc/performance?rangeDays=90
+ *
+ * Owner-facing Search Console performance. Auth-derived org context — no
+ * projectId in the URL; the project is resolved from the org and the GSC
+ * dashboard is computed by the shared admin service (read-only reuse). Mirrors
+ * `getWebsiteAnalytics` (Rybbit). Returns `hasIntegration:false` with a null
+ * dashboard when GSC isn't connected so the client can render an empty state.
+ */
+export async function getGscPerformance(
+  req: RBACRequest,
+  res: Response
+): Promise<Response> {
+  try {
+    const orgId = req.organizationId;
+    if (!orgId) return res.status(400).json({ error: "No organization found" });
+
+    const project = await ProjectModel.findByOrganizationId(orgId);
+    if (!project) return res.status(404).json({ error: "No website found" });
+
+    const integration = await WebsiteIntegrationModel.findByProjectAndPlatform(
+      project.id,
+      "gsc"
+    );
+    if (!integration || integration.status !== "active") {
+      return res.json({ success: true, hasIntegration: false, dashboard: null });
+    }
+
+    const dashboard = await getGscDashboard(integration, req.query.rangeDays);
+    return res.json({ success: true, hasIntegration: true, dashboard });
+  } catch (error) {
+    return handleError(res, error, "Fetch Search Console performance");
   }
 }
 

@@ -2,6 +2,7 @@ import { PmsColumnMappingModel } from "../../models/PmsColumnMappingModel";
 import { PmsJobModel, type IPmsJob } from "../../models/PmsJobModel";
 import type { ColumnMapping } from "../../types/pmsMapping";
 import { buildActualProductionByMonth } from "./monthlyProduction";
+import { compareMonthKeys } from "./monthKey";
 
 // Threshold (5%) for flagging when sum(sources.referrals) diverges from
 // total_referrals on a given month. Informational only — never blocks.
@@ -378,8 +379,10 @@ export async function aggregatePmsData(
   }
 
   const MAX_MONTHS = 12;
+  // Chronological — month keys can be display labels ("Apr 2026"), and an
+  // alphabetical sort made the 12-month cap below keep the WRONG months.
   const allMonthsSorted = Array.from(monthMap.values()).sort((a, b) =>
-    a.month.localeCompare(b.month)
+    compareMonthKeys(a.month, b.month)
   );
   const months =
     allMonthsSorted.length > MAX_MONTHS
@@ -474,7 +477,7 @@ export async function aggregatePmsData(
   // Compare the latest month vs the prior month for each source.
   // When only one month exists, all sources get trend_label "new".
   const sortedMonths = [...months].sort((a, b) =>
-    a.month.localeCompare(b.month)
+    compareMonthKeys(a.month, b.month)
   );
   const latestMonth = sortedMonths[sortedMonths.length - 1];
   const priorMonth = sortedMonths.length >= 2

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, BarChart3, Inbox } from "lucide-react";
+import { ChevronRight, BarChart3, Inbox, Search } from "lucide-react";
 import { apiGet } from "../../../api";
 import { InfoTip } from "../../dashboard/shared/InfoTip";
 import {
@@ -18,13 +18,15 @@ import { DetailsModal } from "../../dashboard/shared/DetailsModal";
 import { TrendSparkline } from "../../dashboard/shared/TrendSparkline";
 import { OverviewCard, OverviewCardEmptyState, TrendPill } from "./OverviewCard";
 import { computeWebsiteMetrics, formatConversion } from "./websiteMetrics";
+import { useWebsiteGscPerformance } from "../../../hooks/queries/useWebsiteGscPerformance";
 
 export type WebsiteOverviewTab =
   | "editor"
   | "submissions"
   | "posts"
   | "menus"
-  | "pages";
+  | "pages"
+  | "keywords";
 
 export type WebsiteOverviewProps = {
   pageCount: number;
@@ -35,13 +37,41 @@ export type WebsiteOverviewProps = {
 const numberFmt = new Intl.NumberFormat("en-US");
 const fmt = (n: number) => numberFmt.format(Math.round(n));
 
-// Line + column-dot colors for the hero funnel: visitors (orange) → leads
-// (navy) → conversion (green). Visitors must match TrendSparkline's hardcoded
-// primary; leads/conversion are passed as the secondary/tertiary line colors.
+/**
+ * Eyebrow time-window label for the overview cards. The cards plot the trimmed
+ * monthly series (leading no-data months dropped, capped at 12 by
+ * computeWebsiteMetrics), so the real span is usually shorter than the
+ * 12-month fetch window — a practice live for 3 months shows 3 points, not 12.
+ * Label the number of months actually on the chart, not the nominal window.
+ * Falls back to the full window when there's nothing to plot (the card shows
+ * its empty state in that case, so the suffix is moot).
+ */
+function monthsRangeLabel(monthsShown: number): string {
+  const n = Math.min(Math.max(monthsShown, 0), 12);
+  return n > 0 ? `Last ${n} mo` : "Last 12 mo";
+}
+
+const GSC_MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+/** "2026-06-10" → "Jun 10" (timezone-safe; no Date construction). */
+function gscDayLabel(iso: string): string {
+  const [, month, day] = iso.split("-");
+  return `${GSC_MONTHS[Number(month) - 1] ?? ""} ${Number(day)}`;
+}
+
+// Column-dot / line colors for the hero funnel: visitors (orange) → leads
+// (green) → conversion (navy). Visitors must match TrendSparkline's hardcoded
+// primary; leads is passed as the chart's secondary line color. Leads is GREEN
+// (#14 — it read as black/navy before). Conversion is no longer plotted as a
+// line (#14 — removed from the chart to avoid the early-month pace artifact);
+// its color is only the column dot now, so it takes navy to stay distinct from
+// the green leads line/column.
 const FUNNEL_COLORS = {
   visitors: "var(--color-alloro-orange)",
-  leads: "var(--color-alloro-navy)",
-  conversion: "#4F8A5B",
+  leads: "#4F8A5B",
+  conversion: "var(--color-alloro-navy)",
 } as const;
 
 interface ListResponse {
@@ -111,6 +141,22 @@ export function WebsiteOverview({
     enabled: !isWizardActive,
     staleTime: 5 * 60 * 1000,
   });
+  const gscQuery = useWebsiteGscPerformance(90, !isWizardActive);
+
+  const gscDash = gscQuery.data?.dashboard ?? null;
+  const gscConnected = !!gscQuery.data?.hasIntegration;
+  const gscHasData = !!gscDash && gscDash.dataDays > 0;
+  const gscTotals = gscDash?.totals;
+  const gscTopQueries = (gscDash?.topQueries ?? []).slice(0, 3);
+  const gscSeries = useMemo(
+    () =>
+      (gscDash?.daily ?? []).map((p) => ({
+        label: gscDayLabel(p.date),
+        clicks: p.clicks,
+        impressions: p.impressions,
+      })),
+    [gscDash],
+  );
 
   const demoCard = wizardDemoData?.websiteCardData as
     | Record<string, unknown>
@@ -145,10 +191,39 @@ export function WebsiteOverview({
   const funnelPoint = funnelHover !== null ? m.funnelSeries[funnelHover] : null;
   const trafficPoint = trafficHover !== null ? m.visitorSeries[trafficHover] : null;
   const leadsPoint = leadsHover !== null ? m.leadSeriesCompact[leadsHover] : null;
+  // #16: the leads modal graph is the LAST 3 MONTHS (the owner asked for a
+  // tighter, recent window rather than a 12-month line). Slice the monthly
+  // series and label the real span of what's shown — never a nominal range
+  // that doesn't match the chart.
+  const leadsModalSeries = useMemo(
+    () => m.leadSeries.slice(-3),
+    [m.leadSeries],
+  );
   const trafficModalPoint =
     trafficModalHover !== null ? m.visitorDaily[trafficModalHover] : null;
   const leadsModalPoint =
-    leadsModalHover !== null ? m.leadSeries[leadsModalHover] : null;
+    leadsModalHover !== null ? leadsModalSeries[leadsModalHover] : null;
+  const [gscHover, setGscHover] = useState<number | null>(null);
+  const gscPoint = gscHover !== null ? gscSeries[gscHover] ?? null : null;
+
+  // #15/#16: honest chart-title spans — describe what the chart actually plots
+  // (its real first→last point), not a nominal "last 12 months". Traffic uses
+  // the daily series; leads uses the 3-month slice above.
+  const trafficDailySpan = (() => {
+    const pts = m.visitorDaily;
+    if (pts.length === 0) return "Daily visitors";
+    const first = pts[0]?.label;
+    const last = pts[pts.length - 1]?.label;
+    return first && last ? `Daily visitors · ${first} – ${last}` : "Daily visitors";
+  })();
+  const leadsMonthlySpan = (() => {
+    if (leadsModalSeries.length === 0) return "Verified leads";
+    const first = leadsModalSeries[0]?.label;
+    const last = leadsModalSeries[leadsModalSeries.length - 1]?.label;
+    return first && last && first !== last
+      ? `Verified leads · ${first} – ${last}`
+      : `Verified leads · ${last ?? ""}`.trim();
+  })();
 
   const leadWord = m.monthLeads === 1 ? "lead" : "leads";
   const insight = m.hasAnalytics
@@ -158,22 +233,32 @@ export function WebsiteOverview({
     ? [`${fmt(m.monthVisitors)} visitors`, `${m.monthLeads} ${leadWord}`]
     : [`${m.monthLeads} ${leadWord}`];
 
+  // #14: the headline conversion is the LAST FULL MONTH's settled rate, not the
+  // month-to-date pace (early in a month MTD produced absurd headline numbers
+  // like "1,066%"). A settled full-month figure is honest and stable. When
+  // there's no prior full month of analytics yet, fall back to the leads count.
+  const hasSettledConversion = m.hasAnalytics && m.prevConversionRate > 0;
   const score = (
     <div className="flex flex-col items-center text-center">
       <span className="font-display text-[52px] font-medium leading-none tracking-tight text-alloro-navy tabular-nums">
-        {m.hasAnalytics ? formatConversion(m.conversionRate) : m.monthLeads}
+        {hasSettledConversion ? formatConversion(m.prevConversionRate) : m.monthLeads}
       </span>
       <span className="mt-2 text-[11px] font-semibold text-[color:var(--color-pm-text-secondary)]">
-        {m.hasAnalytics ? "so far this month" : "leads this month"}
+        {hasSettledConversion ? "last full month" : "leads this month"}
       </span>
-      {m.hasAnalytics && (
+      {hasSettledConversion && (
         <span className="mt-2 max-w-[210px] text-[10px] font-medium leading-snug text-[color:var(--color-pm-text-secondary)]/70">
-          Calculated from this month's data so far — updates daily.
+          A settled full-month figure — not affected by partial early-month data.
         </span>
       )}
     </div>
   );
 
+  // #14/#17: the funnel shows the two funnel STAGES — visitors → leads — over
+  // the monthly series. Conversion is intentionally NOT a funnel column or a
+  // chart line here (it lived as an early-month MTD artifact); it now appears
+  // only as the settled headline card above. This also resolves the "monthly
+  // vs this month" duplication (#17) — the trio reads as one consistent frame.
   const funnelCols = [
     {
       key: "visitors",
@@ -198,19 +283,11 @@ export function WebsiteOverview({
       color: FUNNEL_COLORS.leads,
       value: String(funnelPoint ? funnelPoint.leads : m.monthLeads),
     },
-    {
-      key: "conversion",
-      label: "Conversion rate",
-      color: FUNNEL_COLORS.conversion,
-      value: m.hasAnalytics
-        ? formatConversion(funnelPoint ? funnelPoint.conversion : m.conversionRate)
-        : "—",
-    },
   ];
 
   const estimateSummary = (
     <div className="flex h-full flex-col justify-between gap-4">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         {funnelCols.map((col) => (
           <div key={col.key}>
             <div className="flex items-center gap-1.5">
@@ -234,9 +311,7 @@ export function WebsiteOverview({
             data={m.funnelSeries}
             valueKey="visitorsN"
             secondaryKey="leadsN"
-            tertiaryKey="conversionN"
             secondaryColor={FUNNEL_COLORS.leads}
-            tertiaryColor={FUNNEL_COLORS.conversion}
             labelKey="monthName"
             height={110}
             showArea={false}
@@ -246,7 +321,7 @@ export function WebsiteOverview({
       )}
       {m.hasAnalytics && (
         <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--color-pm-text-secondary)]">
-          {funnelPoint ? funnelPoint.monthName : "This month · to date"}
+          {funnelPoint ? funnelPoint.monthName : "Monthly · visitors and leads"}
         </div>
       )}
     </div>
@@ -273,7 +348,7 @@ export function WebsiteOverview({
   if (loading) {
     return (
       <div
-        className="pm-light mx-auto w-full max-w-[1320px] space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10"
+        className="pm-light mx-auto w-full max-w-[960px] space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10"
         data-wizard-target="website-overview"
       >
         <div className="h-[260px] animate-pulse rounded-[16px] bg-neutral-100" />
@@ -287,22 +362,22 @@ export function WebsiteOverview({
 
   return (
     <div
-      className="pm-light mx-auto w-full max-w-[1320px] space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10"
+      className="pm-light mx-auto w-full max-w-[960px] space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10"
       data-wizard-target="website-overview"
     >
       <MeaningHero
         insight={insight}
         insightHighlights={insightHighlights}
         score={score}
-        scoreLabel="Conversion rate"
-        scoreTooltip="Verified leads ÷ unique visitors so far this month. It's partial early-month data and updates every day as more visitors and leads come in."
+        scoreLabel="Last month's conversion rate"
+        scoreTooltip="Verified leads ÷ unique visitors for the last full calendar month. A retroactive, settled figure — it doesn't move with partial early-month data."
         estimateSummary={estimateSummary}
         actions={actions}
       />
 
       <div className="grid gap-5 md:grid-cols-2">
         <OverviewCard
-          eyebrow="Traffic · Last 12 mo"
+          eyebrow={`Traffic · ${monthsRangeLabel(m.visitorSeries.length)}`}
           infoTip="Unique visitors to your website. The headline is this month to date; the chart shows monthly visitors."
           onOpen={m.hasAnalytics ? () => setModal("traffic") : undefined}
           openLabel="Traffic detail"
@@ -343,7 +418,7 @@ export function WebsiteOverview({
         </OverviewCard>
 
         <OverviewCard
-          eyebrow="Leads (form submissions) · Last 12 mo"
+          eyebrow={`Leads (form submissions) · ${monthsRangeLabel(m.leadSeriesCompact.length)}`}
           infoTip="Verified form submissions from your website."
           onOpen={() => setModal("leads")}
           openLabel="Leads detail"
@@ -366,8 +441,10 @@ export function WebsiteOverview({
                 {!leadsPoint && <TrendPill deltaPct={m.leadsPaceDeltaPct} />}
               </div>
               <div className="mt-1 text-xs text-[color:var(--color-pm-text-secondary)]">
-                {m.hasAnalytics
-                  ? `${formatConversion(m.conversionRate)} of visitors converted this month`
+                {/* #14/#17: show last month's settled count for comparison
+                    instead of the volatile month-to-date conversion %. */}
+                {m.prevMonthLeads > 0
+                  ? `${m.prevMonthLeads} last month`
                   : `${fmt(stats?.allCount ?? 0)} all-time`}
               </div>
               <div className="mt-4">
@@ -383,6 +460,83 @@ export function WebsiteOverview({
           )}
         </OverviewCard>
       </div>
+
+      <OverviewCard
+        eyebrow="Search keywords · Last 90 days"
+        infoTip="Clicks and impressions from Google Search Console over the last 90 days. Hover the chart for a single day. The Keywords tab has the full trend, range selector, and top pages."
+        onOpen={() => onOpenTab("keywords")}
+        openLabel="Keyword detail"
+      >
+        {gscQuery.isLoading ? (
+          <div className="h-[150px] animate-pulse rounded-[10px] bg-neutral-100" />
+        ) : gscConnected && gscHasData ? (
+          <div className="grid gap-6 md:grid-cols-2">
+            <div>
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span className="font-display text-[32px] font-medium leading-none tracking-tight text-alloro-navy tabular-nums">
+                  {fmt(gscPoint ? gscPoint.clicks : gscTotals?.clicks ?? 0)}
+                </span>
+                <span className="text-xs font-medium text-[color:var(--color-pm-text-secondary)]">
+                  {/* #18: name the source — these are Google Search clicks. */}
+                  {gscPoint ? `clicks · ${gscPoint.label}` : "clicks from Google Search"}
+                </span>
+              </div>
+              <div className="mt-1 text-xs text-[color:var(--color-pm-text-secondary)]">
+                {/* #18: avg position removed — it contradicted Local Rankings. */}
+                {gscPoint
+                  ? `${fmt(gscPoint.impressions)} impressions that day`
+                  : `${fmt(gscTotals?.impressions ?? 0)} impressions in search`}
+              </div>
+              <div className="mt-4">
+                <TrendSparkline
+                  data={gscSeries}
+                  valueKey="clicks"
+                  labelKey="label"
+                  height={120}
+                  onActiveIndexChange={setGscHover}
+                />
+              </div>
+            </div>
+            <div>
+              <div className="font-mono-display text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--color-pm-text-secondary)]">
+                Top queries
+              </div>
+              <ul className="mt-3 space-y-2">
+                {gscTopQueries.map((q) => (
+                  <li
+                    key={q.key}
+                    className="flex items-center justify-between gap-3 text-[13px]"
+                  >
+                    <span
+                      className="truncate font-medium text-alloro-navy"
+                      title={q.key}
+                    >
+                      {q.key}
+                    </span>
+                    <span className="shrink-0 tabular-nums text-[color:var(--color-pm-text-secondary)]">
+                      {fmt(q.clicks)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        ) : (
+          <OverviewCardEmptyState
+            icon={<Search size={20} />}
+            title={
+              gscConnected
+                ? "Collecting search data"
+                : "Search Console not connected"
+            }
+            hint={
+              gscConnected
+                ? "Keyword performance appears within a few days of connecting."
+                : "Connect Search Console to see the keywords bringing you traffic."
+            }
+          />
+        )}
+      </OverviewCard>
 
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-[14px] border border-line-soft bg-white px-5 py-4 shadow-premium">
         <span className="font-mono-display text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--color-pm-text-secondary)]">
@@ -453,7 +607,7 @@ export function WebsiteOverview({
                 ? trafficModalPoint.noData
                   ? `No data · ${trafficModalPoint.label}`
                   : `${trafficModalPoint.label}: ${fmt(trafficModalPoint.visitors ?? 0)} visitors`
-                : "Daily visitors · last 12 months"}
+                : trafficDailySpan}
             </div>
             <TrendSparkline
               data={m.visitorDaily}
@@ -468,11 +622,13 @@ export function WebsiteOverview({
 
       <DetailsModal
         open={modal === "leads"}
-        title="Leads & conversion"
+        title="Leads & Conversion"
         eyebrow="Form submissions"
         onClose={() => setModal(null)}
       >
         <div className="space-y-5">
+          {/* #16: All time sits next to Last month; Conversion is the previous
+              full month (retroactive), matching the headline framing. */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <ModalStat
               label="This month"
@@ -485,25 +641,29 @@ export function WebsiteOverview({
               tip="Verified leads in the previous full month."
             />
             <ModalStat
-              label="Conversion"
-              sub="this month"
-              value={m.hasAnalytics ? formatConversion(m.conversionRate) : "—"}
-              tip="Verified leads ÷ unique visitors so far this month."
-            />
-            <ModalStat
               label="All time"
               value={fmt(stats?.allCount ?? 0)}
               tip="Total verified leads ever received from your website forms."
+            />
+            <ModalStat
+              label="Conversion"
+              sub="last month"
+              value={
+                m.hasAnalytics && m.prevConversionRate > 0
+                  ? formatConversion(m.prevConversionRate)
+                  : "—"
+              }
+              tip="Verified leads ÷ unique visitors for the last full month — a settled, retroactive figure."
             />
           </div>
           <div className="rounded-[14px] border border-line-soft bg-white p-4 shadow-premium">
             <div className="mb-3 font-mono-display text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--color-pm-text-secondary)]">
               {leadsModalPoint
                 ? `Verified leads · ${leadsModalPoint.label}: ${leadsModalPoint.leads}`
-                : "Verified leads · last 12 months"}
+                : leadsMonthlySpan}
             </div>
             <TrendSparkline
-              data={m.leadSeries}
+              data={leadsModalSeries}
               valueKey="leads"
               labelKey="label"
               height={220}

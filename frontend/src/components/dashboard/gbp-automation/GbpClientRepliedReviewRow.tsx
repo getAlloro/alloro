@@ -56,7 +56,7 @@ export function GbpClientRepliedReviewRow({
   };
 
   return (
-    <div className="rounded-[10px] border border-slate-200 bg-slate-50 p-3" onClick={onToggle}>
+    <div className="rounded-[10px] border border-slate-200 bg-white p-3" onClick={onToggle}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">

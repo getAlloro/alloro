@@ -8,6 +8,7 @@ export type PmsJobDataEditorModalProps = {
   file: PmsFileManagerFileDetail | null;
   mode: PmsJobDataEditorMode;
   selectedMonth?: string | null;
+  locationName?: string | null;
   canEdit: boolean;
   onClose: () => void;
   onSave: (responseLog: Record<string, unknown>) => Promise<void>;
@@ -17,6 +18,7 @@ export function PmsJobDataEditorModal({
   file,
   mode,
   selectedMonth,
+  locationName,
   canEdit,
   onClose,
   onSave,
@@ -28,7 +30,14 @@ export function PmsJobDataEditorModal({
     ? file.original_response_log
     : file.response_log;
   const initialData = isOriginal ? originalData : file.response_log;
-  const title = isOriginal ? "Original Parsed PMS Data" : "Edit PMS File Data";
+  // Month-scoped edits title as "Edit {location} — {Month Year}"; the
+  // generic multi-month editor keeps the old title + subtitle.
+  const isMonthScopedEdit = !isOriginal && Boolean(selectedMonth);
+  const title = isOriginal
+    ? "Original Parsed PMS Data"
+    : isMonthScopedEdit
+      ? `Edit ${locationName ? `${locationName} — ` : ""}${formatMonthLabel(selectedMonth as string)}`
+      : "Edit PMS File Data";
   const subtitle = isOriginal
     ? file.original_file_name ?? "Original parsed snapshot unavailable"
     : file.original_file_name ?? "Current parsed PMS data";
@@ -39,6 +48,7 @@ export function PmsJobDataEditorModal({
       jobId={file.id}
       title={title}
       subtitle={subtitle}
+      hideSubtitle={isMonthScopedEdit}
       initialData={initialData}
       initialMonth={selectedMonth}
       centerInMainView
@@ -54,6 +64,12 @@ export function PmsJobDataEditorModal({
       }
     />
   );
+}
+
+function formatMonthLabel(month: string): string {
+  const parsed = new Date(`${month}-01T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return month;
+  return parsed.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
 function hasMonthData(value: unknown) {

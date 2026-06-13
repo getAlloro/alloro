@@ -859,6 +859,10 @@ export default function PostsTab({
                     {/* SEO Score */}
                     {(() => {
                       const seoScore = quickPostSeoScore(post.seo_data);
+                      // Feedback #21: drop the bare orange number on each post
+                      // card (read as a confusing standalone score). Keep the
+                      // bar + the title tooltip so the SEO signal is still
+                      // discoverable on hover.
                       return seoScore.pct > 0 ? (
                         <div className="flex items-center gap-1.5" title={`SEO: ${seoScore.pct}%`}>
                           <div className="w-8 h-1.5 bg-gray-100 rounded-full overflow-hidden">
@@ -867,9 +871,6 @@ export default function PostsTab({
                               style={{ width: `${seoScore.pct}%` }}
                             />
                           </div>
-                          <span className={`text-xs font-medium tabular-nums ${seoScore.colorClass}`}>
-                            {seoScore.pct}
-                          </span>
                         </div>
                       ) : (
                         <span className="text-xs text-gray-300" title="No SEO data">—</span>

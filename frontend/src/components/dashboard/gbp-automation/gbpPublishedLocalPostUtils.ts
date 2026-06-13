@@ -55,7 +55,9 @@ export function postStatePill(post: GbpPublishedLocalPost): {
   };
 }
 
-export function postStateHelp(post: GbpPublishedLocalPost): string {
+// Returns null for the normal live state — the per-card "synced from Google"
+// boilerplate added noise without information; only actionable states get copy.
+export function postStateHelp(post: GbpPublishedLocalPost): string | null {
   const state = post.state.toUpperCase();
   if (state === "REJECTED") {
     return "Google rejected this post. Adjust the text or image, then save to Google again.";
@@ -63,5 +65,5 @@ export function postStateHelp(post: GbpPublishedLocalPost): string {
   if (state === "PROCESSING" && !post.searchUrl) {
     return "Google is still processing this post. Edits here stay staged until you save to Google.";
   }
-  return "This is synced from Google. Text and image edits stay staged here until you save to Google.";
+  return null;
 }

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Google Connection Primary-Read Fix Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Completed</span>
+      </div>
+      <h1>Google Connection Primary-Read Fix</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06112026-google-connection-primary-read-fix</dd></div>
+        <div><dt>Size</dt><dd>Small</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Prod incident 2026-06-11: a GSC-only Google connection (info@getalloro.com) was created on org 39 (One Endodontics) during a pilot session. <code>GoogleConnectionModel.findOneByOrganization</code> runs <code>LIMIT 1</code> with no ORDER BY, so Postgres returned the auxiliary row instead of the org's real GBP connection — blanking the client dashboard ("Let's Set Up Your Dashboard"), and risking client notifications routed to the admin email via <code>recipientSettingsService</code>. The duplicate row was deleted as a data fix; this plan fixes the code so auxiliary/override connections are never read as the org's primary connection.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p><code>findOneByOrganization</code> returns only GBP-capable connections (scopes contain <code>business.manage</code>), deterministically ordered: rows with <code>google_property_ids</code> first, then lowest id. Orgs whose only connection is a GSC-only auxiliary row get <code>undefined</code> — the correct "no primary connection" answer. Done when the model is updated and <code>npx tsc --noEmit</code> is clean.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/models/GoogleConnectionModel.ts</code> - the model; <code>findOneByOrganization</code> at line 68 is the only change surface</li>
+        <li><code>src/controllers/auth/feature-services/OAuthFlowService.ts</code> - initial signup always requests <code>business.manage</code> (REQUIRED_SCOPES), so every legit primary connection passes the filter</li>
+        <li><code>src/controllers/admin-websites/feature-services/service.gsc-integration.ts</code> - GSC flows select connections explicitly by id (<code>findById</code>/<code>findByOrgWithScope</code>) and are untouched; auxiliary rows remain usable there</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Scope filtering via <code>ilike '%fragment%'</code> — same convention as existing <code>findByOrgWithScope</code> (GoogleConnectionModel.ts:130)</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/models/GoogleConnectionModel.ts</code> (<code>findByOrgWithScope</code>) - closest existing analog.</p>
+      <h3>Prod audit (2026-06-11, post row-62 delete)</h3>
+      <ul>
+        <li>8/8 google_connections rows have <code>business.manage</code> scope AND non-null <code>google_property_ids</code> — zero behavior change for existing data</li>
+        <li>14 call sites of <code>findOneByOrganization</code> (OnboardingController, GbpOnboardingService, settings service.properties ×2, PilotSessionService, pms approval/retry ×2/finalize, LocationService ×4, recipientSettingsService) — all verified to want primary-GBP semantics</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Order, don't just filter: onboarding's <code>saveGBPSelection</code> must still find the (property-id-less but GBP-scoped) connection mid-onboarding</li>
+            <li>Keep method name/signature — fix all 14 call sites in one place</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No schema change (a <code>purpose</code> column was rejected: derived-state drift + cross-env migrations)</li>
+            <li>Do not touch GSC integration selection paths (<code>findById</code>, <code>findByOrgWithScope</code>, <code>findByEmailsWithScope</code>)</li>
+            <li>Do not change OAuth write paths</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>GSC "Missing Search Console" banner ignoring admin connections (pre-existing bug #3, separate)</li>
+        <li>Reconnect-flow org resolution via unordered <code>organization_users</code> lookup (AuthController.ts:290) — flagged, separate fix</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li>Stringly-typed scope match could miss legacy rows with empty scopes. <strong>Mitigation:</strong> prod audit shows 0 such rows; matches existing <code>findByOrgWithScope</code> convention.</li>
+        <li>Orgs with only auxiliary connections now read as "no connection". <strong>Mitigation:</strong> intended semantics — onboarding correctly prompts for GBP connect.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> 14 call sites listed in Context; all verified primary-GBP semantics. GSC harvest worker resolves connections by explicit id — unaffected.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>An explicit <code>purpose</code> column is the "cleaner" long-term model but duplicates what scopes already encode and drifts on scope re-grants; revisit only if a non-scope-distinguishable connection class appears.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Primary-connection read semantics in GoogleConnectionModel</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Filter <code>findOneByOrganization</code> to GBP-scoped rows; order property-ids-first, then id ASC; document the semantics.</dd></div>
+          <div><dt>Files</dt><dd><code>src/models/GoogleConnectionModel.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> + replicate query against prod (read-only) confirming org 39 resolves to conn 55</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> - zero errors (exit 0, 2026-06-11)</li>
+        <li><input type="checkbox" checked disabled> Prod read-only check: primary-connection query for org 39 returns conn 55; all 8 prod connections resolve unchanged for their orgs</li>
+        <li><input type="checkbox" checked disabled> No regressions in onboarding GBP save path — filter is scope-based (always granted at signup), not property-id-based; ordering handles pre-property-id state</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

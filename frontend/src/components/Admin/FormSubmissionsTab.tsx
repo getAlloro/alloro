@@ -603,7 +603,7 @@ export default function FormSubmissionsTab({
 
   return (
     <>
-      <div className="grid overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm lg:grid-cols-[300px_minmax(0,1fr)]">
+      <div className="grid overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm lg:grid-cols-[240px_minmax(0,1fr)]">
         <FormSubmissionsSidebar
           forms={forms}
           selectedFormKey={selectedForm?.form_key ?? null}
@@ -624,14 +624,14 @@ export default function FormSubmissionsTab({
 
         <section className="min-w-0">
           {/* Header */}
-          <div className="border-b border-gray-100 px-5 py-4">
+          <div className="border-b border-gray-100 px-4 py-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-alloro-orange/10 text-alloro-orange">
-                  <Inbox size={18} />
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-alloro-orange/10 text-alloro-orange">
+                  <Inbox size={15} />
                 </div>
                 <div>
-                  <h3 className="text-base font-semibold text-gray-900">
+                  <h3 className="text-sm font-semibold text-gray-900">
                     {selectedForm?.display_label ||
                       selectedForm?.form_name ||
                       "Form Submissions"}
@@ -642,11 +642,11 @@ export default function FormSubmissionsTab({
                     </p>
                   )}
                   <div className="mt-1 flex flex-wrap gap-2">
-                    <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
                       {allCount} total
                     </span>
                     {unreadCount > 0 && (
-                      <span className="rounded-full bg-alloro-orange px-2.5 py-1 text-xs font-medium text-white">
+                      <span className="rounded-full bg-alloro-orange px-2 py-0.5 text-[11px] font-medium text-white">
                         {unreadCount} new
                       </span>
                     )}
@@ -657,7 +657,7 @@ export default function FormSubmissionsTab({
                 {onExport && allCount > 0 && activeView === "submissions" && (
                   <button
                     onClick={onExport}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-gray-300 hover:bg-gray-50"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 transition hover:border-gray-300 hover:bg-gray-50"
                     title="Export submissions as CSV"
                   >
                     <Download size={14} />
@@ -674,7 +674,7 @@ export default function FormSubmissionsTab({
 
           {/* Tabs */}
           {activeView === "submissions" && (
-            <div className="flex flex-col gap-3 border-b border-gray-100 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-2 border-b border-gray-100 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-wrap gap-2">
                 {tabs.map((tab) => {
                   const isActive = activeTab === tab.key;
@@ -683,7 +683,7 @@ export default function FormSubmissionsTab({
                       key={tab.key}
                       onClick={() => handleTabChange(tab.key)}
                       title={tab.title}
-                      className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                      className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
                         isActive
                           ? "border-alloro-orange bg-alloro-orange/10 text-alloro-orange"
                           : "border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50"
@@ -708,11 +708,11 @@ export default function FormSubmissionsTab({
                 type="button"
                 onClick={handleMarkAllRead}
                 disabled={unreadCount === 0}
-                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-gray-300 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 transition hover:border-gray-300 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                 title="Mark all submissions for this form as read"
               >
-                <CheckCircle2 size={14} />
-                Mark all as read
+                <CheckCircle2 size={13} />
+                Mark all read
               </button>
             </div>
           )}
@@ -766,7 +766,7 @@ export default function FormSubmissionsTab({
                 return (
                   <div
                     key={sub.id}
-                    className={`flex cursor-pointer items-center gap-3 px-5 py-4 transition hover:bg-gray-50 ${
+                    className={`flex cursor-pointer items-center gap-3 px-4 py-3 transition hover:bg-gray-50 ${
                       isMultiSelected
                         ? "bg-blue-50 border-l-2 border-blue-400"
                         : !sub.is_read
@@ -824,7 +824,7 @@ export default function FormSubmissionsTab({
                           </span>
                         )}
                       </div>
-                      <p className="mt-1 truncate text-sm text-gray-500">
+                      <p className="mt-0.5 truncate text-[13px] text-gray-500">
                         {previewFields(sub.contents)}
                       </p>
                     </div>

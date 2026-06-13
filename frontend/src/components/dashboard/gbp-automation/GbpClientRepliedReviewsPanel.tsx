@@ -49,10 +49,6 @@ export function GbpClientRepliedReviewsPanel({
     return reviews.slice(0, 10);
   }, [range, reviews, selectedMonth]);
   const isAllLoaded = range === "all";
-  const displayedReviewCount =
-    isLoading && isAllLoaded
-      ? selectedMonthCount(monthBuckets, selectedMonth)
-      : visibleReviews.length;
   const handleRangeChange = (nextRange: GbpReviewRange) => {
     setRange(nextRange);
     onSelectedMonthChange(
@@ -63,7 +59,6 @@ export function GbpClientRepliedReviewsPanel({
   return (
     <div className="space-y-3">
       <GbpReviewRangeControls
-        count={displayedReviewCount}
         range={range}
         onRangeChange={handleRangeChange}
       />

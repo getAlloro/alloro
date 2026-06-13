@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Website Analytics Clarity Spec</title>
+  <style>
+    :root { color-scheme: light; --paper: #ffffff; --ink: #080808; --muted: #5f5f5f; --line: #d8d8d8; --soft: #f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.5; }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 12px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .tag { display: inline-block; padding: 1px 7px; border: 1px solid var(--ink); border-radius: 999px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; margin-left: 6px; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>Website Analytics Clarity</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed — 2026-06-13</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06132026-website-analytics-clarity</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p><strong>Plan 5 of the dashboard-revamp feedback round — the largest surface.</strong> Covers PDF feedback <strong>#12–#21</strong> ("Website" / Web Presence). The Website surface shows several numbers the owner cannot trust or read: a timeframe toggle that does not visibly change the data, an early-month month-to-date pace artifact rendered as a giant headline %, charts labeled "Last 12 months" that show ~3, an "Avg Position" that contradicts Local Rankings, post cards with an unexplained orange number, and a tab order / page-vs-post confusion. This plan makes every number honest and readable and brings the nav into the agreed order.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Done when:</p>
+      <ul>
+        <li><strong>Keywords (#12/#13):</strong> the range toggle's selected window is honestly labeled (it already filters server-side; the visible confusion is a data-availability ceiling — 3M/6M/12M all return the full stored history). Charts show the actual rendered span, expose per-point values on hover (axis labels + headline read-out), and totals reconcile with the chart. "Avg Position" is removed from the tab and tables. A one-line explainer tells the owner what Top Queries / Top Pages show.</li>
+        <li><strong>Overview headline (#14/#17):</strong> the giant conversion % is reframed as <em>last full month's</em> conversion (a settled, retroactive figure) so no early-month pace artifact is shown as a headline. Conversion is removed from the left funnel chart (kept only on the card). The Leads line is green.</li>
+        <li><strong>Traffic / Leads popouts (#15/#16):</strong> modal cards match the Overview numbers; chart titles match the rendered range (axis fix preferred over relabel); "Conversion" capitalized; "All Time" sits next to "Last Month"; leads framed retroactively.</li>
+        <li><strong>GSC overview section (#18):</strong> consistent day-of-month x-axis labels; avg position removed; the clicks figure is labeled as coming from Google Search.</li>
+        <li><strong>Pages (#19):</strong> the "/" page reads as "Home"; the label is editable from the Pages list.</li>
+        <li><strong>Nav + Posts (#20/#21):</strong> tabs reorder to Overview · Pages · Posts · Menus · Keywords · Submissions; a short page-vs-post blurb is added; the orange SEO-score number on post cards is removed.</li>
+        <li><code>eslint</code> clean on all changed files; backend <code>tsc</code> clean if backend is touched.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+
+      <h3>Confirmed in code — the timeframe "not filtering" root cause (#12/#15/#17)</h3>
+      <ul>
+        <li><strong>The backend DOES filter by range.</strong> <code>service.gsc-performance.ts</code> <code>getDashboard()</code> computes <code>fromDate = latestReportDate − (rangeDays−1)</code> and queries <code>GscDataModel.findByProjectAndDateRange(projectId, fromDate, latestReportDate)</code>. <code>service.rybbit-performance.ts</code> does the identical thing via <code>RybbitDataModel</code>. The frontend caches per-range correctly (<code>useWebsiteGscPerformance</code> queryKey includes <code>rangeDays</code>; <code>websiteAnalytics</code> keyed by <code>365</code>).</li>
+        <li><strong>Why 3M / 6M / 12M look identical, and why "Last 12 months" shows ~3:</strong> a <em>data-availability ceiling</em>. The daily harvest only began storing rows a few months ago, so for any window ≥ the available history the date-range query returns ALL stored rows — the same set. <code>dashboard.dataDays</code> = actual stored rows (e.g. ~90), NOT the nominal window. The chart is faithfully plotting everything it has; the toggle and the "Last 12 months" titles are simply lying about the span.</li>
+        <li><strong>The honest, low-risk fix is frontend labeling.</strong> Label the ACTUAL rendered span everywhere (<code>dataDays</code> / <code>fromDate</code>–<code>toDate</code>), not the nominal window. The Traffic card already does this (<code>monthsRangeLabel(m.visitorSeries.length)</code> → "Last N mo"); extend the same honesty to the Keywords tab, the GSC overview card, and the two detail modals. This makes totals reconcile with the chart (both describe the same real window) without any data-layer change. A deeper change (extending harvest retention/backfill) is OUT OF SCOPE and documented as a TODO finding.</li>
+      </ul>
+
+      <h3>Confirmed in code — the other items</h3>
+      <ul>
+        <li><strong>#14 headline:</strong> <code>WebsiteOverview.tsx</code> <code>score</code> uses <code>formatConversion(m.conversionRate)</code> = month-to-date (verified leads ÷ MTD visitors). Early in the month this is a pace artifact. <code>m.prevConversionRate</code> (settled last-month figure) already exists in <code>websiteMetrics.ts</code> — reframe the headline to that. The funnel chart's third line (<code>tertiaryKey="conversionN"</code>) is the conversion line to drop. The leads line is the funnel's <code>secondaryKey="leadsN"</code> with <code>FUNNEL_COLORS.leads = navy</code> — change to green.</li>
+        <li><strong>#16 leads modal:</strong> <code>ModalStat</code> order is This month · Last month · Conversion · All time. The title-cased "Conversion" already capitalizes; the ask is to put <strong>All time next to Last month</strong> and make conversion the previous (settled) month. Modal chart title "last 12 months" → match rendered span.</li>
+        <li><strong>#18 GSC card:</strong> <code>WebsiteOverview.tsx</code> "Search keywords" card shows <code>... avg position</code> in the sub-line and "clicks from search" — relabel clearly as Google Search, drop avg position. Day labels via <code>gscDayLabel</code> already produce "Jun 10" form; ensure first/middle/last are shown.</li>
+        <li><strong>#19 Pages:</strong> <code>WebsitePagesTab.tsx</code> renders <code>page.path || "/"</code>. Add a "Home" label for <code>/</code> and an inline rename affordance. Page label persistence — see Risk R3 (no <code>display_name</code> on pages today).</li>
+        <li><strong>#20 nav:</strong> <code>WebsiteDashboardTabs.tsx</code> <code>options</code> array order is the single source of nav order. Reorder to Overview · Pages · Posts · Menus · Keywords · Submissions. Page-vs-post blurb goes in <code>DFYWebsite.tsx</code> <code>dashboardHeader</code> (or the tabs wrapper).</li>
+        <li><strong>#21 Posts:</strong> <code>Admin/PostsTab.tsx</code> ~line 870 renders <code>{seoScore.pct}</code> next to the bar (orange when 55–69% via <code>colorClass</code>). Remove the number text; keep the bar + the existing <code>title</code> tooltip so the data is still discoverable.</li>
+      </ul>
+
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/pages/DFYWebsite.tsx</code> — nav wiring, <code>dashboardHeader</code> (page-vs-post blurb), activeView branches.</li>
+        <li><code>frontend/src/components/website/WebsiteDashboardTabs.tsx</code> — nav order (#20).</li>
+        <li><code>frontend/src/components/website/KeywordsTab.tsx</code> — range toggle, totals, charts, tables (#12/#13).</li>
+        <li><code>frontend/src/components/website/WebsitePagesTab.tsx</code> — Home label + rename (#19).</li>
+        <li><code>frontend/src/components/website/overview/WebsiteOverview.tsx</code> — headline, funnel, modals, GSC card (#14/#15/#16/#17/#18).</li>
+        <li><code>frontend/src/components/website/overview/websiteMetrics.ts</code> — <code>conversionRate</code>/<code>prevConversionRate</code>, series builders (#14 reframe source).</li>
+        <li><code>frontend/src/components/Admin/PostsTab.tsx</code> — SEO-score number (#21). SHARED component — minimal scoped edit only.</li>
+        <li><code>frontend/src/components/dashboard/shared/TrendSparkline.tsx</code> — READ-ONLY here; already supports <code>showLabels</code> + <code>onActiveIndexChange</code> (the levers for axis labels + per-point read-out). Do NOT edit (shared primitive).</li>
+        <li><strong>Backend (read-only investigation, documented as TODO):</strong> <code>src/controllers/admin-websites/feature-services/service.gsc-performance.ts</code>, <code>service.rybbit-performance.ts</code>, <code>src/models/website-builder/GscDataModel.ts</code> / <code>RybbitDataModel.ts</code>.</li>
+      </ul>
+
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Owner-readable spelled durations + to-date abbreviations from <code>utils/timeframe.ts</code> (<code>windowLabel</code>, <code>WINDOW_LABELS</code>, <code>TO_DATE</code>). The Keywords range labels become "28 Days / 3 Months / 6 Months / 12 Months".</li>
+        <li>One-line cues only — <code>InsightCue</code> / a single sentence, never a paragraph, never an AI call.</li>
+        <li>Hover-driven read-out: pass <code>onActiveIndexChange</code> to <code>TrendSparkline</code> and render the active point in the card headline (the established pattern in <code>WebsiteOverview</code>); turn on <code>showLabels</code> for an x-axis.</li>
+        <li><strong>Reference file:</strong> <code>WebsiteOverview.tsx</code> traffic card (<code>monthsRangeLabel</code> + hover read-out) is the closest analog for the honest-span + readable-chart treatment to mirror into the Keywords tab.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Stay strictly inside the Website surface (files listed above). Three other agents own PMS, rankings, and gbp-automation concurrently.</li>
+            <li>Use ONE time-format scheme via <code>utils/timeframe.ts</code>; spelled durations for windows.</li>
+            <li>Label the ACTUAL rendered span (dataDays / from–to), not the nominal window, wherever a chart is range-bound.</li>
+            <li>Reframe the headline conversion to the settled previous month (retroactive), not MTD pace.</li>
+            <li>Read every file before editing it.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do NOT edit <code>index.css</code>, <code>statusRules.ts</code>, or shared primitives (<code>TrendSparkline</code>, <code>PeriodToggle</code>, <code>InsightCue</code>, <code>DetailsModal</code>, <code>MeaningHero</code>) beyond passing existing props.</li>
+            <li>Do NOT change the GBP / ranking query methodology ("endodontist near me" is out of scope — #13).</li>
+            <li>Do NOT touch gbp-automation, PMS/dashboard, or rankings-hub files.</li>
+            <li>Do NOT commit or touch git.</li>
+            <li>Do NOT fabricate data behavior — if the timeframe fix needs a data-layer change, document it as a TODO instead of guessing.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Extending harvest retention / backfilling history so longer windows show more data (deep data-layer change — documented as a finding, not built).</li>
+        <li>Ranking-query methodology (#13 explicitly out).</li>
+        <li>The "Doctors duplicate button" WIP (#21 — owned elsewhere, skipped).</li>
+        <li>A persistent page-label column if it requires a migration (see R3 — deliver the minimum honest version; escalate if a migration is wanted).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 — mostly presentational label/color/order fixes; the only judgement calls are the headline reframe (changes a prominent number's meaning) and the #19 page-rename persistence (no column exists today). <code>PostsTab</code> is shared, so its edit must be surgical.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>R1 — Headline meaning change (Level 2).</strong> Reframing the giant % from MTD to last-full-month changes what a prominent number means; an owner used to "this month" may be briefly surprised. <strong>Mitigation:</strong> relabel explicitly ("Last month's conversion rate" + retroactive tooltip) so the new meaning is unambiguous; keep the MTD figure available in the leads modal.</li>
+        <li><strong>R2 — Shared PostsTab edit (Level 2).</strong> <code>PostsTab.tsx</code> renders in both admin and the owner surface; removing the score number must not break the admin SEO workflow. <strong>Mitigation:</strong> remove only the trailing number <code>&lt;span&gt;</code>, keep the bar + <code>title</code> tooltip (data still discoverable), no logic change. The number is purely decorative.</li>
+        <li><strong>R3 — #19 page rename has no storage (Level 2).</strong> Pages have <code>path</code> + <code>status</code> but no editable label column in the loaded <code>Page</code> shape. A true "rename the label" needs a backend field + endpoint + migration — beyond this plan's blast radius and into other agents' write paths. <strong>Mitigation (recommended):</strong> ship the display-only "Home" label now (honest, zero-risk) and document the rename-persistence as a TODO requiring a <code>display_label</code> column. Do not fake a rename that silently drops on reload.</li>
+        <li><strong>R4 — Data ceiling could mislead even when labeled (Level 1).</strong> Once the harvest accrues 12 months, the toggle will visibly differ; until then 6M/12M legitimately equal the stored span. <strong>Mitigation:</strong> honest span label + a one-line note when the available history is shorter than the requested window ("Showing all N days available").</li>
+      </ul>
+      <p><strong>Blast radius:</strong> Website surface only. <code>WebsiteDashboardTabs</code> consumed solely by <code>DFYWebsite</code>. <code>KeywordsTab</code>/<code>WebsiteOverview</code>/<code>WebsitePagesTab</code> consumed solely by <code>DFYWebsite</code>. <code>websiteMetrics.ts</code> consumed by <code>WebsiteOverview</code>. <code>PostsTab</code> is shared (admin + user) — surgical edit. No backend writes; backend is read-only investigation.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>On #12 "make the toggle actually filter":</strong> it already filters — the data layer is correct. The real defect is dishonest labeling against a short data history. Building artificial differentiation (e.g. fabricating 12 months of zeros) would be worse than the truth. The right fix is honest span labels; the only way to make 6M ≠ 12M for real is to accrue/ backfill history, which is a separate data-layer effort (flagged, not built). Recommend shipping the honesty fix and tracking the retention work separately.</li>
+        <li><strong>On #19 rename:</strong> recommend display-only "Home" now + a tracked TODO for a persisted label. Building a rename with nowhere to store it trains a broken interaction. If you want the persisted version this round, that's a separate small backend plan (column + endpoint) and should be its own spec.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Nav reorder + page-vs-post blurb (#20)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>WebsiteDashboardTabs.tsx</code>: reorder <code>options</code> to Overview · Pages · Posts · Menus · Keywords · Submissions (Posts stays conditional on <code>hasPosts</code>, slotted after Pages). Add a short one-line page-vs-post explainer in <code>DFYWebsite.tsx</code> <code>dashboardHeader</code> (e.g. "Pages are your site's permanent sections; Posts are dated updates like blog articles.").</dd></div>
+          <div><dt>Files</dt><dd><code>WebsiteDashboardTabs.tsx</code>, <code>DFYWebsite.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: tab order correct; blurb reads in one line.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Pages "Home" label (#19)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>WebsitePagesTab.tsx</code>: render <code>/</code> as "Home" (path shown secondarily). Add an inline rename affordance that is display-only this round (local state), with a clear TODO that persistence needs a <code>display_label</code> column + endpoint (see R3). Do NOT silently drop a rename on reload — if persistence isn't built, keep it as a labeled, non-persisted nicety or omit the input and ship the "Home" label only. Choose the honest minimum.</dd></div>
+          <div><dt>Files</dt><dd><code>WebsitePagesTab.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: "/" shows as Home; no fake persistence.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Posts — remove orange SEO number (#21)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>Admin/PostsTab.tsx</code> ~line 870: remove the trailing <code>{seoScore.pct}</code> number span; keep the progress bar and its <code>title</code> tooltip. Surgical — no logic change (shared component, R2).</dd></div>
+          <div><dt>Files</dt><dd><code>Admin/PostsTab.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: post cards show the bar, no number; admin SEO flow unaffected.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Keywords tab — honest window, readable charts, drop Avg Position, explainer (#12/#13)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>KeywordsTab.tsx</code>: (a) range labels via spelled durations ("28 Days / 3 Months / 6 Months / 12 Months"); (b) subtitle + chart titles describe the ACTUAL rendered span (<code>dataDays</code> / <code>fromDate</code>–<code>toDate</code>) with a one-line note when history &lt; requested window; (c) <code>TrendCard</code> passes <code>onActiveIndexChange</code> + a headline read-out and turns on <code>showLabels</code> so the owner can read clicks/impressions per day; (d) REMOVE the "Avg position" stat tile AND the "Avg pos" table column; (e) add a one-line explainer above Top Queries / Top Pages. Totals already equal the chart sum for the same window — keep them on the same span so they reconcile.</dd></div>
+          <div><dt>Files</dt><dd><code>KeywordsTab.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx eslint</code>; Manual: window label honest, hover shows values, no avg position, explainer present.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Overview headline + funnel (#14/#17)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>WebsiteOverview.tsx</code>: reframe the hero <code>score</code> to last full month's conversion (<code>m.prevConversionRate</code>), label "Last month's conversion rate", retroactive tooltip — no early-month pace headline. Remove the conversion line from the funnel <code>TrendSparkline</code> (drop <code>tertiaryKey</code>/<code>tertiaryColor</code>; conversion stays as the card column only). Change the Leads funnel line to GREEN (<code>FUNNEL_COLORS.leads</code> + the leads card accents). Reconcile the "this month" vs "last 3 months" wording so the framing is consistent and leads read retroactively.</dd></div>
+          <div><dt>Files</dt><dd><code>WebsiteOverview.tsx</code>, <code>websiteMetrics.ts</code> (only if a settled-figure accessor is missing)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx eslint</code>; Manual: headline labeled + settled; funnel has 2 lines; leads line green.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Traffic & Leads popouts (#15/#16)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>WebsiteOverview.tsx</code> modals: (Traffic) chart title matches the rendered range (use the daily series' real first–last span, not "last 12 months"); cards already match Overview totals — verify. (Leads) reorder <code>ModalStat</code> so "All time" sits next to "Last month" (order: This month · Last month · All time · Conversion, OR Last month · All time · This month · Conversion — put All time adjacent to Last month); keep "Conversion" capitalized; conversion = previous settled month; chart title → match rendered span (the ask says "Last 3 Months" — label the real span, capped/described honestly).</dd></div>
+          <div><dt>Files</dt><dd><code>WebsiteOverview.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T5 (shares the settled-conversion framing)</dd></div>
+          <div><dt>Verify</dt><dd><code>npx eslint</code>; Manual: modal numbers match cards; titles match charts; All time beside Last month.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: GSC overview card (#18)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>WebsiteOverview.tsx</code> "Search keywords" card: REMOVE the "avg position" from the sub-line; label the clicks figure as from Google Search (e.g. "clicks from Google Search"); ensure the chart shows consistent day-of-month x-axis labels (turn on <code>showLabels</code> so first/middle/last "Mon DD" render). Keep the 90-day span honest in the eyebrow.</dd></div>
+          <div><dt>Files</dt><dd><code>WebsiteOverview.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx eslint</code>; Manual: no avg position, source labeled, day labels visible.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T8: Document the data-availability ceiling (TODO finding for #12/#15/#17)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a precise code comment (in <code>KeywordsTab.tsx</code> near the range toggle and/or <code>WebsiteOverview.tsx</code>) recording WHY longer windows can render identically — the harvest history is shorter than the window; the backend range query (<code>service.gsc-performance.ts</code> / <code>service.rybbit-performance.ts</code> + their Data models) returns all stored rows for any window ≥ history. State that genuinely differentiating 6M vs 12M requires accruing/backfilling history (a separate data-layer effort), and that this plan ships honest span labels instead.</dd></div>
+          <div><dt>Files</dt><dd><code>KeywordsTab.tsx</code> (comment)</dd></div>
+          <div><dt>Depends on</dt><dd>T4</dd></div>
+          <div><dt>Verify</dt><dd>Comment present and accurate.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T9: Verification</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>npx eslint</code> on every changed frontend file. No backend edits expected; if any backend file is touched, run repo-root <code>npx tsc --noEmit</code> for backend.</dd></div>
+          <div><dt>Files</dt><dd>—</dd></div>
+          <div><dt>Depends on</dt><dd>T1–T8</dd></div>
+          <div><dt>Verify</dt><dd>eslint clean on changed files.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> Nav order = Overview · Pages · Posts · Menus · Keywords · Submissions; page-vs-post blurb present (#20)</li>
+        <li><input type="checkbox" checked disabled> "/" page reads as "Home"; rename persistence deferred to a TODO (no column exists) — no fake rename shipped (#19)</li>
+        <li><input type="checkbox" checked disabled> Orange SEO-score number removed from post cards; bar + tooltip kept (#21)</li>
+        <li><input type="checkbox" checked disabled> Keywords: spelled-duration toggle, honest span label, hover read-out + axis labels, NO avg position, explainer (#12/#13)</li>
+        <li><input type="checkbox" checked disabled> Overview headline = settled last-month conversion, labeled; conversion off the funnel chart; leads line green (#14/#17)</li>
+        <li><input type="checkbox" checked disabled> Traffic/Leads modals match Overview numbers; titles match charts; All time beside Last month; Conversion capitalized + retroactive (#15/#16)</li>
+        <li><input type="checkbox" checked disabled> GSC card: avg position removed, clicks labeled as Google Search, consistent day labels (#18)</li>
+        <li><input type="checkbox" checked disabled> Data-availability ceiling documented as a TODO finding (#12/#15/#17 deep fix)</li>
+        <li><input type="checkbox" checked disabled> <code>npx eslint</code> clean on all changed files (zero new problems; 28 pre-existing unchanged); app <code>tsc -p tsconfig.app.json</code> clean</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="task-card">
+        <h3>Rev 1 - 2026-06-13</h3>
+        <p><strong>Change:</strong> Spec authored and executed in one pass (instant-style for a large but well-understood UI-clarity plan).</p>
+        <p><strong>Reason:</strong> Plan 5 of the dashboard-revamp round; investigation confirmed the timeframe "bug" is honest-labeling against a data ceiling, not a broken filter — so the safe UI fixes plus a documented TODO are the correct scope.</p>
+      </article>
+      <article class="task-card">
+        <h3>Rev 2 - 2026-06-13</h3>
+        <p><strong>Change:</strong> Execution-time decisions recorded for parity.</p>
+        <p><strong>Reason:</strong> <em>Execution deviation</em> — clarifying how the looser asks were resolved.</p>
+        <ul>
+          <li><strong>#12/#15/#17 timeframe data layer — what I DID vs documented as TODO:</strong> The backend range query is correct (verified in <code>service.gsc-performance.ts</code> + <code>service.rybbit-performance.ts</code>: both derive <code>fromDate = latestReportDate − (rangeDays−1)</code> and query their Data model by date range; the FE caches per-range). The visible "3M/6M/12M identical" and "Last 12 months shows ~3" are a <strong>data-availability ceiling</strong> — stored harvest history is shorter than the window, so every window ≥ history returns the same rows. <strong>DID (shipped):</strong> honest span labels everywhere (Keywords subtitle + "all N days available" note; Traffic/Leads modal titles use the chart's real first→last span; leads modal sliced to last 3 months and labeled by real span; hover read-outs + axis labels so values are readable; totals stay on the same span so they reconcile). <strong>Documented as TODO (NOT built):</strong> genuinely differentiating 6M vs 12M requires accruing/backfilling more daily harvest history — a data-layer/retention effort, out of scope and recorded as a code comment in <code>KeywordsTab.tsx</code> + this spec. No data behavior fabricated.</li>
+          <li><strong>#19 page rename:</strong> shipped the display-only "Home" label (and path shown secondarily). Rename-to-persist was NOT built — pages carry no <code>display_label</code> column and there is no rename endpoint (confirmed in <code>PageModel</code> / <code>UserWebsiteController</code>); a real rename needs a backend field + endpoint + migration, which is its own plan and crosses into write paths. A precise <code>TODO(#19 rename)</code> comment is left in <code>WebsitePagesTab.tsx</code>. No fake (drops-on-reload) rename shipped — per the spec's R3 pushback.</li>
+          <li><strong>#14 funnel:</strong> removed BOTH the conversion <em>line</em> and the conversion <em>column</em> from the hero funnel (the column showed the same MTD pace artifact); funnel now reads visitors → leads over the monthly series, conversion lives only in the settled headline card. Leads line + column are green. Also retired the volatile MTD-conversion sub-line on the Leads overview card in favor of "N last month" (keeps #17's framing consistent).</li>
+          <li><strong>#21 PostsTab (shared component):</strong> removed only the trailing <code>{seoScore.pct}</code> number span; bar + <code>title</code> tooltip kept; no logic change. Admin SEO workflow untouched.</li>
+          <li><strong>Verification:</strong> <code>npx eslint</code> on all 6 changed files — zero new problems (the 28 pre-existing problems are identical with my changes stashed, confirmed by baseline diff). App <code>tsc -p tsconfig.app.json --noEmit</code> = 0 errors total. Did NOT touch index.css, statusRules.ts, or any shared primitive beyond passing existing props; did NOT touch git, gbp-automation, PMS/dashboard, or rankings-hub.</li>
+        </ul>
+      </article>
+      <article class="task-card">
+        <h3>Rev 3 - 2026-06-13</h3>
+        <p><strong>Change:</strong> #20 page-vs-post explainer reworked — the always-on blurb under the tab bar is removed; tab descriptions now live behind a single trailing <code>(i)</code> hover tooltip on the tab bar itself.</p>
+        <p><strong>Reason:</strong> <em>User QA</em> — owner asked to drop the inline blurb and surface "what each tab means" via a hoverable info icon instead, so the explanation is available on demand without permanently occupying vertical space.</p>
+        <ul>
+          <li><strong><code>WebsiteDashboardTabs.tsx</code>:</strong> added a <code>TAB_HELP</code> map (one line per view; Pages/Posts lines keep the original clarification) and a trailing muted <code>Info</code> button wrapped in the shared <code>Tooltip</code> (<code>position="bottom"</code>). Tooltip lines are built from the visible <code>options</code>, so the "Posts" line auto-drops on sites without posts. Reused the existing shared <code>components/Tooltip.tsx</code> — no new tooltip pattern introduced.</li>
+          <li><strong><code>DFYWebsite.tsx</code>:</strong> removed the <code>{project?.template_id && (&lt;p&gt;…&lt;/p&gt;)}</code> blurb block; left a pointer comment to the tab-bar tooltip.</li>
+          <li><strong>Verification:</strong> <code>tsc -p tsconfig.app.json --noEmit</code> = 0 errors; <code>eslint</code> on both files — <code>WebsiteDashboardTabs.tsx</code> clean, <code>DFYWebsite.tsx</code> shows only its 16 pre-existing <code>any</code>/unused-var errors (lines 431–895, outside the edited region). Visual confirmation is the owner's (hover the new <code>(i)</code> on the website dashboard tab bar).</li>
+        </ul>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

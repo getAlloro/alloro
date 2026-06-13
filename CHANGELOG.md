@@ -2,7 +2,133 @@
 
 All notable changes to Alloro App are documented here.
 
-## [0.0.111] - June 2026
+## [0.0.123] - June 2026
+
+### Dashboard Revamp — 24-Item Feedback Round (Plans 0–5)
+
+A full clarity pass over the client dashboard so it reads as one product: every number now states its timeframe, the time-format is standardized, cross-surface data reconciles, and one-line insight cues replace removed context. Driven by the owner's 24-item "Dashboard Revamp Review" and QA'd in a live One Endodontics pilot.
+
+**Key Changes:**
+
+- **Timeframe foundation (Plan 0):** new shared `utils/timeframe.ts` — spelled durations ("28 Days", "3 Months"), abbreviated to-date (MTD/QTD/YTD), `formatDataMonth` named-month labeler, and `currentMonthLabel` (UTC, matches the metrics window) — plus `PeriodToggle` (terracotta active pill) and `InsightCue` (one-line trend cue) primitives.
+- **Practice Hub (#1, #2, #22, #23, #24):** every stat card labels its window with a named month; Referrals shows the signed month-over-month delta ("42 down"); Local rank's status moved to a tinted sub-line below the number; Reviews shows this-month new reviews labeled with the current month; the "1 thing" action card is one subject + a short rationale (agent prompt + schema cap); a one-line production cue.
+- **Referrals Hub (#3, #4):** MONTH/QTD/YTD toggle that re-scopes the tiles; named-month tiles with the YTD figure beside the monthly one.
+- **Local Rankings (#5, #6):** removed the dormant period toggle and the manual "Update location" refresh banner; map zooms in; reviews read from the canonical dashboard-metrics source (resolves the 163-vs-152 split); "Rating vs Market"; competitors strip moved up below the hero with a "Manage competitor list" label.
+- **Reviews & Posts (#7–#11):** terracotta active tab; self-explaining review stats; "Reply Drafts" → "Drafts Ready for Review"; internal "Safe" badge hidden client-side; stray range count removed; Posts "why it matters" blurb; client automation toggles hidden in Settings; review cards switched from grayish (slate-50) to white.
+- **Website (#12–#21):** nav reordered with page-vs-post descriptions moved into a tab (i) tooltip; honest timeframe-span labels on Keywords; "Avg Position" removed; conversion reframed as last full month (no month-to-date artifact); green leads line; axis-honest Traffic/Leads popouts; "/" page reads as "Home"; orange post-score number removed.
+- **Cross-cutting:** one time-format standard everywhere (#22); data validity — every figure carries a labeled window and the latest uploaded month is named (#23); one-line insight cues restored (#24).
+- **Convention:** `AGENTS.md` updated — plan specs are now self-contained `spec.html` (inline `<style>`, no separate `spec.css`).
+
+**Commits:**
+
+- `frontend/src/utils/timeframe.ts` (new) — shared time-format helpers; `frontend/src/components/dashboard/InsightCue.tsx` + `PeriodToggle.tsx` (new) — dashboard primitives.
+- `frontend/src/components/dashboard/focus/` — `StatCardRow` / `StatCard` / `statusRules` (referral delta, Local-rank sub-line + `subTone`, this-month reviews); `ProductionPanel` (insight cue).
+- `frontend/src/components/dashboard/RankingsDashboard.tsx` + `rankings-hub/RankingsHubSurface.tsx` / `RankingsMapCard.tsx` — refresh banner + dead code removed, map zoom, canonical reviews, competitors strip + "Manage competitor list".
+- `frontend/src/components/PMS/dashboard/PmsHubSurface.tsx` / `pmsPeriod.ts` — Referrals timeframe toggle.
+- `frontend/src/components/dashboard/gbp-automation/*` + `frontend/src/pages/GbpManagerPage.tsx` — Reviews & Posts clarity (tabs, stats, drafts rename, Safe badge, range count, posts blurb, settings, white cards).
+- `frontend/src/components/website/*` + `frontend/src/pages/DFYWebsite.tsx` + `frontend/src/components/Admin/PostsTab.tsx` — nav reorder, tab (i) tooltip, Keywords labels, conversion validity, Pages "Home", post-score removal.
+- `src/agents/monthlyAgents/Summary.md` + `src/controllers/agents/types/agent-output-schemas.ts` — one-subject action directive + rationale length cap.
+- `AGENTS.md` — self-contained `spec.html` convention.
+- `plans/06132026-*` (6 plan folders) — specs marked Completed.
+
+## [0.0.122] - June 2026
+
+### Auth: OTP Login Codes Bypass Email Interception
+
+The email interceptor reroutes every non-production email to `dave@getalloro.com` (fail closed — see 0.0.116). That sent *every* user's OTP login code to Dave's inbox instead of their own, so no one but Dave could complete login on dev or local. OTP codes now bypass the interceptor and send live in every environment, while all other email still fails closed.
+
+**Key Changes:**
+
+- Added an opt-in `allowLiveSend?: boolean` to `SendEmailOptions`. When set, `sendEmail()` skips `interceptEmailPayload` and sends the built payload as-is; the flag is honored inside the exit function, alongside the existing interception logic.
+- The flag is set by exactly one caller — `createAndSendOtp`. Blast radius is OTP login codes only; password-reset, invitations, contact forms, and notifications stay intercepted on non-prod.
+- No env var and no `NODE_ENV` branch, preserving the interceptor's identity-not-config design.
+- Trade-off (ratified): dev, local, and CI can now send a real OTP to a real inbox. OTP recipients are self-selected (the address typed at login), and `isTestAccount` still short-circuits before any send. Recommended narrower "internal-domains-only on non-prod" scope was declined in favor of a full bypass.
+
+**Commits:**
+
+- `src/emails/types.ts` — `allowLiveSend?: boolean` on `SendEmailOptions`, scoped to OTP in its doc comment.
+- `src/emails/emailService.ts` — `sendEmail()` honors `allowLiveSend`, skipping the interceptor when set.
+- `src/controllers/auth-otp/feature-services/service.otp-generation.ts` — `createAndSendOtp` sets `allowLiveSend: true`.
+- `plans/06122026-otp-bypass-email-interception/` — spec + Level 3 risk notes.
+
+## [0.0.121] - June 2026
+
+### Website Cards: Dynamic Month-Range Label
+
+The Websites overview Traffic and Leads cards now label the actual number of months on the chart instead of a hardcoded "Last 12 mo". The cards plot a trimmed monthly series (leading no-data months dropped, capped at 12 by `computeWebsiteMetrics`), so a practice live for only a few months showed 3 data points under a misleading "Last 12 mo" eyebrow. The label now reads "Last 3 mo" and grows back toward "Last 12 mo" as data accrues; each card reads its own series, so Traffic and Leads can differ honestly.
+
+**Key Changes:**
+
+- Added module-level `monthsRangeLabel(monthsShown)` → `"Last N mo"` (clamped 1–12; empty series falls back to "Last 12 mo", where the card shows its empty state anyway).
+- Traffic eyebrow now derives from `m.visitorSeries.length`; Leads from `m.leadSeriesCompact.length`.
+- Presentational only — no changes to `computeWebsiteMetrics`, chart rendering, the API, or dependencies. Detail-modal captions ("last 12 months") left as-is; they describe the full untrimmed daily/monthly window.
+
+**Commits:**
+
+- `frontend/src/components/website/overview/WebsiteOverview.tsx` — dynamic month-range eyebrow helper wired into both overview cards.
+
+## [0.0.120] - June 2026
+
+### GSC/Clarity Harvest: Empty-Write Guard
+
+Prevents the daily data harvest from overwriting good Search Console / Clarity data with an empty payload. The worker re-harvests a rolling window every run; the data upsert previously fired on any successful fetch regardless of row count, and the GSC/Clarity adapters return `ok` with `rowCount: 0` on an empty response — so a transient empty fetch for an already-populated date could clobber it through the upsert merge.
+
+**Key Changes:**
+
+- Gated the data upsert in the shared `harvestSingle` on `result.rowCount > 0` (all platforms; a no-op for Rybbit, which always reports `rowCount` 1 — the actual fix is for GSC and Clarity, which report real counts). Empty fetches still log the attempt as `success / 0 rows`; they just never overwrite stored data.
+- Added a one-time, dry-run-default repair script that finds dates the harvest log proves once had rows but whose stored data is now empty/missing, and re-enqueues a single-date harvest via the existing harvest queue (idempotent `jobId`). Live dry-run found **0 clobbered dates** across 7 GSC integrations — the guard is pure prevention; no past clobber had occurred.
+- Verified the read paths (`service.gsc-performance`, AI-audit `organizationAuditContextService`) treat absent days as zero, so skipping empty writes is safe — and it improves the AI audit, which previously could anchor on an empty placeholder day.
+
+**Commits:**
+
+- `src/workers/processors/dataHarvest.processor.ts` — gate the data upsert on `result.rowCount > 0`; empty success still logged, never written.
+- `src/models/website-builder/IntegrationHarvestLogModel.ts` — `findDatesWithDataByIntegration` helper for clobber detection.
+- `src/scripts/repairClobberedHarvestData.ts` — dry-run-default GSC/Clarity clobber repair.
+- `plans/06122026-harvest-empty-overwrite-guard/` — spec + risk notes.
+
+**Known open issue (not addressed here):** a separate GSC data-lag gap — e.g. 2026-06-02/03 empty across all properties — where Google's data finalized later than the 4-day harvest window, so it was never captured. This is not a clobber (the harvest log shows `success / 0 rows`, not lost data), so the repair above does not touch it. Recovery needs a broadened in-span gap re-harvest plus a recurring gap sweep; tracked as follow-up.
+
+## [0.0.119] - June 2026
+
+### Client Dashboard: Search Console Keywords
+
+Surfaces Google Search Console performance to website owners in the DFY dashboard — previously visible only in the admin dashboard. Adds a "Keywords" tab and a "Search keywords" card on the Overview tab, both fed by a new org-scoped endpoint that reuses the existing admin GSC dashboard service untouched.
+
+**Key Changes:**
+
+- New client endpoint `GET /api/user/website/gsc/performance` — resolves the project from the auth-token org (no `projectId` in the URL), reuses `service.gsc-performance.getDashboard`, returns `hasIntegration:false` with a null dashboard when GSC isn't connected. Mirrors the existing Rybbit `getWebsiteAnalytics` pattern.
+- "Keywords" tab in the website dashboard: totals (clicks, impressions, avg position), a clicks + impressions trend, top queries and top pages, with not-connected and collecting-data empty states. Built fresh client-side (does not import admin GSC components); trimmed for owners (no countries/devices).
+- "Search keywords" card on the Overview tab: headline clicks/impressions/avg-position, a clicks sparkline, top 3 queries, and "View all" into the tab. The eyebrow labels the rolling 90-day window; hovering the sparkline swaps the headline to that day's values.
+
+**Commits:**
+
+- `src/controllers/user-website/UserWebsiteController.ts`, `src/routes/user/website.ts` — org-scoped `getGscPerformance` handler + route.
+- `frontend/src/api/websiteGscPerformance.ts`, `frontend/src/hooks/queries/useWebsiteGscPerformance.ts` — API client + shared React Query hook.
+- `frontend/src/components/website/KeywordsTab.tsx` — the Keywords tab.
+- `frontend/src/components/website/WebsiteDashboardTabs.tsx`, `frontend/src/pages/DFYWebsite.tsx` — `"keywords"` pill + render block.
+- `frontend/src/components/website/overview/WebsiteOverview.tsx` — Overview "Search keywords" card with range label + hover.
+- `plans/06112026-client-dashboard-gsc-keywords/` — spec.
+- **Verified:** backend + frontend `tsc` clean; card verified live by the user. Cross-org isolation is code-verified (org-scoped, no `projectId` param), not two-org runtime-tested.
+
+## [0.0.118] - June 2026
+
+### Asia Dev Server Deployment Target
+
+Adds a second dev deployment target in Asia while keeping the existing `dev/dave` EC2 dev deploy intact. The new server at `dev-asia.getalloro.com` is provisioned with the app runtime, local PostgreSQL 17, Redis, Apache, HTTPS, and a cloned copy of the current dev database.
+
+**Key Changes:**
+
+- Provisioned the Asia dev host with Node 22.18, PM2 6, Apache, Redis, PostgreSQL 17, pgvector, and Puppeteer Chrome support.
+- Restored the current dev database into local Asia Postgres and rewired the Asia server env to use local Postgres/Redis while preserving the server-managed env/key-file deploy model.
+- Refactored the `dev/dave` workflow to build once, upload one bundle artifact, then deploy independently to the existing EC2 dev server and the new Asia dev server.
+- Added Apache and Let's Encrypt HTTPS for `dev-asia.getalloro.com`.
+
+**Commits:**
+
+- `.github/workflows/dev.yml` - split the single dev deploy into one build job plus `deploy-dev` and `deploy-asia` jobs that consume the same artifact.
+- `plans/06122026-alloro-asia-dev-server/` - execution spec and risk notes for the new Asia dev server.
+
+## [0.0.117] - June 2026
 
 ### Website Editor: Direct Editing, Versioning & Responsive Controls
 
@@ -25,6 +151,137 @@ A ground-up overhaul of the website editor (admin `PageEditor` + customer `DFYWe
 - `src/controllers/admin-websites/feature-services/{service.page-editor,service.page-versions}.ts`, `src/controllers/user-website/UserWebsiteController.ts`, `src/utils/website-utils/pageSnapshots.ts` — snapshot-on-write, transactional/idempotent publish, restore, conditional-UPDATE concurrency, version bump.
 - `src/database/migrations/20260611000000_add_page_revision_metadata.ts` — `change_source`/`revision_note` provenance columns (run on dev/prod at deploy).
 - **Verified:** `tsc -p tsconfig.app.json --noEmit` (frontend) + backend `tsc` + ESLint green; manual QA by the user across each revision.
+
+## [0.0.116] - June 2026
+
+### Disallow Email on Dev & Local
+
+Prevents any non-production server from sending real email. Previously dev.getalloro.com and local environments pointed at the same production n8n email webhooks and carried real recipient lists, so any email-triggering action (OTP, password reset, contact forms, PMS notifications, leadgen reports) reached real people. There was no runtime discriminator between environments — `ecosystem.config.js` hardcodes `NODE_ENV=production` for both PM2 apps and both servers deploy with it, so dev and prod were indistinguishable to the code.
+
+The fix introduces a runtime sender-identity guard: a process may send live email only when its own public IP matches a DNS A record of `app.getalloro.com`. Anywhere else — and on any failure to determine identity — every email is intercepted: recipients rewritten to `dave@getalloro.com` only (cc/bcc emptied), subject prefixed with `[Intercepted] `, and original recipients logged. The check ignores env vars, `NODE_ENV`, and request `Host` headers by design: configuration can be copied between machines, identity cannot. It fails closed, so a misconfigured prod box diverts mail to an inbox rather than silently mailing clients.
+
+**Key Changes:**
+
+- New `src/emails/emailInterceptor.ts`: resolves `app.getalloro.com` A records and the box's own public IP (via `checkip.amazonaws.com`), caches the verdict for 10 minutes, dedupes concurrent checks, warms the cache at module load, and fails closed on any error.
+- Guard applied inside all three backend email exit functions, covering every current and future caller without touching call sites.
+- Intercepted mail reroutes to `dave@getalloro.com` strictly, with original recipients logged; interception never drops mail.
+- No new dependencies (`axios` and `node:dns` already present); no env-var, `NODE_ENV`, or `Host`-header gating.
+- Verified: `npx tsc --noEmit` clean; interception path confirmed locally (rerouted to dave, `[Intercepted]` subject, originals logged); live path confirmed against real DNS (prod IP 52.203.199.155 matches the A record, dev IP 3.210.41.226 does not).
+
+**Commits:**
+
+- `src/emails/emailInterceptor.ts` - new IP self-identity guard with cached, fail-closed verdict and payload reroute helper
+- `src/emails/emailService.ts` - route `sendEmail()` through the interceptor; log interception with original recipients
+- `src/controllers/websiteContact/websiteContact-services/emailWebhookService.ts` - route `sendEmailWebhook()` through the interceptor
+- `src/controllers/leadgen-tracking/feature-services/service.n8n-email-sender.ts` - route the leadgen audit-report sender through the interceptor
+- `plans/06102026-disallow-email-on-dev-and-local/` - spec and execution notes
+
+## [0.0.115] - June 2026
+
+### Reviews & Posts Page + App-Wide Design Consistency
+
+The fourth dashboard redesign and the cross-app consistency pass, shipped together (interleaved edits). Reviews & Posts (Alloro Engage) is promoted out of Local Rankings into its own sidebar page at /gbp-manager, and every client surface now shares one design language: white cards on parchment, ink text, terracotta as the only accent.
+
+**Key Changes — Reviews & Posts (/gbp-manager):**
+- New standalone page: navy pill tabs (Reviews · Posts · Settings), three stat boxes (Needs reply last-60d, Last review countdown, Coverage), zero extra network requests
+- 1–2 reply drafts silently pre-generated for the newest unreplied reviews (guarded, once per location)
+- Reviews scoped to a 60-day chunk with "All loaded" escape; trend sparkline dropped
+- Post photos now OPTIONAL end-to-end (composer, edits, published-post edits, Google deploy payload omits media) — existing images replace-only
+- Engage tab removed from Local Rankings; Sidebar + mobile nav gain "Reviews & Posts"; de-nested card-in-card panels; compact posts header
+
+**Key Changes — Design Consistency:**
+- Parchment background token (#FAF8F3) app-wide; ink-muted/accent-soft tokens replace per-file hex constants; one card recipe everywhere
+- Shared ActionBanner with "Mark done" (localStorage) across all three hub 1-action banners; shared StatBox
+- Referrals top sources are now a click-in (per-source production, avg/referral, funnel %, notes)
+- Month-key sorting bug fixed backend-wide (labeled months sorted alphabetically): aggregator 12-month cap, production_change_30d (+0% deltas), "this month" grounding, per-source trends; Practice Hub YTD is strictly Jan 1 → today with honest empty state (the "$2.2M" fix)
+- To-Do List & Notifications removed from nav (routes intact); 3s notification poll deleted
+- Settings: single-column priority layout, Locations promoted to its own tab, serif display headings (font-heading was never defined), compacted
+- Website tab: all views in the shared 960px container; Submissions compacted with truncation tooltips
+- Sidebar: Settings + Log out rows replace the account card; org name under the wordmark; "Disconnect" → "Log out"
+
+**Commits:**
+- frontend: GbpManagerPage + gbp-automation panel promotion props/frameless; ActionBanner/StatBox/useActionDone/PmsHubTopSources (new); hub surfaces + focus components on tokens; Sidebar/MobileBottomNav/App routes; Settings + settings components; Website tab containers + FormSubmissions compaction; index.css tokens
+- backend: photo-optional (GbpLocalPostDraft/Deployment/PublishedLocalPost services); monthKey.ts chronological sorts in pmsAggregator + dashboard-metrics
+
+## [0.0.114] - June 2026
+
+### AI/SEO Audit Admin App
+
+New admin-only Apps workspace (`/admin/apps/ai-seo-audit`) that scores an organization's website — or any external URL — for AI/search readiness against a five-category, evidence-backed rubric (Findability, Content Readiness, Business Consistency, Connected Data, Reputation), with async execution, real external entity discovery, and a plain-English results surface.
+
+**Key Changes:**
+
+- Audits run asynchronously on a new `wb-ai-seo-audit` BullMQ worker: launching returns a queued run immediately, the run list and detail poll live progress (gathering business data → reading pages → checking the web → scoring) until completed/failed.
+- Scoring contract: per-check weighted points roll up into five categories summing to 100; a rubric-integrity assertion fails fast if check weights ever drift from declared category weights. Missing integrations (GSC/GBP) reduce coverage and confidence, never the score. Hard caps apply per page and report which pages they cap.
+- Organization audits prioritize home → content → legal/utility pages before the 12-page cap (disclosed as "12 of N"), and the run score is an importance-weighted average (home ×2, content ×1, utility ×0.5). Legal/utility pages are exempt from service-page content checks.
+- External entity consistency runs once per audit via SerpAPI plus on-page profile links, never cites the audited site's own pages, detects blocked/CAPTCHA listing pages, and gives benefit of the doubt when the business's real phone/address appears anywhere on the listing page. Findings are framed as "Referenced" leads with one-line "possible mismatch — worth double-checking" advisories instead of asserted verdicts.
+- Results UI leads with an overall score + grade band (Excellent/Good/Needs work/At risk), a "Biggest wins" top-fixes list ranked by score impact, per-page scores (lowest first), category score cards with bars, and criteria grouped by check with plain-English labels, hover explanations, and per-page expansion.
+- Run management: delete a single run or clear all, organization picker lists only auditable orgs (connected website project with published pages), and the whole view deep-links via `/admin/apps/ai-seo-audit?mode=&organization=&run=` so refresh restores state.
+- Persistence: five new `website_builder.ai_seo_audit_*` tables (runs, targets, results, external sources, evidence) with enum CHECK constraints, cascade deletes, and a pinned rule version.
+
+**Commits:**
+
+- backend: `src/services/ai-seo-audit/*` (scoring engine, URL collector + SSRF safety, identity extraction, SerpAPI external search, entity consistency, org context resolver, persistence), admin routes/controller, audit models, migration `20260608000000`, `aiSeoAudit.processor` + worker registration.
+- frontend: `pages/admin/AdminApps.tsx`, `components/Admin/ai-seo-audit/*` (workspace, panel, run list, run detail, labels dictionary, org search select), `api/aiSeoAudit.ts`, `useAiSeoAuditQueries` polling hooks, query-key additions, `/admin/apps/:appKey` routes + sidebar Apps entry.
+
+## [0.0.113] - June 2026
+
+### Local Rankings Simplification
+
+Replaces the dense Local Rankings overview (`/rankings`) with a slim, map-anchored surface, drops both scores, and unifies the dashboard container width across the three client hubs.
+
+**Key Changes:**
+
+- New Rankings hub: "YOU RANK #N of M nearby" hero with a leaflet competitor map (rank-numbered pins + YOU marker), the standard search query, three vitals (Reviews with star icon, Last post, Rating vs market), a single "1 action" banner, and a comparison-insight strip that opens Manage Competitors.
+- Visibility Score and Practice Health are removed entirely (gauge, factor breakdown, drivers/gaps modals, Next Moves). The legacy overview is retained behind a `USE_LEGACY_RANKINGS_DASHBOARD` fallback flag.
+- A MONTH/QTR/YTD toggle ships disabled ("Not enough ranking history yet") with the ranking-history wiring built behind a single enable point.
+- The ranking agent now emits one recommendation (prompt + guardrails backfill capped at 1); takes effect on the next ranking run.
+- All three hubs (Practice, Referrals, Rankings) now share one container recipe (960px, same gutters); fixed Practice Hub double padding and the Referrals surface rendering outside its padded main.
+- Manage-comparison page compacted to the same 960 container: map column matches the competitor-list height (with leaflet resize handling), suggestions toolbar slimmed, competitor pins recolored to brand terracotta, and Local Rankings stays active in the sidebar on that route.
+
+**Commits:**
+
+- frontend: new `rankings-hub/` surface (RankingsHubSurface, RankingsMapCard, rankingPeriod); RankingsDashboard overview swap; wizard rankings steps 4 → 3; width/padding unification across DashboardOverview, PMSVisualPillars, PmsHubSurface; LocationCompetitorOnboarding + competitor-map.css + Sidebar refinements.
+- backend: ranking LLM prompt + output guardrails emit a single `top_recommendations` entry.
+
+## [0.0.112] - June 2026
+
+### Referrals Hub Simplification
+
+Collapses the Referrals Hub (`/pmsStatistics`) into a slim surface and reworks the PMS upload / file-manager flow.
+
+**Key Changes:**
+
+- New slim Referrals Hub surface: a MONTH/QTR/YTD period toggle, a dual-line production & referrals chart (hover a point to scope the stat tiles to that month/quarter), four stat tiles, a lean upload CTA, top-3 sources with trend arrows, and a single "1 action" banner.
+- The "1 action" banner shows the Referral-Engine's recommended action; that agent now emits a single fix (schema `top_three_fixes` capped at 1).
+- Revenue Manager (file manager) panel: per-location "Analysis #N" / "Batch Analysis #N" naming with a "Ran on {date} with data included for {months}" line, static Edit/Overwrite buttons under the month grid, and row actions consolidated into a single ⋯ menu.
+- PMS entry modal: month-selected mode is locked to one month, off-month uploads are flagged (discard / re-upload) instead of silently trimmed, and the empty state presents four action cards.
+- The upload modal now overlays the file-manager panel (matching the edit flow), and the panel refreshes after submit.
+
+**Commits:**
+
+- frontend: new `PmsHubSurface`, `PmsHubTrendChart`, `pmsPeriod`, `sourceTrend`; `PMSVisualPillars` swaps in the surface; `PMSManualEntryModal`, `PmsJobDataEditorModal`, `PMSDataViewer`, `PmsFileManager`, `PmsMonthSlotGrid`, `PmsFileList` reworked; `useInvalidatePmsFileSurfaces` exported.
+- backend: Referral-Engine growth-opportunity rule + schema emit a single fix.
+
+## [0.0.111] - June 2026
+
+### Practice Hub Simplification
+
+Collapses the Practice Hub dashboard (`/dashboard`) into a focused, scannable surface and trims the data it loads.
+
+**Key Changes:**
+
+- Rebuilt the Practice Hub layout: greeting, one year-to-date production chart, a "1 thing that matters" banner, and four compact stat cards (Referrals, Local rank, Reviews, Form subs).
+- Dropped the heavier Trajectory, Action Queue, and per-card LLM/sparkline fetches from this surface (`useAgentData`, `useActionQueue`, `useLatestRanking` no longer load here).
+- Surfaced `reviews.total_review_count` from already-fetched GBP data so the Reviews card shows a total count.
+- The Summary (Chief-of-Staff) monthly agent now emits a single top action instead of 3–5; the task creator persists only the top-ranked entry.
+- Onboarding wizard tour updated for the new layout.
+
+**Commits:**
+
+- frontend: `DashboardOverview` rebuilt; new `ProductionPanel`, `OneThingBanner`, `StatCard`, `StatCardRow`, `statusRules`, shared `usePmsKeyData`; `total_review_count` mirrored in the dashboard-metrics type.
+- backend: `total_review_count` added to the dashboard-metrics builder; `Summary.md` + output schema + task-creator emit one action.
+
 
 ## [0.0.110] - June 2026
 

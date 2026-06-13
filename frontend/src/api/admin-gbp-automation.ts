@@ -90,7 +90,7 @@ export async function createAdminGbpPostDraftFromReview(
   organizationId: number,
   locationId: number,
   reviewId: string,
-  featuredImageUrl: string
+  featuredImageUrl: string | null
 ) {
   return unwrap<GbpWorkItem>(
     await apiPost({
@@ -103,7 +103,7 @@ export async function createAdminGbpPostDraftFromReview(
 export async function generateAdminGbpPostDraftNow(
   organizationId: number,
   locationId: number,
-  featuredImageUrl: string
+  featuredImageUrl: string | null
 ) {
   return unwrap<GbpWorkItem>(
     await apiPost({

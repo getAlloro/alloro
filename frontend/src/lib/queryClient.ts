@@ -247,6 +247,21 @@ export const QUERY_KEYS = {
       "sites",
       connectionId,
     ] as const,
+  adminAiSeoAuditRuns: (filters?: {
+    organizationId?: number | null;
+    scope?: string | null;
+  }) =>
+    [
+      "admin",
+      "ai-seo-audit",
+      "runs",
+      filters?.organizationId ?? null,
+      filters?.scope ?? "all",
+    ] as const,
+  adminAiSeoAuditRunsAll: ["admin", "ai-seo-audit", "runs"] as const,
+  adminAiSeoAuditRun: (runId?: string | null) =>
+    ["admin", "ai-seo-audit", "run", runId ?? null] as const,
+  adminAiSeoAuditableOrgs: ["admin", "ai-seo-audit", "auditable-orgs"] as const,
 
   // Client — notifications
   notifications: (orgId: number | null, locationId: number | null) =>

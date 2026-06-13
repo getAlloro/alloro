@@ -166,7 +166,7 @@ function mergeGooglePatchResponse(params: {
   googleResponse: Record<string, unknown>;
   existingPost?: IGbpLocalPost;
   summary: string;
-  featuredImageUrl: string;
+  featuredImageUrl: string | null;
 }): Record<string, unknown> {
   const base = params.existingPost ? dbPostAsGoogleResponse(params.existingPost) : {};
   const merged: Record<string, unknown> = {
@@ -186,10 +186,11 @@ function mergeGooglePatchResponse(params: {
     merged.state = params.existingPost.state;
   }
   if (!Array.isArray(merged.media) || merged.media.length === 0) {
-    merged.media =
-      params.existingPost?.media?.length
-        ? params.existingPost.media
-        : [{ mediaFormat: "PHOTO", sourceUrl: params.featuredImageUrl }];
+    if (params.existingPost?.media?.length) {
+      merged.media = params.existingPost.media;
+    } else if (params.featuredImageUrl) {
+      merged.media = [{ mediaFormat: "PHOTO", sourceUrl: params.featuredImageUrl }];
+    }
   }
 
   return merged;
@@ -263,16 +264,24 @@ async function getScopedProperty(params: {
   return property;
 }
 
-function buildPayload(summary: string, featuredImageUrl: string): GbpLocalPostPayload {
+function buildPayload(
+  summary: string,
+  featuredImageUrl: string | null
+): GbpLocalPostPayload {
+  // Photo is optional — omit the media key entirely for text-only posts.
   return {
     topicType: "STANDARD",
     summary,
-    media: [
-      {
-        mediaFormat: "PHOTO",
-        sourceUrl: featuredImageUrl,
-      },
-    ],
+    ...(featuredImageUrl
+      ? {
+          media: [
+            {
+              mediaFormat: "PHOTO" as const,
+              sourceUrl: featuredImageUrl,
+            },
+          ],
+        }
+      : {}),
   };
 }
 
@@ -294,7 +303,7 @@ async function reconcileUpdatedWorkItem(params: {
   actorEmail?: string | null;
   postName: string;
   summary: string;
-  featuredImageUrl: string;
+  featuredImageUrl: string | null;
   googleResponse: Record<string, unknown>;
 }): Promise<void> {
   if (!params.workItem) return;
@@ -529,7 +538,7 @@ export class GbpPublishedLocalPostService {
     locationId: number;
     postName: string;
     summary: string;
-    featuredImageUrl: string;
+    featuredImageUrl: string | null;
     actorUserId: number | null;
     actorEmail?: string | null;
     accessibleLocationIds?: number[];
@@ -539,9 +548,9 @@ export class GbpPublishedLocalPostService {
     assertPostBelongsToParent(params.postName, parentName);
 
     const summary = sanitizeGbpText(params.summary, 2000) || "";
-    const featuredImageUrl = sanitizeGbpUrl(params.featuredImageUrl);
+    const featuredImageUrl = sanitizeGbpUrl(params.featuredImageUrl) || null;
     const safety = GbpLocalPostSafetyService.validateLocalPost(summary, featuredImageUrl);
-    if (!safety.isSafe || !featuredImageUrl) {
+    if (!safety.isSafe) {
       throw new GbpAutomationError("UNSAFE_POST_CONTENT", "Post content failed safety checks.", {
         reasons: safety.reasons,
         reasonCodes: safety.reasonCodes,
@@ -553,7 +562,16 @@ export class GbpPublishedLocalPostService {
     const currentImageUrl = existingPost
       ? existingPost.featured_image_url || sourceUrlFromMedia(existingPost.media || [])
       : null;
-    const shouldUpdateMedia = !currentImageUrl || featuredImageUrl !== currentImageUrl;
+    // Text-only posts are editable without an image, but an existing image
+    // cannot be REMOVED via Google's update API — only replaced.
+    if (currentImageUrl && !featuredImageUrl) {
+      throw new GbpAutomationError(
+        "GBP_POST_IMAGE_REQUIRED",
+        "This Google post already has an image. Upload a replacement instead of removing it."
+      );
+    }
+    const shouldUpdateMedia =
+      Boolean(featuredImageUrl) && featuredImageUrl !== currentImageUrl;
     const payload = buildPayload(summary, featuredImageUrl);
     const googleResponse = await updateGbpLocalPost(auth, params.postName, payload, {
       updateMedia: shouldUpdateMedia,

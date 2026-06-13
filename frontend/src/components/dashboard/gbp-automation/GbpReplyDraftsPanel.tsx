@@ -7,6 +7,8 @@ export type GbpReplyDraftsPanelProps = {
   workItems: GbpWorkItem[];
   isBusy: boolean;
   showAttempts?: boolean;
+  /** Hide the reassuring "Safe" badge on draft rows (client view). */
+  hideSafeBadge?: boolean;
   onSave: (workItemId: string, draftContent: string) => void | Promise<unknown>;
   onApprove: (workItemId: string, approvedContent: string) => void | Promise<unknown>;
   onDeploy: (workItemId: string) => void | Promise<unknown>;
@@ -19,6 +21,7 @@ export function GbpReplyDraftsPanel({
   workItems,
   isBusy,
   showAttempts = false,
+  hideSafeBadge = false,
   onSave,
   onApprove,
   onDeploy,
@@ -50,6 +53,7 @@ export function GbpReplyDraftsPanel({
               item.source_review_id ? reviewById.get(item.source_review_id) : undefined
             }
             isBusy={isBusy}
+            hideSafeBadge={hideSafeBadge}
             onSave={onSave}
             onApprove={onApprove}
             onDeploy={onDeploy}

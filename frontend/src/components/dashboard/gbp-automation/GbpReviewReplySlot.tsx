@@ -17,6 +17,12 @@ export type GbpReviewReplySlotProps = {
   item?: GbpWorkItem;
   isBusy: boolean;
   isGenerating?: boolean;
+  /**
+   * Suppress the reassuring "Safe" badge in the client-facing view (internal
+   * safety "clean" status). Blocked / Safety review always show. Default false
+   * keeps the admin view unchanged. Spec: plans/06132026-reviews-posts-clarity.
+   */
+  hideSafeBadge?: boolean;
   onGenerateDraft: (reviewId: string) => Promise<unknown>;
   onSaveDraft: (input: GbpDraftSaveInput) => Promise<unknown>;
   onDeployDraft: (input: GbpDraftDeployInput) => Promise<unknown>;
@@ -26,10 +32,12 @@ function draftText(item?: GbpWorkItem): string {
   if (!item) return "";
   return item.published_content || item.approved_content || item.draft_content;
 }
-function safetyLabel(item?: GbpWorkItem): string | null {
+function safetyLabel(item: GbpWorkItem | undefined, hideSafeBadge: boolean): string | null {
   if (!item?.safety_status) return null;
   if (item.safety_status === "needs_review") return "Safety review";
   if (item.safety_status === "blocked") return "Blocked";
+  // Clean status: the reassuring "Safe" label — hidden in the client view.
+  if (hideSafeBadge) return null;
   return "Safe";
 }
 export function GbpReviewReplySlot({
@@ -37,10 +45,12 @@ export function GbpReviewReplySlot({
   item,
   isBusy,
   isGenerating = false,
+  hideSafeBadge = false,
   onGenerateDraft,
   onSaveDraft,
   onDeployDraft,
 }: GbpReviewReplySlotProps) {
+  const safety = safetyLabel(item, hideSafeBadge);
   const serverValue = draftText(item);
   const [value, setValue] = useState(serverValue);
   const [hasPendingUserEdit, setHasPendingUserEdit] = useState(false);
@@ -146,7 +156,7 @@ export function GbpReviewReplySlot({
               {item.status.replaceAll("_", " ")}
             </span>
           )}
-          {safetyLabel(item) && (
+          {safety && (
             <span
               className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-widest ${
                 item?.safety_status === "blocked"
@@ -156,7 +166,7 @@ export function GbpReviewReplySlot({
                     : "bg-emerald-50 text-emerald-700"
               }`}
             >
-              {safetyLabel(item)}
+              {safety}
             </span>
           )}
         </div>

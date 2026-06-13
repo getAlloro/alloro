@@ -211,7 +211,7 @@ export const PropertiesTab: React.FC = () => {
         {[1, 2].map((i) => (
           <div
             key={i}
-            className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-6"
+            className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-5"
           >
             <div className="flex items-start gap-4">
               <div className="w-10 h-10 bg-slate-200 rounded-xl" />
@@ -229,9 +229,9 @@ export const PropertiesTab: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Section Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
-          <h3 className="text-lg font-black text-alloro-navy font-heading tracking-tight">
+          <h3 className="font-display text-lg font-medium text-alloro-navy tracking-tight">
             Locations
           </h3>
           <p className="text-slate-400 text-[12px] mt-1 font-semibold">
@@ -241,7 +241,7 @@ export const PropertiesTab: React.FC = () => {
         {hasGoogleConnection && (
           <button
             onClick={openAddLocation}
-            className="flex items-center gap-2 px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white bg-alloro-orange rounded-xl hover:bg-alloro-orange/90 transition-colors shadow-lg active:scale-95"
+            className="flex shrink-0 items-center gap-2 whitespace-nowrap px-3.5 py-2 text-[10px] font-black uppercase tracking-widest text-white bg-alloro-orange rounded-lg hover:bg-alloro-orange/90 transition-colors shadow-lg active:scale-95"
           >
             <Plus size={14} />
             Add Location
@@ -279,7 +279,7 @@ export const PropertiesTab: React.FC = () => {
               </p>
               <button
                 onClick={openAddLocation}
-                className="inline-flex items-center gap-2 px-6 py-3 text-[10px] font-black uppercase tracking-widest text-white bg-alloro-orange rounded-xl hover:bg-alloro-orange/90 transition-colors shadow-lg active:scale-95"
+                className="inline-flex items-center gap-2 whitespace-nowrap px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white bg-alloro-orange rounded-xl hover:bg-alloro-orange/90 transition-colors shadow-lg active:scale-95"
               >
                 <Plus size={14} />
                 Add Location
@@ -299,7 +299,7 @@ export const PropertiesTab: React.FC = () => {
                 transition={{ delay: index * 0.05 }}
                 className="bg-white rounded-[28px] border border-slate-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden"
               >
-                <div className="p-6 sm:p-8">
+                <div className="p-5">
                   {/* Location Header Row */}
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-4 flex-1 min-w-0">
@@ -320,11 +320,11 @@ export const PropertiesTab: React.FC = () => {
                                 setEditingNameId(null);
                             }}
                             autoFocus
-                            className="text-lg font-black text-alloro-navy font-heading tracking-tight border-b-2 border-alloro-orange outline-none bg-transparent"
+                            className="font-display text-lg font-medium text-alloro-navy tracking-tight border-b-2 border-alloro-orange outline-none bg-transparent"
                           />
                         ) : (
                           <h4
-                            className="text-lg font-black text-alloro-navy font-heading tracking-tight cursor-pointer hover:text-alloro-orange transition-colors group flex items-center gap-1.5"
+                            className="font-display text-lg font-medium text-alloro-navy tracking-tight cursor-pointer hover:text-alloro-orange transition-colors group flex items-center gap-1.5"
                             onClick={() =>
                               canRenameLocation && startNameEdit(loc)
                             }
@@ -435,7 +435,7 @@ export const PropertiesTab: React.FC = () => {
               className="relative bg-white rounded-[28px] shadow-2xl w-full max-w-md overflow-hidden"
             >
               <div className="p-8">
-                <h3 className="text-lg font-black text-alloro-navy font-heading mb-1">
+                <h3 className="font-display text-lg font-medium text-alloro-navy tracking-tight mb-1">
                   Add New Location
                 </h3>
                 <p className="text-slate-400 text-sm mb-6">

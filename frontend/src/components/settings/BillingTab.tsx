@@ -487,7 +487,7 @@ export const BillingTab: React.FC = () => {
         >
           <div className="flex items-center gap-2.5 mb-5">
             <Receipt size={18} className="text-alloro-navy/40" />
-            <h3 className="text-lg font-black text-alloro-navy tracking-tight">
+            <h3 className="font-display text-lg font-medium text-alloro-navy tracking-tight">
               Payment History
             </h3>
           </div>

@@ -45,7 +45,12 @@ export function GbpPublishedLocalPostCard({
 
   const isDirty =
     summary !== post.summary || featuredImageUrl !== initialFeaturedImageUrl;
-  const canSave = Boolean(summary.trim()) && Boolean(featuredImageUrl.trim()) && isDirty;
+  // Photo-optional: text-only posts are editable. An image is only required
+  // when the post already has one (Google can't remove media via update).
+  const canSave =
+    Boolean(summary.trim()) &&
+    isDirty &&
+    (Boolean(featuredImageUrl.trim()) || !initialFeaturedImageUrl);
 
   const handleSave = async () => {
     if (!canSave) return;
@@ -88,9 +93,11 @@ export function GbpPublishedLocalPostCard({
               {dateLabel(post.createTime)}
             </span>
           </div>
-          <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
-            {postStateHelp(post)}
-          </p>
+          {postStateHelp(post) && (
+            <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+              {postStateHelp(post)}
+            </p>
+          )}
 
           <label className="mt-4 block text-[10px] font-black uppercase tracking-widest text-slate-400">
             Post summary

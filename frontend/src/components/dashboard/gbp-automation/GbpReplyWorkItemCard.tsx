@@ -6,6 +6,14 @@ export type GbpReplyWorkItemCardProps = {
   item: GbpWorkItem;
   sourceReview?: GbpReview;
   isBusy: boolean;
+  /**
+   * Suppress the reassuring green "Safe" badge in the client-facing view
+   * (the internal GbpContentSafetyService "clean" status is noise for the
+   * practice owner). Blocked / Safety review badges always render — those
+   * are actionable warnings. Default false keeps the admin view unchanged.
+   * Spec: plans/06132026-reviews-posts-clarity (T4, #8).
+   */
+  hideSafeBadge?: boolean;
   onSave: (workItemId: string, draftContent: string) => void | Promise<unknown>;
   onApprove: (workItemId: string, approvedContent: string) => void | Promise<unknown>;
   onDeploy: (workItemId: string) => void | Promise<unknown>;
@@ -22,7 +30,10 @@ function reviewDateLabel(value: string | null): string | null {
     year: "numeric",
   }).format(date);
 }
-function safetyBadge(item: GbpWorkItem): { label: string; className: string } | null {
+function safetyBadge(
+  item: GbpWorkItem,
+  hideSafeBadge: boolean
+): { label: string; className: string } | null {
   if (!item.safety_status) return null;
   if (item.safety_status === "blocked") {
     return { label: "Blocked", className: "bg-red-50 text-red-600" };
@@ -30,12 +41,15 @@ function safetyBadge(item: GbpWorkItem): { label: string; className: string } | 
   if (item.safety_status === "needs_review") {
     return { label: "Safety review", className: "bg-amber-50 text-amber-700" };
   }
+  // Clean status: the reassuring "Safe" badge — hidden in the client view.
+  if (hideSafeBadge) return null;
   return { label: "Safe", className: "bg-emerald-50 text-emerald-700" };
 }
 export function GbpReplyWorkItemCard({
   item,
   sourceReview,
   isBusy,
+  hideSafeBadge = false,
   onSave,
   onApprove,
   onDeploy,
@@ -57,7 +71,7 @@ export function GbpReplyWorkItemCard({
   const canDelete = item.status !== "deploying" && item.status !== "published";
   const actionBusy = isBusy || isDeleting;
   const sourceReviewDate = reviewDateLabel(sourceReview?.review_created_at || null);
-  const safety = safetyBadge(item);
+  const safety = safetyBadge(item, hideSafeBadge);
   useEffect(() => {
     setDraft(item.draft_content);
     setIsEditing(item.status === "draft");

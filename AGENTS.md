@@ -4,14 +4,24 @@ These are repo-local operating notes for `/Users/rustinedave/Desktop/alloro`. Th
 
 ## Plan Specs
 
-All Alloro plan folders must use the global HTML/CSS spec artifact format:
+All Alloro plan folders must use the global self-contained HTML spec artifact format:
 
-- Create `spec.html` for the consolidated plan/spec content and `spec.css` for styling.
-- Do not create new `spec.md` files. Legacy `spec.md` files may be read for historical context, but active continued work must be migrated to `spec.html` and `spec.css` before execution.
+- Create a single self-contained `spec.html` for the consolidated plan/spec content, with all styling embedded in an in-page `<style>` block in the `<head>`. Do not create a separate `spec.css`.
+- Do not create new `spec.md` files. Legacy `spec.md` files may be read for historical context, but active continued work must be migrated to a self-contained `spec.html` before execution. Legacy folders that still carry a separate `spec.css` keep working; new specs embed styles inline.
 - Use `plans/{MMDDYYYY}-{feature-slug}/` for plan folder names. Do not include ticket numbers or placeholder ticket segments.
 - Preserve the old spec structure: Why, What, Context, Constraints, Risk, Tasks, Done, and Revision Log when needed.
 - Use a modern black-and-white visual design with clear cards, strong type hierarchy, restrained borders, and no decorative color palettes.
 - Show the current execution status in the first hero viewport. Default new plans to `Pending Execution`, then update to `In Progress`, `Needs Revision`, `Blocked`, or `Completed` when the work state changes.
+
+### Spec Revision Log (`Rev N`) convention
+
+Any change to an existing spec — added scope, an execution-time deviation, or a QA fix round — is recorded as an append-only revision entry. This applies to every agent touching a spec, not just the one that created it.
+
+- Append exactly one `<article class="revision-entry">` per revision to the spec's `<section class="spec-card" id="revision-log">` (create the section before the closing `</main>` if it doesn't exist yet).
+- Heading format: `<h3>Rev N - YYYY-MM-DD</h3>` where `N` = highest existing Rev in the file + 1. Never renumber, rewrite, or delete earlier entries — the log is the audit trail.
+- Each entry carries three lines: `<strong>Change:</strong>` (what was done, concretely — include root causes for bug-fix rounds), `<strong>Reason:</strong>` (why — e.g. `User QA: …`, `Scope addition: …`, `Execution deviation: …`), and `<strong>Updated Done criteria:</strong>` (the new checklist expectations, or "none").
+- Tasks added by a revision are tagged `(Rev N)` in their titles, and the Done checklist gains matching items in the same edit.
+- Update the hero status pill/status card in the same edit whenever the work state changes; never create a new plan folder for a revision of an existing spec.
 
 ## Deployment Path
 
@@ -150,6 +160,15 @@ Required files in each weekly folder:
 - `index.html` - branded static Friyay page containing the feature inventory, documentation, release-state notes, internal/admin notes, and ship checklist.
 - `email.html` - branded customer-ready email HTML in plain language, focused on user value rather than implementation detail.
 - `styles.css` - shared Alloro-branded styling for the Friyay page and email preview.
+
+Status requirements:
+
+- Every `index.html` must show a package-level Friyay status in the first hero viewport.
+- Allowed package statuses are `Fresh`, `Drafting`, `Needs verification`, `Ready for review`, `Deployed`, and `Archived`.
+- `Fresh` means the weekly package is an empty shell ready for new inventory.
+- `Deployed` means the Friyay package itself has been pushed/deployed or intentionally archived as shipped inventory; it does not automatically mean every row is production-live.
+- Row-level feature states must remain precise: drafted, implemented locally, committed, pushed, deployed to dev, deployed to production, user-verified, needs classification, or needs verification.
+- When content is moved from one Friyay package to another, move the inventory into the destination package, update the destination status, and leave the source package as a `Fresh` shell so the same item is not counted twice.
 
 Optional files:
 
