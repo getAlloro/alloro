@@ -2,6 +2,26 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.122] - June 2026
+
+### Auth: OTP Login Codes Bypass Email Interception
+
+The email interceptor reroutes every non-production email to `dave@getalloro.com` (fail closed — see 0.0.116). That sent *every* user's OTP login code to Dave's inbox instead of their own, so no one but Dave could complete login on dev or local. OTP codes now bypass the interceptor and send live in every environment, while all other email still fails closed.
+
+**Key Changes:**
+
+- Added an opt-in `allowLiveSend?: boolean` to `SendEmailOptions`. When set, `sendEmail()` skips `interceptEmailPayload` and sends the built payload as-is; the flag is honored inside the exit function, alongside the existing interception logic.
+- The flag is set by exactly one caller — `createAndSendOtp`. Blast radius is OTP login codes only; password-reset, invitations, contact forms, and notifications stay intercepted on non-prod.
+- No env var and no `NODE_ENV` branch, preserving the interceptor's identity-not-config design.
+- Trade-off (ratified): dev, local, and CI can now send a real OTP to a real inbox. OTP recipients are self-selected (the address typed at login), and `isTestAccount` still short-circuits before any send. Recommended narrower "internal-domains-only on non-prod" scope was declined in favor of a full bypass.
+
+**Commits:**
+
+- `src/emails/types.ts` — `allowLiveSend?: boolean` on `SendEmailOptions`, scoped to OTP in its doc comment.
+- `src/emails/emailService.ts` — `sendEmail()` honors `allowLiveSend`, skipping the interceptor when set.
+- `src/controllers/auth-otp/feature-services/service.otp-generation.ts` — `createAndSendOtp` sets `allowLiveSend: true`.
+- `plans/06122026-otp-bypass-email-interception/` — spec + Level 3 risk notes.
+
 ## [0.0.121] - June 2026
 
 ### Website Cards: Dynamic Month-Range Label

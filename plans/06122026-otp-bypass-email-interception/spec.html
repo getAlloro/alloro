@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OTP Bypasses Email Interception Spec</title>
+  <link rel="stylesheet" href="./spec.css">
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-completed">Completed</span>
+      </div>
+      <h1>OTP Bypasses Email Interception</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06122026-otp-bypass-email-interception</dd></div>
+        <div><dt>Size</dt><dd>Small</dd></div>
+        <div><dt>Risk</dt><dd>Level 3 (user-ratified)</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The email interceptor reroutes <em>every</em> non-production email to
+      <code>dave@getalloro.com</code> (fail closed). That blocks the login flow for
+      anyone but Dave on dev/local: their OTP code lands in Dave's inbox, not theirs.
+      OTP codes must reach the person who requested them in every environment.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Add an opt-in <code>allowLiveSend</code> flag to <code>SendEmailOptions</code>.
+      When set, <code>sendEmail()</code> skips the interceptor and sends live regardless
+      of the box's identity. Only the OTP send path sets it. Done = an OTP requested on a
+      non-prod box arrives at the requester with no <code>[Intercepted]</code> prefix, and
+      every other email path still intercepts.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/emails/types.ts</code> - <code>SendEmailOptions</code> shape (the flag lives here)</li>
+        <li><code>src/emails/emailService.ts</code> - <code>sendEmail()</code>, exit #1; calls the interceptor at line 169</li>
+        <li><code>src/emails/emailInterceptor.ts</code> - the guard being bypassed (unchanged)</li>
+        <li><code>src/controllers/auth-otp/feature-services/service.otp-generation.ts</code> - <code>createAndSendOtp()</code>, the only setter</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Bypass is applied <strong>inside the exit function</strong> (matches how interception is applied), not at the call site.</li>
+        <li>Opt-in per-send: an optional boolean on the existing options object — backward compatible, no other caller affected.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/emails/emailInterceptor.ts</code> - the existing identity-based exit logic this rides alongside.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Default behavior unchanged when the flag is absent (interception still fail-closed).</li>
+            <li>Only <code>createAndSendOtp</code> sets the flag.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not touch <code>emailInterceptor.ts</code> internals.</li>
+            <li>Do not set the flag on password-reset, invites, contact, or any other path.</li>
+            <li>No new env var, no NODE_ENV branch (keeps the identity-not-config design intact).</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Password-reset and invitation emails (stay intercepted).</li>
+        <li>The two other email exits (<code>emailWebhookService</code>, <code>service.n8n-email-sender</code>) — unchanged.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 (Structural / security exposure) — accepted by user.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li>Inverts the fail-closed default on an auth-email path. Non-prod boxes (dev, localhost, CI)
+        can now send a real OTP to a real inbox. <strong>Mitigation:</strong> bypass is opt-in per-send and
+        set on exactly one call; blast radius is OTP only. OTP recipients are self-selected (the address
+        typed into the login form), so the normal flow only mails the requester.</li>
+        <li>CI hitting <code>POST /api/auth/otp/request</code> with a real address now sends live mail.
+        <strong>Mitigation:</strong> flagged to user; accepted. Follow-up if CI exercises this path: stub the
+        send or use test accounts (<code>isTestAccount</code> already short-circuits before send).</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>SendEmailOptions</code> is consumed by many templates and
+      <code>sendEmail()</code> callers; adding an optional field is backward compatible and none of them set it.
+      Only <code>createAndSendOtp</code> changes behavior.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Recommended the narrower "internal-domains-only on non-prod" scope (protects client addresses from
+        accidental dev/CI/local sends while still unblocking team dev-login). User chose full bypass with the
+        exposure in view; honored.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Add the opt-in flag to the options type</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>allowLiveSend?: boolean</code> to <code>SendEmailOptions</code> with a doc comment scoping it to OTP.</dd></div>
+          <div><dt>Files</dt><dd><code>src/emails/types.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc -p tsconfig.json --noEmit</code></dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Honor the flag in the exit function</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>sendEmail()</code>, when <code>options.allowLiveSend</code> is set, skip
+          <code>interceptEmailPayload</code> and use the built payload as-is (<code>intercepted: false</code>).</dd></div>
+          <div><dt>Files</dt><dd><code>src/emails/emailService.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Type-check; downstream <code>payload/intercepted/originalRecipients</code> still defined.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: Set the flag on the OTP send</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>allowLiveSend: true</code> to the <code>sendEmail</code> call in <code>createAndSendOtp</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/auth-otp/feature-services/service.otp-generation.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Manual: OTP on non-prod arrives without <code>[Intercepted]</code> prefix.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled checked> <code>npx tsc -p tsconfig.json --noEmit</code> — zero new errors</li>
+        <li><input type="checkbox" disabled checked> <code>createAndSendOtp</code> sets <code>allowLiveSend: true</code></li>
+        <li><input type="checkbox" disabled checked> <code>grep</code> confirms no other call site sets the flag</li>
+        <li><input type="checkbox" disabled checked> Manual: OTP on a non-prod box reaches the requester, no <code>[Intercepted]</code> prefix</li>
+        <li><input type="checkbox" disabled checked> Manual: a non-OTP email on the same box still intercepts to dave</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

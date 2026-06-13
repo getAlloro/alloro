@@ -165,9 +165,16 @@ export async function sendEmail(
   };
 
   // Non-production senders get every email rerouted to the intercept
-  // recipient (fail closed) — see emailInterceptor.ts.
-  const { payload, intercepted, originalRecipients } =
-    await interceptEmailPayload(builtPayload);
+  // recipient (fail closed) — see emailInterceptor.ts. OTP login codes
+  // opt out via allowLiveSend so the code always reaches the requester,
+  // even on dev/local/CI (user-ratified — see plan 06122026).
+  const { payload, intercepted, originalRecipients } = options.allowLiveSend
+    ? {
+        payload: builtPayload,
+        intercepted: false,
+        originalRecipients: builtPayload.recipients,
+      }
+    : await interceptEmailPayload(builtPayload);
 
   if (intercepted) {
     logEmail("INFO", "Email intercepted (non-production sender)", {
