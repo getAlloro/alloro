@@ -681,4 +681,167 @@ export class PageModel extends BaseModel {
       .whereNotNull("seo_data")
       .select("seo_data");
   }
+
+  // ===================================================================
+  // Generation-pipeline + admin-controller helpers
+  //
+  // Mirror the inline `db("website_builder.pages")` queries previously held in
+  // admin-websites/feature-services/service.generation-pipeline and
+  // AdminWebsitesController verbatim (same columns, filters, and `db.fn.now()`
+  // timestamp source). The generation pipeline reads/writes raw page rows
+  // (status/version/sections/generation_* columns directly), so the read
+  // methods return raw rows and the updates accept a computed fields bag.
+  // ===================================================================
+
+  /**
+   * Mark all queued/generating pages of a project as cancelled, clearing
+   * progress, stamping updated_at via the DB clock; returns the affected count.
+   * Mirrors the inline cancel update in
+   * service.generation-pipeline.cancelProjectGeneration verbatim.
+   */
+  static async cancelQueuedGeneratingByProjectId(
+    projectId: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where("project_id", projectId)
+      .whereIn("generation_status", ["queued", "generating"])
+      .update({
+        generation_status: "cancelled",
+        generation_progress: null,
+        updated_at: db.fn.now(),
+      });
+  }
+
+  /**
+   * Insert a page row verbatim (raw passthrough) and return only its new id.
+   * Mirrors the `.insert({...}).returning("id")` in
+   * AdminWebsitesController.startPipeline verbatim.
+   */
+  static async insertReturningId(
+    row: Record<string, unknown>,
+    trx?: QueryContext
+  ): Promise<{ id: string }> {
+    const [page] = await this.table(trx).insert(row).returning("id");
+    return page;
+  }
+
+  /**
+   * Bulk-insert page rows (raw passthrough), returning the requested column
+   * subset for each. Mirrors the `.insert([...]).returning([...])` in
+   * service.project-manager.createAllFromTemplate verbatim.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async insertManyReturning(
+    rows: Record<string, unknown>[],
+    returning: string[],
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return this.table(trx).insert(rows).returning(returning);
+  }
+
+  /**
+   * Conditionally advance a project's own pages? No — this is the page-table
+   * twin used by AdminWebsitesController.getAllSeoMeta: pages for a project that
+   * are published or draft, selecting id/path/status/version/seo_data. Mirrors
+   * that inline query verbatim (the caller dedups by path). Raw rows.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findSeoMetaByProjectId(
+    projectId: string,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return this.table(trx)
+      .where({ project_id: projectId })
+      .whereIn("status", ["published", "draft"])
+      .select("id", "path", "status", "version", "seo_data");
+  }
+
+  /**
+   * path projection for all pages of a project. Mirrors the unique-path count
+   * read in AdminWebsitesController.startBulkSeoGenerate verbatim (the caller
+   * builds a Set of paths).
+   */
+  static async findPathsByProjectId(
+    projectId: string,
+    trx?: QueryContext
+  ): Promise<{ path: string }[]> {
+    return this.table(trx).where({ project_id: projectId }).select("path");
+  }
+
+  /**
+   * All page rows for a project (full raw rows), ordered path asc then version
+   * desc. Mirrors the inline pages query in
+   * service.project-manager.getProjectById verbatim — distinct from
+   * findByProjectId (which orders by sort_order) and from the SEO/backup
+   * variants. The admin project detail view consumes the raw rows directly.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findByProjectOrderedPathVersion(
+    projectId: string,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return this.table(trx)
+      .where("project_id", projectId)
+      .orderBy("path", "asc")
+      .orderBy("version", "desc");
+  }
+
+  /**
+   * Per-page generation-status rows for a project, left-joined to template_pages
+   * to surface the template page name, filtered to rows with a non-null
+   * generation_status, ordered path asc. Mirrors the inline join query in
+   * service.project-manager.getPagesGenerationStatus verbatim (same column list,
+   * the `template_pages.name as template_page_name` raw alias, and the filter).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findGenerationStatusWithTemplateName(
+    projectId: string,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return this.table(trx)
+      .leftJoin(
+        "website_builder.template_pages",
+        `${this.tableName}.template_page_id`,
+        "website_builder.template_pages.id"
+      )
+      .select(
+        `${this.tableName}.id`,
+        `${this.tableName}.path`,
+        `${this.tableName}.status`,
+        `${this.tableName}.generation_status`,
+        `${this.tableName}.generation_progress`,
+        `${this.tableName}.updated_at`,
+        db.raw(`website_builder.template_pages.name as template_page_name`)
+      )
+      .where(`${this.tableName}.project_id`, projectId)
+      .whereNotNull(`${this.tableName}.generation_status`)
+      .orderBy(`${this.tableName}.path`, "asc");
+  }
+
+  /**
+   * Progressive-state projection for a single page scoped to its project:
+   * id/path/generation_status/generation_progress/sections/template_page_id.
+   * Mirrors the inline select in
+   * service.project-manager.getPageProgressiveState verbatim (raw row or
+   * undefined; the caller parses sections/progress itself).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findProgressiveStateByIdAndProject(
+    pageId: string,
+    projectId: string,
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .where({ id: pageId, project_id: projectId })
+      .select(
+        "id",
+        "path",
+        "generation_status",
+        "generation_progress",
+        "sections",
+        "template_page_id"
+      )
+      .first();
+  }
 }

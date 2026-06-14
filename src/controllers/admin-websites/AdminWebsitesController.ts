@@ -41,7 +41,6 @@ import * as identityWarmup from "./feature-services/service.identity-warmup";
 import * as slotPrefill from "./feature-services/service.slot-prefill";
 import { generateSlotValuesFromIdentity } from "./feature-services/service.slot-generator";
 import { detectBlock } from "./feature-utils/util.url-block-detector";
-import { db } from "../../database/connection";
 import { getWbQueue } from "../../workers/wb-queues";
 import type { PageGenerateJobData } from "../../workers/processors/websiteGeneration.processor";
 import type { IdentityWarmupJobData } from "../../workers/processors/identityWarmup.processor";
@@ -54,6 +53,11 @@ import {
 import { ProjectIdentityModel } from "../../models/website-builder/ProjectIdentityModel";
 import { ProjectReviewModel } from "../../models/website-builder/ProjectReviewModel";
 import { ReviewModel } from "../../models/website-builder/ReviewModel";
+import { PageModel } from "../../models/website-builder/PageModel";
+import { TemplatePageModel } from "../../models/website-builder/TemplatePageModel";
+import { PostModel } from "../../models/website-builder/PostModel";
+import { PostTypeModel } from "../../models/website-builder/PostTypeModel";
+import { AiCostEventModel } from "../../models/website-builder/AiCostEventModel";
 import { generatePresignedUrl } from "../../utils/core/s3";
 import { buildEmailBody } from "../websiteContact/websiteContact-services/emailBodyBuilder";
 import { resolveFormSubmissionEmailContext } from "../websiteContact/websiteContact-services/formSubmissionEmailContextService";
@@ -324,12 +328,9 @@ export async function createAllFromTemplate(
     // Clear any stale cancel flag from a previous generation run. Without
     // this, the worker's early `isCancelled` check will flip every new page
     // to `cancelled` the moment it starts.
-    await db("website_builder.projects")
-      .where("id", id)
-      .update({
-        generation_cancel_requested: false,
-        updated_at: db.fn.now(),
-      });
+    await ProjectModel.updateFieldsById(id, {
+      generation_cancel_requested: false,
+    });
 
     // Create all page rows as queued
     const createResult = await projectManager.createAllFromTemplate(id, {
@@ -582,22 +583,17 @@ export async function startPipeline(
     // Pre-create page row if not provided
     let pageId = existingPageId;
     if (!pageId) {
-      const [page] = await db("website_builder.pages")
-        .insert({
-          project_id: projectId,
-          path: pagePath || "/",
-          version: 1,
-          status: "draft",
-          generation_status: "queued",
-          template_page_id: templatePageId || null,
-        })
-        .returning("id");
+      const page = await PageModel.insertReturningId({
+        project_id: projectId,
+        path: pagePath || "/",
+        version: 1,
+        status: "draft",
+        generation_status: "queued",
+        template_page_id: templatePageId || null,
+      });
       pageId = page.id;
 
-      await db("website_builder.projects")
-        .where("id", projectId)
-        .where("status", "CREATED")
-        .update({ status: "IN_PROGRESS", updated_at: db.fn.now() });
+      await ProjectModel.advanceCreatedToInProgress(projectId);
     }
 
     const gradientParams = {
@@ -712,7 +708,6 @@ export async function startIdentityWarmup(
     // enqueueing the worker so F2's multi-location loop picks them up.
     const projectUpdates: Record<string, unknown> = {
       generation_cancel_requested: false,
-      updated_at: db.fn.now(),
     };
     if (fullIdList.length > 0) {
       projectUpdates.selected_place_ids = fullIdList;
@@ -724,7 +719,7 @@ export async function startIdentityWarmup(
       projectUpdates.primary_place_id = null;
       projectUpdates.selected_place_id = null;
     }
-    await db("website_builder.projects").where("id", id).update(projectUpdates);
+    await ProjectModel.updateFieldsById(id, projectUpdates);
 
     const jobData: IdentityWarmupJobData = {
       projectId: id,
@@ -1066,15 +1061,13 @@ export async function regeneratePageComponent(
     }
 
     // Reset cancel flag
-    await db("website_builder.projects").where("id", projectId).update({
+    await ProjectModel.updateFieldsById(projectId, {
       generation_cancel_requested: false,
-      updated_at: db.fn.now(),
     });
 
     // Mark page as generating so polling kicks in
-    await db("website_builder.pages").where("id", pageId).update({
+    await PageModel.updateFieldsById(pageId, {
       generation_status: "generating",
-      updated_at: db.fn.now(),
     });
 
     const pageQueue = getWbQueue("page-generate");
@@ -1117,16 +1110,14 @@ export async function startLayoutGeneration(
     const { slotValues } = req.body;
 
     // Reset cancel flag
-    await db("website_builder.projects").where("id", id).update({
+    await ProjectModel.updateFieldsById(id, {
       generation_cancel_requested: false,
-      updated_at: db.fn.now(),
     });
 
     // Set status immediately so polling reflects queued state
-    await db("website_builder.projects").where("id", id).update({
+    await ProjectModel.updateFieldsById(id, {
       layouts_generation_status: "queued",
       layouts_generation_progress: null,
-      updated_at: db.fn.now(),
     });
 
     const jobData: LayoutGenerateJobData = {
@@ -1159,18 +1150,7 @@ export async function getLayoutsStatus(
 ): Promise<Response> {
   try {
     const { id } = req.params;
-    const row = await db("website_builder.projects")
-      .where("id", id)
-      .select(
-        "layouts_generation_status",
-        "layouts_generation_progress",
-        "layouts_generated_at",
-        "layout_slot_values",
-        "wrapper",
-        "header",
-        "footer",
-      )
-      .first();
+    const row = await ProjectModel.findLayoutsStatusById(id);
 
     if (!row) {
       return res.status(404).json({ success: false, error: "NOT_FOUND" });
@@ -1201,10 +1181,7 @@ export async function getTemplatePageSlots(
 ): Promise<Response> {
   try {
     const { pageId } = req.params;
-    const row = await db("website_builder.template_pages")
-      .where("id", pageId)
-      .select("dynamic_slots")
-      .first();
+    const row = await TemplatePageModel.findDynamicSlotsById(pageId);
 
     if (!row) {
       return res.status(404).json({ success: false, error: "NOT_FOUND" });
@@ -1239,12 +1216,10 @@ export async function updateTemplatePageSlots(
       });
     }
 
-    const updated = await db("website_builder.template_pages")
-      .where("id", pageId)
-      .update({
-        dynamic_slots: JSON.stringify(slots),
-        updated_at: db.fn.now(),
-      });
+    const updated = await TemplatePageModel.updateDynamicSlotsById(
+      pageId,
+      JSON.stringify(slots),
+    );
 
     if (updated === 0) {
       return res.status(404).json({ success: false, error: "NOT_FOUND" });
@@ -2794,10 +2769,7 @@ export async function getRecipients(
 ): Promise<Response> {
   try {
     const { id } = req.params;
-    const project = await db("website_builder.projects")
-      .where("id", id)
-      .select("id", "recipients", "organization_id")
-      .first();
+    const project = await ProjectModel.findRecipientsContextById(id);
 
     if (!project) {
       return res.status(404).json({ success: false, error: "NOT_FOUND", message: "Project not found" });
@@ -2838,10 +2810,7 @@ export async function updateRecipients(
     const { id } = req.params;
     const { recipients } = req.body;
 
-    const project = await db("website_builder.projects")
-      .where("id", id)
-      .select("id", "organization_id")
-      .first();
+    const project = await ProjectModel.findOrganizationContextById(id);
 
     if (!project) {
       return res.status(404).json({ success: false, error: "NOT_FOUND", message: "Project not found" });
@@ -2856,9 +2825,7 @@ export async function updateRecipients(
       );
     } else {
       normalized = validateRecipientList(recipients);
-      await db("website_builder.projects")
-        .where("id", id)
-        .update({ recipients: JSON.stringify(normalized), updated_at: db.fn.now() });
+      await ProjectModel.updateRecipientsById(id, JSON.stringify(normalized));
     }
 
     return res.json({ success: true, data: { recipients: normalized } });
@@ -3929,18 +3896,15 @@ export async function startBulkSeoGenerate(req: Request, res: Response): Promise
       if (selectedPaths) {
         totalCount = selectedPaths.length;
       } else {
-        const pages = await db("website_builder.pages")
-          .where({ project_id: projectId })
-          .select("path");
+        const pages = await PageModel.findPathsByProjectId(projectId);
         const uniquePaths = new Set(pages.map((p: any) => p.path));
         totalCount = uniquePaths.size;
       }
     } else {
-      const countResult = await db("website_builder.posts")
-        .where({ project_id: projectId, post_type_id })
-        .count("* as count")
-        .first();
-      totalCount = parseInt(countResult?.count as string, 10) || 0;
+      totalCount = await PostModel.countByProjectAndType(
+        projectId,
+        post_type_id,
+      );
     }
 
     if (totalCount === 0) {
@@ -4046,10 +4010,7 @@ export async function getBulkSeoStatus(req: Request, res: Response): Promise<Res
 export async function getAllSeoMeta(req: Request, res: Response): Promise<Response> {
   try {
     const projectId = req.params.id;
-    const pages = await db("website_builder.pages")
-      .where({ project_id: projectId })
-      .whereIn("status", ["published", "draft"])
-      .select("id", "path", "status", "version", "seo_data");
+    const pages = await PageModel.findSeoMetaByProjectId(projectId);
 
     // Deduplicate by path: prefer published, then highest version draft.
     // Uniqueness checks are across different page paths, not across versions.
@@ -4065,9 +4026,7 @@ export async function getAllSeoMeta(req: Request, res: Response): Promise<Respon
       }
     }
 
-    const posts = await db("website_builder.posts")
-      .where({ project_id: projectId })
-      .select("id", "title", "slug", "seo_data");
+    const posts = await PostModel.findSeoMetaByProjectId(projectId);
 
     const meta = {
       pages: Array.from(pagesByPath.values()).map((p: any) => ({
@@ -4166,10 +4125,7 @@ export async function triggerReviewSync(req: Request, res: Response): Promise<Re
   try {
     const { id } = req.params;
 
-    const project = await db("website_builder.projects")
-      .where("id", id)
-      .select("organization_id")
-      .first();
+    const project = await ProjectModel.findOrganizationIdById(id);
 
     if (!project) {
       return res.status(404).json({ success: false, error: "NOT_FOUND", message: "Project not found" });
@@ -4383,7 +4339,7 @@ export async function aiGeneratePost(req: Request, res: Response): Promise<Respo
     }
 
     // Get post type info
-    const postType = await db("website_builder.post_types").where("id", post_type_id).first();
+    const postType = await PostTypeModel.findRawById(post_type_id);
     const typeName = postType?.name || "post";
 
     // Generate content via dedicated post content prompt
@@ -4700,35 +4656,17 @@ export async function getProjectCosts(
     const { projectId } = req.params;
 
     // Confirm project exists so a typo returns 404 instead of an empty list.
-    const project = await db("website_builder.projects")
-      .where("id", projectId)
-      .select("id")
-      .first();
+    const project = await ProjectModel.findIdOnlyById(projectId);
     if (!project) {
       return res
         .status(404)
         .json({ success: false, error: "NOT_FOUND", message: "Project not found" });
     }
 
-    const events = await db("website_builder.ai_cost_events")
-      .where("project_id", projectId)
-      .orderBy("created_at", "desc")
-      .limit(100);
+    const events = await AiCostEventModel.findRecentByProjectId(projectId, 100);
 
     // Totals — sum across the per-project history (not just the visible page).
-    const totalsRow = await db("website_builder.ai_cost_events")
-      .where("project_id", projectId)
-      .select(
-        db.raw("COALESCE(SUM(estimated_cost_usd), 0)::float AS total_cost_usd"),
-        db.raw("COALESCE(SUM(input_tokens), 0)::int AS total_input"),
-        db.raw("COALESCE(SUM(output_tokens), 0)::int AS total_output"),
-        db.raw(
-          "COALESCE(SUM(cache_creation_tokens), 0)::int AS total_cache_creation",
-        ),
-        db.raw("COALESCE(SUM(cache_read_tokens), 0)::int AS total_cache_read"),
-        db.raw("COUNT(*)::int AS total_events"),
-      )
-      .first();
+    const totalsRow = await AiCostEventModel.getTotalsByProjectId(projectId);
 
     const shapedEvents = events.map((e: any) => ({
       id: e.id,
@@ -4810,9 +4748,7 @@ export async function startPostImport(
         message: "entries must be a non-empty array",
       });
     }
-    const project = await db("website_builder.projects")
-      .where("id", projectId)
-      .first();
+    const project = await ProjectModel.findRawById(projectId);
     if (!project) {
       return res.status(404).json({
         success: false,
@@ -5009,16 +4945,13 @@ export async function addProjectLocation(
       });
     }
 
-    const project = await db("website_builder.projects")
-      .where("id", id)
-      .select(
-        "id",
-        "project_identity",
-        "selected_place_ids",
-        "selected_place_id",
-        "primary_place_id",
-      )
-      .first();
+    const project = await ProjectModel.findLocationSelectionById(id, [
+      "id",
+      "project_identity",
+      "selected_place_ids",
+      "selected_place_id",
+      "primary_place_id",
+    ]);
 
     if (!project) {
       return res.status(404).json({ success: false, error: "NOT_FOUND" });
@@ -5100,12 +5033,13 @@ export async function addProjectLocation(
 
     const updatedSelectedIds = [...existingIds, placeId];
 
-    await db.transaction(async (trx) => {
+    await ProjectModel.transaction(async (trx) => {
       await ProjectIdentityModel.updateByProjectId(id, identity, {}, trx);
-      await trx("website_builder.projects").where("id", id).update({
-        selected_place_ids: updatedSelectedIds,
-        updated_at: db.fn.now(),
-      });
+      await ProjectModel.updatePlaceSelectionById(
+        id,
+        { selected_place_ids: updatedSelectedIds },
+        trx,
+      );
     });
 
     return res.json({
@@ -5142,10 +5076,12 @@ export async function setPrimaryLocation(
       });
     }
 
-    const project = await db("website_builder.projects")
-      .where("id", id)
-      .select("id", "project_identity", "selected_place_ids", "primary_place_id")
-      .first();
+    const project = await ProjectModel.findLocationSelectionById(id, [
+      "id",
+      "project_identity",
+      "selected_place_ids",
+      "primary_place_id",
+    ]);
 
     if (!project) {
       return res.status(404).json({ success: false, error: "NOT_FOUND" });
@@ -5207,15 +5143,18 @@ export async function setPrimaryLocation(
     identity.business = rewrittenBusiness;
     identity.last_updated_at = new Date().toISOString();
 
-    await db.transaction(async (trx) => {
+    await ProjectModel.transaction(async (trx) => {
       await ProjectIdentityModel.updateByProjectId(id, identity, {}, trx);
-      await trx("website_builder.projects").where("id", id).update({
-        primary_place_id: placeId,
-        // Keep the legacy convenience pointer in sync (back-compat with consumers
-        // that still read `selected_place_id`).
-        selected_place_id: placeId,
-        updated_at: db.fn.now(),
-      });
+      await ProjectModel.updatePlaceSelectionById(
+        id,
+        {
+          primary_place_id: placeId,
+          // Keep the legacy convenience pointer in sync (back-compat with consumers
+          // that still read `selected_place_id`).
+          selected_place_id: placeId,
+        },
+        trx,
+      );
     });
 
     return res.json({
@@ -5252,16 +5191,13 @@ export async function removeProjectLocation(
       });
     }
 
-    const project = await db("website_builder.projects")
-      .where("id", id)
-      .select(
-        "id",
-        "project_identity",
-        "selected_place_ids",
-        "selected_place_id",
-        "primary_place_id",
-      )
-      .first();
+    const project = await ProjectModel.findLocationSelectionById(id, [
+      "id",
+      "project_identity",
+      "selected_place_ids",
+      "selected_place_id",
+      "primary_place_id",
+    ]);
 
     if (!project) {
       return res.status(404).json({ success: false, error: "NOT_FOUND" });
@@ -5291,12 +5227,13 @@ export async function removeProjectLocation(
     identity.locations = updatedLocations;
     identity.last_updated_at = new Date().toISOString();
 
-    await db.transaction(async (trx) => {
+    await ProjectModel.transaction(async (trx) => {
       await ProjectIdentityModel.updateByProjectId(id, identity, {}, trx);
-      await trx("website_builder.projects").where("id", id).update({
-        selected_place_ids: updatedSelectedIds,
-        updated_at: db.fn.now(),
-      });
+      await ProjectModel.updatePlaceSelectionById(
+        id,
+        { selected_place_ids: updatedSelectedIds },
+        trx,
+      );
     });
 
     return res.json({
@@ -5332,10 +5269,12 @@ export async function resyncProjectLocation(
       });
     }
 
-    const project = await db("website_builder.projects")
-      .where("id", id)
-      .select("id", "project_identity", "selected_place_ids", "primary_place_id")
-      .first();
+    const project = await ProjectModel.findLocationSelectionById(id, [
+      "id",
+      "project_identity",
+      "selected_place_ids",
+      "primary_place_id",
+    ]);
 
     if (!project) {
       return res.status(404).json({ success: false, error: "NOT_FOUND" });

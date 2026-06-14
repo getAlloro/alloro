@@ -43,4 +43,14 @@ export class PostTypeModel extends BaseModel {
   ): Promise<any> {
     return this.table(trx).where({ template_id: templateId, slug }).first();
   }
+
+  /**
+   * Fetch a single post type by id (full raw row). Mirrors the inline
+   * db("website_builder.post_types").where("id").first() in
+   * AdminWebsitesController.aiGeneratePost verbatim (the caller reads `.name`).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findRawById(id: string, trx?: QueryContext): Promise<any> {
+    return this.table(trx).where("id", id).first();
+  }
 }

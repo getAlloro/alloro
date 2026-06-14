@@ -446,4 +446,40 @@ export class PostModel extends BaseModel {
       postIds
     );
   }
+
+  // ===================================================================
+  // Admin controller helpers (AdminWebsitesController)
+  // ===================================================================
+
+  /**
+   * Count posts for a project + post type. Mirrors the inline
+   * db("website_builder.posts").where({project_id,post_type_id}).count() in
+   * AdminWebsitesController.startBulkSeoGenerate verbatim.
+   */
+  static async countByProjectAndType(
+    projectId: string,
+    postTypeId: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    const row = await this.table(trx)
+      .where({ project_id: projectId, post_type_id: postTypeId })
+      .count("* as count")
+      .first();
+    return parseInt(row?.count as string, 10) || 0;
+  }
+
+  /**
+   * SEO-meta projection (id/title/slug/seo_data) for all posts of a project.
+   * Mirrors the posts query in AdminWebsitesController.getAllSeoMeta verbatim.
+   * Raw rows.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findSeoMetaByProjectId(
+    projectId: string,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return this.table(trx)
+      .where({ project_id: projectId })
+      .select("id", "title", "slug", "seo_data");
+  }
 }

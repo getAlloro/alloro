@@ -10,7 +10,6 @@
  * All scraping reuses existing services (no HTTP round-trips to own endpoints).
  */
 
-import { db } from "../../../database/connection";
 import {
   runWithTools,
   type ToolSchema,
@@ -34,16 +33,15 @@ import {
 } from "../feature-utils/util.identity-context";
 import { hasUsableIdentityForPageGeneration } from "../feature-utils/util.project-identity";
 import { ProjectIdentityModel } from "../../../models/website-builder/ProjectIdentityModel";
+import { ProjectModel } from "../../../models/website-builder/ProjectModel";
+import { PageModel } from "../../../models/website-builder/PageModel";
+import { TemplateModel } from "../../../models/website-builder/TemplateModel";
+import { TemplatePageModel } from "../../../models/website-builder/TemplatePageModel";
 import logger from "../../../lib/logger";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-const PROJECTS_TABLE = "website_builder.projects";
-const PAGES_TABLE = "website_builder.pages";
-const TEMPLATES_TABLE = "website_builder.templates";
-const TEMPLATE_PAGES_TABLE = "website_builder.template_pages";
 
 const LOG_PREFIX = "[GenPipeline]";
 function log(msg: string, data?: Record<string, unknown>): void {
@@ -107,10 +105,9 @@ export async function scrapeAndCacheProject(
     log("GBP scrape failed, continuing without", { error: err.message });
   }
 
-  await db(PROJECTS_TABLE).where("id", projectId).update({
+  await ProjectModel.updateFieldsById(projectId, {
     step_gbp_scrape: gbpData ? JSON.stringify(gbpData) : null,
     status: "GBP_SCRAPED",
-    updated_at: db.fn.now(),
   });
 
   checkCancel(signal);
@@ -134,12 +131,11 @@ export async function scrapeAndCacheProject(
     }
   }
 
-  await db(PROJECTS_TABLE).where("id", projectId).update({
+  await ProjectModel.updateFieldsById(projectId, {
     step_website_scrape: websiteScrapeData
       ? JSON.stringify(websiteScrapeData)
       : null,
     status: "WEBSITE_SCRAPED",
-    updated_at: db.fn.now(),
   });
 
   checkCancel(signal);
@@ -154,10 +150,9 @@ export async function scrapeAndCacheProject(
     imageAnalysis = await processImagesShared(projectId, imageUrls, signal);
   }
 
-  await db(PROJECTS_TABLE).where("id", projectId).update({
+  await ProjectModel.updateFieldsById(projectId, {
     step_image_analysis: JSON.stringify({ images: imageAnalysis }),
     status: "IMAGES_ANALYZED",
-    updated_at: db.fn.now(),
   });
 
   log("Project scrape complete", {
@@ -195,15 +190,14 @@ export async function generatePageComponents(
   },
   signal?: AbortSignal,
 ): Promise<void> {
-  await db(PAGES_TABLE).where("id", pageId).update({
+  await PageModel.updateFieldsById(pageId, {
     generation_status: "generating",
-    updated_at: db.fn.now(),
   });
 
-  const project = await db(PROJECTS_TABLE).where("id", projectId).first();
+  const project = await ProjectModel.findRawById(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
 
-  const page = await db(PAGES_TABLE).where("id", pageId).first();
+  const page = await PageModel.findRawById(pageId);
   if (!page) throw new Error(`Page ${pageId} not found`);
 
   // Gate: refuse if layouts haven't been generated yet
@@ -225,10 +219,10 @@ export async function generatePageComponents(
   }
 
   const template = project.template_id
-    ? await db(TEMPLATES_TABLE).where("id", project.template_id).first()
+    ? await TemplateModel.findRawById(project.template_id)
     : null;
   const templatePage = page.template_page_id
-    ? await db(TEMPLATE_PAGES_TABLE).where("id", page.template_page_id).first()
+    ? await TemplatePageModel.findRawById(page.template_page_id)
     : null;
 
   if (!template) {
@@ -256,26 +250,22 @@ export async function generatePageComponents(
 
   if (totalComponents === 0) {
     log("No components to generate", { pageId, single: generateParams.singleComponent });
-    await db(PAGES_TABLE).where("id", pageId).update({
+    await PageModel.updateFieldsById(pageId, {
       generation_status: "ready",
       generation_progress: null,
-      updated_at: db.fn.now(),
     });
     return;
   }
 
   log("Generating components", { pageId, total: totalComponents });
 
-  await db(PAGES_TABLE)
-    .where("id", pageId)
-    .update({
-      generation_progress: JSON.stringify({
-        total: totalComponents,
-        completed: 0,
-        current_component: components[0]?.name || "unknown",
-      }),
-      updated_at: db.fn.now(),
-    });
+  await PageModel.updateFieldsById(pageId, {
+    generation_progress: JSON.stringify({
+      total: totalComponents,
+      completed: 0,
+      current_component: components[0]?.name || "unknown",
+    }),
+  });
 
   const generatorPrompt = loadPrompt("websiteAgents/builder/ComponentGenerator");
   const criticPrompt = loadPrompt("websiteAgents/builder/ComponentCritic");
@@ -298,16 +288,13 @@ export async function generatePageComponents(
     const component = components[i];
     log(`Generating: ${component.name} (${i + 1}/${totalComponents})`, { pageId });
 
-    await db(PAGES_TABLE)
-      .where("id", pageId)
-      .update({
-        generation_progress: JSON.stringify({
-          total: totalComponents,
-          completed: i,
-          current_component: component.name,
-        }),
-        updated_at: db.fn.now(),
-      });
+    await PageModel.updateFieldsById(pageId, {
+      generation_progress: JSON.stringify({
+        total: totalComponents,
+        completed: i,
+        current_component: component.name,
+      }),
+    });
 
     const ctx = buildComponentContext(
       identity,
@@ -430,18 +417,15 @@ export async function generatePageComponents(
       generatedSections.push({ name: component.name, content: html });
     }
 
-    await db(PAGES_TABLE)
-      .where("id", pageId)
-      .update({
-        sections: JSON.stringify({ sections: generatedSections }),
-        generation_progress: JSON.stringify({
-          total: totalComponents,
-          completed: i + 1,
-          current_component:
-            i + 1 < totalComponents ? components[i + 1].name : "done",
-        }),
-        updated_at: db.fn.now(),
-      });
+    await PageModel.updateFieldsById(pageId, {
+      sections: JSON.stringify({ sections: generatedSections }),
+      generation_progress: JSON.stringify({
+        total: totalComponents,
+        completed: i + 1,
+        current_component:
+          i + 1 < totalComponents ? components[i + 1].name : "done",
+      }),
+    });
   }
 
   // Whole-page critic — one LLM pass over the concatenated HTML, checking
@@ -474,18 +458,16 @@ export async function generatePageComponents(
     log("Whole-page critique threw", { error: err.message, pageId });
   }
 
-  await db(PAGES_TABLE).where("id", pageId).update({
+  await PageModel.updateFieldsById(pageId, {
     generation_status: "ready",
     generation_progress: null,
     status: "published",
-    updated_at: db.fn.now(),
   });
 
   const isHomepage = page.path === "/";
   if (isHomepage) {
-    await db(PROJECTS_TABLE).where("id", projectId).update({
+    await ProjectModel.updateFieldsById(projectId, {
       status: "LIVE",
-      updated_at: db.fn.now(),
     });
   }
 
@@ -806,19 +788,11 @@ export async function cancelProjectGeneration(
 ): Promise<{ cancelledPages: number }> {
   log("Cancelling generation", { projectId });
 
-  await db(PROJECTS_TABLE).where("id", projectId).update({
+  await ProjectModel.updateFieldsById(projectId, {
     generation_cancel_requested: true,
-    updated_at: db.fn.now(),
   });
 
-  const updated = await db(PAGES_TABLE)
-    .where("project_id", projectId)
-    .whereIn("generation_status", ["queued", "generating"])
-    .update({
-      generation_status: "cancelled",
-      generation_progress: null,
-      updated_at: db.fn.now(),
-    });
+  const updated = await PageModel.cancelQueuedGeneratingByProjectId(projectId);
 
   return { cancelledPages: updated };
 }
@@ -827,10 +801,7 @@ export async function cancelProjectGeneration(
  * Check if cancellation was requested. Resets flag after reading.
  */
 export async function isCancelled(projectId: string): Promise<boolean> {
-  const project = await db(PROJECTS_TABLE)
-    .where("id", projectId)
-    .select("generation_cancel_requested")
-    .first();
+  const project = await ProjectModel.findCancelRequestedById(projectId);
   return project?.generation_cancel_requested === true;
 }
 
@@ -838,9 +809,8 @@ export async function isCancelled(projectId: string): Promise<boolean> {
  * Reset the cancel flag (called at the start of a new generation run).
  */
 export async function resetCancelFlag(projectId: string): Promise<void> {
-  await db(PROJECTS_TABLE).where("id", projectId).update({
+  await ProjectModel.updateFieldsById(projectId, {
     generation_cancel_requested: false,
-    updated_at: db.fn.now(),
   });
 }
 
@@ -856,10 +826,9 @@ function checkCancel(signal?: AbortSignal): void {
 
 async function markPageFailed(pageId: string, reason: string): Promise<void> {
   log(`Page failed: ${reason}`, { pageId });
-  await db(PAGES_TABLE).where("id", pageId).update({
+  await PageModel.updateFieldsById(pageId, {
     generation_status: "failed",
     generation_progress: null,
-    updated_at: db.fn.now(),
   });
 }
 
