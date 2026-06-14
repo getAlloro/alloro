@@ -13,7 +13,7 @@
 
 import rateLimit from "express-rate-limit";
 import type { Request, Response, NextFunction } from "express";
-import { db } from "../database/connection";
+import { BehavioralEventModel } from "../models/BehavioralEventModel";
 import logger from "../lib/logger";
 
 const RATE_LIMIT_MESSAGE = {
@@ -175,17 +175,15 @@ export function scraperDetection(req: Request, _res: Response, next: NextFunctio
 
   if (entry.count === 5) {
     // Log scraper detection — fire and forget
-    db("behavioral_events")
-      .insert({
-        event_type: "security.rate_limit_hit",
-        properties: JSON.stringify({
-          ip,
-          place_id: placeId,
-          count: entry.count,
-          window_seconds: Math.round((now - entry.firstSeen) / 1000),
-        }),
-      })
-      .catch(() => {});
+    BehavioralEventModel.insertRateLimitHit({
+      eventType: "security.rate_limit_hit",
+      properties: JSON.stringify({
+        ip,
+        place_id: placeId,
+        count: entry.count,
+        window_seconds: Math.round((now - entry.firstSeen) / 1000),
+      }),
+    }).catch(() => {});
 
     logger.warn(`[RateLimit] Scraper detected: IP ${ip} queried place ${placeId} ${entry.count}x in ${Math.round((now - entry.firstSeen) / 1000)}s`);
   }

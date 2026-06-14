@@ -32,6 +32,24 @@ export class BehavioralEventModel {
     return row;
   }
 
+  /**
+   * Insert a security rate-limit-hit event with a pre-stringified `properties`
+   * payload. Mirrors the fire-and-forget insert in
+   * middleware/publicRateLimiter.scraperDetection verbatim: a bare
+   * (event_type, properties) insert with NO org_id/session_id and — critically
+   * — NONE of the create() side-effects (no updateEngagementScoreAsync). The
+   * caller attaches its own .catch().
+   */
+  static async insertRateLimitHit(data: {
+    eventType: string;
+    properties: string;
+  }): Promise<void> {
+    await db("behavioral_events").insert({
+      event_type: data.eventType,
+      properties: data.properties,
+    });
+  }
+
   static async findByType(
     eventType: string,
     limit = 100

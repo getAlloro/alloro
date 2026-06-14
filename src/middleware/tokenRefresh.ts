@@ -1,5 +1,5 @@
 import { Response, NextFunction } from "express";
-import { db } from "../database/connection";
+import { GoogleConnectionModel } from "../models/GoogleConnectionModel";
 import { createOAuth2ClientForConnection } from "../auth/oauth2Helper";
 import { OAuth2Client } from "google-auth-library";
 import { RBACRequest } from "./rbac";
@@ -48,9 +48,8 @@ export const tokenRefreshMiddleware = async (
     }
 
     // Fetch Google connection for this organization
-    const googleConnection = await db("google_connections")
-      .where({ organization_id: organizationId })
-      .first();
+    const googleConnection =
+      await GoogleConnectionModel.findFirstByOrganization(organizationId);
 
     if (!googleConnection) {
       return res.status(404).json({
@@ -89,10 +88,9 @@ export const tokenRefreshMiddleware = async (
           ? new Date(credentials.expiry_date)
           : new Date(Date.now() + 3600000);
 
-        await db("google_connections").where({ id: connectionId }).update({
+        await GoogleConnectionModel.updateTokens(connectionId, {
           access_token: credentials.access_token,
           expiry_date: newExpiry,
-          updated_at: new Date(),
         });
 
         logger.info(

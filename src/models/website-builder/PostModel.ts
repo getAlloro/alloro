@@ -231,4 +231,89 @@ export class PostModel extends BaseModel {
         updated_at: db.fn.now(),
       });
   }
+
+  /**
+   * Set seo_data (pre-stringified) on a single post by id, bumping updated_at
+   * via the JS clock. Mirrors the inline update in
+   * workers/processors/seoBulkGenerate for the post branch verbatim. Distinct
+   * from updateSeoDataRaw, which sets updated_at via the DB clock (db.fn.now())
+   * — preserved separately so neither caller's timestamp source changes.
+   */
+  static async updateSeoDataByIdJsClock(
+    postId: string,
+    seoDataValue: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return (trx || db)("website_builder.posts")
+      .where({ id: postId })
+      .update({
+        seo_data: seoDataValue,
+        updated_at: new Date(),
+      });
+  }
+
+  /**
+   * Posts for a project + post type, ordered sort_order asc then created_at
+   * desc, returned as raw rows. Mirrors the inline entity fetch in
+   * workers/processors/seoBulkGenerate.getPostEntities verbatim.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findByProjectAndTypeForSeo(
+    projectId: string,
+    postTypeId: string,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return (trx || db)("website_builder.posts")
+      .where({ project_id: projectId, post_type_id: postTypeId })
+      .orderBy("sort_order", "asc")
+      .orderBy("created_at", "desc");
+  }
+
+  /**
+   * seo_data values for all posts of a project that have non-null seo_data.
+   * Mirrors the posts half of the inline meta gather in
+   * workers/processors/seoBulkGenerate.getAllSeoMeta verbatim.
+   */
+  static async findSeoDataByProjectId(
+    projectId: string,
+    trx?: QueryContext
+  ): Promise<Array<{ seo_data: unknown }>> {
+    return (trx || db)("website_builder.posts")
+      .where({ project_id: projectId })
+      .whereNotNull("seo_data")
+      .select("seo_data");
+  }
+
+  /**
+   * All post_category_assignments rows for a set of post ids, as raw rows.
+   * Mirrors the inline backup export in workers/processors/websiteBackup
+   * verbatim (the posts domain owns the assignment join tables — see
+   * findCategoryNamesByPostIds). Caller guards the empty-id case.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findCategoryAssignmentsByPostIds(
+    postIds: string[],
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return (trx || db)("website_builder.post_category_assignments").whereIn(
+      "post_id",
+      postIds
+    );
+  }
+
+  /**
+   * All post_tag_assignments rows for a set of post ids, as raw rows. Mirrors
+   * the inline backup export in workers/processors/websiteBackup verbatim.
+   * Caller guards the empty-id case.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findTagAssignmentsByPostIds(
+    postIds: string[],
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return (trx || db)("website_builder.post_tag_assignments").whereIn(
+      "post_id",
+      postIds
+    );
+  }
 }

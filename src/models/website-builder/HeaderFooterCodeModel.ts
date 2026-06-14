@@ -114,4 +114,21 @@ export class HeaderFooterCodeModel extends BaseModel {
   ): Promise<number> {
     return super.updateById(id, { is_enabled: isEnabled }, trx);
   }
+
+  /**
+   * All header/footer code rows for a project, ordered created_at asc, as raw
+   * rows. Mirrors the inline export query in workers/processors/websiteBackup
+   * verbatim. Distinct from findByProjectId, which orders by
+   * location/order_index — the backup query orders by created_at, so it gets
+   * its own method to keep the serialized output identical.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findAllByProjectIdForBackup(
+    projectId: string,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return this.table(trx)
+      .where({ project_id: projectId })
+      .orderBy("created_at", "asc");
+  }
 }

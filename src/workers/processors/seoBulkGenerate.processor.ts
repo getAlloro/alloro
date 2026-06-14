@@ -7,13 +7,11 @@
  */
 
 import { Job } from "bullmq";
-import { db } from "../../database/connection";
 import { SeoGenerationJobModel } from "../../models/website-builder/SeoGenerationJobModel";
+import { ProjectModel } from "../../models/website-builder/ProjectModel";
+import { PageModel } from "../../models/website-builder/PageModel";
+import { PostModel } from "../../models/website-builder/PostModel";
 import logger from "../../lib/logger";
-
-const PAGES_TABLE = "website_builder.pages";
-const POSTS_TABLE = "website_builder.posts";
-const PROJECTS_TABLE = "website_builder.projects";
 
 export interface SeoBulkGenerateData {
   jobRecordId: string;
@@ -48,8 +46,12 @@ export async function processSeoBulkGenerate(job: Job<SeoBulkGenerateData>): Pro
   // Gather all existing SEO titles/descriptions for uniqueness
   const allMeta = await getAllSeoMeta(projectId);
 
-  // Get project for wrapper/header/footer
-  const project = await db(PROJECTS_TABLE).where({ id: projectId }).first();
+  // Get project for wrapper/header/footer. findById returns the full row; the
+  // wrapper/header/footer columns are not on IProject, so read them via a
+  // narrow cast (mirrors the original untyped db(...).first() access).
+  const project = (await ProjectModel.findById(projectId)) as
+    | { wrapper?: string; header?: string; footer?: string }
+    | undefined;
   const wrapperHtml = project?.wrapper || "";
   const headerHtml = project?.header || "";
   const footerHtml = project?.footer || "";
@@ -108,19 +110,21 @@ export async function processSeoBulkGenerate(job: Job<SeoBulkGenerateData>): Pro
       if (mergedSeoData.meta_description) batchDescriptions.push(mergedSeoData.meta_description as string);
 
       // Save seo_data to DB
-      const table = entityType === "page" ? PAGES_TABLE : POSTS_TABLE;
-      await db(table).where({ id: entity.id }).update({
-        seo_data: JSON.stringify(mergedSeoData),
-        updated_at: new Date(),
-      });
+      const seoDataJson = JSON.stringify(mergedSeoData);
+      if (entityType === "page") {
+        await PageModel.updateSeoDataById(entity.id, seoDataJson);
+      } else {
+        await PostModel.updateSeoDataByIdJsClock(entity.id, seoDataJson);
+      }
 
       // For pages, propagate seo_data to all sibling versions with null seo_data
       if (entityType === "page" && entity.path) {
-        const propagated = await db(PAGES_TABLE)
-          .where({ project_id: projectId, path: entity.path })
-          .whereNull("seo_data")
-          .whereNot("id", entity.id)
-          .update({ seo_data: JSON.stringify(mergedSeoData) });
+        const propagated = await PageModel.propagateSeoDataToSiblings({
+          projectId,
+          path: entity.path,
+          excludePageId: entity.id,
+          seoDataValue: seoDataJson,
+        });
         if (propagated > 0) {
           logger.info(`[SEO-BULK]     Propagated seo_data to ${propagated} sibling version(s)`);
         }
@@ -162,17 +166,11 @@ export async function processSeoBulkGenerate(job: Job<SeoBulkGenerateData>): Pro
 
 async function getPageEntities(projectId: string, pagePaths?: string[]) {
   // Get pages — filtered by paths if specified, otherwise all
-  let pagesQuery = db(PAGES_TABLE)
-    .where({ project_id: projectId })
-    .orderBy("path", "asc")
-    .orderBy("version", "desc");
-
   if (pagePaths && pagePaths.length > 0) {
-    pagesQuery = pagesQuery.whereIn("path", pagePaths);
     logger.info(`[SEO-BULK]   Filtering to ${pagePaths.length} selected paths`);
   }
 
-  const pages = await pagesQuery;
+  const pages = await PageModel.findByProjectIdForSeo(projectId, pagePaths);
 
   // Group by path: prefer published, fallback to draft, then highest version
   const grouped = new Map<string, any[]>();
@@ -212,10 +210,7 @@ async function getPageEntities(projectId: string, pagePaths?: string[]) {
 }
 
 async function getPostEntities(projectId: string, postTypeId: string) {
-  const posts = await db(POSTS_TABLE)
-    .where({ project_id: projectId, post_type_id: postTypeId })
-    .orderBy("sort_order", "asc")
-    .orderBy("created_at", "desc");
+  const posts = await PostModel.findByProjectAndTypeForSeo(projectId, postTypeId);
 
   return posts.map((post: any) => ({
     id: post.id,
@@ -229,15 +224,8 @@ async function getAllSeoMeta(projectId: string): Promise<{ titles: string[]; des
   const titles: string[] = [];
   const descriptions: string[] = [];
 
-  const pages = await db(PAGES_TABLE)
-    .where({ project_id: projectId })
-    .whereNotNull("seo_data")
-    .select("seo_data");
-
-  const posts = await db(POSTS_TABLE)
-    .where({ project_id: projectId })
-    .whereNotNull("seo_data")
-    .select("seo_data");
+  const pages = await PageModel.findSeoDataByProjectId(projectId);
+  const posts = await PostModel.findSeoDataByProjectId(projectId);
 
   for (const row of [...pages, ...posts]) {
     const data = typeof row.seo_data === "string" ? JSON.parse(row.seo_data) : row.seo_data;

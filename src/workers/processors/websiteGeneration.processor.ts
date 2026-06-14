@@ -20,10 +20,9 @@ import {
   type GenerateParams,
 } from "../../controllers/admin-websites/feature-services/service.generation-pipeline";
 import { getWbQueue } from "../wb-queues";
-import { db } from "../../database/connection";
+import { PageModel } from "../../models/website-builder/PageModel";
 import logger from "../../lib/logger";
 
-const PAGES_TABLE = "website_builder.pages";
 const LOG_PREFIX = "[WB-GEN]";
 
 // ---------------------------------------------------------------------------
@@ -175,14 +174,7 @@ export async function processProjectScrape(
     log(`Project scrape failed: ${err.message}`);
 
     // Mark all queued pages as failed
-    await db(PAGES_TABLE)
-      .where("project_id", projectId)
-      .whereIn("generation_status", ["queued", "generating"])
-      .update({
-        generation_status: "failed",
-        generation_progress: null,
-        updated_at: db.fn.now(),
-      });
+    await PageModel.markQueuedGeneratingAsFailed(projectId);
 
     throw err;
   }
@@ -204,11 +196,7 @@ export async function processPageGenerate(
   // Check if cancelled
   if (await isCancelled(projectId)) {
     log("Cancelled before start, marking page cancelled");
-    await db(PAGES_TABLE).where("id", pageId).update({
-      generation_status: "cancelled",
-      generation_progress: null,
-      updated_at: db.fn.now(),
-    });
+    await PageModel.setGenerationStatusById(pageId, "cancelled");
     return;
   }
 
@@ -259,20 +247,12 @@ export async function processPageGenerate(
   } catch (err: any) {
     if (err.message === "Generation cancelled" || controller.signal.aborted) {
       log("Cancelled during generation");
-      await db(PAGES_TABLE).where("id", pageId).update({
-        generation_status: "cancelled",
-        generation_progress: null,
-        updated_at: db.fn.now(),
-      });
+      await PageModel.setGenerationStatusById(pageId, "cancelled");
       return;
     }
 
     log(`Page generation failed: ${err.message}`);
-    await db(PAGES_TABLE).where("id", pageId).update({
-      generation_status: "failed",
-      generation_progress: null,
-      updated_at: db.fn.now(),
-    });
+    await PageModel.setGenerationStatusById(pageId, "failed");
 
     throw err;
   } finally {

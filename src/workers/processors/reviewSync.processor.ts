@@ -8,7 +8,7 @@
 
 import { Job } from "bullmq";
 import axios from "axios";
-import { db } from "../../database/connection";
+import { GooglePropertyModel } from "../../models/GooglePropertyModel";
 import { GbpSyncHealthModel, GbpSyncSource } from "../../models/GbpSyncHealthModel";
 import { ReviewModel } from "../../models/website-builder/ReviewModel";
 import { getValidOAuth2ClientByConnection } from "../../auth/oauth2Helper";
@@ -92,29 +92,10 @@ export async function processReviewSync(job: Job<ReviewSyncData>): Promise<void>
 
   try {
     // Get all selected GBP properties with their connections
-    let query = db("google_properties as gp")
-      .join("google_connections as gc", "gp.google_connection_id", "gc.id")
-      .join("organizations as o", "gc.organization_id", "o.id")
-      .where("gp.type", "gbp")
-      .where("gp.selected", true)
-      .whereNull("o.archived_at")
-      .select(
-        "gp.id as google_property_id",
-        "gp.location_id",
-        "gp.external_id",
-        "gp.account_id",
-        "gp.google_connection_id",
-        "gc.organization_id"
-      );
-
-    if (organizationId) {
-      query = query.where("gc.organization_id", organizationId);
-    }
-    if (locationId) {
-      query = query.where("gp.location_id", locationId);
-    }
-
-    const properties = (await query) as ReviewSyncProperty[];
+    const properties = (await GooglePropertyModel.findSelectedGbpForSync({
+      organizationId,
+      locationId,
+    })) as ReviewSyncProperty[];
 
     if (properties.length === 0) {
       logger.info("[REVIEW-SYNC] No GBP properties found. Skipping.");

@@ -223,6 +223,18 @@ export class OrganizationModel extends BaseModel {
   }
 
   /**
+   * subscription_status projection for an org. Mirrors the inline lookup in
+   * middleware/billingGate.billingGateMiddleware verbatim
+   * (.select("subscription_status").first()).
+   */
+  static async findSubscriptionStatusById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<{ subscription_status: string | null } | undefined> {
+    return this.table(trx).where({ id }).select("subscription_status").first();
+  }
+
+  /**
    * Persist a recomputed engagement score and its timestamp. Mirrors the inline
    * update in services/behavioralIntelligence.getEngagementScore.
    */

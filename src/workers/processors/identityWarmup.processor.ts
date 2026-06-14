@@ -11,10 +11,8 @@ import {
   type WarmupInputs,
 } from "../../controllers/admin-websites/feature-services/service.identity-warmup";
 import { isCancelled } from "../../controllers/admin-websites/feature-services/service.generation-pipeline";
-import { db } from "../../database/connection";
 import logger from "../../lib/logger";
 
-const PROJECTS_TABLE = "website_builder.projects";
 const LOG_PREFIX = "[WB-IDENTITY]";
 
 export interface IdentityWarmupJobData {

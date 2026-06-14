@@ -383,4 +383,141 @@ export class PageModel extends BaseModel {
   ): Promise<number> {
     return this.table(trx).whereIn("id", ids).delete();
   }
+
+  /**
+   * All page rows for a project (full, un-deserialized rows), ordered by
+   * created_at asc. Mirrors the inline export query in
+   * workers/processors/websiteBackup verbatim — the backup serializes the raw
+   * rows to JSON, so it must NOT use findByProjectId (which orders by
+   * sort_order, a column the backup query does not reference).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findAllByProjectIdForBackup(
+    projectId: string,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return this.table(trx)
+      .where({ project_id: projectId })
+      .orderBy("created_at", "asc");
+  }
+
+  /**
+   * Set seo_data (pre-stringified) on a single page by id, bumping updated_at
+   * via the JS clock. Mirrors the inline update in
+   * workers/processors/seoBulkGenerate.processSeoBulkGenerate for the page
+   * branch verbatim.
+   */
+  static async updateSeoDataById(
+    pageId: string,
+    seoDataValue: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id: pageId })
+      .update({
+        seo_data: seoDataValue,
+        updated_at: new Date(),
+      });
+  }
+
+  /**
+   * Propagate seo_data (pre-stringified) to all sibling page versions sharing a
+   * project+path that currently have null seo_data, excluding the source page.
+   * Returns the number of rows updated. Mirrors the inline sibling-propagation
+   * update in workers/processors/seoBulkGenerate verbatim.
+   */
+  static async propagateSeoDataToSiblings(
+    params: {
+      projectId: string;
+      path: string;
+      excludePageId: string;
+      seoDataValue: string;
+    },
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ project_id: params.projectId, path: params.path })
+      .whereNull("seo_data")
+      .whereNot("id", params.excludePageId)
+      .update({ seo_data: params.seoDataValue });
+  }
+
+  /**
+   * Mark all queued/generating pages of a project as failed, clearing progress.
+   * Mirrors the inline catch-block update in
+   * workers/processors/websiteGeneration.processProjectScrape verbatim
+   * (updated_at via the DB clock).
+   */
+  static async markQueuedGeneratingAsFailed(
+    projectId: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where("project_id", projectId)
+      .whereIn("generation_status", ["queued", "generating"])
+      .update({
+        generation_status: "failed",
+        generation_progress: null,
+        updated_at: db.fn.now(),
+      });
+  }
+
+  /**
+   * Set a single page's generation_status (clearing progress) by id, bumping
+   * updated_at via the DB clock. Mirrors the inline cancelled/failed
+   * single-page updates in workers/processors/websiteGeneration.processPageGenerate.
+   */
+  static async setGenerationStatusById(
+    pageId: string,
+    status: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where("id", pageId)
+      .update({
+        generation_status: status,
+        generation_progress: null,
+        updated_at: db.fn.now(),
+      });
+  }
+
+  /**
+   * All page rows for a project (full raw rows), optionally narrowed to a set
+   * of paths, ordered path asc then version desc. Mirrors the inline pages
+   * query in workers/processors/seoBulkGenerate.getPageEntities verbatim (the
+   * caller groups versions per path and picks the best). Returns raw rows
+   * (status/version/sections columns are read directly).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findByProjectIdForSeo(
+    projectId: string,
+    pagePaths?: string[],
+    trx?: QueryContext
+  ): Promise<any[]> {
+    let query = this.table(trx)
+      .where({ project_id: projectId })
+      .orderBy("path", "asc")
+      .orderBy("version", "desc");
+
+    if (pagePaths && pagePaths.length > 0) {
+      query = query.whereIn("path", pagePaths);
+    }
+
+    return query;
+  }
+
+  /**
+   * seo_data values for all pages of a project that have non-null seo_data.
+   * Mirrors the pages half of the inline meta gather in
+   * workers/processors/seoBulkGenerate.getAllSeoMeta verbatim.
+   */
+  static async findSeoDataByProjectId(
+    projectId: string,
+    trx?: QueryContext
+  ): Promise<Array<{ seo_data: unknown }>> {
+    return this.table(trx)
+      .where({ project_id: projectId })
+      .whereNotNull("seo_data")
+      .select("seo_data");
+  }
 }

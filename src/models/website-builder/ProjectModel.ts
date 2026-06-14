@@ -1,4 +1,5 @@
 import { Knex } from "knex";
+import { db } from "../../database/connection";
 import {
   BaseModel,
   PaginatedResult,
@@ -75,6 +76,26 @@ export class ProjectModel extends BaseModel {
     trx?: QueryContext,
   ): Promise<number> {
     return super.updateById(id, data as Record<string, unknown>, trx);
+  }
+
+  /**
+   * Set a project's layouts_generation_status (clearing progress) by id,
+   * bumping updated_at via the DB clock. Mirrors the inline cancelled-state
+   * update in workers/processors/websiteLayouts.processLayoutGenerate verbatim.
+   * Uses a dedicated method because layouts_generation_* are not on IProject.
+   */
+  static async setLayoutsGenerationStatus(
+    id: string,
+    status: string,
+    trx?: QueryContext,
+  ): Promise<number> {
+    return this.table(trx)
+      .where("id", id)
+      .update({
+        layouts_generation_status: status,
+        layouts_generation_progress: null,
+        updated_at: db.fn.now(),
+      });
   }
 
   /**

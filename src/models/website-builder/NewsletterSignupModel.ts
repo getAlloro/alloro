@@ -71,4 +71,19 @@ export class NewsletterSignupModel extends BaseModel {
 
     return this.create(data, trx);
   }
+
+  /**
+   * All newsletter-signup rows for a project, ordered created_at desc, as raw
+   * rows. Mirrors the inline export query in workers/processors/websiteBackup
+   * verbatim.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findAllByProjectIdForBackup(
+    projectId: string,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return this.table(trx)
+      .where({ project_id: projectId })
+      .orderBy("created_at", "desc");
+  }
 }

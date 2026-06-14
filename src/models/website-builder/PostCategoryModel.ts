@@ -45,4 +45,18 @@ export class PostCategoryModel extends BaseModel {
     const [row] = await this.table(trx).insert(data).returning("*");
     return row;
   }
+
+  /**
+   * All category rows for a post type, unordered, as raw rows. Mirrors the
+   * inline export query in workers/processors/websiteBackup verbatim. Distinct
+   * from findByPostTypeId, which orders by sort_order — the backup query has no
+   * ordering, so it gets its own method to keep the serialized output identical.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findAllByPostTypeIdForBackup(
+    postTypeId: string,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return this.table(trx).where({ post_type_id: postTypeId });
+  }
 }

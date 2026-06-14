@@ -14,7 +14,7 @@ import { Knex } from "knex";
 import unzipper from "unzipper";
 import { Readable } from "stream";
 import { v4 as uuidv4 } from "uuid";
-import { db } from "../../database/connection";
+import { BaseModel } from "../../models/BaseModel";
 import { BackupJobModel } from "../../models/website-builder/BackupJobModel";
 import { MediaModel, IMedia } from "../../models/website-builder/MediaModel";
 import {
@@ -245,7 +245,7 @@ export async function processWebsiteRestore(
       0,
       0
     );
-    await db.transaction(async (trx) => {
+    await BaseModel.transaction(async (trx) => {
       await wipeProjectData(projectId, trx, log);
 
       // Insert restored media DB records (S3 already uploaded above)

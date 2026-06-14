@@ -9,7 +9,6 @@ import { MindDiscoveredPostModel } from "../../models/MindDiscoveredPostModel";
 import { applyProposals } from "../../controllers/minds/feature-services/service.minds-compiler";
 import { regenerateEmbeddings } from "../../controllers/minds/feature-services/service.minds-embedding";
 import { shouldUseRag } from "../../controllers/minds/feature-services/service.minds-retrieval";
-import { db } from "../../database/connection";
 import logger from "../../lib/logger";
 
 interface CompilePublishJobData {

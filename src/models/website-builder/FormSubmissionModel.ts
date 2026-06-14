@@ -394,4 +394,21 @@ export class FormSubmissionModel extends BaseModel {
       .groupBy(db.raw("date_trunc('month', submitted_at)"))
       .orderBy("month", "asc");
   }
+
+  /**
+   * All form-submission rows for a project, ordered submitted_at desc, as raw
+   * rows (unpaginated). Mirrors the inline export query in
+   * workers/processors/websiteBackup verbatim. Distinct from findByProjectId,
+   * which paginates — the backup needs every row, so it gets its own method to
+   * keep the serialized output identical.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findAllByProjectIdForBackup(
+    projectId: string,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return (trx || db)("website_builder.form_submissions")
+      .where({ project_id: projectId })
+      .orderBy("submitted_at", "desc");
+  }
 }

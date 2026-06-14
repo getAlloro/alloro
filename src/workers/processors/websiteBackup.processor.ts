@@ -11,13 +11,16 @@ import { Job } from "bullmq";
 import archiver from "archiver";
 import { Readable, PassThrough } from "stream";
 import { pipeline } from "stream/promises";
-import { db } from "../../database/connection";
 import { BackupJobModel } from "../../models/website-builder/BackupJobModel";
-// PageModel not used — pages table lacks sort_order column the model assumes
+import { PageModel } from "../../models/website-builder/PageModel";
 import { PostModel } from "../../models/website-builder/PostModel";
+import { PostCategoryModel } from "../../models/website-builder/PostCategoryModel";
+import { PostTagModel } from "../../models/website-builder/PostTagModel";
 import { MediaModel } from "../../models/website-builder/MediaModel";
 import { MenuModel, MenuItemModel } from "../../models/website-builder/MenuModel";
-// HeaderFooterCodeModel not used — table lacks sort_order column the model assumes
+import { HeaderFooterCodeModel } from "../../models/website-builder/HeaderFooterCodeModel";
+import { FormSubmissionModel } from "../../models/website-builder/FormSubmissionModel";
+import { NewsletterSignupModel } from "../../models/website-builder/NewsletterSignupModel";
 import { PostAttachmentModel } from "../../models/website-builder/PostAttachmentModel";
 import { PostBlockModel } from "../../models/website-builder/PostBlockModel";
 import { ProjectModel } from "../../models/website-builder/ProjectModel";
@@ -46,9 +49,7 @@ export async function processWebsiteBackup(
 
     // --- Gather all data sequentially ---
     await BackupJobModel.updateProgress(jobId, "Exporting pages...", 0, 0);
-    const pages = await db("website_builder.pages")
-      .where({ project_id: projectId })
-      .orderBy("created_at", "asc");
+    const pages = await PageModel.findAllByProjectIdForBackup(projectId);
     log(`Exported ${pages.length} pages`);
 
     await BackupJobModel.updateProgress(jobId, "Exporting posts...", 0, 0);
@@ -60,11 +61,9 @@ export async function processWebsiteBackup(
     const postCategories = [];
     const postTags = [];
     for (const ptId of postTypeIds) {
-      const cats = await db("website_builder.post_categories")
-        .where({ post_type_id: ptId });
+      const cats = await PostCategoryModel.findAllByPostTypeIdForBackup(ptId);
       postCategories.push(...cats);
-      const tags = await db("website_builder.post_tags")
-        .where({ post_type_id: ptId });
+      const tags = await PostTagModel.findAllByPostTypeIdForBackup(ptId);
       postTags.push(...tags);
     }
 
@@ -72,17 +71,11 @@ export async function processWebsiteBackup(
     const postIds = posts.map((p) => p.id);
     const postCategoryAssignments =
       postIds.length > 0
-        ? await db("website_builder.post_category_assignments").whereIn(
-            "post_id",
-            postIds
-          )
+        ? await PostModel.findCategoryAssignmentsByPostIds(postIds)
         : [];
     const postTagAssignments =
       postIds.length > 0
-        ? await db("website_builder.post_tag_assignments").whereIn(
-            "post_id",
-            postIds
-          )
+        ? await PostModel.findTagAssignmentsByPostIds(postIds)
         : [];
 
     // Post attachments — batch by post
@@ -105,9 +98,8 @@ export async function processWebsiteBackup(
     }
 
     await BackupJobModel.updateProgress(jobId, "Exporting code snippets...", 0, 0);
-    const headerFooterCode = await db("website_builder.header_footer_code")
-      .where({ project_id: projectId })
-      .orderBy("created_at", "asc");
+    const headerFooterCode =
+      await HeaderFooterCodeModel.findAllByProjectIdForBackup(projectId);
 
     await BackupJobModel.updateProgress(
       jobId,
@@ -115,13 +107,11 @@ export async function processWebsiteBackup(
       0,
       0
     );
-    const formSubmissions = await db("website_builder.form_submissions")
-      .where({ project_id: projectId })
-      .orderBy("submitted_at", "desc");
+    const formSubmissions =
+      await FormSubmissionModel.findAllByProjectIdForBackup(projectId);
 
-    const newsletterSignups = await db("website_builder.newsletter_signups")
-      .where({ project_id: projectId })
-      .orderBy("created_at", "desc");
+    const newsletterSignups =
+      await NewsletterSignupModel.findAllByProjectIdForBackup(projectId);
 
     // Post blocks (template-level, include for completeness)
     const postBlocks = project.template_id
