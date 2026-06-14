@@ -1,6 +1,6 @@
 import { Response } from "express";
 import { AuthRequest } from "../../middleware/auth";
-import { db } from "../../database/connection";
+import { PmNotificationModel } from "../../models/PmNotificationModel";
 import logger from "../../lib/logger";
 
 function handleError(res: Response, error: unknown, operation: string): Response {
@@ -14,12 +14,7 @@ export async function getNotifications(req: AuthRequest, res: Response): Promise
   try {
     const userId = req.user!.userId;
 
-    const notifications = await db("pm_notifications as n")
-      .leftJoin("users as u", "n.actor_user_id", "u.id")
-      .where("n.user_id", userId)
-      .orderBy("n.created_at", "desc")
-      .limit(50)
-      .select("n.*", "u.email as actor_email");
+    const notifications = await PmNotificationModel.listForUserWithActorEmail(userId);
 
     const enriched = notifications.map((n: any) => {
       const hasActorName = n.metadata?.actor_name;
@@ -45,9 +40,7 @@ export async function markAllRead(req: AuthRequest, res: Response): Promise<any>
   try {
     const userId = req.user!.userId;
 
-    await db("pm_notifications")
-      .where({ user_id: userId, is_read: false })
-      .update({ is_read: true });
+    await PmNotificationModel.markAllReadForUser(userId);
 
     return res.json({ success: true, data: { updated: true } });
   } catch (error) {
@@ -60,7 +53,7 @@ export async function deleteAll(req: AuthRequest, res: Response): Promise<any> {
   try {
     const userId = req.user!.userId;
 
-    await db("pm_notifications").where("user_id", userId).delete();
+    await PmNotificationModel.deleteAllForUser(userId);
 
     return res.json({ success: true, data: { deleted: true } });
   } catch (error) {

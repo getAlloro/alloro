@@ -1,4 +1,4 @@
-import { BaseModel } from "./BaseModel";
+import { BaseModel, QueryContext } from "./BaseModel";
 import { db } from "../database/connection";
 import { PmColumnModel, PmProjectColumnIds } from "./PmColumnModel";
 
@@ -298,5 +298,183 @@ export class PmTaskModel extends BaseModel {
       overdue_total: data.reduce((sum, row) => sum + row.overdue, 0),
       data,
     };
+  }
+
+  // ---- Global dashboard stats (GET /api/pm/stats) ----
+
+  // Count of not-completed tasks at the given priorities across active projects.
+  static async countActiveByPriorities(
+    priorities: string[],
+    trx?: QueryContext
+  ): Promise<number> {
+    const [result] = await this.table(trx)
+      .join("pm_projects", "pm_tasks.project_id", "pm_projects.id")
+      .where("pm_projects.status", "active")
+      .whereNull("pm_tasks.completed_at")
+      .whereIn("pm_tasks.priority", priorities)
+      .count("* as count");
+    return parseInt(result.count as string, 10) || 0;
+  }
+
+  // Count of not-completed backlog tasks across active projects.
+  static async countActiveBacklog(trx?: QueryContext): Promise<number> {
+    const [result] = await this.table(trx)
+      .join("pm_columns", "pm_tasks.column_id", "pm_columns.id")
+      .join("pm_projects", "pm_tasks.project_id", "pm_projects.id")
+      .where("pm_columns.is_backlog", true)
+      .where("pm_projects.status", "active")
+      .whereNull("pm_tasks.completed_at")
+      .count("* as count");
+    return parseInt(result.count as string, 10) || 0;
+  }
+
+  // GET /api/pm/stats/velocity — raw completed/overdue series. The query
+  // strings + bindings are composed in the controller; this only executes them.
+  static async runVelocityRaw(
+    completedQuery: string,
+    overdueQuery: string,
+    bindings: unknown[],
+    trx?: QueryContext
+  ): Promise<[{ rows: any[] }, { rows: any[] }]> {
+    const ctx = trx || db;
+    return Promise.all([
+      ctx.raw(completedQuery, bindings),
+      ctx.raw(overdueQuery, bindings),
+    ]) as Promise<[{ rows: any[] }, { rows: any[] }]>;
+  }
+
+  // ---- Row enrichment ----
+
+  // Fetch one task joined to creator/assignee emails (raw row).
+  static async findByIdWithUsers(
+    id: string,
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .where("pm_tasks.id", id)
+      .leftJoin("users as creators", "pm_tasks.created_by", "creators.id")
+      .leftJoin("users as assignees", "pm_tasks.assigned_to", "assignees.id")
+      .select(
+        "pm_tasks.*",
+        "creators.email as creator_email",
+        "assignees.email as assignee_email"
+      )
+      .first();
+  }
+
+  // ---- Position maintenance (used inside move/create/delete transactions) ----
+
+  // Make room at position 0 in a column by shifting everything down by one.
+  static async shiftColumnDownByOne(
+    columnId: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx).where({ column_id: columnId }).increment("position", 1);
+  }
+
+  // Close the gap left by a removed task: shift tasks after `position` up by one.
+  static async decrementPositionsAfter(
+    columnId: string,
+    position: number,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ column_id: columnId })
+      .where("position", ">", position)
+      .decrement("position", 1);
+  }
+
+  // Open a slot at `position` (inclusive): shift tasks at/after it up by one.
+  static async incrementPositionsFrom(
+    columnId: string,
+    position: number,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ column_id: columnId })
+      .where("position", ">=", position)
+      .increment("position", 1);
+  }
+
+  // Rewrite positions in a column to be contiguous (0..n-1) by current order.
+  static async compactColumnPositions(
+    columnId: string,
+    trx?: QueryContext
+  ): Promise<void> {
+    const remaining: Array<{ id: string }> = await this.table(trx)
+      .where({ column_id: columnId })
+      .orderBy("position", "asc")
+      .select("id");
+    for (let i = 0; i < remaining.length; i++) {
+      await this.table(trx).where({ id: remaining[i].id }).update({ position: i });
+    }
+  }
+
+  // ---- Bulk operations ----
+
+  // Load tasks + their source column flags for a batch of ids (bulk move).
+  static async findManyWithColumnFlags(
+    ids: string[],
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return this.table(trx)
+      .join("pm_columns", "pm_tasks.column_id", "pm_columns.id")
+      .whereIn("pm_tasks.id", ids)
+      .select(
+        "pm_tasks.id",
+        "pm_tasks.project_id",
+        "pm_tasks.column_id",
+        "pm_tasks.position",
+        "pm_tasks.title",
+        "pm_columns.is_backlog as source_is_backlog",
+        "pm_columns.name as source_column_name"
+      );
+  }
+
+  // Load a minimal set of task rows by id (bulk delete).
+  static async findManyBasic(
+    ids: string[],
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return this.table(trx)
+      .whereIn("id", ids)
+      .select("id", "project_id", "column_id", "position", "title");
+  }
+
+  // Current max position in a column (append-to-end target).
+  static async getMaxPosition(
+    columnId: string,
+    trx?: QueryContext
+  ): Promise<number | null> {
+    const [maxRow] = await this.table(trx)
+      .where({ column_id: columnId })
+      .max<{ max: number | null }[]>("position as max");
+    return (maxRow?.max ?? null) as number | null;
+  }
+
+  // Relocate one task into a target project's backlog at a given position.
+  static async moveToBacklog(
+    taskId: string,
+    targetProjectId: string,
+    targetColumnId: string,
+    position: number,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id: taskId })
+      .update({
+        project_id: targetProjectId,
+        column_id: targetColumnId,
+        position,
+        priority: null, // backlog = no priority
+      });
+  }
+
+  // Delete a batch of tasks by id (bulk delete).
+  static async deleteManyByIds(
+    ids: string[],
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx).whereIn("id", ids).delete();
   }
 }

@@ -2,7 +2,6 @@ import { Response } from "express";
 import { AuthRequest } from "../../middleware/auth";
 import { PmProjectModel } from "../../models/PmProjectModel";
 import { PmColumnModel } from "../../models/PmColumnModel";
-import { db } from "../../database/connection";
 import { logPmActivity } from "./pmActivityLogger";
 import logger from "../../lib/logger";
 
@@ -24,30 +23,13 @@ export async function listProjects(req: AuthRequest, res: Response): Promise<any
   try {
     const status = (req.query.status as string) || "active";
 
-    const projects = await db("pm_projects")
-      .where({ status })
-      .select("pm_projects.*")
-      .select(
-        db.raw(`(SELECT COUNT(*) FROM pm_tasks WHERE pm_tasks.project_id = pm_projects.id)::int AS total_tasks`)
-      )
-      .select(
-        db.raw(`(SELECT COUNT(*) FROM pm_tasks WHERE pm_tasks.project_id = pm_projects.id AND pm_tasks.completed_at IS NOT NULL)::int AS completed_tasks`)
-      )
-      .select(
-        db.raw(`(SELECT MAX(deadline) FROM pm_tasks WHERE pm_tasks.project_id = pm_projects.id AND pm_tasks.completed_at IS NULL AND deadline IS NOT NULL) AS latest_task_deadline`)
-      )
-      .orderBy("created_at", "desc");
+    const projects = await PmProjectModel.listByStatusWithTaskCounts(status);
 
     // Enrich each project with status breakdown + daily activity
     const enriched = await Promise.all(
       projects.map(async (p: any) => {
         // Tasks by status (column name)
-        const statusCounts = await db("pm_tasks")
-          .join("pm_columns", "pm_tasks.column_id", "pm_columns.id")
-          .where("pm_tasks.project_id", p.id)
-          .groupBy("pm_columns.name")
-          .select("pm_columns.name")
-          .count("* as count");
+        const statusCounts = await PmProjectModel.getStatusCounts(p.id);
 
         const tasks_by_status: Record<string, number> = {
           backlog: 0,
@@ -63,13 +45,7 @@ export async function listProjects(req: AuthRequest, res: Response): Promise<any
         }
 
         // Daily activity (last 90 days)
-        const dailyActivity = await db("pm_activity_log")
-          .where("project_id", p.id)
-          .where("created_at", ">=", db.raw("NOW() - INTERVAL '90 days'"))
-          .groupByRaw("DATE(created_at)")
-          .select(db.raw("DATE(created_at) as date"))
-          .count("* as count")
-          .orderBy("date", "asc");
+        const dailyActivity = await PmProjectModel.getDailyActivity(p.id);
 
         return {
           ...p,
@@ -98,7 +74,7 @@ export async function createProject(req: AuthRequest, res: Response): Promise<an
       return res.status(400).json({ success: false, error: "Project name is required" });
     }
 
-    const project = await db.transaction(async (trx) => {
+    const project = await PmProjectModel.transaction(async (trx) => {
       const proj = await PmProjectModel.create(
         {
           name: name.trim(),
@@ -147,20 +123,9 @@ export async function getProject(req: AuthRequest, res: Response): Promise<any> 
       return res.status(404).json({ success: false, error: "Project not found" });
     }
 
-    const columns = await db("pm_columns")
-      .where({ project_id: id })
-      .orderBy("position", "asc");
+    const columns = await PmProjectModel.getColumns(id);
 
-    const tasks = await db("pm_tasks")
-      .select(
-        "pm_tasks.*",
-        "creators.email as creator_email",
-        "assignees.email as assignee_email"
-      )
-      .leftJoin("users as creators", "pm_tasks.created_by", "creators.id")
-      .leftJoin("users as assignees", "pm_tasks.assigned_to", "assignees.id")
-      .where("pm_tasks.project_id", id)
-      .orderBy("pm_tasks.position", "asc");
+    const tasks = await PmProjectModel.getTasksWithUsers(id);
 
     const enrichedTasks = tasks.map((t: any) => ({
       ...t,

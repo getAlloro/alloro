@@ -17,9 +17,9 @@
 
 import { Response } from "express";
 import { AuthRequest } from "../../middleware/auth";
-import { db } from "../../database/connection";
 import { PmTaskAttachmentModel } from "../../models/PmTaskAttachmentModel";
 import { PmTaskModel } from "../../models/PmTaskModel";
+import { UserModel } from "../../models/UserModel";
 import {
   uploadToS3,
   deleteFromS3,
@@ -44,10 +44,7 @@ function handleError(res: Response, error: unknown, operation: string): Response
 
 async function enrichAttachment(row: any): Promise<any> {
   if (!row) return row;
-  const user = await db("users")
-    .where({ id: row.uploaded_by })
-    .select("email")
-    .first();
+  const user = await UserModel.findEmailById(row.uploaded_by);
   const uploaded_by_name = user?.email
     ? user.email.split("@")[0]
     : `user ${row.uploaded_by}`;
@@ -102,18 +99,17 @@ export async function uploadAttachment(
 
     await uploadToS3(s3Key, file.buffer, mime);
 
-    // Bypass BaseModel.create — it auto-stamps updated_at, and pm_task_attachments
-    // has no such column (attachments are immutable once uploaded).
-    const [created] = await db("pm_task_attachments")
-      .insert({
-        task_id: taskId,
-        uploaded_by: req.user!.userId,
-        filename: originalName,
-        s3_key: s3Key,
-        mime_type: mime,
-        size_bytes: file.size,
-      })
-      .returning("*");
+    // PmTaskAttachmentModel.insertMetadata bypasses BaseModel.create — it
+    // auto-stamps updated_at, and pm_task_attachments has no such column
+    // (attachments are immutable once uploaded).
+    const created = await PmTaskAttachmentModel.insertMetadata({
+      task_id: taskId,
+      uploaded_by: req.user!.userId,
+      filename: originalName,
+      s3_key: s3Key,
+      mime_type: mime,
+      size_bytes: file.size,
+    });
 
     await logPmActivity({
       project_id: task.project_id,
@@ -150,14 +146,7 @@ export async function listAttachments(
       return res.status(404).json({ success: false, error: "Task not found" });
     }
 
-    const rows = await db("pm_task_attachments")
-      .leftJoin("users", "pm_task_attachments.uploaded_by", "users.id")
-      .where("pm_task_attachments.task_id", taskId)
-      .orderBy("pm_task_attachments.created_at", "desc")
-      .select(
-        "pm_task_attachments.*",
-        "users.email as uploader_email"
-      );
+    const rows = await PmTaskAttachmentModel.listByTaskWithUploader(taskId);
 
     // users.id is BIGINT → pg driver returns it as string on the JWT,
     // but uploaded_by (INTEGER) comes back as number. Coerce once so all

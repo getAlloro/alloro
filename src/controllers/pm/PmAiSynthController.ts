@@ -6,7 +6,8 @@ import { extractTextFromFile } from "../../utils/pmFileExtract";
 import { PmTaskModel } from "../../models/PmTaskModel";
 import { PmAiSynthBatchModel } from "../../models/PmAiSynthBatchModel";
 import { PmAiSynthBatchTaskModel } from "../../models/PmAiSynthBatchTaskModel";
-import { db } from "../../database/connection";
+import { PmProjectModel } from "../../models/PmProjectModel";
+import { PmColumnModel } from "../../models/PmColumnModel";
 import { logPmActivity } from "./pmActivityLogger";
 import logger from "../../lib/logger";
 
@@ -63,10 +64,7 @@ export async function extractBatch(req: AuthRequest, res: Response): Promise<any
     let systemPrompt: string;
     let activeProjectIds = new Set<string>();
     if (scope === "cross_project") {
-      const projects = await db("pm_projects")
-        .where({ status: "active" })
-        .select("id", "name", "description")
-        .orderBy("name", "asc");
+      const projects = await PmProjectModel.listActiveForPrompt();
       activeProjectIds = new Set(projects.map((p: any) => p.id));
       const projectsJson = JSON.stringify(
         projects.map((p: any) => ({
@@ -96,7 +94,7 @@ export async function extractBatch(req: AuthRequest, res: Response): Promise<any
     }
 
     if (!Array.isArray(proposedTasks)) {
-      await db("pm_ai_synth_batches").where({ id: batch.id }).update({ status: "completed", total_proposed: 0 });
+      await PmAiSynthBatchModel.updateFields(batch.id, { status: "completed", total_proposed: 0 });
       return res.status(422).json({ success: false, error: "AI returned unexpected format." });
     }
 
@@ -124,7 +122,7 @@ export async function extractBatch(req: AuthRequest, res: Response): Promise<any
       batchTasks.push(bt);
     }
 
-    await db("pm_ai_synth_batches").where({ id: batch.id }).update({
+    await PmAiSynthBatchModel.updateFields(batch.id, {
       status: "pending_review",
       total_proposed: validated.length,
     });
@@ -139,10 +137,7 @@ export async function extractBatch(req: AuthRequest, res: Response): Promise<any
     logger.error({ err: error }, `[PM-AI-SYNTH] extractBatch failed:`);
     // Try to clean up any orphaned "synthesizing" batches for this request
     try {
-      await db("pm_ai_synth_batches")
-        .where({ status: "synthesizing", created_by: req.user?.userId })
-        .where("created_at", ">", db.raw("NOW() - INTERVAL '5 minutes'"))
-        .update({ status: "failed" });
+      await PmAiSynthBatchModel.markRecentSynthesizingFailed(req.user?.userId);
     } catch { /* ignore cleanup errors */ }
     return res.status(500).json({ success: false, error: "Failed to extract tasks. Please try again." });
   }
@@ -157,14 +152,9 @@ export async function listBatches(req: AuthRequest, res: Response): Promise<any>
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const offset = parseInt(req.query.offset as string) || 0;
 
-    const [countResult] = await db("pm_ai_synth_batches").where({ project_id: projectId }).count("* as count");
-    const total = parseInt(countResult.count as string, 10) || 0;
+    const total = await PmAiSynthBatchModel.countByProject(projectId);
 
-    const batches = await db("pm_ai_synth_batches")
-      .where({ project_id: projectId })
-      .orderBy("created_at", "desc")
-      .limit(limit)
-      .offset(offset);
+    const batches = await PmAiSynthBatchModel.listByProject(projectId, limit, offset);
 
     return res.json({ success: true, data: batches, total });
   } catch (error) {
@@ -178,9 +168,7 @@ export async function getBatch(req: AuthRequest, res: Response): Promise<any> {
     const batch = await PmAiSynthBatchModel.findById(req.params.batchId);
     if (!batch) return res.status(404).json({ success: false, error: "Batch not found" });
 
-    const tasks = await db("pm_ai_synth_batch_tasks")
-      .where({ batch_id: batch.id })
-      .orderBy("created_at", "asc");
+    const tasks = await PmAiSynthBatchTaskModel.listByBatch(batch.id);
 
     return res.json({ success: true, data: { ...batch, tasks } });
   } catch (error) {
@@ -211,7 +199,7 @@ export async function approveTask(req: AuthRequest, res: Response): Promise<any>
     // Validate destination project exists and is active (cross-project batches
     // may reference a project that was archived between extract and approve).
     if (!batch.project_id) {
-      const proj = await db("pm_projects").where({ id: destinationProjectId }).first();
+      const proj = await PmProjectModel.findByIdRaw(destinationProjectId);
       if (!proj || proj.status !== "active") {
         return res.status(400).json({
           success: false,
@@ -221,12 +209,12 @@ export async function approveTask(req: AuthRequest, res: Response): Promise<any>
     }
 
     // Find Backlog column for the destination project
-    const backlogCol = await db("pm_columns").where({ project_id: destinationProjectId, is_backlog: true }).first();
+    const backlogCol = await PmColumnModel.findBacklogForProject(destinationProjectId);
     if (!backlogCol) return res.status(400).json({ success: false, error: "Backlog column not found" });
 
-    const realTask = await db.transaction(async (trx) => {
+    const realTask = await PmTaskModel.transaction(async (trx) => {
       // Shift existing backlog tasks
-      await trx("pm_tasks").where({ column_id: backlogCol.id }).increment("position", 1);
+      await PmTaskModel.shiftColumnDownByOne(backlogCol.id, trx);
 
       const task = await PmTaskModel.create({
         project_id: destinationProjectId,
@@ -249,18 +237,18 @@ export async function approveTask(req: AuthRequest, res: Response): Promise<any>
       }, trx);
 
       // Update batch task
-      await trx("pm_ai_synth_batch_tasks").where({ id: taskId }).update({ status: "approved", created_task_id: task.id });
+      await PmAiSynthBatchTaskModel.updateFields(taskId, { status: "approved", created_task_id: task.id }, trx);
 
       // Update batch counters
-      await trx("pm_ai_synth_batches").where({ id: batchId }).increment("total_approved", 1);
+      await PmAiSynthBatchModel.incrementCounter(batchId, "total_approved", trx);
 
       return task;
     });
 
     // Check if all resolved
-    const pending = await db("pm_ai_synth_batch_tasks").where({ batch_id: batchId, status: "pending" }).count("* as count");
-    if (parseInt((pending[0] as any).count, 10) === 0) {
-      await db("pm_ai_synth_batches").where({ id: batchId }).update({ status: "completed" });
+    const pendingCount = await PmAiSynthBatchTaskModel.countPending(batchId);
+    if (pendingCount === 0) {
+      await PmAiSynthBatchModel.updateFields(batchId, { status: "completed" });
     }
 
     return res.json({ success: true, data: { batch_task_id: taskId, created_task_id: realTask.id } });
@@ -277,12 +265,12 @@ export async function rejectTask(req: AuthRequest, res: Response): Promise<any> 
     if (!batchTask || batchTask.batch_id !== batchId) return res.status(404).json({ success: false, error: "Task not found" });
     if (batchTask.status !== "pending") return res.status(400).json({ success: false, error: "Task already resolved" });
 
-    await db("pm_ai_synth_batch_tasks").where({ id: taskId }).update({ status: "rejected" });
-    await db("pm_ai_synth_batches").where({ id: batchId }).increment("total_rejected", 1);
+    await PmAiSynthBatchTaskModel.updateFields(taskId, { status: "rejected" });
+    await PmAiSynthBatchModel.incrementCounter(batchId, "total_rejected");
 
-    const pending = await db("pm_ai_synth_batch_tasks").where({ batch_id: batchId, status: "pending" }).count("* as count");
-    if (parseInt((pending[0] as any).count, 10) === 0) {
-      await db("pm_ai_synth_batches").where({ id: batchId }).update({ status: "completed" });
+    const pendingCount = await PmAiSynthBatchTaskModel.countPending(batchId);
+    if (pendingCount === 0) {
+      await PmAiSynthBatchModel.updateFields(batchId, { status: "completed" });
     }
 
     return res.json({ success: true, data: { batch_task_id: taskId, status: "rejected" } });
@@ -334,7 +322,7 @@ export async function setBatchTaskTargetProject(req: AuthRequest, res: Response)
       });
     }
 
-    const project = await db("pm_projects").where({ id: target_project_id }).first();
+    const project = await PmProjectModel.findByIdRaw(target_project_id);
     if (!project) {
       return res.status(404).json({ success: false, error: "Target project not found" });
     }
@@ -342,9 +330,7 @@ export async function setBatchTaskTargetProject(req: AuthRequest, res: Response)
       return res.status(400).json({ success: false, error: "Target project is not active" });
     }
 
-    await db("pm_ai_synth_batch_tasks")
-      .where({ id: taskId })
-      .update({ target_project_id });
+    await PmAiSynthBatchTaskModel.updateFields(taskId, { target_project_id });
 
     const updated = await PmAiSynthBatchTaskModel.findById(taskId);
     return res.json({ success: true, data: updated });
@@ -359,14 +345,9 @@ export async function listCrossProjectBatches(req: AuthRequest, res: Response): 
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const offset = parseInt(req.query.offset as string) || 0;
 
-    const [countResult] = await db("pm_ai_synth_batches").whereNull("project_id").count("* as count");
-    const total = parseInt(countResult.count as string, 10) || 0;
+    const total = await PmAiSynthBatchModel.countCrossProject();
 
-    const batches = await db("pm_ai_synth_batches")
-      .whereNull("project_id")
-      .orderBy("created_at", "desc")
-      .limit(limit)
-      .offset(offset);
+    const batches = await PmAiSynthBatchModel.listCrossProject(limit, offset);
 
     return res.json({ success: true, data: batches, total });
   } catch (error) {
