@@ -13,8 +13,6 @@
  * - Media context building for AI prompts
  */
 
-import { v4 as uuid } from "uuid";
-import { db } from "../../../database/connection";
 import { pruneInactiveSnapshots } from "../../../utils/website-utils/pageSnapshots";
 import { OrganizationModel } from "../../../models/OrganizationModel";
 import { ProjectModel } from "../../../models/website-builder/ProjectModel";
@@ -32,7 +30,6 @@ import logger from "../../../lib/logger";
 
 const DAILY_EDIT_LIMIT = 50;
 const USER_STORAGE_LIMIT = 1 * 1024 * 1024 * 1024; // 1 GB
-const PAGES_TABLE = "website_builder.pages";
 
 // =====================================================================
 // Types
@@ -321,19 +318,18 @@ export async function editPageComponent(
     promptType: "user",
   });
 
-  // 8. Log edit (using db() directly — the table has more columns than IUserEdit)
-  await db("website_builder.user_edits").insert({
-    id: uuid(),
-    organization_id: orgId,
-    user_id: userId,
-    project_id: project.id,
-    page_id: pageId,
-    component_class: alloroClass,
+  // 8. Log edit (UserEditModel.logComponentEdit writes the full row — the
+  // table has more columns than IUserEdit)
+  await UserEditModel.logComponentEdit({
+    organizationId: orgId,
+    userId,
+    projectId: project.id,
+    pageId,
+    componentClass: alloroClass,
     instruction,
-    tokens_used: 0, // TODO: get from result if available
+    tokensUsed: 0, // TODO: get from result if available
     success: !result.rejected,
-    error_message: result.rejected ? result.message : null,
-    created_at: new Date(),
+    errorMessage: result.rejected ? result.message : null,
   });
 
   logger.info(
@@ -374,18 +370,10 @@ export async function listPageVersions(orgId: number, pageId: string) {
     throw err;
   }
 
-  const versions = await db(PAGES_TABLE)
-    .where({ project_id: project.id, path: page.path })
-    .orderBy("version", "desc")
-    .select(
-      "id",
-      "version",
-      "status",
-      "created_at",
-      "updated_at",
-      "change_source",
-      "revision_note"
-    );
+  const versions = await PageModel.listVersionsByProjectAndPath(
+    project.id,
+    page.path
+  );
 
   return { versions, path: page.path };
 }
@@ -408,9 +396,10 @@ export async function getPageVersionContent(
     throw err;
   }
 
-  const version = await db(PAGES_TABLE)
-    .where({ id: versionId, project_id: project.id })
-    .first();
+  const version = await PageModel.findVersionByIdAndProject(
+    versionId,
+    project.id
+  );
 
   if (!version) {
     const err: any = new Error("Version not found");
@@ -448,9 +437,10 @@ export async function restorePageVersion(
     throw err;
   }
 
-  const targetVersion = await db(PAGES_TABLE)
-    .where({ id: versionId, project_id: project.id })
-    .first();
+  const targetVersion = await PageModel.findVersionByIdAndProject(
+    versionId,
+    project.id
+  );
 
   if (!targetVersion) {
     const err: any = new Error("Version not found");
@@ -466,10 +456,10 @@ export async function restorePageVersion(
     throw err;
   }
 
-  const latestPage = await db(PAGES_TABLE)
-    .where({ project_id: project.id, path: targetVersion.path })
-    .orderBy("version", "desc")
-    .first();
+  const latestPage = await PageModel.findLatestByProjectAndPath(
+    project.id,
+    targetVersion.path
+  );
 
   const latestVersionNum = latestPage ? latestPage.version : 0;
 
@@ -496,50 +486,12 @@ export async function restorePageVersion(
     change_source: "restore",
   };
 
-  const result = await db.transaction(async (trx) => {
-    // Mark current draft(s) as inactive
-    await trx(PAGES_TABLE)
-      .where({
-        project_id: project.id,
-        path: targetVersion.path,
-        status: "draft",
-      })
-      .update({ status: "inactive", updated_at: trx.fn.now() });
-
-    // Mark current published as inactive
-    await trx(PAGES_TABLE)
-      .where({
-        project_id: project.id,
-        path: targetVersion.path,
-        status: "published",
-      })
-      .update({ status: "inactive", updated_at: trx.fn.now() });
-
-    // Create new published version (copy of target's full state)
-    const [publishedPage] = await trx(PAGES_TABLE)
-      .insert({
-        project_id: project.id,
-        path: targetVersion.path,
-        version: latestVersionNum + 1,
-        status: "published",
-        sections: sectionsData,
-        ...carriedFields,
-      })
-      .returning("*");
-
-    // Create new draft version (based on published)
-    const [draftPage] = await trx(PAGES_TABLE)
-      .insert({
-        project_id: project.id,
-        path: targetVersion.path,
-        version: latestVersionNum + 2,
-        status: "draft",
-        sections: sectionsData,
-        ...carriedFields,
-      })
-      .returning("*");
-
-    return { publishedPage, draftPage };
+  const result = await PageModel.restoreVersion({
+    projectId: project.id,
+    path: targetVersion.path,
+    latestVersionNum,
+    sectionsData,
+    carriedFields,
   });
 
   // The superseded draft/published rows stay behind as inactive history;

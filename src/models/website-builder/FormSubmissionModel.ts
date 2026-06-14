@@ -1,5 +1,6 @@
 import { BaseModel, PaginatedResult, PaginationParams, QueryContext } from "../BaseModel";
 import { Knex } from "knex";
+import { db } from "../../database/connection";
 
 export interface FileValue {
   url: string;
@@ -315,5 +316,47 @@ export class FormSubmissionModel extends BaseModel {
       .count("* as count")
       .first();
     return parseInt(result?.count as string, 10) || 0;
+  }
+
+  /**
+   * Per-month submission counts (total/verified/unread/flagged/blocked) for a
+   * project from a start date forward, grouped by month. Mirrors the inline
+   * aggregation in UserWebsiteController's monthly form-stats endpoint
+   * verbatim, including the Postgres FILTER expressions. Returns raw rows.
+   */
+  static async getMonthlyStatsByProject(
+    projectId: string,
+    rangeStartIso: string,
+    trx?: QueryContext,
+  ): Promise<
+    Array<{
+      month: string;
+      total: number | string;
+      verified: number | string;
+      unread: number | string;
+      flagged: number | string;
+      blocked: number | string;
+    }>
+  > {
+    return (trx || db)("website_builder.form_submissions")
+      .select(
+        db.raw(
+          "to_char(date_trunc('month', submitted_at), 'YYYY-MM') AS month"
+        ),
+        db.raw(
+          `COUNT(*) FILTER (WHERE form_name <> 'Newsletter Signup')::int AS total`
+        ),
+        db.raw(
+          `COUNT(*) FILTER (WHERE is_flagged = false AND form_name <> 'Newsletter Signup')::int AS verified`
+        ),
+        db.raw(`COUNT(*) FILTER (WHERE is_read = false)::int AS unread`),
+        db.raw(`COUNT(*) FILTER (WHERE is_flagged = true)::int AS flagged`),
+        // Blocked attempts are currently rejected before persistence.
+        db.raw(`0::int AS blocked`)
+      )
+      .where("project_id", projectId)
+      .andWhere("submitted_at", ">=", rangeStartIso)
+      .groupBy(db.raw("date_trunc('month', submitted_at)"))
+      .orderBy("month", "asc");
   }
 }

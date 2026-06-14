@@ -32,7 +32,10 @@ import { ProjectModel } from "../../models/website-builder/ProjectModel";
 import { resolveRybbitTimeZone } from "../../utils/rybbit/rybbit-time-zone";
 import { FormSubmissionModel } from "../../models/website-builder/FormSubmissionModel";
 import { WebsiteIntegrationModel } from "../../models/website-builder/WebsiteIntegrationModel";
-import { db } from "../../database/connection";
+import { PageModel } from "../../models/website-builder/PageModel";
+import { PostModel } from "../../models/website-builder/PostModel";
+import { PostCategoryModel } from "../../models/website-builder/PostCategoryModel";
+import { PostTagModel } from "../../models/website-builder/PostTagModel";
 import { snapshotPageStateIfChanged } from "../../utils/website-utils/pageSnapshots";
 import * as formDetection from "../admin-websites/feature-services/service.form-detection";
 import { upsertFormCatalogPreferences } from "../../services/formCatalogPreferenceService";
@@ -793,26 +796,10 @@ export async function getFormSubmissionsTimeseries(
     // Aggregate by month with per-status counts (Postgres syntax).
     // Project-scoped because submissions live under website_builder.form_submissions
     // keyed by project_id; the project itself is scoped to the org via ProjectModel.findByOrganizationId.
-    const rows = await db("website_builder.form_submissions")
-      .select(
-        db.raw(
-          "to_char(date_trunc('month', submitted_at), 'YYYY-MM') AS month"
-        ),
-        db.raw(
-          `COUNT(*) FILTER (WHERE form_name <> 'Newsletter Signup')::int AS total`
-        ),
-        db.raw(
-          `COUNT(*) FILTER (WHERE is_flagged = false AND form_name <> 'Newsletter Signup')::int AS verified`
-        ),
-        db.raw(`COUNT(*) FILTER (WHERE is_read = false)::int AS unread`),
-        db.raw(`COUNT(*) FILTER (WHERE is_flagged = true)::int AS flagged`),
-        // Blocked attempts are currently rejected before persistence.
-        db.raw(`0::int AS blocked`)
-      )
-      .where("project_id", project.id)
-      .andWhere("submitted_at", ">=", rangeStart.toISOString())
-      .groupBy(db.raw("date_trunc('month', submitted_at)"))
-      .orderBy("month", "asc");
+    const rows = await FormSubmissionModel.getMonthlyStatsByProject(
+      project.id,
+      rangeStart.toISOString()
+    );
 
     // Build a map of month → counts from query results
     const byMonth = new Map<
@@ -1218,9 +1205,7 @@ export async function savePageSections(
     }
 
     // Verify page belongs to project
-    const page = await db("website_builder.pages")
-      .where({ id: pageId, project_id: projectId })
-      .first();
+    const page = await PageModel.findRawByIdAndProject(pageId, projectId);
     if (!page) return res.status(404).json({ error: "Page not found" });
 
     // Customer saves write the LIVE published row in place — never history
@@ -1233,10 +1218,8 @@ export async function savePageSections(
     }
 
     // Read-only orgs can browse but not write (same gate as restore).
-    const project = await db("website_builder.projects")
-      .where("id", projectId)
-      .first();
-    if (project?.is_read_only) {
+    const project = await ProjectModel.findById(projectId);
+    if ((project as any)?.is_read_only) {
       return res.status(403).json({
         error: "READ_ONLY",
         message:
@@ -1267,31 +1250,25 @@ export async function savePageSections(
     // max+1, so without this the live row would carry a LOWER version than
     // its own archived history and sink beneath it in the History tab (the
     // "latest version is Archived" bug).
-    const newest = await db("website_builder.pages")
-      .where({ project_id: page.project_id, path: page.path })
-      .orderBy("version", "desc")
-      .first();
+    const newest = await PageModel.findLatestByProjectAndPath(
+      page.project_id,
+      page.path
+    );
     const nextVersion = (newest?.version ?? page.version) + 1;
 
     // Update the page sections directly. The write is conditional on the
     // expected timestamp (1ms range — updated_at has microsecond precision,
     // the client echo is millisecond-truncated) so two racing writers can't
     // both pass the JS check above and both land.
-    let updateQuery = db("website_builder.pages").where("id", pageId);
-    if (expected_updated_at && !force) {
-      const expected = new Date(expected_updated_at);
-      updateQuery = updateQuery
-        .where("updated_at", ">=", expected)
-        .where("updated_at", "<", new Date(expected.getTime() + 1));
-    }
-    const [updatedPage] = await updateQuery
-      .update({
-        sections: JSON.stringify(sections),
-        version: nextVersion,
-        change_source: "save",
-        updated_at: db.fn.now(),
-      })
-      .returning(["updated_at"]);
+    const updatedPage = await PageModel.saveLiveSections({
+      pageId,
+      sectionsJson: JSON.stringify(sections),
+      nextVersion,
+      expectedUpdatedAt:
+        expected_updated_at && !force
+          ? new Date(expected_updated_at)
+          : undefined,
+    });
 
     if (!updatedPage) {
       return res.status(409).json({
@@ -1454,9 +1431,9 @@ export async function listCategories(req: RBACRequest, res: Response): Promise<R
     const ids = await getProjectAndTemplate(orgId);
     if (!ids) return res.status(404).json({ error: "No website found" });
 
-    const categories = await db("website_builder.post_categories")
-      .where("post_type_id", req.params.postTypeId)
-      .orderBy("sort_order", "asc");
+    const categories = await PostCategoryModel.findByPostTypeId(
+      req.params.postTypeId
+    );
     return res.json({ success: true, data: categories });
   } catch (error) {
     return handleError(res, error, "List categories");
@@ -1473,9 +1450,12 @@ export async function createUserCategory(req: RBACRequest, res: Response): Promi
 
     const { name, slug, parent_id } = req.body;
     const finalSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-    const [category] = await db("website_builder.post_categories")
-      .insert({ post_type_id: req.params.postTypeId, name, slug: finalSlug, parent_id: parent_id || null })
-      .returning("*");
+    const category = await PostCategoryModel.insertReturning({
+      post_type_id: req.params.postTypeId,
+      name,
+      slug: finalSlug,
+      parent_id: parent_id || null,
+    });
     return res.status(201).json({ success: true, data: category });
   } catch (error) {
     return handleError(res, error, "Create category");
@@ -1490,9 +1470,7 @@ export async function listTags(req: RBACRequest, res: Response): Promise<Respons
     const ids = await getProjectAndTemplate(orgId);
     if (!ids) return res.status(404).json({ error: "No website found" });
 
-    const tags = await db("website_builder.post_tags")
-      .where("post_type_id", req.params.postTypeId)
-      .orderBy("name", "asc");
+    const tags = await PostTagModel.findByPostTypeId(req.params.postTypeId);
     return res.json({ success: true, data: tags });
   } catch (error) {
     return handleError(res, error, "List tags");
@@ -1509,9 +1487,11 @@ export async function createUserTag(req: RBACRequest, res: Response): Promise<Re
 
     const { name, slug } = req.body;
     const finalSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-    const [tag] = await db("website_builder.post_tags")
-      .insert({ post_type_id: req.params.postTypeId, name, slug: finalSlug })
-      .returning("*");
+    const tag = await PostTagModel.insertReturning({
+      post_type_id: req.params.postTypeId,
+      name,
+      slug: finalSlug,
+    });
     return res.status(201).json({ success: true, data: tag });
   } catch (error) {
     return handleError(res, error, "Create tag");
@@ -1529,10 +1509,10 @@ export async function updateUserPostSeo(req: RBACRequest, res: Response): Promis
     const post = await postManager.getPost(ids.projectId, req.params.postId);
     if (!post) return res.status(404).json({ error: "Post not found" });
 
-    await db("website_builder.posts").where("id", req.params.postId).update({
-      seo_data: JSON.stringify(req.body),
-      updated_at: db.fn.now(),
-    });
+    await PostModel.updateSeoDataRaw(
+      req.params.postId,
+      JSON.stringify(req.body)
+    );
     return res.json({ success: true });
   } catch (error) {
     return handleError(res, error, "Update post SEO");

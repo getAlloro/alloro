@@ -366,6 +366,60 @@ export class AgentResultModel extends BaseModel {
   }
 
   /**
+   * Fetch the date_start/date_end for the first of a set of agent result ids.
+   * Mirrors the inline date-range lookup in pms-retry.cleanupMonthlyRunData
+   * (used to scope google_data_store cleanup). Returns the raw first row.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findDateRangeByIds(
+    ids: number[],
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .whereIn("id", ids)
+      .select("date_start", "date_end")
+      .first();
+  }
+
+  /**
+   * Fallback lookup for a monthly-agents run's results when no result ids were
+   * recorded in the job summary: matches org (+ optional location), the
+   * monthly agent_type whitelist, and a created_at window. Mirrors the inline
+   * fallback query in pms-retry.cleanupMonthlyRunData. Returns raw rows
+   * (id, date_start, date_end).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findForMonthlyCleanupFallback(
+    organizationId: number,
+    locationId: number | null | undefined,
+    agentTypes: string[],
+    createdAtStart: string,
+    createdAtEnd: string,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return this.table(trx)
+      .where({ organization_id: organizationId })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .where((qb: any) => {
+        if (locationId) qb.where({ location_id: locationId });
+      })
+      .whereIn("agent_type", agentTypes)
+      .whereBetween("created_at", [createdAtStart, createdAtEnd])
+      .select("id", "date_start", "date_end");
+  }
+
+  /**
+   * Delete agent results by id set. Mirrors the inline delete in
+   * pms-retry.cleanupMonthlyRunData's transaction. Trx-aware.
+   */
+  static async deleteByIds(
+    ids: number[],
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx).whereIn("id", ids).del();
+  }
+
+  /**
    * Delete agent results by agent type array and date range.
    * Used by the clear-month-data endpoint to remove guardian and
    * governance_sentinel results for a specific month.

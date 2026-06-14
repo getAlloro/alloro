@@ -3,7 +3,7 @@ import { MindVersionModel } from "../../../models/MindVersionModel";
 import { MindSyncProposalModel, IMindSyncProposal } from "../../../models/MindSyncProposalModel";
 import { MindDiscoveryBatchModel } from "../../../models/MindDiscoveryBatchModel";
 import { MindDiscoveredPostModel } from "../../../models/MindDiscoveredPostModel";
-import { db } from "../../../database/connection";
+import { BaseModel } from "../../../models/BaseModel";
 import logger from "../../../lib/logger";
 
 const DEFAULT_BRAIN_SCAFFOLD = `# Knowledge Base
@@ -107,7 +107,7 @@ export async function compileAndPublish(
   );
 
   // Create version and publish in transaction
-  const version = await db.transaction(async (trx) => {
+  const version = await BaseModel.transaction(async (trx) => {
     const v = await MindVersionModel.createVersion(mindId, newBrain, adminId, trx);
     await MindModel.setPublishedVersion(mindId, v.id, trx);
     await MindSyncProposalModel.finalizeApproved(mindId, trx);

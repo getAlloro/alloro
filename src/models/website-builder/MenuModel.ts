@@ -86,6 +86,22 @@ export class MenuItemModel extends BaseModel {
       .orderBy("order_index", "asc");
   }
 
+  /**
+   * Fetch a menu's items ordered by order_index, selecting only the columns the
+   * shortcode resolver consumes when building the nav tree. Mirrors the inline
+   * query in shortcodeResolver.resolveMenus. Returns raw rows.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findItemsForMenuTree(
+    menuId: string,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return this.table(trx)
+      .where("menu_id", menuId)
+      .orderBy("order_index", "asc")
+      .select("id", "parent_id", "label", "url", "target", "order_index");
+  }
+
   static async findById(
     id: string,
     trx?: QueryContext

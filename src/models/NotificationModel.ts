@@ -174,6 +174,24 @@ export class NotificationModel extends BaseModel {
   }
 
   /**
+   * Delete notifications for an organization with a given title within a
+   * created_at window. Mirrors the inline notifications delete in
+   * pms-retry.cleanupMonthlyRunData's transaction. Trx-aware.
+   */
+  static async deleteByOrgTitleInWindow(
+    organizationId: number,
+    title: string,
+    createdAtStart: string,
+    createdAtEnd: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ organization_id: organizationId, title })
+      .whereBetween("created_at", [createdAtStart, createdAtEnd])
+      .del();
+  }
+
+  /**
    * List notifications for admin with org + location filters.
    */
   static async listAdmin(

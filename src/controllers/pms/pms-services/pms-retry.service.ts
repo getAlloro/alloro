@@ -1,5 +1,10 @@
 import axios from "axios";
-import db from "../../../database/connection";
+import { BaseModel } from "../../../models/BaseModel";
+import { PmsJobModel } from "../../../models/PmsJobModel";
+import { AgentResultModel } from "../../../models/AgentResultModel";
+import { TaskModel } from "../../../models/TaskModel";
+import { GoogleDataStoreModel } from "../../../models/GoogleDataStoreModel";
+import { NotificationModel } from "../../../models/NotificationModel";
 import { GoogleConnectionModel } from "../../../models/GoogleConnectionModel";
 import { OrganizationLifecycleService } from "../../../services/OrganizationLifecycleService";
 import {
@@ -62,10 +67,7 @@ async function cleanupMonthlyRunData(job: {
   let dateEnd: string | null = null;
 
   if (agentResultIds.length > 0) {
-    const dateRow = await db("agent_results")
-      .whereIn("id", agentResultIds)
-      .select("date_start", "date_end")
-      .first();
+    const dateRow = await AgentResultModel.findDateRangeByIds(agentResultIds);
     if (dateRow) {
       dateStart = dateRow.date_start;
       dateEnd = dateRow.date_end;
@@ -77,14 +79,13 @@ async function cleanupMonthlyRunData(job: {
     const timeStart = detail?.startedAt || new Date(Date.now() - 86400_000).toISOString();
     const timeEnd = detail?.completedAt || new Date().toISOString();
 
-    const fallbackResults = await db("agent_results")
-      .where({ organization_id: job.organization_id })
-      .where((qb: any) => {
-        if (job.location_id) qb.where({ location_id: job.location_id });
-      })
-      .whereIn("agent_type", MONTHLY_AGENT_RESULT_TYPES)
-      .whereBetween("created_at", [timeStart, timeEnd])
-      .select("id", "date_start", "date_end");
+    const fallbackResults = await AgentResultModel.findForMonthlyCleanupFallback(
+      job.organization_id,
+      job.location_id,
+      MONTHLY_AGENT_RESULT_TYPES,
+      timeStart,
+      timeEnd
+    );
 
     agentResultIds = fallbackResults.map((r: any) => r.id);
     if (fallbackResults.length > 0) {
@@ -98,53 +99,50 @@ async function cleanupMonthlyRunData(job: {
   const timeEnd = detail?.completedAt || new Date().toISOString();
 
   // 5. Transaction — delete all related data
-  const deletionCounts = await db.transaction(async (trx) => {
+  const deletionCounts = await BaseModel.transaction(async (trx) => {
     const counts: Record<string, number> = {};
 
     // Delete agent_results
     if (agentResultIds.length > 0) {
-      counts.agentResults = await trx("agent_results")
-        .whereIn("id", agentResultIds)
-        .del();
+      counts.agentResults = await AgentResultModel.deleteByIds(
+        agentResultIds,
+        trx
+      );
     } else {
       counts.agentResults = 0;
     }
 
     // Delete tasks
-    const tasksQuery = trx("tasks")
-      .where({ organization_id: job.organization_id })
-      .whereIn("agent_type", MONTHLY_TASK_AGENT_TYPES)
-      .whereBetween("created_at", [timeStart, timeEnd]);
-    if (job.location_id) {
-      tasksQuery.where({ location_id: job.location_id });
-    }
-    counts.tasks = await tasksQuery.del();
+    counts.tasks = await TaskModel.deleteByOrgAgentTypesInWindow(
+      job.organization_id,
+      MONTHLY_TASK_AGENT_TYPES,
+      timeStart,
+      timeEnd,
+      job.location_id,
+      trx
+    );
 
     // Delete google_data_store
     if (dateStart && dateEnd) {
-      const gdsQuery = trx("google_data_store")
-        .where({
-          organization_id: job.organization_id,
-          date_start: dateStart,
-          date_end: dateEnd,
-          run_type: "monthly",
-        });
-      if (job.location_id) {
-        gdsQuery.where({ location_id: job.location_id });
-      }
-      counts.googleDataStore = await gdsQuery.del();
+      counts.googleDataStore = await GoogleDataStoreModel.deleteMonthlyRun(
+        job.organization_id,
+        dateStart,
+        dateEnd,
+        job.location_id,
+        trx
+      );
     } else {
       counts.googleDataStore = 0;
     }
 
     // Delete notifications
-    const notifQuery = trx("notifications")
-      .where({
-        organization_id: job.organization_id,
-        title: "Monthly Insights Ready",
-      })
-      .whereBetween("created_at", [timeStart, timeEnd]);
-    counts.notifications = await notifQuery.del();
+    counts.notifications = await NotificationModel.deleteByOrgTitleInWindow(
+      job.organization_id,
+      "Monthly Insights Ready",
+      timeStart,
+      timeEnd,
+      trx
+    );
 
     return counts;
   });
@@ -196,20 +194,7 @@ export async function retryFailedStep(
   }
 
   // Get the job with all relevant data
-  const job = await db("pms_jobs")
-    .where({ id: jobId })
-    .select(
-      "id",
-      "organization_id",
-      "location_id",
-      "status",
-      "raw_input_data",
-      "response_log",
-      "automation_status_detail",
-      "is_approved",
-      "is_client_approved"
-    )
-    .first();
+  const job = await PmsJobModel.findForRetryById(jobId);
 
   if (!job) {
     throw Object.assign(new Error("PMS job not found"), { statusCode: 404 });
@@ -254,12 +239,7 @@ async function retryPmsParser(jobId: number, job: any) {
 
   await resetToStep(jobId, "pms_parser");
 
-  await db("pms_jobs").where({ id: jobId }).update({
-    status: "pending",
-    response_log: null,
-    is_approved: 0,
-    is_client_approved: 0,
-  });
+  await PmsJobModel.resetForPmsParserRetry(jobId);
 
   await updateAutomationStatus(jobId, {
     status: "processing",
@@ -392,15 +372,7 @@ async function retryMonthlyAgents(jobId: number, job: any) {
  */
 export async function restartMonthlyAgents(jobId: number) {
   // 1. Load & validate
-  const job = await db("pms_jobs")
-    .where({ id: jobId })
-    .select(
-      "id",
-      "organization_id",
-      "location_id",
-      "automation_status_detail"
-    )
-    .first();
+  const job = await PmsJobModel.findForRestartById(jobId);
 
   if (!job) {
     throw Object.assign(new Error("PMS job not found"), { statusCode: 404 });

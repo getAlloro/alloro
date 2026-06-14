@@ -425,4 +425,335 @@ export class PmsJobModel extends BaseModel {
       hasActiveRun: Boolean(row?.has_active_run),
     };
   }
+
+  /**
+   * Count jobs matching the admin list filters. Mirrors the inline count query
+   * in pms-data.service.listJobsPaginated (status whitelist, is_approved 1/0,
+   * org, location).
+   */
+  static async countJobsForList(
+    filters: {
+      statuses?: string[];
+      approvedFilter?: boolean;
+      organizationFilter?: number;
+      locationFilter?: number;
+    },
+    trx?: QueryContext
+  ): Promise<number> {
+    let countQuery = this.table(trx);
+    if (filters.statuses && filters.statuses.length > 0) {
+      countQuery = countQuery.whereIn("status", filters.statuses);
+    }
+    if (filters.approvedFilter !== undefined) {
+      countQuery = countQuery.where("is_approved", filters.approvedFilter ? 1 : 0);
+    }
+    if (filters.organizationFilter) {
+      countQuery = countQuery.where("organization_id", filters.organizationFilter);
+    }
+    if (filters.locationFilter) {
+      countQuery = countQuery.where("location_id", filters.locationFilter);
+    }
+    const totalResult = await countQuery.count({ total: "*" });
+    return Number(totalResult?.[0]?.total ?? 0);
+  }
+
+  /**
+   * List jobs (joined to locations for location_name) matching the admin list
+   * filters, ordered by timestamp desc with limit/offset. Mirrors the inline
+   * data query in pms-data.service.listJobsPaginated. Returns raw rows
+   * (select pms_jobs.* + locations.name) to preserve original consumption.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async listJobsWithLocationName(
+    filters: {
+      statuses?: string[];
+      approvedFilter?: boolean;
+      organizationFilter?: number;
+      locationFilter?: number;
+    },
+    pagination: { limit: number; offset: number },
+    trx?: QueryContext
+  ): Promise<any[]> {
+    let dataQuery = this.table(trx)
+      .leftJoin("locations", "pms_jobs.location_id", "locations.id")
+      .select("pms_jobs.*", "locations.name as location_name");
+    if (filters.statuses && filters.statuses.length > 0) {
+      dataQuery = dataQuery.whereIn("pms_jobs.status", filters.statuses);
+    }
+    if (filters.approvedFilter !== undefined) {
+      dataQuery = dataQuery.where(
+        "pms_jobs.is_approved",
+        filters.approvedFilter ? 1 : 0
+      );
+    }
+    if (filters.organizationFilter) {
+      dataQuery = dataQuery.where(
+        "pms_jobs.organization_id",
+        filters.organizationFilter
+      );
+    }
+    if (filters.locationFilter) {
+      dataQuery = dataQuery.where("pms_jobs.location_id", filters.locationFilter);
+    }
+    return dataQuery
+      .orderBy("pms_jobs.timestamp", "desc")
+      .limit(pagination.limit)
+      .offset(pagination.offset);
+  }
+
+  /**
+   * Persist a raw response_log value (already serialized to a string or null)
+   * for a job. Mirrors the inline update in pms-data.service.updateJobResponse,
+   * which stores a pre-stringified value rather than letting the model
+   * serialize.
+   */
+  static async updateResponseLogRaw(
+    id: number,
+    responseLogValue: string | null,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx).where({ id }).update({ response_log: responseLogValue });
+  }
+
+  /**
+   * Fetch the response-summary columns for a job. Mirrors the post-update
+   * select in pms-data.service.updateJobResponse. Returns the raw row.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findResponseSummaryById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .select(
+        "id",
+        "time_elapsed",
+        "status",
+        "response_log",
+        "timestamp",
+        "is_approved",
+        "is_client_approved"
+      )
+      .where({ id })
+      .first();
+  }
+
+  /**
+   * Fetch the admin-approval columns for a job. Mirrors the lead select in
+   * pms-approval.service.approveByAdmin. Returns the raw row.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findForAdminApprovalById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .select(
+        "id",
+        "time_elapsed",
+        "status",
+        "response_log",
+        "timestamp",
+        "is_approved",
+        "organization_id",
+        "location_id"
+      )
+      .where({ id })
+      .first();
+  }
+
+  /**
+   * Apply an arbitrary approval update payload (is_approved and optionally
+   * status). Mirrors the inline update in pms-approval.service.approveByAdmin.
+   */
+  static async applyApprovalUpdate(
+    id: number,
+    updatePayload: Record<string, unknown>,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx).where({ id }).update(updatePayload);
+  }
+
+  /**
+   * Fetch the post-admin-approval summary columns. Mirrors the trailing select
+   * in pms-approval.service.approveByAdmin. Returns the raw row.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findAdminApprovalSummaryById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .select(
+        "id",
+        "time_elapsed",
+        "status",
+        "response_log",
+        "timestamp",
+        "is_approved"
+      )
+      .where({ id })
+      .first();
+  }
+
+  /**
+   * Fetch the client-approval columns for a job. Mirrors the lead select in
+   * pms-approval.service.approveByClient. Returns the raw row.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findForClientApprovalById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .select(
+        "id",
+        "time_elapsed",
+        "status",
+        "response_log",
+        "timestamp",
+        "is_approved",
+        "is_client_approved",
+        "organization_id"
+      )
+      .where({ id })
+      .first();
+  }
+
+  /**
+   * Set the is_client_approved flag (1/0). Mirrors the inline update in
+   * pms-approval.service.approveByClient.
+   */
+  static async setClientApprovalFlag(
+    id: number,
+    clientApproval: boolean,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id })
+      .update({ is_client_approved: clientApproval ? 1 : 0 });
+  }
+
+  /**
+   * Fetch the post-client-approval summary columns (includes org + location for
+   * the monthly-agents trigger). Mirrors the trailing select in
+   * pms-approval.service.approveByClient. Returns the raw row.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findClientApprovalResultById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .select(
+        "id",
+        "time_elapsed",
+        "status",
+        "response_log",
+        "timestamp",
+        "is_approved",
+        "is_client_approved",
+        "organization_id",
+        "location_id"
+      )
+      .where({ id })
+      .first();
+  }
+
+  /**
+   * Fetch the automation-status columns for a job. Mirrors the lead select in
+   * pms-automation.service.getJobAutomationStatus. Returns the raw row.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findForAutomationStatusById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .where({ id })
+      .select(
+        "id",
+        "organization_id",
+        "status",
+        "is_approved",
+        "is_client_approved",
+        "automation_status_detail",
+        "timestamp",
+        "response_log"
+      )
+      .first();
+  }
+
+  /**
+   * Fetch just the automation_status_detail column for a job. Mirrors the
+   * refresh select in pms-automation.service.getJobAutomationStatus. Returns
+   * the raw row.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findAutomationStatusDetailById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .where({ id })
+      .select("automation_status_detail")
+      .first();
+  }
+
+  /**
+   * Fetch the columns needed to retry a failed step. Mirrors the lead select in
+   * pms-retry.service.retryFailedStep. Returns the raw row.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findForRetryById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .where({ id })
+      .select(
+        "id",
+        "organization_id",
+        "location_id",
+        "status",
+        "raw_input_data",
+        "response_log",
+        "automation_status_detail",
+        "is_approved",
+        "is_client_approved"
+      )
+      .first();
+  }
+
+  /**
+   * Reset a job to pending before re-running the PMS parser. Mirrors the inline
+   * update in pms-retry.service.retryPmsParser.
+   */
+  static async resetForPmsParserRetry(
+    id: number,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx).where({ id }).update({
+      status: "pending",
+      response_log: null,
+      is_approved: 0,
+      is_client_approved: 0,
+    });
+  }
+
+  /**
+   * Fetch the columns needed to restart a completed monthly-agents run. Mirrors
+   * the lead select in pms-retry.service.restartMonthlyAgents. Returns the raw
+   * row.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findForRestartById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .where({ id })
+      .select("id", "organization_id", "location_id", "automation_status_detail")
+      .first();
+  }
 }

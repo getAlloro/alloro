@@ -1,6 +1,6 @@
 import axios from "axios";
-import db from "../../../database/connection";
 import { GoogleConnectionModel } from "../../../models/GoogleConnectionModel";
+import { PmsJobModel } from "../../../models/PmsJobModel";
 import {
   createNotification,
 } from "../../../utils/core/notificationHelper";
@@ -18,19 +18,7 @@ import logger from "../../../lib/logger";
  * Validates constraints, updates approval, advances automation, creates notification.
  */
 export async function approveByAdmin(jobId: number, requestedApproval: boolean) {
-  const existingJob = await db("pms_jobs")
-    .select(
-      "id",
-      "time_elapsed",
-      "status",
-      "response_log",
-      "timestamp",
-      "is_approved",
-      "organization_id",
-      "location_id"
-    )
-    .where({ id: jobId })
-    .first();
+  const existingJob = await PmsJobModel.findForAdminApprovalById(jobId);
 
   if (!existingJob) {
     throw Object.assign(new Error("PMS job not found"), { statusCode: 404 });
@@ -76,7 +64,7 @@ export async function approveByAdmin(jobId: number, requestedApproval: boolean) 
     updatePayload.status = "approved";
   }
 
-  await db("pms_jobs").where({ id: jobId }).update(updatePayload);
+  await PmsJobModel.applyApprovalUpdate(jobId, updatePayload);
 
   // Update automation status: admin approved, move to client approval
   if (nextApprovalValue === 1) {
@@ -99,17 +87,7 @@ export async function approveByAdmin(jobId: number, requestedApproval: boolean) 
     );
   }
 
-  const updatedJob = await db("pms_jobs")
-    .select(
-      "id",
-      "time_elapsed",
-      "status",
-      "response_log",
-      "timestamp",
-      "is_approved"
-    )
-    .where({ id: jobId })
-    .first();
+  const updatedJob = await PmsJobModel.findAdminApprovalSummaryById(jobId);
 
   return {
     changed: true,
@@ -130,19 +108,7 @@ export async function approveByAdmin(jobId: number, requestedApproval: boolean) 
  * Updates client approval flag, advances automation, triggers monthly agents.
  */
 export async function approveByClient(jobId: number, clientApproval: boolean) {
-  const existingJob = await db("pms_jobs")
-    .select(
-      "id",
-      "time_elapsed",
-      "status",
-      "response_log",
-      "timestamp",
-      "is_approved",
-      "is_client_approved",
-      "organization_id"
-    )
-    .where({ id: jobId })
-    .first();
+  const existingJob = await PmsJobModel.findForClientApprovalById(jobId);
 
   if (!existingJob) {
     throw Object.assign(new Error("PMS job not found"), { statusCode: 404 });
@@ -152,9 +118,7 @@ export async function approveByClient(jobId: number, clientApproval: boolean) {
     await OrganizationLifecycleService.assertActive(existingJob.organization_id);
   }
 
-  await db("pms_jobs")
-    .where({ id: jobId })
-    .update({ is_client_approved: clientApproval ? 1 : 0 });
+  await PmsJobModel.setClientApprovalFlag(jobId, clientApproval);
 
   // Update automation status: client approved, start monthly agents
   if (clientApproval) {
@@ -168,20 +132,7 @@ export async function approveByClient(jobId: number, clientApproval: boolean) {
     });
   }
 
-  const updatedJob = await db("pms_jobs")
-    .select(
-      "id",
-      "time_elapsed",
-      "status",
-      "response_log",
-      "timestamp",
-      "is_approved",
-      "is_client_approved",
-      "organization_id",
-      "location_id"
-    )
-    .where({ id: jobId })
-    .first();
+  const updatedJob = await PmsJobModel.findClientApprovalResultById(jobId);
 
   // Trigger monthly agents when client approves PMS
   if (clientApproval && updatedJob) {

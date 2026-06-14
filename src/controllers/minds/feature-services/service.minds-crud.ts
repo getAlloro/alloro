@@ -4,7 +4,7 @@ import {
   IMindVersion,
 } from "../../../models/MindVersionModel";
 import { MindSyncRunModel } from "../../../models/MindSyncRunModel";
-import { db } from "../../../database/connection";
+import { BaseModel } from "../../../models/BaseModel";
 import { regenerateEmbeddings } from "./service.minds-embedding";
 import { shouldUseRag } from "./service.minds-retrieval";
 import logger from "../../../lib/logger";
@@ -86,7 +86,7 @@ export async function updateBrain(
   const mind = await MindModel.findById(mindId);
   if (!mind) throw new Error("Mind not found");
 
-  const version = await db.transaction(async (trx) => {
+  const version = await BaseModel.transaction(async (trx) => {
     const v = await MindVersionModel.createVersion(
       mindId,
       brainMarkdown,

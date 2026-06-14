@@ -1,4 +1,16 @@
 import { BaseModel, QueryContext } from "../BaseModel";
+import { db } from "../../database/connection";
+
+export interface PostBlockFilter {
+  ids?: string;
+  exc_ids?: string;
+  cats?: string;
+  tags?: string;
+  orderBy: string;
+  order: "asc" | "desc";
+  limit: number;
+  offset: number;
+}
 
 export interface IPost {
   id: string;
@@ -99,5 +111,124 @@ export class PostModel extends BaseModel {
     trx?: QueryContext
   ): Promise<number> {
     return super.deleteById(id, trx);
+  }
+
+  /**
+   * Fetch published posts for a project + post-type slug, applying the
+   * post_block shortcode's slug-include/exclude, category, and tag filters,
+   * plus ordering and limit/offset. Mirrors the inline query in
+   * shortcodeResolver.fetchFilteredPosts verbatim (select p.*, the two
+   * whereExists category/tag subqueries, dynamic order/limit/offset). Returns
+   * raw rows (select p.*) to preserve original consumption.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async fetchFilteredForBlock(
+    projectId: string,
+    postTypeSlug: string,
+    filter: PostBlockFilter,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    const conn = trx || db;
+    let query = conn("website_builder.posts as p")
+      .join("website_builder.post_types as pt", "p.post_type_id", "pt.id")
+      .where("p.project_id", projectId)
+      .where("pt.slug", postTypeSlug)
+      .where("p.status", "published")
+      .select("p.*");
+
+    if (filter.ids) {
+      query = query.whereIn("p.slug", filter.ids.split(",").map((s) => s.trim()));
+    }
+    if (filter.exc_ids) {
+      query = query.whereNotIn(
+        "p.slug",
+        filter.exc_ids.split(",").map((s) => s.trim())
+      );
+    }
+    if (filter.cats) {
+      const catSlugs = filter.cats.split(",").map((s) => s.trim());
+      query = query.whereExists(
+        conn("website_builder.post_category_assignments as pca")
+          .join(
+            "website_builder.post_categories as pc",
+            "pca.category_id",
+            "pc.id"
+          )
+          .whereRaw("pca.post_id = p.id")
+          .whereIn("pc.slug", catSlugs)
+      );
+    }
+    if (filter.tags) {
+      const tagSlugs = filter.tags.split(",").map((s) => s.trim());
+      query = query.whereExists(
+        conn("website_builder.post_tag_assignments as pta")
+          .join("website_builder.post_tags as ptag", "pta.tag_id", "ptag.id")
+          .whereRaw("pta.post_id = p.id")
+          .whereIn("ptag.slug", tagSlugs)
+      );
+    }
+
+    query = query.orderBy(`p.${filter.orderBy}`, filter.order);
+    if (filter.limit > 0) {
+      query = query.limit(filter.limit);
+    }
+    if (filter.offset > 0) {
+      query = query.offset(filter.offset);
+    }
+
+    return query;
+  }
+
+  /**
+   * Fetch (post_id, category name) pairs for a set of post ids. Mirrors the
+   * inline category-assignment join in shortcodeResolver.fetchFilteredPosts.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findCategoryNamesByPostIds(
+    postIds: string[],
+    trx?: QueryContext
+  ): Promise<Array<{ post_id: string; name: string }>> {
+    return (trx || db)("website_builder.post_category_assignments as pca")
+      .join(
+        "website_builder.post_categories as pc",
+        "pca.category_id",
+        "pc.id"
+      )
+      .whereIn("pca.post_id", postIds)
+      .select("pca.post_id", "pc.name");
+  }
+
+  /**
+   * Fetch (post_id, tag name) pairs for a set of post ids. Mirrors the inline
+   * tag-assignment join in shortcodeResolver.fetchFilteredPosts.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findTagNamesByPostIds(
+    postIds: string[],
+    trx?: QueryContext
+  ): Promise<Array<{ post_id: string; name: string }>> {
+    return (trx || db)("website_builder.post_tag_assignments as pta")
+      .join("website_builder.post_tags as pt", "pta.tag_id", "pt.id")
+      .whereIn("pta.post_id", postIds)
+      .select("pta.post_id", "pt.name");
+  }
+
+  /**
+   * Update only the seo_data column for a post (verbatim string value as built
+   * by the caller). Mirrors the inline update in
+   * UserWebsiteController.updateUserPostSeo, which stores a pre-stringified
+   * value and sets updated_at via the DB clock.
+   */
+  static async updateSeoDataRaw(
+    postId: string,
+    seoDataValue: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return (trx || db)("website_builder.posts")
+      .where("id", postId)
+      .update({
+        seo_data: seoDataValue,
+        updated_at: db.fn.now(),
+      });
   }
 }

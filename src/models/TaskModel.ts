@@ -166,6 +166,29 @@ export class TaskModel extends BaseModel {
   }
 
   /**
+   * Delete tasks for an organization within a created_at window, restricted to
+   * a set of agent types and optionally a location. Mirrors the inline tasks
+   * delete in pms-retry.cleanupMonthlyRunData's transaction. Trx-aware.
+   */
+  static async deleteByOrgAgentTypesInWindow(
+    organizationId: number,
+    agentTypes: string[],
+    createdAtStart: string,
+    createdAtEnd: string,
+    locationId?: number | null,
+    trx?: QueryContext
+  ): Promise<number> {
+    const query = this.table(trx)
+      .where({ organization_id: organizationId })
+      .whereIn("agent_type", agentTypes)
+      .whereBetween("created_at", [createdAtStart, createdAtEnd]);
+    if (locationId) {
+      query.where({ location_id: locationId });
+    }
+    return query.del();
+  }
+
+  /**
    * Fetch the `category` column for tasks belonging to an organization created
    * at or after a cutoff. Used to count user/alloro tasks created during a
    * monthly agent run. Mirrors the inline

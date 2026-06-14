@@ -41,8 +41,12 @@
  * above so template annotations stay aligned.
  */
 
-import { db } from "../../../database/connection";
 import { ProjectReviewModel } from "../../../models/website-builder/ProjectReviewModel";
+import { PostModel } from "../../../models/website-builder/PostModel";
+import { PostBlockModel } from "../../../models/website-builder/PostBlockModel";
+import { ReviewBlockModel } from "../../../models/website-builder/ReviewBlockModel";
+import { MenuModel, MenuItemModel } from "../../../models/website-builder/MenuModel";
+import { MenuTemplateModel } from "../../../models/website-builder/MenuTemplateModel";
 import logger from "../../../lib/logger";
 
 // =====================================================================
@@ -185,11 +189,10 @@ async function resolvePostBlocks(
 
   // Batch fetch post blocks
   const slugs = [...new Set(shortcodes.map((s) => s.id))];
-  const blocks = await db("website_builder.post_blocks as pb")
-    .join("website_builder.post_types as pt", "pb.post_type_id", "pt.id")
-    .where("pb.template_id", templateId)
-    .whereIn("pb.slug", slugs)
-    .select("pb.slug", "pb.sections", "pt.slug as post_type_slug");
+  const blocks = await PostBlockModel.findWithPostTypeByTemplateAndSlugs(
+    templateId,
+    slugs
+  );
 
   const blockMap = new Map<string, { sections: any; post_type_slug: string }>();
   for (const b of blocks) {
@@ -222,45 +225,6 @@ async function fetchFilteredPosts(
   postTypeSlug: string,
   sc: PostBlockShortcode
 ): Promise<any[]> {
-  let query = db("website_builder.posts as p")
-    .join("website_builder.post_types as pt", "p.post_type_id", "pt.id")
-    .where("p.project_id", projectId)
-    .where("pt.slug", postTypeSlug)
-    .where("p.status", "published")
-    .select("p.*");
-
-  if (sc.ids) {
-    query = query.whereIn("p.slug", sc.ids.split(",").map((s) => s.trim()));
-  }
-  if (sc.exc_ids) {
-    query = query.whereNotIn(
-      "p.slug",
-      sc.exc_ids.split(",").map((s) => s.trim())
-    );
-  }
-  if (sc.cats) {
-    const catSlugs = sc.cats.split(",").map((s) => s.trim());
-    query = query.whereExists(
-      db("website_builder.post_category_assignments as pca")
-        .join(
-          "website_builder.post_categories as pc",
-          "pca.category_id",
-          "pc.id"
-        )
-        .whereRaw("pca.post_id = p.id")
-        .whereIn("pc.slug", catSlugs)
-    );
-  }
-  if (sc.tags) {
-    const tagSlugs = sc.tags.split(",").map((s) => s.trim());
-    query = query.whereExists(
-      db("website_builder.post_tag_assignments as pta")
-        .join("website_builder.post_tags as ptag", "pta.tag_id", "ptag.id")
-        .whereRaw("pta.post_id = p.id")
-        .whereIn("ptag.slug", tagSlugs)
-    );
-  }
-
   const isPaginated = isPaginatedMode(sc.paginate);
   const orderBy = getPostOrderColumn(sc.order_by);
   const order = getSortOrder(sc.order, "asc");
@@ -269,32 +233,23 @@ async function fetchFilteredPosts(
     : parseNonNegativeInt(sc.limit, 10);
   const offset = isPaginated ? 0 : parseNonNegativeInt(sc.offset, 0);
 
-  query = query.orderBy(`p.${orderBy}`, order);
-  if (limit > 0) {
-    query = query.limit(limit);
-  }
-  if (offset > 0) {
-    query = query.offset(offset);
-  }
-
-  const posts = await query;
+  const posts = await PostModel.fetchFilteredForBlock(projectId, postTypeSlug, {
+    ids: sc.ids,
+    exc_ids: sc.exc_ids,
+    cats: sc.cats,
+    tags: sc.tags,
+    orderBy,
+    order,
+    limit,
+    offset,
+  });
 
   if (posts.length > 0) {
     const postIds = posts.map((p: any) => p.id);
 
-    const cats = await db("website_builder.post_category_assignments as pca")
-      .join(
-        "website_builder.post_categories as pc",
-        "pca.category_id",
-        "pc.id"
-      )
-      .whereIn("pca.post_id", postIds)
-      .select("pca.post_id", "pc.name");
+    const cats = await PostModel.findCategoryNamesByPostIds(postIds);
 
-    const tags = await db("website_builder.post_tag_assignments as pta")
-      .join("website_builder.post_tags as pt", "pta.tag_id", "pt.id")
-      .whereIn("pta.post_id", postIds)
-      .select("pta.post_id", "pt.name");
+    const tags = await PostModel.findTagNamesByPostIds(postIds);
 
     const catMap = new Map<string, string[]>();
     for (const c of cats) {
@@ -627,10 +582,10 @@ async function resolveReviewBlocks(
 
   // Batch fetch review blocks
   const slugs = [...new Set(shortcodes.map((s) => s.id))];
-  const blocks = await db("website_builder.review_blocks")
-    .where("template_id", templateId)
-    .whereIn("slug", slugs)
-    .select("slug", "sections");
+  const blocks = await ReviewBlockModel.findByTemplateAndSlugs(
+    templateId,
+    slugs
+  );
 
   const blockMap = new Map<string, { sections: any }>();
   for (const b of blocks) {
@@ -783,9 +738,7 @@ async function resolveMenus(
   if (shortcodes.length === 0) return html;
 
   for (const sc of shortcodes) {
-    const menu = await db("website_builder.menus")
-      .where({ project_id: projectId, slug: sc.id })
-      .first();
+    const menu = await MenuModel.findByProjectAndSlug(projectId, sc.id);
 
     if (!menu) {
       html = html.replace(
@@ -795,10 +748,7 @@ async function resolveMenus(
       continue;
     }
 
-    const items = await db("website_builder.menu_items")
-      .where("menu_id", menu.id)
-      .orderBy("order_index", "asc")
-      .select("id", "parent_id", "label", "url", "target", "order_index");
+    const items = await MenuItemModel.findItemsForMenuTree(menu.id);
 
     if (items.length === 0) {
       html = html.replace(
@@ -812,9 +762,10 @@ async function resolveMenus(
 
     let menuTemplateHtml: string | null = null;
     if (sc.template && templateId) {
-      const mt = await db("website_builder.menu_templates")
-        .where({ template_id: templateId, slug: sc.template })
-        .first();
+      const mt = await MenuTemplateModel.findByTemplateAndSlug(
+        templateId,
+        sc.template
+      );
       if (mt) {
         const sections =
           typeof mt.sections === "string"

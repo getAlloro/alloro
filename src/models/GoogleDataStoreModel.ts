@@ -33,4 +33,28 @@ export class GoogleDataStoreModel extends BaseModel {
   ): Promise<void> {
     await this.table(trx).insert(data);
   }
+
+  /**
+   * Delete the monthly-run rows for an org/date-range (optionally scoped to a
+   * location). Mirrors the inline google_data_store delete in
+   * pms-retry.cleanupMonthlyRunData's transaction. Trx-aware.
+   */
+  static async deleteMonthlyRun(
+    organizationId: number,
+    dateStart: string,
+    dateEnd: string,
+    locationId?: number | null,
+    trx?: QueryContext
+  ): Promise<number> {
+    const query = this.table(trx).where({
+      organization_id: organizationId,
+      date_start: dateStart,
+      date_end: dateEnd,
+      run_type: "monthly",
+    });
+    if (locationId) {
+      query.where({ location_id: locationId });
+    }
+    return query.del();
+  }
 }

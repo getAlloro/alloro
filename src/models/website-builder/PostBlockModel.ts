@@ -1,4 +1,5 @@
 import { BaseModel, QueryContext } from "../BaseModel";
+import { db } from "../../database/connection";
 
 export interface IPostBlock {
   id: string;
@@ -65,5 +66,25 @@ export class PostBlockModel extends BaseModel {
     trx?: QueryContext
   ): Promise<number> {
     return super.deleteById(id, trx);
+  }
+
+  /**
+   * Batch-fetch post blocks for a template by slug list, joined to their post
+   * type so the resolver gets each block's post_type_slug. Mirrors the inline
+   * query in shortcodeResolver.resolvePostBlocks (select pb.slug, pb.sections,
+   * pt.slug as post_type_slug). Returns raw rows to preserve original
+   * consumption (sections parsed by the caller).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findWithPostTypeByTemplateAndSlugs(
+    templateId: string,
+    slugs: string[],
+    trx?: QueryContext
+  ): Promise<Array<{ slug: string; sections: unknown; post_type_slug: string }>> {
+    return (trx || db)("website_builder.post_blocks as pb")
+      .join("website_builder.post_types as pt", "pb.post_type_id", "pt.id")
+      .where("pb.template_id", templateId)
+      .whereIn("pb.slug", slugs)
+      .select("pb.slug", "pb.sections", "pt.slug as post_type_slug");
   }
 }

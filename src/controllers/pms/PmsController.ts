@@ -22,7 +22,7 @@ import {
 import { signHeaders } from "../../utils/pms/headerSignature";
 import type { ColumnMapping } from "../../types/pmsMapping";
 import { resolveLocationId } from "../../utils/locationResolver";
-import { db } from "../../database/connection";
+import { BaseModel } from "../../models/BaseModel";
 import { assertNoActivePmsAutomation } from "./pms-services/pms-mutation-guard.service";
 import logger from "../../lib/logger";
 
@@ -903,7 +903,7 @@ export async function uploadWithMapping(req: Request, res: Response) {
     };
     const actorUserId = rbacReq.userId ?? rbacReq.user?.userId ?? null;
 
-    const job = await db.transaction(async (trx) => {
+    const job = await BaseModel.transaction(async (trx) => {
       const created = await PmsJobModel.create(
         {
           time_elapsed: 0,

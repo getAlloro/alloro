@@ -6,7 +6,6 @@ import {
   setAwaitingApproval,
   AutomationStatusDetail,
 } from "../../../utils/pms/pmsAutomationStatus";
-import db from "../../../database/connection";
 import logger from "../../../lib/logger";
 
 /**
@@ -15,19 +14,7 @@ import logger from "../../../lib/logger";
  * auto-advances to admin_approval and sends admin email.
  */
 export async function getJobAutomationStatus(jobId: number) {
-  const job = await db("pms_jobs")
-    .where({ id: jobId })
-    .select(
-      "id",
-      "organization_id",
-      "status",
-      "is_approved",
-      "is_client_approved",
-      "automation_status_detail",
-      "timestamp",
-      "response_log"
-    )
-    .first();
+  const job = await PmsJobModel.findForAutomationStatusById(jobId);
 
   if (!job) {
     throw Object.assign(new Error("PMS job not found"), { statusCode: 404 });
@@ -74,10 +61,7 @@ export async function getJobAutomationStatus(jobId: number) {
     }
 
     // Refresh the automation status
-    const updatedJob = await db("pms_jobs")
-      .where({ id: jobId })
-      .select("automation_status_detail")
-      .first();
+    const updatedJob = await PmsJobModel.findAutomationStatusDetailById(jobId);
     if (updatedJob?.automation_status_detail) {
       automationStatus =
         typeof updatedJob.automation_status_detail === "string"
