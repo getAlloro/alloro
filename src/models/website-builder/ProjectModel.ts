@@ -135,6 +135,27 @@ export class ProjectModel extends BaseModel {
   }
 
   /**
+   * Mark a project's layouts as ready: set status="ready", clear progress, and
+   * stamp both layouts_generated_at and updated_at via the DB clock. Mirrors the
+   * success-state update in service.layouts-pipeline.generateLayouts verbatim.
+   * Dedicated method because layouts_generated_at is a second DB-clock column
+   * the generic updateFieldsById doesn't set.
+   */
+  static async markLayoutsReady(
+    id: string,
+    trx?: QueryContext,
+  ): Promise<number> {
+    return this.table(trx)
+      .where("id", id)
+      .update({
+        layouts_generation_status: "ready",
+        layouts_generation_progress: null,
+        layouts_generated_at: db.fn.now(),
+        updated_at: db.fn.now(),
+      });
+  }
+
+  /**
    * Atomically create the instant-website project + homepage row and flip the
    * owning organization's patientpath status, in one transaction. Mirrors the
    * inline `db.transaction` in services/instantWebsiteGenerator verbatim
@@ -729,6 +750,23 @@ export class ProjectModel extends BaseModel {
     return this.table(trx)
       .where("id", projectId)
       .select("generation_cancel_requested")
+      .first();
+  }
+
+  /**
+   * Fetch (id, template_id, project_identity) for a project. Mirrors the
+   * one-shot load in service.post-importer.importFromIdentity verbatim
+   * (`.select("id","template_id","project_identity").first()`). Returns the raw
+   * row (the caller parses project_identity itself).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findIdentityContextById(
+    projectId: string,
+    trx?: QueryContext,
+  ): Promise<any> {
+    return this.table(trx)
+      .where("id", projectId)
+      .select("id", "template_id", "project_identity")
       .first();
   }
 

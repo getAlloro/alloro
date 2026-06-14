@@ -677,4 +677,58 @@ export class PostModel extends BaseModel {
       .where("post_id", postId)
       .del();
   }
+
+  // ===================================================================
+  // Post-importer service helpers (service.post-importer)
+  //
+  // Mirror the inline `db("website_builder.posts")` queries previously held in
+  // admin-websites/feature-services/service.post-importer verbatim (same
+  // columns, filters, and `.modify()` shape). The importer reads raw post rows
+  // (title/slug/id/featured_image accessed directly), so reads return raw rows.
+  // ===================================================================
+
+  /**
+   * Find an existing post by its import dedup key (project_id, post_type_id,
+   * source_url) (raw row). Mirrors the dedup + post-collision lookups in
+   * service.post-importer.importDoctorOrServiceEntry / importLocationEntry
+   * verbatim (source_url holds the composite key for doctor/service or the
+   * place_id for location).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findByImportDedupKey(
+    projectId: string,
+    postTypeId: string,
+    sourceUrl: string,
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .where({
+        project_id: projectId,
+        post_type_id: postTypeId,
+        source_url: sourceUrl,
+      })
+      .first();
+  }
+
+  /**
+   * Find a post that already uses (project_id, post_type_id, slug), optionally
+   * excluding a given post id (raw row). Mirrors the slug-collision probe in
+   * service.post-importer.uniqueSlug verbatim, including the conditional
+   * `.modify(q => q.whereNot("id", ignorePostId))`.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findSlugCollisionForImport(
+    projectId: string,
+    postTypeId: string,
+    slug: string,
+    ignorePostId?: string,
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .where({ project_id: projectId, post_type_id: postTypeId, slug })
+      .modify((q) => {
+        if (ignorePostId) q.whereNot("id", ignorePostId);
+      })
+      .first();
+  }
 }

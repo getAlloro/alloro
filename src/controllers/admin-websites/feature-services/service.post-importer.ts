@@ -32,17 +32,16 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
 import * as crypto from "crypto";
-import { db } from "../../../database/connection";
 import { uploadToS3 } from "../../../utils/core/s3";
 import {
   buildMediaS3Key,
   buildS3Url,
 } from "../../admin-media/feature-utils/util.s3-helpers";
 import { scrapeUrl, type ScrapeStrategy } from "./service.url-scrape-strategies";
+import { PostModel } from "../../../models/website-builder/PostModel";
+import { PostTypeModel } from "../../../models/website-builder/PostTypeModel";
+import { ProjectModel } from "../../../models/website-builder/ProjectModel";
 import logger from "../../../lib/logger";
-
-const POSTS_TABLE = "website_builder.posts";
-const PROJECTS_TABLE = "website_builder.projects";
 
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024; // 15 MB cap
 const POST_CONTENT_MAX_CHARS = 60_000; // hard wall to keep TEXT row sane
@@ -148,17 +147,11 @@ async function resolvePostTypeId(
   // Some templates use plural forms ("doctors", "services", "locations") and
   // some use singular. We try both, preferring an exact match.
   const candidates = [postType, `${postType}s`];
-  const row = await db("website_builder.post_types")
-    .where("template_id", templateId)
-    .whereIn(
-      db.raw("lower(slug)") as any,
-      candidates.map((c) => c.toLowerCase()),
-    )
-    .orderByRaw(
-      `CASE WHEN lower(slug) = ? THEN 0 ELSE 1 END`,
-      [postType.toLowerCase()],
-    )
-    .first();
+  const row = await PostTypeModel.findByTemplateAndCandidateSlugs(
+    templateId,
+    candidates.map((c) => c.toLowerCase()),
+    postType.toLowerCase(),
+  );
   return row?.id ?? null;
 }
 
@@ -384,12 +377,12 @@ async function uniqueSlug(
   let attempt = 0;
   // Cap retries — extreme collisions are vanishingly rare.
   while (attempt < 5) {
-    const conflict = await db(POSTS_TABLE)
-      .where({ project_id: projectId, post_type_id: postTypeId, slug })
-      .modify((q) => {
-        if (ignorePostId) q.whereNot("id", ignorePostId);
-      })
-      .first();
+    const conflict = await PostModel.findSlugCollisionForImport(
+      projectId,
+      postTypeId,
+      slug,
+      ignorePostId,
+    );
     if (!conflict) return slug;
     attempt += 1;
     slug = `${desired}-${Date.now().toString(36).slice(-4)}-${attempt}`;
@@ -429,13 +422,11 @@ async function importDoctorOrServiceEntry(args: {
     : null;
 
   // Dedup check — match on composite key stored in source_url
-  const existing = await db(POSTS_TABLE)
-    .where({
-      project_id: projectId,
-      post_type_id: postTypeId,
-      source_url: dedupKey,
-    })
-    .first();
+  const existing = await PostModel.findByImportDedupKey(
+    projectId,
+    postTypeId,
+    dedupKey,
+  );
   if (existing && !overwrite) {
     return {
       key: dedupKey,
@@ -527,19 +518,16 @@ async function importDoctorOrServiceEntry(args: {
 
   if (existing && overwrite) {
     const slug = existing.slug;
-    await db(POSTS_TABLE)
-      .where("id", existing.id)
-      .update({
-        title,
-        slug,
-        content: extractedText,
-        excerpt: identityEntry?.short_blurb
-          ? clip(identityEntry.short_blurb, 1000)
-          : null,
-        featured_image: featuredImageUrl ?? existing.featured_image,
-        source_url: dedupKey,
-        updated_at: db.fn.now(),
-      });
+    await PostModel.updateFieldsById(existing.id, {
+      title,
+      slug,
+      content: extractedText,
+      excerpt: identityEntry?.short_blurb
+        ? clip(identityEntry.short_blurb, 1000)
+        : null,
+      featured_image: featuredImageUrl ?? existing.featured_image,
+      source_url: dedupKey,
+    });
     return {
       key: dedupKey,
       status: "updated",
@@ -553,22 +541,20 @@ async function importDoctorOrServiceEntry(args: {
   const slug = await uniqueSlug(projectId, postTypeId, desiredSlug);
 
   try {
-    const [post] = await db(POSTS_TABLE)
-      .insert({
-        project_id: projectId,
-        post_type_id: postTypeId,
-        title,
-        slug,
-        content: extractedText,
-        excerpt: identityEntry?.short_blurb
-          ? clip(identityEntry.short_blurb, 1000)
-          : null,
-        featured_image: featuredImageUrl,
-        source_url: dedupKey,
-        status: "draft",
-        custom_fields: JSON.stringify({}),
-      })
-      .returning("*");
+    const post = await PostModel.insertReturning({
+      project_id: projectId,
+      post_type_id: postTypeId,
+      title,
+      slug,
+      content: extractedText,
+      excerpt: identityEntry?.short_blurb
+        ? clip(identityEntry.short_blurb, 1000)
+        : null,
+      featured_image: featuredImageUrl,
+      source_url: dedupKey,
+      status: "draft",
+      custom_fields: JSON.stringify({}),
+    });
     return {
       key: dedupKey,
       status: "created",
@@ -581,13 +567,11 @@ async function importDoctorOrServiceEntry(args: {
       err?.code === "23505" ||
       String(err?.message || "").includes("idx_posts_project_type_source")
     ) {
-      const collided = await db(POSTS_TABLE)
-        .where({
-          project_id: projectId,
-          post_type_id: postTypeId,
-          source_url: dedupKey,
-        })
-        .first();
+      const collided = await PostModel.findByImportDedupKey(
+        projectId,
+        postTypeId,
+        dedupKey,
+      );
       return {
         key: dedupKey,
         status: "skipped",
@@ -634,13 +618,11 @@ async function importLocationEntry(args: {
   }
 
   // Dedup against (project, post_type, source_url=place_id)
-  const existing = await db(POSTS_TABLE)
-    .where({
-      project_id: projectId,
-      post_type_id: postTypeId,
-      source_url: placeId,
-    })
-    .first();
+  const existing = await PostModel.findByImportDedupKey(
+    projectId,
+    postTypeId,
+    placeId,
+  );
   if (existing && !overwrite) {
     return {
       key: placeId,
@@ -666,16 +648,13 @@ async function importLocationEntry(args: {
   }
 
   if (existing && overwrite) {
-    await db(POSTS_TABLE)
-      .where("id", existing.id)
-      .update({
-        title,
-        content,
-        excerpt: loc.address ? clip(loc.address, 1000) : null,
-        featured_image: featuredImageUrl ?? existing.featured_image,
-        source_url: placeId,
-        updated_at: db.fn.now(),
-      });
+    await PostModel.updateFieldsById(existing.id, {
+      title,
+      content,
+      excerpt: loc.address ? clip(loc.address, 1000) : null,
+      featured_image: featuredImageUrl ?? existing.featured_image,
+      source_url: placeId,
+    });
     return {
       key: placeId,
       status: "updated",
@@ -688,20 +667,18 @@ async function importLocationEntry(args: {
   const slug = await uniqueSlug(projectId, postTypeId, desiredSlug);
 
   try {
-    const [post] = await db(POSTS_TABLE)
-      .insert({
-        project_id: projectId,
-        post_type_id: postTypeId,
-        title,
-        slug,
-        content,
-        excerpt: loc.address ? clip(loc.address, 1000) : null,
-        featured_image: featuredImageUrl,
-        source_url: placeId,
-        status: "draft",
-        custom_fields: JSON.stringify({}),
-      })
-      .returning("*");
+    const post = await PostModel.insertReturning({
+      project_id: projectId,
+      post_type_id: postTypeId,
+      title,
+      slug,
+      content,
+      excerpt: loc.address ? clip(loc.address, 1000) : null,
+      featured_image: featuredImageUrl,
+      source_url: placeId,
+      status: "draft",
+      custom_fields: JSON.stringify({}),
+    });
     return {
       key: placeId,
       status: "created",
@@ -713,13 +690,11 @@ async function importLocationEntry(args: {
       err?.code === "23505" ||
       String(err?.message || "").includes("idx_posts_project_type_source")
     ) {
-      const collided = await db(POSTS_TABLE)
-        .where({
-          project_id: projectId,
-          post_type_id: postTypeId,
-          source_url: placeId,
-        })
-        .first();
+      const collided = await PostModel.findByImportDedupKey(
+        projectId,
+        postTypeId,
+        placeId,
+      );
       return {
         key: placeId,
         status: "skipped",
@@ -768,10 +743,7 @@ export async function importFromIdentity(
   }
 
   // Load project + identity once. Same identity blob is reused across entries.
-  const project = await db(PROJECTS_TABLE)
-    .where("id", projectId)
-    .select("id", "template_id", "project_identity")
-    .first();
+  const project = await ProjectModel.findIdentityContextById(projectId);
 
   if (!project) {
     throw new Error(`Project not found: ${projectId}`);

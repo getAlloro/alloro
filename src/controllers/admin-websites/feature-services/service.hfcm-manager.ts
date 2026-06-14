@@ -6,11 +6,9 @@
  * HTML sanitization and ownership verification.
  */
 
-import { db } from "../../../database/connection";
+import { HeaderFooterCodeModel } from "../../../models/website-builder/HeaderFooterCodeModel";
 import { sanitizeCodeSnippet } from "../feature-utils/util.html-sanitizer";
 import logger from "../../../lib/logger";
-
-const HFC_TABLE = "website_builder.header_footer_code";
 
 const VALID_LOCATIONS = ["head_start", "head_end", "body_start", "body_end"];
 
@@ -87,10 +85,7 @@ function sanitizeCode(code: string): {
 export async function listTemplateSnippets(templateId: string): Promise<any[]> {
   logger.info(`[HFCM] Fetching code snippets for template: ${templateId}`);
 
-  const snippets = await db(HFC_TABLE)
-    .where({ template_id: templateId })
-    .orderBy("location", "asc")
-    .orderBy("order_index", "asc");
+  const snippets = await HeaderFooterCodeModel.findByTemplateIdRaw(templateId);
 
   return snippets;
 }
@@ -114,16 +109,14 @@ export async function createTemplateSnippet(
 
   logger.info(`[HFCM] Creating template snippet: ${name} at ${location}`);
 
-  const [snippet] = await db(HFC_TABLE)
-    .insert({
-      template_id: templateId,
-      name,
-      location,
-      code: sanitization.sanitized,
-      page_ids: JSON.stringify(page_ids),
-      order_index,
-    })
-    .returning("*");
+  const snippet = await HeaderFooterCodeModel.insertReturning({
+    template_id: templateId,
+    name,
+    location,
+    code: sanitization.sanitized,
+    page_ids: JSON.stringify(page_ids),
+    order_index,
+  });
 
   logger.info(`[HFCM] \u2713 Created template snippet: ${snippet.id}`);
 
@@ -141,7 +134,7 @@ export async function updateTemplateSnippet(
   const { name, location, code, page_ids, order_index } = data;
 
   // Verify ownership
-  const existing = await db(HFC_TABLE).where({ id: snippetId }).first();
+  const existing = await HeaderFooterCodeModel.findByIdRaw(snippetId);
   if (!existing) {
     return {
       snippet: null,
@@ -165,7 +158,7 @@ export async function updateTemplateSnippet(
   }
 
   // Build update object
-  const updates: any = { updated_at: db.fn.now() };
+  const updates: any = {};
   if (name !== undefined) updates.name = name;
   if (location !== undefined) {
     const locationValidation = validateLocationUpdate(location);
@@ -182,10 +175,10 @@ export async function updateTemplateSnippet(
 
   logger.info(`[HFCM] Updating template snippet: ${snippetId}`);
 
-  const [updated] = await db(HFC_TABLE)
-    .where({ id: snippetId })
-    .update(updates)
-    .returning("*");
+  const updated = await HeaderFooterCodeModel.updateByIdReturningRaw(
+    snippetId,
+    updates
+  );
 
   logger.info(`[HFCM] \u2713 Updated template snippet: ${snippetId}`);
 
@@ -197,7 +190,7 @@ export async function deleteTemplateSnippet(
   snippetId: string
 ): Promise<{ error?: { status: number; code: string; message: string } }> {
   // Verify ownership
-  const existing = await db(HFC_TABLE).where({ id: snippetId }).first();
+  const existing = await HeaderFooterCodeModel.findByIdRaw(snippetId);
   if (!existing) {
     return {
       error: {
@@ -220,7 +213,7 @@ export async function deleteTemplateSnippet(
 
   logger.info(`[HFCM] Deleting template snippet: ${snippetId} (${existing.name})`);
 
-  await db(HFC_TABLE).where({ id: snippetId }).delete();
+  await HeaderFooterCodeModel.deleteByIdRaw(snippetId);
 
   logger.info(`[HFCM] \u2713 Deleted template snippet: ${snippetId}`);
 
@@ -235,7 +228,7 @@ export async function toggleTemplateSnippet(
   error?: { status: number; code: string; message: string };
 }> {
   // Verify ownership
-  const existing = await db(HFC_TABLE).where({ id: snippetId }).first();
+  const existing = await HeaderFooterCodeModel.findByIdRaw(snippetId);
   if (!existing) {
     return {
       error: {
@@ -261,9 +254,7 @@ export async function toggleTemplateSnippet(
     `[HFCM] Toggling template snippet: ${snippetId} to ${newState ? "enabled" : "disabled"}`
   );
 
-  await db(HFC_TABLE)
-    .where({ id: snippetId })
-    .update({ is_enabled: newState, updated_at: db.fn.now() });
+  await HeaderFooterCodeModel.setEnabledById(snippetId, newState);
 
   logger.info(`[HFCM] \u2713 Toggled template snippet: ${snippetId}`);
 
@@ -287,13 +278,7 @@ export async function reorderTemplateSnippets(
   logger.info(`[HFCM] Reordering template snippets for template: ${templateId}`);
 
   // Use transaction for atomic update
-  await db.transaction(async (trx) => {
-    for (let i = 0; i < snippetIds.length; i++) {
-      await trx(HFC_TABLE)
-        .where({ id: snippetIds[i], template_id: templateId })
-        .update({ order_index: i, updated_at: trx.fn.now() });
-    }
-  });
+  await HeaderFooterCodeModel.reorderForTemplate(templateId, snippetIds);
 
   logger.info(`[HFCM] \u2713 Reordered ${snippetIds.length} template snippets`);
 
@@ -307,10 +292,7 @@ export async function reorderTemplateSnippets(
 export async function listProjectSnippets(projectId: string): Promise<any[]> {
   logger.info(`[HFCM] Fetching code snippets for project: ${projectId}`);
 
-  const snippets = await db(HFC_TABLE)
-    .where({ project_id: projectId })
-    .orderBy("location", "asc")
-    .orderBy("order_index", "asc");
+  const snippets = await HeaderFooterCodeModel.findByProjectIdRaw(projectId);
 
   return snippets;
 }
@@ -334,16 +316,14 @@ export async function createProjectSnippet(
 
   logger.info(`[HFCM] Creating project snippet: ${name} at ${location}`);
 
-  const [snippet] = await db(HFC_TABLE)
-    .insert({
-      project_id: projectId,
-      name,
-      location,
-      code: sanitization.sanitized,
-      page_ids: JSON.stringify(page_ids),
-      order_index,
-    })
-    .returning("*");
+  const snippet = await HeaderFooterCodeModel.insertReturning({
+    project_id: projectId,
+    name,
+    location,
+    code: sanitization.sanitized,
+    page_ids: JSON.stringify(page_ids),
+    order_index,
+  });
 
   logger.info(`[HFCM] \u2713 Created project snippet: ${snippet.id}`);
 
@@ -361,7 +341,7 @@ export async function updateProjectSnippet(
   const { name, location, code, page_ids, order_index } = data;
 
   // Verify ownership
-  const existing = await db(HFC_TABLE).where({ id: snippetId }).first();
+  const existing = await HeaderFooterCodeModel.findByIdRaw(snippetId);
   if (!existing) {
     return {
       snippet: null,
@@ -385,7 +365,7 @@ export async function updateProjectSnippet(
   }
 
   // Build update object
-  const updates: any = { updated_at: db.fn.now() };
+  const updates: any = {};
   if (name !== undefined) updates.name = name;
   if (location !== undefined) {
     const locationValidation = validateLocationUpdate(location);
@@ -402,10 +382,10 @@ export async function updateProjectSnippet(
 
   logger.info(`[HFCM] Updating project snippet: ${snippetId}`);
 
-  const [updated] = await db(HFC_TABLE)
-    .where({ id: snippetId })
-    .update(updates)
-    .returning("*");
+  const updated = await HeaderFooterCodeModel.updateByIdReturningRaw(
+    snippetId,
+    updates
+  );
 
   logger.info(`[HFCM] \u2713 Updated project snippet: ${snippetId}`);
 
@@ -417,7 +397,7 @@ export async function deleteProjectSnippet(
   snippetId: string
 ): Promise<{ error?: { status: number; code: string; message: string } }> {
   // Verify ownership
-  const existing = await db(HFC_TABLE).where({ id: snippetId }).first();
+  const existing = await HeaderFooterCodeModel.findByIdRaw(snippetId);
   if (!existing) {
     return {
       error: {
@@ -440,7 +420,7 @@ export async function deleteProjectSnippet(
 
   logger.info(`[HFCM] Deleting project snippet: ${snippetId} (${existing.name})`);
 
-  await db(HFC_TABLE).where({ id: snippetId }).delete();
+  await HeaderFooterCodeModel.deleteByIdRaw(snippetId);
 
   logger.info(`[HFCM] \u2713 Deleted project snippet: ${snippetId}`);
 
@@ -455,7 +435,7 @@ export async function toggleProjectSnippet(
   error?: { status: number; code: string; message: string };
 }> {
   // Verify ownership
-  const existing = await db(HFC_TABLE).where({ id: snippetId }).first();
+  const existing = await HeaderFooterCodeModel.findByIdRaw(snippetId);
   if (!existing) {
     return {
       error: {
@@ -481,9 +461,7 @@ export async function toggleProjectSnippet(
     `[HFCM] Toggling project snippet: ${snippetId} to ${newState ? "enabled" : "disabled"}`
   );
 
-  await db(HFC_TABLE)
-    .where({ id: snippetId })
-    .update({ is_enabled: newState, updated_at: db.fn.now() });
+  await HeaderFooterCodeModel.setEnabledById(snippetId, newState);
 
   logger.info(`[HFCM] \u2713 Toggled project snippet: ${snippetId}`);
 
@@ -507,13 +485,7 @@ export async function reorderProjectSnippets(
   logger.info(`[HFCM] Reordering project snippets for project: ${projectId}`);
 
   // Use transaction for atomic update
-  await db.transaction(async (trx) => {
-    for (let i = 0; i < snippetIds.length; i++) {
-      await trx(HFC_TABLE)
-        .where({ id: snippetIds[i], project_id: projectId })
-        .update({ order_index: i, updated_at: trx.fn.now() });
-    }
-  });
+  await HeaderFooterCodeModel.reorderForProject(projectId, snippetIds);
 
   logger.info(`[HFCM] \u2713 Reordered ${snippetIds.length} project snippets`);
 

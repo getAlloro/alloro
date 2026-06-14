@@ -6,7 +6,6 @@
  */
 
 import axios from "axios";
-import { db } from "../../../database/connection";
 import {
   runWithTools,
   type ToolSchema,
@@ -30,10 +29,9 @@ import {
   type ProjectIdentityRecord,
 } from "../feature-utils/util.project-identity";
 import { ProjectIdentityModel } from "../../../models/website-builder/ProjectIdentityModel";
+import { ProjectModel } from "../../../models/website-builder/ProjectModel";
+import { TemplateModel } from "../../../models/website-builder/TemplateModel";
 import logger from "../../../lib/logger";
-
-const PROJECTS_TABLE = "website_builder.projects";
-const TEMPLATES_TABLE = "website_builder.templates";
 
 const LOG_PREFIX = "[LayoutsPipeline]";
 
@@ -58,7 +56,7 @@ export async function generateLayouts(
 ): Promise<void> {
   log("Starting layouts generation", { projectId });
 
-  await db(PROJECTS_TABLE).where("id", projectId).update({
+  await ProjectModel.updateFieldsById(projectId, {
     layouts_generation_status: "generating",
     layouts_generation_progress: JSON.stringify({
       total: 3,
@@ -66,11 +64,10 @@ export async function generateLayouts(
       current_component: "wrapper",
     }),
     layout_slot_values: JSON.stringify(slotValues || {}),
-    updated_at: db.fn.now(),
   });
 
   try {
-    const project = await db(PROJECTS_TABLE).where("id", projectId).first();
+    const project = await ProjectModel.findRawById(projectId);
     if (!project) throw new Error(`Project ${projectId} not found`);
 
     const identity = await ProjectIdentityModel.findByProjectId<ProjectIdentity>(
@@ -81,7 +78,7 @@ export async function generateLayouts(
     }
 
     const template = project.template_id
-      ? await db(TEMPLATES_TABLE).where("id", project.template_id).first()
+      ? await TemplateModel.findRawById(project.template_id)
       : null;
     if (!template) {
       throw new Error("NO_TEMPLATE");
@@ -128,13 +125,12 @@ export async function generateLayouts(
       const { name, markup } = componentDefs[i];
       log(`Generating ${name} (${i + 1}/${componentDefs.length})`);
 
-      await db(PROJECTS_TABLE).where("id", projectId).update({
+      await ProjectModel.updateFieldsById(projectId, {
         layouts_generation_progress: JSON.stringify({
           total: componentDefs.length,
           completed: i,
           current_component: name,
         }),
-        updated_at: db.fn.now(),
       });
 
       const userMessage = buildLayoutComponentMessage(name, markup, identity, slotValues);
@@ -172,9 +168,8 @@ export async function generateLayouts(
           { ...componentCostContext, metadata: { ...(componentCostContext.metadata || {}), retry: true } },
         );
         if (retryHtml && retryHtml.includes("{{slot}}")) {
-          await db(PROJECTS_TABLE).where("id", projectId).update({
+          await ProjectModel.updateFieldsById(projectId, {
             wrapper: retryHtml,
-            updated_at: db.fn.now(),
           });
         } else {
           log("Wrapper retry failed — preserving previous wrapper");
@@ -190,37 +185,27 @@ export async function generateLayouts(
           log(`Warning: ${name} dropped shortcode tokens`, { missing });
         }
 
-        const updatePatch: any = { updated_at: db.fn.now() };
+        const updatePatch: any = {};
         updatePatch[name] = html;
-        await db(PROJECTS_TABLE).where("id", projectId).update(updatePatch);
+        await ProjectModel.updateFieldsById(projectId, updatePatch);
       }
 
-      await db(PROJECTS_TABLE).where("id", projectId).update({
+      await ProjectModel.updateFieldsById(projectId, {
         layouts_generation_progress: JSON.stringify({
           total: componentDefs.length,
           completed: i + 1,
           current_component:
             i + 1 < componentDefs.length ? componentDefs[i + 1].name : "done",
         }),
-        updated_at: db.fn.now(),
       });
     }
 
-    await db(PROJECTS_TABLE).where("id", projectId).update({
-      layouts_generation_status: "ready",
-      layouts_generation_progress: null,
-      layouts_generated_at: db.fn.now(),
-      updated_at: db.fn.now(),
-    });
+    await ProjectModel.markLayoutsReady(projectId);
 
     log("Layouts generation complete", { projectId });
   } catch (err: any) {
     log("Layouts generation failed", { projectId, error: err.message });
-    await db(PROJECTS_TABLE).where("id", projectId).update({
-      layouts_generation_status: "failed",
-      layouts_generation_progress: null,
-      updated_at: db.fn.now(),
-    });
+    await ProjectModel.setLayoutsGenerationStatus(projectId, "failed");
     throw err;
   }
 }
