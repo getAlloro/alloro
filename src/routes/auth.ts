@@ -1,5 +1,7 @@
 import express, { Request, Response, NextFunction } from "express";
 import * as controller from "../controllers/auth/AuthController";
+import { validate } from "../middleware/validate";
+import { validateTokenParamsSchema } from "../validation/auth.schemas";
 
 const router = express.Router();
 
@@ -14,7 +16,13 @@ router.get("/callback", controller.handleOAuthCallback);
 router.get("/google/callback", controller.handleOAuthCallback);
 
 // Token management
-router.get("/google/validate/:connectionId", controller.validateToken);
+// Validation: warn-only. The :connectionId param is the only client input on
+// this OAuth router; body schemas live on auth-password / auth-otp instead.
+router.get(
+  "/google/validate/:connectionId",
+  validate(validateTokenParamsSchema, { target: "params" }),
+  controller.validateToken
+);
 
 // Scope management
 router.get("/google/scopes", controller.getScopeInfo);
