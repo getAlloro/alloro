@@ -1,6 +1,5 @@
-import { Knex } from "knex";
 import { BaseModel, PaginatedResult, PaginationParams, QueryContext } from "./BaseModel";
-import { db } from "../database/connection";
+import * as q from "./pmsJobQueries";
 
 export interface IPmsJob {
   id: number;
@@ -37,6 +36,24 @@ export interface PmsJobFilters {
   is_approved?: boolean;
 }
 
+/**
+ * DB-correctness layer for `pms_jobs`.
+ *
+ * This class is a thin public facade: every non-trivial method delegates to a
+ * query-builder body in {@link import("./pmsJobQueries")}, keeping this file
+ * under the size ceiling while the public surface — and every caller of it,
+ * plus the `vi.mock("../models/PmsJobModel")` smoke-test seam — stays
+ * unchanged. The BaseModel passthroughs (findById / deleteById), the
+ * `create`/`updateById` overrides (which own JSON serialization for the
+ * `timestamp`-column quirk), the `updateById`-based approval/status wrappers,
+ * and the `paginate`-driven list methods remain here.
+ *
+ * Behavior is preserved: each delegate builds the SAME query as the original
+ * inline body (identical columns/filters/joins/ordering/limits/return-shapes,
+ * trx threading, raw SQL, and timestamp clocks). JSON (de)serialization stays
+ * owned here via BaseModel: the read methods that deserialize fetch raw rows
+ * from the helper and map through `this.deserializeJsonFields`.
+ */
 export class PmsJobModel extends BaseModel {
   protected static tableName = "pms_jobs";
   protected static jsonFields = [
@@ -92,10 +109,7 @@ export class PmsJobModel extends BaseModel {
     organizationId: number,
     trx?: QueryContext
   ): Promise<{ count: string } | undefined> {
-    return this.table(trx)
-      .where({ organization_id: organizationId })
-      .count<{ count: string }[]>("* as count")
-      .first();
+    return q.countByOrganizationIdQuery(organizationId, trx);
   }
 
   /** Hard-delete all jobs for an org (admin reset). Returns rows deleted. */
@@ -103,7 +117,7 @@ export class PmsJobModel extends BaseModel {
     organizationId: number,
     trx?: QueryContext
   ): Promise<number> {
-    return this.table(trx).where({ organization_id: organizationId }).del();
+    return q.deleteByOrganizationIdQuery(organizationId, trx);
   }
 
   static async listAdmin(
@@ -111,22 +125,11 @@ export class PmsJobModel extends BaseModel {
     pagination: PaginationParams,
     trx?: QueryContext
   ): Promise<PaginatedResult<IPmsJob>> {
-    const buildQuery = (qb: Knex.QueryBuilder) => {
-      if (filters.organization_id) {
-        qb = qb.where("organization_id", filters.organization_id);
-      }
-      if (filters.status) {
-        qb = qb.where("status", filters.status);
-      }
-      if (filters.statuses && filters.statuses.length > 0) {
-        qb = qb.whereIn("status", filters.statuses);
-      }
-      if (filters.is_approved !== undefined) {
-        qb = qb.where("is_approved", filters.is_approved);
-      }
-      return qb.orderBy("timestamp", "desc");
-    };
-    return this.paginate<IPmsJob>(buildQuery, pagination, trx);
+    return this.paginate<IPmsJob>(
+      q.listAdminBuildQuery(filters),
+      pagination,
+      trx
+    );
   }
 
   static async updateApproval(
@@ -168,9 +171,7 @@ export class PmsJobModel extends BaseModel {
     statusDetailJson: string,
     trx?: QueryContext
   ): Promise<number> {
-    return this.table(trx)
-      .where({ id })
-      .update({ automation_status_detail: statusDetailJson });
+    return q.updateAutomationStatusDetailRawQuery(id, statusDetailJson, trx);
   }
 
   /**
@@ -182,31 +183,11 @@ export class PmsJobModel extends BaseModel {
     locationId?: number,
     trx?: QueryContext
   ): Promise<IPmsJob[]> {
-    let query = this.table(trx)
-      .whereNotNull("automation_status_detail")
-      .whereRaw(
-        "automation_status_detail::jsonb->>'status' IN ('pending', 'processing', 'awaiting_approval')"
-      )
-      .select(
-        "id",
-        "organization_id",
-        "location_id",
-        "status",
-        "is_approved",
-        "is_client_approved",
-        "automation_status_detail",
-        "timestamp"
-      )
-      .orderBy("timestamp", "desc");
-
-    if (organizationId) {
-      query = query.where("organization_id", organizationId);
-    }
-    if (locationId) {
-      query = query.where("location_id", locationId);
-    }
-
-    const rows = await query;
+    const rows = await q.findActiveAutomationJobsQuery(
+      organizationId,
+      locationId,
+      trx
+    );
     return rows.map((row: IPmsJob) => this.deserializeJsonFields(row));
   }
 
@@ -214,7 +195,6 @@ export class PmsJobModel extends BaseModel {
    * Find an in-flight monthly-agents automation job for an org (optional
    * location), i.e. automation_status_detail.status = 'processing' and
    * .currentStep = 'monthly_agents'. Returns the raw first matching row.
-   * Mirrors the inline getLatestReferralEngineOutput active-automation check.
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findActiveMonthlyAgentsAutomation(
@@ -222,16 +202,11 @@ export class PmsJobModel extends BaseModel {
     locationId: number | null,
     trx?: QueryContext
   ): Promise<any> {
-    const query = this.table(trx)
-      .where({ organization_id: organizationId })
-      .whereRaw(
-        `automation_status_detail::jsonb->>'status' = 'processing'
-         AND automation_status_detail::jsonb->>'currentStep' = 'monthly_agents'`
-      );
-    if (locationId) {
-      query.where("location_id", locationId);
-    }
-    return query.first();
+    return q.findActiveMonthlyAgentsAutomationQuery(
+      organizationId,
+      locationId,
+      trx
+    );
   }
 
   /**
@@ -247,20 +222,11 @@ export class PmsJobModel extends BaseModel {
     },
     trx?: QueryContext
   ): Promise<PaginatedResult<IPmsJob>> {
-    const buildQuery = (qb: Knex.QueryBuilder) => {
-      qb = qb.where("organization_id", organizationId);
-      if (options?.locationId) {
-        qb = qb.where("location_id", options.locationId);
-      }
-      if (options?.status) {
-        qb = qb.where("status", options.status);
-      }
-      if (options?.isApproved !== undefined) {
-        qb = qb.where("is_approved", options.isApproved);
-      }
-      return qb.orderBy("timestamp", "desc");
-    };
-    return this.paginate<IPmsJob>(buildQuery, pagination, trx);
+    return this.paginate<IPmsJob>(
+      q.listByOrganizationBuildQuery(organizationId, options),
+      pagination,
+      trx
+    );
   }
 
   /**
@@ -271,24 +237,11 @@ export class PmsJobModel extends BaseModel {
     locationId?: number | null,
     trx?: QueryContext
   ): Promise<IPmsJob[]> {
-    let query = this.table(trx)
-      .select(
-        "id",
-        "timestamp",
-        "status",
-        "response_log",
-        "is_approved",
-        "is_client_approved"
-      )
-      .where("organization_id", organizationId)
-      .whereNull("deleted_at")
-      .orderBy("timestamp", "asc");
-
-    if (locationId) {
-      query = query.where("location_id", locationId);
-    }
-
-    const rows = await query;
+    const rows = await q.findJobsForKeyDataByOrganizationQuery(
+      organizationId,
+      locationId,
+      trx
+    );
     return rows.map((row: IPmsJob) => this.deserializeJsonFields(row));
   }
 
@@ -297,24 +250,11 @@ export class PmsJobModel extends BaseModel {
     locationId?: number | null,
     trx?: QueryContext
   ): Promise<IPmsJob | undefined> {
-    let query = this.table(trx)
-      .select(
-        "id",
-        "timestamp",
-        "status",
-        "is_approved",
-        "is_client_approved",
-        "response_log"
-      )
-      .where("organization_id", organizationId)
-      .whereNull("deleted_at")
-      .orderBy("timestamp", "desc");
-
-    if (locationId) {
-      query = query.where("location_id", locationId);
-    }
-
-    const row = await query.first();
+    const row = await q.findLatestJobForKeyDataByOrganizationQuery(
+      organizationId,
+      locationId,
+      trx
+    );
     return row ? this.deserializeJsonFields(row) : undefined;
   }
 
@@ -323,23 +263,11 @@ export class PmsJobModel extends BaseModel {
     locationId?: number | null,
     trx?: QueryContext
   ): Promise<IPmsJob[]> {
-    let query = this.table(trx)
-      .select(
-        "id",
-        "timestamp",
-        "response_log",
-        "raw_input_data",
-        "column_mapping_id"
-      )
-      .where({ organization_id: organizationId, is_approved: 1 })
-      .whereNull("deleted_at")
-      .orderBy("timestamp", "asc");
-
-    if (locationId) {
-      query = query.where("location_id", locationId);
-    }
-
-    const rows = await query;
+    const rows = await q.findApprovedJobsForPmsAggregationQuery(
+      organizationId,
+      locationId,
+      trx
+    );
     return rows.map((row: IPmsJob) => this.deserializeJsonFields(row));
   }
 
@@ -349,15 +277,12 @@ export class PmsJobModel extends BaseModel {
     locationId?: number | null,
     trx?: QueryContext
   ): Promise<IPmsJob | undefined> {
-    let query = this.table(trx)
-      .where("id", id)
-      .where("organization_id", organizationId);
-
-    if (locationId) {
-      query = query.where("location_id", locationId);
-    }
-
-    const row = await query.first();
+    const row = await q.findForOrganizationLocationQuery(
+      id,
+      organizationId,
+      locationId,
+      trx
+    );
     return row ? this.deserializeJsonFields(row) : undefined;
   }
 
@@ -366,36 +291,11 @@ export class PmsJobModel extends BaseModel {
     locationId?: number | null,
     trx?: QueryContext
   ): Promise<IPmsJob[]> {
-    let query = this.table(trx)
-      .leftJoin(
-        "users as uploaded_users",
-        "uploaded_users.id",
-        "pms_jobs.uploaded_by_user_id"
-      )
-      .leftJoin(
-        "users as deleted_users",
-        "deleted_users.id",
-        "pms_jobs.deleted_by_user_id"
-      )
-      .where("pms_jobs.organization_id", organizationId)
-      .orderBy("pms_jobs.timestamp", "desc")
-      .select(
-        "pms_jobs.*",
-        "uploaded_users.email as uploaded_by_email",
-        "deleted_users.email as deleted_by_email",
-        db.raw(
-          "COALESCE(uploaded_users.name, NULLIF(CONCAT_WS(' ', uploaded_users.first_name, uploaded_users.last_name), ''), uploaded_users.email) AS uploaded_by_name"
-        ),
-        db.raw(
-          "COALESCE(deleted_users.name, NULLIF(CONCAT_WS(' ', deleted_users.first_name, deleted_users.last_name), ''), deleted_users.email) AS deleted_by_name"
-        )
-      );
-
-    if (locationId) {
-      query = query.where("pms_jobs.location_id", locationId);
-    }
-
-    const rows = await query;
+    const rows = await q.listForFileManagerQuery(
+      organizationId,
+      locationId,
+      trx
+    );
     return rows.map((row: IPmsJob) => this.deserializeJsonFields(row));
   }
 
@@ -408,23 +308,11 @@ export class PmsJobModel extends BaseModel {
     locationId: number,
     trx?: QueryContext
   ): Promise<IPmsJob | undefined> {
-    const row = await this.table(trx)
-      .select(
-        "id",
-        "organization_id",
-        "location_id",
-        "timestamp",
-        "status",
-        "is_approved",
-        "automation_status_detail"
-      )
-      .where("organization_id", organizationId)
-      .where("location_id", locationId)
-      .where("is_approved", 1)
-      .whereNull("deleted_at")
-      .orderBy("timestamp", "desc")
-      .first();
-
+    const row = await q.findLatestActiveJobForLocationQuery(
+      organizationId,
+      locationId,
+      trx
+    );
     return row ? this.deserializeJsonFields(row) : undefined;
   }
 
@@ -438,27 +326,11 @@ export class PmsJobModel extends BaseModel {
     locationId: number,
     trx?: QueryContext
   ): Promise<{ lastCompletedAt: string | null; hasActiveRun: boolean }> {
-    const row = await this.table(trx)
-      .where("organization_id", organizationId)
-      .where("location_id", locationId)
-      .whereNull("deleted_at")
-      .whereNotNull("automation_status_detail")
-      .select(
-        db.raw(
-          "MAX((automation_status_detail::jsonb->>'completedAt')::timestamptz) FILTER (WHERE automation_status_detail::jsonb->>'status' = 'completed') AS last_completed_at"
-        ),
-        db.raw(
-          "BOOL_OR(automation_status_detail::jsonb->>'status' IN ('pending', 'processing', 'awaiting_approval')) AS has_active_run"
-        )
-      )
-      .first();
-
-    return {
-      lastCompletedAt: row?.last_completed_at
-        ? new Date(row.last_completed_at).toISOString()
-        : null,
-      hasActiveRun: Boolean(row?.has_active_run),
-    };
+    return q.getInsightsRunSummaryForLocationQuery(
+      organizationId,
+      locationId,
+      trx
+    );
   }
 
   /**
@@ -475,21 +347,7 @@ export class PmsJobModel extends BaseModel {
     },
     trx?: QueryContext
   ): Promise<number> {
-    let countQuery = this.table(trx);
-    if (filters.statuses && filters.statuses.length > 0) {
-      countQuery = countQuery.whereIn("status", filters.statuses);
-    }
-    if (filters.approvedFilter !== undefined) {
-      countQuery = countQuery.where("is_approved", filters.approvedFilter ? 1 : 0);
-    }
-    if (filters.organizationFilter) {
-      countQuery = countQuery.where("organization_id", filters.organizationFilter);
-    }
-    if (filters.locationFilter) {
-      countQuery = countQuery.where("location_id", filters.locationFilter);
-    }
-    const totalResult = await countQuery.count({ total: "*" });
-    return Number(totalResult?.[0]?.total ?? 0);
+    return q.countJobsForListQuery(filters, trx);
   }
 
   /**
@@ -509,31 +367,7 @@ export class PmsJobModel extends BaseModel {
     pagination: { limit: number; offset: number },
     trx?: QueryContext
   ): Promise<any[]> {
-    let dataQuery = this.table(trx)
-      .leftJoin("locations", "pms_jobs.location_id", "locations.id")
-      .select("pms_jobs.*", "locations.name as location_name");
-    if (filters.statuses && filters.statuses.length > 0) {
-      dataQuery = dataQuery.whereIn("pms_jobs.status", filters.statuses);
-    }
-    if (filters.approvedFilter !== undefined) {
-      dataQuery = dataQuery.where(
-        "pms_jobs.is_approved",
-        filters.approvedFilter ? 1 : 0
-      );
-    }
-    if (filters.organizationFilter) {
-      dataQuery = dataQuery.where(
-        "pms_jobs.organization_id",
-        filters.organizationFilter
-      );
-    }
-    if (filters.locationFilter) {
-      dataQuery = dataQuery.where("pms_jobs.location_id", filters.locationFilter);
-    }
-    return dataQuery
-      .orderBy("pms_jobs.timestamp", "desc")
-      .limit(pagination.limit)
-      .offset(pagination.offset);
+    return q.listJobsWithLocationNameQuery(filters, pagination, trx);
   }
 
   /**
@@ -547,7 +381,7 @@ export class PmsJobModel extends BaseModel {
     responseLogValue: string | null,
     trx?: QueryContext
   ): Promise<number> {
-    return this.table(trx).where({ id }).update({ response_log: responseLogValue });
+    return q.updateResponseLogRawQuery(id, responseLogValue, trx);
   }
 
   /**
@@ -559,18 +393,7 @@ export class PmsJobModel extends BaseModel {
     id: number,
     trx?: QueryContext
   ): Promise<any> {
-    return this.table(trx)
-      .select(
-        "id",
-        "time_elapsed",
-        "status",
-        "response_log",
-        "timestamp",
-        "is_approved",
-        "is_client_approved"
-      )
-      .where({ id })
-      .first();
+    return q.findResponseSummaryByIdQuery(id, trx);
   }
 
   /**
@@ -582,19 +405,7 @@ export class PmsJobModel extends BaseModel {
     id: number,
     trx?: QueryContext
   ): Promise<any> {
-    return this.table(trx)
-      .select(
-        "id",
-        "time_elapsed",
-        "status",
-        "response_log",
-        "timestamp",
-        "is_approved",
-        "organization_id",
-        "location_id"
-      )
-      .where({ id })
-      .first();
+    return q.findForAdminApprovalByIdQuery(id, trx);
   }
 
   /**
@@ -606,7 +417,7 @@ export class PmsJobModel extends BaseModel {
     updatePayload: Record<string, unknown>,
     trx?: QueryContext
   ): Promise<number> {
-    return this.table(trx).where({ id }).update(updatePayload);
+    return q.applyApprovalUpdateQuery(id, updatePayload, trx);
   }
 
   /**
@@ -618,17 +429,7 @@ export class PmsJobModel extends BaseModel {
     id: number,
     trx?: QueryContext
   ): Promise<any> {
-    return this.table(trx)
-      .select(
-        "id",
-        "time_elapsed",
-        "status",
-        "response_log",
-        "timestamp",
-        "is_approved"
-      )
-      .where({ id })
-      .first();
+    return q.findAdminApprovalSummaryByIdQuery(id, trx);
   }
 
   /**
@@ -640,19 +441,7 @@ export class PmsJobModel extends BaseModel {
     id: number,
     trx?: QueryContext
   ): Promise<any> {
-    return this.table(trx)
-      .select(
-        "id",
-        "time_elapsed",
-        "status",
-        "response_log",
-        "timestamp",
-        "is_approved",
-        "is_client_approved",
-        "organization_id"
-      )
-      .where({ id })
-      .first();
+    return q.findForClientApprovalByIdQuery(id, trx);
   }
 
   /**
@@ -664,9 +453,7 @@ export class PmsJobModel extends BaseModel {
     clientApproval: boolean,
     trx?: QueryContext
   ): Promise<number> {
-    return this.table(trx)
-      .where({ id })
-      .update({ is_client_approved: clientApproval ? 1 : 0 });
+    return q.setClientApprovalFlagQuery(id, clientApproval, trx);
   }
 
   /**
@@ -679,20 +466,7 @@ export class PmsJobModel extends BaseModel {
     id: number,
     trx?: QueryContext
   ): Promise<any> {
-    return this.table(trx)
-      .select(
-        "id",
-        "time_elapsed",
-        "status",
-        "response_log",
-        "timestamp",
-        "is_approved",
-        "is_client_approved",
-        "organization_id",
-        "location_id"
-      )
-      .where({ id })
-      .first();
+    return q.findClientApprovalResultByIdQuery(id, trx);
   }
 
   /**
@@ -704,19 +478,7 @@ export class PmsJobModel extends BaseModel {
     id: number,
     trx?: QueryContext
   ): Promise<any> {
-    return this.table(trx)
-      .where({ id })
-      .select(
-        "id",
-        "organization_id",
-        "status",
-        "is_approved",
-        "is_client_approved",
-        "automation_status_detail",
-        "timestamp",
-        "response_log"
-      )
-      .first();
+    return q.findForAutomationStatusByIdQuery(id, trx);
   }
 
   /**
@@ -729,10 +491,7 @@ export class PmsJobModel extends BaseModel {
     id: number,
     trx?: QueryContext
   ): Promise<any> {
-    return this.table(trx)
-      .where({ id })
-      .select("automation_status_detail")
-      .first();
+    return q.findAutomationStatusDetailByIdQuery(id, trx);
   }
 
   /**
@@ -744,20 +503,7 @@ export class PmsJobModel extends BaseModel {
     id: number,
     trx?: QueryContext
   ): Promise<any> {
-    return this.table(trx)
-      .where({ id })
-      .select(
-        "id",
-        "organization_id",
-        "location_id",
-        "status",
-        "raw_input_data",
-        "response_log",
-        "automation_status_detail",
-        "is_approved",
-        "is_client_approved"
-      )
-      .first();
+    return q.findForRetryByIdQuery(id, trx);
   }
 
   /**
@@ -768,12 +514,7 @@ export class PmsJobModel extends BaseModel {
     id: number,
     trx?: QueryContext
   ): Promise<number> {
-    return this.table(trx).where({ id }).update({
-      status: "pending",
-      response_log: null,
-      is_approved: 0,
-      is_client_approved: 0,
-    });
+    return q.resetForPmsParserRetryQuery(id, trx);
   }
 
   /**
@@ -786,10 +527,7 @@ export class PmsJobModel extends BaseModel {
     id: number,
     trx?: QueryContext
   ): Promise<any> {
-    return this.table(trx)
-      .where({ id })
-      .select("id", "organization_id", "location_id", "automation_status_detail")
-      .first();
+    return q.findForRestartByIdQuery(id, trx);
   }
 
   /**
@@ -803,19 +541,11 @@ export class PmsJobModel extends BaseModel {
     locationId: number | null,
     trx?: QueryContext
   ): Promise<{ timestamp: Date | string } | undefined> {
-    const where: Record<string, unknown> =
-      locationId !== null
-        ? {
-            organization_id: organizationId,
-            location_id: locationId,
-            is_approved: 1,
-          }
-        : { organization_id: organizationId, is_approved: 1 };
-    return this.table(trx)
-      .where(where)
-      .orderBy("timestamp", "desc")
-      .select("timestamp")
-      .first();
+    return q.findLastApprovedUploadTimestampQuery(
+      organizationId,
+      locationId,
+      trx
+    );
   }
 
   /**
@@ -829,13 +559,7 @@ export class PmsJobModel extends BaseModel {
     thresholdMinutes: number,
     trx?: QueryContext
   ): Promise<any[]> {
-    return this.table(trx)
-      .whereRaw(
-        `automation_status_detail::jsonb->>'status' = 'processing'
-         AND automation_status_detail::jsonb->>'startedAt' IS NOT NULL
-         AND (NOW() - (automation_status_detail::jsonb->>'startedAt')::timestamptz) > interval '${thresholdMinutes} minutes'`,
-      )
-      .select("id", "organization_id", "location_id", "automation_status_detail");
+    return q.findZombieProcessingJobsQuery(thresholdMinutes, trx);
   }
 
   /**
@@ -847,12 +571,6 @@ export class PmsJobModel extends BaseModel {
     id: number,
     trx?: QueryContext
   ): Promise<number> {
-    return this.table(trx)
-      .where("id", id)
-      .update({
-        automation_status_detail: db.raw(
-          `jsonb_set(jsonb_set(automation_status_detail::jsonb, '{status}', '"failed"'), '{message}', '"Server restarted — run interrupted and marked failed on startup"')`,
-        ),
-      });
+    return q.markZombieFailedQuery(id, trx);
   }
 }

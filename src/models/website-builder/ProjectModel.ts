@@ -1,11 +1,10 @@
-import { Knex } from "knex";
-import { db } from "../../database/connection";
 import {
   BaseModel,
   PaginatedResult,
   PaginationParams,
   QueryContext,
 } from "../BaseModel";
+import * as q from "./projectQueries";
 
 export interface IProject {
   id: string;
@@ -39,6 +38,22 @@ export interface ProjectFilters {
 
 export type ProjectListViewFilter = "active" | "inactive" | "archive";
 
+/**
+ * DB-correctness layer for `website_builder.projects`.
+ *
+ * This class is a thin public facade: every non-trivial method delegates to a
+ * query-builder body in {@link import("./projectQueries")}, keeping this file
+ * under the size ceiling while the public surface — and every caller of it —
+ * stays unchanged. The BaseModel passthroughs (findById / create / updateById /
+ * deleteById) and the `paginate`-driven list methods remain here because they
+ * need `this`-bound BaseModel internals.
+ *
+ * Behavior is preserved: each delegate builds the SAME query as the original
+ * inline body (identical columns/filters/joins/ordering/limits/return-shapes,
+ * trx threading, raw SQL, and timestamp clocks). ProjectModel sets no
+ * `jsonFields`, so there is no JSON-deserialization seam — the facade returns
+ * each delegate's result verbatim.
+ */
 export class ProjectModel extends BaseModel {
   protected static tableName = "website_builder.projects";
 
@@ -53,50 +68,30 @@ export class ProjectModel extends BaseModel {
     orgId: number,
     trx?: QueryContext,
   ): Promise<IProject | undefined> {
-    return this.table(trx).where({ organization_id: orgId }).first();
+    return q.findByOrganizationIdQuery(orgId, trx);
   }
 
-  /**
-   * Fetch a project row (full raw row) by id. Mirrors the inline
-   * db("website_builder.projects").where("id").first() lookups in
-   * service.ai-command, where callers read arbitrary columns off the row
-   * (dynamic layout fields wrapper/header/footer, primary_color, accent_color,
-   * template_id, generated_hostname, custom_domain). Returns the raw row so
-   * those reads stay valid.
-   */
+  /** Full raw project row by id (callers read arbitrary/layout columns). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findRawById(id: string, trx?: QueryContext): Promise<any> {
-    return this.table(trx).where("id", id).first();
+    return q.findRawByIdQuery(id, trx);
   }
 
-  /**
-   * Set a single layout field (wrapper | header | footer) on a project to an
-   * HTML string, stamping updated_at via the DB clock. Mirrors the inline
-   * db(PROJECTS_TABLE).where("id").update({ [layout_field]: html, updated_at })
-   * in service.ai-command.saveEditedHtml for the layout branch verbatim. The
-   * column name is dynamic, so it cannot reuse the typed updateById.
-   */
+  /** Set one dynamic layout column (wrapper|header|footer) to HTML (DB clock). */
   static async updateLayoutField(
     id: string,
     layoutField: string,
     html: string,
     trx?: QueryContext,
   ): Promise<number> {
-    return this.table(trx)
-      .where("id", id)
-      .update({
-        [layoutField]: html,
-        updated_at: db.fn.now(),
-      });
+    return q.updateLayoutFieldQuery(id, layoutField, html, trx);
   }
 
   static async findAllByOrganizationId(
     orgId: number,
     trx?: QueryContext,
   ): Promise<IProject[]> {
-    return this.table(trx)
-      .where({ organization_id: orgId })
-      .orderBy("created_at", "asc");
+    return q.findAllByOrganizationIdQuery(orgId, trx);
   }
 
   static async create(
@@ -114,61 +109,30 @@ export class ProjectModel extends BaseModel {
     return super.updateById(id, data as Record<string, unknown>, trx);
   }
 
-  /**
-   * Set a project's layouts_generation_status (clearing progress) by id,
-   * bumping updated_at via the DB clock. Mirrors the inline cancelled-state
-   * update in workers/processors/websiteLayouts.processLayoutGenerate verbatim.
-   * Uses a dedicated method because layouts_generation_* are not on IProject.
-   */
+  /** Set layouts_generation_status (clearing progress) by id (DB clock). */
   static async setLayoutsGenerationStatus(
     id: string,
     status: string,
     trx?: QueryContext,
   ): Promise<number> {
-    return this.table(trx)
-      .where("id", id)
-      .update({
-        layouts_generation_status: status,
-        layouts_generation_progress: null,
-        updated_at: db.fn.now(),
-      });
+    return q.setLayoutsGenerationStatusQuery(id, status, trx);
   }
 
-  /**
-   * Mark a project's layouts as ready: set status="ready", clear progress, and
-   * stamp both layouts_generated_at and updated_at via the DB clock. Mirrors the
-   * success-state update in service.layouts-pipeline.generateLayouts verbatim.
-   * Dedicated method because layouts_generated_at is a second DB-clock column
-   * the generic updateFieldsById doesn't set.
-   */
+  /** Mark layouts ready: status, clear progress, stamp generated_at (DB clock). */
   static async markLayoutsReady(
     id: string,
     trx?: QueryContext,
   ): Promise<number> {
-    return this.table(trx)
-      .where("id", id)
-      .update({
-        layouts_generation_status: "ready",
-        layouts_generation_progress: null,
-        layouts_generated_at: db.fn.now(),
-        updated_at: db.fn.now(),
-      });
+    return q.markLayoutsReadyQuery(id, trx);
   }
 
   /**
    * Atomically create the instant-website project + homepage row and flip the
-   * owning organization's patientpath status, in one transaction. Mirrors the
-   * inline `db.transaction` in services/instantWebsiteGenerator verbatim
-   * (projects insert + pages insert + organizations update) — the three writes
-   * must land together so a crash never leaves an orphan project that the
-   * dedup check would treat as "already generated". The model owns the
-   * transaction boundary (mirrors PageModel.restoreVersion); callers composing
-   * further writes may inject a `trx`. Payloads are passed pre-formed and
-   * written verbatim (raw passthrough) so behavior is byte-identical.
-   *
-   * The companion "preview ready" notification is intentionally NOT part of
-   * this method — it stays outside the transaction at the call site so a
-   * notification failure never rolls back the committed website.
+   * owning organization's patientpath status, in one transaction. The model
+   * owns the transaction boundary (passes BaseModel.transaction to the
+   * delegate); callers composing further writes may inject a `trx`. The
+   * companion "preview ready" notification stays outside the transaction at the
+   * call site so a notification failure never rolls back the committed website.
    */
   static async createInstantWebsiteWithHomepage(
     params: {
@@ -179,23 +143,11 @@ export class ProjectModel extends BaseModel {
     },
     trx?: QueryContext,
   ): Promise<void> {
-    const run = async (t: Knex.Transaction): Promise<void> => {
-      // Create project
-      await t(this.tableName).insert(params.projectRow);
-
-      // Create homepage
-      await t("website_builder.pages").insert(params.pageRow);
-
-      // Update org with website status + photo quality for dashboard photo brief
-      await t("organizations")
-        .where({ id: params.organizationId })
-        .update(params.organizationUpdate);
-    };
-
-    if (trx) {
-      return run(trx as Knex.Transaction);
-    }
-    return this.transaction(run);
+    return q.createInstantWebsiteWithHomepageQuery(
+      params,
+      (cb) => this.transaction(cb),
+      trx,
+    );
   }
 
   static async updateRecipientsByOrganization(
@@ -203,18 +155,11 @@ export class ProjectModel extends BaseModel {
     recipients: string[],
     trx?: QueryContext,
   ): Promise<number> {
-    return this.table(trx)
-      .where({ organization_id: orgId })
-      .update({
-        recipients: JSON.stringify(recipients),
-        updated_at: new Date(),
-      });
+    return q.updateRecipientsByOrganizationQuery(orgId, recipients, trx);
   }
 
   static async setReadOnly(orgId: number, trx?: QueryContext): Promise<number> {
-    return this.table(trx)
-      .where({ organization_id: orgId })
-      .update({ is_read_only: true });
+    return q.setReadOnlyQuery(orgId, trx);
   }
 
   static async updateRybbitSiteId(
@@ -222,38 +167,25 @@ export class ProjectModel extends BaseModel {
     siteId: string | null,
     trx?: QueryContext,
   ): Promise<number> {
-    return this.table(trx)
-      .where({ id: projectId })
-      .update({
-        rybbit_site_id: siteId,
-        updated_at: new Date(),
-      });
+    return q.updateRybbitSiteIdQuery(projectId, siteId, trx);
   }
 
-  /**
-   * (rybbit_site_id, rybbit_time_zone) projection for an org's project. Mirrors
-   * the inline lookup in utils/rybbit/service.rybbit-data.getRybbitSiteConfig.
-   * Returns the raw row (or undefined).
-   */
+  /** (rybbit_site_id, rybbit_time_zone) projection for an org's project. */
   static async findRybbitConfigByOrganizationId(
     organizationId: number,
     trx?: QueryContext,
-  ): Promise<{ rybbit_site_id: string | null; rybbit_time_zone: string | null } | undefined> {
-    return this.table(trx)
-      .select("rybbit_site_id", "rybbit_time_zone")
-      .where("organization_id", organizationId)
-      .first();
+  ): Promise<
+    | { rybbit_site_id: string | null; rybbit_time_zone: string | null }
+    | undefined
+  > {
+    return q.findRybbitConfigByOrganizationIdQuery(organizationId, trx);
   }
 
   static async getRybbitTimeZone(
     projectId: string,
     trx?: QueryContext,
   ): Promise<string | null> {
-    const row = await this.table(trx)
-      .select("rybbit_time_zone")
-      .where({ id: projectId })
-      .first();
-    return row?.rybbit_time_zone ?? null;
+    return q.getRybbitTimeZoneQuery(projectId, trx);
   }
 
   static async updateRybbitTimeZone(
@@ -261,35 +193,13 @@ export class ProjectModel extends BaseModel {
     timeZone: string | null,
     trx?: QueryContext,
   ): Promise<number> {
-    return this.table(trx)
-      .where({ id: projectId })
-      .update({
-        rybbit_time_zone: timeZone,
-        updated_at: new Date(),
-      });
+    return q.updateRybbitTimeZoneQuery(projectId, timeZone, trx);
   }
 
   static async findAllVerifiedDomains(
     trx?: QueryContext,
   ): Promise<{ custom_domain: string; custom_domain_alt: string | null }[]> {
-    return this.table(trx)
-      .leftJoin(
-        "organizations",
-        "website_builder.projects.organization_id",
-        "organizations.id"
-      )
-      .select(
-        "website_builder.projects.custom_domain",
-        "website_builder.projects.custom_domain_alt"
-      )
-      .whereNotNull("website_builder.projects.domain_verified_at")
-      .whereNotNull("website_builder.projects.custom_domain")
-      .whereNull("website_builder.projects.archived_at")
-      .where(function () {
-        this.whereNull("website_builder.projects.organization_id").orWhereNull(
-          "organizations.archived_at"
-        );
-      });
+    return q.findAllVerifiedDomainsQuery(trx);
   }
 
   // ===================================================================
@@ -301,59 +211,34 @@ export class ProjectModel extends BaseModel {
   // the org-archived join alias + custom-domain columns directly).
   // ===================================================================
 
-  /**
-   * Fetch a project joined to its organization, selecting all project columns
-   * plus the org's archived_at as `org_archived_at`. Mirrors the inline
-   * leftJoin lookup in service.custom-domain.connectDomain verbatim.
-   */
+  /** Project joined to org, selecting project.* + o.archived_at as org_archived_at. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findWithOrgArchivedById(
     projectId: string,
     trx?: QueryContext,
   ): Promise<any> {
-    return this.table(trx)
-      .leftJoin("organizations as o", "website_builder.projects.organization_id", "o.id")
-      .select("website_builder.projects.*", "o.archived_at as org_archived_at")
-      .where("website_builder.projects.id", projectId)
-      .first();
+    return q.findWithOrgArchivedByIdQuery(projectId, trx);
   }
 
-  /**
-   * Fetch the domain-verification fields for a project joined to its org's
-   * archived_at. Mirrors the inline leftJoin projection in
-   * service.custom-domain.verifyDomain verbatim.
-   */
+  /** Domain-verification fields for a project joined to its org's archived_at. */
   static async findDomainVerificationContextById(
     projectId: string,
     trx?: QueryContext,
-  ): Promise<{
-    id: string;
-    custom_domain: string | null;
-    custom_domain_alt: string | null;
-    domain_verified_at: Date | null;
-    archived_at: Date | null;
-    org_archived_at: Date | null;
-  } | undefined> {
-    return this.table(trx)
-      .leftJoin("organizations as o", "website_builder.projects.organization_id", "o.id")
-      .select(
-        "website_builder.projects.id",
-        "website_builder.projects.custom_domain",
-        "website_builder.projects.custom_domain_alt",
-        "website_builder.projects.domain_verified_at",
-        "website_builder.projects.archived_at",
-        "o.archived_at as org_archived_at"
-      )
-      .where("website_builder.projects.id", projectId)
-      .first();
+  ): Promise<
+    | {
+        id: string;
+        custom_domain: string | null;
+        custom_domain_alt: string | null;
+        domain_verified_at: Date | null;
+        archived_at: Date | null;
+        org_archived_at: Date | null;
+      }
+    | undefined
+  > {
+    return q.findDomainVerificationContextByIdQuery(projectId, trx);
   }
 
-  /**
-   * Find an active project (not this one, not archived) whose custom_domain or
-   * custom_domain_alt matches either of the two supplied domains. Mirrors the
-   * inline domain-conflict lookup in service.custom-domain.connectDomain
-   * verbatim. Returns the raw row (or undefined).
-   */
+  /** Active project (not this one, not archived) matching either domain. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findDomainConflict(
     domain: string,
@@ -361,100 +246,57 @@ export class ProjectModel extends BaseModel {
     excludeProjectId: string,
     trx?: QueryContext,
   ): Promise<any> {
-    return this.table(trx)
-      .where(function () {
-        this.where("custom_domain", domain)
-          .orWhere("custom_domain", altDomain)
-          .orWhere("custom_domain_alt", domain)
-          .orWhere("custom_domain_alt", altDomain);
-      })
-      .whereNot("id", excludeProjectId)
-      .whereNull("archived_at")
-      .first();
+    return q.findDomainConflictQuery(domain, altDomain, excludeProjectId, trx);
   }
 
-  /**
-   * Save both custom-domain columns and clear domain_verified_at on a project,
-   * stamping updated_at via the DB clock. Mirrors the inline write in
-   * service.custom-domain.connectDomain verbatim.
-   */
+  /** Save both custom-domain columns, clear domain_verified_at (DB clock). */
   static async setCustomDomain(
     projectId: string,
     customDomain: string,
     customDomainAlt: string,
     trx?: QueryContext,
   ): Promise<number> {
-    return this.table(trx).where("id", projectId).update({
-      custom_domain: customDomain,
-      custom_domain_alt: customDomainAlt,
-      domain_verified_at: null,
-      updated_at: db.fn.now(),
-    });
+    return q.setCustomDomainQuery(projectId, customDomain, customDomainAlt, trx);
   }
 
-  /**
-   * Mark a project's custom domain verified now, stamping both
-   * domain_verified_at and updated_at via the DB clock. Mirrors the inline
-   * write in service.custom-domain.verifyDomain verbatim.
-   */
+  /** Mark custom domain verified now (DB clock). */
   static async markDomainVerified(
     projectId: string,
     trx?: QueryContext,
   ): Promise<number> {
-    return this.table(trx).where("id", projectId).update({
-      domain_verified_at: db.fn.now(),
-      updated_at: db.fn.now(),
-    });
+    return q.markDomainVerifiedQuery(projectId, trx);
   }
 
-  /**
-   * Clear both custom-domain columns and domain_verified_at on a project,
-   * stamping updated_at via the DB clock. Mirrors the inline write in
-   * service.custom-domain.disconnectDomain verbatim.
-   */
+  /** Clear both custom-domain columns and domain_verified_at (DB clock). */
   static async clearCustomDomain(
     projectId: string,
     trx?: QueryContext,
   ): Promise<number> {
-    return this.table(trx).where("id", projectId).update({
-      custom_domain: null,
-      custom_domain_alt: null,
-      domain_verified_at: null,
-      updated_at: db.fn.now(),
-    });
+    return q.clearCustomDomainQuery(projectId, trx);
   }
 
-  /**
-   * Fetch the custom-domain status projection for a project. Mirrors the inline
-   * select in service.custom-domain.getDomainStatus verbatim.
-   */
+  /** Custom-domain status projection for a project. */
   static async findDomainStatusById(
     projectId: string,
     trx?: QueryContext,
-  ): Promise<{
-    id: string;
-    custom_domain: string | null;
-    custom_domain_alt: string | null;
-    domain_verified_at: Date | null;
-  } | undefined> {
-    return this.table(trx)
-      .select("id", "custom_domain", "custom_domain_alt", "domain_verified_at")
-      .where("id", projectId)
-      .first();
+  ): Promise<
+    | {
+        id: string;
+        custom_domain: string | null;
+        custom_domain_alt: string | null;
+        domain_verified_at: Date | null;
+      }
+    | undefined
+  > {
+    return q.findDomainStatusByIdQuery(projectId, trx);
   }
 
-  /**
-   * Fetch the (rybbit_site_id) projection for a project. Mirrors the inline
-   * select in service.rybbit.provisionRybbitSite verbatim. Returns the raw row.
-   */
+  /** (rybbit_site_id) projection for a project (raw row). */
   static async findRybbitSiteIdById(
     projectId: string,
     trx?: QueryContext,
   ): Promise<{ rybbit_site_id: string | null } | undefined> {
-    return this.table(trx)
-      .select("rybbit_site_id")
-      .where("id", projectId)
-      .first();
+    return q.findRybbitSiteIdByIdQuery(projectId, trx);
   }
 
   /**
@@ -465,77 +307,21 @@ export class ProjectModel extends BaseModel {
     host: string,
     trx?: QueryContext,
   ): Promise<IProject | undefined> {
-    // Strip port if present (e.g. localhost:5173)
-    const cleanHost = host.split(":")[0];
-
-    // Check for *.sites.getalloro.com pattern
-    const subdomainMatch = cleanHost.match(/^(.+)\.sites\.getalloro\.com$/);
-    const hostname = subdomainMatch ? subdomainMatch[1] : null;
-
-    return this.table(trx)
-      .where(function () {
-        if (hostname) {
-          this.where("hostname", hostname).orWhere("generated_hostname", hostname);
-        }
-        this.orWhere("custom_domain", cleanHost)
-          .orWhere("custom_domain_alt", cleanHost);
-      })
-      .first();
+    return q.findByHostnameOrDomainQuery(host, trx);
   }
 
   static async findActiveByHostnameOrDomain(
     host: string,
     trx?: QueryContext,
   ): Promise<IProject | undefined> {
-    const cleanHost = host.split(":")[0];
-    const subdomainMatch = cleanHost.match(/^(.+)\.sites\.getalloro\.com$/);
-    const hostname = subdomainMatch ? subdomainMatch[1] : null;
-
-    return this.table(trx)
-      .leftJoin(
-        "organizations",
-        "website_builder.projects.organization_id",
-        "organizations.id"
-      )
-      .select("website_builder.projects.*")
-      .where(function () {
-        if (hostname) {
-          this.where("website_builder.projects.hostname", hostname).orWhere(
-            "website_builder.projects.generated_hostname",
-            hostname
-          );
-        }
-        this.orWhere("website_builder.projects.custom_domain", cleanHost)
-          .orWhere("website_builder.projects.custom_domain_alt", cleanHost);
-      })
-      .whereNull("website_builder.projects.archived_at")
-      .where(function () {
-        this.whereNull("website_builder.projects.organization_id").orWhereNull(
-          "organizations.archived_at"
-        );
-      })
-      .first();
+    return q.findActiveByHostnameOrDomainQuery(host, trx);
   }
 
   static async findPublicActiveById(
     id: string,
     trx?: QueryContext,
   ): Promise<IProject | undefined> {
-    return this.table(trx)
-      .leftJoin(
-        "organizations",
-        "website_builder.projects.organization_id",
-        "organizations.id"
-      )
-      .select("website_builder.projects.*")
-      .where("website_builder.projects.id", id)
-      .whereNull("website_builder.projects.archived_at")
-      .where(function () {
-        this.whereNull("website_builder.projects.organization_id").orWhereNull(
-          "organizations.archived_at"
-        );
-      })
-      .first();
+    return q.findPublicActiveByIdQuery(id, trx);
   }
 
   static async archiveForOrganization(
@@ -543,23 +329,14 @@ export class ProjectModel extends BaseModel {
     archivedAt: Date,
     trx?: QueryContext,
   ): Promise<number> {
-    return this.table(trx)
-      .where({ organization_id: orgId })
-      .update({ archived_at: archivedAt, updated_at: new Date() });
+    return q.archiveForOrganizationQuery(orgId, archivedAt, trx);
   }
 
   static async disconnectDomainsForOrganization(
     orgId: number,
     trx?: QueryContext,
   ): Promise<number> {
-    return this.table(trx)
-      .where({ organization_id: orgId })
-      .update({
-        custom_domain: null,
-        custom_domain_alt: null,
-        domain_verified_at: null,
-        updated_at: new Date(),
-      });
+    return q.disconnectDomainsForOrganizationQuery(orgId, trx);
   }
 
   static async listAdmin(
@@ -567,19 +344,11 @@ export class ProjectModel extends BaseModel {
     pagination: PaginationParams,
     trx?: QueryContext,
   ): Promise<PaginatedResult<IProject>> {
-    const buildQuery = (qb: Knex.QueryBuilder) => {
-      if (filters.organization_id) {
-        qb = qb.where("organization_id", filters.organization_id);
-      }
-      if (filters.status) {
-        qb = qb.where("status", filters.status);
-      }
-      if (filters.search) {
-        qb = qb.where("name", "ilike", `%${filters.search}%`);
-      }
-      return qb.orderBy("created_at", "desc");
-    };
-    return this.paginate<IProject>(buildQuery, pagination, trx);
+    return this.paginate<IProject>(
+      q.listAdminBuildQuery(filters),
+      pagination,
+      trx,
+    );
   }
 
   // ===================================================================
@@ -592,45 +361,15 @@ export class ProjectModel extends BaseModel {
   // projection, so they return raw rows.
   // ===================================================================
 
-  /**
-   * Count projects for the admin list view, applying the same status +
-   * organization-link + archived filters as the data query. Mirrors the inline
-   * count branch in service.project-manager.listProjects verbatim.
-   */
+  /** Count projects for the admin list view (status + link + archived filters). */
   static async countAdminList(
     filters: { status?: string; projectListView?: ProjectListViewFilter },
     trx?: QueryContext,
   ): Promise<number> {
-    let countQuery = this.table(trx);
-    if (filters.status) {
-      countQuery = countQuery.where("status", filters.status);
-    }
-    if (filters.projectListView === "active") {
-      countQuery = countQuery.whereNotNull("organization_id");
-    }
-    if (filters.projectListView === "inactive") {
-      countQuery = countQuery.whereNull("organization_id");
-    }
-    if (
-      filters.projectListView === "active" ||
-      filters.projectListView === "inactive"
-    ) {
-      countQuery = countQuery.whereNull("archived_at");
-    }
-    if (filters.projectListView === "archive") {
-      countQuery = countQuery.whereNotNull("archived_at");
-    }
-    const [{ count }] = await countQuery.count("* as count");
-    return parseInt(count as string, 10);
+    return q.countAdminListQuery(filters, trx);
   }
 
-  /**
-   * Admin list-view data query: projects joined to organizations with a
-   * json_build_object('organization') projection, applying status + link +
-   * archived filters, ordered created_at desc with limit/offset. Mirrors the
-   * inline data branch in service.project-manager.listProjects verbatim.
-   * Returns raw rows (the projection column is not on IProject).
-   */
+  /** Admin list-view data: projects + json_build_object('organization') (raw rows). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async listAdminWithOrganization(
     filters: {
@@ -641,242 +380,100 @@ export class ProjectModel extends BaseModel {
     },
     trx?: QueryContext,
   ): Promise<any[]> {
-    let dataQuery = this.table(trx)
-      .leftJoin(
-        "organizations",
-        `${this.tableName}.organization_id`,
-        "organizations.id",
-      )
-      .select(
-        `${this.tableName}.id`,
-        `${this.tableName}.user_id`,
-        `${this.tableName}.generated_hostname`,
-        `${this.tableName}.status`,
-        `${this.tableName}.selected_place_id`,
-        `${this.tableName}.selected_website_url`,
-        `${this.tableName}.template_id`,
-        `${this.tableName}.step_gbp_scrape`,
-        `${this.tableName}.display_name`,
-        `${this.tableName}.custom_domain`,
-        `${this.tableName}.primary_color`,
-        `${this.tableName}.accent_color`,
-        `${this.tableName}.archived_at`,
-        `${this.tableName}.created_at`,
-        `${this.tableName}.updated_at`,
-        db.raw(
-          "json_build_object('id', organizations.id, 'name', organizations.name, 'subscription_tier', organizations.subscription_tier) as organization",
-        ),
-      );
-
-    if (filters.status) {
-      dataQuery = dataQuery.where(`${this.tableName}.status`, filters.status);
-    }
-    if (filters.projectListView === "active") {
-      dataQuery = dataQuery.whereNotNull(`${this.tableName}.organization_id`);
-    }
-    if (filters.projectListView === "inactive") {
-      dataQuery = dataQuery.whereNull(`${this.tableName}.organization_id`);
-    }
-    if (
-      filters.projectListView === "active" ||
-      filters.projectListView === "inactive"
-    ) {
-      dataQuery = dataQuery.whereNull(`${this.tableName}.archived_at`);
-    }
-    if (filters.projectListView === "archive") {
-      dataQuery = dataQuery.whereNotNull(`${this.tableName}.archived_at`);
-    }
-
-    return dataQuery
-      .orderBy(`${this.tableName}.created_at`, "desc")
-      .limit(filters.limit)
-      .offset(filters.offset);
+    return q.listAdminWithOrganizationQuery(filters, trx);
   }
 
-  /**
-   * Insert a project from raw column data, returning the full inserted row.
-   * Mirrors the insert in service.project-manager.createProject verbatim
-   * (user_id, generated_hostname, display_name, status).
-   */
+  /** Insert a project from raw column data, returning the full inserted row. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async insertReturning(
     row: Record<string, unknown>,
     trx?: QueryContext,
   ): Promise<any> {
-    const [project] = await this.table(trx).insert(row).returning("*");
-    return project;
+    return q.insertReturningQuery(row, trx);
   }
 
-  /**
-   * Set a project's display_name (trimmed by the caller) by id. Mirrors
-   * service.project-manager.updateProjectDisplayName verbatim (no updated_at
-   * bump in the original).
-   */
+  /** Set a project's display_name by id (no updated_at bump in the original). */
   static async updateDisplayNameById(
     projectId: string,
     displayName: string,
     trx?: QueryContext,
   ): Promise<number> {
-    return this.table(trx)
-      .where({ id: projectId })
-      .update({ display_name: displayName });
+    return q.updateDisplayNameByIdQuery(projectId, displayName, trx);
   }
 
-  /**
-   * Distinct non-null status values, ordered asc. Mirrors
-   * service.project-manager.getProjectStatuses verbatim.
-   */
-  static async findDistinctStatuses(
-    trx?: QueryContext,
-  ): Promise<string[]> {
-    const rows = await this.table(trx)
-      .distinct("status")
-      .whereNotNull("status")
-      .orderBy("status", "asc");
-    return rows.map((s: { status: string }) => s.status);
+  /** Distinct non-null status values, ordered asc. */
+  static async findDistinctStatuses(trx?: QueryContext): Promise<string[]> {
+    return q.findDistinctStatusesQuery(trx);
   }
 
-  /**
-   * Lightweight status projection for polling. Mirrors
-   * service.project-manager.getProjectStatus verbatim (returns the row or null).
-   */
+  /** Lightweight status projection for polling (row or null). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findStatusById(id: string, trx?: QueryContext): Promise<any> {
-    const project = await this.table(trx)
-      .select(
-        "id",
-        "status",
-        "selected_place_id",
-        "selected_website_url",
-        "step_gbp_scrape",
-        "step_website_scrape",
-        "step_image_analysis",
-        "updated_at",
-      )
-      .where("id", id)
-      .first();
-    return project || null;
+    return q.findStatusByIdQuery(id, trx);
   }
 
-  /**
-   * Find the project linked to a given organization, excluding a specific
-   * project id. Mirrors the "already linked to another website" check in
-   * service.project-manager.linkOrganization verbatim.
-   */
+  /** Project linked to an org, excluding a specific project id. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findLinkedToOrganizationExcept(
     organizationId: number,
     exceptProjectId: string,
     trx?: QueryContext,
   ): Promise<any> {
-    return this.table(trx)
-      .where("organization_id", organizationId)
-      .whereNot("id", exceptProjectId)
-      .first();
+    return q.findLinkedToOrganizationExceptQuery(
+      organizationId,
+      exceptProjectId,
+      trx,
+    );
   }
 
-  /**
-   * Set/clear organization_id on a project, stamping updated_at via the DB
-   * clock, then return the updated row. Mirrors the link/unlink update+reselect
-   * pair in service.project-manager.linkOrganization verbatim.
-   */
+  /** Set/clear organization_id (DB clock), return the updated row. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async setOrganizationIdReturning(
     projectId: string,
     organizationId: number | null,
     trx?: QueryContext,
   ): Promise<any> {
-    await this.table(trx)
-      .where("id", projectId)
-      .update({ organization_id: organizationId, updated_at: db.fn.now() });
-
-    const [updatedProject] = await this.table(trx)
-      .where("id", projectId)
-      .returning("*");
-    return updatedProject;
+    return q.setOrganizationIdReturningQuery(projectId, organizationId, trx);
   }
 
-  /**
-   * Fetch a single project joined to its organization with a
-   * json_build_object('organization') projection. Mirrors the inline lookup in
-   * service.project-manager.getProjectById verbatim. Returns the raw row or
-   * undefined.
-   */
+  /** Single project + json_build_object('organization') projection (raw row). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findByIdWithOrganization(
     id: string,
     trx?: QueryContext,
   ): Promise<any> {
-    return this.table(trx)
-      .leftJoin(
-        "organizations",
-        `${this.tableName}.organization_id`,
-        "organizations.id",
-      )
-      .select(
-        `${this.tableName}.*`,
-        db.raw(
-          "json_build_object('id', organizations.id, 'name', organizations.name, 'subscription_tier', organizations.subscription_tier) as organization",
-        ),
-      )
-      .where(`${this.tableName}.id`, id)
-      .first();
+    return q.findByIdWithOrganizationQuery(id, trx);
   }
 
-  /**
-   * Apply a partial column update to a project by id, stamping updated_at via
-   * the DB clock. The caller passes only the fields it wants to change and
-   * receives the full updated row. Mirrors the sanitized update in
-   * service.project-manager.updateProject verbatim.
-   */
+  /** Partial column update by id (DB clock), returning the full updated row. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async updateFieldsByIdReturning(
     id: string,
     fields: Record<string, unknown>,
     trx?: QueryContext,
   ): Promise<any> {
-    const [project] = await this.table(trx)
-      .where("id", id)
-      .update({ ...fields, updated_at: db.fn.now() })
-      .returning("*");
-    return project;
+    return q.updateFieldsByIdReturningQuery(id, fields, trx);
   }
 
-  /**
-   * Advance a project to IN_PROGRESS unconditionally, stamping updated_at via
-   * the DB clock. Mirrors the post-bulk-create update in
-   * service.project-manager.createAllFromTemplate verbatim.
-   */
+  /** Advance a project to IN_PROGRESS unconditionally (DB clock). */
   static async setStatusInProgressById(
     projectId: string,
     trx?: QueryContext,
   ): Promise<number> {
-    return this.table(trx)
-      .where("id", projectId)
-      .update({ status: "IN_PROGRESS", updated_at: db.fn.now() });
+    return q.setStatusInProgressByIdQuery(projectId, trx);
   }
 
-  /**
-   * Advance a project from CREATED to IN_PROGRESS only (guarded on the current
-   * status), stamping updated_at via the DB clock. Mirrors the guarded update in
-   * AdminWebsitesController.startPipeline verbatim (`.where("status","CREATED")`).
-   */
+  /** Advance CREATED → IN_PROGRESS only (guarded on current status, DB clock). */
   static async advanceCreatedToInProgress(
     projectId: string,
     trx?: QueryContext,
   ): Promise<number> {
-    return this.table(trx)
-      .where("id", projectId)
-      .where("status", "CREATED")
-      .update({ status: "IN_PROGRESS", updated_at: db.fn.now() });
+    return q.advanceCreatedToInProgressQuery(projectId, trx);
   }
 
-  /**
-   * Delete a project row by id (pages cascade at the DB level). Mirrors the
-   * delete in service.project-manager.deleteProject verbatim.
-   */
+  /** Delete a project row by id (pages cascade at the DB level). */
   static async deleteById(id: string, trx?: QueryContext): Promise<number> {
-    return this.table(trx).where("id", id).del();
+    return q.deleteByIdQuery(id, trx);
   }
 
   // ===================================================================
@@ -888,197 +485,119 @@ export class ProjectModel extends BaseModel {
   // dynamic set of columns the pipeline computes, so they accept a fields bag.
   // ===================================================================
 
-  /**
-   * Apply a partial column update to a project by id, stamping updated_at via
-   * the DB clock. Mirrors the scrape-step + cancel/reset/homepage updates in
-   * service.generation-pipeline verbatim, where each update is
-   * `{ ...computedFields, updated_at: db.fn.now() }`.
-   */
+  /** Partial column update by id, stamping updated_at via the DB clock. */
   static async updateFieldsById(
     id: string,
     fields: Record<string, unknown>,
     trx?: QueryContext,
   ): Promise<number> {
-    return this.table(trx)
-      .where("id", id)
-      .update({ ...fields, updated_at: db.fn.now() });
+    return q.updateFieldsByIdQuery(id, fields, trx);
   }
 
-  /**
-   * Read the generation-cancel flag for a project. Mirrors
-   * service.generation-pipeline.isCancelled verbatim (raw row or undefined).
-   */
+  /** Read the generation-cancel flag for a project (raw row or undefined). */
   static async findCancelRequestedById(
     projectId: string,
     trx?: QueryContext,
   ): Promise<{ generation_cancel_requested: boolean } | undefined> {
-    return this.table(trx)
-      .where("id", projectId)
-      .select("generation_cancel_requested")
-      .first();
+    return q.findCancelRequestedByIdQuery(projectId, trx);
   }
 
-  /**
-   * Fetch (id, template_id, project_identity) for a project. Mirrors the
-   * one-shot load in service.post-importer.importFromIdentity verbatim
-   * (`.select("id","template_id","project_identity").first()`). Returns the raw
-   * row (the caller parses project_identity itself).
-   */
+  /** (id, template_id, project_identity) for a project (raw row). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findIdentityContextById(
     projectId: string,
     trx?: QueryContext,
   ): Promise<any> {
-    return this.table(trx)
-      .where("id", projectId)
-      .select("id", "template_id", "project_identity")
-      .first();
+    return q.findIdentityContextByIdQuery(projectId, trx);
   }
 
   // ===================================================================
   // Admin controller helpers (AdminWebsitesController)
   // ===================================================================
 
-  /**
-   * wrapper/header/footer projection. Mirrors the inline select in
-   * service.project-manager.getPageProgressiveState verbatim (raw row or
-   * undefined).
-   */
+  /** wrapper/header/footer projection (raw row or undefined). */
   static async findLayoutFieldsById(
     id: string,
     trx?: QueryContext,
-  ): Promise<{ wrapper: string | null; header: string | null; footer: string | null } | undefined> {
-    return this.table(trx)
-      .where("id", id)
-      .select("wrapper", "header", "footer")
-      .first();
+  ): Promise<
+    | { wrapper: string | null; header: string | null; footer: string | null }
+    | undefined
+  > {
+    return q.findLayoutFieldsByIdQuery(id, trx);
   }
 
-  /**
-   * Layouts-status projection for polling. Mirrors the inline select in
-   * AdminWebsitesController.getLayoutsStatus verbatim (raw row or undefined).
-   */
+  /** Layouts-status projection for polling (raw row or undefined). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findLayoutsStatusById(
     id: string,
     trx?: QueryContext,
   ): Promise<any> {
-    return this.table(trx)
-      .where("id", id)
-      .select(
-        "layouts_generation_status",
-        "layouts_generation_progress",
-        "layouts_generated_at",
-        "layout_slot_values",
-        "wrapper",
-        "header",
-        "footer",
-      )
-      .first();
+    return q.findLayoutsStatusByIdQuery(id, trx);
   }
 
-  /**
-   * Recipients + organization_id projection. Mirrors the inline select in
-   * AdminWebsitesController.getRecipients verbatim (raw row or undefined).
-   */
+  /** Recipients + organization_id projection (raw row or undefined). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findRecipientsContextById(
     id: string,
     trx?: QueryContext,
   ): Promise<any> {
-    return this.table(trx)
-      .where("id", id)
-      .select("id", "recipients", "organization_id")
-      .first();
+    return q.findRecipientsContextByIdQuery(id, trx);
   }
 
-  /**
-   * id + organization_id projection. Mirrors the inline select in
-   * AdminWebsitesController.updateRecipients verbatim (raw row or undefined).
-   */
+  /** id + organization_id projection (raw row or undefined). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findOrganizationContextById(
     id: string,
     trx?: QueryContext,
   ): Promise<any> {
-    return this.table(trx)
-      .where("id", id)
-      .select("id", "organization_id")
-      .first();
+    return q.findOrganizationContextByIdQuery(id, trx);
   }
 
-  /**
-   * Set recipients (pre-stringified JSON) on a project by id, stamping
-   * updated_at via the DB clock. Mirrors the legacy-project recipients write in
-   * AdminWebsitesController.updateRecipients verbatim.
-   */
+  /** Set recipients (pre-stringified JSON) by id (DB clock). */
   static async updateRecipientsById(
     id: string,
     recipientsJson: string,
     trx?: QueryContext,
   ): Promise<number> {
-    return this.table(trx)
-      .where("id", id)
-      .update({ recipients: recipientsJson, updated_at: db.fn.now() });
+    return q.updateRecipientsByIdQuery(id, recipientsJson, trx);
   }
 
-  /**
-   * organization_id projection. Mirrors the inline select in
-   * AdminWebsitesController.triggerReviewSync verbatim (raw row or undefined).
-   */
+  /** organization_id projection (raw row or undefined). */
   static async findOrganizationIdById(
     id: string,
     trx?: QueryContext,
   ): Promise<{ organization_id: number | null } | undefined> {
-    return this.table(trx)
-      .where("id", id)
-      .select("organization_id")
-      .first();
+    return q.findOrganizationIdByIdQuery(id, trx);
   }
 
-  /**
-   * id-only existence projection. Mirrors the inline 404-guard select in
-   * AdminWebsitesController.getProjectCosts verbatim (raw row or undefined).
-   */
+  /** id-only existence projection (raw row or undefined). */
   static async findIdOnlyById(
     id: string,
     trx?: QueryContext,
   ): Promise<{ id: string } | undefined> {
-    return this.table(trx).where("id", id).select("id").first();
+    return q.findIdOnlyByIdQuery(id, trx);
   }
 
-  /**
-   * Place-selection projection used by the location CRUD endpoints. Mirrors the
-   * inline selects in addProjectLocation / setPrimaryLocation /
-   * removeProjectLocation / resyncProjectLocation. Returns the raw row (the
-   * caller picks columns off it); the column list is passed by the caller to
-   * preserve each call site's exact projection.
-   */
+  /** Place-selection projection (caller supplies the column list); raw row. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findLocationSelectionById(
     id: string,
     columns: string[],
     trx?: QueryContext,
   ): Promise<any> {
-    return this.table(trx).where("id", id).select(columns).first();
+    return q.findLocationSelectionByIdQuery(id, columns, trx);
   }
 
   /**
    * Set the place-selection columns on a project by id, stamping updated_at via
-   * the DB clock. The caller passes only the place-id fields it changes
-   * (selected_place_ids / primary_place_id / selected_place_id). Mirrors the
-   * `trx("website_builder.projects").update({...})` half of the location CRUD
-   * transactions in addProjectLocation / setPrimaryLocation /
-   * removeProjectLocation verbatim. Threads `trx` so the caller composes it
-   * with ProjectIdentityModel.updateByProjectId inside one transaction.
+   * the DB clock. Threads `trx` so the caller composes it with
+   * ProjectIdentityModel.updateByProjectId inside one transaction.
    */
   static async updatePlaceSelectionById(
     id: string,
     placeFields: Record<string, unknown>,
     trx?: QueryContext,
   ): Promise<number> {
-    return this.table(trx)
-      .where("id", id)
-      .update({ ...placeFields, updated_at: db.fn.now() });
+    return q.updatePlaceSelectionByIdQuery(id, placeFields, trx);
   }
 }
