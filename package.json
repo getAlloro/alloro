@@ -7,6 +7,7 @@
     "dev:worker": "tsx watch src/workers/worker.ts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "check:conventions": "bash scripts/check-conventions.sh",
     "build": "tsc && rsync -a --include='*/' --include='*.md' --exclude='*' src/agents/ dist/agents/",
     "start": "node dist/index.js",
     "db:migrate": "knex migrate:latest",
