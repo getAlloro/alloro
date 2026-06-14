@@ -6,24 +6,15 @@ import * as dataService from "./pms-services/pms-data.service";
 import * as retryService from "./pms-services/pms-retry.service";
 import * as pasteParseService from "./pms-services/pms-paste-parse.service";
 import * as sanitizationService from "./pms-services/pms-paste-analysis.service";
-import { finalizePmsJob } from "./pms-services/pms-finalize.service";
-import { coerceBoolean } from "./pms-utils/pms-validator.util";
-import { validateJobId } from "./pms-utils/pms-validator.util";
+import * as mappingService from "./pms-services/pms-mapping.service";
+import { coerceBoolean, validateJobId } from "./pms-utils/pms-validator.util";
+import {
+  tryParseMonthlyRollupPayload,
+  isColumnMappingShape,
+} from "./pms-utils/pms-mapping-validator.util";
 import { PmsStatus } from "./pms-utils/pms-constants";
 import { RBACRequest } from "../../middleware/rbac";
-import { PmsJobModel } from "../../models/PmsJobModel";
-import { PmsJobEventModel } from "../../models/PmsJobEventModel";
-import { PmsColumnMappingModel } from "../../models/PmsColumnMappingModel";
-import { resolveMapping } from "../../utils/pms/resolveColumnMapping";
-import {
-  applyMapping,
-  type MonthlyRollupForJob,
-} from "../../utils/pms/applyColumnMapping";
-import { signHeaders } from "../../utils/pms/headerSignature";
-import type { ColumnMapping } from "../../types/pmsMapping";
-import { resolveLocationId } from "../../utils/locationResolver";
-import { BaseModel } from "../../models/BaseModel";
-import { assertNoActivePmsAutomation } from "./pms-services/pms-mutation-guard.service";
+import type { MonthlyRollupForJob } from "../../utils/pms/applyColumnMapping";
 import logger from "../../lib/logger";
 
 function handleError(res: Response, error: any, operation: string): Response {
@@ -36,26 +27,6 @@ function handleError(res: Response, error: any, operation: string): Response {
   });
 }
 
-function parseMonthlyRollupPayload(
-  value: unknown,
-  fieldName: string
-): MonthlyRollupForJob {
-  let parsed = value;
-  if (typeof parsed === "string") {
-    try {
-      parsed = JSON.parse(parsed);
-    } catch {
-      throw new Error(`Invalid ${fieldName} format - must be valid JSON`);
-    }
-  }
-
-  if (!Array.isArray(parsed) || parsed.length === 0) {
-    throw new Error(`${fieldName} must be a non-empty array of month entries`);
-  }
-
-  return parsed as MonthlyRollupForJob;
-}
-
 /**
  * POST /pms/upload
  * Upload and process PMS data from CSV, XLS, or XLSX files
@@ -63,7 +34,7 @@ function parseMonthlyRollupPayload(
  */
 export async function uploadPmsData(req: Request, res: Response) {
   try {
-    const { domain, pmsType, manualData, entryType, locationId: reqLocationId } = req.body;
+    const { domain, manualData, entryType, locationId: reqLocationId } = req.body;
     const rbacReq = req as RBACRequest;
     const organizationId = rbacReq.organizationId ?? null;
     const actorUserId = rbacReq.userId ?? rbacReq.user?.userId ?? null;
@@ -78,22 +49,14 @@ export async function uploadPmsData(req: Request, res: Response) {
 
     // MANUAL ENTRY PATH
     if (entryType === "manual" && manualData) {
-      let parsedManualData: MonthlyRollupForJob;
-      try {
-        parsedManualData = parseMonthlyRollupPayload(manualData, "manualData");
-      } catch (parseError) {
-        return res.status(400).json({
-          success: false,
-          error:
-            parseError instanceof Error
-              ? parseError.message
-              : "Invalid manualData format",
-        });
+      const parsed = tryParseMonthlyRollupPayload(manualData, "manualData");
+      if (!parsed.ok) {
+        return res.status(400).json({ success: false, error: parsed.error });
       }
 
       const result = await uploadService.processManualEntry(
         domain,
-        parsedManualData,
+        parsed.value,
         organizationId,
         locationId,
         actorUserId
@@ -121,20 +84,11 @@ export async function uploadPmsData(req: Request, res: Response) {
 
     let overrideMonthlyRollup: MonthlyRollupForJob | null = null;
     if (manualData) {
-      try {
-        overrideMonthlyRollup = parseMonthlyRollupPayload(
-          manualData,
-          "manualData"
-        );
-      } catch (parseError) {
-        return res.status(400).json({
-          success: false,
-          error:
-            parseError instanceof Error
-              ? parseError.message
-              : "Invalid manualData format",
-        });
+      const parsed = tryParseMonthlyRollupPayload(manualData, "manualData");
+      if (!parsed.ok) {
+        return res.status(400).json({ success: false, error: parsed.error });
       }
+      overrideMonthlyRollup = parsed.value;
     }
 
     const result = await uploadService.processFileUpload(
@@ -225,9 +179,7 @@ export async function getKeyData(req: Request, res: Response) {
       ? parseInt(String(req.query.location_id), 10)
       : undefined;
     const locationId =
-      locationIdRaw !== undefined && !isNaN(locationIdRaw)
-        ? locationIdRaw
-        : undefined;
+      locationIdRaw !== undefined && !isNaN(locationIdRaw) ? locationIdRaw : undefined;
 
     const data = await dataService.aggregateKeyData(organizationId, locationId);
 
@@ -626,19 +578,8 @@ export async function retryJob(req: Request, res: Response) {
 // =====================================================================
 // COLUMN-MAPPING ENDPOINTS
 // (See plan: 04272026-no-ticket-pms-column-mapping-ai-inference)
+// Business logic lives in pms-services/pms-mapping.service.ts.
 // =====================================================================
-
-/**
- * Type-narrow a `ColumnMapping`-shaped value coming off the wire.
- * We trust the structural shape (the resolver / applyMapping layer
- * surface their own errors) but require the two non-negotiable fields
- * — `headers` and `assignments` — to be arrays.
- */
-function isColumnMappingShape(value: unknown): value is ColumnMapping {
-  if (!value || typeof value !== "object") return false;
-  const v = value as Record<string, unknown>;
-  return Array.isArray(v.headers) && Array.isArray(v.assignments);
-}
 
 /**
  * POST /pms/preview-mapping
@@ -678,119 +619,16 @@ export async function previewResetMapping(req: Request, res: Response) {
       });
     }
 
-    // Override path: user edited the mapping in the drawer and clicked Re-process.
-    // Skip the resolver chain — apply the supplied mapping directly to sample rows.
-    if (overrideMapping) {
-      if (
-        typeof overrideMapping !== "object" ||
-        !Array.isArray((overrideMapping as ColumnMapping).headers) ||
-        !Array.isArray((overrideMapping as ColumnMapping).assignments)
-      ) {
-        return res.status(400).json({
-          success: false,
-          error:
-            "overrideMapping must be a ColumnMapping with headers[] and assignments[]",
-        });
-      }
-
-      let parsedPreview: MonthlyRollupForJob | null = null;
-      let mappingError: string | undefined;
-      const dataQualityFlags: string[] = [];
-      try {
-        parsedPreview = applyMapping(
-          sampleRows as Record<string, unknown>[],
-          overrideMapping as ColumnMapping,
-          dataQualityFlags
-        );
-      } catch (err) {
-        mappingError =
-          err instanceof Error
-            ? err.message
-            : "Could not apply mapping to preview rows";
-      }
-
-      // Clone-on-confirm: when the user re-processes their edited mapping
-      // and applyMapping succeeds, persist it to the org's cache. Subsequent
-      // uploads of the same file shape will hit org-cache (Tier 1) and
-      // silently apply the saved mapping. Matches the spec D2 intent for
-      // "save" semantics on the Re-process button.
-      const signature = signHeaders(headers as string[]);
-      let cacheSource: "org-cache" | "ai-inference" = "ai-inference";
-      if (parsedPreview !== null && !mappingError) {
-        try {
-          await PmsColumnMappingModel.upsertOrgMapping(
-            orgId,
-            signature,
-            overrideMapping as ColumnMapping
-          );
-          cacheSource = "org-cache";
-          logger.info({ detail: JSON.stringify({
-                          event: "org-cache-write",
-                          orgId,
-                          signatureHash: signature,
-                          source: "user-override",
-                        }) }, "[pms-mapping]");
-        } catch (cacheErr: any) {
-          logger.warn({ detail: cacheErr?.message || cacheErr }, "[pms-mapping] org-cache write failed:");
-          // Non-fatal — preview still works, user just won't get silent apply
-          // on the next upload.
-        }
-      }
-
-      // Wrap the flat array into { monthly_rollup: [...] } shape so the
-      // frontend's MonthlyRollupForJob interface matches what it receives.
-      return res.json({
-        success: true,
-        data: {
-          mapping: overrideMapping as ColumnMapping,
-          source: cacheSource,
-          confidence: 1.0,
-          signature,
-          requireConfirmation: false,
-          parsedPreview:
-            parsedPreview === null ? null : { monthly_rollup: parsedPreview },
-          ...(dataQualityFlags.length ? { dataQualityFlags } : {}),
-          ...(mappingError ? { mappingError } : {}),
-        },
-      });
-    }
-
-    const resolved = await resolveMapping(
-      orgId,
-      headers as string[],
-      sampleRows as Record<string, unknown>[]
-    );
-
-    let parsedPreview: MonthlyRollupForJob | null = null;
-    let mappingError: string | undefined;
-    const dataQualityFlags: string[] = [];
-    try {
-      parsedPreview = applyMapping(
-        sampleRows as Record<string, unknown>[],
-        resolved.mapping,
-        dataQualityFlags
-      );
-    } catch (err) {
-      mappingError =
-        err instanceof Error
-          ? err.message
-          : "Could not apply mapping to preview rows";
-      parsedPreview = null;
-    }
+    const data = await mappingService.buildPreviewMapping({
+      headers: headers as string[],
+      sampleRows: sampleRows as Record<string, unknown>[],
+      organizationId: orgId,
+      overrideMapping,
+    });
 
     return res.json({
       success: true,
-      data: {
-        mapping: resolved.mapping,
-        source: resolved.source,
-        confidence: resolved.confidence,
-        signature: resolved.signature,
-        requireConfirmation: resolved.requireConfirmation ?? false,
-        parsedPreview:
-          parsedPreview === null ? null : { monthly_rollup: parsedPreview },
-        ...(dataQualityFlags.length ? { dataQualityFlags } : {}),
-        ...(mappingError ? { mappingError } : {}),
-      },
+      data,
     });
   } catch (error: any) {
     logger.error({ err: error?.message || error }, "Error in POST /pms/preview-mapping:");
@@ -827,26 +665,6 @@ export async function uploadWithMapping(req: Request, res: Response) {
       });
     }
 
-    let rows: Record<string, unknown>[] = [];
-    if (Array.isArray(body.rows)) {
-      rows = body.rows as Record<string, unknown>[];
-    } else if (typeof body.pasteText === "string" && body.pasteText.length > 0) {
-      const tokenized = pasteParseService.pasteTextToRecords(body.pasteText);
-      rows = tokenized.rows as unknown as Record<string, unknown>[];
-    } else {
-      return res.status(400).json({
-        success: false,
-        error: "Either `rows` (array) or `pasteText` (string) is required",
-      });
-    }
-
-    if (rows.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: "No data rows provided",
-      });
-    }
-
     const rbacReq = req as RBACRequest;
     const orgId = rbacReq.organizationId;
     if (!orgId) {
@@ -856,112 +674,22 @@ export async function uploadWithMapping(req: Request, res: Response) {
       });
     }
 
-    const headers =
-      Array.isArray(mapping.headers) && mapping.headers.length > 0
-        ? mapping.headers
-        : Object.keys(rows[0] ?? {});
-    const signature = signHeaders(headers);
-
-    let monthlyRollup: MonthlyRollupForJob;
-    try {
-      monthlyRollup = applyMapping(rows, mapping as ColumnMapping);
-    } catch (err) {
-      return res.status(400).json({
-        success: false,
-        error:
-          err instanceof Error
-            ? err.message
-            : "Could not apply mapping to rows",
-      });
-    }
-
-    // Clone-on-confirm: persist this mapping into the org cache.
-    const upserted = await PmsColumnMappingModel.upsertOrgMapping(
-      orgId,
-      signature,
-      mapping as ColumnMapping
-    );
-    const mappingId = upserted.id;
-
-    const passedLocationId =
-      typeof body.locationId === "number"
-        ? body.locationId
-        : typeof body.locationId === "string" && body.locationId
-          ? parseInt(body.locationId, 10)
-          : null;
-    const locationId =
-      passedLocationId && !isNaN(passedLocationId)
-        ? passedLocationId
-        : await resolveLocationId(orgId);
-
-    await assertNoActivePmsAutomation(orgId, locationId);
-
-    const responseLog = {
-      monthly_rollup: monthlyRollup,
-      mapping_source: "user-confirmed",
-      header_signature: signature,
-    };
     const actorUserId = rbacReq.userId ?? rbacReq.user?.userId ?? null;
 
-    const job = await BaseModel.transaction(async (trx) => {
-      const created = await PmsJobModel.create(
-        {
-          time_elapsed: 0,
-          status: "approved",
-          organization_id: orgId,
-          location_id: locationId,
-          is_approved: true,
-          is_client_approved: true,
-          uploaded_by_user_id: actorUserId,
-          raw_input_data: {
-            rows,
-            headers,
-            signature,
-            ...(month ? { month } : {}),
-          } as Record<string, unknown>,
-          response_log: responseLog,
-          original_response_log: responseLog,
-          column_mapping_id: mappingId,
-        } as any,
-        trx
-      );
-
-      await PmsJobEventModel.create(
-        {
-          pms_job_id: created.id,
-          actor_user_id: actorUserId,
-          event_type: "mapped_upload_created",
-          metadata: {
-            months: monthlyRollup.map((entry) => entry.month).filter(Boolean),
-            monthCount: monthlyRollup.length,
-            mappingSource: "user-confirmed",
-            headerSignature: signature,
-          },
-        },
-        trx
-      );
-
-      return created;
-    });
-
-    if (!job.id) {
-      throw new Error("Failed to create PMS job record");
-    }
-
-    await finalizePmsJob(job.id, {
+    const data = await mappingService.createMappedUpload({
+      mapping,
       organizationId: orgId,
-      locationId,
+      actorUserId,
+      rows: body.rows,
+      pasteText: body.pasteText,
+      month,
       domain,
-      pmsParserStatus: "completed",
+      locationId: body.locationId,
     });
 
     return res.json({
       success: true,
-      data: {
-        jobId: job.id,
-        mappingId,
-        monthlyRollup,
-      },
+      data,
     });
   } catch (error: any) {
     logger.error({ err: error?.message || error }, "Error in POST /pms/upload-with-mapping:");
@@ -994,14 +722,6 @@ export async function reprocessJobMapping(req: Request, res: Response) {
       });
     }
 
-    const job = await PmsJobModel.findById(jobId);
-    if (!job) {
-      return res.status(404).json({
-        success: false,
-        error: "PMS job not found",
-      });
-    }
-
     const rbacReq = req as RBACRequest;
     const orgId = rbacReq.organizationId;
     if (!orgId) {
@@ -1010,71 +730,16 @@ export async function reprocessJobMapping(req: Request, res: Response) {
         error: "Organization context required",
       });
     }
-    if (job.organization_id && job.organization_id !== orgId) {
-      return res.status(403).json({
-        success: false,
-        error: "No access to this job",
-      });
-    }
 
-    const raw = job.raw_input_data as
-      | { rows?: Record<string, unknown>[]; headers?: string[]; signature?: string }
-      | null;
-    const rawRows = Array.isArray(raw?.rows)
-      ? (raw!.rows as Record<string, unknown>[])
-      : null;
-    if (!rawRows || rawRows.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "This job pre-dates the mapping system and cannot be re-processed.",
-      });
-    }
-
-    let monthlyRollup: MonthlyRollupForJob;
-    try {
-      monthlyRollup = applyMapping(rawRows, mapping as ColumnMapping);
-    } catch (err) {
-      return res.status(400).json({
-        success: false,
-        error:
-          err instanceof Error
-            ? err.message
-            : "Could not apply mapping to job rows",
-      });
-    }
-
-    const headers =
-      raw?.headers && raw.headers.length > 0
-        ? raw.headers
-        : Array.isArray(mapping.headers) && mapping.headers.length > 0
-          ? mapping.headers
-          : Object.keys(rawRows[0] ?? {});
-    const signature = raw?.signature ?? signHeaders(headers);
-
-    const upserted = await PmsColumnMappingModel.upsertOrgMapping(
-      orgId,
-      signature,
-      mapping as ColumnMapping
-    );
-    const mappingId = upserted.id;
-
-    await PmsJobModel.updateById(jobId, {
-      response_log: {
-        monthly_rollup: monthlyRollup,
-        mapping_source: "user-reprocessed",
-        header_signature: signature,
-      },
-      column_mapping_id: mappingId,
-    } as any);
+    const data = await mappingService.reprocessJobWithMapping({
+      jobId,
+      mapping,
+      organizationId: orgId,
+    });
 
     return res.json({
       success: true,
-      data: {
-        jobId,
-        mappingId,
-        monthlyRollup,
-      },
+      data,
     });
   } catch (error: any) {
     logger.error({ err: error?.message || error }, "Error in POST /pms/jobs/:id/reprocess:");
@@ -1115,38 +780,14 @@ export async function getCachedMapping(req: Request, res: Response) {
       });
     }
 
-    const orgHit = await PmsColumnMappingModel.findByOrgAndSignature(
-      orgId,
-      signature
-    );
-    if (orgHit) {
-      return res.json({
-        success: true,
-        data: {
-          mapping: orgHit.mapping,
-          source: "org-cache" as const,
-          requireConfirmation: orgHit.require_confirmation,
-        },
-      });
-    }
-
-    const globalHit = await PmsColumnMappingModel.findGlobalBySignature(
-      signature
-    );
-    if (globalHit) {
-      return res.json({
-        success: true,
-        data: {
-          mapping: globalHit.mapping,
-          source: "global-library" as const,
-          requireConfirmation: globalHit.require_confirmation,
-        },
-      });
-    }
+    const data = await mappingService.getCachedMappingForSignature({
+      signature,
+      organizationId: orgId,
+    });
 
     return res.json({
       success: true,
-      data: null,
+      data,
     });
   } catch (error: any) {
     logger.error({ err: error?.message || error }, "Error in GET /pms/mappings/cache:");
