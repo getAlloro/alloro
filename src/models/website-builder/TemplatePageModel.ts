@@ -67,6 +67,22 @@ export class TemplatePageModel extends BaseModel {
   }
 
   /**
+   * Fetch the (name, dynamic_slots) projection for a template page by id.
+   * Mirrors the inline select in
+   * service.slot-generator.generateSlotValuesFromIdentity verbatim (raw row or
+   * undefined; the caller parses dynamic_slots itself).
+   */
+  static async findNameDynamicSlotsById(
+    pageId: string,
+    trx?: QueryContext
+  ): Promise<{ name: string | null; dynamic_slots: unknown } | undefined> {
+    return this.table(trx)
+      .where("id", pageId)
+      .select("name", "dynamic_slots")
+      .first();
+  }
+
+  /**
    * Set dynamic_slots (pre-stringified JSON) on a template page by id, stamping
    * updated_at via the DB clock; returns the affected count. Mirrors the inline
    * update in AdminWebsitesController.updateTemplatePageSlots verbatim.

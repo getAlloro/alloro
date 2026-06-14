@@ -424,6 +424,67 @@ export class PageModel extends BaseModel {
   }
 
   /**
+   * Mark all pages at a project + path with a given status as `inactive`,
+   * stamping updated_at via the DB clock; returns the affected count. Mirrors
+   * the two "mark existing draft/published inactive" writes in
+   * service.artifact-upload.uploadArtifactPage verbatim.
+   */
+  static async markStatusInactiveByProjectPathStatus(
+    projectId: string,
+    path: string,
+    status: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ project_id: projectId, path, status })
+      .update({ status: "inactive", updated_at: db.fn.now() });
+  }
+
+  /**
+   * Touch a page's updated_at via the DB clock, returning the updated row.
+   * Mirrors the inline updated_at bump in
+   * service.artifact-upload.replaceArtifactBuild verbatim.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async touchUpdatedAtReturning(
+    id: string,
+    trx?: QueryContext
+  ): Promise<any> {
+    const [updated] = await this.table(trx)
+      .where("id", id)
+      .update({ updated_at: db.fn.now() })
+      .returning("*");
+    return updated;
+  }
+
+  /**
+   * Overwrite a draft page's restored content (sections + seo_data),
+   * setting change_source='restore' and clearing revision_note, stamping
+   * updated_at via the DB clock, returning the updated row. Mirrors the inline
+   * draft-overwrite in service.page-versions.restoreVersionIntoDraft verbatim
+   * (the caller pre-stringifies sections + seo_data).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async updateRestoredDraftReturning(
+    id: string,
+    restoredSectionsJson: string,
+    restoredSeoDataJson: string | null,
+    trx?: QueryContext
+  ): Promise<any> {
+    const [updated] = await this.table(trx)
+      .where("id", id)
+      .update({
+        sections: restoredSectionsJson,
+        seo_data: restoredSeoDataJson,
+        change_source: "restore",
+        revision_note: null,
+        updated_at: db.fn.now(),
+      })
+      .returning("*");
+    return updated;
+  }
+
+  /**
    * Set sections (pre-stringified) on a page by id, stamping updated_at via the
    * DB clock. Mirrors the section-write in service.ai-command.saveEditedHtml for
    * the page_section branch verbatim (distinct from saveLiveSections, which also

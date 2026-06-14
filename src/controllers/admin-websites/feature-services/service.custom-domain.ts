@@ -9,13 +9,12 @@
 
 import dns from "dns";
 import { promisify } from "util";
-import { db } from "../../../database/connection";
+import { ProjectModel } from "../../../models/website-builder/ProjectModel";
 import { refreshCustomDomainCache } from "../../../middleware/corsCustomDomains";
 import { provisionRybbitSite } from "./service.rybbit";
 import logger from "../../../lib/logger";
 
 const resolve4 = promisify(dns.resolve4);
-const PROJECTS_TABLE = "website_builder.projects";
 const RENDERER_IP = process.env.SITE_RENDERER_IP || "";
 
 type ServiceError = { status: number; code: string; message: string };
@@ -52,11 +51,7 @@ export async function connectDomain(
   const alt = getAltDomain(cleaned);
 
   // Check project exists
-  const project = await db(`${PROJECTS_TABLE} as p`)
-    .leftJoin("organizations as o", "p.organization_id", "o.id")
-    .select("p.*", "o.archived_at as org_archived_at")
-    .where("p.id", projectId)
-    .first();
+  const project = await ProjectModel.findWithOrgArchivedById(projectId);
   if (!project) {
     return {
       error: { status: 404, code: "NOT_FOUND", message: "Project not found" },
@@ -73,16 +68,7 @@ export async function connectDomain(
   }
 
   // Check neither domain is used by another project
-  const existing = await db(PROJECTS_TABLE)
-    .where(function () {
-      this.where("custom_domain", cleaned)
-        .orWhere("custom_domain", alt)
-        .orWhere("custom_domain_alt", cleaned)
-        .orWhere("custom_domain_alt", alt);
-    })
-    .whereNot("id", projectId)
-    .whereNull("archived_at")
-    .first();
+  const existing = await ProjectModel.findDomainConflict(cleaned, alt, projectId);
 
   if (existing) {
     return {
@@ -95,12 +81,7 @@ export async function connectDomain(
   }
 
   // Save both domains, clear verification
-  await db(PROJECTS_TABLE).where("id", projectId).update({
-    custom_domain: cleaned,
-    custom_domain_alt: alt,
-    domain_verified_at: null,
-    updated_at: db.fn.now(),
-  });
+  await ProjectModel.setCustomDomain(projectId, cleaned, alt);
 
   logger.info(`[Custom Domain] Connected ${cleaned} + ${alt} to project ${projectId}`);
 
@@ -130,18 +111,7 @@ export async function verifyDomain(
     };
   }
 
-  const project = await db(`${PROJECTS_TABLE} as p`)
-    .leftJoin("organizations as o", "p.organization_id", "o.id")
-    .select(
-      "p.id",
-      "p.custom_domain",
-      "p.custom_domain_alt",
-      "p.domain_verified_at",
-      "p.archived_at",
-      "o.archived_at as org_archived_at"
-    )
-    .where("p.id", projectId)
-    .first();
+  const project = await ProjectModel.findDomainVerificationContextById(projectId);
 
   if (!project) {
     return {
@@ -197,10 +167,7 @@ export async function verifyDomain(
   const matches = resolvedIps.includes(RENDERER_IP);
 
   if (matches) {
-    await db(PROJECTS_TABLE).where("id", projectId).update({
-      domain_verified_at: db.fn.now(),
-      updated_at: db.fn.now(),
-    });
+    await ProjectModel.markDomainVerified(projectId);
 
     logger.info(`[Custom Domain] Verified ${project.custom_domain} for project ${projectId}`);
 
@@ -228,19 +195,14 @@ export async function verifyDomain(
 export async function disconnectDomain(
   projectId: string
 ): Promise<Result<{ disconnected: boolean }>> {
-  const project = await db(PROJECTS_TABLE).where("id", projectId).first();
+  const project = await ProjectModel.findRawById(projectId);
   if (!project) {
     return {
       error: { status: 404, code: "NOT_FOUND", message: "Project not found" },
     };
   }
 
-  await db(PROJECTS_TABLE).where("id", projectId).update({
-    custom_domain: null,
-    custom_domain_alt: null,
-    domain_verified_at: null,
-    updated_at: db.fn.now(),
-  });
+  await ProjectModel.clearCustomDomain(projectId);
 
   logger.info(`[Custom Domain] Disconnected domain from project ${projectId}`);
 
@@ -256,13 +218,10 @@ export async function getDomainStatus(
 ): Promise<Result<{
   custom_domain: string | null;
   custom_domain_alt: string | null;
-  domain_verified_at: string | null;
+  domain_verified_at: Date | null;
   server_ip: string;
 }>> {
-  const project = await db(PROJECTS_TABLE)
-    .select("id", "custom_domain", "custom_domain_alt", "domain_verified_at")
-    .where("id", projectId)
-    .first();
+  const project = await ProjectModel.findDomainStatusById(projectId);
 
   if (!project) {
     return {

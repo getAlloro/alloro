@@ -1,4 +1,3 @@
-import { db } from "../../../database/connection";
 import { HeaderFooterCodeModel, type IHeaderFooterCode } from "../../../models/website-builder/HeaderFooterCodeModel";
 import { ProjectModel, type IProject } from "../../../models/website-builder/ProjectModel";
 import {
@@ -276,7 +275,7 @@ export async function saveIntegration(
     await validateSiteId(siteId);
   }
 
-  const integration = await db.transaction(async (trx) => {
+  const integration = await WebsiteIntegrationModel.transaction(async (trx) => {
     const existing = await WebsiteIntegrationModel.findByProjectAndPlatform(
       projectId,
       "rybbit",

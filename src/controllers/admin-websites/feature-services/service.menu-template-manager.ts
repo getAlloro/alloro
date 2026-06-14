@@ -6,12 +6,10 @@
  * referenced via {{ menu id='...' template='slug' }} shortcodes.
  */
 
-import { db } from "../../../database/connection";
+import { MenuTemplateModel } from "../../../models/website-builder/MenuTemplateModel";
+import { TemplateModel } from "../../../models/website-builder/TemplateModel";
 import { getRedisConnection } from "../../../workers/queues";
 import logger from "../../../lib/logger";
-
-const MENU_TEMPLATES_TABLE = "website_builder.menu_templates";
-const TEMPLATES_TABLE = "website_builder.templates";
 
 function slugify(text: string): string {
   return text
@@ -37,7 +35,7 @@ export async function listMenuTemplates(templateId: string): Promise<{
   menuTemplates: any[];
   error?: { status: number; code: string; message: string };
 }> {
-  const template = await db(TEMPLATES_TABLE).where("id", templateId).first();
+  const template = await TemplateModel.findRawById(templateId);
   if (!template) {
     return {
       menuTemplates: [],
@@ -45,9 +43,9 @@ export async function listMenuTemplates(templateId: string): Promise<{
     };
   }
 
-  const menuTemplates = await db(MENU_TEMPLATES_TABLE)
-    .where("template_id", templateId)
-    .orderBy("created_at", "asc");
+  const menuTemplates = await MenuTemplateModel.findByTemplateIdOrderedByCreatedAt(
+    templateId
+  );
 
   return { menuTemplates };
 }
@@ -75,7 +73,7 @@ export async function createMenuTemplate(
     };
   }
 
-  const template = await db(TEMPLATES_TABLE).where("id", templateId).first();
+  const template = await TemplateModel.findRawById(templateId);
   if (!template) {
     return {
       menuTemplate: null,
@@ -84,9 +82,7 @@ export async function createMenuTemplate(
   }
 
   const slug = slugify(name);
-  const existing = await db(MENU_TEMPLATES_TABLE)
-    .where({ template_id: templateId, slug })
-    .first();
+  const existing = await MenuTemplateModel.findByTemplateAndSlug(templateId, slug);
   if (existing) {
     return {
       menuTemplate: null,
@@ -100,14 +96,12 @@ export async function createMenuTemplate(
 
   logger.info(`[Admin Websites] Creating menu template "${name}" for template ${templateId}`);
 
-  const [menuTemplate] = await db(MENU_TEMPLATES_TABLE)
-    .insert({
-      template_id: templateId,
-      name,
-      slug,
-      sections: JSON.stringify(sections || []),
-    })
-    .returning("*");
+  const menuTemplate = await MenuTemplateModel.insertReturning({
+    template_id: templateId,
+    name,
+    slug,
+    sections: JSON.stringify(sections || []),
+  });
 
   logger.info(`[Admin Websites] ✓ Created menu template ID: ${menuTemplate.id}`);
 
@@ -122,9 +116,7 @@ export async function getMenuTemplate(
   templateId: string,
   menuTemplateId: string
 ): Promise<any> {
-  const mt = await db(MENU_TEMPLATES_TABLE)
-    .where({ id: menuTemplateId, template_id: templateId })
-    .first();
+  const mt = await MenuTemplateModel.findByIdAndTemplate(menuTemplateId, templateId);
 
   if (mt && typeof mt.sections === "string") {
     mt.sections = JSON.parse(mt.sections);
@@ -145,9 +137,10 @@ export async function updateMenuTemplate(
   menuTemplate: any;
   error?: { status: number; code: string; message: string };
 }> {
-  const existing = await db(MENU_TEMPLATES_TABLE)
-    .where({ id: menuTemplateId, template_id: templateId })
-    .first();
+  const existing = await MenuTemplateModel.findByIdAndTemplate(
+    menuTemplateId,
+    templateId
+  );
   if (!existing) {
     return {
       menuTemplate: null,
@@ -161,10 +154,11 @@ export async function updateMenuTemplate(
 
   if (updates.name && updates.name !== existing.name) {
     updates.slug = slugify(updates.name);
-    const conflict = await db(MENU_TEMPLATES_TABLE)
-      .where({ template_id: templateId, slug: updates.slug })
-      .whereNot("id", menuTemplateId)
-      .first();
+    const conflict = await MenuTemplateModel.findByTemplateAndSlugExcludingId(
+      templateId,
+      updates.slug,
+      menuTemplateId
+    );
     if (conflict) {
       return {
         menuTemplate: null,
@@ -177,10 +171,11 @@ export async function updateMenuTemplate(
     updates.sections = JSON.stringify(updates.sections);
   }
 
-  const [menuTemplate] = await db(MENU_TEMPLATES_TABLE)
-    .where({ id: menuTemplateId, template_id: templateId })
-    .update({ ...updates, updated_at: db.fn.now() })
-    .returning("*");
+  const menuTemplate = await MenuTemplateModel.updateByIdAndTemplateReturning(
+    menuTemplateId,
+    templateId,
+    updates
+  );
 
   logger.info(`[Admin Websites] ✓ Updated menu template ID: ${menuTemplateId}`);
 
@@ -201,18 +196,17 @@ export async function deleteMenuTemplate(
   templateId: string,
   menuTemplateId: string
 ): Promise<{ error?: { status: number; code: string; message: string } }> {
-  const existing = await db(MENU_TEMPLATES_TABLE)
-    .where({ id: menuTemplateId, template_id: templateId })
-    .first();
+  const existing = await MenuTemplateModel.findByIdAndTemplate(
+    menuTemplateId,
+    templateId
+  );
   if (!existing) {
     return {
       error: { status: 404, code: "NOT_FOUND", message: "Menu template not found" },
     };
   }
 
-  await db(MENU_TEMPLATES_TABLE)
-    .where({ id: menuTemplateId, template_id: templateId })
-    .del();
+  await MenuTemplateModel.deleteByIdAndTemplate(menuTemplateId, templateId);
 
   logger.info(`[Admin Websites] ✓ Deleted menu template ID: ${menuTemplateId}`);
 

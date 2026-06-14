@@ -18,8 +18,8 @@
 
 import axios from "axios";
 import * as cheerio from "cheerio";
-import { db } from "../../../database/connection";
 import { ProjectIdentityModel } from "../../../models/website-builder/ProjectIdentityModel";
+import { ProjectModel } from "../../../models/website-builder/ProjectModel";
 import { runAgent, type CostContext } from "../../../agents/service.llm-runner";
 import { loadPrompt } from "../../../agents/service.prompt-loader";
 import { uploadToS3 } from "../../../utils/core/s3";
@@ -39,8 +39,6 @@ import {
   type ImageAnalysisResult,
 } from "../feature-utils/util.image-processor";
 import logger from "../../../lib/logger";
-
-const PROJECTS_TABLE = "website_builder.projects";
 
 // Cap applied to cleaned text (post-HTML-strip), not raw HTML. At 100k of
 // readable content we have plenty of signal without bloating the JSONB.
@@ -180,10 +178,10 @@ export async function runIdentityWarmup(
   try {
     checkCancel(signal);
 
-    const project = await db(PROJECTS_TABLE)
-      .where("id", projectId)
-      .select("display_name", "selected_website_url")
-      .first();
+    const project = await ProjectModel.findLocationSelectionById(projectId, [
+      "display_name",
+      "selected_website_url",
+    ]);
     if (!project) {
       throw new Error(`Project ${projectId} not found`);
     }
@@ -809,10 +807,11 @@ async function buildLocationsArray(
   practiceSearchString: string | undefined,
   signal: AbortSignal | undefined,
 ): Promise<{ locations: IdentityLocation[]; secondaryImageUrls: string[] }> {
-  const project = await db(PROJECTS_TABLE)
-    .where("id", projectId)
-    .select("selected_place_ids", "primary_place_id", "selected_place_id")
-    .first();
+  const project = await ProjectModel.findLocationSelectionById(projectId, [
+    "selected_place_ids",
+    "primary_place_id",
+    "selected_place_id",
+  ]);
 
   const rawIds = Array.isArray(project?.selected_place_ids)
     ? (project.selected_place_ids as string[])

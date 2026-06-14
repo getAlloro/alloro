@@ -11,11 +11,9 @@
 import unzipper from "unzipper";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
-import { db } from "../../../database/connection";
+import { PageModel } from "../../../models/website-builder/PageModel";
 import { uploadToS3 } from "../../../utils/core/s3";
 import logger from "../../../lib/logger";
-
-const PAGES_TABLE = "website_builder.pages";
 
 interface ArtifactFile {
   path: string;
@@ -216,38 +214,37 @@ export async function uploadArtifactPage(
   );
 
   // 5. Version handling — same pattern as page-editor.createPage
-  const latestPage = await db(PAGES_TABLE)
-    .where({ project_id: projectId, path: pagePath })
-    .orderBy("version", "desc")
-    .first();
+  const latestPage = await PageModel.findLatestByProjectAndPath(projectId, pagePath);
 
   const newVersion = latestPage ? latestPage.version + 1 : 1;
 
   // Mark existing drafts at this path as inactive
-  await db(PAGES_TABLE)
-    .where({ project_id: projectId, path: pagePath, status: "draft" })
-    .update({ status: "inactive", updated_at: db.fn.now() });
+  await PageModel.markStatusInactiveByProjectPathStatus(
+    projectId,
+    pagePath,
+    "draft"
+  );
 
   // Mark existing published at this path as inactive
-  await db(PAGES_TABLE)
-    .where({ project_id: projectId, path: pagePath, status: "published" })
-    .update({ status: "inactive", updated_at: db.fn.now() });
+  await PageModel.markStatusInactiveByProjectPathStatus(
+    projectId,
+    pagePath,
+    "published"
+  );
 
   // 6. Create page record
-  const [page] = await db(PAGES_TABLE)
-    .insert({
-      id: pageId,
-      project_id: projectId,
-      path: pagePath,
-      version: newVersion,
-      status: "published",
-      page_type: "artifact",
-      artifact_s3_prefix: s3Prefix,
-      generation_status: "ready",
-      sections: JSON.stringify([]),
-      display_name: displayName || null,
-    })
-    .returning("*");
+  const page = await PageModel.insertReturning({
+    id: pageId,
+    project_id: projectId,
+    path: pagePath,
+    version: newVersion,
+    status: "published",
+    page_type: "artifact",
+    artifact_s3_prefix: s3Prefix,
+    generation_status: "ready",
+    sections: JSON.stringify([]),
+    display_name: displayName || null,
+  });
 
   logger.info(
     `[Artifact] Created artifact page ID: ${page.id}, path: ${pagePath}`
@@ -266,9 +263,7 @@ export async function replaceArtifactBuild(
   zipBuffer: Buffer
 ): Promise<UploadResult> {
   // 1. Fetch the existing artifact page
-  const page = await db(PAGES_TABLE)
-    .where({ id: pageId, project_id: projectId })
-    .first();
+  const page = await PageModel.findRawByIdAndProject(pageId, projectId);
 
   if (!page) {
     return {
@@ -322,10 +317,7 @@ export async function replaceArtifactBuild(
   );
 
   // 5. Touch updated_at
-  const [updated] = await db(PAGES_TABLE)
-    .where({ id: pageId })
-    .update({ updated_at: db.fn.now() })
-    .returning("*");
+  const updated = await PageModel.touchUpdatedAtReturning(pageId);
 
   return { page: updated };
 }

@@ -8,8 +8,8 @@
  */
 
 import { runAgent } from "../../../agents/service.llm-runner";
-import { db } from "../../../database/connection";
 import { ProjectIdentityModel } from "../../../models/website-builder/ProjectIdentityModel";
+import { TemplatePageModel } from "../../../models/website-builder/TemplatePageModel";
 import {
   buildStableIdentityContext,
   type ProjectIdentity,
@@ -18,8 +18,6 @@ import {
   hasUsableIdentityForSlotGeneration,
   parseProjectIdentity,
 } from "../feature-utils/util.project-identity";
-
-const TEMPLATE_PAGES_TABLE = "website_builder.template_pages";
 
 interface SlotDef {
   key: string;
@@ -40,10 +38,9 @@ export async function generateSlotValuesFromIdentity(
     throw new Error("IDENTITY_NOT_READY");
   }
 
-  const templatePage = await db(TEMPLATE_PAGES_TABLE)
-    .where("id", templatePageId)
-    .select("name", "dynamic_slots")
-    .first();
+  const templatePage = await TemplatePageModel.findNameDynamicSlotsById(
+    templatePageId
+  );
   if (!templatePage) throw new Error("TEMPLATE_PAGE_NOT_FOUND");
 
   const rawSlots = parseProjectIdentity<SlotDef[]>(templatePage.dynamic_slots);

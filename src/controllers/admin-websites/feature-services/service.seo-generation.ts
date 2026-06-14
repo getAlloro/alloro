@@ -6,16 +6,12 @@
  * Uses CroSEO mind skills for enhanced context.
  */
 
-import { db } from "../../../database/connection";
 import { LocationModel } from "../../../models/LocationModel";
 import { OrganizationModel } from "../../../models/OrganizationModel";
+import { ProjectModel } from "../../../models/website-builder/ProjectModel";
 import { loadPrompt } from "../../../agents/service.prompt-loader";
 import { runAgent } from "../../../agents/service.llm-runner";
 import logger from "../../../lib/logger";
-
-const PAGES_TABLE = "website_builder.pages";
-const POSTS_TABLE = "website_builder.posts";
-const PROJECTS_TABLE = "website_builder.projects";
 
 const MODEL = "claude-sonnet-4-6";
 const MAX_TOKENS = 4096;
@@ -525,10 +521,7 @@ async function fetchBusinessData(
   projectId: string,
   locationContext: string | null
 ): Promise<Record<string, unknown> | null> {
-  const project = await db(PROJECTS_TABLE)
-    .where({ id: projectId })
-    .select("organization_id")
-    .first();
+  const project = await ProjectModel.findOrganizationIdById(projectId);
   if (!project?.organization_id) return null;
 
   const orgId = project.organization_id;

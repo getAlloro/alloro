@@ -5,8 +5,8 @@
  */
 
 import { Request, Response } from "express";
-import { db } from "../../database/connection";
 import { BackupJobModel } from "../../models/website-builder/BackupJobModel";
+import { MediaModel } from "../../models/website-builder/MediaModel";
 import { ProjectModel } from "../../models/website-builder/ProjectModel";
 import { generatePresignedUrl, deleteFromS3 } from "../../utils/core/s3";
 import logger from "../../lib/logger";
@@ -40,10 +40,7 @@ export async function createBackup(
     }
 
     // Calculate estimated size
-    const [{ sum }] = await db("website_builder.media")
-      .where({ project_id: projectId })
-      .sum("file_size as sum");
-    const estimatedBytes = Number(sum) || 0;
+    const estimatedBytes = await MediaModel.getProjectStorageUsage(projectId);
 
     // Enforce max backups — delete oldest if at limit
     const completedCount = await BackupJobModel.countByProjectId(

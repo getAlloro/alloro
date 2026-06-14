@@ -5,11 +5,9 @@
  * custom domain is verified. The renderer owns script injection.
  */
 
-import { db } from "../../../database/connection";
+import { ProjectModel } from "../../../models/website-builder/ProjectModel";
 import { WebsiteIntegrationModel } from "../../../models/website-builder/WebsiteIntegrationModel";
 import logger from "../../../lib/logger";
-
-const PROJECTS_TABLE = "website_builder.projects";
 
 const RYBBIT_API_URL = process.env.RYBBIT_API_URL || "";
 const RYBBIT_API_KEY = process.env.RYBBIT_API_KEY || "";
@@ -30,19 +28,13 @@ export async function provisionRybbitSite(
       return;
     }
 
-    const project = await db(PROJECTS_TABLE)
-      .select("rybbit_site_id")
-      .where("id", projectId)
-      .first();
+    const project = await ProjectModel.findRybbitSiteIdById(projectId);
 
     const existingIntegration = await WebsiteIntegrationModel.findByProjectAndPlatform(projectId, "rybbit");
     const existingSiteId = existingIntegration?.metadata?.siteId;
     if (typeof existingSiteId === "string" && existingSiteId.trim()) {
       if (project && project.rybbit_site_id !== existingSiteId) {
-        await db(PROJECTS_TABLE).where("id", projectId).update({
-          rybbit_site_id: existingSiteId,
-          updated_at: db.fn.now(),
-        });
+        await ProjectModel.updateRybbitSiteId(projectId, existingSiteId);
       }
       logger.info(`[Rybbit] Integration already provisioned (${existingSiteId}) for project ${projectId}, skipping`);
       return;
@@ -105,10 +97,7 @@ export async function provisionRybbitSite(
     logger.info(`[Rybbit] Site created: siteId=${siteId} for ${domain}`);
 
     // Store siteId on project
-    await db(PROJECTS_TABLE).where("id", projectId).update({
-      rybbit_site_id: String(siteId),
-      updated_at: db.fn.now(),
-    });
+    await ProjectModel.updateRybbitSiteId(projectId, String(siteId));
 
     if (!existingIntegration) {
       await WebsiteIntegrationModel.create({

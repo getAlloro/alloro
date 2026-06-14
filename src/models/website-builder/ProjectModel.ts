@@ -292,6 +292,171 @@ export class ProjectModel extends BaseModel {
       });
   }
 
+  // ===================================================================
+  // Custom-domain helpers (service.custom-domain)
+  //
+  // Mirror the inline `db("website_builder.projects")` queries in
+  // service.custom-domain verbatim (same columns, joins, filters, and
+  // `db.fn.now()` timestamp source). Reads return raw rows (the caller reads
+  // the org-archived join alias + custom-domain columns directly).
+  // ===================================================================
+
+  /**
+   * Fetch a project joined to its organization, selecting all project columns
+   * plus the org's archived_at as `org_archived_at`. Mirrors the inline
+   * leftJoin lookup in service.custom-domain.connectDomain verbatim.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findWithOrgArchivedById(
+    projectId: string,
+    trx?: QueryContext,
+  ): Promise<any> {
+    return this.table(trx)
+      .leftJoin("organizations as o", "website_builder.projects.organization_id", "o.id")
+      .select("website_builder.projects.*", "o.archived_at as org_archived_at")
+      .where("website_builder.projects.id", projectId)
+      .first();
+  }
+
+  /**
+   * Fetch the domain-verification fields for a project joined to its org's
+   * archived_at. Mirrors the inline leftJoin projection in
+   * service.custom-domain.verifyDomain verbatim.
+   */
+  static async findDomainVerificationContextById(
+    projectId: string,
+    trx?: QueryContext,
+  ): Promise<{
+    id: string;
+    custom_domain: string | null;
+    custom_domain_alt: string | null;
+    domain_verified_at: Date | null;
+    archived_at: Date | null;
+    org_archived_at: Date | null;
+  } | undefined> {
+    return this.table(trx)
+      .leftJoin("organizations as o", "website_builder.projects.organization_id", "o.id")
+      .select(
+        "website_builder.projects.id",
+        "website_builder.projects.custom_domain",
+        "website_builder.projects.custom_domain_alt",
+        "website_builder.projects.domain_verified_at",
+        "website_builder.projects.archived_at",
+        "o.archived_at as org_archived_at"
+      )
+      .where("website_builder.projects.id", projectId)
+      .first();
+  }
+
+  /**
+   * Find an active project (not this one, not archived) whose custom_domain or
+   * custom_domain_alt matches either of the two supplied domains. Mirrors the
+   * inline domain-conflict lookup in service.custom-domain.connectDomain
+   * verbatim. Returns the raw row (or undefined).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findDomainConflict(
+    domain: string,
+    altDomain: string,
+    excludeProjectId: string,
+    trx?: QueryContext,
+  ): Promise<any> {
+    return this.table(trx)
+      .where(function () {
+        this.where("custom_domain", domain)
+          .orWhere("custom_domain", altDomain)
+          .orWhere("custom_domain_alt", domain)
+          .orWhere("custom_domain_alt", altDomain);
+      })
+      .whereNot("id", excludeProjectId)
+      .whereNull("archived_at")
+      .first();
+  }
+
+  /**
+   * Save both custom-domain columns and clear domain_verified_at on a project,
+   * stamping updated_at via the DB clock. Mirrors the inline write in
+   * service.custom-domain.connectDomain verbatim.
+   */
+  static async setCustomDomain(
+    projectId: string,
+    customDomain: string,
+    customDomainAlt: string,
+    trx?: QueryContext,
+  ): Promise<number> {
+    return this.table(trx).where("id", projectId).update({
+      custom_domain: customDomain,
+      custom_domain_alt: customDomainAlt,
+      domain_verified_at: null,
+      updated_at: db.fn.now(),
+    });
+  }
+
+  /**
+   * Mark a project's custom domain verified now, stamping both
+   * domain_verified_at and updated_at via the DB clock. Mirrors the inline
+   * write in service.custom-domain.verifyDomain verbatim.
+   */
+  static async markDomainVerified(
+    projectId: string,
+    trx?: QueryContext,
+  ): Promise<number> {
+    return this.table(trx).where("id", projectId).update({
+      domain_verified_at: db.fn.now(),
+      updated_at: db.fn.now(),
+    });
+  }
+
+  /**
+   * Clear both custom-domain columns and domain_verified_at on a project,
+   * stamping updated_at via the DB clock. Mirrors the inline write in
+   * service.custom-domain.disconnectDomain verbatim.
+   */
+  static async clearCustomDomain(
+    projectId: string,
+    trx?: QueryContext,
+  ): Promise<number> {
+    return this.table(trx).where("id", projectId).update({
+      custom_domain: null,
+      custom_domain_alt: null,
+      domain_verified_at: null,
+      updated_at: db.fn.now(),
+    });
+  }
+
+  /**
+   * Fetch the custom-domain status projection for a project. Mirrors the inline
+   * select in service.custom-domain.getDomainStatus verbatim.
+   */
+  static async findDomainStatusById(
+    projectId: string,
+    trx?: QueryContext,
+  ): Promise<{
+    id: string;
+    custom_domain: string | null;
+    custom_domain_alt: string | null;
+    domain_verified_at: Date | null;
+  } | undefined> {
+    return this.table(trx)
+      .select("id", "custom_domain", "custom_domain_alt", "domain_verified_at")
+      .where("id", projectId)
+      .first();
+  }
+
+  /**
+   * Fetch the (rybbit_site_id) projection for a project. Mirrors the inline
+   * select in service.rybbit.provisionRybbitSite verbatim. Returns the raw row.
+   */
+  static async findRybbitSiteIdById(
+    projectId: string,
+    trx?: QueryContext,
+  ): Promise<{ rybbit_site_id: string | null } | undefined> {
+    return this.table(trx)
+      .select("rybbit_site_id")
+      .where("id", projectId)
+      .first();
+  }
+
   /**
    * Find a project by hostname, generated_hostname, custom_domain, or custom_domain_alt.
    * Used by form submissions that identify the project by the page's hostname.

@@ -32,6 +32,18 @@ export class TemplateModel extends BaseModel {
     return this.table(trx).where("id", id).first();
   }
 
+  /**
+   * Fetch only the layout_slots column for a template by id. Mirrors the inline
+   * select in service.slot-prefill.getLayoutSlotPrefill verbatim (raw row or
+   * undefined; the caller parses layout_slots itself).
+   */
+  static async findLayoutSlotsById(
+    id: string,
+    trx?: QueryContext
+  ): Promise<{ layout_slots: unknown } | undefined> {
+    return this.table(trx).where("id", id).select("layout_slots").first();
+  }
+
   // ===================================================================
   // Admin template-manager helpers (service.template-manager)
   //
