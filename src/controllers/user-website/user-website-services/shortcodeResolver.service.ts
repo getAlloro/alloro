@@ -43,6 +43,7 @@
 
 import { db } from "../../../database/connection";
 import { ProjectReviewModel } from "../../../models/website-builder/ProjectReviewModel";
+import logger from "../../../lib/logger";
 
 // =====================================================================
 // HTML Escaping
@@ -371,7 +372,7 @@ function processConditionals(
   // Nesting detection — abort loudly on any nested block.
   for (const probe of html.matchAll(CONDITIONAL_BLOCK_RE)) {
     if (NESTED_PROBE_RE.test(probe[3])) {
-      console.warn(
+      logger.warn(
         `[shortcodeResolver] Nested conditional detected in post template (flat-only in v1). ` +
           `Field: post.${probe[2]}. Block: ${probe[0].slice(0, 200)}`
       );
@@ -425,7 +426,7 @@ function processItemConditionals(body: string, item: Record<string, unknown>): s
   // Nesting detection — abort loudly on any nested item conditional.
   for (const probe of body.matchAll(ITEM_CONDITIONAL_BLOCK_RE)) {
     if (NESTED_PROBE_RE.test(probe[3])) {
-      console.warn(
+      logger.warn(
         `[shortcodeResolver] Nested item conditional detected in gallery loop (flat-only). ` +
           `Field: item.${probe[2]}. Block: ${probe[0].slice(0, 200)}`
       );
@@ -997,7 +998,7 @@ export async function resolveShortcodes(
     html = await resolveMenus(html, projectId, templateId);
     return html;
   } catch (error) {
-    console.error("[ShortcodeResolver] Error resolving shortcodes:", error);
+    logger.error({ err: error }, "[ShortcodeResolver] Error resolving shortcodes:");
     return html;
   }
 }

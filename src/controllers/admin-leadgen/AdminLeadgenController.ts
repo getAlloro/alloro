@@ -30,6 +30,7 @@ import {
 } from "./feature-services/service.csv-exporter";
 import { AuthRequest } from "../../middleware/auth";
 import { retryAuditById } from "../audit/audit-services/service.audit-retry";
+import logger from "../../lib/logger";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -267,7 +268,7 @@ export async function listSubmissions(
 
     return res.json({ items, total, page, pageSize });
   } catch (error) {
-    console.error("[AdminLeadgen] listSubmissions error:", error);
+    logger.error({ err: error }, "[AdminLeadgen] listSubmissions error:");
     return res
       .status(500)
       .json({ error: "internal_error", message: "Failed to list submissions" });
@@ -288,7 +289,7 @@ export async function getFunnel(
     const stages = await aggregateFunnel({ from, to });
     return res.json({ stages });
   } catch (error) {
-    console.error("[AdminLeadgen] getFunnel error:", error);
+    logger.error({ err: error }, "[AdminLeadgen] getFunnel error:");
     return res
       .status(500)
       .json({ error: "internal_error", message: "Failed to compute funnel" });
@@ -365,7 +366,7 @@ export async function getStats(
           : Number(medianRaw),
     });
   } catch (error) {
-    console.error("[AdminLeadgen] getStats error:", error);
+    logger.error({ err: error }, "[AdminLeadgen] getStats error:");
     return res
       .status(500)
       .json({ error: "internal_error", message: "Failed to compute stats" });
@@ -455,7 +456,7 @@ export async function exportSubmissionsCsv(
 
     res.end();
   } catch (error) {
-    console.error("[AdminLeadgen] exportSubmissionsCsv error:", error);
+    logger.error({ err: error }, "[AdminLeadgen] exportSubmissionsCsv error:");
     // If we've already started streaming, we can't change status — just
     // end the response. Otherwise return 500.
     if (!res.headersSent) {
@@ -503,7 +504,7 @@ export async function getSubmissionDetail(
 
     return res.json({ session, events, audit });
   } catch (error) {
-    console.error("[AdminLeadgen] getSubmissionDetail error:", error);
+    logger.error({ err: error }, "[AdminLeadgen] getSubmissionDetail error:");
     return res
       .status(500)
       .json({ error: "internal_error", message: "Failed to fetch submission" });
@@ -542,15 +543,15 @@ export async function deleteSubmission(
         .json({ error: "not_found", message: "Session not found" });
     }
 
-    console.log("[AdminLeadgen] deleteSubmission", {
-      session_id: id,
-      admin_user_id: req.user?.userId ?? null,
-      admin_email: req.user?.email ?? null,
-    });
+    logger.info({ detail: {
+            session_id: id,
+            admin_user_id: req.user?.userId ?? null,
+            admin_email: req.user?.email ?? null,
+          } }, "[AdminLeadgen] deleteSubmission");
 
     return res.json({ deleted: true, id });
   } catch (error) {
-    console.error("[AdminLeadgen] deleteSubmission error:", error);
+    logger.error({ err: error }, "[AdminLeadgen] deleteSubmission error:");
     return res
       .status(500)
       .json({ error: "internal_error", message: "Failed to delete submission" });
@@ -605,16 +606,16 @@ export async function bulkDeleteSubmissions(
 
     const deleted = await db("leadgen_sessions").whereIn("id", ids).del();
 
-    console.log("[AdminLeadgen] bulkDeleteSubmissions", {
-      requested: ids.length,
-      deleted,
-      admin_user_id: req.user?.userId ?? null,
-      admin_email: req.user?.email ?? null,
-    });
+    logger.info({ detail: {
+            requested: ids.length,
+            deleted,
+            admin_user_id: req.user?.userId ?? null,
+            admin_email: req.user?.email ?? null,
+          } }, "[AdminLeadgen] bulkDeleteSubmissions");
 
     return res.json({ deleted });
   } catch (error) {
-    console.error("[AdminLeadgen] bulkDeleteSubmissions error:", error);
+    logger.error({ err: error }, "[AdminLeadgen] bulkDeleteSubmissions error:");
     return res.status(500).json({
       error: "internal_error",
       message: "Failed to bulk delete",
@@ -673,13 +674,13 @@ export async function rerunAuditFromAdmin(
       countsTowardLimit: false,
     });
 
-    console.log("[AdminLeadgen] rerunAuditFromAdmin", {
-      session_id: session.id,
-      audit_id: session.audit_id,
-      result_ok: result.ok,
-      admin_user_id: req.user?.userId ?? null,
-      admin_email: req.user?.email ?? null,
-    });
+    logger.info({ detail: {
+            session_id: session.id,
+            audit_id: session.audit_id,
+            result_ok: result.ok,
+            admin_user_id: req.user?.userId ?? null,
+            admin_email: req.user?.email ?? null,
+          } }, "[AdminLeadgen] rerunAuditFromAdmin");
 
     if (result.ok) {
       return res.json({
@@ -706,7 +707,7 @@ export async function rerunAuditFromAdmin(
       message: "Unexpected retry state",
     });
   } catch (error) {
-    console.error("[AdminLeadgen] rerunAuditFromAdmin error:", error);
+    logger.error({ err: error }, "[AdminLeadgen] rerunAuditFromAdmin error:");
     return res
       .status(500)
       .json({ error: "internal_error", message: "Failed to rerun audit" });

@@ -13,6 +13,7 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
+import logger from "../lib/logger";
 
 const HEALTH_FILE =
   process.env.WORKER_HEALTH_FILE ||
@@ -40,10 +41,7 @@ function write(next: WorkerHealth): void {
     fs.writeFileSync(HEALTH_FILE, JSON.stringify(next), "utf8");
   } catch (err) {
     // Never throw into tick/harvest — a health-write failure is non-fatal.
-    console.warn(
-      "[WORKER-HEALTH] Failed to write health file:",
-      (err as Error)?.message,
-    );
+    logger.warn({ err: (err as Error)?.message }, "[WORKER-HEALTH] Failed to write health file:");
   }
 }
 

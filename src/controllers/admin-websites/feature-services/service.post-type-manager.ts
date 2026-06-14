@@ -6,6 +6,7 @@
  */
 
 import { db } from "../../../database/connection";
+import logger from "../../../lib/logger";
 
 const POST_TYPES_TABLE = "website_builder.post_types";
 const TEMPLATES_TABLE = "website_builder.templates";
@@ -180,7 +181,7 @@ export async function createPostType(
     };
   }
 
-  console.log(`[Admin Websites] Creating post type "${name}" for template ${templateId}`);
+  logger.info(`[Admin Websites] Creating post type "${name}" for template ${templateId}`);
 
   const [postType] = await db(POST_TYPES_TABLE)
     .insert({
@@ -193,7 +194,7 @@ export async function createPostType(
     })
     .returning("*");
 
-  console.log(`[Admin Websites] ✓ Created post type ID: ${postType.id}`);
+  logger.info(`[Admin Websites] ✓ Created post type ID: ${postType.id}`);
 
   return { postType };
 }
@@ -276,7 +277,7 @@ export async function updatePostType(
     .update({ ...updates, updated_at: db.fn.now() })
     .returning("*");
 
-  console.log(`[Admin Websites] ✓ Updated post type ID: ${postTypeId}`);
+  logger.info(`[Admin Websites] ✓ Updated post type ID: ${postTypeId}`);
 
   return { postType };
 }
@@ -302,7 +303,7 @@ export async function deletePostType(
     .where({ id: postTypeId, template_id: templateId })
     .del();
 
-  console.log(`[Admin Websites] ✓ Deleted post type ID: ${postTypeId}`);
+  logger.info(`[Admin Websites] ✓ Deleted post type ID: ${postTypeId}`);
 
   return {};
 }

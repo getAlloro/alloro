@@ -11,6 +11,7 @@
  */
 
 import { db } from "../database/connection";
+import logger from "../lib/logger";
 
 // ─── Event Weights ───
 
@@ -146,7 +147,7 @@ export async function getMostSignificantEvent(orgId: number): Promise<string | n
 export function updateEngagementScoreAsync(orgId: number | null): void {
   if (!orgId) return;
   getEngagementScore(orgId).catch((err) => {
-    console.error(`[BehavioralIntel] Score update failed for org ${orgId}:`, err.message);
+    logger.error({ err: err.message }, `[BehavioralIntel] Score update failed for org ${orgId}:`);
   });
 }
 

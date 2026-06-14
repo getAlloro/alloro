@@ -7,6 +7,7 @@
 
 import { db } from "../../../database/connection";
 import { getRedisConnection } from "../../../workers/queues";
+import logger from "../../../lib/logger";
 
 const MENUS_TABLE = "website_builder.menus";
 const MENU_ITEMS_TABLE = "website_builder.menu_items";
@@ -35,7 +36,7 @@ async function invalidateMenuCache(projectId: string) {
       if (keys.length > 0) await redis.del(...keys);
     } while (cursor !== "0");
   } catch (err) {
-    console.error("[Menu Manager] Failed to invalidate menu cache:", err);
+    logger.error({ err: err }, "[Menu Manager] Failed to invalidate menu cache:");
   }
 }
 
@@ -184,7 +185,7 @@ export async function createMenu(
     })
     .returning("*");
 
-  console.log(`[Menu Manager] ✓ Created menu "${name}" (${slug}) for project ${projectId}`);
+  logger.info(`[Menu Manager] ✓ Created menu "${name}" (${slug}) for project ${projectId}`);
 
   await invalidateMenuCache(projectId);
 
@@ -261,7 +262,7 @@ export async function deleteMenu(
 
   await db(MENUS_TABLE).where({ id: menuId }).del();
 
-  console.log(`[Menu Manager] ✓ Deleted menu ID: ${menuId}`);
+  logger.info(`[Menu Manager] ✓ Deleted menu ID: ${menuId}`);
 
   await invalidateMenuCache(projectId);
 

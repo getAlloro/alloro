@@ -8,9 +8,10 @@ import { PmAiSynthBatchModel } from "../../models/PmAiSynthBatchModel";
 import { PmAiSynthBatchTaskModel } from "../../models/PmAiSynthBatchTaskModel";
 import { db } from "../../database/connection";
 import { logPmActivity } from "./pmActivityLogger";
+import logger from "../../lib/logger";
 
 function handleError(res: Response, error: unknown, operation: string): Response {
-  console.error(`[PM-AI-SYNTH] ${operation} failed:`, error);
+  logger.error({ err: error }, `[PM-AI-SYNTH] ${operation} failed:`);
   return res.status(500).json({ success: false, error: "Failed to process. Please try again." });
 }
 
@@ -135,7 +136,7 @@ export async function extractBatch(req: AuthRequest, res: Response): Promise<any
     if (error?.batchId || (error as any)?.batch_id) {
       // batch variable may not be in scope
     }
-    console.error(`[PM-AI-SYNTH] extractBatch failed:`, error);
+    logger.error({ err: error }, `[PM-AI-SYNTH] extractBatch failed:`);
     // Try to clean up any orphaned "synthesizing" batches for this request
     try {
       await db("pm_ai_synth_batches")

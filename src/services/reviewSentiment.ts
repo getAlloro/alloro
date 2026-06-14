@@ -10,6 +10,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { getPlaceDetails } from "../controllers/places/feature-services/GooglePlacesApiService";
+import logger from "../lib/logger";
 
 let anthropic: Anthropic | null = null;
 function getAnthropic(): Anthropic {
@@ -128,7 +129,7 @@ Respond in exactly this JSON format, nothing else:
       actionable: parsed.actionable,
     };
   } catch (err) {
-    console.error("[ReviewSentiment] Claude analysis failed:", err instanceof Error ? err.message : err);
+    logger.error({ err: err instanceof Error ? err.message : err }, "[ReviewSentiment] Claude analysis failed:");
     return null;
   }
 }

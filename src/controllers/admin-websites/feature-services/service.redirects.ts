@@ -6,6 +6,7 @@
  */
 
 import { db } from "../../../database/connection";
+import logger from "../../../lib/logger";
 
 const TABLE = "website_builder.redirects";
 
@@ -123,7 +124,7 @@ export async function createRedirect(
     })
     .returning("*");
 
-  console.log(
+  logger.info(
     `[Redirects] Created: ${from_path} → ${to_path} (${type}) for project ${projectId}`
   );
 

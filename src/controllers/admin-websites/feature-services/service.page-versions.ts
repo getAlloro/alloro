@@ -10,6 +10,7 @@
 import { db } from "../../../database/connection";
 import { snapshotPageStateIfChanged } from "../../../utils/website-utils/pageSnapshots";
 import { normalizeSections } from "../feature-utils/util.section-normalizer";
+import logger from "../../../lib/logger";
 
 const PAGES_TABLE = "website_builder.pages";
 
@@ -81,7 +82,7 @@ export async function restoreVersionIntoDraft(
   pageId: string,
   versionId: string
 ): Promise<{ page: any; error?: ServiceError }> {
-  console.log(
+  logger.info(
     `[Admin Websites] Restoring version ${versionId} into draft for project ID: ${projectId}`
   );
 
@@ -140,7 +141,7 @@ export async function restoreVersionIntoDraft(
       })
       .returning("*");
 
-    console.log(
+    logger.info(
       `[Admin Websites] ✓ Restored version ${targetVersion.version} into new draft ID: ${createdDraft.id}`
     );
     return { page: createdDraft };
@@ -160,7 +161,7 @@ export async function restoreVersionIntoDraft(
     })
     .returning("*");
 
-  console.log(
+  logger.info(
     `[Admin Websites] ✓ Restored version ${targetVersion.version} into draft ID: ${draft.id}`
   );
 

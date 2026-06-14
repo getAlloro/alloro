@@ -24,6 +24,7 @@ import { UserEditModel } from "../../../models/website-builder/UserEditModel";
 import * as gscIntegration from "../../admin-websites/feature-services/service.gsc-integration";
 import * as mediaListService from "../../admin-media/feature-services/service.media-list";
 import * as mediaUploadService from "../../admin-media/feature-services/service.media-upload";
+import logger from "../../../lib/logger";
 
 // =====================================================================
 // Constants
@@ -302,7 +303,7 @@ export async function editPageComponent(
   // 6. Build media context for AI
   const mediaContext = await buildMediaContext(project.id);
 
-  console.log(
+  logger.info(
     `[User/Website] Edit request for page ${pageId}, class: ${alloroClass}`
   );
 
@@ -335,7 +336,7 @@ export async function editPageComponent(
     created_at: new Date(),
   });
 
-  console.log(
+  logger.info(
     `[User/Website] \u2713 Edit completed for class: ${alloroClass}`
   );
 
@@ -545,7 +546,7 @@ export async function restorePageVersion(
   // enforce the retention cap so restores don't grow the table unbounded.
   await pruneInactiveSnapshots(project.id, targetVersion.path);
 
-  console.log(
+  logger.info(
     `[User/Website] ✓ Restored version ${targetVersion.version} → published v${latestVersionNum + 1}, draft v${latestVersionNum + 2}`
   );
 

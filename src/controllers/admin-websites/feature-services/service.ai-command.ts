@@ -26,6 +26,7 @@ import { analyzeBrokenLinks } from "../../../utils/website-utils/linkChecker";
 import { screenshotPage } from "../../../utils/website-utils/screenshotService";
 import { analyzeScreenshot } from "../../../utils/website-utils/aiCommandService";
 import { runAgenticPipeline } from "../../../utils/website-utils/agenticHtmlPipeline";
+import logger from "../../../lib/logger";
 
 const BATCHES_TABLE = "website_builder.ai_command_batches";
 const RECS_TABLE = "website_builder.ai_command_recommendations";
@@ -76,7 +77,7 @@ export async function createBatch(
     })
     .returning("*");
 
-  console.log(`[AiCommand] Created batch ${batch.id} for project ${projectId}`);
+  logger.info(`[AiCommand] Created batch ${batch.id} for project ${projectId}`);
   return batch;
 }
 
@@ -177,7 +178,7 @@ export async function analyzeBatch(batchId: string): Promise<void> {
 
       await refreshStats(batchId);
     } catch (err) {
-      console.error("[AiCommand] Built-in analysis failed:", err);
+      logger.error({ err: err }, "[AiCommand] Built-in analysis failed:");
     }
 
     // ---- Layouts ----
@@ -189,7 +190,7 @@ export async function analyzeBatch(batchId: string): Promise<void> {
 
       for (const field of layoutFields) {
         const html = project[field];
-        console.log(
+        logger.info(
           `[AiCommand] Layout "${field}": ${html ? `${String(html).length} chars` : "empty/null"}`
         );
         if (!html || typeof html !== "string" || html.trim().length === 0)
@@ -222,10 +223,7 @@ export async function analyzeBatch(batchId: string): Promise<void> {
             totalRecommendations++;
           }
         } catch (err) {
-          console.error(
-            `[AiCommand] Failed to analyze layout ${field}:`,
-            err
-          );
+          logger.error({ err: err }, `[AiCommand] Failed to analyze layout ${field}:`);
         }
 
         await refreshStats(batchId);
@@ -242,7 +240,7 @@ export async function analyzeBatch(batchId: string): Promise<void> {
           : page.sections;
         const sections = normalizeSections(rawSections);
 
-        console.log(
+        logger.info(
           `[AiCommand] Page ${page.path}: ${sections.length} sections found (raw type: ${typeof page.sections}, normalized: ${sections.length})`
         );
 
@@ -255,7 +253,7 @@ export async function analyzeBatch(batchId: string): Promise<void> {
               ? section
               : section.content || section.html || "";
 
-          console.log(
+          logger.info(
             `[AiCommand]   Section ${i} "${sectionName}": ${sectionHtml.length} chars (keys: ${typeof section === "object" ? Object.keys(section).join(",") : "string"})`
           );
 
@@ -263,7 +261,7 @@ export async function analyzeBatch(batchId: string): Promise<void> {
 
           // Skip shortcode-only sections — nothing to analyze
           if (sectionHtml.trim().length < 100 && /\{\{.*\}\}/.test(sectionHtml)) {
-            console.log(`[AiCommand]   Skipping shortcode-only section: ${sectionName}`);
+            logger.info(`[AiCommand]   Skipping shortcode-only section: ${sectionName}`);
             continue;
           }
 
@@ -305,10 +303,7 @@ export async function analyzeBatch(batchId: string): Promise<void> {
               totalRecommendations++;
             }
           } catch (err) {
-            console.error(
-              `[AiCommand] Failed to analyze ${page.path} section ${i}:`,
-              err
-            );
+            logger.error({ err: err }, `[AiCommand] Failed to analyze ${page.path} section ${i}:`);
           }
 
           await refreshStats(batchId);
@@ -352,10 +347,7 @@ export async function analyzeBatch(batchId: string): Promise<void> {
             totalRecommendations++;
           }
         } catch (err) {
-          console.error(
-            `[AiCommand] Failed to analyze post ${post.id}:`,
-            err
-          );
+          logger.error({ err: err }, `[AiCommand] Failed to analyze post ${post.id}:`);
         }
 
         await refreshStats(batchId);
@@ -390,7 +382,7 @@ export async function analyzeBatch(batchId: string): Promise<void> {
 
       for (const rec of structural.redirects) {
         if (existingFromPaths.has(rec.from_path) || batchFromPaths.has(rec.from_path)) {
-          console.log(`[AiCommand] Skipping duplicate redirect: ${rec.from_path}`);
+          logger.info(`[AiCommand] Skipping duplicate redirect: ${rec.from_path}`);
           continue;
         }
         batchFromPaths.add(rec.from_path);
@@ -487,7 +479,7 @@ export async function analyzeBatch(batchId: string): Promise<void> {
 
       await refreshStats(batchId);
     } catch (err) {
-      console.error("[AiCommand] Failed structural analysis:", err);
+      logger.error({ err: err }, "[AiCommand] Failed structural analysis:");
     }
 
     // Finalize
@@ -508,11 +500,11 @@ export async function analyzeBatch(batchId: string): Promise<void> {
 
     await refreshStats(batchId);
 
-    console.log(
+    logger.info(
       `[AiCommand] ✓ Batch ${batchId} complete: ${totalRecommendations} recommendations`
     );
   } catch (err) {
-    console.error(`[AiCommand] Batch ${batchId} failed:`, err);
+    logger.error({ err: err }, `[AiCommand] Batch ${batchId} failed:`);
     await db(BATCHES_TABLE).where("id", batchId).update({
       status: "failed",
       summary: `Analysis failed: ${(err as Error).message}`,
@@ -697,13 +689,13 @@ async function analyzeSpecializedBatch(
               }
             }
           } catch (err) {
-            console.error(`[AiCommand] Visual analysis failed for ${page.path}:`, (err as Error).message);
+            logger.error({ err: (err as Error).message }, `[AiCommand] Visual analysis failed for ${page.path}:`);
           }
 
           await refreshStats(batchId);
         }
       } catch (err) {
-        console.warn("[AiCommand] Playwright visual analysis unavailable:", (err as Error).message);
+        logger.warn({ err: (err as Error).message }, "[AiCommand] Playwright visual analysis unavailable:");
         // HTML-only checks already ran — continue without visual
       }
     } else if (batchType === "link_checker") {
@@ -755,9 +747,9 @@ async function analyzeSpecializedBatch(
     });
     await refreshStats(batchId);
 
-    console.log(`[AiCommand] ✓ ${batchType} batch ${batchId}: ${totalRecommendations} issues`);
+    logger.info(`[AiCommand] ✓ ${batchType} batch ${batchId}: ${totalRecommendations} issues`);
   } catch (err) {
-    console.error(`[AiCommand] ${batchType} batch ${batchId} failed:`, err);
+    logger.error({ err: err }, `[AiCommand] ${batchType} batch ${batchId} failed:`);
     await db(BATCHES_TABLE).where("id", batchId).update({
       status: "failed",
       summary: `Analysis failed: ${(err as Error).message}`,
@@ -794,7 +786,7 @@ export async function executeBatch(batchId: string): Promise<void> {
     return a.sort_order - b.sort_order;
   });
 
-  console.log(
+  logger.info(
     `[AiCommand] Executing batch ${batchId}: ${sorted.length} approved recommendations (phase-ordered)`
   );
 
@@ -807,10 +799,7 @@ export async function executeBatch(batchId: string): Promise<void> {
       await executeRecommendation(rec, ctx);
       executedCount++;
     } catch (err) {
-      console.error(
-        `[AiCommand] Recommendation ${rec.id} failed:`,
-        (err as Error).message
-      );
+      logger.error({ err: (err as Error).message }, `[AiCommand] Recommendation ${rec.id} failed:`);
       await db(RECS_TABLE)
         .where("id", rec.id)
         .update({
@@ -832,9 +821,9 @@ export async function executeBatch(batchId: string): Promise<void> {
     if (!draftPage || draftPage.status !== "draft") continue;
     const publishResult = await publishPage(draftPage.project_id, draftId);
     if (publishResult.error) {
-      console.warn(`[AiCommand] Auto-publish failed for page ${path} (${draftId}): ${publishResult.error.message}`);
+      logger.warn(`[AiCommand] Auto-publish failed for page ${path} (${draftId}): ${publishResult.error.message}`);
     } else {
-      console.log(`[AiCommand] ✓ Auto-published page ${path} (${draftId})`);
+      logger.info(`[AiCommand] ✓ Auto-published page ${path} (${draftId})`);
     }
   }
 
@@ -850,7 +839,7 @@ export async function executeBatch(batchId: string): Promise<void> {
 
   await refreshStats(batchId);
 
-  console.log(
+  logger.info(
     `[AiCommand] ✓ Batch ${batchId} execution complete: ${executedCount} executed, ${failedCount} failed`
   );
 }
@@ -953,7 +942,7 @@ async function executeRecommendation(rec: any, ctx: ExecutionContext): Promise<v
       }),
     });
 
-  console.log(`[AiCommand] ✓ Executed: ${rec.target_label}`);
+  logger.info(`[AiCommand] ✓ Executed: ${rec.target_label}`);
 }
 
 async function getCurrentHtml(rec: any): Promise<string> {
@@ -1042,7 +1031,7 @@ async function saveEditedHtml(rec: any, editedHtml: string, ctx: ExecutionContex
 
       // Auto-create draft from published page for version control (once per page per batch)
       if (page.status === "published") {
-        console.log(`[AiCommand] Auto-creating draft from published page ${page.id} (${page.path})`);
+        logger.info(`[AiCommand] Auto-creating draft from published page ${page.id} (${page.path})`);
         const draftResult = await createDraft(page.project_id, page.id);
         if (draftResult.error) {
           throw new Error(`Failed to create draft: ${draftResult.error.message}`);
@@ -1287,7 +1276,7 @@ async function executeCreateRedirect(rec: any): Promise<void> {
       execution_result: JSON.stringify({ success: true, redirect_id: result.redirect.id }),
     });
 
-  console.log(`[AiCommand] ✓ Created redirect: ${meta.from_path} → ${meta.to_path}`);
+  logger.info(`[AiCommand] ✓ Created redirect: ${meta.from_path} → ${meta.to_path}`);
 }
 
 async function executeCreatePage(rec: any, ctx: ExecutionContext): Promise<void> {
@@ -1350,7 +1339,7 @@ async function executeCreatePage(rec: any, ctx: ExecutionContext): Promise<void>
     referenceContent = meta.reference_content;
   } else if (meta.reference_url) {
     try {
-      console.log(`[AiCommand] Scraping reference URL: ${meta.reference_url}`);
+      logger.info(`[AiCommand] Scraping reference URL: ${meta.reference_url}`);
       const scrapeResponse = await fetch(meta.reference_url, {
         headers: { "User-Agent": "AlloroBot/1.0" },
         signal: AbortSignal.timeout(15000),
@@ -1365,10 +1354,10 @@ async function executeCreatePage(rec: any, ctx: ExecutionContext): Promise<void>
           .replace(/\s+/g, " ")
           .trim()
           .substring(0, 8000);
-        console.log(`[AiCommand] ✓ Scraped ${referenceContent.length} chars from reference URL`);
+        logger.info(`[AiCommand] ✓ Scraped ${referenceContent.length} chars from reference URL`);
       }
     } catch (err) {
-      console.warn(`[AiCommand] Failed to scrape reference URL: ${(err as Error).message}`);
+      logger.warn(`[AiCommand] Failed to scrape reference URL: ${(err as Error).message}`);
     }
   }
 
@@ -1447,10 +1436,10 @@ async function executeCreatePage(rec: any, ctx: ExecutionContext): Promise<void>
       createdSections.push({ name: planned.name, content: pipelineResult.html });
 
       if (pipelineResult.iterations > 1) {
-        console.log(`[AiCommand] Section ${planned.name}: ${pipelineResult.iterations} iterations, ${pipelineResult.uiFixAttempts} UI fixes, ${pipelineResult.linkFixAttempts} link fixes`);
+        logger.info(`[AiCommand] Section ${planned.name}: ${pipelineResult.iterations} iterations, ${pipelineResult.uiFixAttempts} UI fixes, ${pipelineResult.linkFixAttempts} link fixes`);
       }
     } catch (err) {
-      console.error(`[AiCommand] Failed to generate section ${planned.name}:`, err);
+      logger.error({ err: err }, `[AiCommand] Failed to generate section ${planned.name}:`);
     }
   }
 
@@ -1485,7 +1474,7 @@ async function executeCreatePage(rec: any, ctx: ExecutionContext): Promise<void>
   // Register in execution context so later recommendations can reference this page
   ctx.createdPages.set(meta.page_purpose || meta.path, { path: meta.path, id: page.id });
 
-  console.log(
+  logger.info(
     `[AiCommand] ✓ Created page at ${meta.path} with ${createdSections.length} sections (page ID: ${page.id})`
   );
 }
@@ -1536,7 +1525,7 @@ async function executeCreatePost(rec: any, ctx: ExecutionContext): Promise<void>
     referenceContent = meta.reference_content;
   } else if (meta.reference_url) {
     try {
-      console.log(`[AiCommand] Scraping reference for post: ${meta.reference_url}`);
+      logger.info(`[AiCommand] Scraping reference for post: ${meta.reference_url}`);
       const scrapeResponse = await fetch(meta.reference_url, {
         headers: { "User-Agent": "AlloroBot/1.0" },
         signal: AbortSignal.timeout(15000),
@@ -1550,10 +1539,10 @@ async function executeCreatePost(rec: any, ctx: ExecutionContext): Promise<void>
           .replace(/\s+/g, " ")
           .trim()
           .substring(0, 8000);
-        console.log(`[AiCommand] ✓ Scraped ${referenceContent.length} chars for post reference`);
+        logger.info(`[AiCommand] ✓ Scraped ${referenceContent.length} chars for post reference`);
       }
     } catch (err) {
-      console.warn(`[AiCommand] Failed to scrape post reference: ${(err as Error).message}`);
+      logger.warn(`[AiCommand] Failed to scrape post reference: ${(err as Error).message}`);
     }
   }
 
@@ -1648,7 +1637,7 @@ async function executeCreatePost(rec: any, ctx: ExecutionContext): Promise<void>
 
   ctx.createdPosts.set(slug, { id: post.id, slug, post_type_slug: meta.post_type_slug });
 
-  console.log(`[AiCommand] ✓ Created post: ${meta.title} (${meta.post_type_slug}, ID: ${post.id})`);
+  logger.info(`[AiCommand] ✓ Created post: ${meta.title} (${meta.post_type_slug}, ID: ${post.id})`);
 }
 
 async function executeUpdateMenu(rec: any, _ctx: ExecutionContext): Promise<void> {
@@ -1726,7 +1715,7 @@ async function executeUpdateMenu(rec: any, _ctx: ExecutionContext): Promise<void
       status: "executed",
       execution_result: JSON.stringify({ success: true, item_id: result.item.id }),
     });
-    console.log(`[AiCommand] ✓ Added menu item: "${meta.label}" → ${meta.url}`);
+    logger.info(`[AiCommand] ✓ Added menu item: "${meta.label}" → ${meta.url}`);
 
   } else if (meta.action === "remove") {
     const menuDetail = await menuManager.getMenu(projectId, menu.id);
@@ -1746,7 +1735,7 @@ async function executeUpdateMenu(rec: any, _ctx: ExecutionContext): Promise<void
       status: "executed",
       execution_result: JSON.stringify({ success: true, deleted_item_id: item.id }),
     });
-    console.log(`[AiCommand] ✓ Removed menu item: "${meta.label}"`);
+    logger.info(`[AiCommand] ✓ Removed menu item: "${meta.label}"`);
 
   } else if (meta.action === "update") {
     const menuDetail = await menuManager.getMenu(projectId, menu.id);
@@ -1779,7 +1768,7 @@ async function executeUpdateMenu(rec: any, _ctx: ExecutionContext): Promise<void
       status: "executed",
       execution_result: JSON.stringify({ success: true, item_id: item.id }),
     });
-    console.log(`[AiCommand] ✓ Updated menu item: "${meta.label}"`);
+    logger.info(`[AiCommand] ✓ Updated menu item: "${meta.label}"`);
   }
 }
 
@@ -1835,7 +1824,7 @@ async function executeCreateMenu(rec: any, ctx: ExecutionContext): Promise<void>
     status: "executed",
     execution_result: JSON.stringify({ success: true, menu_id: result.menu.id }),
   });
-  console.log(`[AiCommand] ✓ Created menu: "${meta.name}" (${meta.slug})`);
+  logger.info(`[AiCommand] ✓ Created menu: "${meta.name}" (${meta.slug})`);
 }
 
 async function executeUpdateRedirect(rec: any): Promise<void> {
@@ -1871,7 +1860,7 @@ async function executeUpdateRedirect(rec: any): Promise<void> {
     status: "executed",
     execution_result: JSON.stringify({ success: true, redirect_id: existing.id }),
   });
-  console.log(`[AiCommand] ✓ Updated redirect: ${meta.from_path} → ${meta.to_path}`);
+  logger.info(`[AiCommand] ✓ Updated redirect: ${meta.from_path} → ${meta.to_path}`);
 }
 
 async function executeDeleteRedirect(rec: any): Promise<void> {
@@ -1895,7 +1884,7 @@ async function executeDeleteRedirect(rec: any): Promise<void> {
     status: "executed",
     execution_result: JSON.stringify({ success: true, deleted_redirect_id: existing.id }),
   });
-  console.log(`[AiCommand] ✓ Deleted redirect: ${meta.from_path}`);
+  logger.info(`[AiCommand] ✓ Deleted redirect: ${meta.from_path}`);
 }
 
 async function executeUpdatePostMeta(rec: any): Promise<void> {
@@ -1923,7 +1912,7 @@ async function executeUpdatePostMeta(rec: any): Promise<void> {
     status: "executed",
     execution_result: JSON.stringify({ success: true, post_id: meta.post_id }),
   });
-  console.log(`[AiCommand] ✓ Updated post meta: ${meta.post_id}`);
+  logger.info(`[AiCommand] ✓ Updated post meta: ${meta.post_id}`);
 }
 
 async function executeUpdatePagePath(rec: any): Promise<void> {
@@ -1947,7 +1936,7 @@ async function executeUpdatePagePath(rec: any): Promise<void> {
     status: "executed",
     execution_result: JSON.stringify({ success: true, page_id: meta.page_id }),
   });
-  console.log(`[AiCommand] ✓ Updated page path: ${page.path} → ${meta.new_path}`);
+  logger.info(`[AiCommand] ✓ Updated page path: ${page.path} → ${meta.new_path}`);
 }
 
 // ---------------------------------------------------------------------------

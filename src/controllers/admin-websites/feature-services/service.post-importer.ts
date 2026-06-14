@@ -39,6 +39,7 @@ import {
   buildS3Url,
 } from "../../admin-media/feature-utils/util.s3-helpers";
 import { scrapeUrl, type ScrapeStrategy } from "./service.url-scrape-strategies";
+import logger from "../../../lib/logger";
 
 const POSTS_TABLE = "website_builder.posts";
 const PROJECTS_TABLE = "website_builder.projects";
@@ -49,7 +50,7 @@ const IMAGE_DOWNLOAD_TIMEOUT_MS = 15_000;
 
 const LOG_PREFIX = "[PostImporter]";
 function log(msg: string, data?: Record<string, unknown>): void {
-  console.log(`${LOG_PREFIX} ${msg}`, data ? JSON.stringify(data) : "");
+  logger.info({ detail: data ? JSON.stringify(data) : "" }, `${LOG_PREFIX} ${msg}`);
 }
 
 // ---------------------------------------------------------------------------

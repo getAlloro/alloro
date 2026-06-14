@@ -1,3 +1,5 @@
+import logger from "../../lib/logger";
+
 /**
  * UI Checker
  *
@@ -83,7 +85,7 @@ export function analyzeUiIntegrity(input: UiCheckerInput): UiRecommendation[] {
     results.push(...runChecks(post.content, ctx, false));
   }
 
-  console.log(`[UIChecker] Found ${results.length} issue(s)`);
+  logger.info(`[UIChecker] Found ${results.length} issue(s)`);
   return results;
 }
 

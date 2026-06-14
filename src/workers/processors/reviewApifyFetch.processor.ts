@@ -10,6 +10,7 @@ import { Job } from "bullmq";
 import axios from "axios";
 import { ApifyReviewInput, ReviewModel } from "../../models/website-builder/ReviewModel";
 import { ProjectReviewModel } from "../../models/website-builder/ProjectReviewModel";
+import logger from "../../lib/logger";
 
 const APIFY_API_TOKEN = process.env.APIFY_TOKEN;
 const APIFY_API_BASE = "https://api.apify.com/v2";
@@ -37,7 +38,7 @@ export interface ApifyReviewFetchData {
 }
 
 function log(message: string): void {
-  console.log(`[REVIEW-APIFY] ${message}`);
+  logger.info(`[REVIEW-APIFY] ${message}`);
 }
 
 export async function processApifyReviewFetch(job: Job<ApifyReviewFetchData>): Promise<void> {

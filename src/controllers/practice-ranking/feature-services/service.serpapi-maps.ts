@@ -12,6 +12,7 @@ import {
   RetryAttemptRecord,
   runWithRetry,
 } from "./service.ranking-resilience";
+import logger from "../../../lib/logger";
 
 const SERPAPI_API_KEY = process.env.SERPAPI_API_KEY;
 const SERPAPI_SEARCH_ENDPOINT = "https://serpapi.com/search.json";
@@ -50,7 +51,7 @@ export interface SerpApiMapsSearchPositionResult {
 }
 
 function log(message: string): void {
-  console.log(`[SERPAPI-MAPS] ${message}`);
+  logger.info(`[SERPAPI-MAPS] ${message}`);
 }
 
 function buildMapsLl(origin: SerpApiMapsOrigin): string {

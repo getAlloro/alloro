@@ -13,6 +13,7 @@ import {
   getPlaceDetails,
 } from "../../places/feature-services/GooglePlacesApiService";
 import { SPECIALTY_CATEGORIES } from "./service.ranking-algorithm";
+import logger from "../../../lib/logger";
 
 // =====================================================================
 // TYPES
@@ -187,7 +188,7 @@ const METERS_PER_MILE = 1609.344;
 const RADIUS_FILTER_TOLERANCE = 1.05;
 
 function log(message: string): void {
-  console.log(`[PLACES-DISCOVERY] ${message}`);
+  logger.info(`[PLACES-DISCOVERY] ${message}`);
 }
 
 function distanceMiles(

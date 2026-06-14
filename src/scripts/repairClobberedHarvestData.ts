@@ -30,6 +30,7 @@ import { GscDataModel } from "../models/website-builder/GscDataModel";
 import { ClarityDataModelV2 } from "../models/website-builder/ClarityDataModelV2";
 import { getHarvestQueue, closeQueues } from "../workers/queues";
 import { db } from "../database/connection";
+import logger from "../lib/logger";
 
 const APPLY = process.argv.includes("--apply");
 
@@ -93,7 +94,7 @@ async function main(): Promise<void> {
   ]);
   const integrations = active.filter((i) => platforms.includes(i.platform));
 
-  console.log(
+  logger.info(
     `[REPAIR] ${APPLY ? "APPLY" : "DRY-RUN"} — scanning ${integrations.length} GSC/Clarity integration(s)\n`,
   );
 
@@ -120,13 +121,13 @@ async function main(): Promise<void> {
     }
 
     grandCandidates += candidates.length;
-    console.log(
+    logger.info(
       `[REPAIR] ${integration.platform} integration=${integration.id} ` +
         `project=${integration.project_id}: ${candidates.length} clobbered ` +
         `of ${datesWithData.length} dates-with-data`,
     );
     if (candidates.length > 0) {
-      console.log(`         ${candidates.join(", ")}`);
+      logger.info(`         ${candidates.join(", ")}`);
     }
 
     if (queue) {
@@ -141,7 +142,7 @@ async function main(): Promise<void> {
     }
   }
 
-  console.log(
+  logger.info(
     `\n[REPAIR] ${APPLY ? "ENQUEUED" : "DRY-RUN COMPLETE"} — ${grandCandidates} ` +
       `clobbered date(s) across ${integrations.length} integration(s)` +
       (APPLY
@@ -152,7 +153,7 @@ async function main(): Promise<void> {
 
 main()
   .catch((err) => {
-    console.error("[REPAIR] error:", err);
+    logger.error({ err: err }, "[REPAIR] error:");
     process.exitCode = 1;
   })
   .finally(async () => {

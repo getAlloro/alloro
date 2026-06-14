@@ -2,6 +2,7 @@ import { PmsColumnMappingModel } from "../../models/PmsColumnMappingModel";
 import type { ColumnMapping } from "../../types/pmsMapping";
 import { inferColumnMapping } from "./columnMappingInference";
 import { signHeaders } from "./headerSignature";
+import logger from "../../lib/logger";
 
 /**
  * Three-tier mapping resolver (per spec D1):
@@ -71,17 +72,14 @@ function logResolution(args: {
   orgId: number;
   success: boolean;
 }): void {
-  console.log(
-    "[pms-mapping]",
-    JSON.stringify({
-      signatureHash: args.signature,
-      source: args.source,
-      confidence: args.confidence,
-      orgId: args.orgId,
-      success: args.success,
-      timestamp: new Date().toISOString(),
-    })
-  );
+  logger.info({ detail: JSON.stringify({
+          signatureHash: args.signature,
+          source: args.source,
+          confidence: args.confidence,
+          orgId: args.orgId,
+          success: args.success,
+          timestamp: new Date().toISOString(),
+        }) }, "[pms-mapping]");
 }
 
 /**
@@ -107,7 +105,7 @@ export async function resolveMapping(
   if (orgCached) {
     // Fire-and-forget usage bump; failures here are non-fatal.
     PmsColumnMappingModel.touchUsage(orgCached.id).catch((err) => {
-      console.warn(
+      logger.warn(
         `[pms-mapping] touchUsage failed for org-cache id=${orgCached.id}: ${
           err instanceof Error ? err.message : String(err)
         }`
@@ -136,7 +134,7 @@ export async function resolveMapping(
   );
   if (globalCached) {
     PmsColumnMappingModel.touchUsage(globalCached.id).catch((err) => {
-      console.warn(
+      logger.warn(
         `[pms-mapping] touchUsage failed for global-library id=${globalCached.id}: ${
           err instanceof Error ? err.message : String(err)
         }`

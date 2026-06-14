@@ -6,6 +6,7 @@
  */
 
 import { db } from "../../../database/connection";
+import logger from "../../../lib/logger";
 
 const POST_TYPES_TABLE = "website_builder.post_types";
 const CATEGORIES_TABLE = "website_builder.post_categories";
@@ -103,7 +104,7 @@ export async function createCategory(
     })
     .returning("*");
 
-  console.log(`[Admin Websites] ✓ Created category "${name}" for post type ${postTypeId}`);
+  logger.info(`[Admin Websites] ✓ Created category "${name}" for post type ${postTypeId}`);
 
   return { category };
 }
@@ -177,7 +178,7 @@ export async function deleteCategory(
     .where({ id: categoryId, post_type_id: postTypeId })
     .del();
 
-  console.log(`[Admin Websites] ✓ Deleted category ID: ${categoryId}`);
+  logger.info(`[Admin Websites] ✓ Deleted category ID: ${categoryId}`);
 
   return {};
 }
@@ -244,7 +245,7 @@ export async function createTag(
     .insert({ post_type_id: postTypeId, name, slug })
     .returning("*");
 
-  console.log(`[Admin Websites] ✓ Created tag "${name}" for post type ${postTypeId}`);
+  logger.info(`[Admin Websites] ✓ Created tag "${name}" for post type ${postTypeId}`);
 
   return { tag };
 }
@@ -310,7 +311,7 @@ export async function deleteTag(
     .where({ id: tagId, post_type_id: postTypeId })
     .del();
 
-  console.log(`[Admin Websites] ✓ Deleted tag ID: ${tagId}`);
+  logger.info(`[Admin Websites] ✓ Deleted tag ID: ${tagId}`);
 
   return {};
 }

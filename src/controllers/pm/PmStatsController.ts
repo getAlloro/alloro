@@ -2,9 +2,10 @@ import { Response } from "express";
 import { AuthRequest } from "../../middleware/auth";
 import { db } from "../../database/connection";
 import { PmTaskModel, PmVelocityRange } from "../../models/PmTaskModel";
+import logger from "../../lib/logger";
 
 function handleError(res: Response, error: unknown, operation: string): Response {
-  console.error(`[PM-STATS] ${operation} failed:`, error);
+  logger.error({ err: error }, `[PM-STATS] ${operation} failed:`);
   const message = error instanceof Error ? error.message : String(error);
   return res.status(500).json({ success: false, error: message });
 }

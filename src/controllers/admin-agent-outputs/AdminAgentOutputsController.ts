@@ -15,6 +15,7 @@ import * as deleteService from "./feature-services/AgentOutputDeleteService";
 import * as bulkService from "./feature-services/AgentOutputBulkService";
 import * as statsService from "./feature-services/AgentOutputStatsService";
 import { validateBulkIds } from "./feature-utils/validateBulkIds";
+import logger from "../../lib/logger";
 
 // =====================================================================
 // GET / — List outputs with pagination + filters
@@ -22,13 +23,13 @@ import { validateBulkIds } from "./feature-utils/validateBulkIds";
 
 export async function listOutputs(req: Request, res: Response): Promise<Response> {
   try {
-    console.log("[Admin Agent Outputs] Fetching with filters:", req.query);
+    logger.info({ detail: req.query }, "[Admin Agent Outputs] Fetching with filters:");
 
     const result = await listService.list(
       req.query as listService.ListAgentOutputsParams
     );
 
-    console.log(
+    logger.info(
       `[Admin Agent Outputs] Found ${result.data.length} of ${result.pagination.total} outputs (page ${result.pagination.page})`
     );
 
@@ -38,7 +39,7 @@ export async function listOutputs(req: Request, res: Response): Promise<Response
       pagination: result.pagination,
     });
   } catch (error: any) {
-    console.error("[Admin Agent Outputs] Error fetching outputs:", error);
+    logger.error({ err: error }, "[Admin Agent Outputs] Error fetching outputs:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -53,11 +54,11 @@ export async function listOutputs(req: Request, res: Response): Promise<Response
 
 export async function getOrganizations(_req: Request, res: Response): Promise<Response> {
   try {
-    console.log("[Admin Agent Outputs] Fetching organizations for filter");
+    logger.info("[Admin Agent Outputs] Fetching organizations for filter");
 
     const organizations = await OrganizationModel.listAll();
 
-    console.log(
+    logger.info(
       `[Admin Agent Outputs] Found ${organizations.length} organizations`
     );
 
@@ -69,7 +70,7 @@ export async function getOrganizations(_req: Request, res: Response): Promise<Re
       })),
     });
   } catch (error: any) {
-    console.error("[Admin Agent Outputs] Error fetching organizations:", error);
+    logger.error({ err: error }, "[Admin Agent Outputs] Error fetching organizations:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -84,11 +85,11 @@ export async function getOrganizations(_req: Request, res: Response): Promise<Re
 
 export async function getAgentTypes(_req: Request, res: Response): Promise<Response> {
   try {
-    console.log("[Admin Agent Outputs] Fetching unique agent types");
+    logger.info("[Admin Agent Outputs] Fetching unique agent types");
 
     const agentTypes = await AgentResultModel.listAgentTypes();
 
-    console.log(
+    logger.info(
       `[Admin Agent Outputs] Found ${agentTypes.length} unique agent types`
     );
 
@@ -97,7 +98,7 @@ export async function getAgentTypes(_req: Request, res: Response): Promise<Respo
       agentTypes,
     });
   } catch (error: any) {
-    console.error("[Admin Agent Outputs] Error fetching agent types:", error);
+    logger.error({ err: error }, "[Admin Agent Outputs] Error fetching agent types:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -112,18 +113,18 @@ export async function getAgentTypes(_req: Request, res: Response): Promise<Respo
 
 export async function getSummaryStats(_req: Request, res: Response): Promise<Response> {
   try {
-    console.log("[Admin Agent Outputs] Fetching summary statistics");
+    logger.info("[Admin Agent Outputs] Fetching summary statistics");
 
     const stats = await statsService.getSummary();
 
-    console.log("[Admin Agent Outputs] Summary statistics fetched");
+    logger.info("[Admin Agent Outputs] Summary statistics fetched");
 
     return res.json({
       success: true,
       data: stats,
     });
   } catch (error: any) {
-    console.error("[Admin Agent Outputs] Error fetching stats:", error);
+    logger.error({ err: error }, "[Admin Agent Outputs] Error fetching stats:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -140,7 +141,7 @@ export async function getOutputById(req: Request, res: Response): Promise<Respon
   try {
     const { id } = req.params;
 
-    console.log(`[Admin Agent Outputs] Fetching output ID: ${id}`);
+    logger.info(`[Admin Agent Outputs] Fetching output ID: ${id}`);
 
     const output = await AgentResultModel.findByIdWithDetails(parseInt(id, 10));
 
@@ -152,14 +153,14 @@ export async function getOutputById(req: Request, res: Response): Promise<Respon
       });
     }
 
-    console.log(`[Admin Agent Outputs] Found output ID: ${id}`);
+    logger.info(`[Admin Agent Outputs] Found output ID: ${id}`);
 
     return res.json({
       success: true,
       data: output,
     });
   } catch (error: any) {
-    console.error("[Admin Agent Outputs] Error fetching output:", error);
+    logger.error({ err: error }, "[Admin Agent Outputs] Error fetching output:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -177,11 +178,11 @@ export async function archiveOutput(req: Request, res: Response): Promise<Respon
     const { id } = req.params;
     const idNum = parseInt(id, 10);
 
-    console.log(`[Admin Agent Outputs] Archiving output ID: ${id}`);
+    logger.info(`[Admin Agent Outputs] Archiving output ID: ${id}`);
 
     await archiveService.archiveSingle(idNum);
 
-    console.log(`[Admin Agent Outputs] Archived output ID: ${id}`);
+    logger.info(`[Admin Agent Outputs] Archived output ID: ${id}`);
 
     return res.json({
       success: true,
@@ -205,7 +206,7 @@ export async function archiveOutput(req: Request, res: Response): Promise<Respon
       });
     }
 
-    console.error("[Admin Agent Outputs] Error archiving output:", error);
+    logger.error({ err: error }, "[Admin Agent Outputs] Error archiving output:");
     return res.status(500).json({
       success: false,
       error: "ARCHIVE_ERROR",
@@ -223,11 +224,11 @@ export async function unarchiveOutput(req: Request, res: Response): Promise<Resp
     const { id } = req.params;
     const idNum = parseInt(id, 10);
 
-    console.log(`[Admin Agent Outputs] Unarchiving output ID: ${id}`);
+    logger.info(`[Admin Agent Outputs] Unarchiving output ID: ${id}`);
 
     await archiveService.unarchiveSingle(idNum);
 
-    console.log(`[Admin Agent Outputs] Unarchived output ID: ${id}`);
+    logger.info(`[Admin Agent Outputs] Unarchived output ID: ${id}`);
 
     return res.json({
       success: true,
@@ -251,7 +252,7 @@ export async function unarchiveOutput(req: Request, res: Response): Promise<Resp
       });
     }
 
-    console.error("[Admin Agent Outputs] Error unarchiving output:", error);
+    logger.error({ err: error }, "[Admin Agent Outputs] Error unarchiving output:");
     return res.status(500).json({
       success: false,
       error: "UNARCHIVE_ERROR",
@@ -269,11 +270,11 @@ export async function deleteOutput(req: Request, res: Response): Promise<Respons
     const { id } = req.params;
     const idNum = parseInt(id, 10);
 
-    console.log(`[Admin Agent Outputs] Deleting output ID: ${id}`);
+    logger.info(`[Admin Agent Outputs] Deleting output ID: ${id}`);
 
     await deleteService.deleteSingle(idNum);
 
-    console.log(`[Admin Agent Outputs] Permanently deleted output ID: ${id}`);
+    logger.info(`[Admin Agent Outputs] Permanently deleted output ID: ${id}`);
 
     return res.json({
       success: true,
@@ -289,7 +290,7 @@ export async function deleteOutput(req: Request, res: Response): Promise<Respons
       });
     }
 
-    console.error("[Admin Agent Outputs] Error deleting output:", error);
+    logger.error({ err: error }, "[Admin Agent Outputs] Error deleting output:");
     return res.status(500).json({
       success: false,
       error: "DELETE_ERROR",
@@ -314,13 +315,13 @@ export async function bulkArchive(req: Request, res: Response): Promise<Response
       });
     }
 
-    console.log(
+    logger.info(
       `[Admin Agent Outputs] Bulk archiving ${validation.ids!.length} output(s)`
     );
 
     const updated = await bulkService.bulkArchive(validation.ids!);
 
-    console.log(`[Admin Agent Outputs] Archived ${updated} output(s)`);
+    logger.info(`[Admin Agent Outputs] Archived ${updated} output(s)`);
 
     return res.json({
       success: true,
@@ -328,7 +329,7 @@ export async function bulkArchive(req: Request, res: Response): Promise<Response
       data: { archived: updated },
     });
   } catch (error: any) {
-    console.error("[Admin Agent Outputs] Error bulk archiving:", error);
+    logger.error({ err: error }, "[Admin Agent Outputs] Error bulk archiving:");
     return res.status(500).json({
       success: false,
       error: "BULK_ARCHIVE_ERROR",
@@ -353,13 +354,13 @@ export async function bulkUnarchive(req: Request, res: Response): Promise<Respon
       });
     }
 
-    console.log(
+    logger.info(
       `[Admin Agent Outputs] Bulk unarchiving ${validation.ids!.length} output(s)`
     );
 
     const updated = await bulkService.bulkUnarchive(validation.ids!);
 
-    console.log(`[Admin Agent Outputs] Unarchived ${updated} output(s)`);
+    logger.info(`[Admin Agent Outputs] Unarchived ${updated} output(s)`);
 
     return res.json({
       success: true,
@@ -367,7 +368,7 @@ export async function bulkUnarchive(req: Request, res: Response): Promise<Respon
       data: { unarchived: updated },
     });
   } catch (error: any) {
-    console.error("[Admin Agent Outputs] Error bulk unarchiving:", error);
+    logger.error({ err: error }, "[Admin Agent Outputs] Error bulk unarchiving:");
     return res.status(500).json({
       success: false,
       error: "BULK_UNARCHIVE_ERROR",
@@ -392,13 +393,13 @@ export async function bulkDelete(req: Request, res: Response): Promise<Response>
       });
     }
 
-    console.log(
+    logger.info(
       `[Admin Agent Outputs] Bulk deleting ${validation.ids!.length} output(s)`
     );
 
     const deleted = await bulkService.bulkDelete(validation.ids!);
 
-    console.log(
+    logger.info(
       `[Admin Agent Outputs] Permanently deleted ${deleted} output(s)`
     );
 
@@ -408,7 +409,7 @@ export async function bulkDelete(req: Request, res: Response): Promise<Response>
       data: { deleted },
     });
   } catch (error: any) {
-    console.error("[Admin Agent Outputs] Error bulk deleting:", error);
+    logger.error({ err: error }, "[Admin Agent Outputs] Error bulk deleting:");
     return res.status(500).json({
       success: false,
       error: "BULK_DELETE_ERROR",

@@ -4,6 +4,7 @@ import { MindModel } from "../../../models/MindModel";
 import { MindSourceModel } from "../../../models/MindSourceModel";
 import { MindDiscoveryBatchModel } from "../../../models/MindDiscoveryBatchModel";
 import { MindDiscoveredPostModel } from "../../../models/MindDiscoveredPostModel";
+import logger from "../../../lib/logger";
 
 const FETCH_TIMEOUT = parseInt(process.env.MINDS_HTTP_FETCH_TIMEOUT_MS || "10000", 10);
 const USER_AGENT = "AlloroMindsBot/1.0";
@@ -187,7 +188,7 @@ export async function runDiscoveryForMind(mindId: string): Promise<{
 
   for (const source of sources) {
     try {
-      console.log(`[MINDS] Discovering from source: ${source.url}`);
+      logger.info(`[MINDS] Discovering from source: ${source.url}`);
 
       const response = await axios.get(source.url, {
         timeout: FETCH_TIMEOUT,
@@ -207,7 +208,7 @@ export async function runDiscoveryForMind(mindId: string): Promise<{
         discovered = extractLinksFromHtml(body, source.url);
       }
 
-      console.log(
+      logger.info(
         `[MINDS] Found ${discovered.length} candidate URLs from ${source.url}`
       );
 
@@ -224,12 +225,12 @@ export async function runDiscoveryForMind(mindId: string): Promise<{
       }
     } catch (err: any) {
       const msg = `Failed to discover from source ${source.url}: ${err.message}`;
-      console.error(`[MINDS] ${msg}`);
+      logger.error(`[MINDS] ${msg}`);
       errors.push(msg);
     }
   }
 
-  console.log(
+  logger.info(
     `[MINDS] Discovery complete for mind ${mindId}: ${newPostsCount} new posts, ${errors.length} errors`
   );
 

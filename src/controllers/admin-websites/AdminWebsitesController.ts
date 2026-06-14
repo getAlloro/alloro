@@ -108,7 +108,7 @@ export async function listProjects(
       pagination: result.pagination,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching projects:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching projects:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -133,7 +133,7 @@ export async function createProject(
       data: project,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error creating project:", error);
+    logger.error({ err: error }, "[Admin Websites] Error creating project:");
     return res.status(500).json({
       success: false,
       error: "CREATE_ERROR",
@@ -154,7 +154,7 @@ export async function getStatuses(
       statuses: statusList,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching statuses:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching statuses:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -182,7 +182,7 @@ export async function getProjectStatus(
 
     return res.json(project);
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching project status:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching project status:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -227,7 +227,7 @@ export async function updatePageGenerationStatus(
 
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[Admin Websites] Error updating page generation status:", error);
+    logger.error({ err: error }, "[Admin Websites] Error updating page generation status:");
     return res.status(500).json({
       success: false,
       error: "UPDATE_ERROR",
@@ -246,7 +246,7 @@ export async function getPagesGenerationStatus(
     const pages = await projectManager.getPagesGenerationStatus(id);
     return res.json({ success: true, data: pages });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching page generation status:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching page generation status:");
     return res.status(500).json({ success: false, error: "FETCH_ERROR" });
   }
 }
@@ -262,7 +262,7 @@ export async function getPageProgressiveState(
     return res.json({ success: true, data });
   } catch (error: any) {
     const status = error?.message === "PAGE_NOT_FOUND" ? 404 : 500;
-    console.error("[Admin Websites] Error fetching page progressive state:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching page progressive state:");
     return res.status(status).json({
       success: false,
       error: error?.message || "FETCH_ERROR",
@@ -401,7 +401,7 @@ export async function createAllFromTemplate(
 
     return res.status(201).json({ success: true, data: createdPages });
   } catch (error: any) {
-    console.error("[Admin Websites] Error in create-all-from-template:", error);
+    logger.error({ err: error }, "[Admin Websites] Error in create-all-from-template:");
     return res.status(500).json({
       success: false,
       error: "CREATE_ERROR",
@@ -437,7 +437,7 @@ export async function linkOrganization(
       data: project,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error linking organization:", error);
+    logger.error({ err: error }, "[Admin Websites] Error linking organization:");
     return res.status(500).json({
       success: false,
       error: "LINK_ERROR",
@@ -468,7 +468,7 @@ export async function getProject(
       data: project,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching project:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching project:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -501,7 +501,7 @@ export async function updateProject(
       data: project,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error updating project:", error);
+    logger.error({ err: error }, "[Admin Websites] Error updating project:");
     return res.status(500).json({
       success: false,
       error: "UPDATE_ERROR",
@@ -534,7 +534,7 @@ export async function deleteProject(
       data: { id },
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error deleting project:", error);
+    logger.error({ err: error }, "[Admin Websites] Error deleting project:");
     return res.status(500).json({
       success: false,
       error: "DELETE_ERROR",
@@ -621,7 +621,7 @@ export async function startPipeline(
 
     return res.json({ success: true, pageId, message: "Pipeline started successfully" });
   } catch (error: any) {
-    console.error("[Admin Websites] Error starting pipeline:", error);
+    logger.error({ err: error }, "[Admin Websites] Error starting pipeline:");
     return res.status(500).json({
       success: false, error: "PIPELINE_ERROR", message: error?.message || "Failed to start pipeline",
     });
@@ -645,7 +645,7 @@ export async function testUrl(
     const result = await detectBlock(url);
     return res.json({ success: true, data: result });
   } catch (error: any) {
-    console.error("[Admin Websites] Error testing URL:", error);
+    logger.error({ err: error }, "[Admin Websites] Error testing URL:");
     return res.status(500).json({
       success: false,
       error: "TEST_URL_ERROR",
@@ -752,11 +752,11 @@ export async function startIdentityWarmup(
     // Set immediate status so polling reflects queued state.
     await ProjectIdentityModel.setWarmupStatus(id, "queued");
 
-    console.log(`[Admin Websites] Enqueued wb-identity-warmup for project ${id}`);
+    logger.info(`[Admin Websites] Enqueued wb-identity-warmup for project ${id}`);
 
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[Admin Websites] Error starting identity warmup:", error);
+    logger.error({ err: error }, "[Admin Websites] Error starting identity warmup:");
     return res.status(500).json({
       success: false,
       error: "WARMUP_ERROR",
@@ -828,7 +828,7 @@ export async function getIdentity(
       data: identity,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching identity:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching identity:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -859,7 +859,7 @@ export async function getIdentityStatus(
       },
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching identity status:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching identity status:");
     return res.status(500).json({ success: false, error: "FETCH_ERROR" });
   }
 }
@@ -890,7 +890,7 @@ export async function updateIdentity(
 
     return res.json({ success: true, data: identity });
   } catch (error: any) {
-    console.error("[Admin Websites] Error updating identity:", error);
+    logger.error({ err: error }, "[Admin Websites] Error updating identity:");
     return res.status(500).json({
       success: false,
       error: "UPDATE_ERROR",
@@ -965,7 +965,7 @@ export async function resyncIdentityList(
       .filter((u): u is string => typeof u === "string" && u.length > 0);
 
     if (rescrape) {
-      console.warn(
+      logger.warn(
         `[Admin Websites] resync-list ?rescrape=true requested for project ${id} — re-scrape path not yet implemented; using cached pages.`,
       );
     }
@@ -1035,7 +1035,7 @@ export async function resyncIdentityList(
       },
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error re-syncing identity list:", error);
+    logger.error({ err: error }, "[Admin Websites] Error re-syncing identity list:");
     return res.status(500).json({
       success: false,
       error: "RESYNC_ERROR",
@@ -1089,12 +1089,12 @@ export async function regeneratePageComponent(
       { removeOnComplete: { count: 50 }, removeOnFail: { count: 25 } },
     );
 
-    console.log(
+    logger.info(
       `[Admin Websites] Enqueued regenerate for component "${componentName}" (page ${pageId})`,
     );
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[Admin Websites] Error regenerating component:", error);
+    logger.error({ err: error }, "[Admin Websites] Error regenerating component:");
     return res.status(500).json({
       success: false,
       error: "REGENERATE_ERROR",
@@ -1140,10 +1140,10 @@ export async function startLayoutGeneration(
       removeOnFail: { count: 25 },
     });
 
-    console.log(`[Admin Websites] Enqueued wb-layout-generate for project ${id}`);
+    logger.info(`[Admin Websites] Enqueued wb-layout-generate for project ${id}`);
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[Admin Websites] Error starting layouts generation:", error);
+    logger.error({ err: error }, "[Admin Websites] Error starting layouts generation:");
     return res.status(500).json({
       success: false,
       error: "LAYOUTS_ERROR",
@@ -1189,7 +1189,7 @@ export async function getLayoutsStatus(
       },
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching layouts status:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching layouts status:");
     return res.status(500).json({ success: false, error: "FETCH_ERROR" });
   }
 }
@@ -1217,7 +1217,7 @@ export async function getTemplatePageSlots(
 
     return res.json({ success: true, data: slots || [] });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching template page slots:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching template page slots:");
     return res.status(500).json({ success: false, error: "FETCH_ERROR" });
   }
 }
@@ -1252,7 +1252,7 @@ export async function updateTemplatePageSlots(
 
     return res.json({ success: true, data: slots });
   } catch (error: any) {
-    console.error("[Admin Websites] Error updating template page slots:", error);
+    logger.error({ err: error }, "[Admin Websites] Error updating template page slots:");
     return res.status(500).json({ success: false, error: "UPDATE_ERROR" });
   }
 }
@@ -1285,7 +1285,7 @@ export async function getSlotPrefill(
     const result = await slotPrefill.getPageSlotPrefill(id, templatePageId);
     return res.json({ success: true, data: result });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching slot prefill:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching slot prefill:");
     return res.status(500).json({ success: false, error: "FETCH_ERROR" });
   }
 }
@@ -1315,7 +1315,7 @@ export async function generateSlotValues(
     return res.json({ success: true, data: result });
   } catch (error: any) {
     const code = error?.message === "IDENTITY_NOT_READY" ? 409 : 500;
-    console.error("[Admin Websites] Error generating slot values:", error);
+    logger.error({ err: error }, "[Admin Websites] Error generating slot values:");
     return res.status(code).json({
       success: false,
       error: error?.message || "GENERATE_ERROR",
@@ -1337,7 +1337,7 @@ export async function cancelGeneration(
     const result = await generationPipeline.cancelProjectGeneration(id);
     return res.json({ success: true, cancelledPages: result.cancelledPages });
   } catch (error: any) {
-    console.error("[Admin Websites] Error cancelling generation:", error);
+    logger.error({ err: error }, "[Admin Websites] Error cancelling generation:");
     return res.status(500).json({
       success: false,
       error: "CANCEL_ERROR",
@@ -1379,7 +1379,7 @@ export async function connectDomainHandler(
 
     return res.json({ success: true, data });
   } catch (error: any) {
-    console.error("[Admin Websites] Error connecting domain:", error);
+    logger.error({ err: error }, "[Admin Websites] Error connecting domain:");
     return res.status(500).json({
       success: false,
       error: "DOMAIN_ERROR",
@@ -1407,7 +1407,7 @@ export async function verifyDomainHandler(
 
     return res.json({ success: true, data });
   } catch (error: any) {
-    console.error("[Admin Websites] Error verifying domain:", error);
+    logger.error({ err: error }, "[Admin Websites] Error verifying domain:");
     return res.status(500).json({
       success: false,
       error: "VERIFY_ERROR",
@@ -1435,7 +1435,7 @@ export async function disconnectDomainHandler(
 
     return res.json({ success: true, data });
   } catch (error: any) {
-    console.error("[Admin Websites] Error disconnecting domain:", error);
+    logger.error({ err: error }, "[Admin Websites] Error disconnecting domain:");
     return res.status(500).json({
       success: false,
       error: "DOMAIN_ERROR",
@@ -1460,7 +1460,7 @@ export async function listTemplates(
       data: templates,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching templates:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching templates:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -1490,7 +1490,7 @@ export async function createTemplate(
       data: template,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error creating template:", error);
+    logger.error({ err: error }, "[Admin Websites] Error creating template:");
     return res.status(500).json({
       success: false,
       error: "CREATE_ERROR",
@@ -1521,7 +1521,7 @@ export async function getTemplate(
       data: template,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching template:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching template:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -1555,7 +1555,7 @@ export async function updateTemplate(
       data: template,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error updating template:", error);
+    logger.error({ err: error }, "[Admin Websites] Error updating template:");
     return res.status(500).json({
       success: false,
       error: "UPDATE_ERROR",
@@ -1587,7 +1587,7 @@ export async function deleteTemplate(
       data: { id: templateId },
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error deleting template:", error);
+    logger.error({ err: error }, "[Admin Websites] Error deleting template:");
     return res.status(500).json({
       success: false,
       error: "DELETE_ERROR",
@@ -1620,7 +1620,7 @@ export async function activateTemplate(
       data: template,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error activating template:", error);
+    logger.error({ err: error }, "[Admin Websites] Error activating template:");
     return res.status(500).json({
       success: false,
       error: "ACTIVATE_ERROR",
@@ -1638,10 +1638,7 @@ export async function getEditorSystemPrompt(
     const prompt = await templateManager.getPageEditorSystemPrompt();
     return res.json({ success: true, prompt });
   } catch (error: any) {
-    console.error(
-      "[Admin Websites] Error fetching editor system prompt:",
-      error
-    );
+    logger.error({ err: error }, "[Admin Websites] Error fetching editor system prompt:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -1715,7 +1712,7 @@ export async function listTemplatePages(
       data: pages,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching template pages:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching template pages:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -1749,7 +1746,7 @@ export async function createTemplatePage(
       data: page,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error creating template page:", error);
+    logger.error({ err: error }, "[Admin Websites] Error creating template page:");
     return res.status(500).json({
       success: false,
       error: "CREATE_ERROR",
@@ -1780,7 +1777,7 @@ export async function getTemplatePage(
       data: page,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching template page:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching template page:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -1815,7 +1812,7 @@ export async function updateTemplatePage(
       data: page,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error updating template page:", error);
+    logger.error({ err: error }, "[Admin Websites] Error updating template page:");
     return res.status(500).json({
       success: false,
       error: "UPDATE_ERROR",
@@ -1850,7 +1847,7 @@ export async function deleteTemplatePage(
       data: { id: pageId },
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error deleting template page:", error);
+    logger.error({ err: error }, "[Admin Websites] Error deleting template page:");
     return res.status(500).json({
       success: false,
       error: "DELETE_ERROR",
@@ -1877,7 +1874,7 @@ export async function listPages(
       data: pages,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching pages:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching pages:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -1908,7 +1905,7 @@ export async function createPage(
       data: page,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error creating page:", error);
+    logger.error({ err: error }, "[Admin Websites] Error creating page:");
     return res.status(500).json({
       success: false,
       error: "CREATE_ERROR",
@@ -1963,7 +1960,7 @@ export async function uploadArtifactPage(
       data: page,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error uploading artifact page:", error);
+    logger.error({ err: error }, "[Admin Websites] Error uploading artifact page:");
     return res.status(500).json({
       success: false,
       error: "ARTIFACT_UPLOAD_ERROR",
@@ -2008,7 +2005,7 @@ export async function replaceArtifactBuild(
       data: page,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error replacing artifact build:", error);
+    logger.error({ err: error }, "[Admin Websites] Error replacing artifact build:");
     return res.status(500).json({
       success: false,
       error: "ARTIFACT_REPLACE_ERROR",
@@ -2039,7 +2036,7 @@ export async function publishPage(
       data: page,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error publishing page:", error);
+    logger.error({ err: error }, "[Admin Websites] Error publishing page:");
     return res.status(500).json({
       success: false,
       error: "PUBLISH_ERROR",
@@ -2070,7 +2067,7 @@ export async function getPage(
       data: page,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching page:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching page:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -2101,7 +2098,7 @@ export async function updatePage(
       data: page,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error updating page:", error);
+    logger.error({ err: error }, "[Admin Websites] Error updating page:");
     return res.status(500).json({
       success: false,
       error: "UPDATE_ERROR",
@@ -2135,7 +2132,7 @@ export async function listPageVersions(
       data: { versions, path },
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error listing page versions:", error);
+    logger.error({ err: error }, "[Admin Websites] Error listing page versions:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -2169,7 +2166,7 @@ export async function getPageVersionContent(
       data: version,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching page version:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching page version:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -2204,7 +2201,7 @@ export async function restorePageVersion(
       data: page,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error restoring page version:", error);
+    logger.error({ err: error }, "[Admin Websites] Error restoring page version:");
     return res.status(500).json({
       success: false,
       error: "RESTORE_ERROR",
@@ -2249,7 +2246,7 @@ export async function deletePagesByPath(
       data: { path: pagePath, deletedCount },
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error deleting page by path:", error);
+    logger.error({ err: error }, "[Admin Websites] Error deleting page by path:");
     return res.status(500).json({
       success: false,
       error: "DELETE_ERROR",
@@ -2281,7 +2278,7 @@ export async function deletePage(
       data: { id: pageId },
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error deleting page:", error);
+    logger.error({ err: error }, "[Admin Websites] Error deleting page:");
     return res.status(500).json({
       success: false,
       error: "DELETE_ERROR",
@@ -2316,7 +2313,7 @@ export async function createDraft(
       data: page,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error creating draft:", error);
+    logger.error({ err: error }, "[Admin Websites] Error creating draft:");
     return res.status(500).json({
       success: false,
       error: "CREATE_ERROR",
@@ -2354,7 +2351,7 @@ export async function editPageComponent(
       debug: result.debug,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error editing page component:", error);
+    logger.error({ err: error }, "[Admin Websites] Error editing page component:");
     return res.status(500).json({
       success: false,
       error: "EDIT_ERROR",
@@ -2391,7 +2388,7 @@ export async function editLayoutComponent(
       debug: result.debug,
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error editing layout component:", error);
+    logger.error({ err: error }, "[Admin Websites] Error editing layout component:");
     return res.status(500).json({
       success: false,
       error: "EDIT_ERROR",
@@ -2417,7 +2414,7 @@ export async function listTemplateSnippets(
       data: snippets,
     });
   } catch (error: any) {
-    console.error("[HFCM] Error fetching template code snippets:", error);
+    logger.error({ err: error }, "[HFCM] Error fetching template code snippets:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -2451,7 +2448,7 @@ export async function createTemplateSnippet(
       data: snippet,
     });
   } catch (error: any) {
-    console.error("[HFCM] Error creating template code snippet:", error);
+    logger.error({ err: error }, "[HFCM] Error creating template code snippet:");
     return res.status(500).json({
       success: false,
       error: "CREATE_ERROR",
@@ -2486,7 +2483,7 @@ export async function updateTemplateSnippet(
       data: snippet,
     });
   } catch (error: any) {
-    console.error("[HFCM] Error updating template code snippet:", error);
+    logger.error({ err: error }, "[HFCM] Error updating template code snippet:");
     return res.status(500).json({
       success: false,
       error: "UPDATE_ERROR",
@@ -2516,7 +2513,7 @@ export async function deleteTemplateSnippet(
       success: true,
     });
   } catch (error: any) {
-    console.error("[HFCM] Error deleting template code snippet:", error);
+    logger.error({ err: error }, "[HFCM] Error deleting template code snippet:");
     return res.status(500).json({
       success: false,
       error: "DELETE_ERROR",
@@ -2550,7 +2547,7 @@ export async function toggleTemplateSnippet(
       data: { is_enabled },
     });
   } catch (error: any) {
-    console.error("[HFCM] Error toggling template code snippet:", error);
+    logger.error({ err: error }, "[HFCM] Error toggling template code snippet:");
     return res.status(500).json({
       success: false,
       error: "TOGGLE_ERROR",
@@ -2584,7 +2581,7 @@ export async function reorderTemplateSnippets(
       success: true,
     });
   } catch (error: any) {
-    console.error("[HFCM] Error reordering template code snippets:", error);
+    logger.error({ err: error }, "[HFCM] Error reordering template code snippets:");
     return res.status(500).json({
       success: false,
       error: "REORDER_ERROR",
@@ -2610,7 +2607,7 @@ export async function listProjectSnippets(
       data: snippets,
     });
   } catch (error: any) {
-    console.error("[HFCM] Error fetching project code snippets:", error);
+    logger.error({ err: error }, "[HFCM] Error fetching project code snippets:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -2644,7 +2641,7 @@ export async function createProjectSnippet(
       data: snippet,
     });
   } catch (error: any) {
-    console.error("[HFCM] Error creating project code snippet:", error);
+    logger.error({ err: error }, "[HFCM] Error creating project code snippet:");
     return res.status(500).json({
       success: false,
       error: "CREATE_ERROR",
@@ -2679,7 +2676,7 @@ export async function updateProjectSnippet(
       data: snippet,
     });
   } catch (error: any) {
-    console.error("[HFCM] Error updating project code snippet:", error);
+    logger.error({ err: error }, "[HFCM] Error updating project code snippet:");
     return res.status(500).json({
       success: false,
       error: "UPDATE_ERROR",
@@ -2709,7 +2706,7 @@ export async function deleteProjectSnippet(
       success: true,
     });
   } catch (error: any) {
-    console.error("[HFCM] Error deleting project code snippet:", error);
+    logger.error({ err: error }, "[HFCM] Error deleting project code snippet:");
     return res.status(500).json({
       success: false,
       error: "DELETE_ERROR",
@@ -2743,7 +2740,7 @@ export async function toggleProjectSnippet(
       data: { is_enabled },
     });
   } catch (error: any) {
-    console.error("[HFCM] Error toggling project code snippet:", error);
+    logger.error({ err: error }, "[HFCM] Error toggling project code snippet:");
     return res.status(500).json({
       success: false,
       error: "TOGGLE_ERROR",
@@ -2777,7 +2774,7 @@ export async function reorderProjectSnippets(
       success: true,
     });
   } catch (error: any) {
-    console.error("[HFCM] Error reordering project code snippets:", error);
+    logger.error({ err: error }, "[HFCM] Error reordering project code snippets:");
     return res.status(500).json({
       success: false,
       error: "REORDER_ERROR",
@@ -2827,7 +2824,7 @@ export async function getRecipients(
       },
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching recipients:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching recipients:");
     return res.status(500).json({ success: false, error: "FETCH_ERROR", message: error?.message || "Failed to fetch recipients" });
   }
 }
@@ -2873,7 +2870,7 @@ export async function updateRecipients(
         message: error.message,
       });
     }
-    console.error("[Admin Websites] Error updating recipients:", error);
+    logger.error({ err: error }, "[Admin Websites] Error updating recipients:");
     return res.status(500).json({ success: false, error: "UPDATE_ERROR", message: error?.message || "Failed to update recipients" });
   }
 }
@@ -2939,7 +2936,7 @@ export async function listFormSubmissions(
 
     return res.json({ success: true, data: result.data, pagination: { page, limit, total: result.total, totalPages }, allCount, unreadCount, flaggedCount, verifiedCount, optinsCount });
   } catch (error: any) {
-    console.error("[Admin Websites] Error listing form submissions:", error);
+    logger.error({ err: error }, "[Admin Websites] Error listing form submissions:");
     return res.status(500).json({ success: false, error: "FETCH_ERROR", message: error?.message || "Failed to fetch submissions" });
   }
 }
@@ -2960,7 +2957,7 @@ export async function markAllFormSubmissionsRead(
 
     return res.json({ success: true, data: { updated } });
   } catch (error: any) {
-    console.error("[Admin Websites] Error marking submissions read:", error);
+    logger.error({ err: error }, "[Admin Websites] Error marking submissions read:");
     return res.status(500).json({
       success: false,
       error: "UPDATE_ERROR",
@@ -2993,7 +2990,7 @@ export async function getFormSubmission(
                 try {
                   field[1].url = await generatePresignedUrl(field[1].s3Key, 3600);
                 } catch (err) {
-                  console.error(`[Form Submission] Failed to generate pre-signed URL for ${field[1].s3Key}:`, err);
+                  logger.error({ err: err }, `[Form Submission] Failed to generate pre-signed URL for ${field[1].s3Key}:`);
                 }
               }
             }
@@ -3006,7 +3003,7 @@ export async function getFormSubmission(
             try {
               (value as any).url = await generatePresignedUrl((value as any).s3Key, 3600);
             } catch (err) {
-              console.error(`[Form Submission] Failed to generate pre-signed URL for ${(value as any).s3Key}:`, err);
+              logger.error({ err: err }, `[Form Submission] Failed to generate pre-signed URL for ${(value as any).s3Key}:`);
             }
           }
         }
@@ -3015,7 +3012,7 @@ export async function getFormSubmission(
 
     return res.json({ success: true, data: submission });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching submission:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching submission:");
     return res.status(500).json({ success: false, error: "FETCH_ERROR", message: error?.message || "Failed to fetch submission" });
   }
 }
@@ -3037,7 +3034,7 @@ export async function toggleFormSubmissionRead(
 
     return res.json({ success: true, data: { is_read } });
   } catch (error: any) {
-    console.error("[Admin Websites] Error toggling submission read:", error);
+    logger.error({ err: error }, "[Admin Websites] Error toggling submission read:");
     return res.status(500).json({ success: false, error: "UPDATE_ERROR", message: error?.message || "Failed to update submission" });
   }
 }
@@ -3052,7 +3049,7 @@ export async function deleteFormSubmission(
     await FormSubmissionModel.deleteById(submissionId);
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[Admin Websites] Error deleting submission:", error);
+    logger.error({ err: error }, "[Admin Websites] Error deleting submission:");
     return res.status(500).json({ success: false, error: "DELETE_ERROR", message: error?.message || "Failed to delete submission" });
   }
 }
@@ -3126,7 +3123,7 @@ export async function sendFormSubmissionEmail(
     if (error instanceof WebhookError) {
       return res.status(502).json({ success: false, error: "WEBHOOK_ERROR", message: "Failed to send email" });
     }
-    console.error("[Admin Websites] Error sending submission email:", error);
+    logger.error({ err: error }, "[Admin Websites] Error sending submission email:");
     return res.status(500).json({ success: false, error: "SEND_ERROR", message: error?.message || "Failed to send email" });
   }
 }
@@ -3207,7 +3204,7 @@ export async function bulkSendFormSubmissionsEmail(
 
     return res.json({ success: true, data: { sent, skipped } });
   } catch (error: any) {
-    console.error("[Admin Websites] Error bulk sending submission emails:", error);
+    logger.error({ err: error }, "[Admin Websites] Error bulk sending submission emails:");
     return res.status(500).json({ success: false, error: "BULK_SEND_ERROR", message: error?.message || "Failed to bulk send emails" });
   }
 }
@@ -3230,7 +3227,7 @@ export async function bulkDeleteFormSubmissions(
     const deleted = await FormSubmissionModel.bulkDeleteByIds(submissionIds.map(String));
     return res.json({ success: true, data: { deleted } });
   } catch (error: any) {
-    console.error("[Admin Websites] Error bulk deleting submissions:", error);
+    logger.error({ err: error }, "[Admin Websites] Error bulk deleting submissions:");
     return res.status(500).json({ success: false, error: "BULK_DELETE_ERROR", message: error?.message || "Failed to bulk delete submissions" });
   }
 }
@@ -3259,7 +3256,7 @@ export async function bulkToggleFormSubmissionsRead(
 
     return res.json({ success: true, data: { is_read, count: ids.length } });
   } catch (error: any) {
-    console.error("[Admin Websites] Error bulk toggling submission read:", error);
+    logger.error({ err: error }, "[Admin Websites] Error bulk toggling submission read:");
     return res.status(500).json({ success: false, error: "BULK_READ_ERROR", message: error?.message || "Failed to bulk update submissions" });
   }
 }
@@ -3276,7 +3273,7 @@ export async function listPostTypes(req: Request, res: Response): Promise<Respon
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true, data: result.postTypes });
   } catch (error: any) {
-    console.error("[Admin Websites] Error listing post types:", error);
+    logger.error({ err: error }, "[Admin Websites] Error listing post types:");
     return res.status(500).json({ success: false, error: "LIST_ERROR", message: error?.message });
   }
 }
@@ -3289,7 +3286,7 @@ export async function createPostType(req: Request, res: Response): Promise<Respo
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.status(201).json({ success: true, data: result.postType });
   } catch (error: any) {
-    console.error("[Admin Websites] Error creating post type:", error);
+    logger.error({ err: error }, "[Admin Websites] Error creating post type:");
     return res.status(500).json({ success: false, error: "CREATE_ERROR", message: error?.message });
   }
 }
@@ -3302,7 +3299,7 @@ export async function getPostType(req: Request, res: Response): Promise<Response
     if (!postType) return res.status(404).json({ success: false, error: "NOT_FOUND", message: "Post type not found" });
     return res.json({ success: true, data: postType });
   } catch (error: any) {
-    console.error("[Admin Websites] Error getting post type:", error);
+    logger.error({ err: error }, "[Admin Websites] Error getting post type:");
     return res.status(500).json({ success: false, error: "GET_ERROR", message: error?.message });
   }
 }
@@ -3315,7 +3312,7 @@ export async function updatePostType(req: Request, res: Response): Promise<Respo
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true, data: result.postType });
   } catch (error: any) {
-    console.error("[Admin Websites] Error updating post type:", error);
+    logger.error({ err: error }, "[Admin Websites] Error updating post type:");
     return res.status(500).json({ success: false, error: "UPDATE_ERROR", message: error?.message });
   }
 }
@@ -3328,7 +3325,7 @@ export async function deletePostType(req: Request, res: Response): Promise<Respo
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[Admin Websites] Error deleting post type:", error);
+    logger.error({ err: error }, "[Admin Websites] Error deleting post type:");
     return res.status(500).json({ success: false, error: "DELETE_ERROR", message: error?.message });
   }
 }
@@ -3345,7 +3342,7 @@ export async function listPostBlocks(req: Request, res: Response): Promise<Respo
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true, data: result.postBlocks });
   } catch (error: any) {
-    console.error("[Admin Websites] Error listing post blocks:", error);
+    logger.error({ err: error }, "[Admin Websites] Error listing post blocks:");
     return res.status(500).json({ success: false, error: "LIST_ERROR", message: error?.message });
   }
 }
@@ -3358,7 +3355,7 @@ export async function createPostBlock(req: Request, res: Response): Promise<Resp
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.status(201).json({ success: true, data: result.postBlock });
   } catch (error: any) {
-    console.error("[Admin Websites] Error creating post block:", error);
+    logger.error({ err: error }, "[Admin Websites] Error creating post block:");
     return res.status(500).json({ success: false, error: "CREATE_ERROR", message: error?.message });
   }
 }
@@ -3371,7 +3368,7 @@ export async function getPostBlock(req: Request, res: Response): Promise<Respons
     if (!postBlock) return res.status(404).json({ success: false, error: "NOT_FOUND", message: "Post block not found" });
     return res.json({ success: true, data: postBlock });
   } catch (error: any) {
-    console.error("[Admin Websites] Error getting post block:", error);
+    logger.error({ err: error }, "[Admin Websites] Error getting post block:");
     return res.status(500).json({ success: false, error: "GET_ERROR", message: error?.message });
   }
 }
@@ -3384,7 +3381,7 @@ export async function updatePostBlock(req: Request, res: Response): Promise<Resp
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true, data: result.postBlock });
   } catch (error: any) {
-    console.error("[Admin Websites] Error updating post block:", error);
+    logger.error({ err: error }, "[Admin Websites] Error updating post block:");
     return res.status(500).json({ success: false, error: "UPDATE_ERROR", message: error?.message });
   }
 }
@@ -3397,7 +3394,7 @@ export async function deletePostBlock(req: Request, res: Response): Promise<Resp
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[Admin Websites] Error deleting post block:", error);
+    logger.error({ err: error }, "[Admin Websites] Error deleting post block:");
     return res.status(500).json({ success: false, error: "DELETE_ERROR", message: error?.message });
   }
 }
@@ -3414,7 +3411,7 @@ export async function listMenuTemplates(req: Request, res: Response): Promise<Re
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true, data: result.menuTemplates });
   } catch (error: any) {
-    console.error("[Admin Websites] Error listing menu templates:", error);
+    logger.error({ err: error }, "[Admin Websites] Error listing menu templates:");
     return res.status(500).json({ success: false, error: "LIST_ERROR", message: error?.message });
   }
 }
@@ -3427,7 +3424,7 @@ export async function createMenuTemplate(req: Request, res: Response): Promise<R
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.status(201).json({ success: true, data: result.menuTemplate });
   } catch (error: any) {
-    console.error("[Admin Websites] Error creating menu template:", error);
+    logger.error({ err: error }, "[Admin Websites] Error creating menu template:");
     return res.status(500).json({ success: false, error: "CREATE_ERROR", message: error?.message });
   }
 }
@@ -3440,7 +3437,7 @@ export async function getMenuTemplate(req: Request, res: Response): Promise<Resp
     if (!menuTemplate) return res.status(404).json({ success: false, error: "NOT_FOUND", message: "Menu template not found" });
     return res.json({ success: true, data: menuTemplate });
   } catch (error: any) {
-    console.error("[Admin Websites] Error getting menu template:", error);
+    logger.error({ err: error }, "[Admin Websites] Error getting menu template:");
     return res.status(500).json({ success: false, error: "GET_ERROR", message: error?.message });
   }
 }
@@ -3453,7 +3450,7 @@ export async function updateMenuTemplate(req: Request, res: Response): Promise<R
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true, data: result.menuTemplate });
   } catch (error: any) {
-    console.error("[Admin Websites] Error updating menu template:", error);
+    logger.error({ err: error }, "[Admin Websites] Error updating menu template:");
     return res.status(500).json({ success: false, error: "UPDATE_ERROR", message: error?.message });
   }
 }
@@ -3466,7 +3463,7 @@ export async function deleteMenuTemplate(req: Request, res: Response): Promise<R
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[Admin Websites] Error deleting menu template:", error);
+    logger.error({ err: error }, "[Admin Websites] Error deleting menu template:");
     return res.status(500).json({ success: false, error: "DELETE_ERROR", message: error?.message });
   }
 }
@@ -3483,7 +3480,7 @@ export async function listCategories(req: Request, res: Response): Promise<Respo
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true, data: result.categories });
   } catch (error: any) {
-    console.error("[Admin Websites] Error listing categories:", error);
+    logger.error({ err: error }, "[Admin Websites] Error listing categories:");
     return res.status(500).json({ success: false, error: "LIST_ERROR", message: error?.message });
   }
 }
@@ -3496,7 +3493,7 @@ export async function createCategory(req: Request, res: Response): Promise<Respo
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.status(201).json({ success: true, data: result.category });
   } catch (error: any) {
-    console.error("[Admin Websites] Error creating category:", error);
+    logger.error({ err: error }, "[Admin Websites] Error creating category:");
     return res.status(500).json({ success: false, error: "CREATE_ERROR", message: error?.message });
   }
 }
@@ -3509,7 +3506,7 @@ export async function updateCategory(req: Request, res: Response): Promise<Respo
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true, data: result.category });
   } catch (error: any) {
-    console.error("[Admin Websites] Error updating category:", error);
+    logger.error({ err: error }, "[Admin Websites] Error updating category:");
     return res.status(500).json({ success: false, error: "UPDATE_ERROR", message: error?.message });
   }
 }
@@ -3522,7 +3519,7 @@ export async function deleteCategory(req: Request, res: Response): Promise<Respo
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[Admin Websites] Error deleting category:", error);
+    logger.error({ err: error }, "[Admin Websites] Error deleting category:");
     return res.status(500).json({ success: false, error: "DELETE_ERROR", message: error?.message });
   }
 }
@@ -3535,7 +3532,7 @@ export async function listTags(req: Request, res: Response): Promise<Response> {
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true, data: result.tags });
   } catch (error: any) {
-    console.error("[Admin Websites] Error listing tags:", error);
+    logger.error({ err: error }, "[Admin Websites] Error listing tags:");
     return res.status(500).json({ success: false, error: "LIST_ERROR", message: error?.message });
   }
 }
@@ -3548,7 +3545,7 @@ export async function createTag(req: Request, res: Response): Promise<Response> 
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.status(201).json({ success: true, data: result.tag });
   } catch (error: any) {
-    console.error("[Admin Websites] Error creating tag:", error);
+    logger.error({ err: error }, "[Admin Websites] Error creating tag:");
     return res.status(500).json({ success: false, error: "CREATE_ERROR", message: error?.message });
   }
 }
@@ -3561,7 +3558,7 @@ export async function updateTag(req: Request, res: Response): Promise<Response> 
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true, data: result.tag });
   } catch (error: any) {
-    console.error("[Admin Websites] Error updating tag:", error);
+    logger.error({ err: error }, "[Admin Websites] Error updating tag:");
     return res.status(500).json({ success: false, error: "UPDATE_ERROR", message: error?.message });
   }
 }
@@ -3574,7 +3571,7 @@ export async function deleteTag(req: Request, res: Response): Promise<Response> 
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[Admin Websites] Error deleting tag:", error);
+    logger.error({ err: error }, "[Admin Websites] Error deleting tag:");
     return res.status(500).json({ success: false, error: "DELETE_ERROR", message: error?.message });
   }
 }
@@ -3595,7 +3592,7 @@ export async function listPosts(req: Request, res: Response): Promise<Response> 
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true, data: result.posts });
   } catch (error: any) {
-    console.error("[Admin Websites] Error listing posts:", error);
+    logger.error({ err: error }, "[Admin Websites] Error listing posts:");
     return res.status(500).json({ success: false, error: "LIST_ERROR", message: error?.message });
   }
 }
@@ -3608,7 +3605,7 @@ export async function createPost(req: Request, res: Response): Promise<Response>
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.status(201).json({ success: true, data: result.post });
   } catch (error: any) {
-    console.error("[Admin Websites] Error creating post:", error);
+    logger.error({ err: error }, "[Admin Websites] Error creating post:");
     return res.status(500).json({ success: false, error: "CREATE_ERROR", message: error?.message });
   }
 }
@@ -3621,7 +3618,7 @@ export async function getPost(req: Request, res: Response): Promise<Response> {
     if (!post) return res.status(404).json({ success: false, error: "NOT_FOUND", message: "Post not found" });
     return res.json({ success: true, data: post });
   } catch (error: any) {
-    console.error("[Admin Websites] Error getting post:", error);
+    logger.error({ err: error }, "[Admin Websites] Error getting post:");
     return res.status(500).json({ success: false, error: "GET_ERROR", message: error?.message });
   }
 }
@@ -3634,7 +3631,7 @@ export async function updatePost(req: Request, res: Response): Promise<Response>
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true, data: result.post });
   } catch (error: any) {
-    console.error("[Admin Websites] Error updating post:", error);
+    logger.error({ err: error }, "[Admin Websites] Error updating post:");
     return res.status(500).json({ success: false, error: "UPDATE_ERROR", message: error?.message });
   }
 }
@@ -3647,7 +3644,7 @@ export async function deletePost(req: Request, res: Response): Promise<Response>
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[Admin Websites] Error deleting post:", error);
+    logger.error({ err: error }, "[Admin Websites] Error deleting post:");
     return res.status(500).json({ success: false, error: "DELETE_ERROR", message: error?.message });
   }
 }
@@ -3664,7 +3661,7 @@ export async function listMenus(req: Request, res: Response): Promise<Response> 
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true, data: result.menus });
   } catch (error: any) {
-    console.error("[Admin Websites] Error listing menus:", error);
+    logger.error({ err: error }, "[Admin Websites] Error listing menus:");
     return res.status(500).json({ success: false, error: "LIST_ERROR", message: error?.message });
   }
 }
@@ -3677,7 +3674,7 @@ export async function createMenu(req: Request, res: Response): Promise<Response>
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.status(201).json({ success: true, data: result.menu });
   } catch (error: any) {
-    console.error("[Admin Websites] Error creating menu:", error);
+    logger.error({ err: error }, "[Admin Websites] Error creating menu:");
     return res.status(500).json({ success: false, error: "CREATE_ERROR", message: error?.message });
   }
 }
@@ -3690,7 +3687,7 @@ export async function getMenu(req: Request, res: Response): Promise<Response> {
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true, data: result.menu });
   } catch (error: any) {
-    console.error("[Admin Websites] Error getting menu:", error);
+    logger.error({ err: error }, "[Admin Websites] Error getting menu:");
     return res.status(500).json({ success: false, error: "GET_ERROR", message: error?.message });
   }
 }
@@ -3703,7 +3700,7 @@ export async function updateMenu(req: Request, res: Response): Promise<Response>
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true, data: result.menu });
   } catch (error: any) {
-    console.error("[Admin Websites] Error updating menu:", error);
+    logger.error({ err: error }, "[Admin Websites] Error updating menu:");
     return res.status(500).json({ success: false, error: "UPDATE_ERROR", message: error?.message });
   }
 }
@@ -3716,7 +3713,7 @@ export async function deleteMenu(req: Request, res: Response): Promise<Response>
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[Admin Websites] Error deleting menu:", error);
+    logger.error({ err: error }, "[Admin Websites] Error deleting menu:");
     return res.status(500).json({ success: false, error: "DELETE_ERROR", message: error?.message });
   }
 }
@@ -3729,7 +3726,7 @@ export async function createMenuItem(req: Request, res: Response): Promise<Respo
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.status(201).json({ success: true, data: result.item });
   } catch (error: any) {
-    console.error("[Admin Websites] Error creating menu item:", error);
+    logger.error({ err: error }, "[Admin Websites] Error creating menu item:");
     return res.status(500).json({ success: false, error: "CREATE_ERROR", message: error?.message });
   }
 }
@@ -3742,7 +3739,7 @@ export async function updateMenuItem(req: Request, res: Response): Promise<Respo
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true, data: result.item });
   } catch (error: any) {
-    console.error("[Admin Websites] Error updating menu item:", error);
+    logger.error({ err: error }, "[Admin Websites] Error updating menu item:");
     return res.status(500).json({ success: false, error: "UPDATE_ERROR", message: error?.message });
   }
 }
@@ -3755,7 +3752,7 @@ export async function deleteMenuItem(req: Request, res: Response): Promise<Respo
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[Admin Websites] Error deleting menu item:", error);
+    logger.error({ err: error }, "[Admin Websites] Error deleting menu item:");
     return res.status(500).json({ success: false, error: "DELETE_ERROR", message: error?.message });
   }
 }
@@ -3768,7 +3765,7 @@ export async function reorderMenuItems(req: Request, res: Response): Promise<Res
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[Admin Websites] Error reordering menu items:", error);
+    logger.error({ err: error }, "[Admin Websites] Error reordering menu items:");
     return res.status(500).json({ success: false, error: "REORDER_ERROR", message: error?.message });
   }
 }
@@ -3789,7 +3786,7 @@ export async function updatePageSeo(req: Request, res: Response): Promise<Respon
     if (error) return res.status(error.status).json({ success: false, ...error });
     return res.json({ success: true, data: page });
   } catch (error: any) {
-    console.error("[Admin Websites] Error updating page SEO:", error);
+    logger.error({ err: error }, "[Admin Websites] Error updating page SEO:");
     return res.status(500).json({ success: false, error: "UPDATE_ERROR", message: error?.message });
   }
 }
@@ -3806,7 +3803,7 @@ export async function updatePostSeo(req: Request, res: Response): Promise<Respon
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true, data: result.post });
   } catch (error: any) {
-    console.error("[Admin Websites] Error updating post SEO:", error);
+    logger.error({ err: error }, "[Admin Websites] Error updating post SEO:");
     return res.status(500).json({ success: false, error: "UPDATE_ERROR", message: error?.message });
   }
 }
@@ -3821,7 +3818,7 @@ export async function generatePageSeo(req: Request, res: Response): Promise<Resp
     const result = await generateSeoForSection(projectId, pageId, "page", req.body);
     return res.json({ success: true, ...result });
   } catch (error: any) {
-    console.error("[Admin Websites] Error generating page SEO:", error);
+    logger.error({ err: error }, "[Admin Websites] Error generating page SEO:");
     return res.status(500).json({ success: false, error: "GENERATION_ERROR", message: error?.message });
   }
 }
@@ -3836,7 +3833,7 @@ export async function generatePostSeo(req: Request, res: Response): Promise<Resp
     const result = await generateSeoForSection(projectId, postId, "post", req.body);
     return res.json({ success: true, ...result });
   } catch (error: any) {
-    console.error("[Admin Websites] Error generating post SEO:", error);
+    logger.error({ err: error }, "[Admin Websites] Error generating post SEO:");
     return res.status(500).json({ success: false, error: "GENERATION_ERROR", message: error?.message });
   }
 }
@@ -3851,7 +3848,7 @@ export async function generateAllPageSeo(req: Request, res: Response): Promise<R
     const result = await generateAllSeoSections(projectId, pageId, "page", req.body);
     return res.json({ success: true, ...result });
   } catch (error: any) {
-    console.error("[Admin Websites] Error generating all page SEO:", error);
+    logger.error({ err: error }, "[Admin Websites] Error generating all page SEO:");
     return res.status(500).json({ success: false, error: "GENERATION_ERROR", message: error?.message });
   }
 }
@@ -3866,7 +3863,7 @@ export async function generateAllPostSeo(req: Request, res: Response): Promise<R
     const result = await generateAllSeoSections(projectId, postId, "post", req.body);
     return res.json({ success: true, ...result });
   } catch (error: any) {
-    console.error("[Admin Websites] Error generating all post SEO:", error);
+    logger.error({ err: error }, "[Admin Websites] Error generating all post SEO:");
     return res.status(500).json({ success: false, error: "GENERATION_ERROR", message: error?.message });
   }
 }
@@ -3881,7 +3878,7 @@ export async function analyzePageSeo(req: Request, res: Response): Promise<Respo
     const result = await analyzeSeoForSection(projectId, pageId, "page", req.body);
     return res.json({ success: true, ...result });
   } catch (error: any) {
-    console.error("[Admin Websites] Error analyzing page SEO:", error);
+    logger.error({ err: error }, "[Admin Websites] Error analyzing page SEO:");
     return res.status(500).json({ success: false, error: "ANALYSIS_ERROR", message: error?.message });
   }
 }
@@ -3896,7 +3893,7 @@ export async function analyzePostSeo(req: Request, res: Response): Promise<Respo
     const result = await analyzeSeoForSection(projectId, postId, "post", req.body);
     return res.json({ success: true, ...result });
   } catch (error: any) {
-    console.error("[Admin Websites] Error analyzing post SEO:", error);
+    logger.error({ err: error }, "[Admin Websites] Error analyzing post SEO:");
     return res.status(500).json({ success: false, error: "ANALYSIS_ERROR", message: error?.message });
   }
 }
@@ -3920,7 +3917,7 @@ export async function startBulkSeoGenerate(req: Request, res: Response): Promise
     // Check for existing active job
     const active = await SeoGenerationJobModel.findActive(projectId, entity_type, post_type_id);
     if (active) {
-      console.log(`[BULK-SEO] Returning existing active job: ${active.id} status=${active.status} ${active.completed_count}/${active.total_count}`);
+      logger.info(`[BULK-SEO] Returning existing active job: ${active.id} status=${active.status} ${active.completed_count}/${active.total_count}`);
       return res.json({ success: true, job_id: active.id, already_active: true });
     }
 
@@ -3959,7 +3956,7 @@ export async function startBulkSeoGenerate(req: Request, res: Response): Promise
     });
 
     // Enqueue BullMQ job
-    console.log(`[BULK-SEO] Created new job: ${jobRecord.id} type=${entity_type} postType=${post_type_id || "n/a"} total=${totalCount}`);
+    logger.info(`[BULK-SEO] Created new job: ${jobRecord.id} type=${entity_type} postType=${post_type_id || "n/a"} total=${totalCount}`);
     const queue = getMindsQueue("seo-bulk-generate");
     await queue.add("seo-bulk-generate", {
       jobRecordId: jobRecord.id,
@@ -3968,11 +3965,11 @@ export async function startBulkSeoGenerate(req: Request, res: Response): Promise
       postTypeId: post_type_id,
       pagePaths: selectedPaths,
     }, { jobId: jobRecord.id });
-    console.log(`[BULK-SEO] Enqueued to BullMQ queue: minds-seo-bulk-generate`);
+    logger.info(`[BULK-SEO] Enqueued to BullMQ queue: minds-seo-bulk-generate`);
 
     return res.json({ success: true, job_id: jobRecord.id });
   } catch (error: any) {
-    console.error("[Admin Websites] Error starting bulk SEO generation:", error);
+    logger.error({ err: error }, "[Admin Websites] Error starting bulk SEO generation:");
     return res.status(500).json({ success: false, error: "BULK_GENERATE_ERROR", message: error?.message });
   }
 }
@@ -4008,7 +4005,7 @@ export async function getActiveBulkSeoJob(req: Request, res: Response): Promise<
       },
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error checking active bulk SEO job:", error);
+    logger.error({ err: error }, "[Admin Websites] Error checking active bulk SEO job:");
     return res.status(500).json({ success: false, error: "FETCH_ERROR", message: error?.message });
   }
 }
@@ -4040,7 +4037,7 @@ export async function getBulkSeoStatus(req: Request, res: Response): Promise<Res
       },
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching bulk SEO status:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching bulk SEO status:");
     return res.status(500).json({ success: false, error: "FETCH_ERROR", message: error?.message });
   }
 }
@@ -4090,7 +4087,7 @@ export async function getAllSeoMeta(req: Request, res: Response): Promise<Respon
 
     return res.json({ success: true, data: meta });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching SEO meta:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching SEO meta:");
     return res.status(500).json({ success: false, error: "FETCH_ERROR", message: error?.message });
   }
 }
@@ -4107,7 +4104,7 @@ export async function listReviewBlocks(req: Request, res: Response): Promise<Res
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true, data: result.reviewBlocks });
   } catch (error: any) {
-    console.error("[Admin Websites] Error listing review blocks:", error);
+    logger.error({ err: error }, "[Admin Websites] Error listing review blocks:");
     return res.status(500).json({ success: false, error: "LIST_ERROR", message: error?.message });
   }
 }
@@ -4120,7 +4117,7 @@ export async function createReviewBlock(req: Request, res: Response): Promise<Re
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.status(201).json({ success: true, data: result.reviewBlock });
   } catch (error: any) {
-    console.error("[Admin Websites] Error creating review block:", error);
+    logger.error({ err: error }, "[Admin Websites] Error creating review block:");
     return res.status(500).json({ success: false, error: "CREATE_ERROR", message: error?.message });
   }
 }
@@ -4133,7 +4130,7 @@ export async function getReviewBlock(req: Request, res: Response): Promise<Respo
     if (!reviewBlock) return res.status(404).json({ success: false, error: "NOT_FOUND", message: "Review block not found" });
     return res.json({ success: true, data: reviewBlock });
   } catch (error: any) {
-    console.error("[Admin Websites] Error getting review block:", error);
+    logger.error({ err: error }, "[Admin Websites] Error getting review block:");
     return res.status(500).json({ success: false, error: "GET_ERROR", message: error?.message });
   }
 }
@@ -4146,7 +4143,7 @@ export async function updateReviewBlock(req: Request, res: Response): Promise<Re
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true, data: result.reviewBlock });
   } catch (error: any) {
-    console.error("[Admin Websites] Error updating review block:", error);
+    logger.error({ err: error }, "[Admin Websites] Error updating review block:");
     return res.status(500).json({ success: false, error: "UPDATE_ERROR", message: error?.message });
   }
 }
@@ -4159,7 +4156,7 @@ export async function deleteReviewBlock(req: Request, res: Response): Promise<Re
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[Admin Websites] Error deleting review block:", error);
+    logger.error({ err: error }, "[Admin Websites] Error deleting review block:");
     return res.status(500).json({ success: false, error: "DELETE_ERROR", message: error?.message });
   }
 }
@@ -4186,10 +4183,10 @@ export async function triggerReviewSync(req: Request, res: Response): Promise<Re
     const queue = getMindsQueue("review-sync");
     const job = await queue.add("manual-review-sync", { organizationId: project.organization_id });
 
-    console.log(`[Admin Websites] Triggered manual review sync for project ${id} (org ${project.organization_id}), job ${job.id}`);
+    logger.info(`[Admin Websites] Triggered manual review sync for project ${id} (org ${project.organization_id}), job ${job.id}`);
     return res.json({ success: true, data: { jobId: job.id } });
   } catch (error: any) {
-    console.error("[Admin Websites] Error triggering review sync:", error);
+    logger.error({ err: error }, "[Admin Websites] Error triggering review sync:");
     return res.status(500).json({ success: false, error: "SYNC_ERROR", message: error?.message });
   }
 }
@@ -4215,7 +4212,7 @@ export async function getReviewStats(req: Request, res: Response): Promise<Respo
       },
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching review stats:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching review stats:");
     return res.status(500).json({ success: false, error: "STATS_ERROR", message: error?.message });
   }
 }
@@ -4243,10 +4240,10 @@ export async function triggerApifyReviewFetch(req: Request, res: Response): Prom
     const queue = getMindsQueue("review-sync");
     const job = await queue.add("apify-review-fetch", { projectId: id, placeIds });
 
-    console.log(`[Admin Websites] Triggered Apify review fetch for project ${id}, ${placeIds.length} place(s), job ${job.id}`);
+    logger.info(`[Admin Websites] Triggered Apify review fetch for project ${id}, ${placeIds.length} place(s), job ${job.id}`);
     return res.json({ success: true, data: { jobId: job.id, placeCount: placeIds.length } });
   } catch (error: any) {
-    console.error("[Admin Websites] Error triggering Apify review fetch:", error);
+    logger.error({ err: error }, "[Admin Websites] Error triggering Apify review fetch:");
     return res.status(500).json({ success: false, error: "FETCH_ERROR", message: error?.message });
   }
 }
@@ -4270,7 +4267,7 @@ export async function listReviews(req: Request, res: Response): Promise<Response
 
     return res.json({ success: true, data: reviews });
   } catch (error: any) {
-    console.error("[Admin Websites] Error listing reviews:", error);
+    logger.error({ err: error }, "[Admin Websites] Error listing reviews:");
     return res.status(500).json({ success: false, error: "LIST_ERROR", message: error?.message });
   }
 }
@@ -4293,7 +4290,7 @@ export async function toggleReviewHidden(req: Request, res: Response): Promise<R
 
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[Admin Websites] Error toggling review:", error);
+    logger.error({ err: error }, "[Admin Websites] Error toggling review:");
     return res.status(500).json({ success: false, error: "TOGGLE_ERROR", message: error?.message });
   }
 }
@@ -4311,7 +4308,7 @@ export async function deleteReview(req: Request, res: Response): Promise<Respons
 
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[Admin Websites] Error deleting review:", error);
+    logger.error({ err: error }, "[Admin Websites] Error deleting review:");
     return res.status(500).json({ success: false, error: "DELETE_ERROR", message: error?.message });
   }
 }
@@ -4339,7 +4336,7 @@ export async function getReviewJobStatus(req: Request, res: Response): Promise<R
       data: { jobId: job.id, state, failedReason },
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching review job status:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching review job status:");
     return res.status(500).json({ success: false, error: "STATUS_ERROR", message: error?.message });
   }
 }
@@ -4402,7 +4399,7 @@ export async function aiGeneratePost(req: Request, res: Response): Promise<Respo
 
     return res.json({ success: true, data: { content: result.html } });
   } catch (error: any) {
-    console.error("[Admin Websites] Error generating post content:", error);
+    logger.error({ err: error }, "[Admin Websites] Error generating post content:");
     return res.status(500).json({ success: false, error: "GENERATE_ERROR", message: error?.message });
   }
 }
@@ -4422,7 +4419,7 @@ export async function updatePageDisplayName(req: Request, res: Response): Promis
     const updated = await pageEditor.updatePageDisplayName(projectId, pagePath, display_name || null);
     return res.json({ success: true, data: { updated } });
   } catch (error: any) {
-    console.error("[Admin Websites] Error updating display name:", error);
+    logger.error({ err: error }, "[Admin Websites] Error updating display name:");
     return res.status(500).json({ success: false, error: "UPDATE_ERROR", message: error?.message });
   }
 }
@@ -4453,12 +4450,12 @@ export async function createAiCommandBatch(req: Request, res: Response): Promise
 
     // Fire-and-forget analysis — don't await
     aiCommand.analyzeBatch(batch.id).catch((err) => {
-      console.error(`[Admin Websites] Background analysis failed for batch ${batch.id}:`, err);
+      logger.error({ err: err }, `[Admin Websites] Background analysis failed for batch ${batch.id}:`);
     });
 
     return res.status(201).json({ success: true, data: batch });
   } catch (error: any) {
-    console.error("[Admin Websites] Error creating AI command batch:", error);
+    logger.error({ err: error }, "[Admin Websites] Error creating AI command batch:");
     return res.status(500).json({ success: false, error: "CREATE_ERROR", message: error?.message });
   }
 }
@@ -4475,7 +4472,7 @@ export async function getAiCommandBatch(req: Request, res: Response): Promise<Re
 
     return res.json({ success: true, data: batch });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching AI command batch:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching AI command batch:");
     return res.status(500).json({ success: false, error: "FETCH_ERROR", message: error?.message });
   }
 }
@@ -4493,7 +4490,7 @@ export async function getAiCommandRecommendations(req: Request, res: Response): 
 
     return res.json({ success: true, data: recommendations });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching recommendations:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching recommendations:");
     return res.status(500).json({ success: false, error: "FETCH_ERROR", message: error?.message });
   }
 }
@@ -4519,7 +4516,7 @@ export async function updateAiCommandRecommendation(req: Request, res: Response)
 
     return res.json({ success: true, data: rec });
   } catch (error: any) {
-    console.error("[Admin Websites] Error updating recommendation:", error);
+    logger.error({ err: error }, "[Admin Websites] Error updating recommendation:");
     return res.status(500).json({ success: false, error: "UPDATE_ERROR", message: error?.message });
   }
 }
@@ -4540,7 +4537,7 @@ export async function bulkUpdateAiCommandRecommendations(req: Request, res: Resp
 
     return res.json({ success: true, data: { updated } });
   } catch (error: any) {
-    console.error("[Admin Websites] Error bulk updating recommendations:", error);
+    logger.error({ err: error }, "[Admin Websites] Error bulk updating recommendations:");
     return res.status(500).json({ success: false, error: "UPDATE_ERROR", message: error?.message });
   }
 }
@@ -4566,12 +4563,12 @@ export async function executeAiCommandBatch(req: Request, res: Response): Promis
 
     // Fire-and-forget execution — don't await
     aiCommand.executeBatch(batchId).catch((err) => {
-      console.error(`[Admin Websites] Background execution failed for batch ${batchId}:`, err);
+      logger.error({ err: err }, `[Admin Websites] Background execution failed for batch ${batchId}:`);
     });
 
     return res.json({ success: true, data: { status: "executing" } });
   } catch (error: any) {
-    console.error("[Admin Websites] Error executing AI command batch:", error);
+    logger.error({ err: error }, "[Admin Websites] Error executing AI command batch:");
     return res.status(500).json({ success: false, error: "EXECUTE_ERROR", message: error?.message });
   }
 }
@@ -4583,7 +4580,7 @@ export async function listAiCommandBatches(req: Request, res: Response): Promise
     const batches = await aiCommand.listBatches(projectId);
     return res.json({ success: true, data: batches });
   } catch (error: any) {
-    console.error("[Admin Websites] Error listing AI command batches:", error);
+    logger.error({ err: error }, "[Admin Websites] Error listing AI command batches:");
     return res.status(500).json({ success: false, error: "LIST_ERROR", message: error?.message });
   }
 }
@@ -4599,7 +4596,7 @@ export async function renameAiCommandBatch(req: Request, res: Response): Promise
     const batch = await aiCommand.updateBatchSummary(batchId, summary.trim());
     return res.json({ success: true, data: batch });
   } catch (error: any) {
-    console.error("[Admin Websites] Error renaming batch:", error);
+    logger.error({ err: error }, "[Admin Websites] Error renaming batch:");
     return res.status(500).json({ success: false, error: "UPDATE_ERROR", message: error?.message });
   }
 }
@@ -4611,7 +4608,7 @@ export async function deleteAiCommandBatch(req: Request, res: Response): Promise
     await aiCommand.deleteBatch(batchId);
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[Admin Websites] Error deleting AI command batch:", error);
+    logger.error({ err: error }, "[Admin Websites] Error deleting AI command batch:");
     return res.status(500).json({ success: false, error: "DELETE_ERROR", message: error?.message });
   }
 }
@@ -4630,7 +4627,7 @@ export async function listRedirects(req: Request, res: Response): Promise<Respon
     });
     return res.json({ success: true, data: redirects });
   } catch (error: any) {
-    console.error("[Admin Websites] Error listing redirects:", error);
+    logger.error({ err: error }, "[Admin Websites] Error listing redirects:");
     return res.status(500).json({ success: false, error: "LIST_ERROR", message: error?.message });
   }
 }
@@ -4643,7 +4640,7 @@ export async function createRedirect(req: Request, res: Response): Promise<Respo
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.status(201).json({ success: true, data: result.redirect });
   } catch (error: any) {
-    console.error("[Admin Websites] Error creating redirect:", error);
+    logger.error({ err: error }, "[Admin Websites] Error creating redirect:");
     return res.status(500).json({ success: false, error: "CREATE_ERROR", message: error?.message });
   }
 }
@@ -4659,7 +4656,7 @@ export async function bulkCreateRedirects(req: Request, res: Response): Promise<
     const result = await redirectsService.bulkCreateRedirects(projectId, redirects);
     return res.json({ success: true, data: result });
   } catch (error: any) {
-    console.error("[Admin Websites] Error bulk creating redirects:", error);
+    logger.error({ err: error }, "[Admin Websites] Error bulk creating redirects:");
     return res.status(500).json({ success: false, error: "CREATE_ERROR", message: error?.message });
   }
 }
@@ -4672,7 +4669,7 @@ export async function updateRedirect(req: Request, res: Response): Promise<Respo
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true, data: result.redirect });
   } catch (error: any) {
-    console.error("[Admin Websites] Error updating redirect:", error);
+    logger.error({ err: error }, "[Admin Websites] Error updating redirect:");
     return res.status(500).json({ success: false, error: "UPDATE_ERROR", message: error?.message });
   }
 }
@@ -4685,7 +4682,7 @@ export async function deleteRedirect(req: Request, res: Response): Promise<Respo
     if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[Admin Websites] Error deleting redirect:", error);
+    logger.error({ err: error }, "[Admin Websites] Error deleting redirect:");
     return res.status(500).json({ success: false, error: "DELETE_ERROR", message: error?.message });
   }
 }
@@ -4765,7 +4762,7 @@ export async function getProjectCosts(
       },
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching project costs:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching project costs:");
     return res
       .status(500)
       .json({ success: false, error: "FETCH_ERROR", message: error?.message });
@@ -4844,7 +4841,7 @@ export async function startPostImport(
       data: { jobId: job.id, total: entries.length },
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error starting post import:", error);
+    logger.error({ err: error }, "[Admin Websites] Error starting post import:");
     return res.status(500).json({
       success: false,
       error: "ENQUEUE_ERROR",
@@ -4902,7 +4899,7 @@ export async function getPostImportStatus(
       },
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error fetching post import status:", error);
+    logger.error({ err: error }, "[Admin Websites] Error fetching post import status:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -4926,6 +4923,7 @@ export async function getPostImportStatus(
 // caller, reused.
 
 import { scrapeGbp as locationsScrapeGbp } from "./feature-utils/util.gbp-scraper";
+import logger from "../../lib/logger";
 
 interface LocationsIdentityLocation {
   id?: string;
@@ -5060,7 +5058,7 @@ export async function addProjectLocation(
       scraped = await locationsScrapeGbp(placeId);
     } catch (err: any) {
       scrapeError = err?.message || "Apify scrape failed";
-      console.warn(
+      logger.warn(
         `[Admin Websites] addProjectLocation: scrape failed for ${placeId}: ${scrapeError}`,
       );
     }
@@ -5118,7 +5116,7 @@ export async function addProjectLocation(
       },
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error adding location:", error);
+    logger.error({ err: error }, "[Admin Websites] Error adding location:");
     return res.status(500).json({
       success: false,
       error: "ADD_LOCATION_ERROR",
@@ -5228,7 +5226,7 @@ export async function setPrimaryLocation(
       },
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error setting primary location:", error);
+    logger.error({ err: error }, "[Admin Websites] Error setting primary location:");
     return res.status(500).json({
       success: false,
       error: "SET_PRIMARY_ERROR",
@@ -5308,7 +5306,7 @@ export async function removeProjectLocation(
       },
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error removing location:", error);
+    logger.error({ err: error }, "[Admin Websites] Error removing location:");
     return res.status(500).json({
       success: false,
       error: "REMOVE_LOCATION_ERROR",
@@ -5368,7 +5366,7 @@ export async function resyncProjectLocation(
       scraped = await locationsScrapeGbp(placeId);
     } catch (err: any) {
       scrapeError = err?.message || "Apify scrape failed";
-      console.warn(
+      logger.warn(
         `[Admin Websites] resyncProjectLocation: scrape failed for ${placeId}: ${scrapeError}`,
       );
     }
@@ -5422,7 +5420,7 @@ export async function resyncProjectLocation(
       },
     });
   } catch (error: any) {
-    console.error("[Admin Websites] Error re-syncing location:", error);
+    logger.error({ err: error }, "[Admin Websites] Error re-syncing location:");
     return res.status(500).json({
       success: false,
       error: "RESYNC_LOCATION_ERROR",
@@ -5557,7 +5555,7 @@ export async function patchIdentitySlice(
 
     return res.json({ success: true, data: nextIdentity });
   } catch (error: any) {
-    console.error("[Admin Websites] Error patching identity slice:", error);
+    logger.error({ err: error }, "[Admin Websites] Error patching identity slice:");
     return res.status(500).json({
       success: false,
       error: "PATCH_SLICE_ERROR",

@@ -19,6 +19,7 @@ import { Request, Response } from "express";
 import { db } from "../../database/connection";
 import { PmsJobModel } from "../../models/PmsJobModel";
 import { AgentResultModel, IAgentResult } from "../../models/AgentResultModel";
+import logger from "../../lib/logger";
 
 interface AgentNode {
   agent_type: string;
@@ -157,7 +158,7 @@ export async function getPipelineForPmsJob(
       agents: nodes,
     });
   } catch (error: any) {
-    console.error(
+    logger.error(
       `[admin-pms-pipeline] getPipelineForPmsJob(${jobId}) failed: ${error?.message || error}`
     );
     return res.status(500).json({

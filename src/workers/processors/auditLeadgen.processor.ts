@@ -52,6 +52,7 @@ import {
   type CompetitorAnalysisResult,
   type PillarOnlyResult,
 } from "../../controllers/audit/audit-utils/gbpAnalysisAggregator";
+import logger from "../../lib/logger";
 
 // Claude's hard limit is 8000px per dimension. Their recommended sweet spot
 // is ~1568px (1.15MP), but 1024px preserves all layout/hierarchy/CTA-prominence
@@ -104,8 +105,8 @@ export async function processAuditLeadgen(
 ): Promise<void> {
   const { auditId, domain, practiceSearchString } = job.data;
   const tag = `[Audit:${auditId.slice(0, 8)}]`;
-  const log = (msg: string) => console.log(`${tag} ${msg}`);
-  const logErr = (msg: string) => console.error(`${tag} ${msg}`);
+  const log = (msg: string) => logger.info(`${tag} ${msg}`);
+  const logErr = (msg: string) => logger.error(`${tag} ${msg}`);
   const stageTimer = () => {
     const start = Date.now();
     return () => Date.now() - start;

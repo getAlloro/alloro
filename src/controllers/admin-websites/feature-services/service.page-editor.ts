@@ -8,6 +8,7 @@
 import { db } from "../../../database/connection";
 import { normalizeSections } from "../feature-utils/util.section-normalizer";
 import { snapshotPageStateIfChanged } from "../../../utils/website-utils/pageSnapshots";
+import logger from "../../../lib/logger";
 
 const PROJECTS_TABLE = "website_builder.projects";
 const PAGES_TABLE = "website_builder.pages";
@@ -20,7 +21,7 @@ export async function listPages(
   projectId: string,
   pathFilter?: string
 ): Promise<any[]> {
-  console.log(`[Admin Websites] Fetching pages for project ID: ${projectId}`);
+  logger.info(`[Admin Websites] Fetching pages for project ID: ${projectId}`);
 
   let query = db(PAGES_TABLE).where("project_id", projectId);
 
@@ -30,7 +31,7 @@ export async function listPages(
 
   const pages = await query.orderBy("path", "asc").orderBy("version", "desc");
 
-  console.log(`[Admin Websites] Found ${pages.length} pages`);
+  logger.info(`[Admin Websites] Found ${pages.length} pages`);
 
   return pages;
 }
@@ -48,7 +49,7 @@ export async function createPage(
 }> {
   const { path = "/", sections = [], publish = false, display_name } = data;
 
-  console.log(
+  logger.info(
     `[Admin Websites] Creating page for project ID: ${projectId}, path: ${path}`
   );
 
@@ -101,7 +102,7 @@ export async function createPage(
     return created;
   });
 
-  console.log(
+  logger.info(
     `[Admin Websites] \u2713 Created page ID: ${page.id}, version: ${newVersion}`
   );
 
@@ -119,7 +120,7 @@ export async function publishPage(
   page: any;
   error?: { status: number; code: string; message: string };
 }> {
-  console.log(
+  logger.info(
     `[Admin Websites] Publishing page ID: ${pageId} for project ID: ${projectId}`
   );
 
@@ -171,7 +172,7 @@ export async function publishPage(
     return row;
   });
 
-  console.log(`[Admin Websites] \u2713 Published page ID: ${pageId}`);
+  logger.info(`[Admin Websites] \u2713 Published page ID: ${pageId}`);
 
   return { page: publishedPage };
 }
@@ -184,7 +185,7 @@ export async function getPageById(
   projectId: string,
   pageId: string
 ): Promise<any> {
-  console.log(
+  logger.info(
     `[Admin Websites] Fetching page ID: ${pageId} for project ID: ${projectId}`
   );
 
@@ -226,7 +227,7 @@ export async function updatePage(
     };
   }
 
-  console.log(
+  logger.info(
     `[Admin Websites] Updating page ID: ${pageId} for project ID: ${projectId}`
   );
 
@@ -334,7 +335,7 @@ export async function updatePage(
     };
   }
 
-  console.log(`[Admin Websites] \u2713 Updated page ID: ${pageId}`);
+  logger.info(`[Admin Websites] \u2713 Updated page ID: ${pageId}`);
 
   return { page: updatedPage };
 }
@@ -350,7 +351,7 @@ export async function deletePagesByPath(
   deletedCount: number;
   error?: { status: number; code: string; message: string };
 }> {
-  console.log(
+  logger.info(
     `[Admin Websites] Deleting all versions at path "${pagePath}" for project ID: ${projectId}`
   );
 
@@ -373,7 +374,7 @@ export async function deletePagesByPath(
     .where({ project_id: projectId, path: pagePath })
     .del();
 
-  console.log(
+  logger.info(
     `[Admin Websites] \u2713 Deleted ${deletedCount} version(s) at path "${pagePath}"`
   );
 
@@ -388,7 +389,7 @@ export async function deletePage(
   projectId: string,
   pageId: string
 ): Promise<{ error?: { status: number; code: string; message: string } }> {
-  console.log(
+  logger.info(
     `[Admin Websites] Deleting page ID: ${pageId} for project ID: ${projectId}`
   );
 
@@ -434,7 +435,7 @@ export async function deletePage(
 
   await db(PAGES_TABLE).where("id", pageId).del();
 
-  console.log(`[Admin Websites] \u2713 Deleted page ID: ${pageId}`);
+  logger.info(`[Admin Websites] \u2713 Deleted page ID: ${pageId}`);
 
   return {};
 }
@@ -451,7 +452,7 @@ export async function createDraft(
   isExisting: boolean;
   error?: { status: number; code: string; message: string };
 }> {
-  console.log(
+  logger.info(
     `[Admin Websites] Creating draft from page ID: ${sourcePageId} for project ID: ${projectId}`
   );
 
@@ -502,7 +503,7 @@ export async function createDraft(
     ).getTime();
 
     if (publishedUpdated > draftUpdated) {
-      console.log(
+      logger.info(
         `[Admin Websites] Stale draft detected (draft created: ${existingDraft.created_at}, published updated: ${sourcePage.updated_at}). Snapshotting then refreshing sections.`
       );
 
@@ -525,7 +526,7 @@ export async function createDraft(
       return { page: refreshedDraft, isExisting: true };
     }
 
-    console.log(
+    logger.info(
       `[Admin Websites] Returning existing draft ID: ${existingDraft.id}`
     );
     return { page: existingDraft, isExisting: true };
@@ -555,7 +556,7 @@ export async function createDraft(
     })
     .returning("*");
 
-  console.log(
+  logger.info(
     `[Admin Websites] \u2713 Created draft page ID: ${draftPage.id}, version: ${newVersion}`
   );
 
@@ -592,7 +593,7 @@ export async function editPageComponent(
     };
   }
 
-  console.log(
+  logger.info(
     `[Admin Websites] Edit request for page ${pageId}, class: ${alloroClass}`
   );
 
@@ -633,7 +634,7 @@ export async function editPageComponent(
     },
   });
 
-  console.log(
+  logger.info(
     `[Admin Websites] \u2713 Edit completed for class: ${alloroClass}`
   );
 
@@ -669,7 +670,7 @@ export async function editLayoutComponent(
     };
   }
 
-  console.log(
+  logger.info(
     `[Admin Websites] Layout edit request for project ${projectId}, class: ${alloroClass}`
   );
 
@@ -706,7 +707,7 @@ export async function editLayoutComponent(
     },
   });
 
-  console.log(
+  logger.info(
     `[Admin Websites] \u2713 Layout edit completed for class: ${alloroClass}`
   );
 
@@ -736,7 +737,7 @@ export async function propagateSeoToSiblings(
   });
 
   if (updated > 0) {
-    console.log(
+    logger.info(
       `[Admin Websites] ✓ Propagated seo_data to ${updated} sibling version(s) for path: ${path}`
     );
   }
@@ -754,7 +755,7 @@ export async function updatePageSeo(
   page: any;
   error?: { status: number; code: string; message: string };
 }> {
-  console.log(
+  logger.info(
     `[Admin Websites] Updating SEO for page ID: ${pageId}, project ID: ${projectId}`
   );
 
@@ -780,7 +781,7 @@ export async function updatePageSeo(
   // Propagate to all sibling versions with null seo_data
   await propagateSeoToSiblings(projectId, page.path, seoData, pageId);
 
-  console.log(`[Admin Websites] ✓ Updated SEO for page ID: ${pageId}`);
+  logger.info(`[Admin Websites] ✓ Updated SEO for page ID: ${pageId}`);
 
   return { page: updatedPage };
 }
@@ -833,7 +834,7 @@ export async function updatePageDisplayName(
       updated_at: db.fn.now(),
     });
 
-  console.log(
+  logger.info(
     `[Admin Websites] ✓ Updated display_name for path "${path}" to "${displayName}" (${updated} version(s))`
   );
 

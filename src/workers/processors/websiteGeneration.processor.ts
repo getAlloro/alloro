@@ -21,6 +21,7 @@ import {
 } from "../../controllers/admin-websites/feature-services/service.generation-pipeline";
 import { getWbQueue } from "../wb-queues";
 import { db } from "../../database/connection";
+import logger from "../../lib/logger";
 
 const PAGES_TABLE = "website_builder.pages";
 const LOG_PREFIX = "[WB-GEN]";
@@ -96,7 +97,7 @@ export async function processProjectScrape(
 ): Promise<void> {
   const { projectId, pages, ...rest } = job.data;
   const log = (msg: string) =>
-    console.log(`${LOG_PREFIX} [scrape:${job.id}] ${msg}`);
+    logger.info(`${LOG_PREFIX} [scrape:${job.id}] ${msg}`);
 
   log(`Starting project scrape for ${projectId} (${pages.length} pages queued)`);
 
@@ -196,7 +197,7 @@ export async function processPageGenerate(
 ): Promise<void> {
   const { pageId, projectId, ...params } = job.data;
   const log = (msg: string) =>
-    console.log(`${LOG_PREFIX} [page:${job.id}] ${msg}`);
+    logger.info(`${LOG_PREFIX} [page:${job.id}] ${msg}`);
 
   log(`Starting page generation for ${pageId}`);
 

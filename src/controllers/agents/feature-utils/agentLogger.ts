@@ -7,6 +7,7 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import logger from "../../../lib/logger";
 
 const LOG_DIR = path.join(__dirname, "../../../logs");
 const LOG_FILE = path.join(LOG_DIR, "agent-run.log");
@@ -22,9 +23,9 @@ export function log(message: string): void {
 
   try {
     fs.appendFileSync(LOG_FILE, logMessage);
-    console.log(message);
+    logger.info(message);
   } catch (error) {
-    console.error(`Failed to write to log file: ${error}`);
+    logger.error(`Failed to write to log file: ${error}`);
   }
 }
 

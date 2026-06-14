@@ -1,3 +1,5 @@
+import logger from "../../lib/logger";
+
 /**
  * Built-in Analysis Flags
  *
@@ -155,7 +157,7 @@ export function analyzeBuiltinFlags(input: AnalyzerInput): BuiltinRecommendation
     });
   }
 
-  console.log(`[BuiltinAnalyzer] Found ${results.length} flag(s)`);
+  logger.info(`[BuiltinAnalyzer] Found ${results.length} flag(s)`);
   return results;
 }
 

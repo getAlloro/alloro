@@ -12,6 +12,7 @@ import { GoogleConnectionModel } from "../../../models/GoogleConnectionModel";
 import { OrganizationModel } from "../../../models/OrganizationModel";
 import { getStripe, isStripeConfigured } from "../../../config/stripe";
 import axios from "axios";
+import logger from "../../../lib/logger";
 
 export async function deleteOrganization(organizationId: number): Promise<void> {
   const org = await OrganizationModel.findById(organizationId);
@@ -26,14 +27,11 @@ export async function deleteOrganization(organizationId: number): Promise<void> 
     try {
       const stripe = getStripe();
       await stripe.subscriptions.cancel(org.stripe_subscription_id);
-      console.log(
+      logger.info(
         `[DeleteOrg] Cancelled Stripe subscription ${org.stripe_subscription_id} for org ${organizationId}`
       );
     } catch (stripeErr) {
-      console.warn(
-        `[DeleteOrg] Failed to cancel Stripe subscription for org ${organizationId}:`,
-        (stripeErr as Error).message
-      );
+      logger.warn({ err: (stripeErr as Error).message }, `[DeleteOrg] Failed to cancel Stripe subscription for org ${organizationId}:`);
     }
   }
 
@@ -47,10 +45,7 @@ export async function deleteOrganization(organizationId: number): Promise<void> 
         );
       }
     } catch (revokeErr) {
-      console.warn(
-        `[DeleteOrg] Failed to revoke token for connection ${conn.id}:`,
-        (revokeErr as Error).message
-      );
+      logger.warn({ err: (revokeErr as Error).message }, `[DeleteOrg] Failed to revoke token for connection ${conn.id}:`);
     }
   }
 
@@ -74,7 +69,7 @@ export async function deleteOrganization(organizationId: number): Promise<void> 
 
     await trx.commit();
 
-    console.log(
+    logger.info(
       `[DeleteOrg] Organization "${org.name}" (id=${organizationId}) deleted successfully.`
     );
   } catch (err) {

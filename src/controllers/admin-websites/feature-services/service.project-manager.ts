@@ -7,6 +7,7 @@
 
 import { db } from "../../../database/connection";
 import { generateHostname } from "../feature-utils/util.hostname-generator";
+import logger from "../../../lib/logger";
 
 const PROJECTS_TABLE = "website_builder.projects";
 const PAGES_TABLE = "website_builder.pages";
@@ -45,7 +46,7 @@ export async function listProjects(filters: {
   const { status, projectListView, page, limit } = filters;
   const offset = (page - 1) * limit;
 
-  console.log("[Admin Websites] Fetching projects with filters:", filters);
+  logger.info({ detail: filters }, "[Admin Websites] Fetching projects with filters:");
 
   // Count query
   let countQuery = db(PROJECTS_TABLE);
@@ -146,7 +147,7 @@ export async function listProjects(filters: {
     active_integrations: integrationsByProject.get(p.id) ?? [],
   }));
 
-  console.log(
+  logger.info(
     `[Admin Websites] Found ${projectsWithOrg.length} of ${total} projects (page ${page})`,
   );
 
@@ -167,7 +168,7 @@ export async function createProject(data: {
   const generatedHostname = data.hostname || generateHostname();
   const userId = data.user_id || "admin-portal";
 
-  console.log(
+  logger.info(
     `[Admin Websites] Creating project with hostname: ${generatedHostname}`,
   );
 
@@ -180,7 +181,7 @@ export async function createProject(data: {
     })
     .returning("*");
 
-  console.log(`[Admin Websites] \u2713 Created project ID: ${project.id}`);
+  logger.info(`[Admin Websites] \u2713 Created project ID: ${project.id}`);
 
   return project;
 }
@@ -203,7 +204,7 @@ export async function updateProjectDisplayName(
 // ---------------------------------------------------------------------------
 
 export async function getProjectStatuses(): Promise<string[]> {
-  console.log("[Admin Websites] Fetching unique statuses");
+  logger.info("[Admin Websites] Fetching unique statuses");
 
   const statuses = await db(PROJECTS_TABLE)
     .distinct("status")
@@ -212,7 +213,7 @@ export async function getProjectStatuses(): Promise<string[]> {
 
   const statusList = statuses.map((s: any) => s.status);
 
-  console.log(`[Admin Websites] Found ${statusList.length} unique statuses`);
+  logger.info(`[Admin Websites] Found ${statusList.length} unique statuses`);
 
   return statusList;
 }
@@ -250,7 +251,7 @@ export async function linkOrganization(
   project: any;
   error?: { status: number; code: string; message: string };
 }> {
-  console.log(
+  logger.info(
     `[Admin Websites] Linking/unlinking project ${projectId} to organization ${organizationId}`,
   );
 
@@ -265,7 +266,7 @@ export async function linkOrganization(
 
   // If unlinking (organizationId is null)
   if (organizationId === null) {
-    console.log(`[Admin Websites] Unlinking project ${projectId}`);
+    logger.info(`[Admin Websites] Unlinking project ${projectId}`);
     await db(PROJECTS_TABLE)
       .where("id", projectId)
       .update({ organization_id: null, updated_at: db.fn.now() });
@@ -274,7 +275,7 @@ export async function linkOrganization(
       .where("id", projectId)
       .returning("*");
 
-    console.log(`[Admin Websites] \u2713 Unlinked project ${projectId}`);
+    logger.info(`[Admin Websites] \u2713 Unlinked project ${projectId}`);
     return { project: updatedProject };
   }
 
@@ -323,7 +324,7 @@ export async function linkOrganization(
   }
 
   // Link the website to the organization
-  console.log(
+  logger.info(
     `[Admin Websites] Linking project ${projectId} to organization ${organizationId}`,
   );
   await db(PROJECTS_TABLE)
@@ -334,7 +335,7 @@ export async function linkOrganization(
     .where("id", projectId)
     .returning("*");
 
-  console.log(
+  logger.info(
     `[Admin Websites] \u2713 Linked project ${projectId} to organization ${organizationId}`,
   );
   return { project: updatedProject };
@@ -345,7 +346,7 @@ export async function linkOrganization(
 // ---------------------------------------------------------------------------
 
 export async function getProjectById(id: string): Promise<any> {
-  console.log(`[Admin Websites] Fetching project ID: ${id}`);
+  logger.info(`[Admin Websites] Fetching project ID: ${id}`);
 
   const project = await db(PROJECTS_TABLE)
     .leftJoin(
@@ -376,7 +377,7 @@ export async function getProjectById(id: string): Promise<any> {
     .orderBy("path", "asc")
     .orderBy("version", "desc");
 
-  console.log(`[Admin Websites] Found project with ${pages.length} pages`);
+  logger.info(`[Admin Websites] Found project with ${pages.length} pages`);
 
   return {
     ...project,
@@ -396,7 +397,7 @@ export async function updateProject(
   project: any;
   error?: { status: number; code: string; message: string };
 }> {
-  console.log(`[Admin Websites] Updating project ID: ${id}`, updates);
+  logger.info({ detail: updates }, `[Admin Websites] Updating project ID: ${id}`);
   const sanitizedUpdates = { ...updates };
 
   const existing = await db(PROJECTS_TABLE).where("id", id).first();
@@ -447,7 +448,7 @@ export async function updateProject(
     })
     .returning("*");
 
-  console.log(`[Admin Websites] \u2713 Updated project ID: ${id}`);
+  logger.info(`[Admin Websites] \u2713 Updated project ID: ${id}`);
 
   return { project };
 }
@@ -496,7 +497,7 @@ export async function updatePageGenerationStatus(
     projectUpdates.status = "LIVE";
 
     await db(PROJECTS_TABLE).where("id", page.project_id).update(projectUpdates);
-    console.log(`[Admin Websites] Page ${pageId} ready — project ${page.project_id} set to LIVE`);
+    logger.info(`[Admin Websites] Page ${pageId} ready — project ${page.project_id} set to LIVE`);
   }
 
   return {};
@@ -685,7 +686,7 @@ export async function createAllFromTemplate(
     .where("id", projectId)
     .update({ status: "IN_PROGRESS", updated_at: db.fn.now() });
 
-  console.log(`[Admin Websites] Created ${insertedPages.length} queued pages for project ${projectId}`);
+  logger.info(`[Admin Websites] Created ${insertedPages.length} queued pages for project ${projectId}`);
 
   return {
     pages: insertedPages.map((p: any) => ({
@@ -704,7 +705,7 @@ export async function createAllFromTemplate(
 export async function deleteProject(
   id: string,
 ): Promise<{ error?: { status: number; code: string; message: string } }> {
-  console.log(`[Admin Websites] Deleting project ID: ${id}`);
+  logger.info(`[Admin Websites] Deleting project ID: ${id}`);
 
   const existing = await db(PROJECTS_TABLE).where("id", id).first();
   if (!existing) {
@@ -715,7 +716,7 @@ export async function deleteProject(
 
   await db(PROJECTS_TABLE).where("id", id).del();
 
-  console.log(`[Admin Websites] \u2713 Deleted project ID: ${id}`);
+  logger.info(`[Admin Websites] \u2713 Deleted project ID: ${id}`);
 
   return {};
 }

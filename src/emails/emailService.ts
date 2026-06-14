@@ -11,6 +11,7 @@ import path from "path";
 import dotenv from "dotenv";
 import type { EmailPayload, EmailResult, SendEmailOptions } from "./types";
 import { interceptEmailPayload } from "./emailInterceptor";
+import logger from "../lib/logger";
 
 dotenv.config();
 
@@ -61,15 +62,15 @@ function logEmail(
   try {
     fs.appendFileSync(LOG_FILE, logLine);
   } catch (error) {
-    console.error("[EMAIL SERVICE] Failed to write to log file:", error);
+    logger.error({ err: error }, "[EMAIL SERVICE] Failed to write to log file:");
   }
 
   // Also log to console in development
   if (process.env.NODE_ENV !== "production") {
     if (level === "ERROR") {
-      console.error(`[EMAIL] ${message}`, data || "");
+      logger.error({ err: data || "" }, `[EMAIL] ${message}`);
     } else {
-      console.log(`[EMAIL] ${message}`, data || "");
+      logger.info({ detail: data || "" }, `[EMAIL] ${message}`);
     }
   }
 }
@@ -274,7 +275,7 @@ export function getEmailLogs(limit: number = 100): string[] {
 
     return lines.slice(-limit);
   } catch (error) {
-    console.error("[EMAIL SERVICE] Failed to read log file:", error);
+    logger.error({ err: error }, "[EMAIL SERVICE] Failed to read log file:");
     return [];
   }
 }
@@ -290,7 +291,7 @@ export function clearEmailLogs(): boolean {
     }
     return true;
   } catch (error) {
-    console.error("[EMAIL SERVICE] Failed to clear log file:", error);
+    logger.error({ err: error }, "[EMAIL SERVICE] Failed to clear log file:");
     return false;
   }
 }

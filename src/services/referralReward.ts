@@ -11,6 +11,7 @@
 import { db } from "../database/connection";
 import { isStripeConfigured, getStripe } from "../config/stripe";
 import { BehavioralEventModel } from "../models/BehavioralEventModel";
+import logger from "../lib/logger";
 
 // ---- Track referral signup ----
 
@@ -22,7 +23,7 @@ export async function trackReferralSignup(
   try {
     const hasTable = await db.schema.hasTable("referrals");
     if (!hasTable) {
-      console.warn("[Referral] referrals table does not exist, skipping tracking");
+      logger.warn("[Referral] referrals table does not exist, skipping tracking");
       return;
     }
 
@@ -74,11 +75,11 @@ export async function trackReferralSignup(
       },
     }).catch(() => {});
 
-    console.log(
+    logger.info(
       `[Referral] Tracked signup: referrer=${referrerOrgId}, referred=${referredOrgId}`
     );
   } catch (err: any) {
-    console.error("[Referral] trackReferralSignup error (non-blocking):", err.message);
+    logger.error({ err: err.message }, "[Referral] trackReferralSignup error (non-blocking):");
   }
 }
 
@@ -104,7 +105,7 @@ export async function applyReferralReward(referredOrgId: number): Promise<void> 
 
     // Apply Stripe coupons if configured
     if (!isStripeConfigured()) {
-      console.warn("[Referral] Stripe not configured, skipping coupon application");
+      logger.warn("[Referral] Stripe not configured, skipping coupon application");
       await db("referrals")
         .where({ id: referral.id })
         .update({ status: "rewarded", reward_applied_at: new Date() });
@@ -145,7 +146,7 @@ export async function applyReferralReward(referredOrgId: number): Promise<void> 
           description: `Referral reward: ${referredOrg?.name || "a colleague"} joined Alloro`,
         });
       } catch (err: any) {
-        console.error("[Referral] Failed to apply coupon to referrer:", err.message);
+        logger.error({ err: err.message }, "[Referral] Failed to apply coupon to referrer:");
       }
     }
 
@@ -171,7 +172,7 @@ export async function applyReferralReward(referredOrgId: number): Promise<void> 
           description: `Welcome to Alloro. Your first month is on us.`,
         });
       } catch (err: any) {
-        console.error("[Referral] Failed to apply coupon to referred org:", err.message);
+        logger.error({ err: err.message }, "[Referral] Failed to apply coupon to referred org:");
       }
     }
 
@@ -230,11 +231,11 @@ export async function applyReferralReward(referredOrgId: number): Promise<void> 
       })
       .catch(() => {});
 
-    console.log(
+    logger.info(
       `[Referral] Reward applied: referrer=${referral.referrer_org_id}, referred=${referredOrgId}`
     );
   } catch (err: any) {
-    console.error("[Referral] applyReferralReward error (non-blocking):", err.message);
+    logger.error({ err: err.message }, "[Referral] applyReferralReward error (non-blocking):");
   }
 }
 
@@ -268,7 +269,7 @@ export async function getReferralStats(orgId: number): Promise<ReferralStats> {
 
     return { totalReferred, totalConverted, totalRewarded, monthsSaved };
   } catch (err: any) {
-    console.error("[Referral] getReferralStats error:", err.message);
+    logger.error({ err: err.message }, "[Referral] getReferralStats error:");
     return { totalReferred: 0, totalConverted: 0, totalRewarded: 0, monthsSaved: 0 };
   }
 }

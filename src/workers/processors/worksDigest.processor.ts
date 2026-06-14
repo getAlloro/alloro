@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { MindSkillModel } from "../../models/MindSkillModel";
 import { SkillWorkRunModel, ISkillWorkRun } from "../../models/SkillWorkRunModel";
 import { SkillWorkDigestModel } from "../../models/SkillWorkDigestModel";
+import logger from "../../lib/logger";
 
 const MODEL = process.env.MINDS_LLM_MODEL || "claude-sonnet-4-6";
 let anthropicClient: Anthropic | null = null;
@@ -24,7 +25,7 @@ const BATCH_SIZE = 30;
  * 5. Store digest, mark work runs as digested
  */
 export async function processWorksDigest(job: Job): Promise<void> {
-  console.log("[WORKS-DIGEST] Starting works digest processing...");
+  logger.info("[WORKS-DIGEST] Starting works digest processing...");
 
   const skills = await MindSkillModel.findMany({ status: "active" });
   let totalDigests = 0;
@@ -38,7 +39,7 @@ export async function processWorksDigest(job: Job): Promise<void> {
 
       if (undigested.length === 0) continue;
 
-      console.log(
+      logger.info(
         `[WORKS-DIGEST] Skill "${skill.name}" has ${undigested.length} undigested works`
       );
 
@@ -49,14 +50,11 @@ export async function processWorksDigest(job: Job): Promise<void> {
         totalDigests++;
       }
     } catch (err) {
-      console.error(
-        `[WORKS-DIGEST] Failed to digest works for skill ${skill.id}:`,
-        err
-      );
+      logger.error({ err: err }, `[WORKS-DIGEST] Failed to digest works for skill ${skill.id}:`);
     }
   }
 
-  console.log(
+  logger.info(
     `[WORKS-DIGEST] Complete. Created ${totalDigests} digest(s).`
   );
 }
@@ -91,7 +89,7 @@ async function digestBatch(
   const summary = textContent?.text || "";
 
   if (!summary.trim()) {
-    console.warn("[WORKS-DIGEST] Empty summary from LLM, skipping batch");
+    logger.warn("[WORKS-DIGEST] Empty summary from LLM, skipping batch");
     return;
   }
 
@@ -116,7 +114,7 @@ async function digestBatch(
   const ids = works.map((w) => w.id);
   await SkillWorkRunModel.markDigested(ids, digest.id);
 
-  console.log(
+  logger.info(
     `[WORKS-DIGEST] Created digest ${digest.id} covering ${works.length} works for skill ${skillId}`
   );
 }

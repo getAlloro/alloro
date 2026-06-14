@@ -7,6 +7,7 @@ import {
   AutomationStatusDetail,
 } from "../../../utils/pms/pmsAutomationStatus";
 import db from "../../../database/connection";
+import logger from "../../../lib/logger";
 
 /**
  * Get automation status for a job with auto-advancement logic.
@@ -64,14 +65,11 @@ export async function getJobAutomationStatus(jobId: number) {
         practiceRankingsCompleted: [],
         monthlyAgentsCompleted: [],
       });
-      console.log(
+      logger.info(
         `[PMS] Admin email sent for PMS job ${jobId} ready for review`
       );
     } catch (emailError: any) {
-      console.error(
-        `[PMS] Failed to send admin email for PMS job ${jobId}:`,
-        emailError.message
-      );
+      logger.error({ err: emailError.message }, `[PMS] Failed to send admin email for PMS job ${jobId}:`);
       // Don't fail the request if email fails
     }
 

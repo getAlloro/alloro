@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { getJwtSecret } from "../../../config/jwt";
+import logger from "../../../lib/logger";
 
 /**
  * Generates a secure random state parameter for CSRF protection.
@@ -59,7 +60,7 @@ export function decodeAuthState(state: string): AuthenticatedContext | null {
     const payload = JSON.parse(Buffer.from(data, "base64url").toString());
 
     if (!payload.exp || Date.now() > payload.exp) {
-      console.log("[AUTH] Auth state expired");
+      logger.info("[AUTH] Auth state expired");
       return null;
     }
 

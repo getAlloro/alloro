@@ -9,6 +9,7 @@ import { db } from "../../database/connection";
 import { BackupJobModel } from "../../models/website-builder/BackupJobModel";
 import { ProjectModel } from "../../models/website-builder/ProjectModel";
 import { generatePresignedUrl, deleteFromS3 } from "../../utils/core/s3";
+import logger from "../../lib/logger";
 
 const MAX_BACKUPS_PER_PROJECT = 5;
 
@@ -56,7 +57,7 @@ export async function createBackup(
           try {
             await deleteFromS3(oldest.s3_key);
           } catch (err: any) {
-            console.warn(
+            logger.warn(
               `[BACKUP] Failed to delete old backup S3 file: ${err.message}`
             );
           }
@@ -88,7 +89,7 @@ export async function createBackup(
       },
     });
   } catch (err: any) {
-    console.error("[BACKUP] Create backup error:", err);
+    logger.error({ err: err }, "[BACKUP] Create backup error:");
     return res
       .status(500)
       .json({ success: false, error: "INTERNAL", message: err.message });
@@ -107,7 +108,7 @@ export async function listBackups(
     const jobs = await BackupJobModel.findByProjectId(projectId);
     return res.json({ success: true, data: jobs });
   } catch (err: any) {
-    console.error("[BACKUP] List backups error:", err);
+    logger.error({ err: err }, "[BACKUP] List backups error:");
     return res
       .status(500)
       .json({ success: false, error: "INTERNAL", message: err.message });
@@ -150,7 +151,7 @@ export async function getBackupStatus(
       },
     });
   } catch (err: any) {
-    console.error("[BACKUP] Get status error:", err);
+    logger.error({ err: err }, "[BACKUP] Get status error:");
     return res
       .status(500)
       .json({ success: false, error: "INTERNAL", message: err.message });
@@ -181,7 +182,7 @@ export async function downloadBackup(
       data: { url, filename: job.filename, expires_in: 3600 },
     });
   } catch (err: any) {
-    console.error("[BACKUP] Download error:", err);
+    logger.error({ err: err }, "[BACKUP] Download error:");
     return res
       .status(500)
       .json({ success: false, error: "INTERNAL", message: err.message });
@@ -261,7 +262,7 @@ export async function restoreBackup(
       data: { job_id: job.id },
     });
   } catch (err: any) {
-    console.error("[BACKUP] Restore error:", err);
+    logger.error({ err: err }, "[BACKUP] Restore error:");
     return res
       .status(500)
       .json({ success: false, error: "INTERNAL", message: err.message });
@@ -289,7 +290,7 @@ export async function deleteBackup(
       try {
         await deleteFromS3(job.s3_key);
       } catch (err: any) {
-        console.warn(
+        logger.warn(
           `[BACKUP] Failed to delete S3 file ${job.s3_key}: ${err.message}`
         );
       }
@@ -298,7 +299,7 @@ export async function deleteBackup(
     await BackupJobModel.deleteById(jobId);
     return res.json({ success: true });
   } catch (err: any) {
-    console.error("[BACKUP] Delete error:", err);
+    logger.error({ err: err }, "[BACKUP] Delete error:");
     return res
       .status(500)
       .json({ success: false, error: "INTERNAL", message: err.message });

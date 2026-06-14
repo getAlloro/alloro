@@ -11,6 +11,7 @@ import { LocationModel } from "../../../models/LocationModel";
 import { OrganizationModel } from "../../../models/OrganizationModel";
 import { loadPrompt } from "../../../agents/service.prompt-loader";
 import { runAgent } from "../../../agents/service.llm-runner";
+import logger from "../../../lib/logger";
 
 const PAGES_TABLE = "website_builder.pages";
 const POSTS_TABLE = "website_builder.posts";
@@ -78,14 +79,14 @@ async function fetchMindSkillCreator(): Promise<string> {
       }
     );
     if (!res.ok) {
-      console.warn("[SEO] Mind skill creator returned", res.status);
+      logger.warn({ detail: res.status }, "[SEO] Mind skill creator returned");
       return "";
     }
     const data = await res.json();
     cachedCreatorContext = data.response || data.result || data.output || "";
     return cachedCreatorContext as string;
   } catch (err) {
-    console.warn("[SEO] Failed to fetch mind skill creator context:", err);
+    logger.warn({ err: err }, "[SEO] Failed to fetch mind skill creator context:");
     return "";
   }
 }
@@ -108,14 +109,14 @@ async function fetchMindSkillValidator(): Promise<string> {
       }
     );
     if (!res.ok) {
-      console.warn("[SEO] Mind skill validator returned", res.status);
+      logger.warn({ detail: res.status }, "[SEO] Mind skill validator returned");
       return "";
     }
     const data = await res.json();
     cachedValidatorContext = data.response || data.result || data.output || "";
     return cachedValidatorContext as string;
   } catch (err) {
-    console.warn("[SEO] Failed to fetch mind skill validator context:", err);
+    logger.warn({ err: err }, "[SEO] Failed to fetch mind skill validator context:");
     return "";
   }
 }
@@ -420,7 +421,7 @@ Provide a brief insight about this generated "${section}" section. Return ONLY v
     const parsed = result.parsed || parseGeneratedSeo(result.raw, section);
     return (parsed.insight as string) || "";
   } catch (err) {
-    console.warn("[SEO] Failed to generate insight:", err);
+    logger.warn({ err: err }, "[SEO] Failed to generate insight:");
     return "";
   }
 }
@@ -666,10 +667,7 @@ function parseGeneratedSeo(
   try {
     return JSON.parse(cleaned);
   } catch {
-    console.error(
-      `[SEO Generation] Failed to parse response for section "${section}":`,
-      cleaned.slice(0, 200)
-    );
+    logger.error({ err: cleaned.slice(0, 200) }, `[SEO Generation] Failed to parse response for section "${section}":`);
     return {};
   }
 }

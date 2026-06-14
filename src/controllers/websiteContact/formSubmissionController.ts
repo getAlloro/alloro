@@ -39,6 +39,7 @@ import { db } from "../../database/connection";
 import { NewsletterSignupModel } from "../../models/website-builder/NewsletterSignupModel";
 import { uploadToS3 } from "../../utils/core/s3";
 import { resolveWebsiteFormRecipients } from "../../services/formRecipientRoutingService";
+import logger from "../../lib/logger";
 
 const MAX_FIELDS = 100; // Raised from 20 to support onboarding forms with many repeater fields
 const MAX_KEY_LENGTH = 100;
@@ -158,7 +159,7 @@ async function handleNewsletterSignup(
       siteUrl,
     });
   } catch (err) {
-    console.error("[Newsletter] Failed to send confirmation email:", err);
+    logger.error({ err: err }, "[Newsletter] Failed to send confirmation email:");
   }
 
   return res.json({ success: true });
@@ -417,7 +418,7 @@ export async function handleFormSubmission(req: Request, res: Response): Promise
       });
       recipients = resolution.recipients;
     } catch (lookupErr) {
-      console.error("[Form Submission] Recipient lookup failed:", lookupErr);
+      logger.error({ err: lookupErr }, "[Form Submission] Recipient lookup failed:");
     }
 
     // ── 13. Persist submission FIRST (unflagged) — guarantees DB record before AI call ──
@@ -434,12 +435,12 @@ export async function handleFormSubmission(req: Request, res: Response): Promise
       });
       submissionId = created.id;
     } catch (saveErr) {
-      console.error("[Form Submission] Failed to save submission:", {
-        error: saveErr instanceof Error ? saveErr.message : saveErr,
-        projectId: String(projectId),
-        formName: sanitizedFormName,
-        senderIp,
-      });
+      logger.error({ err: {
+                error: saveErr instanceof Error ? saveErr.message : saveErr,
+                projectId: String(projectId),
+                formName: sanitizedFormName,
+                senderIp,
+              } }, "[Form Submission] Failed to save submission:");
     }
 
     // ── 14. AI content analysis — runs AFTER save, then updates flag or sends email ──
@@ -459,7 +460,7 @@ export async function handleFormSubmission(req: Request, res: Response): Promise
               .where("id", submissionId)
               .update({ is_flagged: true, flag_reason: flagReason });
           } catch (updateErr) {
-            console.error("[Form Submission] Failed to update flag:", updateErr);
+            logger.error({ err: updateErr }, "[Form Submission] Failed to update flag:");
           }
         }
       }
@@ -516,7 +517,7 @@ export async function handleFormSubmission(req: Request, res: Response): Promise
         }
         // No active integration → no log row (write-amplification rule)
       } catch (err) {
-        console.error("[Form Submission] CRM enqueue failed:", err);
+        logger.error({ err: err }, "[Form Submission] CRM enqueue failed:");
         // Do not throw — visitor response must complete normally.
       }
     }
@@ -540,7 +541,7 @@ export async function handleFormSubmission(req: Request, res: Response): Promise
         recipients,
       });
     } else if (!flagged) {
-      console.warn(
+      logger.warn(
         `[Form Submission] No recipients resolved for project ${projectId}; saved submission without sending email.`
       );
     }
@@ -555,7 +556,7 @@ export async function handleFormSubmission(req: Request, res: Response): Promise
       return res.status(500).json({ error: "Email service not configured" });
     }
 
-    console.error("[Form Submission] Error:", error);
+    logger.error({ err: error }, "[Form Submission] Error:");
     return res.status(500).json({ error: "Internal server error" });
   }
 }

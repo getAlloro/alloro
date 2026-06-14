@@ -7,6 +7,7 @@ import {
 import { fireWorkCreationWebhook } from "./feature-services/service.minds-work-pipeline";
 import { generateEmbedding } from "./feature-services/service.minds-embedding";
 import { PublishChannelModel } from "../../models/PublishChannelModel";
+import logger from "../../lib/logger";
 
 /**
  * POST /:mindId/skills/:skillId/run — manually trigger a skill work run
@@ -39,7 +40,7 @@ export async function triggerManualRun(
 
     // Fire webhook to n8n asynchronously
     fireWorkCreationWebhook(workRun.id, skill).catch((err) => {
-      console.error("[WORK-RUNS] Failed to fire webhook:", err);
+      logger.error({ err: err }, "[WORK-RUNS] Failed to fire webhook:");
       SkillWorkRunModel.updateStatus(workRun.id, "failed", {
         error: `Webhook failed: ${err.message}`,
       });
@@ -47,7 +48,7 @@ export async function triggerManualRun(
 
     return res.status(201).json(workRun);
   } catch (error: any) {
-    console.error("[WORK-RUNS] Error triggering manual run:", error);
+    logger.error({ err: error }, "[WORK-RUNS] Error triggering manual run:");
     return res.status(500).json({ error: "Failed to trigger run" });
   }
 }
@@ -125,7 +126,7 @@ export async function approveWorkRun(
         "./feature-services/service.minds-work-pipeline"
       );
       fireWorkPublicationWebhook(workRunId, skill, run, channel.webhook_url).catch((err) => {
-        console.error("[WORK-RUNS] Failed to fire publication webhook:", err);
+        logger.error({ err: err }, "[WORK-RUNS] Failed to fire publication webhook:");
       });
     }
   }
@@ -135,7 +136,7 @@ export async function approveWorkRun(
   if (embedText.trim()) {
     generateEmbedding(embedText)
       .then((emb) => SkillWorkRunModel.setEmbedding(workRunId, emb))
-      .catch((err) => console.error("[WORK-RUNS] Embedding generation failed:", err));
+      .catch((err) => logger.error({ err: err }, "[WORK-RUNS] Embedding generation failed:"));
   }
 
   return res.json({ success: true, status: "approved" });

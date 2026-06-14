@@ -11,6 +11,7 @@ import {
   transformSearchPlaceResponse,
   transformSearchAlternatives,
 } from "./feature-services/PlaceDataTransformService";
+import logger from "../../lib/logger";
 
 /**
  * POST /api/places/autocomplete
@@ -35,22 +36,19 @@ export async function autocomplete(req: Request, res: Response) {
       });
     }
 
-    console.log(`[Places] Autocomplete search: "${input}"`);
+    logger.info(`[Places] Autocomplete search: "${input}"`);
 
     const rawSuggestions = await googleAutocomplete(input, sessionToken);
     const suggestions = transformAutocompleteSuggestions(rawSuggestions);
 
-    console.log(`[Places] Found ${suggestions.length} suggestions`);
+    logger.info(`[Places] Found ${suggestions.length} suggestions`);
 
     return res.json({
       success: true,
       suggestions,
     });
   } catch (error: any) {
-    console.error(
-      "[Places] Autocomplete error:",
-      error.response?.data || error.message
-    );
+    logger.error({ err: error.response?.data || error.message }, "[Places] Autocomplete error:");
     return res.status(500).json({
       success: false,
       error: error.response?.data?.error?.message || "Autocomplete failed",
@@ -82,7 +80,7 @@ export async function getPlaceDetails(req: Request, res: Response) {
       });
     }
 
-    console.log(`[Places] Getting details for: ${placeId}`);
+    logger.info(`[Places] Getting details for: ${placeId}`);
 
     const data = await googleGetPlaceDetails(
       placeId,
@@ -90,7 +88,7 @@ export async function getPlaceDetails(req: Request, res: Response) {
     );
     const place = transformPlaceDetailsResponse(data, placeId);
 
-    console.log(
+    logger.info(
       `[Places] Got details: ${place.displayString} | Domain: ${place.domain}`
     );
 
@@ -99,10 +97,7 @@ export async function getPlaceDetails(req: Request, res: Response) {
       place,
     });
   } catch (error: any) {
-    console.error(
-      "[Places] Details error:",
-      error.response?.data || error.message
-    );
+    logger.error({ err: error.response?.data || error.message }, "[Places] Details error:");
     return res.status(500).json({
       success: false,
       error:
@@ -135,7 +130,7 @@ export async function quickSearch(req: Request, res: Response) {
       });
     }
 
-    console.log(`[Places] Quick search: "${query}"`);
+    logger.info(`[Places] Quick search: "${query}"`);
 
     // Step 1: Autocomplete
     const suggestions = await googleAutocomplete(query);
@@ -165,7 +160,7 @@ export async function quickSearch(req: Request, res: Response) {
     const place = transformSearchPlaceResponse(data, firstPlaceId);
     const alternatives = transformSearchAlternatives(suggestions);
 
-    console.log(
+    logger.info(
       `[Places] Found: ${place.displayString} | Domain: ${place.domain} | ${alternatives.length} alternatives`
     );
 
@@ -175,10 +170,7 @@ export async function quickSearch(req: Request, res: Response) {
       alternatives,
     });
   } catch (error: any) {
-    console.error(
-      "[Places] Search error:",
-      error.response?.data || error.message
-    );
+    logger.error({ err: error.response?.data || error.message }, "[Places] Search error:");
     return res.status(500).json({
       success: false,
       error: error.response?.data?.error?.message || "Search failed",

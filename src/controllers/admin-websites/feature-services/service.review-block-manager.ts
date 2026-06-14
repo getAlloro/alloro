@@ -8,6 +8,7 @@
 
 import { db } from "../../../database/connection";
 import { getRedisConnection } from "../../../workers/queues";
+import logger from "../../../lib/logger";
 
 const REVIEW_BLOCKS_TABLE = "website_builder.review_blocks";
 const TEMPLATES_TABLE = "website_builder.templates";
@@ -28,7 +29,7 @@ async function invalidateReviewBlockCache(templateId: string, slug: string) {
       await redis.del(...keys);
     }
   } catch (err) {
-    console.error("[Admin Websites] Failed to invalidate review block cache:", err);
+    logger.error({ err: err }, "[Admin Websites] Failed to invalidate review block cache:");
   }
 }
 
@@ -102,7 +103,7 @@ export async function createReviewBlock(
     };
   }
 
-  console.log(`[Admin Websites] Creating review block "${name}" for template ${templateId}`);
+  logger.info(`[Admin Websites] Creating review block "${name}" for template ${templateId}`);
 
   const [reviewBlock] = await db(REVIEW_BLOCKS_TABLE)
     .insert({
@@ -114,7 +115,7 @@ export async function createReviewBlock(
     })
     .returning("*");
 
-  console.log(`[Admin Websites] Created review block ID: ${reviewBlock.id}`);
+  logger.info(`[Admin Websites] Created review block ID: ${reviewBlock.id}`);
 
   return { reviewBlock };
 }
@@ -187,7 +188,7 @@ export async function updateReviewBlock(
     .update({ ...updates, updated_at: db.fn.now() })
     .returning("*");
 
-  console.log(`[Admin Websites] Updated review block ID: ${reviewBlockId}`);
+  logger.info(`[Admin Websites] Updated review block ID: ${reviewBlockId}`);
 
   // Invalidate cache
   await invalidateReviewBlockCache(templateId, existing.slug);
@@ -219,7 +220,7 @@ export async function deleteReviewBlock(
     .where({ id: reviewBlockId, template_id: templateId })
     .del();
 
-  console.log(`[Admin Websites] Deleted review block ID: ${reviewBlockId}`);
+  logger.info(`[Admin Websites] Deleted review block ID: ${reviewBlockId}`);
 
   await invalidateReviewBlockCache(templateId, existing.slug);
 

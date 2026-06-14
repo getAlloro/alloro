@@ -51,6 +51,7 @@ import {
   getOrganizationRecipientSettings,
   updateRecipientSetting,
 } from "../../services/recipientSettingsService";
+import logger from "../../lib/logger";
 
 const BCRYPT_SALT_ROUNDS = 12;
 
@@ -59,7 +60,7 @@ const BCRYPT_SALT_ROUNDS = 12;
 // =====================================================================
 
 function handleError(res: Response, error: any, operation: string): Response {
-  console.error(`[Admin/Orgs] ${operation} Error:`, error?.message || error);
+  logger.error({ err: error?.message || error }, `[Admin/Orgs] ${operation} Error:`);
   return res.status(500).json({
     success: false,
     error: `Failed to ${operation.toLowerCase()}`,
@@ -786,15 +787,12 @@ export async function removePaymentMethod(
       try {
         const stripe = getStripe();
         await stripe.subscriptions.cancel(organization.stripe_subscription_id);
-        console.log(
+        logger.info(
           `[Admin] Cancelled Stripe subscription ${organization.stripe_subscription_id} for org ${orgId}`
         );
       } catch (stripeErr: any) {
         // Best-effort — if it fails (already cancelled, etc.), log and continue
-        console.warn(
-          `[Admin] Failed to cancel Stripe subscription for org ${orgId}:`,
-          stripeErr?.message || stripeErr
-        );
+        logger.warn({ detail: stripeErr?.message || stripeErr }, `[Admin] Failed to cancel Stripe subscription for org ${orgId}:`);
       }
     }
 
@@ -807,7 +805,7 @@ export async function removePaymentMethod(
       updated_at: new Date(),
     } as any);
 
-    console.log(
+    logger.info(
       `[Admin] Payment method removed for org ${orgId} (${organization.name}). Reverted to admin-granted state.`
     );
 
@@ -875,7 +873,7 @@ export async function createProject(
       updated_at: new Date(),
     } as any);
 
-    console.log(
+    logger.info(
       `[Admin] Website project created for org ${orgId} (${organization.name}) — hostname: ${hostname}`
     );
 
@@ -984,11 +982,11 @@ export async function setUserPassword(
       });
 
       if (!emailResult.success) {
-        console.error(`[Admin] Failed to send password notification to ${user.email}:`, emailResult.error);
+        logger.error({ err: emailResult.error }, `[Admin] Failed to send password notification to ${user.email}:`);
       }
     }
 
-    console.log(`[Admin] Temporary password set for user ${userId} (${user.email}) by admin ${req.user?.email}`);
+    logger.info(`[Admin] Temporary password set for user ${userId} (${user.email}) by admin ${req.user?.email}`);
 
     return res.json({
       success: true,

@@ -1,5 +1,6 @@
 import { MindBrainChunkModel, IMindBrainChunk } from "../../../models/MindBrainChunkModel";
 import { generateEmbedding, generateEmbeddings } from "./service.minds-embedding";
+import logger from "../../../lib/logger";
 
 const RAG_THRESHOLD_CHARS = parseInt(process.env.MINDS_RAG_THRESHOLD_CHARS || "8000", 10);
 const CHAT_TOP_K = parseInt(process.env.MINDS_RAG_CHAT_TOP_K || "7", 10);
@@ -39,7 +40,7 @@ export async function retrieveForChat(
 
   const summary = summaryChunk?.chunk_text || "";
 
-  console.log(
+  logger.info(
     `[MINDS-RAG] Chat retrieval: query="${query.slice(0, 80)}..." → ${chunks.length} chunks (top similarity: ${chunks[0]?.similarity?.toFixed(3) || "N/A"})`
   );
 
@@ -105,7 +106,7 @@ export async function retrieveForComparison(
 
   const summary = summaryChunk?.chunk_text || "";
 
-  console.log(
+  logger.info(
     `[MINDS-RAG] Comparison retrieval: ${searchTexts.length} search queries → ${deduped.length} unique chunks`
   );
 

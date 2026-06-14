@@ -30,6 +30,7 @@ import {
   type ProjectIdentityRecord,
 } from "../feature-utils/util.project-identity";
 import { ProjectIdentityModel } from "../../../models/website-builder/ProjectIdentityModel";
+import logger from "../../../lib/logger";
 
 const PROJECTS_TABLE = "website_builder.projects";
 const TEMPLATES_TABLE = "website_builder.templates";
@@ -37,7 +38,7 @@ const TEMPLATES_TABLE = "website_builder.templates";
 const LOG_PREFIX = "[LayoutsPipeline]";
 
 function log(msg: string, data?: Record<string, unknown>): void {
-  console.log(`${LOG_PREFIX} ${msg}`, data ? JSON.stringify(data) : "");
+  logger.info({ detail: data ? JSON.stringify(data) : "" }, `${LOG_PREFIX} ${msg}`);
 }
 
 function checkCancel(signal?: AbortSignal): void {

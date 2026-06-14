@@ -1,5 +1,6 @@
 import { Response, NextFunction } from "express";
 import { AuthRequest } from "./auth";
+import logger from "../lib/logger";
 
 /**
  * Super Admin Middleware
@@ -32,7 +33,7 @@ export const superAdminMiddleware = async (
 
     next();
   } catch (error) {
-    console.error("[SuperAdmin] Error checking permissions:", error);
+    logger.error({ err: error }, "[SuperAdmin] Error checking permissions:");
     return res.status(500).json({ error: "Failed to verify permissions" });
   }
 };

@@ -26,6 +26,7 @@ import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
 import { db } from "../database/connection";
 import { getJwtSecret } from "../config/jwt";
+import logger from "../lib/logger";
 
 const EXEMPT_PREFIXES = [
   "/api/auth",
@@ -107,7 +108,7 @@ export const billingGateMiddleware = async (
 
     return next();
   } catch (error) {
-    console.error("[BillingGate] Error checking billing status:", error);
+    logger.error({ err: error }, "[BillingGate] Error checking billing status:");
     // On error, let the request through — don't lock out on middleware failure
     return next();
   }

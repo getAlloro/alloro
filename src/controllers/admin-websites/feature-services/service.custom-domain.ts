@@ -12,6 +12,7 @@ import { promisify } from "util";
 import { db } from "../../../database/connection";
 import { refreshCustomDomainCache } from "../../../middleware/corsCustomDomains";
 import { provisionRybbitSite } from "./service.rybbit";
+import logger from "../../../lib/logger";
 
 const resolve4 = promisify(dns.resolve4);
 const PROJECTS_TABLE = "website_builder.projects";
@@ -101,7 +102,7 @@ export async function connectDomain(
     updated_at: db.fn.now(),
   });
 
-  console.log(`[Custom Domain] Connected ${cleaned} + ${alt} to project ${projectId}`);
+  logger.info(`[Custom Domain] Connected ${cleaned} + ${alt} to project ${projectId}`);
 
   return {
     data: {
@@ -201,7 +202,7 @@ export async function verifyDomain(
       updated_at: db.fn.now(),
     });
 
-    console.log(`[Custom Domain] Verified ${project.custom_domain} for project ${projectId}`);
+    logger.info(`[Custom Domain] Verified ${project.custom_domain} for project ${projectId}`);
 
     // Immediately update the CORS cache so the new domain is allowed
     refreshCustomDomainCache();
@@ -241,7 +242,7 @@ export async function disconnectDomain(
     updated_at: db.fn.now(),
   });
 
-  console.log(`[Custom Domain] Disconnected domain from project ${projectId}`);
+  logger.info(`[Custom Domain] Disconnected domain from project ${projectId}`);
 
   return { data: { disconnected: true } };
 }

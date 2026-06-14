@@ -1,3 +1,5 @@
+import logger from "../../lib/logger";
+
 /**
  * Link Checker
  *
@@ -82,7 +84,7 @@ export function analyzeBrokenLinks(input: LinkCheckerInput): LinkRecommendation[
   // --- Orphan page detection ---
   results.push(...findOrphanPages(input));
 
-  console.log(`[LinkChecker] Found ${results.length} issue(s) (broken links + orphans)`);
+  logger.info(`[LinkChecker] Found ${results.length} issue(s) (broken links + orphans)`);
   return results;
 }
 

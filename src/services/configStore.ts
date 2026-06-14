@@ -9,6 +9,7 @@
  */
 
 import { db } from "../database/connection";
+import logger from "../lib/logger";
 
 // ---- Cache ------------------------------------------------------------------
 
@@ -35,7 +36,7 @@ export async function getConfig<T>(key: string, defaultValue: T): Promise<T> {
       return val as T;
     }
   } catch (err: any) {
-    console.warn(`[ConfigStore] Read "${key}" failed:`, err.message);
+    logger.warn({ detail: err.message }, `[ConfigStore] Read "${key}" failed:`);
   }
   return defaultValue;
 }

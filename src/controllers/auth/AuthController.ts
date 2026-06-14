@@ -11,6 +11,7 @@ import * as TokenManagementService from "./feature-services/TokenManagementServi
 import * as ScopeManagementService from "./feature-services/ScopeManagementService";
 import { db } from "../../database/connection";
 import { getJwtSecret } from "../../config/jwt";
+import logger from "../../lib/logger";
 
 /**
  * Tries to extract userId and orgId from the Authorization header.
@@ -37,7 +38,7 @@ function tryExtractAuthContext(req: Request): { userId: number; orgId: number } 
  */
 export async function getGoogleAuthUrl(req: Request, res: Response): Promise<void> {
   try {
-    console.log("[AUTH] Generating OAuth authorization URL");
+    logger.info("[AUTH] Generating OAuth authorization URL");
 
     validateEnvironmentVariables();
     const oauth2Client = createOAuth2Client();
@@ -53,7 +54,7 @@ export async function getGoogleAuthUrl(req: Request, res: Response): Promise<voi
         .first();
 
       state = encodeAuthState(authCtx.userId, orgUser?.organization_id ?? null);
-      console.log(
+      logger.info(
         `[AUTH] Encoded auth context in state for user ${authCtx.userId}, org ${orgUser?.organization_id || "none"}`,
       );
     }
@@ -66,8 +67,8 @@ export async function getGoogleAuthUrl(req: Request, res: Response): Promise<voi
       state: state,
     });
 
-    console.log("[AUTH] Generated authorization URL successfully");
-    console.log(
+    logger.info("[AUTH] Generated authorization URL successfully");
+    logger.info(
       `[AUTH] Scopes requested: ${ScopeManagementService.REQUIRED_SCOPES.join(", ")}`,
     );
 
@@ -94,15 +95,15 @@ export async function handleOAuthCallback(req: Request, res: Response): Promise<
   try {
     const { code, state, error } = req.query;
 
-    console.log("[AUTH] Processing OAuth callback", {
-      hasCode: !!code,
-      hasState: !!state,
-      error: error || "none",
-    });
+    logger.info({ err: {
+            hasCode: !!code,
+            hasState: !!state,
+            error: error || "none",
+          } }, "[AUTH] Processing OAuth callback");
 
     // Handle OAuth errors
     if (error) {
-      console.error("[AUTH] OAuth authorization failed:", error);
+      logger.error({ err: error }, "[AUTH] OAuth authorization failed:");
       res.status(400).json({
         success: false,
         error: "OAuth authorization failed",
@@ -140,7 +141,7 @@ export async function handleOAuthCallback(req: Request, res: Response): Promise<
     // Decode auth context from state (present when user is already logged in)
     const authenticatedContext = state ? decodeAuthState(state as string) : null;
     if (authenticatedContext) {
-      console.log(`[AUTH] Authenticated context from state: userId=${authenticatedContext.userId}, orgId=${authenticatedContext.orgId}`);
+      logger.info(`[AUTH] Authenticated context from state: userId=${authenticatedContext.userId}, orgId=${authenticatedContext.orgId}`);
     }
 
     // Database transaction for user and account creation/update with fallback
@@ -148,16 +149,16 @@ export async function handleOAuthCallback(req: Request, res: Response): Promise<
     try {
       result = await OAuthFlowService.completeOAuthFlow(tokens, googleProfile, authenticatedContext);
     } catch (transactionError: any) {
-      console.error("[AUTH] Database transaction failed:", {
-        error: transactionError.message,
-        code: transactionError.code,
-        errno: transactionError.errno,
-      });
+      logger.error({ err: {
+                error: transactionError.message,
+                code: transactionError.code,
+                errno: transactionError.errno,
+              } }, "[AUTH] Database transaction failed:");
 
       try {
         result = await OAuthFlowService.handleFallbackAuth(tokens, googleProfile, authenticatedContext);
       } catch (fallbackError) {
-        console.error("[AUTH] Fallback save also failed:", fallbackError);
+        logger.error({ err: fallbackError }, "[AUTH] Fallback save also failed:");
         throw transactionError; // Throw original transaction error
       }
     }
@@ -179,7 +180,7 @@ export async function handleOAuthCallback(req: Request, res: Response): Promise<
       role: userRole,
     };
 
-    console.log(
+    logger.info(
       `[AUTH] OAuth flow completed successfully for user: ${googleProfile.email}`,
     );
 
@@ -189,7 +190,7 @@ export async function handleOAuthCallback(req: Request, res: Response): Promise<
     res.setHeader("Content-Type", "text/html");
     res.send(htmlResponse);
   } catch (error) {
-    console.error("[AUTH] OAuth callback error:", error);
+    logger.error({ err: error }, "[AUTH] OAuth callback error:");
     handleError(res, error, "Process OAuth callback");
   }
 }
@@ -257,7 +258,7 @@ export async function getReconnectUrl(req: Request, res: Response): Promise<Resp
       });
     }
 
-    console.log("[AUTH] Generating incremental OAuth URL for scopes:", scopes);
+    logger.info({ detail: scopes }, "[AUTH] Generating incremental OAuth URL for scopes:");
 
     // Resolve scope keys to URLs
     const resolveResult = ScopeManagementService.resolveScopes(scopes);
@@ -288,7 +289,7 @@ export async function getReconnectUrl(req: Request, res: Response): Promise<Resp
         .where({ user_id: authCtx.userId })
         .first();
       state = encodeAuthState(authCtx.userId, orgUser?.organization_id ?? null);
-      console.log(
+      logger.info(
         `[AUTH] Encoded auth context in reconnect state for user ${authCtx.userId}, org ${orgUser?.organization_id || "none"}`,
       );
     }
@@ -301,8 +302,8 @@ export async function getReconnectUrl(req: Request, res: Response): Promise<Resp
       state: state,
     });
 
-    console.log("[AUTH] Generated incremental authorization URL");
-    console.log(`[AUTH] Requested scopes: ${requestedScopes.join(", ")}`);
+    logger.info("[AUTH] Generated incremental authorization URL");
+    logger.info(`[AUTH] Requested scopes: ${requestedScopes.join(", ")}`);
 
     res.json({
       success: true,

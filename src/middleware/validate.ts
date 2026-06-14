@@ -34,6 +34,7 @@
 
 import { Request, Response, NextFunction } from "express";
 import type { ZodType, ZodError } from "zod";
+import logger from "../lib/logger";
 
 /** Which part of the request a schema targets. Body is the common case. */
 export type ValidationTarget = "body" | "params" | "query";
@@ -133,25 +134,33 @@ export function validate(
       }
 
       // warn mode: log redaction-safe metadata and let the request through.
-      console.warn("[VALIDATION] Would-be rejection (warn-only)", {
-        method: req.method,
-        // originalUrl includes the mounted prefix; safe (no secrets in path here).
-        route: req.originalUrl,
-        target,
-        fields,
-        issues: codes,
-      });
+      // Pino merge-object form (fields first, message second) so the structured
+      // metadata is actually emitted, not dropped as an unformatted extra arg.
+      logger.warn(
+        {
+          method: req.method,
+          // originalUrl includes the mounted prefix; safe (no secrets in path here).
+          route: req.originalUrl,
+          target,
+          fields,
+          issues: codes,
+        },
+        "[VALIDATION] Would-be rejection (warn-only)",
+      );
       next();
     } catch (err) {
       // Defensive: safeParse should never throw, but this middleware must not be
       // the thing that 500s a guarded route. In warn we fall through; in enforce
       // we still return the standard 400 contract shape rather than crashing.
-      console.error("[VALIDATION] Internal validation error", {
-        method: req.method,
-        route: req.originalUrl,
-        target,
-        error: err instanceof Error ? err.message : String(err),
-      });
+      logger.error(
+        {
+          err,
+          method: req.method,
+          route: req.originalUrl,
+          target,
+        },
+        "[VALIDATION] Internal validation error",
+      );
 
       if (mode === "enforce") {
         res.status(400).json({

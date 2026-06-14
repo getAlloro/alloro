@@ -5,6 +5,7 @@ import {
 } from "../../models/SkillWorkRunModel";
 import { MindSkillModel } from "../../models/MindSkillModel";
 import { evaluateAutoPipeline } from "./feature-services/service.minds-work-pipeline";
+import logger from "../../lib/logger";
 
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
 
@@ -109,14 +110,14 @@ export async function updateWorkRunStatus(
     updateData
   );
 
-  console.log(
+  logger.info(
     `[INTERNAL] Work run ${workRunId} status updated: ${workRun.status} → ${status}`
   );
 
   // If status is now awaiting_review, evaluate auto-pipeline (async, non-blocking)
   if (status === "awaiting_review") {
     evaluateAutoPipeline(workRunId).catch((err) => {
-      console.error(`[INTERNAL] Auto-pipeline evaluation failed for ${workRunId}:`, err);
+      logger.error({ err: err }, `[INTERNAL] Auto-pipeline evaluation failed for ${workRunId}:`);
     });
   }
 

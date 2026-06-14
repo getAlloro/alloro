@@ -35,6 +35,7 @@ import {
   PmsMetrics,
   ReferralMetrics,
 } from "./types";
+import logger from "../../lib/logger";
 
 // Re-export schema + type for convenience so controllers / orchestrator can
 // import both `computeDashboardMetrics` and `DashboardMetricsSchema` from
@@ -304,7 +305,7 @@ async function buildGbpMetrics(
       }
     } catch (err: any) {
       // Non-blocking: log and continue
-      console.warn(
+      logger.warn(
         `[dashboard-metrics] Failed to fetch posts for location ${loc.locationId}: ${
           err?.message || err
         }`
@@ -415,7 +416,7 @@ async function buildRankingMetrics(
       score_gap_to_top: scoreGapToTop,
     };
   } catch (err: any) {
-    console.warn(
+    logger.warn(
       `[dashboard-metrics] Ranking metrics failed for org ${orgId}: ${
         err?.message || err
       }`
@@ -507,7 +508,7 @@ async function buildFormSubmissionsMetrics(
       flagged_count: flagged,
     };
   } catch (err: any) {
-    console.warn(
+    logger.warn(
       `[dashboard-metrics] Form submission metrics failed for org ${orgId}: ${
         err?.message || err
       }`
@@ -625,7 +626,7 @@ async function buildPmsMetrics(
       total_referrals_this_month: latestMonth ? latestMonth.totalReferrals : null,
     };
   } catch (err: any) {
-    console.warn(
+    logger.warn(
       `[dashboard-metrics] PMS metrics failed for org ${orgId}: ${
         err?.message || err
       }`
@@ -735,7 +736,7 @@ export async function computeDashboardMetrics(
   try {
     oauth2Client = await getValidOAuth2ClientByOrg(orgId);
   } catch (err: any) {
-    console.warn(
+    logger.warn(
       `[dashboard-metrics] No Google OAuth client for org ${orgId}: ${
         err?.message || err
       }`
@@ -763,7 +764,7 @@ export async function computeDashboardMetrics(
       }));
     }
   } catch (err: any) {
-    console.warn(
+    logger.warn(
       `[dashboard-metrics] Failed to resolve GBP properties for location ${locationId}: ${
         err?.message || err
       }`
@@ -782,7 +783,7 @@ export async function computeDashboardMetrics(
         { refreshOAuth2Client }
       );
     } catch (err: any) {
-      console.warn(
+      logger.warn(
         `[dashboard-metrics] GBP fetch failed: ${err?.message || err}`
       );
     }
@@ -825,7 +826,7 @@ export async function computeDashboardMetrics(
         };
       }
     } catch (err: any) {
-      console.warn(
+      logger.warn(
         `[dashboard-metrics] Prior-month GBP fetch failed: ${
           err?.message || err
         }`

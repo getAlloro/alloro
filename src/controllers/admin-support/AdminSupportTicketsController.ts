@@ -18,6 +18,7 @@ import {
   validateAdminSupportMessageInput,
   validateAdminSupportTicketUpdateInput,
 } from "../support/support-utils/supportTicketValidation";
+import logger from "../../lib/logger";
 
 export async function listTickets(req: Request, res: Response) {
   try {
@@ -133,7 +134,7 @@ function handleSupportError(
     return sendError(res, error.code, error.message, error.statusCode);
   }
 
-  console.error("[AdminSupportTicketsController]", error);
+  logger.error({ err: error }, "[AdminSupportTicketsController]");
   return sendError(res, "SUPPORT_ERROR", fallbackMessage, 500);
 }
 

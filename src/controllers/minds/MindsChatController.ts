@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import * as chatService from "./feature-services/service.minds-chat";
+import logger from "../../lib/logger";
 
 export async function chat(req: Request, res: Response): Promise<any> {
   try {
@@ -11,7 +12,7 @@ export async function chat(req: Request, res: Response): Promise<any> {
     const result = await chatService.chat(mindId, message, conversationId);
     return res.json({ success: true, data: result });
   } catch (error: any) {
-    console.error("[MINDS] Error in chat:", error);
+    logger.error({ err: error }, "[MINDS] Error in chat:");
     if (error.message?.includes("not found")) {
       return res.status(404).json({ error: error.message });
     }
@@ -51,7 +52,7 @@ export async function chatStream(req: Request, res: Response): Promise<any> {
     res.write("data: [DONE]\n\n");
     res.end();
   } catch (error: any) {
-    console.error("[MINDS] Error in streaming chat:", error);
+    logger.error({ err: error }, "[MINDS] Error in streaming chat:");
     res.write(`data: ${JSON.stringify({ error: error.message || "Chat failed" })}\n\n`);
     res.end();
   }
@@ -63,7 +64,7 @@ export async function getConversation(req: Request, res: Response): Promise<any>
     const messages = await chatService.getConversationMessages(mindId, conversationId);
     return res.json({ success: true, data: messages });
   } catch (error: any) {
-    console.error("[MINDS] Error getting conversation:", error);
+    logger.error({ err: error }, "[MINDS] Error getting conversation:");
     if (error.message?.includes("not found")) {
       return res.status(404).json({ error: error.message });
     }
@@ -77,7 +78,7 @@ export async function listConversations(req: Request, res: Response): Promise<an
     const conversations = await chatService.listConversations(mindId);
     return res.json({ success: true, data: conversations });
   } catch (error: any) {
-    console.error("[MINDS] Error listing conversations:", error);
+    logger.error({ err: error }, "[MINDS] Error listing conversations:");
     return res.status(500).json({ error: "Failed to list conversations" });
   }
 }
@@ -94,7 +95,7 @@ export async function renameConversation(req: Request, res: Response): Promise<a
     await chatService.renameConversation(mindId, conversationId, title.trim());
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[MINDS] Error renaming conversation:", error);
+    logger.error({ err: error }, "[MINDS] Error renaming conversation:");
     if (error.message?.includes("not found")) {
       return res.status(404).json({ error: error.message });
     }
@@ -108,7 +109,7 @@ export async function deleteConversation(req: Request, res: Response): Promise<a
     await chatService.deleteConversation(mindId, conversationId);
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[MINDS] Error deleting conversation:", error);
+    logger.error({ err: error }, "[MINDS] Error deleting conversation:");
     if (error.message?.includes("not found")) {
       return res.status(404).json({ error: error.message });
     }

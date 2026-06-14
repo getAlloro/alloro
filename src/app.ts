@@ -22,9 +22,12 @@
 import * as Sentry from "@sentry/node";
 import express from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
+import { pinoHttp } from "pino-http";
 import path from "path";
 
 import { Router } from "express";
+
+import logger from "./lib/logger";
 
 import gbpRoutes from "./routes/gbp";
 import gbpAutomationRoutes from "./routes/gbpAutomation";
@@ -81,6 +84,15 @@ import { isAllowedCustomDomain } from "./middleware/corsCustomDomains";
 const app = express();
 const isProd = process.env.NODE_ENV === "production";
 const router = Router();
+
+// Request logging — FIRST middleware, so every request (including ones that
+// never reach a router) is logged with method/path/status/latency. Shares the
+// single shared `logger` instance, so its `redact` config scrubs Authorization
+// / Cookie headers and other secrets out of the auto-logged req/res. Disabled
+// under test (VITEST) to keep the smoke-suite output clean and hermetic.
+if (process.env.VITEST !== "true") {
+  app.use(pinoHttp({ logger }));
+}
 
 // CORS middleware for development
 app.use((req, res, next) => {

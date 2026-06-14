@@ -6,6 +6,7 @@ import { db } from "../../database/connection";
 import { logPmActivity } from "./pmActivityLogger";
 import { deleteFromS3 } from "../../utils/core/s3";
 import type { QueryContext } from "../../models/BaseModel";
+import logger from "../../lib/logger";
 
 /**
  * Fire-and-log S3 cleanup for the given attachment S3 keys.
@@ -26,10 +27,7 @@ async function cleanupAttachmentS3Objects(taskIds: string[]): Promise<void> {
   );
   results.forEach((r, i) => {
     if (r.status === "rejected") {
-      console.error(
-        `[PM-TASKS] Failed to delete S3 object ${rows[i].s3_key}:`,
-        r.reason
-      );
+      logger.error({ err: r.reason }, `[PM-TASKS] Failed to delete S3 object ${rows[i].s3_key}:`);
     }
   });
 }
@@ -48,7 +46,7 @@ async function insertNotification(
 }
 
 function handleError(res: Response, error: unknown, operation: string): Response {
-  console.error(`[PM-TASKS] ${operation} failed:`, error);
+  logger.error({ err: error }, `[PM-TASKS] ${operation} failed:`);
   const message = error instanceof Error ? error.message : String(error);
   return res.status(500).json({ success: false, error: message });
 }

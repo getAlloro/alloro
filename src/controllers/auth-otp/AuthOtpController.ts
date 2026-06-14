@@ -26,6 +26,7 @@ import { UserModel } from "../../models/UserModel";
 import { InvitationModel } from "../../models/InvitationModel";
 import { OrganizationUserModel } from "../../models/OrganizationUserModel";
 import { GoogleConnectionModel } from "../../models/GoogleConnectionModel";
+import logger from "../../lib/logger";
 
 const LEADGEN_UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -46,7 +47,7 @@ export async function requestOtp(req: Request, res: Response) {
 
     // Test account bypass — no OTP required
     if (isTestAccount(normalizedEmail)) {
-      console.log("[AUTH] Test account detected, skipping OTP email");
+      logger.info("[AUTH] Test account detected, skipping OTP email");
       return res.json({
         success: true,
         message: "Test account - no OTP required",
@@ -83,7 +84,7 @@ export async function requestOtp(req: Request, res: Response) {
 
     res.json({ success: true, message: "OTP sent to email" });
   } catch (error) {
-    console.error("OTP Request Error:", error);
+    logger.error({ err: error }, "OTP Request Error:");
     res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -127,7 +128,7 @@ export async function verifyOtp(req: Request, res: Response) {
         return res.status(400).json({ error: "Invalid or expired code" });
       }
     } else {
-      console.log("[AUTH] Test account - bypassing OTP verification");
+      logger.info("[AUTH] Test account - bypassing OTP verification");
     }
 
     // Find or create user
@@ -160,10 +161,7 @@ export async function verifyOtp(req: Request, res: Response) {
           userId: user.id,
           sessionId: leadgenSessionId,
         }).catch((err) => {
-          console.error(
-            "[AUTH] linkAccountCreation post-onboard failed:",
-            err
-          );
+          logger.error({ err: err }, "[AUTH] linkAccountCreation post-onboard failed:");
         });
       }
     }
@@ -203,7 +201,7 @@ export async function verifyOtp(req: Request, res: Response) {
       isNewUser,
     });
   } catch (error) {
-    console.error("OTP Verify Error:", error);
+    logger.error({ err: error }, "OTP Verify Error:");
     res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -265,7 +263,7 @@ export async function validateToken(req: Request, res: Response) {
       },
     });
   } catch (error) {
-    console.error("Token Validate Error:", error);
+    logger.error({ err: error }, "Token Validate Error:");
     res.status(500).json({
       valid: false,
       error: "Internal server error",

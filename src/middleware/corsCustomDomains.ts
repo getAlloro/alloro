@@ -10,6 +10,7 @@
  */
 
 import { db } from "../database/connection";
+import logger from "../lib/logger";
 
 const PROJECTS_TABLE = "website_builder.projects";
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -45,9 +46,9 @@ export async function refreshCustomDomainCache(): Promise<void> {
     }
 
     allowedDomains = domains;
-    console.log(`[CORS] Custom domain cache refreshed: ${domains.size} domains`);
+    logger.info(`[CORS] Custom domain cache refreshed: ${domains.size} domains`);
   } catch (err) {
-    console.error("[CORS] Failed to refresh custom domain cache:", err);
+    logger.error({ err: err }, "[CORS] Failed to refresh custom domain cache:");
   }
 }
 

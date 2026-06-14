@@ -15,6 +15,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { loadPrompt } from "../../agents/service.prompt-loader";
 import { safeLogAiCostEvent } from "../../services/ai-cost/service.ai-cost";
+import logger from "../../lib/logger";
 
 const MODEL = "claude-sonnet-4-6";
 
@@ -109,7 +110,7 @@ ${currentHtml}`;
     { role: "user", content: userMessage },
   ];
 
-  console.log(
+  logger.info(
     `[AiCommand] Analyzing: ${targetLabel} (${currentHtml.length} chars)`
   );
 
@@ -129,7 +130,7 @@ ${currentHtml}`;
 
   // Retry once on parse failure
   if (!parsed) {
-    console.warn(
+    logger.warn(
       `[AiCommand] Parse failed for ${targetLabel}, retrying...`
     );
     messages.push({ role: "assistant", content: text });
@@ -155,10 +156,7 @@ ${currentHtml}`;
   }
 
   if (!parsed) {
-    console.error(
-      `[AiCommand] Failed to parse analysis for ${targetLabel}:`,
-      text.substring(0, 200)
-    );
+    logger.error({ err: text.substring(0, 200) }, `[AiCommand] Failed to parse analysis for ${targetLabel}:`);
     throw new Error(
       `LLM returned invalid JSON for analysis of ${targetLabel}`
     );
@@ -178,14 +176,14 @@ ${currentHtml}`;
     : [];
 
   if (recommendations.length === 0) {
-    console.log(
+    logger.info(
       `[AiCommand] ⚠ ${targetLabel}: 0 recommendations. Raw response: ${text.substring(0, 500)}`
     );
-    console.log(
+    logger.info(
       `[AiCommand] ⚠ Prompt length: ${prompt.length} chars, HTML length: ${currentHtml.length} chars`
     );
   } else {
-    console.log(
+    logger.info(
       `[AiCommand] ✓ ${targetLabel}: ${recommendations.length} recommendation(s). Tokens: ${response.usage.input_tokens}/${response.usage.output_tokens}`
     );
   }
@@ -240,7 +238,7 @@ export async function analyzeForStructuralChanges(params: {
 }): Promise<StructuralAnalysisResult> {
   const { prompt, existingPaths, existingRedirects, existingPostSlugs, postTypes, existingMenus, costContext } = params;
 
-  console.log(`[AiCommand] Analyzing structural changes (3 parallel focused calls)...`);
+  logger.info(`[AiCommand] Analyzing structural changes (3 parallel focused calls)...`);
 
   // Run three focused calls in parallel — each only outputs one type
   const [redirectsResult, contentResult, menusResult] = await Promise.allSettled([
@@ -292,11 +290,11 @@ export async function analyzeForStructuralChanges(params: {
   }
 
   // Log failures
-  if (redirectsResult.status === "rejected") console.error("[AiCommand] Redirects analysis failed:", redirectsResult.reason?.message);
-  if (contentResult.status === "rejected") console.error("[AiCommand] Content analysis failed:", contentResult.reason?.message);
-  if (menusResult.status === "rejected") console.error("[AiCommand] Menus analysis failed:", menusResult.reason?.message);
+  if (redirectsResult.status === "rejected") logger.error({ err: redirectsResult.reason?.message }, "[AiCommand] Redirects analysis failed:");
+  if (contentResult.status === "rejected") logger.error({ err: contentResult.reason?.message }, "[AiCommand] Content analysis failed:");
+  if (menusResult.status === "rejected") logger.error({ err: menusResult.reason?.message }, "[AiCommand] Menus analysis failed:");
 
-  console.log(
+  logger.info(
     `[AiCommand] ✓ Structural: ${result.redirects.length} redirects, ${result.deleteRedirects.length} delete-redirects, ${result.pages.length} pages, ${result.posts.length} posts, ${result.menuChanges.length} menu changes, ${result.newMenus.length} new menus`
   );
 
@@ -329,7 +327,7 @@ ${params.responseFormat}
 
 If nothing is needed, return the structure with empty arrays.`;
 
-  console.log(`[AiCommand] Structural/${focusArea}: starting...`);
+  logger.info(`[AiCommand] Structural/${focusArea}: starting...`);
 
   let response = await ai.messages.create({
     model: MODEL,
@@ -345,13 +343,13 @@ If nothing is needed, return the structure with empty arrays.`;
   let text = extractText(response);
 
   if (response.stop_reason === "max_tokens") {
-    console.warn(`[AiCommand] Structural/${focusArea}: truncated at ${text.length} chars`);
+    logger.warn(`[AiCommand] Structural/${focusArea}: truncated at ${text.length} chars`);
   }
 
   let parsed = tryParseJson(text);
 
   if (!parsed) {
-    console.warn(`[AiCommand] Structural/${focusArea}: parse failed, retrying...`);
+    logger.warn(`[AiCommand] Structural/${focusArea}: parse failed, retrying...`);
     response = await ai.messages.create({
       model: MODEL,
       max_tokens: 8192,
@@ -371,11 +369,11 @@ If nothing is needed, return the structure with empty arrays.`;
   }
 
   if (!parsed) {
-    console.error(`[AiCommand] Structural/${focusArea}: failed after retry. Raw: ${text.substring(0, 300)}`);
+    logger.error(`[AiCommand] Structural/${focusArea}: failed after retry. Raw: ${text.substring(0, 300)}`);
     return {};
   }
 
-  console.log(`[AiCommand] Structural/${focusArea}: ✓ done`);
+  logger.info(`[AiCommand] Structural/${focusArea}: ✓ done`);
   return parsed;
 }
 
@@ -413,7 +411,7 @@ ${currentHtml}`;
     { role: "user", content: userMessage },
   ];
 
-  console.log(
+  logger.info(
     `[AiCommand] Executing edit: ${targetLabel} (${currentHtml.length} chars)`
   );
 
@@ -433,7 +431,7 @@ ${currentHtml}`;
 
   // Retry if output looks like JSON or is empty
   if (!html || html.startsWith("{")) {
-    console.warn(
+    logger.warn(
       `[AiCommand] Invalid edit output for ${targetLabel}, retrying...`
     );
     messages.push({ role: "assistant", content: text });
@@ -461,7 +459,7 @@ ${currentHtml}`;
     throw new Error(`LLM returned empty HTML for ${targetLabel}`);
   }
 
-  console.log(
+  logger.info(
     `[AiCommand] ✓ Edit complete: ${targetLabel}. Tokens: ${response.usage.input_tokens}/${response.usage.output_tokens}`
   );
 
@@ -497,7 +495,7 @@ export async function generatePostContent(params: {
     params.customFieldsHint || "",
   ].filter(Boolean).join("\n");
 
-  console.log(`[AiCommand] Generating post content: ${params.title} (${params.postTypeName})`);
+  logger.info(`[AiCommand] Generating post content: ${params.title} (${params.postTypeName})`);
 
   const response = await ai.messages.create({
     model: MODEL,
@@ -516,7 +514,7 @@ export async function generatePostContent(params: {
     throw new Error(`Failed to generate post content for ${params.title}`);
   }
 
-  console.log(
+  logger.info(
     `[AiCommand] ✓ Post content: ${params.title}. ${html.length} chars. Tokens: ${response.usage.input_tokens}/${response.usage.output_tokens}`
   );
 
@@ -551,7 +549,7 @@ ${purpose}
 ## Existing Pages' Section Structures (for style reference)
 ${existingSections.map((s) => `- ${s.name}: ${s.summary}`).join("\n")}`;
 
-  console.log(`[AiCommand] Planning sections for: ${purpose.slice(0, 80)}`);
+  logger.info(`[AiCommand] Planning sections for: ${purpose.slice(0, 80)}`);
 
   const response = await ai.messages.create({
     model: MODEL,
@@ -567,7 +565,7 @@ ${existingSections.map((s) => `- ${s.name}: ${s.summary}`).join("\n")}`;
   const parsed = tryParseJson(text);
 
   if (!parsed || !Array.isArray(parsed.sections)) {
-    console.error("[AiCommand] Section plan parse failed:", text.substring(0, 300));
+    logger.error({ err: text.substring(0, 300) }, "[AiCommand] Section plan parse failed:");
     return {
       sections: [
         { name: "section-hero", purpose: "Hero banner with page title" },
@@ -577,7 +575,7 @@ ${existingSections.map((s) => `- ${s.name}: ${s.summary}`).join("\n")}`;
     };
   }
 
-  console.log(`[AiCommand] ✓ Planned ${parsed.sections.length} sections`);
+  logger.info(`[AiCommand] ✓ Planned ${parsed.sections.length} sections`);
   return { sections: parsed.sections };
 }
 
@@ -662,7 +660,7 @@ ${priorSections.map((s, i) => `--- Section ${i + 1} ---\n${s.substring(0, 800)}`
 ## Site Style Reference (existing page HTML for style matching)
 ${siteStyleContext.substring(0, 3000)}`;
 
-  console.log(`[AiCommand] Generating section: ${sectionName} (tplId: ${tplId})`);
+  logger.info(`[AiCommand] Generating section: ${sectionName} (tplId: ${tplId})`);
 
   let response = await ai.messages.create({
     model: MODEL,
@@ -681,7 +679,7 @@ ${siteStyleContext.substring(0, 3000)}`;
 
   // Validate alloro-tpl class is present
   if (!html.includes(`alloro-tpl-${tplId}`)) {
-    console.warn(`[AiCommand] Missing alloro-tpl class in generated section, retrying...`);
+    logger.warn(`[AiCommand] Missing alloro-tpl class in generated section, retrying...`);
     response = await ai.messages.create({
       model: MODEL,
       max_tokens: 4096,
@@ -704,7 +702,7 @@ ${siteStyleContext.substring(0, 3000)}`;
     throw new Error(`Failed to generate valid HTML for section ${sectionName}`);
   }
 
-  console.log(
+  logger.info(
     `[AiCommand] ✓ Generated ${sectionName}: ${html.length} chars. Tokens: ${response.usage.input_tokens}/${response.usage.output_tokens}`
   );
 
@@ -783,7 +781,7 @@ export async function analyzeScreenshot(params: {
   const { screenshot, viewport, pagePath, sectionHtml, costContext } = params;
   const ai = getClient();
 
-  console.log(`[AiCommand] Analyzing screenshot: ${pagePath} (${viewport})${sectionHtml ? ` with ${sectionHtml.length} chars HTML` : ""}`);
+  logger.info(`[AiCommand] Analyzing screenshot: ${pagePath} (${viewport})${sectionHtml ? ` with ${sectionHtml.length} chars HTML` : ""}`);
 
   const textContent = [
     `Page: ${pagePath}`,
@@ -828,7 +826,7 @@ export async function analyzeScreenshot(params: {
   const parsed = tryParseJson(text);
 
   if (!parsed || !Array.isArray(parsed.issues)) {
-    console.warn(`[AiCommand] Visual analysis parse failed for ${pagePath} (${viewport})`);
+    logger.warn(`[AiCommand] Visual analysis parse failed for ${pagePath} (${viewport})`);
     return [];
   }
 
@@ -836,7 +834,7 @@ export async function analyzeScreenshot(params: {
     (i: any) => i?.description && i?.suggested_fix
   ) as VisualIssue[];
 
-  console.log(
+  logger.info(
     `[AiCommand] ✓ Visual ${pagePath} (${viewport}): ${issues.length} issue(s). Tokens: ${response.usage.input_tokens}/${response.usage.output_tokens}`
   );
 

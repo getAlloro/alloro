@@ -4,6 +4,7 @@ import { MindSkillModel, IMindSkill } from "../../../models/MindSkillModel";
 import { SkillWorkRunModel, ISkillWorkRun } from "../../../models/SkillWorkRunModel";
 import { generateEmbedding } from "./service.minds-embedding";
 import { PublishChannelModel } from "../../../models/PublishChannelModel";
+import logger from "../../../lib/logger";
 
 const SAFETY_MODEL = process.env.MINDS_LLM_MODEL || "claude-sonnet-4-6";
 let anthropicClient: Anthropic | null = null;
@@ -63,7 +64,7 @@ export async function fireWorkCreationWebhook(
     );
   }
 
-  console.log(
+  logger.info(
     `[WORK-PIPELINE] Work creation webhook fired for run ${workRunId}`
   );
 }
@@ -103,7 +104,7 @@ export async function fireWorkPublicationWebhook(
     );
   }
 
-  console.log(
+  logger.info(
     `[WORK-PIPELINE] Publication webhook fired for run ${workRunId} → ${webhookUrl}`
   );
 }
@@ -146,7 +147,7 @@ No markdown, no backticks.`,
     const parsed = JSON.parse(raw);
     return { safe: !!parsed.safe, reason: parsed.reason };
   } catch (err) {
-    console.error("[SAFETY] Content safety check failed:", err);
+    logger.error({ err: err }, "[SAFETY] Content safety check failed:");
     // If safety check fails, route to manual review for safety
     return { safe: false, reason: "Safety check service error — routing to manual review" };
   }
@@ -183,7 +184,7 @@ export async function evaluateAutoPipeline(
   const totalApproved = approvedCount + publishedCount;
 
   if (totalApproved < 5) {
-    console.log(
+    logger.info(
       `[AUTO-PIPELINE] Skill ${skill.id} has only ${totalApproved} approved works (min 5). Keeping in manual review.`,
     );
     return;
@@ -192,14 +193,14 @@ export async function evaluateAutoPipeline(
   // Guardrail: Content safety check
   const safety = await contentSafetyCheck(workRun, skill);
   if (!safety.safe) {
-    console.log(
+    logger.info(
       `[AUTO-PIPELINE] Safety check failed for run ${workRunId}: ${safety.reason}. Routing to manual review.`,
     );
     return;
   }
 
   // Auto-approve
-  console.log(
+  logger.info(
     `[AUTO-PIPELINE] Auto-approving work run ${workRunId} for skill ${skill.name}`,
   );
 
@@ -212,7 +213,7 @@ export async function evaluateAutoPipeline(
   if (embedText.trim()) {
     generateEmbedding(embedText)
       .then((emb) => SkillWorkRunModel.setEmbedding(workRunId, emb))
-      .catch((err) => console.error("[AUTO-PIPELINE] Embedding generation failed:", err));
+      .catch((err) => logger.error({ err: err }, "[AUTO-PIPELINE] Embedding generation failed:"));
   }
 
   // If pipeline includes publication, fire publish channel webhook
@@ -226,7 +227,7 @@ export async function evaluateAutoPipeline(
           await fireWorkPublicationWebhook(workRunId, skill, updatedRun, channel.webhook_url);
         }
       } catch (err) {
-        console.error(`[AUTO-PIPELINE] Publication webhook failed for run ${workRunId}:`, err);
+        logger.error({ err: err }, `[AUTO-PIPELINE] Publication webhook failed for run ${workRunId}:`);
         await SkillWorkRunModel.updateStatus(workRunId, "failed", {
           error: `Auto-publication failed: ${(err as Error).message}`,
         });

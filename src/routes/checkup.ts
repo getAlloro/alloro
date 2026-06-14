@@ -83,6 +83,7 @@ import {
   checkupCreateAccountLimiter,
   scraperDetection,
 } from "../middleware/publicRateLimiter";
+import logger from "../lib/logger";
 
 const emailLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -234,7 +235,7 @@ checkupRoutes.post("/analyze", analyzeLimiter, scraperDetection, async (req, res
       ? { lat: location.latitude, lng: location.longitude, radiusMeters: competitiveRadiusMeters }
       : undefined;
 
-    console.log(
+    logger.info(
       `[Checkup] Analyzing: ${name} in ${marketLocation} (${specialty})${locationBias ? ` [${locationBias.lat.toFixed(4)},${locationBias.lng.toFixed(4)}]` : " [no coordinates]"}`
     );
 
@@ -265,10 +266,7 @@ checkupRoutes.post("/analyze", analyzeLimiter, scraperDetection, async (req, res
     } catch (discoveryErr) {
       // Fallback: return results based on the business's own profile only.
       // Competitive Edge will default to neutral 10/20.
-      console.error(
-        `[Checkup] Competitor discovery failed for "${name}" (non-fatal):`,
-        discoveryErr instanceof Error ? discoveryErr.message : discoveryErr
-      );
+      logger.error({ err: discoveryErr instanceof Error ? discoveryErr.message : discoveryErr }, `[Checkup] Competitor discovery failed for "${name}" (non-fatal):`);
       discoveryResult = { competitors: [], broadened: false, broadeningCategory: null, specialtyMatchCount: 0 };
     }
 
@@ -372,13 +370,13 @@ checkupRoutes.post("/analyze", analyzeLimiter, scraperDetection, async (req, res
           if (!enrichedReviewCount && placeDetails.userRatingCount) {
             enrichedReviewCount = placeDetails.userRatingCount;
           }
-          console.log(
+          logger.info(
             `[Checkup] Enriched from Places API: photos=${enrichedPhotosCount}, hours=${!!enrichedHours}, phone=${!!enrichedPhone}, website=${!!enrichedWebsite}, editorial=${!!enrichedEditorialSummary}, reviews=${enrichedReviews?.length || 0}, reviewSummary=${!!placeDetails.reviewSummary}, openingDate=${!!enrichedOpeningDate}, goodForChildren=${!!placeDetails.goodForChildren}`
           );
         }
       } catch (enrichErr) {
         // Non-blocking: if enrichment fails, score with what the frontend sent
-        console.error("[Checkup] Places enrichment failed (non-blocking):", enrichErr instanceof Error ? enrichErr.message : enrichErr);
+        logger.error({ err: enrichErr instanceof Error ? enrichErr.message : enrichErr }, "[Checkup] Places enrichment failed (non-blocking):");
       }
     }
 
@@ -1126,7 +1124,7 @@ checkupRoutes.post("/analyze", analyzeLimiter, scraperDetection, async (req, res
         },
       });
     } catch (sfErr) {
-      console.error("[Checkup] Surprise findings failed (non-blocking):", sfErr instanceof Error ? sfErr.message : sfErr);
+      logger.error({ err: sfErr instanceof Error ? sfErr.message : sfErr }, "[Checkup] Surprise findings failed (non-blocking):");
     }
 
     // ─── Confidence Filter: only show HIGH confidence findings in checkup ───
@@ -1149,7 +1147,7 @@ checkupRoutes.post("/analyze", analyzeLimiter, scraperDetection, async (req, res
       },
     }).catch(() => {});
 
-    console.log(
+    logger.info(
       `[Checkup] Score: ${compositeScore} (${scoreLabel}) | Trust:${trustSignal} Impression:${firstImpression} Response:${responsiveness} Edge:${competitiveEdge} | Competitors: ${otherCompetitors.length} | Top: ${topCompetitor?.name || "none"}${sentimentInsight ? " | Sentiment: yes" : ""}${ozMoments.length > 0 ? ` | Oz: ${ozMoments.length}` : ""}${surpriseFindings.length > 0 ? ` | Surprise: ${surpriseFindings.length}` : ""}`
     );
 
@@ -1236,7 +1234,7 @@ checkupRoutes.post("/analyze", analyzeLimiter, scraperDetection, async (req, res
       } : null,
     });
   } catch (error: any) {
-    console.error("[Checkup] Analysis error:", error.message);
+    logger.error({ err: error.message }, "[Checkup] Analysis error:");
     return res.status(500).json({
       success: false,
       error: "Analysis failed. Please try again.",
@@ -1269,7 +1267,7 @@ checkupRoutes.get("/referral/:code", async (req, res) => {
       referrerName: org.name,
     });
   } catch (error: any) {
-    console.error("[Checkup] Referral lookup error:", error.message);
+    logger.error({ err: error.message }, "[Checkup] Referral lookup error:");
     return res.json({ success: false, valid: false });
   }
 });
@@ -1312,7 +1310,7 @@ checkupRoutes.post("/email", emailLimiter, async (req, res) => {
       });
     }
 
-    console.log(`[Checkup] Sending result email to ${email} for ${practiceName}`);
+    logger.info(`[Checkup] Sending result email to ${email} for ${practiceName}`);
 
     const result = await sendCheckupResultEmail({
       recipientEmail: email,
@@ -1328,7 +1326,7 @@ checkupRoutes.post("/email", emailLimiter, async (req, res) => {
     });
 
     if (result.success) {
-      console.log(`[Checkup] Result email sent to ${email}`);
+      logger.info(`[Checkup] Result email sent to ${email}`);
 
       // Track: result_email.sent (no PII — no email address stored)
       BehavioralEventModel.create({
@@ -1347,11 +1345,11 @@ checkupRoutes.post("/email", emailLimiter, async (req, res) => {
 
       return res.json({ success: true, messageId: result.messageId });
     } else {
-      console.error(`[Checkup] Email send failed: ${result.error}`);
+      logger.error(`[Checkup] Email send failed: ${result.error}`);
       return res.status(500).json({ success: false, error: result.error });
     }
   } catch (error: any) {
-    console.error("[Checkup] Email error:", error.message);
+    logger.error({ err: error.message }, "[Checkup] Email error:");
     return res.status(500).json({
       success: false,
       error: "Failed to send email. Please try again.",
@@ -1377,7 +1375,7 @@ checkupRoutes.post("/build-trigger", emailLimiter, async (req, res) => {
       });
     }
 
-    console.log(`[Checkup] ClearPath build triggered for ${practiceName}`);
+    logger.info(`[Checkup] ClearPath build triggered for ${practiceName}`);
 
     // Log the build request (no PII — email not stored in properties)
     await BehavioralEventModel.create({
@@ -1397,7 +1395,7 @@ checkupRoutes.post("/build-trigger", emailLimiter, async (req, res) => {
       estimated_minutes: 60,
     });
   } catch (error: any) {
-    console.error("[Checkup] Build trigger error:", error.message);
+    logger.error({ err: error.message }, "[Checkup] Build trigger error:");
     return res.status(500).json({
       success: false,
       error: "Build trigger failed.",
@@ -1431,14 +1429,14 @@ checkupRoutes.post("/track", async (req, res) => {
     if (refCode) {
       attributeCheckupToOrg(refCode, sessionId, properties).catch((err: unknown) => {
         const message = err instanceof Error ? err.message : String(err);
-        console.error("[Checkup] Attribution error (non-blocking):", message);
+        logger.error({ err: message }, "[Checkup] Attribution error (non-blocking):");
       });
     }
 
     return res.json({ success: true });
   } catch (error: any) {
     // Never block the user flow for tracking failures
-    console.error("[Checkup] Track error:", error.message);
+    logger.error({ err: error.message }, "[Checkup] Track error:");
     return res.json({ success: true });
   }
 });
@@ -1633,7 +1631,7 @@ checkupRoutes.post("/create-account", checkupCreateAccountLimiter, async (req, r
       },
     }).catch(() => {});
 
-    console.log(`[Checkup] Account created: ${normalizedEmail} -> org ${org.id}`);
+    logger.info(`[Checkup] Account created: ${normalizedEmail} -> org ${org.id}`);
 
     // Referral tracking: if a ref code was passed, link the referrer and notify them
     const refCodeParam = req.body.ref_code || req.body.source_channel || req.query.ref;
@@ -1649,7 +1647,7 @@ checkupRoutes.post("/create-account", checkupCreateAccountLimiter, async (req, r
           await trackReferralSignup(referrerOrg.id, org.id, refCodeParam);
         }
       } catch (refErr: any) {
-        console.error("[Checkup] Referral tracking error (non-blocking):", refErr.message);
+        logger.error({ err: refErr.message }, "[Checkup] Referral tracking error (non-blocking):");
       }
     }
 
@@ -1660,7 +1658,7 @@ checkupRoutes.post("/create-account", checkupCreateAccountLimiter, async (req, r
       const gbpTypes = checkup_data?.place?.types || req.body.types || [];
       await autoConfigureVocabulary(org.id, gbpCategory, gbpTypes);
     } catch (e) {
-      console.warn("[Checkup] Vocabulary auto-config failed, will use universal defaults:", (e as Error).message);
+      logger.warn({ err: (e as Error).message }, "[Checkup] Vocabulary auto-config failed, will use universal defaults:");
     }
 
     // ── Instant Website Generation ──
@@ -1679,9 +1677,9 @@ checkupRoutes.post("/create-account", checkupCreateAccountLimiter, async (req, r
         checkupData: parsedCheckup || {},
         category: req.body.category || parsedCheckup?.market?.specialty || null,
       });
-      console.log(`[Checkup] Instant website generated for org ${org.id}`);
+      logger.info(`[Checkup] Instant website generated for org ${org.id}`);
     } catch (iwErr: any) {
-      console.error(`[Checkup] Instant website generation failed (non-blocking):`, iwErr.message);
+      logger.error({ err: iwErr.message }, `[Checkup] Instant website generation failed (non-blocking):`);
     }
 
     // Enqueue PatientPath build pipeline (Phase 1: research)
@@ -1693,9 +1691,9 @@ checkupRoutes.post("/create-account", checkupCreateAccountLimiter, async (req, r
         { orgId: org.id, placeId: place_id || undefined },
         { jobId: `patientpath-build-${org.id}`, attempts: 3, backoff: { type: "exponential", delay: 30000 } }
       );
-      console.log(`[Checkup] PatientPath build enqueued for org ${org.id}`);
+      logger.info(`[Checkup] PatientPath build enqueued for org ${org.id}`);
     } catch (ppErr: any) {
-      console.error(`[Checkup] Failed to enqueue PatientPath build:`, ppErr.message);
+      logger.error({ err: ppErr.message }, `[Checkup] Failed to enqueue PatientPath build:`);
     }
 
     // Seed initial weekly_ranking_snapshot so the first Monday email has data.
@@ -1745,10 +1743,10 @@ checkupRoutes.post("/create-account", checkupCreateAccountLimiter, async (req, r
         }).catch(() => {
           // Unique constraint may fire if snapshot already exists for this week
         });
-        console.log(`[Checkup] Seeded initial ranking snapshot for org ${org.id}`);
+        logger.info(`[Checkup] Seeded initial ranking snapshot for org ${org.id}`);
       }
     } catch (snapErr: any) {
-      console.error(`[Checkup] Failed to seed snapshot:`, snapErr.message);
+      logger.error({ err: snapErr.message }, `[Checkup] Failed to seed snapshot:`);
     }
 
     // Enqueue Welcome Intelligence (fires 4 hours later with new insights)
@@ -1778,9 +1776,9 @@ checkupRoutes.post("/create-account", checkupCreateAccountLimiter, async (req, r
           backoff: { type: "exponential", delay: 60000 },
         }
       );
-      console.log(`[Checkup] Welcome Intelligence enqueued for org ${org.id} (fires in 4h)`);
+      logger.info(`[Checkup] Welcome Intelligence enqueued for org ${org.id} (fires in 4h)`);
     } catch (wiErr: any) {
-      console.error(`[Checkup] Failed to enqueue Welcome Intelligence:`, wiErr.message);
+      logger.error({ err: wiErr.message }, `[Checkup] Failed to enqueue Welcome Intelligence:`);
     }
 
     // Set trial columns on org + enqueue 7-day email sequence
@@ -1813,9 +1811,9 @@ checkupRoutes.post("/create-account", checkupCreateAccountLimiter, async (req, r
           }
         );
       }
-      console.log(`[Checkup] Trial started + email sequence enqueued for org ${org.id}`);
+      logger.info(`[Checkup] Trial started + email sequence enqueued for org ${org.id}`);
     } catch (trialErr: any) {
-      console.error(`[Checkup] Failed to set up trial:`, trialErr.message);
+      logger.error({ err: trialErr.message }, `[Checkup] Failed to set up trial:`);
     }
 
     // Queue Week 1 Win job (24 hours after signup)
@@ -1831,9 +1829,9 @@ checkupRoutes.post("/create-account", checkupCreateAccountLimiter, async (req, r
           backoff: { type: "exponential", delay: 60000 },
         }
       );
-      console.log(`[Checkup] Week 1 Win enqueued for org ${org.id} (fires in 24h)`);
+      logger.info(`[Checkup] Week 1 Win enqueued for org ${org.id} (fires in 24h)`);
     } catch (w1Err: any) {
-      console.error(`[Checkup] Failed to enqueue Week 1 Win:`, w1Err.message);
+      logger.error({ err: w1Err.message }, `[Checkup] Failed to enqueue Week 1 Win:`);
     }
 
     // Send instant welcome email (synchronous, no Redis needed)
@@ -1863,10 +1861,10 @@ checkupRoutes.post("/create-account", checkupCreateAccountLimiter, async (req, r
         topFinding,
         topCompetitorName: competitorName,
       });
-      console.log(`[Checkup] Welcome email sent to ${normalizedEmail}`);
+      logger.info(`[Checkup] Welcome email sent to ${normalizedEmail}`);
     } catch (welcomeErr: any) {
       // Email failure must never block account creation
-      console.error(`[Checkup] Welcome email failed (non-blocking):`, welcomeErr.message);
+      logger.error({ err: welcomeErr.message }, `[Checkup] Welcome email failed (non-blocking):`);
     }
 
     return res.json({
@@ -1878,7 +1876,7 @@ checkupRoutes.post("/create-account", checkupCreateAccountLimiter, async (req, r
       existingAccount: false,
     });
   } catch (error: any) {
-    console.error("[Checkup] Create account error:", error.message);
+    logger.error({ err: error.message }, "[Checkup] Create account error:");
     return res.status(500).json({ success: false, error: "Failed to create account" });
   }
 });
@@ -1899,7 +1897,7 @@ checkupRoutes.patch("/first-login", async (req: any, res) => {
 
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[TTFV] First login error:", error.message);
+    logger.error({ err: error.message }, "[TTFV] First login error:");
     return res.status(500).json({ success: false, error: "Failed" });
   }
 });
@@ -1930,7 +1928,7 @@ checkupRoutes.patch("/ttfv", async (req: any, res) => {
 
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[TTFV] Response error:", error.message);
+    logger.error({ err: error.message }, "[TTFV] Response error:");
     return res.status(500).json({ success: false, error: "Failed" });
   }
 });
@@ -2004,7 +2002,7 @@ checkupRoutes.post("/vendor", async (req, res) => {
 
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[Checkup] Vendor save error:", error.message);
+    logger.error({ err: error.message }, "[Checkup] Vendor save error:");
     return res.json({ success: true }); // Never fail visibly
   }
 });
@@ -2050,7 +2048,7 @@ checkupRoutes.post("/share", async (req, res) => {
       shareUrl: `${process.env.APP_URL || "https://app.getalloro.com"}/checkup/shared/${shareId}`,
     });
   } catch (error: any) {
-    console.error("[Checkup] Share error:", error.message);
+    logger.error({ err: error.message }, "[Checkup] Share error:");
     return res.status(500).json({ success: false, error: "Failed to create share link" });
   }
 });
@@ -2091,7 +2089,7 @@ checkupRoutes.get("/shared/:shareId", async (req, res) => {
       },
     });
   } catch (error: any) {
-    console.error("[Checkup] Shared get error:", error.message);
+    logger.error({ err: error.message }, "[Checkup] Shared get error:");
     return res.status(500).json({ success: false, error: "Failed to load share" });
   }
 });
@@ -2122,7 +2120,7 @@ checkupRoutes.post("/invite-competitor", async (req, res) => {
 
     return res.json({ success: true, inviteUrl, inviteToken });
   } catch (error: any) {
-    console.error("[Checkup] Invite error:", error.message);
+    logger.error({ err: error.message }, "[Checkup] Invite error:");
     return res.status(500).json({ success: false, error: "Failed to create invite" });
   }
 });

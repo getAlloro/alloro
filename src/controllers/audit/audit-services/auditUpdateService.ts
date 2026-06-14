@@ -1,11 +1,12 @@
 import { AuditProcessModel } from "../../../models/AuditProcessModel";
 import { db } from "../../../database/connection";
+import logger from "../../../lib/logger";
 
 export async function updateAuditFields(
   auditId: string,
   filteredData: Record<string, any>
 ): Promise<string[]> {
-  console.log(`[Audit] Updating ${auditId} with:`, Object.keys(filteredData));
+  logger.info({ detail: Object.keys(filteredData) }, `[Audit] Updating ${auditId} with:`);
 
   // Special-case `realtime_status`: since multiple parallel branches
   // (Branch B website analysis, C2 self GBP, C3 competitor GBP) write this

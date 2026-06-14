@@ -42,6 +42,7 @@ import {
   listOrgUserRecipientOptions,
   updateRecipientSetting,
 } from "../../services/recipientSettingsService";
+import logger from "../../lib/logger";
 
 // =====================================================================
 // Error handler
@@ -63,10 +64,7 @@ function handleError(
     return res.status(error.statusCode).json(body);
   }
 
-  console.error(
-    `[User/Website] ${operation} Error:`,
-    error?.message || error
-  );
+  logger.error({ err: error?.message || error }, `[User/Website] ${operation} Error:`);
   return res.status(500).json({
     success: false,
     error: `Failed to ${operation.toLowerCase()}`,
@@ -273,7 +271,7 @@ export async function editPageComponent(
     }
 
     // Generic edit error — matches original error shape exactly
-    console.error("[User/Website] Error editing page component:", error);
+    logger.error({ err: error }, "[User/Website] Error editing page component:");
     return res.status(500).json({
       error: "EDIT_ERROR",
       message: error?.message || "Failed to edit component",

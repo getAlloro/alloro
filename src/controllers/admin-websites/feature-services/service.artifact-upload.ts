@@ -13,6 +13,7 @@ import path from "path";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../../../database/connection";
 import { uploadToS3 } from "../../../utils/core/s3";
+import logger from "../../../lib/logger";
 
 const PAGES_TABLE = "website_builder.pages";
 
@@ -186,7 +187,7 @@ export async function uploadArtifactPage(
     };
   }
 
-  console.log(
+  logger.info(
     `[Artifact] Extracted ${files.length} files from zip for project ${projectId}`
   );
 
@@ -210,7 +211,7 @@ export async function uploadArtifactPage(
   // 4. Upload files to S3
   await uploadFilesToS3(files, s3Prefix);
 
-  console.log(
+  logger.info(
     `[Artifact] Uploaded ${files.length} files to S3 prefix: ${s3Prefix}`
   );
 
@@ -248,7 +249,7 @@ export async function uploadArtifactPage(
     })
     .returning("*");
 
-  console.log(
+  logger.info(
     `[Artifact] Created artifact page ID: ${page.id}, path: ${pagePath}`
   );
 
@@ -316,7 +317,7 @@ export async function replaceArtifactBuild(
   // 4. Upload to same S3 prefix (overwrites existing files)
   await uploadFilesToS3(files, page.artifact_s3_prefix);
 
-  console.log(
+  logger.info(
     `[Artifact] Replaced ${files.length} files at S3 prefix: ${page.artifact_s3_prefix}`
   );
 

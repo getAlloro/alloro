@@ -3,6 +3,7 @@ import { MindModel } from "../../models/MindModel";
 import { MindSkillModel } from "../../models/MindSkillModel";
 import { MindSkillNeuronModel } from "../../models/MindSkillNeuronModel";
 import { MindSkillCallModel } from "../../models/MindSkillCallModel";
+import logger from "../../lib/logger";
 
 export async function getSkillNeuron(
   req: Request,
@@ -43,7 +44,7 @@ export async function getSkillNeuron(
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     return res.send(neuron.neuron_markdown);
   } catch (error: any) {
-    console.error("[MINDS] Skill API error:", error);
+    logger.error({ err: error }, "[MINDS] Skill API error:");
     return res.status(500).json({ error: "Skill endpoint failed" });
   }
 }

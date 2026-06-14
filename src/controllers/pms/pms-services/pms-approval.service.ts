@@ -11,6 +11,7 @@ import {
 } from "../../../utils/pms/pmsAutomationStatus";
 import { parseResponseLog } from "../pms-utils/pms-normalizer.util";
 import { OrganizationLifecycleService } from "../../../services/OrganizationLifecycleService";
+import logger from "../../../lib/logger";
 
 /**
  * Admin approval workflow.
@@ -184,7 +185,7 @@ export async function approveByClient(jobId: number, clientApproval: boolean) {
 
   // Trigger monthly agents when client approves PMS
   if (clientApproval && updatedJob) {
-    console.log(
+    logger.info(
       `[PMS] Client approved PMS job ${jobId} - triggering monthly agents`
     );
 
@@ -208,16 +209,16 @@ export async function approveByClient(jobId: number, clientApproval: boolean) {
           }
         );
 
-        console.log(
+        logger.info(
           `[PMS] Monthly agents triggered successfully for org ${updatedJob.organization_id}`
         );
       } else {
-        console.warn(
+        logger.warn(
           `[PMS] No google connection found for org ${updatedJob.organization_id}`
         );
       }
     } catch (triggerError: any) {
-      console.error(
+      logger.error(
         `[PMS] Error triggering monthly agents: ${triggerError.message}`
       );
       // Don't fail the approval if agent trigger fails

@@ -6,6 +6,7 @@
  */
 
 import { db } from "../../database/connection";
+import logger from "../../lib/logger";
 
 // =====================================================================
 // TYPE DEFINITIONS
@@ -230,7 +231,7 @@ export async function updateAutomationStatus(
     .first();
 
   if (!job) {
-    console.error(`[PMS-AUTOMATION] Job ${jobId} not found`);
+    logger.error(`[PMS-AUTOMATION] Job ${jobId} not found`);
     return;
   }
 
@@ -328,7 +329,7 @@ export async function updateAutomationStatus(
       automation_status_detail: JSON.stringify(currentStatus),
     });
 
-  console.log(
+  logger.info(
     `[PMS-AUTOMATION] [${jobId}] Status updated: ${currentStatus.currentStep} - ${currentStatus.message} (${currentStatus.progress}%)`
   );
 }
@@ -409,7 +410,7 @@ export async function resetToStep(
     .first();
 
   if (!job) {
-    console.error(`[PMS-AUTOMATION] Job ${jobId} not found for reset`);
+    logger.error(`[PMS-AUTOMATION] Job ${jobId} not found for reset`);
     return;
   }
 
@@ -490,7 +491,7 @@ export async function resetToStep(
       automation_status_detail: JSON.stringify(currentStatus),
     });
 
-  console.log(
+  logger.info(
     `[PMS-AUTOMATION] [${jobId}] Reset to step: ${targetStep} for retry`
   );
 }
@@ -552,7 +553,7 @@ export async function completeAutomation(
       automation_status_detail: JSON.stringify(currentStatus),
     });
 
-  console.log(
+  logger.info(
     `[PMS-AUTOMATION] [${jobId}] Automation completed - ${summary.tasksCreated.total} tasks created`
   );
 }
@@ -589,5 +590,5 @@ export async function initializeAutomationStatus(jobId: number): Promise<void> {
       automation_status_detail: JSON.stringify(initialStatus),
     });
 
-  console.log(`[PMS-AUTOMATION] [${jobId}] Automation status initialized`);
+  logger.info(`[PMS-AUTOMATION] [${jobId}] Automation status initialized`);
 }

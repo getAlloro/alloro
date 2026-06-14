@@ -7,6 +7,7 @@ import {
   updateAutomationStatus,
   AutomationStatusDetail,
 } from "../../../utils/pms/pmsAutomationStatus";
+import logger from "../../../lib/logger";
 
 const MONTHLY_TASK_AGENT_TYPES = [
   "OPPORTUNITY",
@@ -148,7 +149,7 @@ async function cleanupMonthlyRunData(job: {
     return counts;
   });
 
-  console.log(
+  logger.info(
     `[PMS] Cleanup for job ${job.id}: ${JSON.stringify(deletionCounts)}`
   );
 
@@ -279,13 +280,13 @@ async function retryPmsParser(jobId: number, job: any) {
       { headers: { "Content-Type": "application/json" } }
     );
 
-    console.log(
+    logger.info(
       `[PMS] Successfully triggered PMS parser retry for job ${jobId}`
     );
 
     return { jobId, stepRetried: "pms_parser" };
   } catch (webhookError: any) {
-    console.error(
+    logger.error(
       `[PMS] Failed to trigger PMS parser retry: ${webhookError.message}`
     );
 
@@ -357,7 +358,7 @@ async function retryMonthlyAgents(jobId: number, job: any) {
   try {
     await triggerMonthlyAgents(account.id, jobId, job.location_id);
 
-    console.log(
+    logger.info(
       `[PMS] Monthly agents retry triggered for org ${job.organization_id}`
     );
 
@@ -368,7 +369,7 @@ async function retryMonthlyAgents(jobId: number, job: any) {
       deletionCounts,
     };
   } catch (triggerError: any) {
-    console.error(
+    logger.error(
       `[PMS] Error triggering monthly agents retry: ${triggerError.message}`
     );
 
@@ -472,11 +473,11 @@ export async function restartMonthlyAgents(jobId: number) {
   try {
     await triggerMonthlyAgents(account.id, jobId, job.location_id);
 
-    console.log(
+    logger.info(
       `[PMS] Monthly agents restart triggered for job ${jobId}, org ${job.organization_id}`
     );
   } catch (triggerError: any) {
-    console.error(
+    logger.error(
       `[PMS] Failed to trigger monthly agents after restart cleanup: ${triggerError.message}`
     );
     restarted = false;

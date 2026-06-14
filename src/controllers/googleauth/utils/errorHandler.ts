@@ -1,4 +1,5 @@
 import { Response } from "express";
+import logger from "../../../lib/logger";
 
 // Enhanced error handler for OAuth operations
 export const formatOAuthError = (
@@ -14,7 +15,7 @@ export const formatOAuthError = (
     stack: error?.stack?.split("\n").slice(0, 3).join("\n"),
   };
 
-  console.error(`=== ${operation} Error ===`, errorDetails);
+  logger.error({ err: errorDetails }, `=== ${operation} Error ===`);
 
   const statusCode = error?.response?.status || error?.status || 500;
   return res.status(statusCode).json({

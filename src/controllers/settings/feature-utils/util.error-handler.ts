@@ -1,11 +1,12 @@
 import { Response } from "express";
+import logger from "../../../lib/logger";
 
 export function handleSettingsError(
   res: Response,
   error: any,
   operation: string
 ): Response {
-  console.error(`[Settings] ${operation} Error:`, error?.message || error);
+  logger.error({ err: error?.message || error }, `[Settings] ${operation} Error:`);
 
   const statusCode = error?.statusCode || 500;
 

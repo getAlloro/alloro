@@ -31,13 +31,14 @@ import {
   saveGBPSelection,
   getGBPLocationWebsite,
 } from "./feature-services/GbpOnboardingService";
+import logger from "../../lib/logger";
 
 /**
  * Consistent error handler preserving the exact response shape
  * from the original onboarding route handlers.
  */
 function handleError(res: Response, error: any, operation: string): void {
-  console.error(`[Onboarding] ${operation} Error:`, error?.message || error);
+  logger.error({ err: error?.message || error }, `[Onboarding] ${operation} Error:`);
 
   const statusCode = error?.statusCode || 500;
 

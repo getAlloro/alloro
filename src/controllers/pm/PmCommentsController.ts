@@ -33,6 +33,7 @@ import { db } from "../../database/connection";
 import { PmTaskCommentModel } from "../../models/PmTaskCommentModel";
 import { PmTaskModel } from "../../models/PmTaskModel";
 import { logPmActivity } from "./pmActivityLogger";
+import logger from "../../lib/logger";
 
 type CommentNotificationType = "mention_in_comment" | "task_commented";
 
@@ -41,7 +42,7 @@ function handleError(
   error: unknown,
   operation: string
 ): Response {
-  console.error(`[PM-COMMENTS] ${operation} failed:`, error);
+  logger.error({ err: error }, `[PM-COMMENTS] ${operation} failed:`);
   const message = error instanceof Error ? error.message : String(error);
   return res.status(500).json({ success: false, error: message });
 }

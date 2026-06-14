@@ -3,6 +3,7 @@ import { MindModel } from "../../models/MindModel";
 import { MindSkillModel } from "../../models/MindSkillModel";
 import { MindSkillNeuronModel } from "../../models/MindSkillNeuronModel";
 import * as skillsService from "./feature-services/service.minds-skills";
+import logger from "../../lib/logger";
 
 export async function listSkills(req: Request, res: Response): Promise<any> {
   try {
@@ -27,7 +28,7 @@ export async function listSkills(req: Request, res: Response): Promise<any> {
 
     return res.json({ success: true, data: enriched });
   } catch (error: any) {
-    console.error("[MINDS] Error listing skills:", error);
+    logger.error({ err: error }, "[MINDS] Error listing skills:");
     return res.status(500).json({ error: "Failed to list skills" });
   }
 }
@@ -39,7 +40,7 @@ export async function getSkill(req: Request, res: Response): Promise<any> {
     if (!skill) return res.status(404).json({ error: "Skill not found" });
     return res.json({ success: true, data: skill });
   } catch (error: any) {
-    console.error("[MINDS] Error getting skill:", error);
+    logger.error({ err: error }, "[MINDS] Error getting skill:");
     return res.status(500).json({ error: "Failed to get skill" });
   }
 }
@@ -59,7 +60,7 @@ export async function createSkill(req: Request, res: Response): Promise<any> {
     );
     return res.json({ success: true, data: skill });
   } catch (error: any) {
-    console.error("[MINDS] Error creating skill:", error);
+    logger.error({ err: error }, "[MINDS] Error creating skill:");
     if (error.message?.includes("not found")) {
       return res.status(404).json({ error: error.message });
     }
@@ -104,7 +105,7 @@ export async function updateSkill(req: Request, res: Response): Promise<any> {
     const updated = await MindSkillModel.findById(skillId);
     return res.json({ success: true, data: updated });
   } catch (error: any) {
-    console.error("[MINDS] Error updating skill:", error);
+    logger.error({ err: error }, "[MINDS] Error updating skill:");
     return res.status(500).json({ error: "Failed to update skill" });
   }
 }
@@ -118,7 +119,7 @@ export async function deleteSkill(req: Request, res: Response): Promise<any> {
     await MindSkillModel.deleteById(skillId);
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[MINDS] Error deleting skill:", error);
+    logger.error({ err: error }, "[MINDS] Error deleting skill:");
     return res.status(500).json({ error: "Failed to delete skill" });
   }
 }
@@ -132,7 +133,7 @@ export async function generateNeuron(
     const neuron = await skillsService.generateNeuron(skillId);
     return res.json({ success: true, data: neuron });
   } catch (error: any) {
-    console.error("[MINDS] Error generating neuron:", error);
+    logger.error({ err: error }, "[MINDS] Error generating neuron:");
     if (
       error.message?.includes("not found") ||
       error.message?.includes("no published") ||
@@ -154,7 +155,7 @@ export async function getSkillNeuron(
     if (!neuron) return res.status(404).json({ error: "Neuron not found" });
     return res.json({ success: true, data: neuron });
   } catch (error: any) {
-    console.error("[MINDS] Error getting neuron:", error);
+    logger.error({ err: error }, "[MINDS] Error getting neuron:");
     return res.status(500).json({ error: "Failed to get neuron" });
   }
 }
@@ -168,7 +169,7 @@ export async function getSkillAnalytics(
     const analytics = await skillsService.getSkillAnalytics(skillId);
     return res.json({ success: true, data: analytics });
   } catch (error: any) {
-    console.error("[MINDS] Error getting skill analytics:", error);
+    logger.error({ err: error }, "[MINDS] Error getting skill analytics:");
     return res.status(500).json({ error: "Failed to get analytics" });
   }
 }
@@ -193,7 +194,7 @@ export async function skillBuilderChat(
     );
     return res.json({ success: true, data: result });
   } catch (error: any) {
-    console.error("[MINDS] Error in skill builder chat:", error);
+    logger.error({ err: error }, "[MINDS] Error in skill builder chat:");
     if (error.message?.includes("not found")) {
       return res.status(404).json({ error: error.message });
     }
@@ -234,7 +235,7 @@ export async function skillBuilderChatStream(
     res.write("data: [DONE]\n\n");
     res.end();
   } catch (error: any) {
-    console.error("[MINDS] Error in skill builder chat stream:", error);
+    logger.error({ err: error }, "[MINDS] Error in skill builder chat stream:");
     if (!res.headersSent) {
       return res.status(500).json({ error: error.message || "Chat failed" });
     }
@@ -282,7 +283,7 @@ export async function regenerateStaleNeurons(
 
     return res.json({ success: true, data: { regeneratedCount, failedCount, errors } });
   } catch (error: any) {
-    console.error("[MINDS] Error regenerating stale neurons:", error);
+    logger.error({ err: error }, "[MINDS] Error regenerating stale neurons:");
     return res.status(500).json({ error: "Failed to regenerate stale neurons" });
   }
 }
@@ -302,7 +303,7 @@ export async function suggestSkill(
     const suggestion = await skillsService.suggestSkill(mindId, hint.trim());
     return res.json({ success: true, data: suggestion });
   } catch (error: any) {
-    console.error("[MINDS] Error suggesting skill:", error);
+    logger.error({ err: error }, "[MINDS] Error suggesting skill:");
     if (error.message?.includes("not found")) {
       return res.status(404).json({ error: error.message });
     }

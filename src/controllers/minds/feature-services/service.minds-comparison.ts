@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { ProposalsSchema, ProposalInput } from "../../../validation/minds.schemas";
 import { shouldUseRag, retrieveForComparison, buildRetrievedContext } from "./service.minds-retrieval";
+import logger from "../../../lib/logger";
 
 const MODEL = process.env.MINDS_LLM_MODEL || "claude-sonnet-4-6";
 
@@ -56,7 +57,7 @@ async function parseLlmJsonWithRetry(
   const firstAttempt = repairAndParseJson(rawText);
   if (firstAttempt !== null) return firstAttempt;
 
-  console.log("[MINDS] JSON parse failed, attempting LLM repair retry...");
+  logger.info("[MINDS] JSON parse failed, attempting LLM repair retry...");
 
   // Attempt 2: ask the LLM to fix its own output
   const repairResponse = await client.messages.create({
@@ -76,7 +77,7 @@ async function parseLlmJsonWithRetry(
 
   const secondAttempt = repairAndParseJson(repairText);
   if (secondAttempt !== null) {
-    console.log("[MINDS] JSON repair retry succeeded");
+    logger.info("[MINDS] JSON repair retry succeeded");
     return secondAttempt;
   }
 
@@ -141,11 +142,11 @@ export async function compareContent(
     try {
       const retrieval = await retrieveForComparison(mindId, scrapedMarkdown);
       brainContext = buildRetrievedContext(retrieval.chunks, retrieval.summary);
-      console.log(
+      logger.info(
         `[MINDS] Comparison using RAG: ${brainContext.length} chars context (original brain: ${currentBrain.length} chars)`
       );
     } catch (err) {
-      console.error("[MINDS] RAG retrieval failed for comparison, falling back to full brain:", err);
+      logger.error({ err: err }, "[MINDS] RAG retrieval failed for comparison, falling back to full brain:");
       brainContext = currentBrain;
     }
   } else {
@@ -187,7 +188,7 @@ Compare the scraped content against the current brain. Produce a JSON array of p
     ? PARENTING_COMPARE_SYSTEM_PROMPT
     : COMPARE_SYSTEM_PROMPT;
 
-  console.log(
+  logger.info(
     `[MINDS] Running LLM comparison (${isParenting ? "parenting" : "web_scrape"}). Brain context: ${brainContext.length} chars, Scraped: ${scrapedMarkdown.length} chars`
   );
 
@@ -200,7 +201,7 @@ Compare the scraped content against the current brain. Produce a JSON array of p
 
   const text = response.content[0]?.type === "text" ? response.content[0].text : "[]";
 
-  console.log(`[MINDS] LLM comparison response: ${text.length} chars`);
+  logger.info(`[MINDS] LLM comparison response: ${text.length} chars`);
 
   // Parse JSON with repair + retry
   const parsed = await parseLlmJsonWithRetry(text, client, MODEL);
@@ -214,7 +215,7 @@ Compare the scraped content against the current brain. Produce a JSON array of p
     throw new Error(`LLM proposals failed validation: ${issues}`);
   }
 
-  console.log(
+  logger.info(
     `[MINDS] Validated ${result.data.length} proposals: ${result.data.filter((p) => p.type === "NEW").length} NEW, ${result.data.filter((p) => p.type === "UPDATE").length} UPDATE, ${result.data.filter((p) => p.type === "CONFLICT").length} CONFLICT`
   );
 

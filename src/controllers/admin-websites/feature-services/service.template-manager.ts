@@ -6,6 +6,7 @@
  */
 
 import { db } from "../../../database/connection";
+import logger from "../../../lib/logger";
 
 const TEMPLATES_TABLE = "website_builder.templates";
 const TEMPLATE_PAGES_TABLE = "website_builder.template_pages";
@@ -15,11 +16,11 @@ const TEMPLATE_PAGES_TABLE = "website_builder.template_pages";
 // ---------------------------------------------------------------------------
 
 export async function listTemplates(): Promise<any[]> {
-  console.log("[Admin Websites] Fetching templates");
+  logger.info("[Admin Websites] Fetching templates");
 
   const templates = await db(TEMPLATES_TABLE).orderBy("created_at", "desc");
 
-  console.log(`[Admin Websites] Found ${templates.length} templates`);
+  logger.info(`[Admin Websites] Found ${templates.length} templates`);
 
   return templates;
 }
@@ -61,7 +62,7 @@ export async function createTemplate(data: {
     };
   }
 
-  console.log(`[Admin Websites] Creating template: ${name}`);
+  logger.info(`[Admin Websites] Creating template: ${name}`);
 
   // If setting as active, deactivate all others
   if (is_active) {
@@ -81,7 +82,7 @@ export async function createTemplate(data: {
     })
     .returning("*");
 
-  console.log(`[Admin Websites] \u2713 Created template ID: ${template.id}`);
+  logger.info(`[Admin Websites] \u2713 Created template ID: ${template.id}`);
 
   return { template };
 }
@@ -91,7 +92,7 @@ export async function createTemplate(data: {
 // ---------------------------------------------------------------------------
 
 export async function getTemplateById(id: string): Promise<any> {
-  console.log(`[Admin Websites] Fetching template ID: ${id}`);
+  logger.info(`[Admin Websites] Fetching template ID: ${id}`);
 
   const template = await db(TEMPLATES_TABLE).where("id", id).first();
   if (!template) return null;
@@ -114,7 +115,7 @@ export async function updateTemplate(
   id: string,
   updates: Record<string, any>
 ): Promise<{ template: any; error?: { status: number; code: string; message: string } }> {
-  console.log(`[Admin Websites] Updating template ID: ${id}`);
+  logger.info(`[Admin Websites] Updating template ID: ${id}`);
 
   const existing = await db(TEMPLATES_TABLE).where("id", id).first();
   if (!existing) {
@@ -153,7 +154,7 @@ export async function updateTemplate(
     })
     .returning("*");
 
-  console.log(`[Admin Websites] \u2713 Updated template ID: ${id}`);
+  logger.info(`[Admin Websites] \u2713 Updated template ID: ${id}`);
 
   return { template };
 }
@@ -165,7 +166,7 @@ export async function updateTemplate(
 export async function deleteTemplate(
   id: string
 ): Promise<{ error?: { status: number; code: string; message: string } }> {
-  console.log(`[Admin Websites] Deleting template ID: ${id}`);
+  logger.info(`[Admin Websites] Deleting template ID: ${id}`);
 
   const existing = await db(TEMPLATES_TABLE).where("id", id).first();
   if (!existing) {
@@ -180,7 +181,7 @@ export async function deleteTemplate(
 
   await db(TEMPLATES_TABLE).where("id", id).del();
 
-  console.log(`[Admin Websites] \u2713 Deleted template ID: ${id}`);
+  logger.info(`[Admin Websites] \u2713 Deleted template ID: ${id}`);
 
   return {};
 }
@@ -192,7 +193,7 @@ export async function deleteTemplate(
 export async function activateTemplate(
   id: string
 ): Promise<{ template: any; error?: { status: number; code: string; message: string } }> {
-  console.log(`[Admin Websites] Activating template ID: ${id}`);
+  logger.info(`[Admin Websites] Activating template ID: ${id}`);
 
   const existing = await db(TEMPLATES_TABLE).where("id", id).first();
   if (!existing) {
@@ -217,7 +218,7 @@ export async function activateTemplate(
     .update({ is_active: true, updated_at: db.fn.now() })
     .returning("*");
 
-  console.log(`[Admin Websites] \u2713 Activated template ID: ${id}`);
+  logger.info(`[Admin Websites] \u2713 Activated template ID: ${id}`);
 
   return { template };
 }
@@ -241,7 +242,7 @@ export async function listTemplatePages(templateId: string): Promise<{
   pages: any[];
   error?: { status: number; code: string; message: string };
 }> {
-  console.log(
+  logger.info(
     `[Admin Websites] Fetching template pages for template ID: ${templateId}`
   );
 
@@ -286,7 +287,7 @@ export async function createTemplatePage(
     };
   }
 
-  console.log(
+  logger.info(
     `[Admin Websites] Creating template page for template ID: ${templateId}`
   );
 
@@ -312,7 +313,7 @@ export async function createTemplatePage(
     })
     .returning("*");
 
-  console.log(`[Admin Websites] \u2713 Created template page ID: ${page.id}`);
+  logger.info(`[Admin Websites] \u2713 Created template page ID: ${page.id}`);
 
   return { page };
 }
@@ -321,7 +322,7 @@ export async function getTemplatePage(
   templateId: string,
   pageId: string
 ): Promise<any> {
-  console.log(`[Admin Websites] Fetching template page ID: ${pageId}`);
+  logger.info(`[Admin Websites] Fetching template page ID: ${pageId}`);
 
   const page = await db(TEMPLATE_PAGES_TABLE)
     .where({ id: pageId, template_id: templateId })
@@ -338,7 +339,7 @@ export async function updateTemplatePage(
   page: any;
   error?: { status: number; code: string; message: string };
 }> {
-  console.log(`[Admin Websites] Updating template page ID: ${pageId}`);
+  logger.info(`[Admin Websites] Updating template page ID: ${pageId}`);
 
   const existing = await db(TEMPLATE_PAGES_TABLE)
     .where({ id: pageId, template_id: templateId })
@@ -372,7 +373,7 @@ export async function updateTemplatePage(
     })
     .returning("*");
 
-  console.log(`[Admin Websites] \u2713 Updated template page ID: ${pageId}`);
+  logger.info(`[Admin Websites] \u2713 Updated template page ID: ${pageId}`);
 
   return { page };
 }
@@ -381,7 +382,7 @@ export async function deleteTemplatePage(
   templateId: string,
   pageId: string
 ): Promise<{ error?: { status: number; code: string; message: string } }> {
-  console.log(`[Admin Websites] Deleting template page ID: ${pageId}`);
+  logger.info(`[Admin Websites] Deleting template page ID: ${pageId}`);
 
   const existing = await db(TEMPLATE_PAGES_TABLE)
     .where({ id: pageId, template_id: templateId })
@@ -401,7 +402,7 @@ export async function deleteTemplatePage(
     .where({ id: pageId, template_id: templateId })
     .del();
 
-  console.log(`[Admin Websites] \u2713 Deleted template page ID: ${pageId}`);
+  logger.info(`[Admin Websites] \u2713 Deleted template page ID: ${pageId}`);
 
   return {};
 }

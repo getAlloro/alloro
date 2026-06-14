@@ -12,6 +12,7 @@ import {
 } from "../../controllers/admin-websites/feature-services/service.identity-warmup";
 import { isCancelled } from "../../controllers/admin-websites/feature-services/service.generation-pipeline";
 import { db } from "../../database/connection";
+import logger from "../../lib/logger";
 
 const PROJECTS_TABLE = "website_builder.projects";
 const LOG_PREFIX = "[WB-IDENTITY]";
@@ -26,7 +27,7 @@ export async function processIdentityWarmup(
 ): Promise<void> {
   const { projectId, inputs } = job.data;
   const log = (msg: string) =>
-    console.log(`${LOG_PREFIX} [${job.id}] ${msg}`);
+    logger.info(`${LOG_PREFIX} [${job.id}] ${msg}`);
 
   log(`Starting identity warmup for project ${projectId}`);
 

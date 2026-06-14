@@ -34,9 +34,10 @@ import {
 } from "./pm-attachments-utils/constants";
 import { buildAttachmentS3Key } from "./pm-attachments-utils/s3-key";
 import { logPmActivity } from "./pmActivityLogger";
+import logger from "../../lib/logger";
 
 function handleError(res: Response, error: unknown, operation: string): Response {
-  console.error(`[PM-ATTACHMENTS] ${operation} failed:`, error);
+  logger.error({ err: error }, `[PM-ATTACHMENTS] ${operation} failed:`);
   const message = error instanceof Error ? error.message : String(error);
   return res.status(500).json({ success: false, error: message });
 }
@@ -327,10 +328,7 @@ export async function deleteAttachment(
     try {
       await deleteFromS3(attachment.s3_key);
     } catch (s3Err) {
-      console.error(
-        `[PM-ATTACHMENTS] S3 delete failed for ${attachment.s3_key}:`,
-        s3Err
-      );
+      logger.error({ err: s3Err }, `[PM-ATTACHMENTS] S3 delete failed for ${attachment.s3_key}:`);
       // fall through — still remove the row so the UI reflects the intent
     }
 

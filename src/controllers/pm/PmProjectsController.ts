@@ -4,9 +4,10 @@ import { PmProjectModel } from "../../models/PmProjectModel";
 import { PmColumnModel } from "../../models/PmColumnModel";
 import { db } from "../../database/connection";
 import { logPmActivity } from "./pmActivityLogger";
+import logger from "../../lib/logger";
 
 function handleError(res: Response, error: unknown, operation: string): Response {
-  console.error(`[PM-PROJECTS] ${operation} failed:`, error);
+  logger.error({ err: error }, `[PM-PROJECTS] ${operation} failed:`);
   const message = error instanceof Error ? error.message : String(error);
   return res.status(500).json({ success: false, error: message });
 }

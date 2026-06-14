@@ -14,6 +14,7 @@ import { db } from "../database/connection";
 import { BehavioralEventModel } from "../models/BehavioralEventModel";
 import { OrganizationModel } from "../models/OrganizationModel";
 import { createNotification } from "../utils/core/notificationHelper";
+import logger from "../lib/logger";
 
 export interface AttributionResult {
   attributed: boolean;
@@ -109,13 +110,10 @@ export async function attributeCheckupToOrg(
     { skipEmail: true },
   ).catch((err: unknown) => {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(
-      `[FirstPatientAttribution] Failed to create notification for org ${org.id}:`,
-      message,
-    );
+    logger.error({ err: message }, `[FirstPatientAttribution] Failed to create notification for org ${org.id}:`);
   });
 
-  console.log(
+  logger.info(
     `[FirstPatientAttribution] Attributed checkup to org ${org.id} (${orgName}) via ref ${normalizedCode}`,
   );
 

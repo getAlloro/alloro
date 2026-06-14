@@ -38,6 +38,7 @@ import {
   collectImageUrls,
   type ImageAnalysisResult,
 } from "../feature-utils/util.image-processor";
+import logger from "../../../lib/logger";
 
 const PROJECTS_TABLE = "website_builder.projects";
 
@@ -47,7 +48,7 @@ const MAX_SOURCE_CHARS = 100_000;
 const LOG_PREFIX = "[IdentityWarmup]";
 
 function log(msg: string, data?: Record<string, unknown>): void {
-  console.log(`${LOG_PREFIX} ${msg}`, data ? JSON.stringify(data) : "");
+  logger.info({ detail: data ? JSON.stringify(data) : "" }, `${LOG_PREFIX} ${msg}`);
 }
 
 function checkCancel(signal?: AbortSignal): void {

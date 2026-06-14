@@ -4,6 +4,7 @@ import { getJwtSecret } from "../../../../config/jwt";
 import { UserModel } from "../../../../models/UserModel";
 import { GoogleConnectionModel } from "../../../../models/GoogleConnectionModel";
 import { OrganizationUserModel } from "../../../../models/OrganizationUserModel";
+import logger from "../../../../lib/logger";
 
 export interface PilotSessionResult {
   token: string;
@@ -51,7 +52,7 @@ export class PilotSessionService {
       { expiresIn: SESSION_TOKEN_TTL }
     );
 
-    console.log(
+    logger.info(
       `[ADMIN PILOT] Super Admin ${adminEmail} started pilot session for user ${targetUser.email}`
     );
 

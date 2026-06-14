@@ -1,5 +1,6 @@
 import { TaskModel, TaskAdminFilters } from "../../../models/TaskModel";
 import type { ActionItemCategory, ActionItemStatus } from "../feature-utils/taskValidation";
+import logger from "../../../lib/logger";
 
 interface ActionItem {
   id: number;
@@ -82,14 +83,14 @@ export function parsePagination(query: Record<string, any>): {
 export async function getAdminTasks(
   query: Record<string, any>
 ): Promise<{ tasks: ActionItem[]; total: number }> {
-  console.log("[TASKS] Admin fetching all tasks with filters:", query);
+  logger.info({ detail: query }, "[TASKS] Admin fetching all tasks with filters:");
 
   const filters = parseAdminFilters(query);
   const pagination = parsePagination(query);
 
   const result = await TaskModel.listAdmin(filters, pagination);
 
-  console.log(
+  logger.info(
     `[TASKS] Admin fetched ${result.data.length} tasks (total: ${result.total})`
   );
 

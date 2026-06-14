@@ -21,6 +21,7 @@ import { generateSixDigitCode } from "../auth-otp/feature-services/service.otp-g
 import { buildAuthCookieOptions } from "../auth-otp/feature-utils/util.cookie-config";
 import { sendEmail } from "../../emails/emailService";
 import { linkAccountCreation } from "../leadgen-tracking/feature-services/service.account-linking";
+import logger from "../../lib/logger";
 
 const BCRYPT_SALT_ROUNDS = 12;
 const VERIFICATION_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
@@ -110,17 +111,17 @@ export async function register(req: Request, res: Response) {
       recipients: [normalizedEmail],
     });
     if (!emailResult.success) {
-      console.error(`[AUTH] Failed to send verification email to ${normalizedEmail}:`, emailResult.error);
+      logger.error({ err: emailResult.error }, `[AUTH] Failed to send verification email to ${normalizedEmail}:`);
     }
 
-    console.log(`[AUTH] User registered: ${normalizedEmail}`);
+    logger.info(`[AUTH] User registered: ${normalizedEmail}`);
 
     return res.status(201).json({
       success: true,
       message: "Verification code sent to your email",
     });
   } catch (error) {
-    console.error("[AUTH] Register error:", error);
+    logger.error({ err: error }, "[AUTH] Register error:");
     return res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -166,7 +167,7 @@ export async function verifyEmail(req: Request, res: Response) {
       userId: user.id,
       sessionId: leadgenSessionId,
     }).catch((err) => {
-      console.error("[AUTH] linkAccountCreation post-verify failed:", err);
+      logger.error({ err: err }, "[AUTH] linkAccountCreation post-verify failed:");
     });
 
     // Accept pending invitation if one exists (invited user joins existing org)
@@ -181,7 +182,7 @@ export async function verifyEmail(req: Request, res: Response) {
         });
         await InvitationModel.updateStatus(invitation.id, "accepted");
         orgUser = await OrganizationUserModel.findByUserId(user.id);
-        console.log(`[AUTH] User ${user.id} joined org ${invitation.organization_id} via invitation (role: ${invitation.role})`);
+        logger.info(`[AUTH] User ${user.id} joined org ${invitation.organization_id} via invitation (role: ${invitation.role})`);
       }
     }
 
@@ -191,7 +192,7 @@ export async function verifyEmail(req: Request, res: Response) {
     // Set cookie for cross-app auth sync
     res.cookie("auth_token", token, buildAuthCookieOptions());
 
-    console.log(`[AUTH] Email verified: ${normalizedEmail}`);
+    logger.info(`[AUTH] Email verified: ${normalizedEmail}`);
 
     return res.json({
       success: true,
@@ -205,7 +206,7 @@ export async function verifyEmail(req: Request, res: Response) {
       },
     });
   } catch (error) {
-    console.error("[AUTH] Verify email error:", error);
+    logger.error({ err: error }, "[AUTH] Verify email error:");
     return res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -252,7 +253,7 @@ export async function login(req: Request, res: Response) {
         });
         await InvitationModel.updateStatus(invitation.id, "accepted");
         orgUser = await OrganizationUserModel.findByUserId(user.id);
-        console.log(`[AUTH] User ${user.id} joined org ${invitation.organization_id} via invitation (role: ${invitation.role})`);
+        logger.info(`[AUTH] User ${user.id} joined org ${invitation.organization_id} via invitation (role: ${invitation.role})`);
       }
     }
 
@@ -262,7 +263,7 @@ export async function login(req: Request, res: Response) {
     // Set cookie for cross-app auth sync
     res.cookie("auth_token", token, buildAuthCookieOptions());
 
-    console.log(`[AUTH] User logged in: ${normalizedEmail}`);
+    logger.info(`[AUTH] User logged in: ${normalizedEmail}`);
 
     return res.json({
       success: true,
@@ -276,7 +277,7 @@ export async function login(req: Request, res: Response) {
       },
     });
   } catch (error) {
-    console.error("[AUTH] Login error:", error);
+    logger.error({ err: error }, "[AUTH] Login error:");
     return res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -331,17 +332,17 @@ export async function resendVerification(req: Request, res: Response) {
       recipients: [normalizedEmail],
     });
     if (!emailResult.success) {
-      console.error(`[AUTH] Failed to resend verification email to ${normalizedEmail}:`, emailResult.error);
+      logger.error({ err: emailResult.error }, `[AUTH] Failed to resend verification email to ${normalizedEmail}:`);
     }
 
-    console.log(`[AUTH] Verification code resent: ${normalizedEmail}`);
+    logger.info(`[AUTH] Verification code resent: ${normalizedEmail}`);
 
     return res.json({
       success: true,
       message: "If an account exists, a new code has been sent",
     });
   } catch (error) {
-    console.error("[AUTH] Resend verification error:", error);
+    logger.error({ err: error }, "[AUTH] Resend verification error:");
     return res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -393,17 +394,17 @@ export async function forgotPassword(req: Request, res: Response) {
       recipients: [normalizedEmail],
     });
     if (!emailResult.success) {
-      console.error(`[AUTH] Failed to send password reset email to ${normalizedEmail}:`, emailResult.error);
+      logger.error({ err: emailResult.error }, `[AUTH] Failed to send password reset email to ${normalizedEmail}:`);
     }
 
-    console.log(`[AUTH] Password reset code sent: ${normalizedEmail}`);
+    logger.info(`[AUTH] Password reset code sent: ${normalizedEmail}`);
 
     return res.json({
       success: true,
       message: "If an account exists, a reset code has been sent",
     });
   } catch (error) {
-    console.error("[AUTH] Forgot password error:", error);
+    logger.error({ err: error }, "[AUTH] Forgot password error:");
     return res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -463,7 +464,7 @@ export async function resetPassword(req: Request, res: Response) {
 
     res.cookie("auth_token", token, buildAuthCookieOptions());
 
-    console.log(`[AUTH] Password reset: ${normalizedEmail}`);
+    logger.info(`[AUTH] Password reset: ${normalizedEmail}`);
 
     return res.json({
       success: true,
@@ -477,7 +478,7 @@ export async function resetPassword(req: Request, res: Response) {
       },
     });
   } catch (error) {
-    console.error("[AUTH] Reset password error:", error);
+    logger.error({ err: error }, "[AUTH] Reset password error:");
     return res.status(500).json({ error: "Internal server error" });
   }
 }

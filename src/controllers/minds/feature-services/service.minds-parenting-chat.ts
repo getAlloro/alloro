@@ -4,6 +4,7 @@ import { MindVersionModel } from "../../../models/MindVersionModel";
 import { MindParentingSessionModel, IMindParentingSession } from "../../../models/MindParentingSessionModel";
 import { MindParentingMessageModel, IMindParentingMessage } from "../../../models/MindParentingMessageModel";
 import { shouldUseRag, retrieveForChat, buildRetrievedContext } from "./service.minds-retrieval";
+import logger from "../../../lib/logger";
 
 const MODEL = process.env.MINDS_LLM_MODEL || "claude-sonnet-4-6";
 
@@ -82,7 +83,7 @@ async function resolveBrainContext(
       const brainContext = buildRetrievedContext(retrieval.chunks, retrieval.summary);
       return { brainContext, brainMarkdown };
     } catch (err) {
-      console.error("[MINDS] RAG retrieval failed for parenting, falling back:", err);
+      logger.error({ err: err }, "[MINDS] RAG retrieval failed for parenting, falling back:");
       return { brainContext: brainMarkdown, brainMarkdown };
     }
   }
@@ -169,7 +170,7 @@ export async function chatStream(
   const history = await MindParentingMessageModel.listBySession(sessionId);
   const apiMessages = buildApiMessages(history);
 
-  console.log(
+  logger.info(
     `[MINDS] Parenting chat for mind ${mind.name}, session ${sessionId}, ${apiMessages.length} messages, brain context: ${brainContext.length} chars`
   );
 
@@ -307,6 +308,6 @@ export async function generateSessionTitle(
       await MindParentingSessionModel.updateTitle(sessionId, title);
     }
   } catch (err) {
-    console.error("[MINDS] Failed to generate session title:", err);
+    logger.error({ err: err }, "[MINDS] Failed to generate session title:");
   }
 }

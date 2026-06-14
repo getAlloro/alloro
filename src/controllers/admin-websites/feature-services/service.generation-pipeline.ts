@@ -34,6 +34,7 @@ import {
 } from "../feature-utils/util.identity-context";
 import { hasUsableIdentityForPageGeneration } from "../feature-utils/util.project-identity";
 import { ProjectIdentityModel } from "../../../models/website-builder/ProjectIdentityModel";
+import logger from "../../../lib/logger";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -46,7 +47,7 @@ const TEMPLATE_PAGES_TABLE = "website_builder.template_pages";
 
 const LOG_PREFIX = "[GenPipeline]";
 function log(msg: string, data?: Record<string, unknown>): void {
-  console.log(`${LOG_PREFIX} ${msg}`, data ? JSON.stringify(data) : "");
+  logger.info({ detail: data ? JSON.stringify(data) : "" }, `${LOG_PREFIX} ${msg}`);
 }
 
 // ---------------------------------------------------------------------------

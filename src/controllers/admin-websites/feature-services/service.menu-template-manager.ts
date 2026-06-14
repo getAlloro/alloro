@@ -8,6 +8,7 @@
 
 import { db } from "../../../database/connection";
 import { getRedisConnection } from "../../../workers/queues";
+import logger from "../../../lib/logger";
 
 const MENU_TEMPLATES_TABLE = "website_builder.menu_templates";
 const TEMPLATES_TABLE = "website_builder.templates";
@@ -24,7 +25,7 @@ async function invalidateMenuTemplateCache(templateId: string, slug: string) {
     const redis = getRedisConnection();
     await redis.del(`mt:${templateId}:${slug}`);
   } catch (err) {
-    console.error("[Admin Websites] Failed to invalidate menu template cache:", err);
+    logger.error({ err: err }, "[Admin Websites] Failed to invalidate menu template cache:");
   }
 }
 
@@ -97,7 +98,7 @@ export async function createMenuTemplate(
     };
   }
 
-  console.log(`[Admin Websites] Creating menu template "${name}" for template ${templateId}`);
+  logger.info(`[Admin Websites] Creating menu template "${name}" for template ${templateId}`);
 
   const [menuTemplate] = await db(MENU_TEMPLATES_TABLE)
     .insert({
@@ -108,7 +109,7 @@ export async function createMenuTemplate(
     })
     .returning("*");
 
-  console.log(`[Admin Websites] ✓ Created menu template ID: ${menuTemplate.id}`);
+  logger.info(`[Admin Websites] ✓ Created menu template ID: ${menuTemplate.id}`);
 
   return { menuTemplate };
 }
@@ -181,7 +182,7 @@ export async function updateMenuTemplate(
     .update({ ...updates, updated_at: db.fn.now() })
     .returning("*");
 
-  console.log(`[Admin Websites] ✓ Updated menu template ID: ${menuTemplateId}`);
+  logger.info(`[Admin Websites] ✓ Updated menu template ID: ${menuTemplateId}`);
 
   // Invalidate cache
   await invalidateMenuTemplateCache(templateId, existing.slug);
@@ -213,7 +214,7 @@ export async function deleteMenuTemplate(
     .where({ id: menuTemplateId, template_id: templateId })
     .del();
 
-  console.log(`[Admin Websites] ✓ Deleted menu template ID: ${menuTemplateId}`);
+  logger.info(`[Admin Websites] ✓ Deleted menu template ID: ${menuTemplateId}`);
 
   await invalidateMenuTemplateCache(templateId, existing.slug);
 

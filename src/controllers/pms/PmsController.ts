@@ -24,10 +24,11 @@ import type { ColumnMapping } from "../../types/pmsMapping";
 import { resolveLocationId } from "../../utils/locationResolver";
 import { db } from "../../database/connection";
 import { assertNoActivePmsAutomation } from "./pms-services/pms-mutation-guard.service";
+import logger from "../../lib/logger";
 
 function handleError(res: Response, error: any, operation: string): Response {
   const statusCode = error.statusCode || 500;
-  console.error(`[PMS] ${operation} Error:`, error?.message || error);
+  logger.error({ err: error?.message || error }, `[PMS] ${operation} Error:`);
   return res.status(statusCode).json({
     success: false,
     error: `Failed to ${operation.toLowerCase()}`,
@@ -156,7 +157,7 @@ export async function uploadPmsData(req: Request, res: Response) {
       message: `Successfully processed file ${result.originalName} with ${result.recordsProcessed} records`,
     });
   } catch (error: any) {
-    console.error("Error in /pms/upload:", error?.message || error);
+    logger.error({ err: error?.message || error }, "Error in /pms/upload:");
     return res.status(error.statusCode || 500).json({
       success: false,
       error: `Failed to process PMS upload: ${error.message}`,
@@ -197,7 +198,7 @@ export async function getPmsSummary(req: Request, res: Response) {
       message: "Summary endpoint placeholder",
     });
   } catch (error: any) {
-    console.error("Error in /pms/summary:", error?.message || error);
+    logger.error({ err: error?.message || error }, "Error in /pms/summary:");
     return res.status(500).json({
       success: false,
       error: `Failed to fetch PMS summary: ${error.message}`,
@@ -235,7 +236,7 @@ export async function getKeyData(req: Request, res: Response) {
       data,
     });
   } catch (error: any) {
-    console.error("Error in /pms/keyData:", error?.message || error);
+    logger.error({ err: error?.message || error }, "Error in /pms/keyData:");
     return res.status(500).json({
       success: false,
       error: `Failed to fetch PMS key data: ${error.message}`,
@@ -287,7 +288,7 @@ export async function listJobs(req: Request, res: Response) {
       data,
     });
   } catch (error: any) {
-    console.error("Error in /pms/jobs:", error?.message || error);
+    logger.error({ err: error?.message || error }, "Error in /pms/jobs:");
     return res.status(500).json({
       success: false,
       error: `Failed to fetch PMS jobs: ${error.message}`,
@@ -333,10 +334,7 @@ export async function approveJob(req: Request, res: Response) {
       } successfully`,
     });
   } catch (error: any) {
-    console.error(
-      "Error in /pms/jobs/:id/approval:",
-      error?.message || error
-    );
+    logger.error({ err: error?.message || error }, "Error in /pms/jobs/:id/approval:");
     return res.status(error.statusCode || 500).json({
       success: false,
       error: `Failed to update PMS job approval: ${error.message}`,
@@ -377,10 +375,7 @@ export async function clientApproveJob(req: Request, res: Response) {
         : undefined,
     });
   } catch (error: any) {
-    console.error(
-      "Error in /pms/jobs/:id/client-approval:",
-      error?.message || error
-    );
+    logger.error({ err: error?.message || error }, "Error in /pms/jobs/:id/client-approval:");
     return res.status(error.statusCode || 500).json({
       success: false,
       error: `Failed to update PMS job client approval: ${error.message}`,
@@ -413,10 +408,7 @@ export async function updateResponseLog(req: Request, res: Response) {
       message: "PMS job response log updated successfully",
     });
   } catch (error: any) {
-    console.error(
-      "Error in /pms/jobs/:id/response:",
-      error?.message || error
-    );
+    logger.error({ err: error?.message || error }, "Error in /pms/jobs/:id/response:");
     return res.status(error.statusCode || 500).json({
       success: false,
       error: `Failed to update PMS job response: ${error.message}`,
@@ -440,7 +432,7 @@ export async function deleteJob(req: Request, res: Response) {
       message: "PMS job deleted successfully",
     });
   } catch (error: any) {
-    console.error("Error in DELETE /pms/jobs/:id:", error?.message || error);
+    logger.error({ err: error?.message || error }, "Error in DELETE /pms/jobs/:id:");
     return res.status(error.statusCode || 500).json({
       success: false,
       error: `Failed to delete PMS job: ${error.message}`,
@@ -463,10 +455,7 @@ export async function getAutomationStatus(req: Request, res: Response) {
       data,
     });
   } catch (error: any) {
-    console.error(
-      "Error in /pms/jobs/:id/automation-status:",
-      error?.message || error
-    );
+    logger.error({ err: error?.message || error }, "Error in /pms/jobs/:id/automation-status:");
     return res.status(error.statusCode || 500).json({
       success: false,
       error: `Failed to fetch automation status: ${error.message}`,
@@ -500,10 +489,7 @@ export async function getActiveAutomations(req: Request, res: Response) {
       data,
     });
   } catch (error: any) {
-    console.error(
-      "Error in /pms/automation/active:",
-      error?.message || error
-    );
+    logger.error({ err: error?.message || error }, "Error in /pms/automation/active:");
     return res.status(500).json({
       success: false,
       error: `Failed to fetch active automation jobs: ${error.message}`,
@@ -552,7 +538,7 @@ export async function parsePaste(req: Request, res: Response) {
       data: result,
     });
   } catch (error: any) {
-    console.error("Error in /pms/parse-paste:", error?.message || error);
+    logger.error({ err: error?.message || error }, "Error in /pms/parse-paste:");
     return res.status(error.statusCode || 500).json({
       success: false,
       error: error?.message || "Failed to parse pasted data",
@@ -582,7 +568,7 @@ export async function sanitizePaste(req: Request, res: Response) {
       data: result,
     });
   } catch (error: any) {
-    console.error("Error in /pms/sanitize-paste:", error?.message || error);
+    logger.error({ err: error?.message || error }, "Error in /pms/sanitize-paste:");
     return res.status(error.statusCode || 500).json({
       success: false,
       error: error?.message || "Failed to sanitize pasted data",
@@ -629,10 +615,7 @@ export async function retryJob(req: Request, res: Response) {
       data,
     });
   } catch (error: any) {
-    console.error(
-      "Error in POST /pms/jobs/:id/retry:",
-      error?.message || error
-    );
+    logger.error({ err: error?.message || error }, "Error in POST /pms/jobs/:id/retry:");
     return res.status(error.statusCode || 500).json({
       success: false,
       error: `Failed to retry step: ${error.message}`,
@@ -741,20 +724,14 @@ export async function previewResetMapping(req: Request, res: Response) {
             overrideMapping as ColumnMapping
           );
           cacheSource = "org-cache";
-          console.log(
-            "[pms-mapping]",
-            JSON.stringify({
-              event: "org-cache-write",
-              orgId,
-              signatureHash: signature,
-              source: "user-override",
-            })
-          );
+          logger.info({ detail: JSON.stringify({
+                          event: "org-cache-write",
+                          orgId,
+                          signatureHash: signature,
+                          source: "user-override",
+                        }) }, "[pms-mapping]");
         } catch (cacheErr: any) {
-          console.warn(
-            "[pms-mapping] org-cache write failed:",
-            cacheErr?.message || cacheErr
-          );
+          logger.warn({ detail: cacheErr?.message || cacheErr }, "[pms-mapping] org-cache write failed:");
           // Non-fatal — preview still works, user just won't get silent apply
           // on the next upload.
         }
@@ -816,10 +793,7 @@ export async function previewResetMapping(req: Request, res: Response) {
       },
     });
   } catch (error: any) {
-    console.error(
-      "Error in POST /pms/preview-mapping:",
-      error?.message || error
-    );
+    logger.error({ err: error?.message || error }, "Error in POST /pms/preview-mapping:");
     return res.status(error.statusCode || 500).json({
       success: false,
       error: error?.message || "Failed to preview column mapping",
@@ -990,10 +964,7 @@ export async function uploadWithMapping(req: Request, res: Response) {
       },
     });
   } catch (error: any) {
-    console.error(
-      "Error in POST /pms/upload-with-mapping:",
-      error?.message || error
-    );
+    logger.error({ err: error?.message || error }, "Error in POST /pms/upload-with-mapping:");
     return res.status(error.statusCode || 500).json({
       success: false,
       error: error?.message || "Failed to process mapped upload",
@@ -1106,10 +1077,7 @@ export async function reprocessJobMapping(req: Request, res: Response) {
       },
     });
   } catch (error: any) {
-    console.error(
-      "Error in POST /pms/jobs/:id/reprocess:",
-      error?.message || error
-    );
+    logger.error({ err: error?.message || error }, "Error in POST /pms/jobs/:id/reprocess:");
     return res.status(error.statusCode || 500).json({
       success: false,
       error: error?.message || "Failed to re-process job with new mapping",
@@ -1181,10 +1149,7 @@ export async function getCachedMapping(req: Request, res: Response) {
       data: null,
     });
   } catch (error: any) {
-    console.error(
-      "Error in GET /pms/mappings/cache:",
-      error?.message || error
-    );
+    logger.error({ err: error?.message || error }, "Error in GET /pms/mappings/cache:");
     return res.status(error.statusCode || 500).json({
       success: false,
       error: error?.message || "Failed to fetch cached mapping",

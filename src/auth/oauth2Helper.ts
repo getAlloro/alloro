@@ -1,6 +1,7 @@
 import { google } from "googleapis";
 import { db } from "../database/connection";
 import { OrganizationLifecycleService } from "../services/OrganizationLifecycleService";
+import logger from "../lib/logger";
 
 // OAuth2 configuration interface
 interface OAuth2Config {
@@ -125,7 +126,7 @@ export const getValidOAuth2ClientByConnection = async (
   const shouldRefresh = options.forceRefresh || isExpiringSoon;
 
   if (shouldRefresh) {
-    console.log(
+    logger.info(
       options.forceRefresh
         ? `[OAuth Helper] Force refreshing token for connection ${connectionId}`
         : `[OAuth Helper] Token expiring soon, refreshing for connection ${connectionId}`
@@ -152,7 +153,7 @@ export const getValidOAuth2ClientByConnection = async (
         updated_at: new Date(),
       });
 
-      console.log(
+      logger.info(
         `[OAuth Helper] Token refreshed for connection ${connectionId}`
       );
 
@@ -164,10 +165,7 @@ export const getValidOAuth2ClientByConnection = async (
         token_type: credentials.token_type,
       });
     } catch (error: any) {
-      console.error(
-        `[OAuth Helper] Failed to refresh token for connection ${connectionId}:`,
-        error.message
-      );
+      logger.error({ err: error.message }, `[OAuth Helper] Failed to refresh token for connection ${connectionId}:`);
       throw error;
     }
   } else {

@@ -15,6 +15,7 @@ import type {
   AdminErrorData,
   UserInquiryData,
 } from "../../emails";
+import logger from "../../lib/logger";
 
 // Use explicit APP_URL environment variable, fallback to production URL by default
 const APP_URL =
@@ -147,7 +148,7 @@ export async function createNotification(
             })
           )
         ).catch((err) => {
-          console.error(
+          logger.error(
             `[NotificationHelper] Failed to send user email for org ${organizationId}: ${err.message}`
           );
         });
@@ -156,7 +157,7 @@ export async function createNotification(
 
     return notificationId;
   } catch (error) {
-    console.error(`[NotificationHelper] Failed to create notification:`, error);
+    logger.error({ err: error }, `[NotificationHelper] Failed to create notification:`);
     return null;
   }
 }
@@ -171,17 +172,11 @@ export async function notifyAdmins(data: AdminNotificationData) {
   try {
     const result = await sendAdminNotification(data);
     if (!result.success) {
-      console.error(
-        `[NotificationHelper] Admin notification failed:`,
-        result.error
-      );
+      logger.error({ err: result.error }, `[NotificationHelper] Admin notification failed:`);
     }
     return result;
   } catch (error: any) {
-    console.error(
-      `[NotificationHelper] Admin notification error:`,
-      error.message
-    );
+    logger.error({ err: error.message }, `[NotificationHelper] Admin notification error:`);
     return {
       success: false,
       error: error.message,
@@ -200,17 +195,11 @@ export async function notifyAdminsOfError(data: AdminErrorData) {
   try {
     const result = await sendAdminError(data);
     if (!result.success) {
-      console.error(
-        `[NotificationHelper] Admin error notification failed:`,
-        result.error
-      );
+      logger.error({ err: result.error }, `[NotificationHelper] Admin error notification failed:`);
     }
     return result;
   } catch (error: any) {
-    console.error(
-      `[NotificationHelper] Admin error notification error:`,
-      error.message
-    );
+    logger.error({ err: error.message }, `[NotificationHelper] Admin error notification error:`);
     return {
       success: false,
       error: error.message,
@@ -229,17 +218,11 @@ export async function forwardUserInquiry(data: UserInquiryData) {
   try {
     const result = await sendUserInquiry(data);
     if (!result.success) {
-      console.error(
-        `[NotificationHelper] User inquiry forward failed:`,
-        result.error
-      );
+      logger.error({ err: result.error }, `[NotificationHelper] User inquiry forward failed:`);
     }
     return result;
   } catch (error: any) {
-    console.error(
-      `[NotificationHelper] User inquiry forward error:`,
-      error.message
-    );
+    logger.error({ err: error.message }, `[NotificationHelper] User inquiry forward error:`);
     return {
       success: false,
       error: error.message,

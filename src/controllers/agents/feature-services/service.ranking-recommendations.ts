@@ -9,6 +9,7 @@
  */
 
 import { db } from "../../../database/connection";
+import logger from "../../../lib/logger";
 
 export interface RankingRecommendation {
   title?: string;
@@ -68,7 +69,7 @@ export async function fetchLatestRankingRecommendations(
 
     return recs as RankingRecommendation[];
   } catch (err: any) {
-    console.warn(
+    logger.warn(
       `[ranking-recommendations] Failed for org ${orgId}, location ${locationId}: ${
         err?.message || err
       }`

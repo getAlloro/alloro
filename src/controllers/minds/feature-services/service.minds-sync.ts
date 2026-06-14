@@ -1,6 +1,7 @@
 import { MindSyncRunModel, SyncRunType } from "../../../models/MindSyncRunModel";
 import { MindSyncStepModel } from "../../../models/MindSyncStepModel";
 import { MindSyncProposalModel } from "../../../models/MindSyncProposalModel";
+import logger from "../../../lib/logger";
 
 const SCRAPE_COMPARE_STEPS = [
   "INIT",
@@ -39,7 +40,7 @@ export async function createSyncRun(
 
   await MindSyncStepModel.createSteps(run.id, stepNames);
 
-  console.log(
+  logger.info(
     `[MINDS] Created ${type} sync run ${run.id} for mind ${mindId} with ${stepNames.length} steps`
   );
 

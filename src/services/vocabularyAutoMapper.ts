@@ -10,6 +10,7 @@
  */
 
 import { db } from "../database/connection";
+import logger from "../lib/logger";
 
 interface VocabularyPreset {
   vertical: string;
@@ -579,7 +580,7 @@ export async function autoConfigureVocabulary(
     overrides: JSON.stringify(preset),
   }).catch(() => {});
 
-  console.log(`[VocabMapper] Auto-configured ${preset.vertical} vocabulary for org ${orgId} from GBP category "${gbpCategory}"`);
+  logger.info(`[VocabMapper] Auto-configured ${preset.vertical} vocabulary for org ${orgId} from GBP category "${gbpCategory}"`);
 
   return preset;
 }

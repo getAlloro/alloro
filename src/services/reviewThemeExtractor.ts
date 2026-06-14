@@ -15,6 +15,7 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import logger from "../lib/logger";
 
 export interface ReviewTheme {
   theme: string;
@@ -132,7 +133,7 @@ Return valid JSON only.`,
       customerVoiceSummary: parsed.customerVoiceSummary || "",
     };
   } catch (err: any) {
-    console.error("[ReviewThemeExtractor] Error:", err.message);
+    logger.error({ err: err.message }, "[ReviewThemeExtractor] Error:");
     // Graceful fallback
     const best = [...reviews]
       .filter((r) => r.rating >= 4)

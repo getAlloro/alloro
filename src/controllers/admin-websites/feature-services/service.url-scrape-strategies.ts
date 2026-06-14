@@ -23,6 +23,7 @@ import {
   closeBrowser,
 } from "../../scraper/feature-services/service.puppeteer-manager";
 import { captureDesktop } from "../../scraper/feature-services/service.screenshot-capture";
+import logger from "../../../lib/logger";
 
 export type ScrapeStrategy = "fetch" | "browser" | "screenshot";
 
@@ -36,7 +37,7 @@ export interface ScrapeResult {
 }
 
 function log(msg: string, data?: Record<string, unknown>): void {
-  console.log(`[ScrapeStrategies] ${msg}`, data ? JSON.stringify(data) : "");
+  logger.info({ detail: data ? JSON.stringify(data) : "" }, `[ScrapeStrategies] ${msg}`);
 }
 
 // ---------------------------------------------------------------------------

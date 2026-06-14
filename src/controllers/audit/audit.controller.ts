@@ -4,6 +4,7 @@ import { triggerAuditWorkflow } from "./audit-services/auditWorkflowService";
 import { getAuditByIdWithStatus, getAuditById } from "./audit-services/auditRetrievalService";
 import { updateAuditFields } from "./audit-services/auditUpdateService";
 import { retryAuditById } from "./audit-services/service.audit-retry";
+import logger from "../../lib/logger";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -14,11 +15,11 @@ export async function startAudit(req: Request, res: Response) {
   try {
     const { domain, practice_search_string } = validateStartAuditInput(req.body);
 
-    console.log(`[Audit] Starting audit for domain: ${domain}`);
+    logger.info(`[Audit] Starting audit for domain: ${domain}`);
 
     const auditId = await triggerAuditWorkflow(domain, practice_search_string);
 
-    console.log(`[Audit] Audit queued: ${auditId}`);
+    logger.info(`[Audit] Audit queued: ${auditId}`);
 
     return res.json({
       success: true,
@@ -26,7 +27,7 @@ export async function startAudit(req: Request, res: Response) {
       created_at: new Date().toISOString(),
     });
   } catch (error: any) {
-    console.error("[Audit] Start error:", error);
+    logger.error({ err: error }, "[Audit] Start error:");
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({
       success: false,
@@ -43,7 +44,7 @@ export async function getAuditStatus(req: Request, res: Response) {
 
     return res.json(response);
   } catch (error: any) {
-    console.error("[Audit] Status error:", error);
+    logger.error({ err: error }, "[Audit] Status error:");
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({
       success: false,
@@ -60,7 +61,7 @@ export async function getAuditDetails(req: Request, res: Response) {
 
     return res.json(response);
   } catch (error: any) {
-    console.error("[Audit] Get error:", error);
+    logger.error({ err: error }, "[Audit] Get error:");
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({
       success: false,
@@ -114,7 +115,7 @@ export async function retryAudit(req: Request, res: Response) {
       status: result.currentStatus,
     });
   } catch (error: any) {
-    console.error("[Audit] Retry error:", error);
+    logger.error({ err: error }, "[Audit] Retry error:");
     return res
       .status(500)
       .json({ ok: false, error: error.message || "internal_error" });
@@ -133,7 +134,7 @@ export async function updateAudit(req: Request, res: Response) {
       updated_fields: updatedFields,
     });
   } catch (error: any) {
-    console.error("[Audit] Update error:", error);
+    logger.error({ err: error }, "[Audit] Update error:");
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({
       success: false,

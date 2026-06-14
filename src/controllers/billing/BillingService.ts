@@ -19,6 +19,7 @@ import { updateTier } from "../admin-organizations/feature-services/TierManageme
 import { OrganizationUserModel } from "../../models/OrganizationUserModel";
 import { sendEmail } from "../../emails/emailService";
 import { isStripeConfigured } from "../../config/stripe";
+import logger from "../../lib/logger";
 
 // ─── Types ───
 
@@ -241,7 +242,7 @@ export async function getSubscriptionStatus(
         currentPeriodEnd = new Date(sub.current_period_end * 1000).toISOString();
       }
     } catch (err: any) {
-      console.error(`[Billing] Failed to fetch subscription ${org.stripe_subscription_id}:`, err?.message || err);
+      logger.error({ err: err?.message || err }, `[Billing] Failed to fetch subscription ${org.stripe_subscription_id}:`);
     }
   }
 
@@ -409,7 +410,7 @@ export async function handleWebhookEvent(
       break;
 
     default:
-      console.log(`[Stripe Webhook] Unhandled event type: ${event.type}`);
+      logger.info(`[Stripe Webhook] Unhandled event type: ${event.type}`);
   }
 }
 
@@ -426,7 +427,7 @@ async function handleCheckoutCompleted(
   const tier = session.metadata?.tier as "DWY" | "DFY" | undefined;
 
   if (!orgId) {
-    console.error(
+    logger.error(
       "[Stripe Webhook] checkout.session.completed missing organization_id in metadata"
     );
     return;
@@ -434,7 +435,7 @@ async function handleCheckoutCompleted(
 
   const organizationId = parseInt(orgId, 10);
   if (isNaN(organizationId)) {
-    console.error(
+    logger.error(
       `[Stripe Webhook] Invalid organization_id: ${orgId}`
     );
     return;
@@ -450,7 +451,7 @@ async function handleCheckoutCompleted(
       ? session.subscription
       : session.subscription?.id;
 
-  console.log(
+  logger.info(
     `[Stripe Webhook] Checkout completed for org ${organizationId}, tier: ${tier}`
   );
 
@@ -473,15 +474,12 @@ async function handleCheckoutCompleted(
     }
 
     await trx.commit();
-    console.log(
+    logger.info(
       `[Stripe Webhook] Successfully processed checkout for org ${organizationId}`
     );
   } catch (error) {
     await trx.rollback();
-    console.error(
-      `[Stripe Webhook] Error processing checkout for org ${organizationId}:`,
-      error
-    );
+    logger.error({ err: error }, `[Stripe Webhook] Error processing checkout for org ${organizationId}:`);
     throw error;
   }
 }
@@ -507,7 +505,7 @@ async function handlePaymentSucceeded(
       subscription_updated_at: new Date(),
     });
 
-  console.log(
+  logger.info(
     `[Stripe Webhook] Payment succeeded for customer ${customerId}`
   );
 }
@@ -527,7 +525,7 @@ async function handlePaymentFailed(
 
   // Don't immediately lock out — Stripe will retry. Just log it.
   // If subscription is eventually cancelled, handleSubscriptionDeleted will fire.
-  console.warn(
+  logger.warn(
     `[Stripe Webhook] Payment failed for customer ${customerId}`
   );
 }
@@ -552,7 +550,7 @@ async function handleSubscriptionDeleted(
       subscription_updated_at: new Date(),
     });
 
-  console.log(
+  logger.info(
     `[Stripe Webhook] Subscription deleted for customer ${customerId}`
   );
 }
@@ -592,7 +590,7 @@ export async function syncSubscriptionQuantity(
 
     const item = subscription.items.data[0];
     if (!item) {
-      console.warn(
+      logger.warn(
         `[Billing] No subscription items found for org ${organizationId}`
       );
       return;
@@ -606,7 +604,7 @@ export async function syncSubscriptionQuantity(
       quantity: newQuantity,
     });
 
-    console.log(
+    logger.info(
       `[Billing] Subscription quantity updated for org ${organizationId}: ${oldQuantity} → ${newQuantity}`
     );
 
@@ -652,16 +650,10 @@ export async function syncSubscriptionQuantity(
         recipients: adminEmails,
       });
     } catch (emailErr) {
-      console.warn(
-        `[Billing] Failed to send quantity update email for org ${organizationId}:`,
-        emailErr
-      );
+      logger.warn({ detail: emailErr }, `[Billing] Failed to send quantity update email for org ${organizationId}:`);
     }
   } catch (error) {
-    console.error(
-      `[Billing] Failed to sync subscription quantity for org ${organizationId}:`,
-      error
-    );
+    logger.error({ err: error }, `[Billing] Failed to sync subscription quantity for org ${organizationId}:`);
   }
 }
 
@@ -689,7 +681,7 @@ async function handleSubscriptionUpdated(
       subscription_updated_at: new Date(),
     });
 
-  console.log(
+  logger.info(
     `[Stripe Webhook] Subscription updated for customer ${customerId}, status: ${status}`
   );
 }

@@ -14,6 +14,7 @@ import { FormSubmissionModel } from "../../models/website-builder/FormSubmission
 import { sendEmailWebhook } from "./websiteContact-services/emailWebhookService";
 import { getSiteUrl } from "./websiteContact-services/newsletterConfirmationService";
 import { resolveRecipients } from "../../services/recipientSettingsService";
+import logger from "../../lib/logger";
 
 const TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -69,7 +70,7 @@ export async function handleNewsletterConfirm(req: Request, res: Response): Prom
       });
       recipients = resolution.recipients;
     } catch (err) {
-      console.error("[Newsletter Confirm] Recipient lookup failed:", err);
+      logger.error({ err: err }, "[Newsletter Confirm] Recipient lookup failed:");
     }
   }
 
@@ -82,7 +83,7 @@ export async function handleNewsletterConfirm(req: Request, res: Response): Prom
       recipients_sent_to: recipients,
     });
   } catch (err) {
-    console.error("[Newsletter Confirm] Failed to save submission:", err);
+    logger.error({ err: err }, "[Newsletter Confirm] Failed to save submission:");
   }
 
   // Email site owner
@@ -108,7 +109,7 @@ export async function handleNewsletterConfirm(req: Request, res: Response): Prom
 
   try {
     if (recipients.length === 0) {
-      console.warn(
+      logger.warn(
         `[Newsletter Confirm] No recipients resolved for project ${signup.project_id}; saved subscriber without sending owner email.`
       );
       res.redirect(`${siteUrl}/opt-in-confirmed`);
@@ -126,7 +127,7 @@ export async function handleNewsletterConfirm(req: Request, res: Response): Prom
       recipients,
     });
   } catch (err) {
-    console.error("[Newsletter Confirm] Failed to send notification email:", err);
+    logger.error({ err: err }, "[Newsletter Confirm] Failed to send notification email:");
   }
 
   // Redirect to confirmed page

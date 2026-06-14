@@ -24,6 +24,10 @@ import express from "express";
 import request from "supertest";
 import { z } from "zod";
 import { validate, VALIDATION_ERROR } from "../middleware/validate";
+// validate() now logs through the shared Pino logger (the console.* → logger
+// codemod). Spy on the logger's methods rather than console.* — the middleware
+// uses pino's merge-object form: logger.warn(meta, msg) / logger.error(meta, msg).
+import logger from "../lib/logger";
 
 /** Build a one-route app mounting validate() with the given schema/options. */
 function makeApp(
@@ -55,7 +59,7 @@ describe("validate() — warn mode (default)", () => {
   });
 
   it("passes an INVALID body through anyway (200) and does NOT reject", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => logger);
     const app = makeApp(bodySchema, { mode: "warn" });
     const res = await request(app).post("/t").send({ email: "not-an-email" });
 
@@ -64,13 +68,14 @@ describe("validate() — warn mode (default)", () => {
   });
 
   it("redaction: warn log carries field names + issue codes, NEVER values", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => logger);
     const app = makeApp(bodySchema, { mode: "warn" });
 
     const secret = "super-secret-value@nope";
     await request(app).post("/t").send({ email: secret });
 
-    const [, meta] = warnSpy.mock.calls[0] as [string, Record<string, unknown>];
+    // Pino merge-object form: logger.warn(meta, msg) — meta is the FIRST arg.
+    const [meta] = warnSpy.mock.calls[0] as [Record<string, unknown>, string];
     expect(meta.fields).toContain("email");
     expect(Array.isArray(meta.issues)).toBe(true);
     // The offending VALUE must not appear anywhere in the logged metadata.
@@ -78,7 +83,7 @@ describe("validate() — warn mode (default)", () => {
   });
 
   it("defaults to warn when no mode is given (env not enforcing in tests)", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => logger);
     const app = makeApp(bodySchema); // no options at all
     const res = await request(app).post("/t").send({ email: "bad" });
     expect(res.status).toBe(200);
@@ -120,7 +125,7 @@ describe("validate() — enforce mode", () => {
 
 describe("validate() — targets", () => {
   it("validates params (warn-only) without rejecting", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => logger);
     const app = express();
     const schema = z.object({ id: z.coerce.number().int().positive() });
     app.get(
@@ -149,7 +154,7 @@ describe("validate() — targets", () => {
 
 describe("validate() — never throws", () => {
   it("falls through in warn mode when safeParse itself throws", async () => {
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const errSpy = vi.spyOn(logger, "error").mockImplementation(() => logger);
     // A schema-like object whose safeParse throws — simulates an internal blow-up.
     const exploding = {
       safeParse: () => {
@@ -165,7 +170,7 @@ describe("validate() — never throws", () => {
   });
 
   it("returns the standard 400 in enforce mode when safeParse throws", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(logger, "error").mockImplementation(() => logger);
     const exploding = {
       safeParse: () => {
         throw new Error("boom");

@@ -33,12 +33,13 @@ import { processDataHarvest } from "./processors/dataHarvest.processor";
 import { processGbpAutomationJob } from "./processors/gbpAutomation.processor";
 import { getMindsQueue, getCrmQueue, getHarvestQueue, getGbpAutomationQueue } from "./queues";
 import { closeWbQueues } from "./wb-queues";
+import logger from "../lib/logger";
 
 const REDIS_HOST = process.env.REDIS_HOST || "127.0.0.1";
 const REDIS_PORT = parseInt(process.env.REDIS_PORT || "6379", 10);
 
-console.log("[MINDS-WORKER] Starting Minds worker process...");
-console.log(`[MINDS-WORKER] Connecting to Redis at ${REDIS_HOST}:${REDIS_PORT}`);
+logger.info("[MINDS-WORKER] Starting Minds worker process...");
+logger.info(`[MINDS-WORKER] Connecting to Redis at ${REDIS_HOST}:${REDIS_PORT}`);
 
 // Each Worker gets its own Redis connection via makeConnection(). Sharing a single
 // ioredis instance across all ~20 workers funnels every lock-renewal command through
@@ -58,16 +59,16 @@ function makeConnection(): IORedis {
   // Make connection trouble LOUD — previously these events were unhandled, so a
   // hung/closed connection froze the worker with zero log output.
   conn.on("error", (err) =>
-    console.error("[MINDS-WORKER][redis] connection error:", err?.message),
+    logger.error({ err: err?.message }, "[MINDS-WORKER][redis] connection error:"),
   );
   conn.on("close", () =>
-    console.warn("[MINDS-WORKER][redis] connection closed"),
+    logger.warn("[MINDS-WORKER][redis] connection closed"),
   );
   conn.on("reconnecting", () =>
-    console.warn("[MINDS-WORKER][redis] reconnecting..."),
+    logger.warn("[MINDS-WORKER][redis] reconnecting..."),
   );
   conn.on("end", () =>
-    console.warn("[MINDS-WORKER][redis] connection ended (no further reconnects)"),
+    logger.warn("[MINDS-WORKER][redis] connection ended (no further reconnects)"),
   );
   connections.push(conn);
   return conn;
@@ -171,9 +172,9 @@ async function setupDiscoverySchedule(): Promise<void> {
         jobId: "daily-discovery",
       }
     );
-    console.log("[MINDS-WORKER] Daily discovery job scheduled (6 AM UTC)");
+    logger.info("[MINDS-WORKER] Daily discovery job scheduled (6 AM UTC)");
   } catch (err: any) {
-    console.error("[MINDS-WORKER] Failed to set up discovery schedule:", err);
+    logger.error({ err: err }, "[MINDS-WORKER] Failed to set up discovery schedule:");
   }
 }
 
@@ -203,9 +204,9 @@ async function setupSkillTriggerSchedule(): Promise<void> {
         jobId: "dead-letter-check",
       }
     );
-    console.log("[MINDS-WORKER] Skill trigger + dead letter check scheduled");
+    logger.info("[MINDS-WORKER] Skill trigger + dead letter check scheduled");
   } catch (err: any) {
-    console.error("[MINDS-WORKER] Failed to set up skill trigger schedule:", err);
+    logger.error({ err: err }, "[MINDS-WORKER] Failed to set up skill trigger schedule:");
   }
 }
 
@@ -462,21 +463,21 @@ const gbpAutomationWorker = new Worker(
 // Event handlers
 for (const worker of [scrapeCompareWorker, compilePublishWorker, discoveryWorker, skillTriggerWorker, worksDigestWorker, seoBulkGenerateWorker, reviewSyncWorker, schedulerWorker, scheduleExecWorker, wbBackupWorker, wbRestoreWorker, wbIdentityWarmupWorker, wbAiSeoAuditWorker, wbLayoutsWorker, wbProjectScrapeWorker, wbPageGenerateWorker, wbPostImportWorker, auditLeadgenWorker, crmHubspotPushWorker, crmMappingValidationWorker, dataHarvestWorker, gbpAutomationWorker]) {
   worker.on("completed", (job) => {
-    console.log(`[MINDS-WORKER] Job ${job?.id} completed on queue ${worker.name}`);
+    logger.info(`[MINDS-WORKER] Job ${job?.id} completed on queue ${worker.name}`);
   });
 
   worker.on("failed", (job, err) => {
-    console.error(`[MINDS-WORKER] Job ${job?.id} failed on queue ${worker.name}:`, err);
+    logger.error({ err: err }, `[MINDS-WORKER] Job ${job?.id} failed on queue ${worker.name}:`);
   });
 
   worker.on("error", (err) => {
-    console.error(`[MINDS-WORKER] Worker error on ${worker.name}:`, err);
+    logger.error({ err: err }, `[MINDS-WORKER] Worker error on ${worker.name}:`);
   });
 }
 
 // Graceful shutdown
 async function shutdown(): Promise<void> {
-  console.log("[MINDS-WORKER] Shutting down workers...");
+  logger.info("[MINDS-WORKER] Shutting down workers...");
   await scrapeCompareWorker.close();
   await compilePublishWorker.close();
   await discoveryWorker.close();
@@ -500,7 +501,7 @@ async function shutdown(): Promise<void> {
   await closeWbQueues();
   await gbpAutomationWorker.close();
   await Promise.all(connections.map((c) => c.quit()));
-  console.log("[MINDS-WORKER] Workers shut down");
+  logger.info("[MINDS-WORKER] Workers shut down");
   process.exit(0);
 }
 
@@ -522,9 +523,9 @@ async function setupWorksDigestSchedule(): Promise<void> {
         jobId: "weekly-works-digest",
       }
     );
-    console.log("[MINDS-WORKER] Weekly works digest job scheduled (3 AM UTC Sundays)");
+    logger.info("[MINDS-WORKER] Weekly works digest job scheduled (3 AM UTC Sundays)");
   } catch (err: any) {
-    console.error("[MINDS-WORKER] Failed to set up works digest schedule:", err);
+    logger.error({ err: err }, "[MINDS-WORKER] Failed to set up works digest schedule:");
   }
 }
 
@@ -543,9 +544,9 @@ async function setupReviewSyncSchedule(): Promise<void> {
         jobId: "daily-review-sync",
       }
     );
-    console.log("[MINDS-WORKER] Daily review sync job scheduled (4 AM UTC)");
+    logger.info("[MINDS-WORKER] Daily review sync job scheduled (4 AM UTC)");
   } catch (err: any) {
-    console.error("[MINDS-WORKER] Failed to set up review sync schedule:", err);
+    logger.error({ err: err }, "[MINDS-WORKER] Failed to set up review sync schedule:");
   }
 }
 
@@ -564,9 +565,9 @@ async function setupGbpLocalPostSyncSchedule(): Promise<void> {
         jobId: "daily-local-post-sync",
       }
     );
-    console.log("[MINDS-WORKER] Daily GBP local post sync scheduled (4:45 AM UTC)");
+    logger.info("[MINDS-WORKER] Daily GBP local post sync scheduled (4:45 AM UTC)");
   } catch (err: any) {
-    console.error("[MINDS-WORKER] Failed to set up GBP local post sync schedule:", err);
+    logger.error({ err: err }, "[MINDS-WORKER] Failed to set up GBP local post sync schedule:");
   }
 }
 
@@ -585,9 +586,9 @@ async function setupSchedulerTick(): Promise<void> {
         jobId: "scheduler-tick",
       }
     );
-    console.log("[MINDS-WORKER] Scheduler tick scheduled (every 60s)");
+    logger.info("[MINDS-WORKER] Scheduler tick scheduled (every 60s)");
   } catch (err: any) {
-    console.error("[MINDS-WORKER] Failed to set up scheduler tick:", err);
+    logger.error({ err: err }, "[MINDS-WORKER] Failed to set up scheduler tick:");
   }
 }
 
@@ -606,9 +607,9 @@ async function setupCrmMappingValidationSchedule(): Promise<void> {
         jobId: "daily-mapping-validation",
       }
     );
-    console.log("[MINDS-WORKER] Daily CRM mapping validation scheduled (4:30 AM UTC)");
+    logger.info("[MINDS-WORKER] Daily CRM mapping validation scheduled (4:30 AM UTC)");
   } catch (err: any) {
-    console.error("[MINDS-WORKER] Failed to set up CRM mapping validation schedule:", err);
+    logger.error({ err: err }, "[MINDS-WORKER] Failed to set up CRM mapping validation schedule:");
   }
 }
 
@@ -627,9 +628,9 @@ async function setupDataHarvestSchedule(): Promise<void> {
         jobId: "daily-data-harvest",
       }
     );
-    console.log("[MINDS-WORKER] Daily data harvest scheduled (5:00 AM UTC)");
+    logger.info("[MINDS-WORKER] Daily data harvest scheduled (5:00 AM UTC)");
   } catch (err: any) {
-    console.error("[MINDS-WORKER] Failed to set up data harvest schedule:", err);
+    logger.error({ err: err }, "[MINDS-WORKER] Failed to set up data harvest schedule:");
   }
 }
 
@@ -648,9 +649,9 @@ async function setupGbpLocalPostGenerationSchedule(): Promise<void> {
         jobId: "scan-local-post-generation",
       }
     );
-    console.log("[MINDS-WORKER] GBP local post generation scan scheduled (hourly)");
+    logger.info("[MINDS-WORKER] GBP local post generation scan scheduled (hourly)");
   } catch (err: any) {
-    console.error("[MINDS-WORKER] Failed to set up GBP local post generation schedule:", err);
+    logger.error({ err: err }, "[MINDS-WORKER] Failed to set up GBP local post generation schedule:");
   }
 }
 
@@ -664,4 +665,4 @@ setupDataHarvestSchedule();
 setupGbpLocalPostGenerationSchedule();
 setupGbpLocalPostSyncSchedule();
 
-console.log("[MINDS-WORKER] All workers running. Waiting for jobs...");
+logger.info("[MINDS-WORKER] All workers running. Waiting for jobs...");

@@ -1,5 +1,6 @@
 import knex from "knex";
 import config from "./config";
+import logger from "../lib/logger";
 
 // Get the environment (default to development)
 const environment = process.env.NODE_ENV || "development";
@@ -11,10 +12,10 @@ export const db = knex(config[environment]);
 export const testConnection = async (): Promise<boolean> => {
   try {
     await db.raw("SELECT 1");
-    console.log("✅ Database connection successful");
+    logger.info("✅ Database connection successful");
     return true;
   } catch (error) {
-    console.error("❌ Database connection failed:", error);
+    logger.error({ err: error }, "❌ Database connection failed:");
     return false;
   }
 };
@@ -23,9 +24,9 @@ export const testConnection = async (): Promise<boolean> => {
 export const closeConnection = async (): Promise<void> => {
   try {
     await db.destroy();
-    console.log("🔌 Database connection closed");
+    logger.info("🔌 Database connection closed");
   } catch (error) {
-    console.error("Error closing database connection:", error);
+    logger.error({ err: error }, "Error closing database connection:");
   }
 };
 

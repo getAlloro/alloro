@@ -12,6 +12,7 @@ import app from "./app";
 import { testConnection, closeConnection } from "./database/connection";
 import { startCustomDomainCacheRefresh } from "./middleware/corsCustomDomains";
 import { cleanupZombieJobs } from "./utils/startup/zombieJobCleanup";
+import logger from "./lib/logger";
 
 const port = process.env.PORT || 3000;
 const isProd = process.env.NODE_ENV === "production";
@@ -29,30 +30,30 @@ const startServer = async () => {
     startCustomDomainCacheRefresh();
 
     app.listen(port, () => {
-      console.log(
+      logger.info(
         `🚀 Server running in ${
           isProd ? "production" : "development"
         } mode at http://localhost:${port}`,
       );
-      console.log(
+      logger.info(
         `📊 Database health check: http://localhost:${port}/api/health/db`,
       );
     });
   } catch (error) {
-    console.error("Failed to start server:", error);
+    logger.error({ err: error }, "Failed to start server:");
     process.exit(1);
   }
 };
 
 // Graceful shutdown
 process.on("SIGINT", async () => {
-  console.log("\n🛑 Shutting down server...");
+  logger.info("\n🛑 Shutting down server...");
   await closeConnection();
   process.exit(0);
 });
 
 process.on("SIGTERM", async () => {
-  console.log("\n🛑 Shutting down server...");
+  logger.info("\n🛑 Shutting down server...");
   await closeConnection();
   process.exit(0);
 });

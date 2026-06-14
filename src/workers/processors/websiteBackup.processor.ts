@@ -22,6 +22,7 @@ import { PostAttachmentModel } from "../../models/website-builder/PostAttachment
 import { PostBlockModel } from "../../models/website-builder/PostBlockModel";
 import { ProjectModel } from "../../models/website-builder/ProjectModel";
 import { getFromS3, uploadToS3 } from "../../utils/core/s3";
+import logger from "../../lib/logger";
 
 export interface BackupJobData {
   jobId: string;
@@ -33,7 +34,7 @@ export async function processWebsiteBackup(
 ): Promise<void> {
   const { jobId, projectId } = job.data;
   const log = (msg: string) =>
-    console.log(`[WB-BACKUP] [${jobId}] ${msg}`);
+    logger.info(`[WB-BACKUP] [${jobId}] ${msg}`);
 
   try {
     await BackupJobModel.markProcessing(jobId);

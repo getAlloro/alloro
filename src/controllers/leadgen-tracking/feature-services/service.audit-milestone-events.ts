@@ -23,9 +23,10 @@ import {
   ILeadgenSession,
 } from "../../../models/LeadgenSessionModel";
 import { isLaterStage } from "../feature-utils/util.event-ordering";
+import logger from "../../../lib/logger";
 
 function log(message: string): void {
-  console.log(`[LEADGEN-MILESTONE] ${message}`);
+  logger.info(`[LEADGEN-MILESTONE] ${message}`);
 }
 
 type SessionLite = Pick<ILeadgenSession, "id" | "final_stage" | "completed">;

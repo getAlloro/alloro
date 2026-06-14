@@ -11,6 +11,7 @@
 
 import { v4 as uuid } from "uuid";
 import { db } from "../database/connection";
+import logger from "../lib/logger";
 
 const PROJECTS_TABLE = "website_builder.projects";
 const PAGES_TABLE = "website_builder.pages";
@@ -493,7 +494,7 @@ export async function generateInstantWebsite(input: CheckupWebsiteInput): Promis
     .first();
 
   if (existing) {
-    console.log(`[InstantWebsite] Project already exists for org ${orgId}, skipping`);
+    logger.info(`[InstantWebsite] Project already exists for org ${orgId}, skipping`);
     return {
       projectId: existing.id,
       hostname: existing.generated_hostname,
@@ -570,7 +571,7 @@ export async function generateInstantWebsite(input: CheckupWebsiteInput): Promis
     updated_at: new Date(),
   }).catch(() => {});
 
-  console.log(`[InstantWebsite] Created project ${projectId} for org ${orgId} -> ${previewUrl}`);
+  logger.info(`[InstantWebsite] Created project ${projectId} for org ${orgId} -> ${previewUrl}`);
 
   return { projectId, hostname, previewUrl };
 }

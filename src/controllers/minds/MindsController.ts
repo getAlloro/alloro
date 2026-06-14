@@ -1,12 +1,13 @@
 import { Request, Response } from "express";
 import * as mindsCrud from "./feature-services/service.minds-crud";
+import logger from "../../lib/logger";
 
 export async function listMinds(_req: Request, res: Response): Promise<any> {
   try {
     const minds = await mindsCrud.listMinds();
     return res.json({ success: true, data: minds });
   } catch (error: any) {
-    console.error("[MINDS] Error listing minds:", error);
+    logger.error({ err: error }, "[MINDS] Error listing minds:");
     return res.status(500).json({ error: "Failed to list minds" });
   }
 }
@@ -17,7 +18,7 @@ export async function getMind(req: Request, res: Response): Promise<any> {
     const mind = await mindsCrud.getMind(mindId);
     return res.json({ success: true, data: mind });
   } catch (error: any) {
-    console.error("[MINDS] Error getting mind:", error);
+    logger.error({ err: error }, "[MINDS] Error getting mind:");
     if (error.message === "Mind not found") {
       return res.status(404).json({ error: "Mind not found" });
     }
@@ -33,7 +34,7 @@ export async function createMind(req: Request, res: Response): Promise<any> {
     const mind = await mindsCrud.createMind(name, personality_prompt || "");
     return res.status(201).json({ success: true, data: mind });
   } catch (error: any) {
-    console.error("[MINDS] Error creating mind:", error);
+    logger.error({ err: error }, "[MINDS] Error creating mind:");
     if (error.message?.includes("already exists")) {
       return res.status(409).json({ error: error.message });
     }
@@ -47,7 +48,7 @@ export async function deleteMind(req: Request, res: Response): Promise<any> {
     await mindsCrud.deleteMind(mindId);
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[MINDS] Error deleting mind:", error);
+    logger.error({ err: error }, "[MINDS] Error deleting mind:");
     if (error.message === "Mind not found") {
       return res.status(404).json({ error: "Mind not found" });
     }
@@ -77,7 +78,7 @@ export async function updateMind(req: Request, res: Response): Promise<any> {
     const mind = await mindsCrud.updateMind(mindId, updates);
     return res.json({ success: true, data: mind });
   } catch (error: any) {
-    console.error("[MINDS] Error updating mind:", error);
+    logger.error({ err: error }, "[MINDS] Error updating mind:");
     if (error.message === "Mind not found") {
       return res.status(404).json({ error: "Mind not found" });
     }
@@ -97,7 +98,7 @@ export async function updateBrain(req: Request, res: Response): Promise<any> {
     const result = await mindsCrud.updateBrain(mindId, brain_markdown);
     return res.json({ success: true, data: result });
   } catch (error: any) {
-    console.error("[MINDS] Error updating brain:", error);
+    logger.error({ err: error }, "[MINDS] Error updating brain:");
     if (error.message === "Mind not found") {
       return res.status(404).json({ error: "Mind not found" });
     }
@@ -114,7 +115,7 @@ export async function listVersions(req: Request, res: Response): Promise<any> {
     const versions = await mindsCrud.listVersions(mindId);
     return res.json({ success: true, data: versions });
   } catch (error: any) {
-    console.error("[MINDS] Error listing versions:", error);
+    logger.error({ err: error }, "[MINDS] Error listing versions:");
     return res.status(500).json({ error: "Failed to list versions" });
   }
 }
@@ -125,7 +126,7 @@ export async function publishVersion(req: Request, res: Response): Promise<any> 
     await mindsCrud.publishVersion(mindId, versionId);
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[MINDS] Error publishing version:", error);
+    logger.error({ err: error }, "[MINDS] Error publishing version:");
     if (error.message?.includes("not found")) {
       return res.status(404).json({ error: error.message });
     }

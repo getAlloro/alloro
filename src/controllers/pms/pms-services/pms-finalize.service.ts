@@ -7,6 +7,7 @@ import {
   failAutomation,
 } from "../../../utils/pms/pmsAutomationStatus";
 import { OrganizationLifecycleService } from "../../../services/OrganizationLifecycleService";
+import logger from "../../../lib/logger";
 
 /**
  * Single source of truth for "PMS data is approved, run agents now."
@@ -121,13 +122,13 @@ async function triggerMonthlyAgents(
       : undefined;
 
     if (!account) {
-      console.warn(
+      logger.warn(
         `[PMS] No google account found for jobId=${jobId} orgId=${organizationId} - monthly agents not triggered`
       );
       return;
     }
 
-    console.log(
+    logger.info(
       `[PMS] Triggering monthly agents for jobId=${jobId} orgId=${organizationId} domain=${domain ?? "(none)"}`
     );
 
@@ -143,17 +144,17 @@ async function triggerMonthlyAgents(
         }
       )
       .then(() => {
-        console.log(
+        logger.info(
           `[PMS] Monthly agents triggered successfully for jobId=${jobId}`
         );
       })
       .catch((error) => {
-        console.error(
+        logger.error(
           `[PMS] Failed to trigger monthly agents for jobId=${jobId}: ${error?.message ?? error}`
         );
       });
   } catch (triggerError: any) {
-    console.error(
+    logger.error(
       `[PMS] Error preparing monthly agents trigger for jobId=${jobId}: ${triggerError?.message ?? triggerError}`
     );
   }

@@ -19,6 +19,7 @@
 
 import { db } from "../../../database/connection";
 import { getAuditQueue } from "../../../workers/queues";
+import logger from "../../../lib/logger";
 
 const MAX_RETRIES = 3;
 
@@ -92,13 +93,13 @@ export async function retryAuditById(
       practiceSearchString: row.practice_search_string,
     });
 
-    console.log(
+    logger.info(
       `[AuditRetry] Re-enqueued audit ${row.id} (retry_count=${row.retry_count}, admin=${skipLimit})`
     );
 
     return { ok: true, auditId: row.id, retryCount: row.retry_count };
   } catch (error) {
-    console.error(`[AuditRetry] Error retrying audit ${auditId}:`, error);
+    logger.error({ err: error }, `[AuditRetry] Error retrying audit ${auditId}:`);
     return { ok: false, reason: "not_found" };
   }
 }

@@ -11,6 +11,9 @@
 
 import axios from "axios";
 
+// Aliased to avoid shadowing the optional `logger` PARAM below.
+import appLogger from "../../../lib/logger";
+
 // Webhook URL from environment
 const IDENTIFIER_AGENT_WEBHOOK = process.env.IDENTIFIER_AGENT_WEBHOOK || "";
 
@@ -38,7 +41,7 @@ export async function identifyLocationMeta(
   domain: string,
   logger?: (msg: string) => void,
 ): Promise<IdentifierResult> {
-  const log = logger || console.log;
+  const log = logger || ((msg: string) => appLogger.info(msg));
   log(`  [IDENTIFIER] Identifying specialty and market for ${domain}`);
 
   if (!IDENTIFIER_AGENT_WEBHOOK) {

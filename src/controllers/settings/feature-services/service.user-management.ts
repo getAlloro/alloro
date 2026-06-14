@@ -6,6 +6,7 @@ import {
   generateInvitationToken,
   calculateTokenExpiry,
 } from "../feature-utils/util.invitation-token";
+import logger from "../../../lib/logger";
 
 export async function listOrganizationUsers(organizationId: number) {
   if (!organizationId) {
@@ -138,9 +139,9 @@ export async function inviteUserToOrganization(
   });
 
   if (!emailResult.success) {
-    console.warn(`[Settings] Failed to send invitation email to ${email}`);
+    logger.warn(`[Settings] Failed to send invitation email to ${email}`);
   } else {
-    console.log(`[Settings] Invitation email sent to ${email}`);
+    logger.info(`[Settings] Invitation email sent to ${email}`);
   }
 
   return { message: `Invitation sent to ${email}` };
@@ -230,9 +231,9 @@ export async function resendInvitation(
   });
 
   if (!emailResult.success) {
-    console.warn(`[Settings] Failed to resend invitation email to ${invite.email}`);
+    logger.warn(`[Settings] Failed to resend invitation email to ${invite.email}`);
   } else {
-    console.log(`[Settings] Invitation email resent to ${invite.email}`);
+    logger.info(`[Settings] Invitation email resent to ${invite.email}`);
   }
 
   return { message: `Invitation resent to ${invite.email}` };

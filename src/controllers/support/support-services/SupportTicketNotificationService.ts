@@ -6,6 +6,7 @@ import {
   sendWebsiteResolvedEmail,
 } from "./SupportEmailService";
 import { displayUserName } from "./SupportTicketHelpers";
+import logger from "../../../lib/logger";
 
 export async function sendCreateTicketEmails(
   ticket: SupportTicket,
@@ -27,7 +28,7 @@ export async function sendCreateTicketEmails(
     }
     await sendSupportAdminNotificationEmail(ticket, organizationName);
   } catch (error) {
-    console.error("[SupportTicketNotificationService] Ticket email failed", error);
+    logger.error({ err: error }, "[SupportTicketNotificationService] Ticket email failed");
   }
 }
 

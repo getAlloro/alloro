@@ -33,6 +33,7 @@ import {
   rewriteCodeSnippet,
   rewriteUrls,
 } from "./backup-utils/url-rewriter";
+import logger from "../../lib/logger";
 
 export interface RestoreJobData {
   jobId: string;
@@ -55,7 +56,7 @@ export async function processWebsiteRestore(
 ): Promise<void> {
   const { jobId, projectId, backupJobId } = job.data;
   const log = (msg: string) =>
-    console.log(`[WB-RESTORE] [${jobId}] ${msg}`);
+    logger.info(`[WB-RESTORE] [${jobId}] ${msg}`);
 
   try {
     await BackupJobModel.markProcessing(jobId);

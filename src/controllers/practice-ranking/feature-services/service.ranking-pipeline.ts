@@ -8,6 +8,8 @@
  */
 
 import { db } from "../../../database/connection";
+// Aliased to avoid shadowing the optional `logger` PARAM used below.
+import appLogger from "../../../lib/logger";
 import { getValidOAuth2Client } from "../../../auth/oauth2Helper";
 import { fetchGBPDataForRange } from "../../../utils/dataAggregation/dataAggregator";
 import {
@@ -787,7 +789,7 @@ export async function processLocationRanking(
   options: ProcessLocationRankingOptions = {},
 ): Promise<LocationRankingResult> {
   const startTime = Date.now();
-  const log = logger || console.log;
+  const log = logger || ((msg: string) => appLogger.info(msg));
   const pipelineTimings: PipelineTimingRecord[] = [];
 
   log(

@@ -15,6 +15,7 @@
 import axios from "axios";
 import { GbpMinimized } from "../../../models/AuditProcessModel";
 import { textSearch } from "../../places/feature-services/GooglePlacesApiService";
+import logger from "../../../lib/logger";
 
 export { GbpMinimized };
 
@@ -35,7 +36,7 @@ interface ApifyRunResult {
 }
 
 function log(message: string): void {
-  console.log(`[AUDIT-APIFY] ${message}`);
+  logger.info(`[AUDIT-APIFY] ${message}`);
 }
 
 /**

@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { MindSourceModel } from "../../models/MindSourceModel";
+import logger from "../../lib/logger";
 
 export async function listSources(req: Request, res: Response): Promise<any> {
   try {
@@ -7,7 +8,7 @@ export async function listSources(req: Request, res: Response): Promise<any> {
     const sources = await MindSourceModel.listByMind(mindId);
     return res.json({ success: true, data: sources });
   } catch (error: any) {
-    console.error("[MINDS] Error listing sources:", error);
+    logger.error({ err: error }, "[MINDS] Error listing sources:");
     return res.status(500).json({ error: "Failed to list sources" });
   }
 }
@@ -34,7 +35,7 @@ export async function createSource(req: Request, res: Response): Promise<any> {
     });
     return res.status(201).json({ success: true, data: source });
   } catch (error: any) {
-    console.error("[MINDS] Error creating source:", error);
+    logger.error({ err: error }, "[MINDS] Error creating source:");
     if (error.code === "23505") {
       return res.status(409).json({ error: "This URL is already configured for this mind" });
     }
@@ -49,7 +50,7 @@ export async function deleteSource(req: Request, res: Response): Promise<any> {
     if (!deleted) return res.status(404).json({ error: "Source not found" });
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[MINDS] Error deleting source:", error);
+    logger.error({ err: error }, "[MINDS] Error deleting source:");
     return res.status(500).json({ error: "Failed to delete source" });
   }
 }
@@ -67,7 +68,7 @@ export async function toggleSource(req: Request, res: Response): Promise<any> {
     if (!updated) return res.status(404).json({ error: "Source not found" });
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[MINDS] Error toggling source:", error);
+    logger.error({ err: error }, "[MINDS] Error toggling source:");
     return res.status(500).json({ error: "Failed to toggle source" });
   }
 }

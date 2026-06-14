@@ -10,6 +10,7 @@ import { applyProposals } from "../../controllers/minds/feature-services/service
 import { regenerateEmbeddings } from "../../controllers/minds/feature-services/service.minds-embedding";
 import { shouldUseRag } from "../../controllers/minds/feature-services/service.minds-retrieval";
 import { db } from "../../database/connection";
+import logger from "../../lib/logger";
 
 interface CompilePublishJobData {
   mindId: string;
@@ -48,7 +49,7 @@ async function runStep(
 
 export async function processCompilePublish(job: Job<CompilePublishJobData>): Promise<void> {
   const { mindId, runId } = job.data;
-  console.log(`[MINDS-WORKER] Starting compile_publish run ${runId} for mind ${mindId}`);
+  logger.info(`[MINDS-WORKER] Starting compile_publish run ${runId} for mind ${mindId}`);
 
   await MindSyncRunModel.markRunning(runId);
 
@@ -176,9 +177,9 @@ export async function processCompilePublish(job: Job<CompilePublishJobData>): Pr
     });
 
     await MindSyncRunModel.markCompleted(runId);
-    console.log(`[MINDS-WORKER] Compile_publish run ${runId} completed`);
+    logger.info(`[MINDS-WORKER] Compile_publish run ${runId} completed`);
   } catch (err: any) {
-    console.error(`[MINDS-WORKER] Compile_publish run ${runId} failed:`, err);
+    logger.error({ err: err }, `[MINDS-WORKER] Compile_publish run ${runId} failed:`);
     await MindSyncRunModel.markFailed(runId, err.message);
     // Re-throw so BullMQ records the job as failed (and retries / dead-letters)
     // instead of treating a half-published run as a success.

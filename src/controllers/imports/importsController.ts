@@ -9,6 +9,7 @@ import {
   streamTextContent,
   streamFromS3,
 } from "./feature-utils/streamingUtils";
+import logger from "../../lib/logger";
 
 export async function servePublishedImport(
   req: Request,
@@ -38,7 +39,7 @@ export async function servePublishedImport(
 
     await streamFromS3(res, record.s3_key as string);
   } catch (error: any) {
-    console.error(`[Imports] Error serving ${req.params.filename}:`, error);
+    logger.error({ err: error }, `[Imports] Error serving ${req.params.filename}:`);
     res.status(500).json({
       error: "SERVE_ERROR",
       message: "Failed to serve import",
@@ -92,10 +93,7 @@ export async function serveVersionedImport(
 
     await streamFromS3(res, record.s3_key as string);
   } catch (error: any) {
-    console.error(
-      `[Imports] Error serving ${req.params.filename}/v/${req.params.version}:`,
-      error
-    );
+    logger.error({ err: error }, `[Imports] Error serving ${req.params.filename}/v/${req.params.version}:`);
     res.status(500).json({
       error: "SERVE_ERROR",
       message: "Failed to serve import",

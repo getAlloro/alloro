@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { AdminSettingModel } from "../../models/website-builder/AdminSettingModel";
 import { SettingsTransformService } from "./services/settings-transform.service";
 import { SettingsValidator } from "./utils/settings-validator.util";
+import logger from "../../lib/logger";
 
 export class AdminSettingsController {
   static async getAllSettings(_req: Request, res: Response): Promise<Response> {
@@ -10,7 +11,7 @@ export class AdminSettingsController {
       const data = SettingsTransformService.groupByCategory(rows);
       return res.json({ success: true, data });
     } catch (error: any) {
-      console.error("[Admin Settings] Error fetching settings:", error);
+      logger.error({ err: error }, "[Admin Settings] Error fetching settings:");
       return res.status(500).json({
         success: false,
         error: "FETCH_ERROR",
@@ -35,7 +36,7 @@ export class AdminSettingsController {
 
       return res.json({ success: true, data: row });
     } catch (error: any) {
-      console.error("[Admin Settings] Error fetching setting:", error);
+      logger.error({ err: error }, "[Admin Settings] Error fetching setting:");
       return res.status(500).json({
         success: false,
         error: "FETCH_ERROR",
@@ -60,11 +61,11 @@ export class AdminSettingsController {
 
       const row = await AdminSettingModel.upsert(category, key, value);
 
-      console.log(`[Admin Settings] Updated ${category}/${key}`);
+      logger.info(`[Admin Settings] Updated ${category}/${key}`);
 
       return res.json({ success: true, data: row });
     } catch (error: any) {
-      console.error("[Admin Settings] Error updating setting:", error);
+      logger.error({ err: error }, "[Admin Settings] Error updating setting:");
       return res.status(500).json({
         success: false,
         error: "UPDATE_ERROR",

@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import * as formDetection from "./feature-services/service.form-detection";
 import { upsertFormCatalogPreferences } from "../../services/formCatalogPreferenceService";
 import { upsertFormRecipientRule } from "../../services/formRecipientRuleService";
+import logger from "../../lib/logger";
 
 function ok<T>(res: Response, data: T, status = 200): Response {
   return res.status(status).json({ success: true, data });
@@ -25,7 +26,7 @@ export async function listFormCatalog(
     const data = await formDetection.listFormCatalog(projectId);
     return ok(res, data);
   } catch (error) {
-    console.error("[Website Forms] listFormCatalog failed:", error);
+    logger.error({ err: error }, "[Website Forms] listFormCatalog failed:");
     return fail(res, 500, "FETCH_ERROR", "Failed to list website forms");
   }
 }
@@ -60,7 +61,7 @@ export async function updateFormRecipientRule(
       );
     }
 
-    console.error("[Website Forms] updateFormRecipientRule failed:", error);
+    logger.error({ err: error }, "[Website Forms] updateFormRecipientRule failed:");
     return fail(
       res,
       500,
@@ -92,7 +93,7 @@ export async function updateFormPreferences(
       );
     }
 
-    console.error("[Website Forms] updateFormPreferences failed:", error);
+    logger.error({ err: error }, "[Website Forms] updateFormPreferences failed:");
     return fail(
       res,
       500,

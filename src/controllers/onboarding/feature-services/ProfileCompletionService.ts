@@ -5,6 +5,7 @@ import { OrganizationUserModel } from "../../../models/OrganizationUserModel";
 import { UserModel } from "../../../models/UserModel";
 import { ProfileData } from "../feature-utils/onboardingValidation";
 import { bootstrapOrganization } from "./OrganizationBootstrapService";
+import logger from "../../../lib/logger";
 
 export interface ProfileCompletionResult {
   profile: ProfileData;
@@ -118,7 +119,7 @@ export async function completeOnboardingWithProfile(
     }
   });
 
-  console.log(
+  logger.info(
     `[Onboarding] Completed onboarding for account ${googleAccountId}`
   );
 
@@ -183,7 +184,7 @@ export async function completeOnboardingForPasswordUser(
     );
   });
 
-  console.log(
+  logger.info(
     `[Onboarding] Completed onboarding for password user ${userId}, org ${orgId!}`
   );
 
@@ -263,7 +264,7 @@ export async function saveProfileAndBootstrapOrg(
     );
   });
 
-  console.log(
+  logger.info(
     `[Onboarding] Saved profile for user ${userId}, org ${orgId!}`
   );
 
@@ -290,7 +291,7 @@ export async function markOnboardingComplete(
   organizationId: number
 ): Promise<void> {
   await OrganizationModel.completeOnboarding(organizationId);
-  console.log(
+  logger.info(
     `[Onboarding] Marked onboarding complete for org ${organizationId}`
   );
 }

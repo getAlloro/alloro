@@ -15,6 +15,7 @@ import { PmsJobEventModel } from "../../../models/PmsJobEventModel";
 import { assertNoActivePmsAutomation } from "./pms-mutation-guard.service";
 import { db } from "../../../database/connection";
 import { diffMonthFields } from "../pms-utils/pms-response-log-diff.util";
+import logger from "../../../lib/logger";
 
 /**
  * Process a manual PMS data entry.
@@ -35,7 +36,7 @@ export async function processManualEntry(
     organizationId = org?.id ?? null;
   }
 
-  console.log(
+  logger.info(
     `[PMS] Manual entry received for domain: ${domain}, orgId: ${organizationId}, months: ${parsedManualData.length}`
   );
 

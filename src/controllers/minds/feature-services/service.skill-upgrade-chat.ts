@@ -4,6 +4,7 @@ import { MindSkillModel } from "../../../models/MindSkillModel";
 import { MindSkillNeuronModel } from "../../../models/MindSkillNeuronModel";
 import { SkillUpgradeSessionModel } from "../../../models/SkillUpgradeSessionModel";
 import { SkillUpgradeMessageModel, ISkillUpgradeMessage } from "../../../models/SkillUpgradeMessageModel";
+import logger from "../../../lib/logger";
 
 const MODEL = process.env.MINDS_LLM_MODEL || "claude-sonnet-4-6";
 
@@ -128,7 +129,7 @@ export async function chatStream(
   const history = await SkillUpgradeMessageModel.listBySession(sessionId);
   const apiMessages = buildApiMessages(history);
 
-  console.log(
+  logger.info(
     `[MINDS] Skill upgrade chat for skill ${skill.name}, session ${sessionId}, ${apiMessages.length} messages`
   );
 
@@ -218,6 +219,6 @@ export async function generateSessionTitle(
       await SkillUpgradeSessionModel.updateTitle(sessionId, title);
     }
   } catch (err) {
-    console.error("[MINDS] Failed to generate upgrade session title:", err);
+    logger.error({ err: err }, "[MINDS] Failed to generate upgrade session title:");
   }
 }

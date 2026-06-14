@@ -6,16 +6,17 @@ import { generateAuthorizationUrl, exchangeCodeForTokens } from "./services/OAut
 import { validateRefreshToken } from "./services/TokenValidationService";
 import { generateSuccessPage } from "./utils/templates/successTemplate";
 import { generateErrorPage } from "./utils/templates/errorTemplate";
+import logger from "../../lib/logger";
 
 // GET /url - Generate OAuth2 authorization URL
 export async function generateAuthUrl(req: Request, res: Response) {
   try {
-    console.log("=== Generating OAuth2 Authorization URL ===");
-    console.log("Required scopes:", REQUIRED_SCOPES);
+    logger.info("=== Generating OAuth2 Authorization URL ===");
+    logger.info({ detail: REQUIRED_SCOPES }, "Required scopes:");
 
     const authUrl = generateAuthorizationUrl();
 
-    console.log("✅ Authorization URL generated successfully");
+    logger.info("✅ Authorization URL generated successfully");
 
     res.json({
       authUrl,
@@ -37,17 +38,17 @@ export async function handleCallback(req: Request, res: Response) {
       return res.status(400).json({ error: "Authorization code is required" });
     }
 
-    console.log("=== Processing OAuth2 Callback ===");
+    logger.info("=== Processing OAuth2 Callback ===");
 
     const tokens = await exchangeCodeForTokens(code);
 
-    console.log("✅ OAuth2 tokens received successfully");
-    console.log("Token info:", {
-      hasAccessToken: !!tokens.access_token,
-      hasRefreshToken: !!tokens.refresh_token,
-      expiryDate: tokens.expiry_date,
-      scope: tokens.scope,
-    });
+    logger.info("✅ OAuth2 tokens received successfully");
+    logger.info({ detail: {
+            hasAccessToken: !!tokens.access_token,
+            hasRefreshToken: !!tokens.refresh_token,
+            expiryDate: tokens.expiry_date,
+            scope: tokens.scope,
+          } }, "Token info:");
 
     res.json({
       message:
@@ -82,16 +83,16 @@ export async function handleWebCallback(req: Request, res: Response) {
       return res.status(400).json({ error: "Authorization code is required" });
     }
 
-    console.log("=== Processing Web OAuth2 Callback ===");
+    logger.info("=== Processing Web OAuth2 Callback ===");
 
     const tokens = await exchangeCodeForTokens(code as string);
 
-    console.log("✅ Web OAuth2 tokens received successfully");
+    logger.info("✅ Web OAuth2 tokens received successfully");
 
     // Return enhanced success page with tokens
     res.send(generateSuccessPage(tokens));
   } catch (error: any) {
-    console.error("Web OAuth callback error:", error);
+    logger.error({ err: error }, "Web OAuth callback error:");
     res.status(500).send(generateErrorPage(error.message));
   }
 }

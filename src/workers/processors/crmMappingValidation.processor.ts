@@ -19,13 +19,14 @@ import { Job } from "bullmq";
 import { WebsiteIntegrationModel } from "../../models/website-builder/WebsiteIntegrationModel";
 import { IntegrationFormMappingModel } from "../../models/website-builder/IntegrationFormMappingModel";
 import { getAdapter } from "../../services/integrations";
+import logger from "../../lib/logger";
 
 const LOG_PREFIX = "[CRM-MAPPING-VALIDATION]";
 
 export async function processCrmMappingValidation(_job: Job): Promise<void> {
   const start = Date.now();
   const integrations = await WebsiteIntegrationModel.findActiveByTypes(["crm_push"]);
-  console.log(`${LOG_PREFIX} Validating ${integrations.length} active integration(s)`);
+  logger.info(`${LOG_PREFIX} Validating ${integrations.length} active integration(s)`);
 
   let okCount = 0;
   let revokedCount = 0;
@@ -79,10 +80,7 @@ export async function processCrmMappingValidation(_job: Job): Promise<void> {
       await WebsiteIntegrationModel.updateLastValidated(integration.id, new Date(), null);
       okCount++;
     } catch (err) {
-      console.error(
-        `${LOG_PREFIX} Integration ${integration.id} (${integration.platform}) failed:`,
-        err,
-      );
+      logger.error({ err: err }, `${LOG_PREFIX} Integration ${integration.id} (${integration.platform}) failed:`);
       // Don't change status on unexpected errors; record last_error and move on.
       try {
         await WebsiteIntegrationModel.updateLastValidated(
@@ -97,7 +95,7 @@ export async function processCrmMappingValidation(_job: Job): Promise<void> {
   }
 
   const elapsed = Date.now() - start;
-  console.log(
+  logger.info(
     `${LOG_PREFIX} Done in ${elapsed}ms — ok=${okCount} revoked=${revokedCount} mappings_marked_broken=${brokenCount}`,
   );
 }

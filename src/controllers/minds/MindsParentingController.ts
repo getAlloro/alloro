@@ -4,6 +4,7 @@ import * as parentingChat from "./feature-services/service.minds-parenting-chat"
 import { MindSyncProposalModel } from "../../models/MindSyncProposalModel";
 import { MindParentingSessionModel } from "../../models/MindParentingSessionModel";
 import * as syncService from "./feature-services/service.minds-sync";
+import logger from "../../lib/logger";
 
 export async function createSession(req: Request, res: Response): Promise<any> {
   try {
@@ -17,7 +18,7 @@ export async function createSession(req: Request, res: Response): Promise<any> {
       data: { session, greeting },
     });
   } catch (error: any) {
-    console.error("[MINDS] Error creating parenting session:", error);
+    logger.error({ err: error }, "[MINDS] Error creating parenting session:");
     return res.status(500).json({ error: "Failed to create parenting session" });
   }
 }
@@ -28,7 +29,7 @@ export async function listSessions(req: Request, res: Response): Promise<any> {
     const sessions = await parentingService.listSessions(mindId);
     return res.json({ success: true, data: sessions });
   } catch (error: any) {
-    console.error("[MINDS] Error listing parenting sessions:", error);
+    logger.error({ err: error }, "[MINDS] Error listing parenting sessions:");
     return res.status(500).json({ error: "Failed to list parenting sessions" });
   }
 }
@@ -39,7 +40,7 @@ export async function getSession(req: Request, res: Response): Promise<any> {
     const details = await parentingService.getSessionDetails(sessionId);
     return res.json({ success: true, data: details });
   } catch (error: any) {
-    console.error("[MINDS] Error getting parenting session:", error);
+    logger.error({ err: error }, "[MINDS] Error getting parenting session:");
     if (error.message?.includes("not found")) {
       return res.status(404).json({ error: "Session not found" });
     }
@@ -79,7 +80,7 @@ export async function chatStream(req: Request, res: Response): Promise<any> {
     res.write("data: [DONE]\n\n");
     res.end();
   } catch (error: any) {
-    console.error("[MINDS] Error in parenting chat stream:", error);
+    logger.error({ err: error }, "[MINDS] Error in parenting chat stream:");
     if (!res.headersSent) {
       return res.status(500).json({ error: error.message || "Chat failed" });
     }
@@ -109,7 +110,7 @@ export async function triggerReadingStream(req: Request, res: Response): Promise
     res.write("data: [DONE]\n\n");
     res.end();
   } catch (error: any) {
-    console.error("[MINDS] Error in reading stream:", error);
+    logger.error({ err: error }, "[MINDS] Error in reading stream:");
     if (!res.headersSent) {
       return res.status(500).json({ error: error.message || "Reading failed" });
     }
@@ -135,7 +136,7 @@ export async function updateSession(req: Request, res: Response): Promise<any> {
     await MindParentingSessionModel.updateTitle(sessionId, title.trim());
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[MINDS] Error updating session:", error);
+    logger.error({ err: error }, "[MINDS] Error updating session:");
     return res.status(500).json({ error: "Failed to update session" });
   }
 }
@@ -150,7 +151,7 @@ export async function getProposals(req: Request, res: Response): Promise<any> {
     const proposals = await MindSyncProposalModel.listByRun(session.sync_run_id);
     return res.json({ success: true, data: proposals });
   } catch (error: any) {
-    console.error("[MINDS] Error getting parenting proposals:", error);
+    logger.error({ err: error }, "[MINDS] Error getting parenting proposals:");
     return res.status(500).json({ error: "Failed to get proposals" });
   }
 }
@@ -167,7 +168,7 @@ export async function updateProposal(req: Request, res: Response): Promise<any> 
     await MindSyncProposalModel.updateStatus(proposalId, status);
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[MINDS] Error updating parenting proposal:", error);
+    logger.error({ err: error }, "[MINDS] Error updating parenting proposal:");
     return res.status(500).json({ error: "Failed to update proposal" });
   }
 }
@@ -184,7 +185,7 @@ export async function startCompile(req: Request, res: Response): Promise<any> {
 
     return res.status(201).json({ success: true, data: result });
   } catch (error: any) {
-    console.error("[MINDS] Error starting parenting compile:", error);
+    logger.error({ err: error }, "[MINDS] Error starting parenting compile:");
     return res.status(500).json({ error: error.message || "Failed to start compile" });
   }
 }
@@ -207,7 +208,7 @@ export async function getCompileStatus(req: Request, res: Response): Promise<any
 
     return res.json({ success: true, data: { ...details, sessionStatus: session.status } });
   } catch (error: any) {
-    console.error("[MINDS] Error getting compile status:", error);
+    logger.error({ err: error }, "[MINDS] Error getting compile status:");
     return res.status(500).json({ error: "Failed to get compile status" });
   }
 }
@@ -222,7 +223,7 @@ export async function deleteSession(req: Request, res: Response): Promise<any> {
     await MindParentingSessionModel.deleteById(sessionId);
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[MINDS] Error deleting parenting session:", error);
+    logger.error({ err: error }, "[MINDS] Error deleting parenting session:");
     return res.status(500).json({ error: "Failed to delete session" });
   }
 }
@@ -233,7 +234,7 @@ export async function abandonSession(req: Request, res: Response): Promise<any> 
     await parentingService.abandonSession(sessionId);
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[MINDS] Error abandoning session:", error);
+    logger.error({ err: error }, "[MINDS] Error abandoning session:");
     return res.status(500).json({ error: "Failed to abandon session" });
   }
 }

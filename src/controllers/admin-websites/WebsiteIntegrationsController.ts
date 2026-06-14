@@ -43,6 +43,7 @@ import * as harvestLogInspector from "./feature-services/service.harvest-log-ins
 import * as rybbitHistory from "./feature-services/service.rybbit-history";
 import * as rybbitIntegration from "./feature-services/service.rybbit-integration";
 import * as rybbitPerformance from "./feature-services/service.rybbit-performance";
+import logger from "../../lib/logger";
 
 const LOG_PREFIX = "[Website Integrations]";
 
@@ -101,7 +102,7 @@ export async function listDetectedForms(req: Request, res: Response): Promise<Re
     const data = await formDetection.listDetectedForms(projectId);
     return ok(res, data);
   } catch (error) {
-    console.error(`${LOG_PREFIX} listDetectedForms failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} listDetectedForms failed:`);
     return fail(res, 500, "FETCH_ERROR", "Failed to list detected forms");
   }
 }
@@ -117,7 +118,7 @@ export async function getDetectedFormFieldShape(req: Request, res: Response): Pr
     const data = await formDetection.getFormFieldShape(projectId, formName, sampleSize);
     return ok(res, data);
   } catch (error) {
-    console.error(`${LOG_PREFIX} getDetectedFormFieldShape failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} getDetectedFormFieldShape failed:`);
     return fail(res, 500, "FETCH_ERROR", "Failed to fetch form field shape");
   }
 }
@@ -132,7 +133,7 @@ export async function listIntegrations(req: Request, res: Response): Promise<Res
     const data = await WebsiteIntegrationModel.findByProjectId(projectId);
     return ok(res, data);
   } catch (error) {
-    console.error(`${LOG_PREFIX} listIntegrations failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} listIntegrations failed:`);
     return fail(res, 500, "FETCH_ERROR", "Failed to list integrations");
   }
 }
@@ -143,7 +144,7 @@ export async function getIntegration(req: Request, res: Response): Promise<Respo
     if (!integration) return res;
     return ok(res, integration);
   } catch (error) {
-    console.error(`${LOG_PREFIX} getIntegration failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} getIntegration failed:`);
     return fail(res, 500, "FETCH_ERROR", "Failed to fetch integration");
   }
 }
@@ -207,7 +208,7 @@ export async function createIntegration(req: Request, res: Response): Promise<Re
 
     return ok(res, integration, 201);
   } catch (error) {
-    console.error(`${LOG_PREFIX} createIntegration failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} createIntegration failed:`);
     return fail(res, 500, "CREATE_ERROR", "Failed to create integration");
   }
 }
@@ -260,7 +261,7 @@ export async function updateIntegration(req: Request, res: Response): Promise<Re
     const updated = await WebsiteIntegrationModel.update(integration.id, update);
     return ok(res, updated);
   } catch (error) {
-    console.error(`${LOG_PREFIX} updateIntegration failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} updateIntegration failed:`);
     return fail(res, 500, "UPDATE_ERROR", "Failed to update integration");
   }
 }
@@ -272,7 +273,7 @@ export async function deleteIntegration(req: Request, res: Response): Promise<Re
     await WebsiteIntegrationModel.deleteById(integration.id);
     return ok(res, { deleted: true });
   } catch (error) {
-    console.error(`${LOG_PREFIX} deleteIntegration failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} deleteIntegration failed:`);
     return fail(res, 500, "DELETE_ERROR", "Failed to delete integration");
   }
 }
@@ -285,7 +286,7 @@ export async function revokeIntegration(req: Request, res: Response): Promise<Re
     const updated = await WebsiteIntegrationModel.findById(integration.id);
     return ok(res, updated);
   } catch (error) {
-    console.error(`${LOG_PREFIX} revokeIntegration failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} revokeIntegration failed:`);
     return fail(res, 500, "REVOKE_ERROR", "Failed to revoke integration");
   }
 }
@@ -311,7 +312,7 @@ export async function listVendorForms(req: Request, res: Response): Promise<Resp
     const forms = await adapter.listForms(creds);
     return ok(res, forms);
   } catch (error) {
-    console.error(`${LOG_PREFIX} listVendorForms failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} listVendorForms failed:`);
     return fail(res, 502, "VENDOR_ERROR", "Failed to list vendor forms");
   }
 }
@@ -351,7 +352,7 @@ export async function validateMappings(req: Request, res: Response): Promise<Res
     const mappings = await IntegrationFormMappingModel.findByIntegrationId(integration.id);
     return ok(res, mappings);
   } catch (error) {
-    console.error(`${LOG_PREFIX} validateMappings failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} validateMappings failed:`);
     return fail(res, 500, "VALIDATE_ERROR", "Failed to validate mappings");
   }
 }
@@ -396,7 +397,7 @@ export async function inferMapping(req: Request, res: Response): Promise<Respons
       inferred_mapping: inferred,
     });
   } catch (error) {
-    console.error(`${LOG_PREFIX} inferMapping failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} inferMapping failed:`);
     return fail(res, 500, "INFER_ERROR", "Failed to infer field mapping");
   }
 }
@@ -420,7 +421,7 @@ export async function listSyncLogs(req: Request, res: Response): Promise<Respons
       pagination: { limit, offset, total: result.total },
     });
   } catch (error) {
-    console.error(`${LOG_PREFIX} listSyncLogs failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} listSyncLogs failed:`);
     return fail(res, 500, "FETCH_ERROR", "Failed to list sync logs");
   }
 }
@@ -436,7 +437,7 @@ export async function listMappings(req: Request, res: Response): Promise<Respons
     const data = await IntegrationFormMappingModel.findByIntegrationId(integration.id);
     return ok(res, data);
   } catch (error) {
-    console.error(`${LOG_PREFIX} listMappings failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} listMappings failed:`);
     return fail(res, 500, "FETCH_ERROR", "Failed to list mappings");
   }
 }
@@ -491,7 +492,7 @@ export async function createMapping(req: Request, res: Response): Promise<Respon
 
     return ok(res, mapping, 201);
   } catch (error) {
-    console.error(`${LOG_PREFIX} createMapping failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} createMapping failed:`);
     return fail(res, 500, "CREATE_ERROR", "Failed to create mapping");
   }
 }
@@ -518,7 +519,7 @@ export async function updateMapping(req: Request, res: Response): Promise<Respon
     });
     return ok(res, updated);
   } catch (error) {
-    console.error(`${LOG_PREFIX} updateMapping failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} updateMapping failed:`);
     return fail(res, 500, "UPDATE_ERROR", "Failed to update mapping");
   }
 }
@@ -532,7 +533,7 @@ export async function deleteMapping(req: Request, res: Response): Promise<Respon
     await IntegrationFormMappingModel.deleteById(mapping.id);
     return ok(res, { deleted: true });
   } catch (error) {
-    console.error(`${LOG_PREFIX} deleteMapping failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} deleteMapping failed:`);
     return fail(res, 500, "DELETE_ERROR", "Failed to delete mapping");
   }
 }
@@ -562,7 +563,7 @@ export async function validateHarvestIntegration(req: Request, res: Response): P
     }
     return ok(res, { valid: true });
   } catch (error) {
-    console.error(`${LOG_PREFIX} validateHarvestIntegration failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} validateHarvestIntegration failed:`);
     return fail(res, 500, "VALIDATION_ERROR", "Failed to validate integration");
   }
 }
@@ -584,7 +585,7 @@ export async function getHarvestLogs(req: Request, res: Response): Promise<Respo
 
     return ok(res, { ...result, successRate });
   } catch (error) {
-    console.error(`${LOG_PREFIX} getHarvestLogs failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} getHarvestLogs failed:`);
     return fail(res, 500, "FETCH_ERROR", "Failed to fetch harvest logs");
   }
 }
@@ -606,7 +607,7 @@ export async function getHarvestLogPayload(req: Request, res: Response): Promise
     const payload = await harvestLogInspector.getPayload(integration, log);
     return ok(res, payload);
   } catch (error) {
-    console.error(`${LOG_PREFIX} getHarvestLogPayload failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} getHarvestLogPayload failed:`);
     return fail(res, 500, "FETCH_ERROR", "Failed to fetch harvest payload");
   }
 }
@@ -640,7 +641,7 @@ export async function rerunHarvest(req: Request, res: Response): Promise<Respons
 
     return ok(res, { queued: true, harvestDate, retryCount: retryCount + 1 });
   } catch (error) {
-    console.error(`${LOG_PREFIX} rerunHarvest failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} rerunHarvest failed:`);
     return fail(res, 500, "RERUN_ERROR", "Failed to enqueue harvest rerun");
   }
 }
@@ -654,7 +655,7 @@ function failGscError(res: Response, error: unknown, fallbackMessage: string): R
     return fail(res, error.status, error.code, error.message);
   }
 
-  console.error(`${LOG_PREFIX} ${fallbackMessage}:`, error);
+  logger.error({ err: error }, `${LOG_PREFIX} ${fallbackMessage}:`);
   const maybeCode = (error as { code?: number; response?: { status?: number } })?.code;
   const maybeStatus = (error as { response?: { status?: number } })?.response?.status;
   const status = maybeCode || maybeStatus;
@@ -687,7 +688,7 @@ function failRybbitError(res: Response, error: unknown, fallbackMessage: string)
     return fail(res, error.status, error.code, error.message);
   }
 
-  console.error(`${LOG_PREFIX} ${fallbackMessage}:`, error);
+  logger.error({ err: error }, `${LOG_PREFIX} ${fallbackMessage}:`);
   return fail(res, 500, "RYBBIT_ERROR", fallbackMessage);
 }
 
@@ -700,7 +701,7 @@ function failRybbitHistoryError(
     return fail(res, error.status, error.code, error.message);
   }
 
-  console.error(`${LOG_PREFIX} ${fallbackMessage}:`, error);
+  logger.error({ err: error }, `${LOG_PREFIX} ${fallbackMessage}:`);
   return fail(res, 500, "RYBBIT_HISTORY_ERROR", fallbackMessage);
 }
 
@@ -709,7 +710,7 @@ function failClarityError(res: Response, error: unknown, fallbackMessage: string
     return fail(res, error.status, error.code, error.message);
   }
 
-  console.error(`${LOG_PREFIX} ${fallbackMessage}:`, error);
+  logger.error({ err: error }, `${LOG_PREFIX} ${fallbackMessage}:`);
   return fail(res, 500, "CLARITY_ERROR", fallbackMessage);
 }
 
@@ -950,7 +951,7 @@ export async function getGscPerformance(req: Request, res: Response): Promise<Re
     );
     return ok(res, result);
   } catch (error) {
-    console.error(`${LOG_PREFIX} getGscPerformance failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} getGscPerformance failed:`);
     return fail(res, 500, "FETCH_ERROR", "Failed to fetch GSC performance");
   }
 }

@@ -1,4 +1,5 @@
 import db from "../../database/connection";
+import logger from "../../lib/logger";
 
 const ZOMBIE_THRESHOLD_MINUTES = 30;
 
@@ -13,11 +14,11 @@ export async function cleanupZombieJobs(): Promise<void> {
       .select("id", "organization_id", "location_id", "automation_status_detail");
 
     if (zombies.length === 0) {
-      console.log("[startup] No zombie jobs found");
+      logger.info("[startup] No zombie jobs found");
       return;
     }
 
-    console.log(
+    logger.info(
       `[startup] Found ${zombies.length} zombie job(s) stuck in processing > ${ZOMBIE_THRESHOLD_MINUTES}min`,
     );
 
@@ -30,13 +31,13 @@ export async function cleanupZombieJobs(): Promise<void> {
           ),
         });
 
-      console.log(
+      logger.info(
         `[startup]   Reset job ${job.id} (org=${job.organization_id}, location=${job.location_id}) from processing → failed`,
       );
     }
 
-    console.log(`[startup] Zombie cleanup complete`);
+    logger.info(`[startup] Zombie cleanup complete`);
   } catch (err: any) {
-    console.error(`[startup] Zombie cleanup failed: ${err.message}`);
+    logger.error(`[startup] Zombie cleanup failed: ${err.message}`);
   }
 }

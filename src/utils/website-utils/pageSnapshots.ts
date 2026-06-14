@@ -12,6 +12,7 @@
  */
 
 import { db } from "../../database/connection";
+import logger from "../../lib/logger";
 
 const PAGES_TABLE = "website_builder.pages";
 
@@ -110,17 +111,14 @@ export async function snapshotPageStateIfChanged(
         revision_note: page.revision_note || null,
       });
 
-      console.log(
+      logger.info(
         `[Page Snapshots] ✓ Snapshot v${nextVersion} for page ${page.id} (${page.path})`
       );
     }
 
     await pruneInactiveSnapshots(page.project_id, page.path);
   } catch (error) {
-    console.error(
-      `[Page Snapshots] Failed to snapshot page ${page.id} (${page.path}) — save continues without history entry:`,
-      error
-    );
+    logger.error({ err: error }, `[Page Snapshots] Failed to snapshot page ${page.id} (${page.path}) — save continues without history entry:`);
   }
 }
 
@@ -147,7 +145,7 @@ export async function pruneInactiveSnapshots(
     )
     .delete();
 
-  console.log(
+  logger.info(
     `[Page Snapshots] Pruned ${staleRows.length} old snapshot(s) at ${path}`
   );
 }

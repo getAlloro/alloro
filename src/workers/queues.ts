@@ -1,5 +1,6 @@
 import { Queue } from "bullmq";
 import IORedis from "ioredis";
+import logger from "../lib/logger";
 
 const REDIS_HOST = process.env.REDIS_HOST || "127.0.0.1";
 const REDIS_PORT = parseInt(process.env.REDIS_PORT || "6379", 10);
@@ -16,16 +17,16 @@ export function getRedisConnection(): IORedis {
       ...(process.env.REDIS_TLS === "true" && { tls: {} }),
     });
     connection.on("error", (err) =>
-      console.error("[QUEUES][redis] connection error:", err?.message),
+      logger.error({ err: err?.message }, "[QUEUES][redis] connection error:"),
     );
     connection.on("close", () =>
-      console.warn("[QUEUES][redis] connection closed"),
+      logger.warn("[QUEUES][redis] connection closed"),
     );
     connection.on("reconnecting", () =>
-      console.warn("[QUEUES][redis] reconnecting..."),
+      logger.warn("[QUEUES][redis] reconnecting..."),
     );
     connection.on("end", () =>
-      console.warn("[QUEUES][redis] connection ended"),
+      logger.warn("[QUEUES][redis] connection ended"),
     );
   }
   return connection;

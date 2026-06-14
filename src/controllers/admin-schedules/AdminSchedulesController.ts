@@ -8,9 +8,10 @@ import { Request, Response } from "express";
 import { CronExpressionParser } from "cron-parser";
 import { ScheduleModel, ScheduleRunModel, ISchedule } from "../../models/ScheduleModel";
 import { getAgentHandler, getRegisteredAgents } from "../../services/agentRegistry";
+import logger from "../../lib/logger";
 
 function handleError(res: Response, error: unknown, operation: string): Response {
-  console.error(`[ADMIN-SCHEDULES] ${operation} failed:`, error);
+  logger.error({ err: error }, `[ADMIN-SCHEDULES] ${operation} failed:`);
   const message = error instanceof Error ? error.message : String(error);
   return res.status(500).json({ success: false, error: message });
 }

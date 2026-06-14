@@ -14,6 +14,7 @@ import { ReviewModel } from "../../models/website-builder/ReviewModel";
 import { getValidOAuth2ClientByConnection } from "../../auth/oauth2Helper";
 import { buildAuthHeaders } from "../../controllers/gbp/gbp-services/gbp-api.service";
 import { GbpReviewInsightService } from "../../controllers/gbp-automation/feature-services/GbpReviewInsightService";
+import logger from "../../lib/logger";
 
 const STAR_TO_NUM: Record<string, number> = {
   ONE: 1,
@@ -79,7 +80,7 @@ export async function processReviewSync(job: Job<ReviewSyncData>): Promise<void>
     job.data?.syncSource || (job.name === "daily-review-sync" ? "auto" : "manual");
   const start = Date.now();
 
-  console.log(
+  logger.info(
     `[REVIEW-SYNC] ▶ Starting review sync${
       locationId
         ? ` for location ${locationId}`
@@ -116,11 +117,11 @@ export async function processReviewSync(job: Job<ReviewSyncData>): Promise<void>
     const properties = (await query) as ReviewSyncProperty[];
 
     if (properties.length === 0) {
-      console.log("[REVIEW-SYNC] No GBP properties found. Skipping.");
+      logger.info("[REVIEW-SYNC] No GBP properties found. Skipping.");
       return;
     }
 
-    console.log(`[REVIEW-SYNC] Found ${properties.length} GBP properties to sync`);
+    logger.info(`[REVIEW-SYNC] Found ${properties.length} GBP properties to sync`);
 
     // Group by connection to reuse OAuth2 clients
     const byConnection = new Map<number, ReviewSyncProperty[]>();
@@ -140,7 +141,7 @@ export async function processReviewSync(job: Job<ReviewSyncData>): Promise<void>
         auth = await getValidOAuth2ClientByConnection(connectionId);
       } catch (err: any) {
         await markConnectionAuthFailed(props, job, syncSource, err);
-        console.error(`[REVIEW-SYNC] Failed to create OAuth2 client for connection ${connectionId}:`, err.message);
+        logger.error({ err: err.message }, `[REVIEW-SYNC] Failed to create OAuth2 client for connection ${connectionId}:`);
         continue;
       }
 
@@ -174,7 +175,7 @@ export async function processReviewSync(job: Job<ReviewSyncData>): Promise<void>
             });
             totalSynced += count;
             totalLocations++;
-            console.log(`[REVIEW-SYNC] ✓ Location ${prop.location_id}: ${count} reviews synced`);
+            logger.info(`[REVIEW-SYNC] ✓ Location ${prop.location_id}: ${count} reviews synced`);
           } catch (err: any) {
             await GbpSyncHealthModel.markFailed(
               health.id,
@@ -182,7 +183,7 @@ export async function processReviewSync(job: Job<ReviewSyncData>): Promise<void>
               errorMessage(err),
               jobMetadata(job, syncSource)
             );
-            console.error(`[REVIEW-SYNC] ✗ Location ${prop.location_id} failed:`, err.message);
+            logger.error({ err: err.message }, `[REVIEW-SYNC] ✗ Location ${prop.location_id} failed:`);
           }
         }
 
@@ -194,9 +195,9 @@ export async function processReviewSync(job: Job<ReviewSyncData>): Promise<void>
     }
 
     const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-    console.log(`[REVIEW-SYNC] ✓ Done. ${totalSynced} reviews across ${totalLocations} locations in ${elapsed}s`);
+    logger.info(`[REVIEW-SYNC] ✓ Done. ${totalSynced} reviews across ${totalLocations} locations in ${elapsed}s`);
   } catch (err: any) {
-    console.error("[REVIEW-SYNC] ✗ Fatal error:", err);
+    logger.error({ err: err }, "[REVIEW-SYNC] ✗ Fatal error:");
     throw err;
   }
 }
@@ -227,7 +228,7 @@ async function syncLocationReviews(
       throw err;
     }
 
-    console.warn(
+    logger.warn(
       `[REVIEW-SYNC] Unauthorized Google response for connection ${connectionId}; forcing token refresh and retrying once`
     );
     markForcedTokenRefreshUsed();
@@ -241,7 +242,7 @@ async function syncLocationReviews(
 
 async function fetchAndStoreLocationReviews(auth: any, prop: ReviewSyncProperty): Promise<number> {
   if (!prop.account_id) {
-    console.warn(`[REVIEW-SYNC] No account_id for location ${prop.location_id}, skipping`);
+    logger.warn(`[REVIEW-SYNC] No account_id for location ${prop.location_id}, skipping`);
     return 0;
   }
 

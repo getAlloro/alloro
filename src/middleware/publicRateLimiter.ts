@@ -14,6 +14,7 @@
 import rateLimit from "express-rate-limit";
 import type { Request, Response, NextFunction } from "express";
 import { db } from "../database/connection";
+import logger from "../lib/logger";
 
 const RATE_LIMIT_MESSAGE = {
   success: false,
@@ -186,7 +187,7 @@ export function scraperDetection(req: Request, _res: Response, next: NextFunctio
       })
       .catch(() => {});
 
-    console.warn(`[RateLimit] Scraper detected: IP ${ip} queried place ${placeId} ${entry.count}x in ${Math.round((now - entry.firstSeen) / 1000)}s`);
+    logger.warn(`[RateLimit] Scraper detected: IP ${ip} queried place ${placeId} ${entry.count}x in ${Math.round((now - entry.firstSeen) / 1000)}s`);
   }
 
   next();

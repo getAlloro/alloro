@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { MindMessageModel, IMindMessage } from "../../../models/MindMessageModel";
 import { MindConversationModel } from "../../../models/MindConversationModel";
+import logger from "../../../lib/logger";
 
 const MODEL = process.env.MINDS_LLM_MODEL || "claude-sonnet-4-6";
 const COMPACTION_THRESHOLD = parseInt(process.env.MINDS_COMPACTION_THRESHOLD || "50", 10);
@@ -47,7 +48,7 @@ export async function compactConversation(
 
   const client = getClient();
 
-  console.log(
+  logger.info(
     `[MINDS] Compacting conversation ${conversationId} (${messages.length} messages)`
   );
 
@@ -89,7 +90,7 @@ Be thorough but concise. This summary will replace the original messages as cont
   // Reset conversation message_count to 1 (the compaction message)
   await MindConversationModel.resetMessageCount(conversationId, 1);
 
-  console.log(
+  logger.info(
     `[MINDS] Compaction complete for ${conversationId}: ${messages.length} messages → 1 summary`
   );
 

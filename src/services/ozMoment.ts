@@ -26,6 +26,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getPlaceDetails } from "../controllers/places/feature-services/GooglePlacesApiService";
 import { db } from "../database/connection";
+import logger from "../lib/logger";
 
 let anthropic: Anthropic | null = null;
 function getAnthropic(): Anthropic {
@@ -274,7 +275,7 @@ Respond in exactly this JSON format, nothing else:
       }));
     return moments;
   } catch (err) {
-    console.error("[OzMoment] Claude generation failed, using template fallback:", err instanceof Error ? err.message : err);
+    logger.error({ err: err instanceof Error ? err.message : err }, "[OzMoment] Claude generation failed, using template fallback:");
     return buildTemplateFallback(data);
   }
 }

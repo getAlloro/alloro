@@ -19,9 +19,10 @@
 
 import { db } from "../../../database/connection";
 import { sendAuditReportEmail } from "./service.n8n-email-sender";
+import logger from "../../../lib/logger";
 
 function log(message: string): void {
-  console.log(`[LEADGEN-NOTIFY] ${message}`);
+  logger.info(`[LEADGEN-NOTIFY] ${message}`);
 }
 
 interface EnqueueOpts {

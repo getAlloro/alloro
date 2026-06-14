@@ -17,6 +17,7 @@
 
 import { db } from "../../database/connection";
 import { getModelRate, type ModelRate } from "./pricing";
+import logger from "../../lib/logger";
 
 const TABLE = "website_builder.ai_cost_events";
 
@@ -130,7 +131,7 @@ export async function logAiCostEvent(
 }
 
 /**
- * Fire-and-forget wrapper. Swallows all errors after a console.warn. Returns
+ * Fire-and-forget wrapper. Swallows all errors after a logged warning. Returns
  * the persisted event (or null on failure) for callers that need the id to
  * thread `parent_event_id` through nested tool calls.
  */
@@ -140,7 +141,7 @@ export async function safeLogAiCostEvent(
   try {
     return await logAiCostEvent(input);
   } catch (err: any) {
-    console.warn(
+    logger.warn(
       `[ai-cost] Failed to log event (${input.eventType} / ${input.model}): ${err?.message || err}`,
     );
     return null;

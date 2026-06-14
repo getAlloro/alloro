@@ -34,6 +34,7 @@ import {
 } from "./feature-utils/util.event-ordering";
 import { parseUserAgent } from "../../lib/userAgent";
 import { enqueueEmailNotification } from "./feature-services/service.email-notification-queue";
+import logger from "../../lib/logger";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -236,7 +237,7 @@ export async function upsertSession(
 
     return res.status(200).json({ ok: true });
   } catch (error) {
-    console.error("[LeadgenTracking] upsertSession error:", error);
+    logger.error({ err: error }, "[LeadgenTracking] upsertSession error:");
     return res.status(500).json({ ok: false, error: "internal_error" });
   }
 }
@@ -316,12 +317,12 @@ async function ingestEvent(body: unknown): Promise<{
   if (isProgressionStage(event_name)) {
     const decision = shouldRecordStageEvent(event_name, session);
     if (!decision.allow) {
-      console.log("[LeadgenTracking] suppressed event", {
-        session_id,
-        event_name,
-        reason: decision.reason,
-        current_stage: session.final_stage,
-      });
+      logger.info({ detail: {
+                session_id,
+                event_name,
+                reason: decision.reason,
+                current_stage: session.final_stage,
+              } }, "[LeadgenTracking] suppressed event");
       return { status: 200, body: { ok: true, suppressed: decision.reason } };
     }
   }
@@ -396,14 +397,11 @@ async function ingestEvent(body: unknown): Promise<{
       session.final_stage === "account_created";
 
     if (terminalSuccess) {
-      console.log(
-        "[LeadgenTracking] abandoned guard prevented downgrade",
-        {
-          session_id,
-          final_stage: session.final_stage,
-          completed: session.completed,
-        }
-      );
+      logger.info({ detail: {
+                  session_id,
+                  final_stage: session.final_stage,
+                  completed: session.completed,
+                } }, "[LeadgenTracking] abandoned guard prevented downgrade");
     } else if (shouldSetAbandoned(event_name, session.completed)) {
       patch.abandoned = true;
     }
@@ -426,7 +424,7 @@ export async function recordEvent(
     const result = await ingestEvent(req.body);
     return res.status(result.status).json(result.body);
   } catch (error) {
-    console.error("[LeadgenTracking] recordEvent error:", error);
+    logger.error({ err: error }, "[LeadgenTracking] recordEvent error:");
     return res.status(500).json({ ok: false, error: "internal_error" });
   }
 }
@@ -461,7 +459,7 @@ export async function recordBeacon(
     await ingestEvent(payload);
   } catch (error) {
     // Internal logging only — beacon client can't read responses anyway.
-    console.error("[LeadgenTracking] recordBeacon error:", error);
+    logger.error({ err: error }, "[LeadgenTracking] recordBeacon error:");
   }
   return res.status(204).end();
 }
@@ -562,13 +560,13 @@ export async function submitEmailNotify(
     enqueueEmailNotification({ session_id, audit_id, email }).catch(
       (err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error("[LeadgenTracking] enqueueEmailNotification error:", msg);
+        logger.error({ err: msg }, "[LeadgenTracking] enqueueEmailNotification error:");
       }
     );
 
     return res.status(200).json({ ok: true });
   } catch (error) {
-    console.error("[LeadgenTracking] submitEmailNotify error:", error);
+    logger.error({ err: error }, "[LeadgenTracking] submitEmailNotify error:");
     return res.status(500).json({ ok: false, error: "internal_error" });
   }
 }
@@ -611,7 +609,7 @@ export async function getSessionByAudit(
 
     return res.json({ ok: true, session_id: row?.id ?? null });
   } catch (error) {
-    console.error("[LeadgenTracking] getSessionByAudit error:", error);
+    logger.error({ err: error }, "[LeadgenTracking] getSessionByAudit error:");
     return res.status(500).json({ ok: false, error: "internal_error" });
   }
 }
@@ -683,7 +681,7 @@ export async function submitEmailPaywall(
 
     return res.status(200).json({ ok: true });
   } catch (error) {
-    console.error("[LeadgenTracking] submitEmailPaywall error:", error);
+    logger.error({ err: error }, "[LeadgenTracking] submitEmailPaywall error:");
     return res.status(500).json({ ok: false, error: "internal_error" });
   }
 }

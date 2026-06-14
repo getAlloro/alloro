@@ -8,6 +8,7 @@
 
 import { db } from "../../../database/connection";
 import { getRedisConnection } from "../../../workers/queues";
+import logger from "../../../lib/logger";
 
 const POST_BLOCKS_TABLE = "website_builder.post_blocks";
 const POST_TYPES_TABLE = "website_builder.post_types";
@@ -25,7 +26,7 @@ async function invalidatePostBlockCache(templateId: string, slug: string) {
     const redis = getRedisConnection();
     await redis.del(`pb:${templateId}:${slug}`);
   } catch (err) {
-    console.error("[Admin Websites] Failed to invalidate post block cache:", err);
+    logger.error({ err: err }, "[Admin Websites] Failed to invalidate post block cache:");
   }
 }
 
@@ -118,7 +119,7 @@ export async function createPostBlock(
     };
   }
 
-  console.log(`[Admin Websites] Creating post block "${name}" for template ${templateId}`);
+  logger.info(`[Admin Websites] Creating post block "${name}" for template ${templateId}`);
 
   const [postBlock] = await db(POST_BLOCKS_TABLE)
     .insert({
@@ -131,7 +132,7 @@ export async function createPostBlock(
     })
     .returning("*");
 
-  console.log(`[Admin Websites] ✓ Created post block ID: ${postBlock.id}`);
+  logger.info(`[Admin Websites] ✓ Created post block ID: ${postBlock.id}`);
 
   return { postBlock };
 }
@@ -216,7 +217,7 @@ export async function updatePostBlock(
     .update({ ...updates, updated_at: db.fn.now() })
     .returning("*");
 
-  console.log(`[Admin Websites] ✓ Updated post block ID: ${postBlockId}`);
+  logger.info(`[Admin Websites] ✓ Updated post block ID: ${postBlockId}`);
 
   // Invalidate cache
   await invalidatePostBlockCache(templateId, existing.slug);
@@ -248,7 +249,7 @@ export async function deletePostBlock(
     .where({ id: postBlockId, template_id: templateId })
     .del();
 
-  console.log(`[Admin Websites] ✓ Deleted post block ID: ${postBlockId}`);
+  logger.info(`[Admin Websites] ✓ Deleted post block ID: ${postBlockId}`);
 
   await invalidatePostBlockCache(templateId, existing.slug);
 

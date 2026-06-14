@@ -8,6 +8,7 @@
 import { MediaModel, IMedia, MediaFilters } from "../../../models/website-builder/MediaModel";
 import * as mediaUsageService from "./service.media-usage";
 import * as mediaQuotaService from "./service.media-quota";
+import logger from "../../../lib/logger";
 
 export interface MediaListOptions {
   type?: string;
@@ -34,7 +35,7 @@ export async function list(
   projectId: string,
   options: MediaListOptions
 ): Promise<MediaListResult> {
-  console.log(
+  logger.info(
     `[Media] Fetching media for project ${projectId} (page ${options.page})`
   );
 

@@ -2,6 +2,7 @@ import { Job } from "bullmq";
 import { MindSkillModel, TriggerType } from "../../models/MindSkillModel";
 import { SkillWorkRunModel } from "../../models/SkillWorkRunModel";
 import { fireWorkCreationWebhook } from "../../controllers/minds/feature-services/service.minds-work-pipeline";
+import logger from "../../lib/logger";
 
 /**
  * Calculate the next run time based on trigger type and config.
@@ -70,7 +71,7 @@ async function processSingleSkill(skill: DueSkill): Promise<void> {
       artifact_attachment_type: skill.artifact_attachment_type || null,
     });
 
-    console.log(
+    logger.info(
       `[SKILL-TRIGGER] Created work run ${workRun.id} for skill "${skill.name}"`
     );
 
@@ -85,10 +86,7 @@ async function processSingleSkill(skill: DueSkill): Promise<void> {
     );
     await MindSkillModel.updateRunTimestamps(skill.id, now, nextRunAt);
   } catch (err: any) {
-    console.error(
-      `[SKILL-TRIGGER] Error processing skill "${skill.name}":`,
-      err
-    );
+    logger.error({ err: err }, `[SKILL-TRIGGER] Error processing skill "${skill.name}":`);
     // Don't stop processing other skills
   }
 }
@@ -99,24 +97,24 @@ async function processSingleSkill(skill: DueSkill): Promise<void> {
  * total wall-time doesn't scale linearly with due-skill count and blow the lock.
  */
 export async function processSkillTrigger(_job: Job): Promise<void> {
-  console.log("[SKILL-TRIGGER] Checking for due skills...");
+  logger.info("[SKILL-TRIGGER] Checking for due skills...");
 
   try {
     const dueSkills = await MindSkillModel.findDueSkills();
 
     if (dueSkills.length === 0) {
-      console.log("[SKILL-TRIGGER] No skills due.");
+      logger.info("[SKILL-TRIGGER] No skills due.");
       return;
     }
 
-    console.log(`[SKILL-TRIGGER] Found ${dueSkills.length} due skill(s).`);
+    logger.info(`[SKILL-TRIGGER] Found ${dueSkills.length} due skill(s).`);
 
     for (let i = 0; i < dueSkills.length; i += SKILL_TRIGGER_CONCURRENCY) {
       const batch = dueSkills.slice(i, i + SKILL_TRIGGER_CONCURRENCY);
       await Promise.allSettled(batch.map((skill) => processSingleSkill(skill)));
     }
   } catch (err: any) {
-    console.error("[SKILL-TRIGGER] Fatal error:", err);
+    logger.error({ err: err }, "[SKILL-TRIGGER] Fatal error:");
     throw err;
   }
 }
@@ -126,28 +124,28 @@ export async function processSkillTrigger(_job: Job): Promise<void> {
  * Finds work runs stuck in pending/running for > 15 minutes and marks them failed.
  */
 export async function processDeadLetterCheck(job: Job): Promise<void> {
-  console.log("[DEAD-LETTER] Checking for stuck work runs...");
+  logger.info("[DEAD-LETTER] Checking for stuck work runs...");
 
   try {
     const stuckRuns = await SkillWorkRunModel.findStuckRuns(15);
 
     if (stuckRuns.length === 0) {
-      console.log("[DEAD-LETTER] No stuck runs found.");
+      logger.info("[DEAD-LETTER] No stuck runs found.");
       return;
     }
 
-    console.log(`[DEAD-LETTER] Found ${stuckRuns.length} stuck run(s).`);
+    logger.info(`[DEAD-LETTER] Found ${stuckRuns.length} stuck run(s).`);
 
     for (const run of stuckRuns) {
       await SkillWorkRunModel.updateStatus(run.id, "failed", {
         error: "n8n_timeout",
       });
-      console.log(
+      logger.info(
         `[DEAD-LETTER] Marked run ${run.id} as failed (was ${run.status} since ${run.triggered_at})`
       );
     }
   } catch (err: any) {
-    console.error("[DEAD-LETTER] Fatal error:", err);
+    logger.error({ err: err }, "[DEAD-LETTER] Fatal error:");
     throw err;
   }
 }

@@ -3,6 +3,7 @@ import { db } from "../database/connection";
 import { AuthRequest } from "./auth";
 import { LocationModel } from "../models/LocationModel";
 import { UserLocationModel } from "../models/UserLocationModel";
+import logger from "../lib/logger";
 
 export type UserRole = "admin" | "manager" | "viewer";
 
@@ -54,7 +55,7 @@ export const rbacMiddleware = async (
 
     next();
   } catch (error) {
-    console.error("[RBAC] Error checking role:", error);
+    logger.error({ err: error }, "[RBAC] Error checking role:");
     return res.status(500).json({ error: "Failed to verify permissions" });
   }
 };
@@ -165,7 +166,7 @@ export const locationScopeMiddleware = async (
 
     next();
   } catch (error) {
-    console.error("[RBAC] Error resolving location scope:", error);
+    logger.error({ err: error }, "[RBAC] Error resolving location scope:");
     return res.status(500).json({ error: "Unable to resolve location access" });
   }
 };

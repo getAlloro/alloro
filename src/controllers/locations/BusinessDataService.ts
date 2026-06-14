@@ -3,6 +3,7 @@ import { LocationModel } from "../../models/LocationModel";
 import { OrganizationModel } from "../../models/OrganizationModel";
 import { GooglePropertyModel } from "../../models/GooglePropertyModel";
 import { buildAuthHeaders } from "../gbp/gbp-services/gbp-api.service";
+import logger from "../../lib/logger";
 
 /**
  * Fetch location profile from Google Business Profile API
@@ -146,10 +147,7 @@ async function fetchGBPProfile(
       );
       return data;
     } catch (err: any) {
-      console.error(
-        `[BusinessData] Failed to fetch GBP profile for ${locationId}:`,
-        err.message
-      );
+      logger.error({ err: err.message }, `[BusinessData] Failed to fetch GBP profile for ${locationId}:`);
       return null;
     }
   }

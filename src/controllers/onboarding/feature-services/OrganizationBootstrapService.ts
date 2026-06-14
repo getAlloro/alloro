@@ -3,6 +3,7 @@ import { OrganizationModel } from "../../../models/OrganizationModel";
 import { OrganizationUserModel } from "../../../models/OrganizationUserModel";
 import { InvitationModel } from "../../../models/InvitationModel";
 import { UserModel } from "../../../models/UserModel";
+import logger from "../../../lib/logger";
 
 export interface BootstrapResult {
   organizationId: number;
@@ -43,7 +44,7 @@ export async function bootstrapOrganization(
         trx
       );
       await InvitationModel.updateStatus(invitation.id, "accepted", trx);
-      console.log(
+      logger.info(
         `[Onboarding] User ${userId} joined org ${invitation.organization_id} via invitation (role: ${invitation.role})`
       );
       return { organizationId: invitation.organization_id, joinedViaInvitation: true };

@@ -4,6 +4,7 @@ import {
   ColumnMappingResponseSchema,
   type ColumnMappingResponse,
 } from "../../types/pmsMapping";
+import logger from "../../lib/logger";
 
 /**
  * AI inference service for PMS column mapping.
@@ -62,7 +63,7 @@ export async function inferColumnMapping(
       // and we never propagate a partially-valid blob downstream.
       const validated = ColumnMappingResponseSchema.safeParse(result.parsed);
       if (!validated.success) {
-        console.warn(
+        logger.warn(
           "[pms-mapping-inference] schema invalid after retry; returning null"
         );
         return null;
@@ -70,7 +71,7 @@ export async function inferColumnMapping(
       return validated.data;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error(`[pms-mapping-inference] runAgent threw: ${message}`);
+      logger.error(`[pms-mapping-inference] runAgent threw: ${message}`);
       return null;
     }
   })();
@@ -78,7 +79,7 @@ export async function inferColumnMapping(
   let timeoutHandle: NodeJS.Timeout | null = null;
   const timeoutPromise = new Promise<null>((resolve) => {
     timeoutHandle = setTimeout(() => {
-      console.warn(
+      logger.warn(
         `[pms-mapping-inference] timeout after ${INFERENCE_TIMEOUT_MS}ms`
       );
       resolve(null);

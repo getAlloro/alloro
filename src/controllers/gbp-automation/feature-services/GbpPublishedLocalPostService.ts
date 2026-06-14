@@ -24,6 +24,7 @@ import {
   OrganizationArchivedError,
   OrganizationLifecycleService,
 } from "../../../services/OrganizationLifecycleService";
+import logger from "../../../lib/logger";
 
 const MAX_GOOGLE_POSTS = 1000;
 
@@ -524,7 +525,7 @@ export class GbpPublishedLocalPostService {
       } catch (error) {
         failedLocations += 1;
         const message = error instanceof Error ? error.message : "Unknown sync error";
-        console.error(
+        logger.error(
           `[GBP-POST-SYNC] Location ${row.location_id} failed during auto sync: ${message}`
         );
       }

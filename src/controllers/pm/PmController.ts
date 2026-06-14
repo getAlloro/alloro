@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { db } from "../../database/connection";
+import logger from "../../lib/logger";
 
 function placeholder(_req: Request, res: Response): any {
   return res.json({ success: true, data: [] });
@@ -71,7 +72,7 @@ export async function listUsers(_req: Request, res: Response): Promise<any> {
 
     return res.json({ success: true, data: users });
   } catch (error) {
-    console.error("[PM-USERS] listUsers failed:", error);
+    logger.error({ err: error }, "[PM-USERS] listUsers failed:");
     return res.status(500).json({ success: false, error: "Failed to list users" });
   }
 }

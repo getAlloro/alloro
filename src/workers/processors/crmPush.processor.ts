@@ -28,6 +28,7 @@ import {
 } from "../../utils/formContentsFlattener";
 import { getAdapter } from "../../services/integrations";
 import type { MappedFieldPayload, PushResult } from "../../services/integrations/types";
+import logger from "../../lib/logger";
 
 export interface CrmPushJobData {
   submissionId: string;
@@ -41,7 +42,7 @@ export async function processCrmPush(job: Job<CrmPushJobData>): Promise<void> {
 
   const submission = await FormSubmissionModel.findById(submissionId);
   if (!submission) {
-    console.warn(`${LOG_PREFIX} Submission ${submissionId} not found; skipping`);
+    logger.warn(`${LOG_PREFIX} Submission ${submissionId} not found; skipping`);
     return;
   }
 

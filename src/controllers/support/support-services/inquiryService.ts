@@ -1,4 +1,5 @@
 import { forwardUserInquiry } from "../../../utils/core/notificationHelper";
+import logger from "../../../lib/logger";
 
 interface InquiryData {
   userName: string;
@@ -15,7 +16,7 @@ interface ServiceResult {
 }
 
 export async function processInquiry(data: InquiryData): Promise<ServiceResult> {
-  console.log(
+  logger.info(
     `[Support] Received inquiry from ${data.userName} (${data.userEmail}): ${data.subject}`
   );
 
@@ -28,14 +29,14 @@ export async function processInquiry(data: InquiryData): Promise<ServiceResult> 
   });
 
   if (!result.success) {
-    console.error(`[Support] Failed to forward inquiry: ${result.error}`);
+    logger.error(`[Support] Failed to forward inquiry: ${result.error}`);
     return {
       success: false,
       error: result.error,
     };
   }
 
-  console.log(`[Support] \u2713 Inquiry forwarded successfully to admin team`);
+  logger.info(`[Support] \u2713 Inquiry forwarded successfully to admin team`);
 
   return {
     success: true,

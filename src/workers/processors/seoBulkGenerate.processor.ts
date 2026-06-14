@@ -9,6 +9,7 @@
 import { Job } from "bullmq";
 import { db } from "../../database/connection";
 import { SeoGenerationJobModel } from "../../models/website-builder/SeoGenerationJobModel";
+import logger from "../../lib/logger";
 
 const PAGES_TABLE = "website_builder.pages";
 const POSTS_TABLE = "website_builder.posts";
@@ -26,13 +27,13 @@ export async function processSeoBulkGenerate(job: Job<SeoBulkGenerateData>): Pro
   const { jobRecordId, projectId, entityType, postTypeId, pagePaths } = job.data;
 
   const jobStart = Date.now();
-  console.log(`[SEO-BULK] ▶ Starting bulk SEO generation`);
-  console.log(`[SEO-BULK]   job=${jobRecordId}`);
-  console.log(`[SEO-BULK]   project=${projectId} type=${entityType} postType=${postTypeId || "n/a"}`);
+  logger.info(`[SEO-BULK] ▶ Starting bulk SEO generation`);
+  logger.info(`[SEO-BULK]   job=${jobRecordId}`);
+  logger.info(`[SEO-BULK]   project=${projectId} type=${entityType} postType=${postTypeId || "n/a"}`);
 
   try {
   await SeoGenerationJobModel.markProcessing(jobRecordId);
-  console.log(`[SEO-BULK]   Status → processing`);
+  logger.info(`[SEO-BULK]   Status → processing`);
 
   // Lazy-import the SEO generation internals to avoid circular deps
   const seoService = await import(
@@ -40,9 +41,9 @@ export async function processSeoBulkGenerate(job: Job<SeoBulkGenerateData>): Pro
   );
 
   // Fetch shared context once
-  console.log(`[SEO-BULK]   Fetching shared context (business data + mind skills)...`);
+  logger.info(`[SEO-BULK]   Fetching shared context (business data + mind skills)...`);
   const sharedContext = await seoService.fetchSharedContext(projectId);
-  console.log(`[SEO-BULK]   Shared context loaded (${Date.now() - jobStart}ms)`);
+  logger.info(`[SEO-BULK]   Shared context loaded (${Date.now() - jobStart}ms)`);
 
   // Gather all existing SEO titles/descriptions for uniqueness
   const allMeta = await getAllSeoMeta(projectId);
@@ -62,8 +63,8 @@ export async function processSeoBulkGenerate(job: Job<SeoBulkGenerateData>): Pro
     entities = await getPostEntities(projectId, postTypeId!);
   }
 
-  console.log(`[SEO-BULK]   Found ${entities.length} ${entityType}(s) to process`);
-  console.log(`[SEO-BULK]   Existing meta: ${allMeta.titles.length} titles, ${allMeta.descriptions.length} descriptions`);
+  logger.info(`[SEO-BULK]   Found ${entities.length} ${entityType}(s) to process`);
+  logger.info(`[SEO-BULK]   Existing meta: ${allMeta.titles.length} titles, ${allMeta.descriptions.length} descriptions`);
 
   // Track accumulated titles/descriptions for uniqueness within this batch
   const batchTitles = [...allMeta.titles];
@@ -72,7 +73,7 @@ export async function processSeoBulkGenerate(job: Job<SeoBulkGenerateData>): Pro
   for (let i = 0; i < entities.length; i++) {
     const entity = entities[i];
     const entityStart = Date.now();
-    console.log(`[SEO-BULK]   [${i + 1}/${entities.length}] Generating SEO for "${entity.title}" (${entity.id})...`);
+    logger.info(`[SEO-BULK]   [${i + 1}/${entities.length}] Generating SEO for "${entity.title}" (${entity.id})...`);
     try {
       const results = await seoService.generateAllWithSharedContext(
         sharedContext,
@@ -121,14 +122,14 @@ export async function processSeoBulkGenerate(job: Job<SeoBulkGenerateData>): Pro
           .whereNot("id", entity.id)
           .update({ seo_data: JSON.stringify(mergedSeoData) });
         if (propagated > 0) {
-          console.log(`[SEO-BULK]     Propagated seo_data to ${propagated} sibling version(s)`);
+          logger.info(`[SEO-BULK]     Propagated seo_data to ${propagated} sibling version(s)`);
         }
       }
 
       await SeoGenerationJobModel.incrementCompleted(jobRecordId);
-      console.log(`[SEO-BULK]   [${i + 1}/${entities.length}] ✓ Done "${entity.title}" (${Date.now() - entityStart}ms)`);
+      logger.info(`[SEO-BULK]   [${i + 1}/${entities.length}] ✓ Done "${entity.title}" (${Date.now() - entityStart}ms)`);
     } catch (err: any) {
-      console.error(`[SEO-BULK]   [${i + 1}/${entities.length}] ✗ Failed "${entity.title}" (${Date.now() - entityStart}ms):`, err.message);
+      logger.error({ err: err.message }, `[SEO-BULK]   [${i + 1}/${entities.length}] ✗ Failed "${entity.title}" (${Date.now() - entityStart}ms):`);
       await SeoGenerationJobModel.incrementFailed(jobRecordId, {
         id: entity.id,
         title: entity.title,
@@ -146,10 +147,10 @@ export async function processSeoBulkGenerate(job: Job<SeoBulkGenerateData>): Pro
   }
 
   const elapsed = Math.round((Date.now() - jobStart) / 1000);
-  console.log(`[SEO-BULK] ■ Job ${jobRecordId} finished in ${elapsed}s: ${finalJob?.completed_count} completed, ${finalJob?.failed_count} failed`);
+  logger.info(`[SEO-BULK] ■ Job ${jobRecordId} finished in ${elapsed}s: ${finalJob?.completed_count} completed, ${finalJob?.failed_count} failed`);
 
   } catch (err: any) {
-    console.error(`[SEO-BULK] ✗ Job ${jobRecordId} crashed:`, err.message);
+    logger.error({ err: err.message }, `[SEO-BULK] ✗ Job ${jobRecordId} crashed:`);
     await SeoGenerationJobModel.markFailed(jobRecordId);
     throw err; // Re-throw so BullMQ also marks it failed
   }
@@ -168,7 +169,7 @@ async function getPageEntities(projectId: string, pagePaths?: string[]) {
 
   if (pagePaths && pagePaths.length > 0) {
     pagesQuery = pagesQuery.whereIn("path", pagePaths);
-    console.log(`[SEO-BULK]   Filtering to ${pagePaths.length} selected paths`);
+    logger.info(`[SEO-BULK]   Filtering to ${pagePaths.length} selected paths`);
   }
 
   const pages = await pagesQuery;

@@ -9,6 +9,7 @@ import { Job } from "bullmq";
 import { generateLayouts } from "../../controllers/admin-websites/feature-services/service.layouts-pipeline";
 import { isCancelled } from "../../controllers/admin-websites/feature-services/service.generation-pipeline";
 import { db } from "../../database/connection";
+import logger from "../../lib/logger";
 
 const PROJECTS_TABLE = "website_builder.projects";
 const LOG_PREFIX = "[WB-LAYOUTS]";
@@ -23,7 +24,7 @@ export async function processLayoutGenerate(
 ): Promise<void> {
   const { projectId, slotValues } = job.data;
   const log = (msg: string) =>
-    console.log(`${LOG_PREFIX} [${job.id}] ${msg}`);
+    logger.info(`${LOG_PREFIX} [${job.id}] ${msg}`);
 
   log(`Starting layout generation for project ${projectId}`);
 

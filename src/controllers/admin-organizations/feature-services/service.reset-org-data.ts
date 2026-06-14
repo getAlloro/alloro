@@ -21,6 +21,7 @@ import {
   ResetPreviewResponse,
   ResetResponse,
 } from "../../../types/adminReset";
+import logger from "../../../lib/logger";
 
 const REFERRAL_AGENT_TYPE = "referral_engine";
 
@@ -108,17 +109,14 @@ export async function resetOrgData(
     }
   });
 
-  console.log(
-    "[admin-reset]",
-    JSON.stringify({
-      adminEmail,
-      orgId,
-      orgName: org.name,
-      groups,
-      deletedCounts,
-      timestamp: new Date().toISOString(),
-    }),
-  );
+  logger.info({ detail: JSON.stringify({
+          adminEmail,
+          orgId,
+          orgName: org.name,
+          groups,
+          deletedCounts,
+          timestamp: new Date().toISOString(),
+        }) }, "[admin-reset]");
 
   return {
     success: true,

@@ -7,6 +7,7 @@
 
 import { loadPrompt } from "../../../agents/service.prompt-loader";
 import { runAgent } from "../../../agents/service.llm-runner";
+import logger from "../../../lib/logger";
 
 const MODEL = process.env.FORM_ANALYSIS_MODEL || "claude-haiku-4-5-20251001";
 
@@ -49,7 +50,7 @@ export async function analyzeContent(
     };
   } catch (err) {
     // Fail-open: don't block legitimate submissions if AI fails
-    console.error("[AI Content Analysis] Error:", err);
+    logger.error({ err: err }, "[AI Content Analysis] Error:");
     return { flagged: false, category: "unknown", reason: "AI analysis unavailable" };
   }
 }

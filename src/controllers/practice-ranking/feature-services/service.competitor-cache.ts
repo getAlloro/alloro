@@ -9,6 +9,7 @@
  */
 
 import { db } from "../../../database/connection";
+import logger from "../../../lib/logger";
 
 // Cache TTL in hours (30 days = 720 hours default)
 // Competitors shift seasonally; Places API is fast/cheap so shorter TTL is fine
@@ -56,7 +57,7 @@ export function generateCacheKey(specialty: string, location: string): string {
  * Log helper
  */
 function log(message: string): void {
-  console.log(`[COMPETITOR-CACHE] ${message}`);
+  logger.info(`[COMPETITOR-CACHE] ${message}`);
 }
 
 /**

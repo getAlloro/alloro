@@ -7,6 +7,7 @@
 
 import { db } from "../../../database/connection";
 import { getRedisConnection } from "../../../workers/queues";
+import logger from "../../../lib/logger";
 
 const POSTS_TABLE = "website_builder.posts";
 const POST_TYPES_TABLE = "website_builder.post_types";
@@ -73,7 +74,7 @@ async function invalidatePostsCache(projectId: string) {
       if (keys.length > 0) await redis.del(...keys);
     } while (cursor !== "0");
   } catch (err) {
-    console.error("[Admin Websites] Failed to invalidate posts cache:", err);
+    logger.error({ err: err }, "[Admin Websites] Failed to invalidate posts cache:");
   }
 }
 
@@ -218,7 +219,7 @@ export async function createPost(
     slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
   }
 
-  console.log(`[Admin Websites] Creating post "${title}" for project ${projectId}`);
+  logger.info(`[Admin Websites] Creating post "${title}" for project ${projectId}`);
 
   const postStatus = status || "draft";
 
@@ -251,7 +252,7 @@ export async function createPost(
     );
   }
 
-  console.log(`[Admin Websites] ✓ Created post ID: ${post.id}`);
+  logger.info(`[Admin Websites] ✓ Created post ID: ${post.id}`);
 
   await invalidatePostsCache(projectId);
 
@@ -376,7 +377,7 @@ export async function updatePost(
     }
   }
 
-  console.log(`[Admin Websites] ✓ Updated post ID: ${postId}`);
+  logger.info(`[Admin Websites] ✓ Updated post ID: ${postId}`);
 
   await invalidatePostsCache(projectId);
 
@@ -405,7 +406,7 @@ export async function deletePost(
     .where({ id: postId, project_id: projectId })
     .del();
 
-  console.log(`[Admin Websites] ✓ Deleted post ID: ${postId}`);
+  logger.info(`[Admin Websites] ✓ Deleted post ID: ${postId}`);
 
   await invalidatePostsCache(projectId);
 

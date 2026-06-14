@@ -23,6 +23,7 @@ import {
   parseNotifications,
   formatNotificationsResponse,
 } from "./feature-utils";
+import logger from "../../lib/logger";
 
 // TODO: Extract to shared error handling utility during centralized error handling refactor.
 // This is intentionally kept inline per the refactor plan to avoid scope creep.
@@ -38,7 +39,7 @@ import {
  */
 function handleError(res: Response, error: unknown, operation: string): Response {
   const err = error as { message?: string };
-  console.error(`[NOTIFICATIONS] ${operation} Error:`, err?.message || error);
+  logger.error({ err: err?.message || error }, `[NOTIFICATIONS] ${operation} Error:`);
   return res.status(500).json({
     success: false,
     error: `Failed to ${operation.toLowerCase()}`,

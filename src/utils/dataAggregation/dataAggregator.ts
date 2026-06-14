@@ -5,6 +5,7 @@
  */
 
 import { getGBPAIReadyData } from "../../routes/gbp";
+import logger from "../../lib/logger";
 
 // =====================================================================
 // TYPE DEFINITIONS
@@ -115,7 +116,7 @@ export async function fetchGBPDataForRange(
               };
             }
           } catch (retryError: any) {
-            console.error(
+            logger.error(
               `Error retrying GBP data for location ${location.locationId} after token refresh: ${retryError}`
             );
             if (options.throwOnLocationError) {
@@ -130,7 +131,7 @@ export async function fetchGBPDataForRange(
           }
         }
 
-        console.error(
+        logger.error(
           `Error fetching GBP data for location ${location.locationId}: ${error}`
         );
         if (options.throwOnLocationError) {
@@ -152,7 +153,7 @@ export async function fetchGBPDataForRange(
       totalLocations: locations.length,
     };
   } catch (error: any) {
-    console.error(`Error fetching GBP data: ${error}`);
+    logger.error(`Error fetching GBP data: ${error}`);
     if (options.throwOnLocationError) {
       throw error;
     }
@@ -182,7 +183,7 @@ export async function fetchAllServiceData(
   startDate: string,
   endDate: string
 ): Promise<ServiceDataResult> {
-  console.log(
+  logger.info(
     `[DataAggregator] Fetching all services for ${domain} (${startDate} to ${endDate})`
   );
 
