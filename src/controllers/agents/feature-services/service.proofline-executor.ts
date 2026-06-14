@@ -107,22 +107,28 @@ export async function executeProoflineAgent(referenceDate?: string): Promise<Pro
             continue;
           }
 
-          await db("google_data_store").insert(dailyResult.rawData);
+          // Atomic: the raw GBP data and its agent_results row must land
+          // together. The external agent call (processDailyAgent) already ran
+          // above, so the transaction wraps only these two local writes.
+          const result = await db.transaction(async (trx) => {
+            await trx("google_data_store").insert(dailyResult.rawData);
 
-          const [result] = await db("agent_results")
-            .insert({
-              organization_id: account.organization_id,
-              location_id: locationId,
-              agent_type: "proofline",
-              date_start: dailyDates.dayBeforeYesterday,
-              date_end: dailyDates.yesterday,
-              agent_input: JSON.stringify(dailyResult.payload),
-              agent_output: JSON.stringify(dailyResult.output),
-              status: "success",
-              created_at: new Date(),
-              updated_at: new Date(),
-            })
-            .returning("id");
+            const [row] = await trx("agent_results")
+              .insert({
+                organization_id: account.organization_id,
+                location_id: locationId,
+                agent_type: "proofline",
+                date_start: dailyDates.dayBeforeYesterday,
+                date_end: dailyDates.yesterday,
+                agent_input: JSON.stringify(dailyResult.payload),
+                agent_output: JSON.stringify(dailyResult.output),
+                status: "success",
+                created_at: new Date(),
+                updated_at: new Date(),
+              })
+              .returning("id");
+            return row;
+          });
 
           log(`  [LOCATION] \u2713 Proofline result saved for "${locationName}" (ID: ${result.id})`);
           totalLocationsProcessed++;

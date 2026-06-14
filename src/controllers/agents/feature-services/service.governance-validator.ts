@@ -354,52 +354,55 @@ export async function runGuardianGovernanceAgents(
     `[GUARDIAN-GOV] Governance results collected: ${governanceResults.length} groups`,
   );
 
-  // Save Guardian result (system-level: organization_id = null)
-  const [guardianRecord] = await db("agent_results")
-    .insert({
-      organization_id: null,
-      location_id: null,
-      agent_type: "guardian",
-      date_start: monthRange.startDate,
-      date_end: monthRange.endDate,
-      agent_input: JSON.stringify({
-        type: "SYSTEM",
-        aggregated_from: agentTypes,
-        total_results: results.length,
-        date_range: `${monthRange.startDate} to ${monthRange.endDate}`,
-      }),
-      agent_output: JSON.stringify(guardianResults),
-      status: "success",
-      created_at: new Date(),
-      updated_at: new Date(),
-    })
-    .returning("id");
+  // Save Guardian + Governance Sentinel results atomically (both system-level:
+  // organization_id = null). These two agent_results rows are a single logical
+  // unit \u2014 a failure after the guardian insert must not leave the governance
+  // row missing, so they share one transaction.
+  const { guardianId, governanceId } = await db.transaction(async (trx) => {
+    const [guardianRecord] = await trx("agent_results")
+      .insert({
+        organization_id: null,
+        location_id: null,
+        agent_type: "guardian",
+        date_start: monthRange.startDate,
+        date_end: monthRange.endDate,
+        agent_input: JSON.stringify({
+          type: "SYSTEM",
+          aggregated_from: agentTypes,
+          total_results: results.length,
+          date_range: `${monthRange.startDate} to ${monthRange.endDate}`,
+        }),
+        agent_output: JSON.stringify(guardianResults),
+        status: "success",
+        created_at: new Date(),
+        updated_at: new Date(),
+      })
+      .returning("id");
 
-  const guardianId = guardianRecord.id;
+    const [governanceRecord] = await trx("agent_results")
+      .insert({
+        organization_id: null,
+        location_id: null,
+        agent_type: "governance_sentinel",
+        date_start: monthRange.startDate,
+        date_end: monthRange.endDate,
+        agent_input: JSON.stringify({
+          type: "SYSTEM",
+          aggregated_from: agentTypes,
+          total_results: results.length,
+          date_range: `${monthRange.startDate} to ${monthRange.endDate}`,
+        }),
+        agent_output: JSON.stringify(governanceResults),
+        status: "success",
+        created_at: new Date(),
+        updated_at: new Date(),
+      })
+      .returning("id");
+
+    return { guardianId: guardianRecord.id, governanceId: governanceRecord.id };
+  });
+
   log(`[GUARDIAN-GOV] \u2713 Guardian result saved (ID: ${guardianId})`);
-
-  // Save Governance Sentinel result (system-level: organization_id = null)
-  const [governanceRecord] = await db("agent_results")
-    .insert({
-      organization_id: null,
-      location_id: null,
-      agent_type: "governance_sentinel",
-      date_start: monthRange.startDate,
-      date_end: monthRange.endDate,
-      agent_input: JSON.stringify({
-        type: "SYSTEM",
-        aggregated_from: agentTypes,
-        total_results: results.length,
-        date_range: `${monthRange.startDate} to ${monthRange.endDate}`,
-      }),
-      agent_output: JSON.stringify(governanceResults),
-      status: "success",
-      created_at: new Date(),
-      updated_at: new Date(),
-    })
-    .returning("id");
-
-  const governanceId = governanceRecord.id;
   log(`[GUARDIAN-GOV] \u2713 Governance result saved (ID: ${governanceId})`);
 
   // Parse and save recommendations to agent_recommendations table

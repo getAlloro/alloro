@@ -505,50 +505,56 @@ export async function generateInstantWebsite(input: CheckupWebsiteInput): Promis
   const hostname = generateHostnameFromName(orgName);
   const wrapper = buildWrapper(orgName);
   const sections = buildHomepageSections(orgName, checkupData || {}, category);
-
-  // Create project
-  await db(PROJECTS_TABLE).insert({
-    id: projectId,
-    organization_id: orgId,
-    generated_hostname: hostname,
-    display_name: orgName,
-    selected_place_id: placeId || null,
-    status: "LIVE",
-    primary_color: "#D56753",
-    accent_color: "#212D40",
-    wrapper,
-    created_at: new Date(),
-    updated_at: new Date(),
-  });
-
-  // Create homepage
   const pageId = uuid();
-  await db(PAGES_TABLE).insert({
-    id: pageId,
-    project_id: projectId,
-    path: "/",
-    version: 1,
-    status: "published",
-    generation_status: "ready",
-    sections: JSON.stringify(sections),
-    display_name: "Home",
-    sort_order: 0,
-    created_at: new Date(),
-    updated_at: new Date(),
-  });
-
   const previewUrl = `https://${hostname}.sites.getalloro.com`;
-
-  // Update org with website status + photo quality for dashboard photo brief
   const photoAssessment = assessPhotoQuality(checkupData || {});
-  await db("organizations").where({ id: orgId }).update({
-    patientpath_status: "preview_ready",
-    patientpath_preview_url: previewUrl,
-    // Store photo assessment so the dashboard can show the photo brief
-    ...(photoAssessment.brief ? { photo_brief: JSON.stringify(photoAssessment) } : {}),
+
+  // Atomic: project + homepage + org status must land together. A crash after
+  // the project insert would otherwise leave an orphan project with no homepage
+  // — and the dedup check at the top of this function would then treat that
+  // broken project as "already generated" on every retry.
+  await db.transaction(async (trx) => {
+    // Create project
+    await trx(PROJECTS_TABLE).insert({
+      id: projectId,
+      organization_id: orgId,
+      generated_hostname: hostname,
+      display_name: orgName,
+      selected_place_id: placeId || null,
+      status: "LIVE",
+      primary_color: "#D56753",
+      accent_color: "#212D40",
+      wrapper,
+      created_at: new Date(),
+      updated_at: new Date(),
+    });
+
+    // Create homepage
+    await trx(PAGES_TABLE).insert({
+      id: pageId,
+      project_id: projectId,
+      path: "/",
+      version: 1,
+      status: "published",
+      generation_status: "ready",
+      sections: JSON.stringify(sections),
+      display_name: "Home",
+      sort_order: 0,
+      created_at: new Date(),
+      updated_at: new Date(),
+    });
+
+    // Update org with website status + photo quality for dashboard photo brief
+    await trx("organizations").where({ id: orgId }).update({
+      patientpath_status: "preview_ready",
+      patientpath_preview_url: previewUrl,
+      // Store photo assessment so the dashboard can show the photo brief
+      ...(photoAssessment.brief ? { photo_brief: JSON.stringify(photoAssessment) } : {}),
+    });
   });
 
-  // Write notification
+  // Write notification (best-effort, kept outside the transaction so a
+  // notification failure never rolls back the committed website)
   await db("notifications").insert({
     organization_id: orgId,
     title: "Your website preview is ready",

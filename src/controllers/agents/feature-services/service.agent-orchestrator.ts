@@ -1116,24 +1116,28 @@ export async function processClient(
         .first();
 
       if (!existingDaily) {
-        // Save daily raw data
-        await db("google_data_store").insert(dailyResult.rawData);
+        // Atomic: the daily raw GBP data and its agent_results row must land
+        // together. All external agent work already ran above (in memory), so
+        // the transaction wraps only these two local writes.
+        const dailyResultId = await db.transaction(async (trx) => {
+          await trx("google_data_store").insert(dailyResult.rawData);
 
-        // Save daily agent result
-        const [dailyResultId] = await db("agent_results")
-          .insert({
-            organization_id: account.organization_id,
-            location_id: locationId,
-            agent_type: "proofline",
-            date_start: dailyDates.dayBeforeYesterday,
-            date_end: dailyDates.yesterday,
-            agent_input: JSON.stringify(dailyResult.payload),
-            agent_output: JSON.stringify(dailyResult.output),
-            status: "success",
-            created_at: new Date(),
-            updated_at: new Date(),
-          })
-          .returning("id");
+          const [row] = await trx("agent_results")
+            .insert({
+              organization_id: account.organization_id,
+              location_id: locationId,
+              agent_type: "proofline",
+              date_start: dailyDates.dayBeforeYesterday,
+              date_end: dailyDates.yesterday,
+              agent_input: JSON.stringify(dailyResult.payload),
+              agent_output: JSON.stringify(dailyResult.output),
+              status: "success",
+              created_at: new Date(),
+              updated_at: new Date(),
+            })
+            .returning("id");
+          return row;
+        });
 
         log(`[CLIENT] \u2713 Daily result saved (ID: ${dailyResultId})`);
       } else {

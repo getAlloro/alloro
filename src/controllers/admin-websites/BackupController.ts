@@ -246,10 +246,14 @@ export async function restoreBackup(
     // Enqueue
     const { getWbQueue } = await import("../../workers/wb-queues");
     const queue = getWbQueue("restore");
+    // attempts: 1 — a restore is a destructive wipe-then-restore. It must never
+    // auto-retry: with the DB wipe+restore now wrapped in a transaction, a
+    // failure rolls back to the pre-restore state, and a single attempt keeps
+    // BullMQ from re-running the destructive job against already-restored data.
     await queue.add(
       "website-restore",
       { jobId: job.id, projectId, backupJobId },
-      { jobId: job.id }
+      { jobId: job.id, attempts: 1 }
     );
 
     return res.status(201).json({

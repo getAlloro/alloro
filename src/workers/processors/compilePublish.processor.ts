@@ -180,5 +180,8 @@ export async function processCompilePublish(job: Job<CompilePublishJobData>): Pr
   } catch (err: any) {
     console.error(`[MINDS-WORKER] Compile_publish run ${runId} failed:`, err);
     await MindSyncRunModel.markFailed(runId, err.message);
+    // Re-throw so BullMQ records the job as failed (and retries / dead-letters)
+    // instead of treating a half-published run as a success.
+    throw err;
   }
 }
