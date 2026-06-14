@@ -129,4 +129,28 @@ export class LocationModel extends BaseModel {
         updated_at: new Date(),
       });
   }
+
+  /**
+   * Competitor-onboarding projection for a set of location ids:
+   * (id, status, finalized_at). Used by the latest-rankings dashboard to
+   * render the per-location "set up your competitor list" banner.
+   */
+  static async findOnboardingStatusByIds(
+    ids: number[],
+    trx?: QueryContext
+  ): Promise<
+    Array<{
+      id: number;
+      location_competitor_onboarding_status: LocationCompetitorOnboardingStatus;
+      location_competitor_onboarding_finalized_at: Date | null;
+    }>
+  > {
+    return this.table(trx)
+      .whereIn("id", ids)
+      .select(
+        "id",
+        "location_competitor_onboarding_status",
+        "location_competitor_onboarding_finalized_at"
+      );
+  }
 }

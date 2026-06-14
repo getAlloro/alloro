@@ -15,9 +15,9 @@
  * Spec: plans/04282026-no-ticket-practice-ranking-v2-user-curated-competitors/spec.md
  */
 
-import { db } from "../../../database/connection";
 import appLogger from "../../../lib/logger";
 import { LocationCompetitorModel } from "../../../models/LocationCompetitorModel";
+import { PracticeRankingModel } from "../../../models/PracticeRankingModel";
 import { getPlaceDetails } from "../../places/feature-services/GooglePlacesApiService";
 import type { DiscoveredCompetitor } from "./service.places-competitor-discovery";
 
@@ -48,10 +48,7 @@ export async function resolveCompetitorsForRanking(
   log: (msg: string) => void = (msg: string) => appLogger.info(msg)
 ): Promise<ResolvedCompetitorSet> {
   // Look up location_id from the ranking row
-  const rankingRow = await db("practice_rankings")
-    .where({ id: rankingId })
-    .select("location_id")
-    .first();
+  const rankingRow = await PracticeRankingModel.findLocationIdById(rankingId);
 
   const locationId = rankingRow?.location_id ?? null;
   if (!locationId) {

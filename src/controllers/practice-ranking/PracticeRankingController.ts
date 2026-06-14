@@ -27,7 +27,6 @@
 
 import { Request, Response } from "express";
 import { v4 as uuidv4 } from "uuid";
-import { db } from "../../database/connection";
 import { resolveLocationId } from "../../utils/locationResolver";
 import { parseJsonField } from "./feature-utils/util.json-parser";
 import { log, logError } from "./feature-utils/util.ranking-logger";
@@ -75,6 +74,10 @@ import {
   LocationCompetitorModel,
 } from "../../models/LocationCompetitorModel";
 import { LocationModel } from "../../models/LocationModel";
+import { PracticeRankingModel } from "../../models/PracticeRankingModel";
+import { GoogleConnectionModel } from "../../models/GoogleConnectionModel";
+import { OrganizationModel } from "../../models/OrganizationModel";
+import { TaskModel } from "../../models/TaskModel";
 import { getPlacePhotoMedia } from "../places/feature-services/GooglePlacesApiService";
 import {
   validateLocationIdParam,
@@ -103,18 +106,8 @@ export async function triggerBatchAnalysis(
     }
 
     // Validate account exists and get org domain
-    const account = await db("google_connections as gc")
-      .leftJoin("organizations as o", "gc.organization_id", "o.id")
-      .where("gc.id", googleAccountId)
-      .select(
-        "gc.id",
-        "gc.organization_id",
-        "gc.google_property_ids",
-        "o.domain as org_domain",
-        "o.name as org_name",
-        "o.archived_at as org_archived_at",
-      )
-      .first();
+    const account =
+      await GoogleConnectionModel.findWithOrganizationForTrigger(googleAccountId);
 
     if (!account) {
       return res.status(404).json({
@@ -159,32 +152,30 @@ export async function triggerBatchAnalysis(
       for (let i = 0; i < locations.length; i++) {
         const locationInput = locations[i];
         const locationId = await resolveLocationId(organizationId, locationInput.gbpLocationId);
-        const [result] = await db("practice_rankings")
-          .insert({
-            organization_id: organizationId,
-            location_id: locationId,
-            specialty: locationInput.specialty || null,
-            location: locationInput.marketLocation || null,
-            gbp_account_id: locationInput.gbpAccountId,
-            gbp_location_id: locationInput.gbpLocationId,
-            gbp_location_name: locationInput.gbpLocationName,
-            batch_id: batchId,
-            observed_at: new Date(),
-            status: "pending",
-            run_reason: "manual",
-            include_in_summary_recommendations: true,
-            status_detail: JSON.stringify({
-              currentStep: "queued",
-              message: "Waiting in queue...",
-              progress: 0,
-              stepsCompleted: [],
-              timestamps: { created_at: new Date().toISOString() },
-            }),
-            created_at: new Date(),
-            updated_at: new Date(),
-          })
-          .returning("id");
-        rankingIds.push(result.id);
+        const insertedId = await PracticeRankingModel.insertReturningId({
+          organization_id: organizationId,
+          location_id: locationId,
+          specialty: locationInput.specialty || null,
+          location: locationInput.marketLocation || null,
+          gbp_account_id: locationInput.gbpAccountId,
+          gbp_location_id: locationInput.gbpLocationId,
+          gbp_location_name: locationInput.gbpLocationName,
+          batch_id: batchId,
+          observed_at: new Date(),
+          status: "pending",
+          run_reason: "manual",
+          include_in_summary_recommendations: true,
+          status_detail: JSON.stringify({
+            currentStep: "queued",
+            message: "Waiting in queue...",
+            progress: 0,
+            stepsCompleted: [],
+            timestamps: { created_at: new Date().toISOString() },
+          }),
+          created_at: new Date(),
+          updated_at: new Date(),
+        });
+        rankingIds.push(insertedId);
       }
 
       log(
@@ -287,21 +278,7 @@ export async function getBatchStatus(
     }
 
     // Fall back to database query
-    const rankings = await db("practice_rankings")
-      .where({ batch_id: batchId })
-      .select(
-        "id",
-        "gbp_location_id",
-        "gbp_location_name",
-        "status",
-        "status_detail",
-        "rank_score",
-        "rank_position",
-        "error_message",
-        "created_at",
-        "updated_at",
-      )
-      .orderBy("created_at", "asc");
+    const rankings = await PracticeRankingModel.findBatchStatusRows(batchId);
 
     if (rankings.length === 0) {
       return res.status(404).json({
@@ -333,9 +310,7 @@ export async function getRankingStatus(
   try {
     const { id } = req.params;
 
-    const ranking = await db("practice_rankings")
-      .where({ id: parseInt(id) })
-      .first();
+    const ranking = await PracticeRankingModel.findRawById(parseInt(id));
 
     if (!ranking) {
       return res.status(404).json({
@@ -367,9 +342,7 @@ export async function getRankingResults(
   try {
     const { id } = req.params;
 
-    const ranking = await db("practice_rankings")
-      .where({ id: parseInt(id) })
-      .first();
+    const ranking = await PracticeRankingModel.findRawById(parseInt(id));
 
     if (!ranking) {
       return res.status(404).json({
@@ -401,45 +374,13 @@ export async function listRankings(
   try {
     const { organization_id, location_id, limit = 20, offset = 0 } = req.query;
 
-    let query = db("practice_rankings as pr")
-      .leftJoin("organizations as o", "pr.organization_id", "o.id")
-      .leftJoin("locations as l", "pr.location_id", "l.id")
-      .select(
-        "pr.id",
-        "pr.organization_id",
-        "pr.location_id",
-        "o.name as organization_name",
-        "l.name as location_name",
-        "pr.specialty",
-        "pr.location",
-        "pr.rank_keywords",
-        "pr.gbp_location_id",
-        "pr.gbp_location_name",
-        "pr.batch_id",
-        "pr.status",
-        "pr.rank_score",
-        "pr.rank_position",
-        "pr.total_competitors",
-        "pr.search_city",
-        "pr.search_state",
-        "pr.search_county",
-        "pr.search_postal_code",
-        "pr.created_at",
-        "pr.updated_at",
-      )
-      .orderBy("pr.created_at", "desc")
-      .limit(Number(limit))
-      .offset(Number(offset));
-
-    if (organization_id) {
-      query = query.where({ "pr.organization_id": Number(organization_id) });
-    }
-
-    if (location_id) {
-      query = query.where({ "pr.location_id": Number(location_id) });
-    }
-
-    const rankings = await query;
+    const rankings = await PracticeRankingModel.listWithOrgAndLocation(
+      {
+        organizationId: organization_id ? Number(organization_id) : undefined,
+        locationId: location_id ? Number(location_id) : undefined,
+      },
+      { limit: Number(limit), offset: Number(offset) },
+    );
 
     return res.json(formatRankingsList(rankings));
   } catch (error: any) {
@@ -461,17 +402,8 @@ export async function listAccounts(
   res: Response,
 ): Promise<Response> {
   try {
-    const accounts = await db("google_connections as gc")
-      .join("organizations as o", "gc.organization_id", "o.id")
-      .where("o.onboarding_completed", true)
-      .whereNull("o.archived_at")
-      .select(
-        "gc.id",
-        "gc.google_property_ids",
-        "o.name as org_name",
-        "o.domain as org_domain",
-      )
-      .orderBy("o.name", "asc");
+    const accounts =
+      await GoogleConnectionModel.findOnboardedAccountsWithOrganization();
 
     const formattedAccounts = accounts.map((a) => {
       const propertyIds = parseJsonField(a.google_property_ids);
@@ -539,9 +471,7 @@ export async function deleteBatch(
     }
 
     // Check if batch exists
-    const rankings = await db("practice_rankings")
-      .where({ batch_id: batchId })
-      .select("id", "status");
+    const rankings = await PracticeRankingModel.findIdStatusByBatchId(batchId);
 
     if (rankings.length === 0) {
       return res.status(404).json({
@@ -552,9 +482,7 @@ export async function deleteBatch(
     }
 
     // Delete all rankings in the batch
-    const deletedCount = await db("practice_rankings")
-      .where({ batch_id: batchId })
-      .del();
+    const deletedCount = await PracticeRankingModel.deleteByBatchId(batchId);
 
     // Clean up in-memory batch status if present
     batchTracker.clearStatus(batchId);
@@ -595,9 +523,7 @@ export async function deleteRanking(
     }
 
     // Check if ranking exists
-    const ranking = await db("practice_rankings")
-      .where({ id: rankingId })
-      .first();
+    const ranking = await PracticeRankingModel.findRawById(rankingId);
 
     if (!ranking) {
       return res.status(404).json({
@@ -608,7 +534,7 @@ export async function deleteRanking(
     }
 
     // Delete the ranking
-    await db("practice_rankings").where({ id: rankingId }).del();
+    await PracticeRankingModel.deleteById(rankingId);
 
     log(`Deleted ranking analysis ${rankingId}`);
 
@@ -684,9 +610,7 @@ export async function retryRanking(
       });
     }
 
-    const ranking = await db("practice_rankings")
-      .where({ id: rankingId })
-      .first();
+    const ranking = await PracticeRankingModel.findRawById(rankingId);
 
     if (!ranking) {
       return res.status(404).json({
@@ -717,14 +641,11 @@ export async function retryRanking(
     }
 
     // Get org domain
-    const org = await db("organizations")
-      .where({ id: ranking.organization_id })
-      .select("domain")
-      .first();
+    const org = await OrganizationModel.findDomainById(ranking.organization_id);
     const domain = org?.domain || "";
 
     // Reset record
-    await db("practice_rankings").where({ id: rankingId }).update({
+    await PracticeRankingModel.updateByIdRaw(rankingId, {
       status: "pending",
       run_reason: "retry",
       error_message: null,
@@ -746,7 +667,7 @@ export async function retryRanking(
         const specialty = ranking.specialty || "orthodontist";
         const marketLocation = ranking.location || "Unknown, US";
 
-        await db("practice_rankings").where({ id: rankingId }).update({
+        await PracticeRankingModel.updateByIdRaw(rankingId, {
           status: "processing",
           status_detail: JSON.stringify({
             currentStep: "starting",
@@ -773,7 +694,7 @@ export async function retryRanking(
           log(`Retry completed for ranking ${rankingId}`);
         } catch (err: any) {
           log(`Retry failed for ranking ${rankingId}: ${err.message}`);
-          await db("practice_rankings").where({ id: rankingId }).update({
+          await PracticeRankingModel.updateByIdRaw(rankingId, {
             status: "failed",
             error_message: `Retry failed: ${err.message}`,
             updated_at: new Date(),
@@ -806,8 +727,7 @@ export async function retryBatch(
   try {
     const { batchId } = req.params;
 
-    const rankings = await db("practice_rankings")
-      .where({ batch_id: batchId });
+    const rankings = await PracticeRankingModel.findAllByBatchId(batchId);
 
     if (rankings.length === 0) {
       return res.status(404).json({
@@ -836,7 +756,7 @@ export async function retryBatch(
 
     // Reset retryable records
     const retryableIds = retryable.map((r: any) => r.id);
-    await db("practice_rankings").whereIn("id", retryableIds).update({
+    await PracticeRankingModel.updateManyByIds(retryableIds, {
       status: "pending",
       run_reason: "retry",
       error_message: null,
@@ -865,36 +785,31 @@ export async function retryBatch(
             log(
               `Skipping ranking ${ranking.id}: GBP property not found`,
             );
-            await db("practice_rankings")
-              .where({ id: ranking.id })
-              .update({
-                status: "failed",
-                error_message: "GBP property not found for retry",
-                updated_at: new Date(),
-              });
+            await PracticeRankingModel.updateByIdRaw(ranking.id, {
+              status: "failed",
+              error_message: "GBP property not found for retry",
+              updated_at: new Date(),
+            });
             continue;
           }
 
-          const org = await db("organizations")
-            .where({ id: ranking.organization_id })
-            .select("domain")
-            .first();
+          const org = await OrganizationModel.findDomainById(
+            ranking.organization_id,
+          );
           const domain = org?.domain || "";
           const specialty = ranking.specialty || "orthodontist";
           const marketLocation = ranking.location || "Unknown, US";
 
-          await db("practice_rankings")
-            .where({ id: ranking.id })
-            .update({
-              status: "processing",
-              status_detail: JSON.stringify({
-                currentStep: "starting",
-                message: "Starting retry analysis...",
-                progress: 5,
-                stepsCompleted: ["queued"],
-                timestamps: { started_at: new Date().toISOString() },
-              }),
-            });
+          await PracticeRankingModel.updateByIdRaw(ranking.id, {
+            status: "processing",
+            status_detail: JSON.stringify({
+              currentStep: "starting",
+              message: "Starting retry analysis...",
+              progress: 5,
+              stepsCompleted: ["queued"],
+              timestamps: { started_at: new Date().toISOString() },
+            }),
+          });
 
           let success = false;
           for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -928,13 +843,11 @@ export async function retryBatch(
                 `Batch retry attempt ${attempt} failed for ranking ${ranking.id}: ${err.message}`,
               );
               if (attempt === MAX_RETRIES) {
-                await db("practice_rankings")
-                  .where({ id: ranking.id })
-                  .update({
-                    status: "failed",
-                    error_message: `Batch retry failed: ${err.message}`,
-                    updated_at: new Date(),
-                  });
+                await PracticeRankingModel.updateByIdRaw(ranking.id, {
+                  status: "failed",
+                  error_message: `Batch retry failed: ${err.message}`,
+                  updated_at: new Date(),
+                });
               }
             }
           }
@@ -1060,20 +973,13 @@ export async function getLatestRankings(
     }
 
     // Step 1: Find the most recent batch_id with completed rankings for this account
-    const latestBatchRecord = await db("practice_rankings")
-      .where(baseFilters)
-      .whereNotNull("batch_id")
-      .orderBy("created_at", "desc")
-      .first()
-      .select("batch_id");
+    const latestBatchRecord =
+      await PracticeRankingModel.findLatestBatchIdRow(baseFilters);
 
     if (!latestBatchRecord || !latestBatchRecord.batch_id) {
       // Fall back to legacy: get latest ranking without batch_id (old format)
-      const legacyRanking = await db("practice_rankings")
-        .where(baseFilters)
-        .whereNull("batch_id")
-        .orderBy("created_at", "desc")
-        .first();
+      const legacyRanking =
+        await PracticeRankingModel.findLegacyLatestByFilters(baseFilters);
 
       if (!legacyRanking) {
         return res.status(404).json({
@@ -1096,12 +1002,10 @@ export async function getLatestRankings(
     );
 
     // Step 2: Get completed rankings from the latest batch (optionally filtered by location)
-    const batchRankings = await db("practice_rankings")
-      .where({
-        ...baseFilters,
-        batch_id: latestBatchId,
-      })
-      .orderBy("created_at", "asc");
+    const batchRankings = await PracticeRankingModel.findByFiltersAndBatch(
+      baseFilters,
+      latestBatchId,
+    );
 
     if (batchRankings.length === 0) {
       return res.status(404).json({
@@ -1131,13 +1035,9 @@ export async function getLatestRankings(
       { status: "pending" | "curating" | "finalized"; finalizedAt: Date | null }
     >();
     if (distinctLocationIds.length > 0) {
-      const locationRows = await db("locations")
-        .whereIn("id", distinctLocationIds)
-        .select(
-          "id",
-          "location_competitor_onboarding_status",
-          "location_competitor_onboarding_finalized_at"
-        );
+      const locationRows = await LocationModel.findOnboardingStatusByIds(
+        distinctLocationIds
+      );
       for (const row of locationRows) {
         onboardingByLocationId.set(row.id, {
           status: row.location_competitor_onboarding_status,
@@ -1170,15 +1070,12 @@ export async function getLatestRankings(
     const rankingsWithPrevious = await Promise.all(
       batchRankings.map(async (ranking) => {
         // Get the previous completed ranking for this location (excluding current batch)
-        const previous = await db("practice_rankings")
-          .where({
-            organization_id: Number(googleAccountId),
-            gbp_location_id: ranking.gbp_location_id,
-            status: "completed",
-          })
-          .whereNot({ batch_id: latestBatchId })
-          .orderBy("created_at", "desc")
-          .first();
+        const previous =
+          await PracticeRankingModel.findPreviousCompletedExcludingBatch(
+            Number(googleAccountId),
+            ranking.gbp_location_id,
+            latestBatchId,
+          );
 
         const onboarding = ranking.location_id
           ? onboardingByLocationId.get(ranking.location_id) || null
@@ -1257,26 +1154,11 @@ export async function getRankingHistory(
     const months = rangeStr === "3m" ? 3 : 6;
     const intervalLiteral = months === 3 ? "3 months" : "6 months";
 
-    let query = db("practice_rankings")
-      .where({
-        organization_id: orgId,
-        status: "completed",
-      })
-      .andWhereRaw(`observed_at >= NOW() - INTERVAL '${intervalLiteral}'`)
-      .orderBy("observed_at", "asc")
-      .select(
-        "observed_at",
-        "rank_score",
-        "rank_position",
-        "search_position",
-        "ranking_factors",
-      );
-
-    if (locId !== null) {
-      query = query.andWhere({ location_id: locId });
-    }
-
-    const rows = await query;
+    const rows = await PracticeRankingModel.findHistoryWithinInterval(
+      orgId,
+      intervalLiteral,
+      locId,
+    );
 
     const rankings = rows.map((row: any) => {
       const parsed = parseJsonField(row.ranking_factors) as
@@ -1352,53 +1234,28 @@ export async function getRankingTasks(
 
     if (practiceRankingId) {
       // Fetch tasks for specific practice ranking
-      tasks = await db("tasks")
-        .where({
-          agent_type: "RANKING",
-          is_approved: true,
-        })
-        .whereRaw("metadata::jsonb->>'practice_ranking_id' = ?", [
-          String(practiceRankingId),
-        ])
-        .whereNot({ status: "archived" })
-        .orderBy("created_at", "asc")
-        .select("*");
+      tasks = await TaskModel.findApprovedRankingTasksForRanking(
+        String(practiceRankingId),
+      );
     } else if (googleAccountId && gbpLocationId) {
       // Find the latest completed ranking for this location
-      const latestRanking = await db("practice_rankings")
-        .where({
-          organization_id: Number(googleAccountId),
-          gbp_location_id: String(gbpLocationId),
-          status: "completed",
-        })
-        .orderBy("created_at", "desc")
-        .first();
+      const latestRanking =
+        await PracticeRankingModel.findLatestCompletedByOrgAndGbpLocation(
+          Number(googleAccountId),
+          String(gbpLocationId),
+        );
 
       if (latestRanking) {
         // Fetch tasks for this ranking
-        tasks = await db("tasks")
-          .where({
-            agent_type: "RANKING",
-            is_approved: true,
-          })
-          .whereRaw("metadata::jsonb->>'practice_ranking_id' = ?", [
-            String(latestRanking.id),
-          ])
-          .whereNot({ status: "archived" })
-          .orderBy("created_at", "asc")
-          .select("*");
+        tasks = await TaskModel.findApprovedRankingTasksForRanking(
+          String(latestRanking.id),
+        );
       }
     } else if (googleAccountId) {
       // Fetch all approved ranking tasks for this account (across all locations)
-      tasks = await db("tasks")
-        .where({
-          organization_id: Number(googleAccountId),
-          agent_type: "RANKING",
-          is_approved: true,
-        })
-        .whereNot({ status: "archived" })
-        .orderBy("created_at", "asc")
-        .select("*");
+      tasks = await TaskModel.findApprovedRankingTasksForOrganization(
+        Number(googleAccountId),
+      );
     }
 
     log(`[Tasks] Found ${tasks.length} approved ranking tasks`);
@@ -1906,20 +1763,7 @@ export async function getInFlightRanking(
     };
     if (locationId) filters.location_id = Number(locationId);
 
-    const row = await db("practice_rankings")
-      .where(filters)
-      .whereIn("status", ["pending", "processing"])
-      .orderBy("created_at", "desc")
-      .select(
-        "id",
-        "batch_id",
-        "status",
-        "status_detail",
-        "gbp_location_name",
-        "created_at",
-        "updated_at"
-      )
-      .first();
+    const row = await PracticeRankingModel.findInFlightStatusRow(filters);
 
     if (!row) {
       return res.json({ success: true, ranking: null });

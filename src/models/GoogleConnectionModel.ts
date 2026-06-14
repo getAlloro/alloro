@@ -1,3 +1,4 @@
+import { db } from "../database/connection";
 import { BaseModel, QueryContext } from "./BaseModel";
 
 /**
@@ -186,5 +187,67 @@ export class GoogleConnectionModel extends BaseModel {
   ): Promise<IGoogleConnection | undefined> {
     const row = await this.table(trx).where(where).first();
     return row ? this.deserializeJsonFields(row) : undefined;
+  }
+
+  /**
+   * A connection joined to its organization for the ranking trigger flow:
+   * returns the connection's property ids plus org domain/name/archived_at,
+   * so the handler can validate the account and resolve the org domain in a
+   * single query. Raw projection (caller parses google_property_ids).
+   */
+  static async findWithOrganizationForTrigger(
+    connectionId: number,
+    trx?: QueryContext
+  ): Promise<
+    | {
+        id: number;
+        organization_id: number;
+        google_property_ids: unknown;
+        org_domain: string | null;
+        org_name: string | null;
+        org_archived_at: Date | null;
+      }
+    | undefined
+  > {
+    return (trx || db)("google_connections as gc")
+      .leftJoin("organizations as o", "gc.organization_id", "o.id")
+      .where("gc.id", connectionId)
+      .select(
+        "gc.id",
+        "gc.organization_id",
+        "gc.google_property_ids",
+        "o.domain as org_domain",
+        "o.name as org_name",
+        "o.archived_at as org_archived_at"
+      )
+      .first();
+  }
+
+  /**
+   * All onboarded, non-archived organizations' GBP-capable connections,
+   * projected for the ranking "accounts" list (connection id +
+   * google_property_ids, org name/domain), ordered by org name ascending.
+   */
+  static async findOnboardedAccountsWithOrganization(
+    trx?: QueryContext
+  ): Promise<
+    Array<{
+      id: number;
+      google_property_ids: unknown;
+      org_name: string | null;
+      org_domain: string | null;
+    }>
+  > {
+    return (trx || db)("google_connections as gc")
+      .join("organizations as o", "gc.organization_id", "o.id")
+      .where("o.onboarding_completed", true)
+      .whereNull("o.archived_at")
+      .select(
+        "gc.id",
+        "gc.google_property_ids",
+        "o.name as org_name",
+        "o.domain as org_domain"
+      )
+      .orderBy("o.name", "asc");
   }
 }

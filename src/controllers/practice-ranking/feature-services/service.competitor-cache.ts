@@ -8,7 +8,7 @@
  * not the competitor data itself. Fresh data is always fetched for those competitors.
  */
 
-import { db } from "../../../database/connection";
+import { CompetitorCacheModel } from "../../../models/CompetitorCacheModel";
 import logger from "../../../lib/logger";
 
 // Cache TTL in hours (30 days = 720 hours default)
@@ -64,21 +64,9 @@ function log(message: string): void {
  * Check if cache table exists, create if not
  */
 async function ensureCacheTable(): Promise<void> {
-  const tableExists = await db.schema.hasTable("competitor_cache");
-  if (!tableExists) {
+  const created = await CompetitorCacheModel.ensureTable();
+  if (created) {
     log("Creating competitor_cache table...");
-    await db.schema.createTable("competitor_cache", (table) => {
-      table.increments("id").primary();
-      table.string("cache_key").notNullable().unique();
-      table.string("specialty").notNullable();
-      table.string("location").notNullable();
-      table.jsonb("competitors").notNullable();
-      table.integer("competitor_count").notNullable();
-      table.timestamp("created_at").defaultTo(db.fn.now());
-      table.timestamp("expires_at").notNullable();
-      table.index("cache_key");
-      table.index("expires_at");
-    });
     log("competitor_cache table created");
   }
 }
@@ -97,10 +85,7 @@ export async function getCachedCompetitors(
     const cacheKey = generateCacheKey(specialty, location);
     const now = new Date();
 
-    const cacheEntry = await db("competitor_cache")
-      .where({ cache_key: cacheKey })
-      .where("expires_at", ">", now)
-      .first();
+    const cacheEntry = await CompetitorCacheModel.findValidByKey(cacheKey, now);
 
     if (!cacheEntry) {
       log(`Cache miss for ${cacheKey}`);
@@ -146,23 +131,15 @@ export async function setCachedCompetitors(
     );
 
     // Upsert: update if exists, insert if not
-    await db("competitor_cache")
-      .insert({
-        cache_key: cacheKey,
-        specialty: specialty.toLowerCase().trim(),
-        location: location.toLowerCase().trim(),
-        competitors: JSON.stringify(competitors),
-        competitor_count: competitors.length,
-        created_at: now,
-        expires_at: expiresAt,
-      })
-      .onConflict("cache_key")
-      .merge({
-        competitors: JSON.stringify(competitors),
-        competitor_count: competitors.length,
-        created_at: now,
-        expires_at: expiresAt,
-      });
+    await CompetitorCacheModel.upsertByKey({
+      cacheKey,
+      specialty: specialty.toLowerCase().trim(),
+      location: location.toLowerCase().trim(),
+      competitorsJson: JSON.stringify(competitors),
+      competitorCount: competitors.length,
+      now,
+      expiresAt,
+    });
 
     log(
       `Cached ${competitors.length} competitors for ${cacheKey}, expires in ${CACHE_TTL_HOURS}h`
@@ -184,9 +161,7 @@ export async function invalidateCache(
     await ensureCacheTable();
 
     const cacheKey = generateCacheKey(specialty, location);
-    const deleted = await db("competitor_cache")
-      .where({ cache_key: cacheKey })
-      .del();
+    const deleted = await CompetitorCacheModel.deleteByKey(cacheKey);
 
     log(
       `Invalidated cache for ${cacheKey}: ${
@@ -207,9 +182,7 @@ export async function cleanupExpiredCache(): Promise<number> {
   try {
     await ensureCacheTable();
 
-    const deleted = await db("competitor_cache")
-      .where("expires_at", "<", new Date())
-      .del();
+    const deleted = await CompetitorCacheModel.deleteExpired(new Date());
 
     if (deleted > 0) {
       log(`Cleaned up ${deleted} expired cache entries`);
@@ -236,29 +209,7 @@ export async function getCacheStats(): Promise<{
 
     const now = new Date();
 
-    const [totalResult] = await db("competitor_cache").count("* as count");
-    const [expiredResult] = await db("competitor_cache")
-      .where("expires_at", "<", now)
-      .count("* as count");
-    const [oldestResult] = await db("competitor_cache")
-      .orderBy("created_at", "asc")
-      .limit(1)
-      .select("created_at");
-    const [newestResult] = await db("competitor_cache")
-      .orderBy("created_at", "desc")
-      .limit(1)
-      .select("created_at");
-
-    const total = parseInt(totalResult.count as string, 10) || 0;
-    const expired = parseInt(expiredResult.count as string, 10) || 0;
-
-    return {
-      totalEntries: total,
-      expiredEntries: expired,
-      activeEntries: total - expired,
-      oldestEntry: oldestResult?.created_at || null,
-      newestEntry: newestResult?.created_at || null,
-    };
+    return await CompetitorCacheModel.getStats(now);
   } catch (error: any) {
     log(`Error getting cache stats: ${error.message}`);
     return {

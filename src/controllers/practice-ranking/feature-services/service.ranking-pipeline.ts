@@ -7,7 +7,6 @@
  * - src/routes/agentsV2.ts (Automated API Run)
  */
 
-import { db } from "../../../database/connection";
 // Aliased to avoid shadowing the optional `logger` PARAM used below.
 import appLogger from "../../../lib/logger";
 import { getValidOAuth2Client } from "../../../auth/oauth2Helper";
@@ -41,6 +40,8 @@ import { listLocalPostsInRange } from "../../../routes/gbp";
 import { runRankingAnalysis, RankingLlmPayload } from "./service.ranking-llm";
 import { GbpLocalPostModel } from "../../../models/GbpLocalPostModel";
 import { ReviewModel } from "../../../models/website-builder/ReviewModel";
+import { PracticeRankingModel } from "../../../models/PracticeRankingModel";
+import { GoogleConnectionModel } from "../../../models/GoogleConnectionModel";
 import { DEFAULT_COMPETITOR_DISCOVERY_RADIUS_METERS } from "../feature-utils/util.competitor-validator";
 import { parseJsonField } from "../feature-utils/util.json-parser";
 import {
@@ -405,13 +406,11 @@ async function loadCachedSelectedCompetitorVelocity(
   const minObservedAt = new Date(
     Date.now() - SELECTED_COMPETITOR_VELOCITY_CACHE_MS,
   );
-  const rows = await db("practice_rankings")
-    .where("location_id", locationId)
-    .whereNot("id", rankingId)
-    .where("observed_at", ">=", minObservedAt)
-    .orderBy("observed_at", "desc")
-    .select("observed_at", "raw_data")
-    .limit(20);
+  const rows = await PracticeRankingModel.findRecentRawDataByLocation(
+    locationId,
+    rankingId,
+    minObservedAt
+  );
 
   for (const row of rows) {
     const rawData = parseJsonField(row.raw_data);
@@ -707,13 +706,11 @@ export async function updateStatus(
     }
   }
 
-  await db("practice_rankings")
-    .where({ id: rankingId })
-    .update({
-      status: status,
-      status_detail: JSON.stringify(detail),
-      updated_at: new Date(),
-    });
+  await PracticeRankingModel.updateByIdRaw(rankingId, {
+    status: status,
+    status_detail: JSON.stringify(detail),
+    updated_at: new Date(),
+  });
 
   if (logger) {
     logger(
@@ -743,14 +740,12 @@ async function markRankingFailed(
   detail.message = message;
   detail.timestamps[`${step}_failed_at`] = new Date().toISOString();
 
-  await db("practice_rankings")
-    .where({ id: rankingId })
-    .update({
-      status: "failed",
-      status_detail: JSON.stringify(detail),
-      error_message: errorMessage,
-      updated_at: new Date(),
-    });
+  await PracticeRankingModel.updateByIdRaw(rankingId, {
+    status: "failed",
+    status_detail: JSON.stringify(detail),
+    error_message: errorMessage,
+    updated_at: new Date(),
+  });
 
   if (logger) {
     logger(`[RANKING] [${rankingId}] Failed at ${step}: ${errorMessage}`);
@@ -805,24 +800,14 @@ export async function processLocationRanking(
   };
 
   // Get account details
-  const account = await db("google_connections")
-    .where({ id: googleAccountId })
-    .first();
+  const account = await GoogleConnectionModel.findById(googleAccountId);
 
   if (!account) {
     throw new Error(`Account ${googleAccountId} not found`);
   }
 
-  const rankingRunContext = await db("practice_rankings as pr")
-    .leftJoin("locations as l", "l.id", "pr.location_id")
-    .where("pr.id", rankingId)
-    .select(
-      "pr.location_id",
-      "pr.competitor_discovery_radius_meters as ranking_discovery_radius",
-      "l.organization_id",
-      "l.competitor_discovery_radius_meters as location_discovery_radius",
-    )
-    .first();
+  const rankingRunContext =
+    await PracticeRankingModel.findRankingRunContext(rankingId);
   const competitorDiscoveryRadiusMeters = Number(
     rankingRunContext?.ranking_discovery_radius ??
       rankingRunContext?.location_discovery_radius ??
@@ -1072,21 +1057,19 @@ export async function processLocationRanking(
         }));
 
   // Sub-step 5: Persist Step 0 fields immediately so they survive later-step failures
-  await db("practice_rankings")
-    .where({ id: rankingId })
-    .update({
-      search_position: searchPosition,
-      search_query: searchQuery,
-      search_lat: clientVantage?.lat ?? null,
-      search_lng: clientVantage?.lng ?? null,
-      search_radius_meters: clientVantage ? competitorDiscoveryRadiusMeters : null,
-      search_results: JSON.stringify(searchResultsPayload),
-      competitor_discovery_radius_meters: competitorDiscoveryRadiusMeters,
-      search_checked_at: new Date(),
-      search_status: searchStatus,
-      search_position_source: searchPositionSource,
-      updated_at: new Date(),
-    });
+  await PracticeRankingModel.updateByIdRaw(rankingId, {
+    search_position: searchPosition,
+    search_query: searchQuery,
+    search_lat: clientVantage?.lat ?? null,
+    search_lng: clientVantage?.lng ?? null,
+    search_radius_meters: clientVantage ? competitorDiscoveryRadiusMeters : null,
+    search_results: JSON.stringify(searchResultsPayload),
+    competitor_discovery_radius_meters: competitorDiscoveryRadiusMeters,
+    search_checked_at: new Date(),
+    search_status: searchStatus,
+    search_position_source: searchPositionSource,
+    updated_at: new Date(),
+  });
 
   log(
     `[RANKING] [${rankingId}] Step 0 complete: status=${searchStatus}, position=${
@@ -1115,12 +1098,10 @@ export async function processLocationRanking(
     log,
   );
   discoveredCompetitors = resolved.competitors;
-  await db("practice_rankings")
-    .where({ id: rankingId })
-    .update({
-      competitor_source: resolved.source,
-      updated_at: new Date(),
-    });
+  await PracticeRankingModel.updateByIdRaw(rankingId, {
+    competitor_source: resolved.source,
+    updated_at: new Date(),
+  });
   log(
     `[RANKING] [${rankingId}] Competitor source resolved: ${resolved.source}, ${discoveredCompetitors.length} competitors used for Practice Health`,
   );
@@ -1796,17 +1777,15 @@ export async function processLocationRanking(
     `score=${clientRanking.totalScore};rank=${clientRankResult?.rankPosition || 1}`,
   );
 
-  await db("practice_rankings")
-    .where({ id: rankingId })
-    .update({
-      rank_score:
-        clientRankResult?.competitiveScore || clientRanking.totalScore,
-      rank_position: clientRankResult?.rankPosition || 1,
-      total_competitors: competitorDetails.length + 1,
-      ranking_factors: JSON.stringify(rankingFactors),
-      raw_data: JSON.stringify(rawData),
-      updated_at: new Date(),
-    });
+  await PracticeRankingModel.updateByIdRaw(rankingId, {
+    rank_score:
+      clientRankResult?.competitiveScore || clientRanking.totalScore,
+    rank_position: clientRankResult?.rankPosition || 1,
+    total_competitors: competitorDetails.length + 1,
+    ranking_factors: JSON.stringify(rankingFactors),
+    raw_data: JSON.stringify(rawData),
+    updated_at: new Date(),
+  });
 
   // ========== STEP 6: Send to LLM ==========
   await updateStatus(
@@ -1820,9 +1799,7 @@ export async function processLocationRanking(
   );
 
   // Get the ranking record for task creation context
-  const ranking = await db("practice_rankings")
-    .where({ id: rankingId })
-    .first();
+  const ranking = await PracticeRankingModel.findRawById(rankingId);
 
   // Build Search Position context for the LLM (Practice Health + Search Position split).
   // Includes the live Google query, the client's position, and the top 5 with isClient flags.
@@ -1910,12 +1887,10 @@ export async function processLocationRanking(
         )}`,
   );
   rawData.pipeline_timings = pipelineTimings;
-  await db("practice_rankings")
-    .where({ id: rankingId })
-    .update({
-      raw_data: JSON.stringify(rawData),
-      updated_at: new Date(),
-    });
+  await PracticeRankingModel.updateByIdRaw(rankingId, {
+    raw_data: JSON.stringify(rawData),
+    updated_at: new Date(),
+  });
 
   log(
     `[RANKING] [${rankingId}] COMPLETE in ${(

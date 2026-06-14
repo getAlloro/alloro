@@ -233,4 +233,45 @@ export class TaskModel extends BaseModel {
       .first();
     return row ? this.deserializeJsonFields(row) : undefined;
   }
+
+  /**
+   * Approved, non-archived RANKING-agent tasks tied to a specific practice
+   * ranking id (matched on metadata->>'practice_ranking_id'), oldest-first.
+   * Raw rows (caller's formatter parses metadata).
+   */
+  static async findApprovedRankingTasksForRanking(
+    practiceRankingId: string,
+    trx?: QueryContext
+  ): Promise<ITask[]> {
+    return this.table(trx)
+      .where({
+        agent_type: "RANKING",
+        is_approved: true,
+      })
+      .whereRaw("metadata::jsonb->>'practice_ranking_id' = ?", [
+        practiceRankingId,
+      ])
+      .whereNot({ status: "archived" })
+      .orderBy("created_at", "asc")
+      .select("*");
+  }
+
+  /**
+   * All approved, non-archived RANKING-agent tasks for an organization
+   * (across locations), oldest-first. Raw rows.
+   */
+  static async findApprovedRankingTasksForOrganization(
+    organizationId: number,
+    trx?: QueryContext
+  ): Promise<ITask[]> {
+    return this.table(trx)
+      .where({
+        organization_id: organizationId,
+        agent_type: "RANKING",
+        is_approved: true,
+      })
+      .whereNot({ status: "archived" })
+      .orderBy("created_at", "asc")
+      .select("*");
+  }
 }

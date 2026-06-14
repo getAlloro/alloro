@@ -24,6 +24,7 @@ import {
   ProfileStrengthTier,
 } from "../../../models/LocationCompetitorModel";
 import { PracticeRankingModel } from "../../../models/PracticeRankingModel";
+import { OrganizationModel } from "../../../models/OrganizationModel";
 import { identifyLocationMeta } from "../../agents/feature-services/service.webhook-orchestrator";
 import {
   COMPARISON_SPECIALTY_OPTIONS,
@@ -555,10 +556,7 @@ async function loadLocationContext(
     throw new Error(`Location ${locationId} not found`);
   }
 
-  const org = await db("organizations")
-    .where({ id: location.organization_id })
-    .select("id", "domain", "archived_at")
-    .first();
+  const org = await OrganizationModel.findContextById(location.organization_id);
   if (!org) {
     throw new Error(`Organization ${location.organization_id} not found`);
   }
@@ -654,13 +652,10 @@ export async function resolveClientPlaceId(
 
   // Step 2 — latest valid ranking row's search_results JSONB
   try {
-    const lastRanking = await db("practice_rankings")
-      .where({ location_id: ctx.locationId })
-      .where("search_status", "ok")
-      .whereNotNull("search_results")
-      .orderBy("created_at", "desc")
-      .select("search_results", "search_lat", "search_lng")
-      .first();
+    const lastRanking =
+      await PracticeRankingModel.findLatestResolvedSearchResultsByLocation(
+        ctx.locationId
+      );
 
     if (lastRanking?.search_results) {
       const parsed =
@@ -750,13 +745,8 @@ async function resolveSpecialtyAndMarket(
 ): Promise<{ specialty: string; marketLocation: string }> {
   // Prefer values from the most recent practice_rankings row for this location
   // — same identification logic already ran there and succeeded.
-  const lastRanking = await db("practice_rankings")
-    .where({ location_id: ctx.locationId })
-    .whereNotNull("specialty")
-    .whereNotNull("location")
-    .orderBy("created_at", "desc")
-    .select("specialty", "location")
-    .first();
+  const lastRanking =
+    await PracticeRankingModel.findLatestSpecialtyAndLocation(ctx.locationId);
 
   if (lastRanking?.specialty && lastRanking?.location) {
     return {
@@ -1277,8 +1267,8 @@ async function createRankingRunRow(
   competitorSnapshot: CompetitorSnapshot,
   competitorDiscoveryRadiusMeters: number
 ): Promise<number> {
-  const [row] = await trx("practice_rankings")
-    .insert({
+  return PracticeRankingModel.insertReturningId(
+    {
       organization_id: ctx.organizationId,
       location_id: locationId,
       specialty,
@@ -1307,9 +1297,9 @@ async function createRankingRunRow(
       }),
       created_at: now,
       updated_at: now,
-    })
-    .returning("id");
-  return typeof row === "object" ? row.id : row;
+    },
+    trx
+  );
 }
 
 function triggerRankingRun(

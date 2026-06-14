@@ -7,7 +7,8 @@
  * and processBatchAnalysisWithExistingRecords.
  */
 
-import { db } from "../../../database/connection";
+import { GoogleConnectionModel } from "../../../models/GoogleConnectionModel";
+import { PracticeRankingModel } from "../../../models/PracticeRankingModel";
 import { identifyLocationMeta } from "./service.identifier";
 import { getSpecialtyKeywords } from "./service.apify";
 import { LocationParams } from "./service.ranking-pipeline";
@@ -54,25 +55,21 @@ export async function identifyAndUpdate(
     );
 
     try {
-      await db("practice_rankings")
-        .where({ id: rankingId })
-        .update({
-          status_detail: JSON.stringify({
-            currentStep: "identifying",
-            message: "Identifying specialty and market location...",
-            progress: 3,
-            stepsCompleted: ["queued"],
-            timestamps: { identifying_at: new Date().toISOString() },
-          }),
-          updated_at: new Date(),
-        });
+      await PracticeRankingModel.updateByIdRaw(rankingId, {
+        status_detail: JSON.stringify({
+          currentStep: "identifying",
+          message: "Identifying specialty and market location...",
+          progress: 3,
+          stepsCompleted: ["queued"],
+          timestamps: { identifying_at: new Date().toISOString() },
+        }),
+        updated_at: new Date(),
+      });
 
       let oauth2Client =
         await googleDataFetcher.getOAuth2Client(googleAccountId);
-      const account = await db("google_connections")
-        .where({ id: googleAccountId })
-        .first();
-      const propertyIds = parseJsonField(account.google_property_ids);
+      const account = await GoogleConnectionModel.findById(googleAccountId);
+      const propertyIds = parseJsonField(account!.google_property_ids);
 
       const targetLocation = propertyIds?.gbp?.find(
         (loc: any) =>
@@ -134,19 +131,17 @@ export async function identifyAndUpdate(
           `[Batch ${batchId}] Location params: city=${identifiedMeta.city}, state=${identifiedMeta.state}, county=${identifiedMeta.county}, postalCode=${identifiedMeta.postalCode}`,
         );
 
-        await db("practice_rankings")
-          .where({ id: rankingId })
-          .update({
-            specialty: specialty,
-            location: marketLocation,
-            rank_keywords: keywordsString,
-            // Store location params for debugging
-            search_city: identifiedMeta.city || null,
-            search_state: identifiedMeta.state || null,
-            search_county: identifiedMeta.county || null,
-            search_postal_code: identifiedMeta.postalCode || null,
-            updated_at: new Date(),
-          });
+        await PracticeRankingModel.updateByIdRaw(rankingId, {
+          specialty: specialty,
+          location: marketLocation,
+          rank_keywords: keywordsString,
+          // Store location params for debugging
+          search_city: identifiedMeta.city || null,
+          search_state: identifiedMeta.state || null,
+          search_county: identifiedMeta.county || null,
+          search_postal_code: identifiedMeta.postalCode || null,
+          updated_at: new Date(),
+        });
 
         log(
           `[Batch ${batchId}] ✓ Identified: ${specialty} in ${marketLocation} (keywords: ${keywordsString})`,
@@ -159,7 +154,7 @@ export async function identifyAndUpdate(
       specialty = specialty || "dentist";
       marketLocation = marketLocation || "Unknown, US";
 
-      await db("practice_rankings").where({ id: rankingId }).update({
+      await PracticeRankingModel.updateByIdRaw(rankingId, {
         specialty: specialty,
         location: marketLocation,
         updated_at: new Date(),
@@ -169,7 +164,7 @@ export async function identifyAndUpdate(
     // If specialty/location were provided, still get and store keywords
     const specialtyKeywords = getSpecialtyKeywords(specialty);
     const keywordsString = specialtyKeywords.join(", ");
-    await db("practice_rankings").where({ id: rankingId }).update({
+    await PracticeRankingModel.updateByIdRaw(rankingId, {
       rank_keywords: keywordsString,
       updated_at: new Date(),
     });

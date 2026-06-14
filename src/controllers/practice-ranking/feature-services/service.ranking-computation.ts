@@ -10,7 +10,7 @@
  * This consolidated version eliminates that duplication.
  */
 
-import { db } from "../../../database/connection";
+import { PracticeRankingModel } from "../../../models/PracticeRankingModel";
 import {
   processLocationRanking,
   MAX_RETRIES,
@@ -87,32 +87,30 @@ export async function processBatch(
     for (let i = 0; i < locations.length; i++) {
       const locationInput = locations[i];
       const locationId = await resolveLocationId(organizationId, locationInput.gbpLocationId);
-      const [result] = await db("practice_rankings")
-        .insert({
-          organization_id: organizationId ?? null,
-          location_id: locationId,
-          specialty: locationInput.specialty || null,
-          location: locationInput.marketLocation || null,
-          gbp_account_id: locationInput.gbpAccountId,
-          gbp_location_id: locationInput.gbpLocationId,
-          gbp_location_name: locationInput.gbpLocationName,
-          batch_id: batchId,
-          observed_at: new Date(),
-          status: "pending",
-          run_reason: "manual",
-          include_in_summary_recommendations: true,
-          status_detail: JSON.stringify({
-            currentStep: "queued",
-            message: "Waiting in queue...",
-            progress: 0,
-            stepsCompleted: [],
-            timestamps: { created_at: new Date().toISOString() },
-          }),
-          created_at: new Date(),
-          updated_at: new Date(),
-        })
-        .returning("id");
-      rankingIds.push(result.id);
+      const insertedId = await PracticeRankingModel.insertReturningId({
+        organization_id: organizationId ?? null,
+        location_id: locationId,
+        specialty: locationInput.specialty || null,
+        location: locationInput.marketLocation || null,
+        gbp_account_id: locationInput.gbpAccountId,
+        gbp_location_id: locationInput.gbpLocationId,
+        gbp_location_name: locationInput.gbpLocationName,
+        batch_id: batchId,
+        observed_at: new Date(),
+        status: "pending",
+        run_reason: "manual",
+        include_in_summary_recommendations: true,
+        status_detail: JSON.stringify({
+          currentStep: "queued",
+          message: "Waiting in queue...",
+          progress: 0,
+          stepsCompleted: [],
+          timestamps: { created_at: new Date().toISOString() },
+        }),
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+      rankingIds.push(insertedId);
     }
 
     log(
@@ -158,19 +156,17 @@ export async function processBatch(
       );
 
       // Update this location's status to "processing"
-      await db("practice_rankings")
-        .where({ id: rankingId })
-        .update({
-          status: "processing",
-          status_detail: JSON.stringify({
-            currentStep: "starting",
-            message: "Starting analysis...",
-            progress: 5,
-            stepsCompleted: ["queued"],
-            timestamps: { started_at: new Date().toISOString() },
-          }),
-          updated_at: new Date(),
-        });
+      await PracticeRankingModel.updateByIdRaw(rankingId, {
+        status: "processing",
+        status_detail: JSON.stringify({
+          currentStep: "starting",
+          message: "Starting analysis...",
+          progress: 5,
+          stepsCompleted: ["queued"],
+          timestamps: { started_at: new Date().toISOString() },
+        }),
+        updated_at: new Date(),
+      });
 
       // Auto-detect specialty and location if not provided
       const identified = await specialtyIdentifier.identifyAndUpdate(
@@ -250,13 +246,11 @@ export async function processBatch(
         batchTracker.markFailed(batchId);
 
         // Mark all rankings in batch as failed
-        await db("practice_rankings")
-          .where({ batch_id: batchId })
-          .update({
-            status: "failed",
-            error_message: `Batch failed: Location ${locationInput.gbpLocationName} failed after ${MAX_RETRIES} attempts. Error: ${lastError?.message}`,
-            updated_at: new Date(),
-          });
+        await PracticeRankingModel.updateByBatchId(batchId, {
+          status: "failed",
+          error_message: `Batch failed: Location ${locationInput.gbpLocationName} failed after ${MAX_RETRIES} attempts. Error: ${lastError?.message}`,
+          updated_at: new Date(),
+        });
 
         log(
           `[Batch ${batchId}] FAILED - Location ${locationInput.gbpLocationName} exhausted all retries`,
@@ -360,12 +354,10 @@ export async function processBatch(
     batchTracker.markFailed(batchId);
 
     // Mark all rankings in batch as failed
-    await db("practice_rankings")
-      .where({ batch_id: batchId })
-      .update({
-        status: "failed",
-        error_message: `Batch failed: ${error.message}`,
-        updated_at: new Date(),
-      });
+    await PracticeRankingModel.updateByBatchId(batchId, {
+      status: "failed",
+      error_message: `Batch failed: ${error.message}`,
+      updated_at: new Date(),
+    });
   }
 }

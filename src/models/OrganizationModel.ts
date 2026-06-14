@@ -152,4 +152,28 @@ export class OrganizationModel extends BaseModel {
       trx
     );
   }
+
+  /** Domain-only projection for an organization (or undefined if missing). */
+  static async findDomainById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<{ domain: string | null } | undefined> {
+    return this.table(trx).where({ id }).select("domain").first();
+  }
+
+  /**
+   * (id, domain, archived_at) projection — used by ranking competitor
+   * onboarding to load org context and enforce the archived guard.
+   */
+  static async findContextById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<
+    { id: number; domain: string | null; archived_at: Date | null } | undefined
+  > {
+    return this.table(trx)
+      .where({ id })
+      .select("id", "domain", "archived_at")
+      .first();
+  }
 }
