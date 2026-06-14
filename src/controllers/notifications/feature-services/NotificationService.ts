@@ -6,8 +6,8 @@
  * - Organization ownership verification
  * - Notification creation with org/location scoping
  *
- * All database access goes through NotificationModel.
- * No direct db() calls.
+ * All database access goes through NotificationModel — no direct query-builder
+ * calls live in this service.
  */
 
 import { NotificationModel, INotification } from "../../../models/NotificationModel";

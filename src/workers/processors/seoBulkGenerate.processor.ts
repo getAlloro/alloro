@@ -48,7 +48,7 @@ export async function processSeoBulkGenerate(job: Job<SeoBulkGenerateData>): Pro
 
   // Get project for wrapper/header/footer. findById returns the full row; the
   // wrapper/header/footer columns are not on IProject, so read them via a
-  // narrow cast (mirrors the original untyped db(...).first() access).
+  // narrow cast (mirrors the original untyped query-builder first() access).
   const project = (await ProjectModel.findById(projectId)) as
     | { wrapper?: string; header?: string; footer?: string }
     | undefined;

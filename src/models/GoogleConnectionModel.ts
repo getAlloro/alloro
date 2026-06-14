@@ -47,6 +47,21 @@ export class GoogleConnectionModel extends BaseModel {
   }
 
   /**
+   * First connection for an organization, returned as the raw DB row (no JSON
+   * deserialization). Matches the OAuth helper, which consumed the original
+   * db("google_connections").where({ organization_id }).first() result
+   * directly (reads id/refresh_token/access_token/expiry_date). No scope/order
+   * constraints — distinct from findOneByOrganization.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findRawByOrganization(
+    organizationId: number,
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx).where({ organization_id: organizationId }).first();
+  }
+
+  /**
    * Find a single connection by id joined to its organization, projecting the
    * full connection row plus org domain/name/archived_at. Mirrors the inline
    * monthly-agents-run account fetch (leftJoin organizations, select gc.*,
