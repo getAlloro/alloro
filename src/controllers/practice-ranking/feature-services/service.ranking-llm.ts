@@ -10,7 +10,7 @@
 import { runAgent } from "../../../agents/service.llm-runner";
 import * as llmWebhookHandler from "./service.llm-webhook-handler";
 import { log, logError } from "../feature-utils/util.ranking-logger";
-import { updateStatus, StatusDetail } from "./service.ranking-pipeline";
+import { updateStatus, StatusDetail } from "./service.ranking-status";
 import { sanitizeRankingLlmAnalysis } from "./service.ranking-output-guardrails";
 import {
   getExternalErrorMessage,
