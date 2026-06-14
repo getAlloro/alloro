@@ -15,6 +15,18 @@ export class MenuTemplateModel extends BaseModel {
   protected static jsonFields = ["sections"];
 
   /**
+   * Menu templates for a template, projecting slug + name. Mirrors the
+   * menu_templates query in service.ai-command.getProjectTemplates verbatim
+   * (select slug, name).
+   */
+  static async findSlugNameByTemplateId(
+    templateId: string,
+    trx?: QueryContext
+  ): Promise<Array<{ slug: string; name: string }>> {
+    return this.table(trx).where("template_id", templateId).select("slug", "name");
+  }
+
+  /**
    * Fetch a single menu template by template + slug. Mirrors the inline lookup
    * in shortcodeResolver.resolveMenus. Returns the raw row (sections parsed by
    * the caller).

@@ -299,6 +299,167 @@ export class PageModel extends BaseModel {
   }
 
   // ===================================================================
+  // AI command pipeline helpers
+  //
+  // These mirror the inline `db("website_builder.pages")` queries previously
+  // held in admin-websites/feature-services/service.ai-command verbatim (same
+  // columns, filters, ordering, and `db.fn.now()` timestamp sources). The AI
+  // command pipeline reads raw page rows (status/version/sections/path columns
+  // accessed directly), so the read methods return raw rows.
+  // ===================================================================
+
+  /**
+   * Fetch a page (full raw row) by id. Mirrors the inline
+   * db(PAGES_TABLE).where("id").first() lookups in service.ai-command
+   * (executeBatch auto-publish, getCurrentHtml, saveEditedHtml,
+   * executeUpdatePagePath).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findRawById(id: string, trx?: QueryContext): Promise<any> {
+    return this.table(trx).where("id", id).first();
+  }
+
+  /**
+   * Fetch a page (full raw row) by project + path + status. Mirrors the inline
+   * draft/published lookups in service.ai-command's getCurrentHtml and
+   * saveEditedHtml.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findRawByProjectPathStatus(
+    projectId: string,
+    path: string,
+    status: string,
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .where({ project_id: projectId, path, status })
+      .first();
+  }
+
+  /**
+   * Fetch the first draft-or-published page (full raw row) at a project + path.
+   * Mirrors the existence check in service.ai-command.executeCreatePage.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findActiveByProjectAndPath(
+    projectId: string,
+    path: string,
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .where({ project_id: projectId, path })
+      .whereIn("status", ["draft", "published"])
+      .first();
+  }
+
+  /**
+   * Published pages for a project, capped to `limit` (full raw rows). Mirrors
+   * the style-context fetch in service.ai-command.executeCreatePage.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findPublishedByProjectIdLimit(
+    projectId: string,
+    limit: number,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return this.table(trx)
+      .where({ project_id: projectId, status: "published" })
+      .limit(limit);
+  }
+
+  /**
+   * Page rows for a project, draft + published, ordered path asc with drafts
+   * before published at the same path (full raw rows). Mirrors the inline
+   * "resolve all pages" query in service.ai-command.resolvePages verbatim
+   * (including the orderByRaw draft-first tiebreak); the caller dedups by path.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findResolvableByProjectId(
+    projectId: string,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return this.table(trx)
+      .where({ project_id: projectId })
+      .whereIn("status", ["draft", "published"])
+      .orderBy("path", "asc")
+      .orderByRaw("CASE WHEN status = 'draft' THEN 0 ELSE 1 END ASC");
+  }
+
+  /**
+   * Page rows for an explicit id set (full raw rows). Mirrors the
+   * specific-ids branch of service.ai-command.resolvePages.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findByIds(ids: string[], trx?: QueryContext): Promise<any[]> {
+    return this.table(trx).whereIn("id", ids);
+  }
+
+  /**
+   * Distinct path list for a project across draft + published pages. Mirrors
+   * service.ai-command.getExistingPaths verbatim (select("path").groupBy("path")).
+   */
+  static async findExistingPaths(
+    projectId: string,
+    trx?: QueryContext
+  ): Promise<{ path: string }[]> {
+    return this.table(trx)
+      .where({ project_id: projectId })
+      .whereIn("status", ["draft", "published"])
+      .select("path")
+      .groupBy("path");
+  }
+
+  /**
+   * Insert a page row verbatim (raw passthrough) and return it. Mirrors the
+   * insert in service.ai-command.executeCreatePage (project_id, path, version,
+   * status, sections as pre-stringified JSON).
+   */
+  static async insertReturning(
+    row: Record<string, unknown>,
+    trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ): Promise<any> {
+    const [page] = await this.table(trx).insert(row).returning("*");
+    return page;
+  }
+
+  /**
+   * Set sections (pre-stringified) on a page by id, stamping updated_at via the
+   * DB clock. Mirrors the section-write in service.ai-command.saveEditedHtml for
+   * the page_section branch verbatim (distinct from saveLiveSections, which also
+   * bumps version + change_source).
+   */
+  static async updateSectionsById(
+    id: string,
+    sectionsJson: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where("id", id)
+      .update({
+        sections: sectionsJson,
+        updated_at: db.fn.now(),
+      });
+  }
+
+  /**
+   * Apply a partial column update to a page by id, stamping updated_at via the
+   * DB clock. The caller passes only the fields it wants to change. Mirrors the
+   * inline db(PAGES_TABLE).where("id").update(updates) in
+   * service.ai-command.executeUpdatePagePath verbatim, where `updates` is
+   * `{ updated_at: db.fn.now(), ...conditionalFields }`.
+   */
+  static async updateFieldsById(
+    id: string,
+    fields: Record<string, unknown>,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where("id", id)
+      .update({ ...fields, updated_at: db.fn.now() });
+  }
+
+  // ===================================================================
   // Snapshot-on-write history helpers
   //
   // These mirror the inline queries previously held in

@@ -113,6 +113,136 @@ export class PostModel extends BaseModel {
     return super.deleteById(id, trx);
   }
 
+  // ===================================================================
+  // AI command pipeline helpers
+  //
+  // These mirror the inline `db("website_builder.posts")` queries previously
+  // held in admin-websites/feature-services/service.ai-command verbatim (same
+  // columns, filters, ordering, and `db.fn.now()` timestamp sources). The AI
+  // command pipeline reads raw post rows (content/title columns accessed
+  // directly), so the read methods return raw rows.
+  // ===================================================================
+
+  /**
+   * Fetch a post (full raw row) by id. Mirrors the inline
+   * db(POSTS_TABLE).where("id").first() lookups in service.ai-command
+   * (getCurrentHtml, executeUpdatePostMeta).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findRawById(id: string, trx?: QueryContext): Promise<any> {
+    return this.table(trx).where("id", id).first();
+  }
+
+  /**
+   * Published posts for a project, ordered created_at desc (full raw rows).
+   * Mirrors the "resolve all posts" branch of service.ai-command.resolvePosts.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findPublishedByProjectId(
+    projectId: string,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return this.table(trx)
+      .where({ project_id: projectId, status: "published" })
+      .orderBy("created_at", "desc");
+  }
+
+  /**
+   * Post rows for an explicit id set (full raw rows). Mirrors the
+   * specific-ids branch of service.ai-command.resolvePosts.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findByIds(ids: string[], trx?: QueryContext): Promise<any[]> {
+    return this.table(trx).whereIn("id", ids);
+  }
+
+  /**
+   * Posts for a project + post type, capped to `limit` (full raw rows). Mirrors
+   * the style-context fetch in service.ai-command.executeCreatePost.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findByProjectAndTypeLimit(
+    projectId: string,
+    postTypeId: string,
+    limit: number,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return this.table(trx)
+      .where({ project_id: projectId, post_type_id: postTypeId })
+      .limit(limit);
+  }
+
+  /**
+   * (post.slug, post_type.slug) pairs for every post in a project, via the
+   * post_types join. Mirrors service.ai-command.getExistingPostSlugs verbatim.
+   */
+  static async findExistingSlugsWithType(
+    projectId: string,
+    trx?: QueryContext
+  ): Promise<Array<{ slug: string; post_type_slug: string }>> {
+    return this.table(trx)
+      .where({ project_id: projectId })
+      .join(
+        "website_builder.post_types",
+        "website_builder.posts.post_type_id",
+        "website_builder.post_types.id"
+      )
+      .select(
+        "website_builder.posts.slug",
+        "website_builder.post_types.slug as post_type_slug"
+      );
+  }
+
+  /**
+   * Insert a post row verbatim (raw passthrough) and return it. Mirrors the
+   * insert in service.ai-command.executeCreatePost (project_id, post_type_id,
+   * title, slug, content, status, sort_order).
+   */
+  static async insertReturning(
+    row: Record<string, unknown>,
+    trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ): Promise<any> {
+    const [post] = await this.table(trx).insert(row).returning("*");
+    return post;
+  }
+
+  /**
+   * Set content on a post by id, stamping updated_at via the DB clock. Mirrors
+   * the content-write in service.ai-command.saveEditedHtml for the post branch
+   * verbatim.
+   */
+  static async updateContentById(
+    id: string,
+    content: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where("id", id)
+      .update({
+        content,
+        updated_at: db.fn.now(),
+      });
+  }
+
+  /**
+   * Apply a partial column update to a post by id, stamping updated_at via the
+   * DB clock. The caller passes only the fields it wants to change (already
+   * stringified where needed, e.g. custom_fields). Mirrors the inline
+   * db(POSTS_TABLE).where("id").update(updates) in
+   * service.ai-command.executeUpdatePostMeta verbatim, where `updates` is
+   * `{ updated_at: db.fn.now(), ...conditionalFields }`.
+   */
+  static async updateFieldsById(
+    id: string,
+    fields: Record<string, unknown>,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where("id", id)
+      .update({ ...fields, updated_at: db.fn.now() });
+  }
+
   /**
    * Fetch published posts for a project + post-type slug, applying the
    * post_block shortcode's slug-include/exclude, category, and tag filters,

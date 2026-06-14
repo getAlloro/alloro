@@ -15,6 +15,20 @@ export class ReviewBlockModel extends BaseModel {
   protected static jsonFields = ["sections"];
 
   /**
+   * Review blocks for a template, projecting slug + name + description. Mirrors
+   * the review_blocks query in service.ai-command.getProjectTemplates verbatim
+   * (select slug, name, description).
+   */
+  static async findSlugNameDescriptionByTemplateId(
+    templateId: string,
+    trx?: QueryContext
+  ): Promise<Array<{ slug: string; name: string; description: string | null }>> {
+    return this.table(trx)
+      .where("template_id", templateId)
+      .select("slug", "name", "description");
+  }
+
+  /**
    * Batch-fetch review blocks for a template by slug list. Mirrors the inline
    * query in shortcodeResolver.resolveReviewBlocks (select slug, sections).
    * Returns raw rows to preserve original consumption (sections parsed by the

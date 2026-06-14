@@ -54,6 +54,40 @@ export class ProjectModel extends BaseModel {
     return this.table(trx).where({ organization_id: orgId }).first();
   }
 
+  /**
+   * Fetch a project row (full raw row) by id. Mirrors the inline
+   * db("website_builder.projects").where("id").first() lookups in
+   * service.ai-command, where callers read arbitrary columns off the row
+   * (dynamic layout fields wrapper/header/footer, primary_color, accent_color,
+   * template_id, generated_hostname, custom_domain). Returns the raw row so
+   * those reads stay valid.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findRawById(id: string, trx?: QueryContext): Promise<any> {
+    return this.table(trx).where("id", id).first();
+  }
+
+  /**
+   * Set a single layout field (wrapper | header | footer) on a project to an
+   * HTML string, stamping updated_at via the DB clock. Mirrors the inline
+   * db(PROJECTS_TABLE).where("id").update({ [layout_field]: html, updated_at })
+   * in service.ai-command.saveEditedHtml for the layout branch verbatim. The
+   * column name is dynamic, so it cannot reuse the typed updateById.
+   */
+  static async updateLayoutField(
+    id: string,
+    layoutField: string,
+    html: string,
+    trx?: QueryContext,
+  ): Promise<number> {
+    return this.table(trx)
+      .where("id", id)
+      .update({
+        [layoutField]: html,
+        updated_at: db.fn.now(),
+      });
+  }
+
   static async findAllByOrganizationId(
     orgId: number,
     trx?: QueryContext,

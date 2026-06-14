@@ -6,7 +6,16 @@
  * stored in the database for review and later execution.
  */
 
-import { db } from "../../../database/connection";
+import { AiCommandBatchModel } from "../../../models/website-builder/AiCommandBatchModel";
+import { AiCommandRecommendationModel } from "../../../models/website-builder/AiCommandRecommendationModel";
+import { ProjectModel } from "../../../models/website-builder/ProjectModel";
+import { PageModel } from "../../../models/website-builder/PageModel";
+import { PostModel } from "../../../models/website-builder/PostModel";
+import { PostTypeModel } from "../../../models/website-builder/PostTypeModel";
+import { RedirectModel } from "../../../models/website-builder/RedirectModel";
+import { PostBlockModel } from "../../../models/website-builder/PostBlockModel";
+import { MenuTemplateModel } from "../../../models/website-builder/MenuTemplateModel";
+import { ReviewBlockModel } from "../../../models/website-builder/ReviewBlockModel";
 import { normalizeSections } from "../feature-utils/util.section-normalizer";
 import {
   analyzeHtmlContent,
@@ -28,13 +37,6 @@ import { analyzeScreenshot } from "../../../utils/website-utils/aiCommandService
 import { runAgenticPipeline } from "../../../utils/website-utils/agenticHtmlPipeline";
 import logger from "../../../lib/logger";
 
-const BATCHES_TABLE = "website_builder.ai_command_batches";
-const RECS_TABLE = "website_builder.ai_command_recommendations";
-const PROJECTS_TABLE = "website_builder.projects";
-const PAGES_TABLE = "website_builder.pages";
-const POSTS_TABLE = "website_builder.posts";
-const POST_TYPES_TABLE = "website_builder.post_types";
-
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -43,15 +45,6 @@ interface AiCommandTargets {
   pages?: string[] | "all";
   posts?: string[] | "all";
   layouts?: string[] | "all";
-}
-
-interface BatchStats {
-  total: number;
-  pending: number;
-  approved: number;
-  rejected: number;
-  executed: number;
-  failed: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -67,15 +60,13 @@ export async function createBatch(
   createdBy?: string,
   batchType: BatchType = "ai_editor"
 ): Promise<any> {
-  const [batch] = await db(BATCHES_TABLE)
-    .insert({
-      project_id: projectId,
-      prompt: prompt || "",
-      targets: JSON.stringify({ ...targets, type: batchType }),
-      status: "analyzing",
-      created_by: createdBy || null,
-    })
-    .returning("*");
+  const batch = await AiCommandBatchModel.insertReturning({
+    project_id: projectId,
+    prompt: prompt || "",
+    targets: JSON.stringify({ ...targets, type: batchType }),
+    status: "analyzing",
+    created_by: createdBy || null,
+  });
 
   logger.info(`[AiCommand] Created batch ${batch.id} for project ${projectId}`);
   return batch;
@@ -86,12 +77,10 @@ export async function createBatch(
 // ---------------------------------------------------------------------------
 
 export async function analyzeBatch(batchId: string): Promise<void> {
-  const batch = await db(BATCHES_TABLE).where("id", batchId).first();
+  const batch = await AiCommandBatchModel.findRawById(batchId);
   if (!batch) throw new Error(`Batch ${batchId} not found`);
 
-  const project = await db(PROJECTS_TABLE)
-    .where("id", batch.project_id)
-    .first();
+  const project = await ProjectModel.findRawById(batch.project_id);
   if (!project) throw new Error(`Project ${batch.project_id} not found`);
 
   const targets: AiCommandTargets =
@@ -162,7 +151,7 @@ export async function analyzeBatch(batchId: string): Promise<void> {
       });
 
       for (const flag of flags) {
-        await db(RECS_TABLE).insert({
+        await AiCommandRecommendationModel.insertRow({
           batch_id: batchId,
           target_type: flag.targetType,
           target_id: flag.targetId,
@@ -209,7 +198,7 @@ export async function analyzeBatch(batchId: string): Promise<void> {
           });
 
           for (const rec of result.recommendations) {
-            await db(RECS_TABLE).insert({
+            await AiCommandRecommendationModel.insertRow({
               batch_id: batchId,
               target_type: "layout",
               target_id: batch.project_id,
@@ -285,7 +274,7 @@ export async function analyzeBatch(batchId: string): Promise<void> {
             });
 
             for (const rec of result.recommendations) {
-              await db(RECS_TABLE).insert({
+              await AiCommandRecommendationModel.insertRow({
                 batch_id: batchId,
                 target_type: "page_section",
                 target_id: page.id,
@@ -331,7 +320,7 @@ export async function analyzeBatch(batchId: string): Promise<void> {
           });
 
           for (const rec of result.recommendations) {
-            await db(RECS_TABLE).insert({
+            await AiCommandRecommendationModel.insertRow({
               batch_id: batchId,
               target_type: "post",
               target_id: post.id,
@@ -387,7 +376,7 @@ export async function analyzeBatch(batchId: string): Promise<void> {
         }
         batchFromPaths.add(rec.from_path);
 
-        await db(RECS_TABLE).insert({
+        await AiCommandRecommendationModel.insertRow({
           batch_id: batchId,
           target_type: "create_redirect",
           target_id: batch.project_id,
@@ -403,7 +392,7 @@ export async function analyzeBatch(batchId: string): Promise<void> {
 
       // Delete redirect recommendations
       for (const rec of structural.deleteRedirects) {
-        await db(RECS_TABLE).insert({
+        await AiCommandRecommendationModel.insertRow({
           batch_id: batchId,
           target_type: "delete_redirect",
           target_id: batch.project_id,
@@ -418,7 +407,7 @@ export async function analyzeBatch(batchId: string): Promise<void> {
       }
 
       for (const rec of structural.pages) {
-        await db(RECS_TABLE).insert({
+        await AiCommandRecommendationModel.insertRow({
           batch_id: batchId,
           target_type: "create_page",
           target_id: batch.project_id,
@@ -433,7 +422,7 @@ export async function analyzeBatch(batchId: string): Promise<void> {
       }
 
       for (const rec of structural.posts) {
-        await db(RECS_TABLE).insert({
+        await AiCommandRecommendationModel.insertRow({
           batch_id: batchId,
           target_type: "create_post",
           target_id: batch.project_id,
@@ -448,7 +437,7 @@ export async function analyzeBatch(batchId: string): Promise<void> {
       }
 
       for (const rec of structural.newMenus) {
-        await db(RECS_TABLE).insert({
+        await AiCommandRecommendationModel.insertRow({
           batch_id: batchId,
           target_type: "create_menu",
           target_id: batch.project_id,
@@ -463,7 +452,7 @@ export async function analyzeBatch(batchId: string): Promise<void> {
       }
 
       for (const rec of structural.menuChanges) {
-        await db(RECS_TABLE).insert({
+        await AiCommandRecommendationModel.insertRow({
           batch_id: batchId,
           target_type: "update_menu",
           target_id: batch.project_id,
@@ -483,7 +472,7 @@ export async function analyzeBatch(batchId: string): Promise<void> {
     }
 
     // Finalize
-    await db(BATCHES_TABLE).where("id", batchId).update({
+    await AiCommandBatchModel.updateById(batchId, {
       status: "ready",
       summary: (() => {
         const dateStr = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -495,7 +484,6 @@ export async function analyzeBatch(batchId: string): Promise<void> {
           ? `${promptTitle} — ${dateStr} — ${totalRecommendations} recommendation(s)`
           : `${promptTitle} — ${dateStr} — No changes needed`;
       })(),
-      updated_at: db.fn.now(),
     });
 
     await refreshStats(batchId);
@@ -505,10 +493,9 @@ export async function analyzeBatch(batchId: string): Promise<void> {
     );
   } catch (err) {
     logger.error({ err: err }, `[AiCommand] Batch ${batchId} failed:`);
-    await db(BATCHES_TABLE).where("id", batchId).update({
+    await AiCommandBatchModel.updateById(batchId, {
       status: "failed",
       summary: `Analysis failed: ${(err as Error).message}`,
-      updated_at: db.fn.now(),
     });
   }
 }
@@ -722,7 +709,7 @@ async function analyzeSpecializedBatch(
     // Insert recommendations
     let sortOrder = 0;
     for (const rec of recommendations) {
-      await db(RECS_TABLE).insert({
+      await AiCommandRecommendationModel.insertRow({
         batch_id: batchId,
         target_type: rec.targetType,
         target_id: rec.targetId,
@@ -738,22 +725,20 @@ async function analyzeSpecializedBatch(
 
     const typeLabel = batchType === "ui_checker" ? "UI Check" : "Link Check";
     const dateStr = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-    await db(BATCHES_TABLE).where("id", batchId).update({
+    await AiCommandBatchModel.updateById(batchId, {
       status: "ready",
       summary: totalRecommendations > 0
         ? `${typeLabel} — ${dateStr} — ${totalRecommendations} issue(s) found`
         : `${typeLabel} — ${dateStr} — No issues found`,
-      updated_at: db.fn.now(),
     });
     await refreshStats(batchId);
 
     logger.info(`[AiCommand] ✓ ${batchType} batch ${batchId}: ${totalRecommendations} issues`);
   } catch (err) {
     logger.error({ err: err }, `[AiCommand] ${batchType} batch ${batchId} failed:`);
-    await db(BATCHES_TABLE).where("id", batchId).update({
+    await AiCommandBatchModel.updateById(batchId, {
       status: "failed",
       summary: `Analysis failed: ${(err as Error).message}`,
-      updated_at: db.fn.now(),
     });
   }
 }
@@ -763,20 +748,16 @@ async function analyzeSpecializedBatch(
 // ---------------------------------------------------------------------------
 
 export async function executeBatch(batchId: string): Promise<void> {
-  const batch = await db(BATCHES_TABLE).where("id", batchId).first();
+  const batch = await AiCommandBatchModel.findRawById(batchId);
   if (!batch) throw new Error(`Batch ${batchId} not found`);
 
   if (batch.status !== "ready") {
     throw new Error(`Batch ${batchId} status is "${batch.status}", expected "ready"`);
   }
 
-  await db(BATCHES_TABLE)
-    .where("id", batchId)
-    .update({ status: "executing", updated_at: db.fn.now() });
+  await AiCommandBatchModel.updateStatus(batchId, "executing");
 
-  const approved = await db(RECS_TABLE)
-    .where({ batch_id: batchId, status: "approved" })
-    .orderBy("sort_order", "asc");
+  const approved = await AiCommandRecommendationModel.findApprovedByBatchId(batchId);
 
   // Sort by execution phase — posts first, then pages, menus, redirects, edits last
   const sorted = [...approved].sort((a, b) => {
@@ -800,15 +781,13 @@ export async function executeBatch(batchId: string): Promise<void> {
       executedCount++;
     } catch (err) {
       logger.error({ err: (err as Error).message }, `[AiCommand] Recommendation ${rec.id} failed:`);
-      await db(RECS_TABLE)
-        .where("id", rec.id)
-        .update({
-          status: "failed",
-          execution_result: JSON.stringify({
-            success: false,
-            error: (err as Error).message,
-          }),
-        });
+      await AiCommandRecommendationModel.updateById(rec.id, {
+        status: "failed",
+        execution_result: JSON.stringify({
+          success: false,
+          error: (err as Error).message,
+        }),
+      });
       failedCount++;
     }
 
@@ -817,7 +796,7 @@ export async function executeBatch(batchId: string): Promise<void> {
 
   // Publish all page drafts that were created during this batch (one version per page)
   for (const [path, draftId] of ctx.pageDrafts) {
-    const draftPage = await db(PAGES_TABLE).where("id", draftId).first();
+    const draftPage = await PageModel.findRawById(draftId);
     if (!draftPage || draftPage.status !== "draft") continue;
     const publishResult = await publishPage(draftPage.project_id, draftId);
     if (publishResult.error) {
@@ -829,13 +808,10 @@ export async function executeBatch(batchId: string): Promise<void> {
 
   const executionSummary = await buildExecutionSummary(batchId);
 
-  await db(BATCHES_TABLE)
-    .where("id", batchId)
-    .update({
-      status: "completed",
-      summary: executionSummary,
-      updated_at: db.fn.now(),
-    });
+  await AiCommandBatchModel.updateById(batchId, {
+    status: "completed",
+    summary: executionSummary,
+  });
 
   await refreshStats(batchId);
 
@@ -861,15 +837,13 @@ async function executeRecommendation(rec: any, ctx: ExecutionContext): Promise<v
   const currentHtml = await getCurrentHtml(rec);
 
   if (!currentHtml) {
-    await db(RECS_TABLE)
-      .where("id", rec.id)
-      .update({
-        status: "failed",
-        execution_result: JSON.stringify({
-          success: false,
-          error: "Target content no longer exists.",
-        }),
-      });
+    await AiCommandRecommendationModel.updateById(rec.id, {
+      status: "failed",
+      execution_result: JSON.stringify({
+        success: false,
+        error: "Target content no longer exists.",
+      }),
+    });
     return;
   }
 
@@ -924,23 +898,21 @@ async function executeRecommendation(rec: any, ctx: ExecutionContext): Promise<v
   await saveEditedHtml(rec, pipelineResult.html, ctx);
 
   // Mark as executed
-  await db(RECS_TABLE)
-    .where("id", rec.id)
-    .update({
-      status: "executed",
-      execution_result: JSON.stringify({
-        success: true,
-        iterations: pipelineResult.iterations,
-        ui_fixes: pipelineResult.uiFixAttempts,
-        link_fixes: pipelineResult.linkFixAttempts,
-        remaining_issues: pipelineResult.finalIssues.length,
-        edited_html: result.editedHtml,
-        tokens: {
-          input: result.inputTokens,
-          output: result.outputTokens,
-        },
-      }),
-    });
+  await AiCommandRecommendationModel.updateById(rec.id, {
+    status: "executed",
+    execution_result: JSON.stringify({
+      success: true,
+      iterations: pipelineResult.iterations,
+      ui_fixes: pipelineResult.uiFixAttempts,
+      link_fixes: pipelineResult.linkFixAttempts,
+      remaining_issues: pipelineResult.finalIssues.length,
+      edited_html: result.editedHtml,
+      tokens: {
+        input: result.inputTokens,
+        output: result.outputTokens,
+      },
+    }),
+  });
 
   logger.info(`[AiCommand] ✓ Executed: ${rec.target_label}`);
 }
@@ -952,22 +924,22 @@ async function getCurrentHtml(rec: any): Promise<string> {
       : rec.target_meta;
 
   if (rec.target_type === "layout") {
-    const project = await db(PROJECTS_TABLE)
-      .where("id", rec.target_id)
-      .first();
+    const project = await ProjectModel.findRawById(rec.target_id);
     if (!project) throw new Error(`Project ${rec.target_id} not found`);
     return project[meta.layout_field] || "";
   }
 
   if (rec.target_type === "page_section") {
     // Get the original page to find its path, then prefer draft at that path
-    const origPage = await db(PAGES_TABLE).where("id", rec.target_id).first();
+    const origPage = await PageModel.findRawById(rec.target_id);
     if (!origPage) throw new Error(`Page ${rec.target_id} not found`);
 
     // If a draft exists for this path, use it (it may have been auto-created)
-    const page = await db(PAGES_TABLE)
-      .where({ project_id: origPage.project_id, path: origPage.path, status: "draft" })
-      .first() || origPage;
+    const page = await PageModel.findRawByProjectPathStatus(
+      origPage.project_id,
+      origPage.path,
+      "draft"
+    ) || origPage;
 
     const rawSections = typeof page.sections === "string"
       ? JSON.parse(page.sections)
@@ -982,7 +954,7 @@ async function getCurrentHtml(rec: any): Promise<string> {
   }
 
   if (rec.target_type === "post") {
-    const post = await db(POSTS_TABLE).where("id", rec.target_id).first();
+    const post = await PostModel.findRawById(rec.target_id);
     if (!post) throw new Error(`Post ${rec.target_id} not found`);
     return post.content || "";
   }
@@ -997,18 +969,17 @@ async function saveEditedHtml(rec: any, editedHtml: string, ctx: ExecutionContex
       : rec.target_meta;
 
   if (rec.target_type === "layout") {
-    await db(PROJECTS_TABLE)
-      .where("id", rec.target_id)
-      .update({
-        [meta.layout_field]: editedHtml,
-        updated_at: db.fn.now(),
-      });
+    await ProjectModel.updateLayoutField(
+      rec.target_id,
+      meta.layout_field,
+      editedHtml
+    );
     return;
   }
 
   if (rec.target_type === "page_section") {
     // Find the original page to get its path
-    const origPage = await db(PAGES_TABLE).where("id", rec.target_id).first();
+    const origPage = await PageModel.findRawById(rec.target_id);
     if (!origPage) throw new Error(`Page ${rec.target_id} not found`);
 
     let draftId = ctx.pageDrafts.get(origPage.path);
@@ -1016,16 +987,20 @@ async function saveEditedHtml(rec: any, editedHtml: string, ctx: ExecutionContex
 
     if (draftId) {
       // Reuse the draft already created for this page path during this batch
-      page = await db(PAGES_TABLE).where("id", draftId).first();
+      page = await PageModel.findRawById(draftId);
       if (!page) throw new Error(`Draft ${draftId} disappeared for path ${origPage.path}`);
     } else {
       // Find the current active version at this path (draft preferred, then published)
-      page = await db(PAGES_TABLE)
-        .where({ project_id: origPage.project_id, path: origPage.path, status: "draft" })
-        .first()
-        || await db(PAGES_TABLE)
-          .where({ project_id: origPage.project_id, path: origPage.path, status: "published" })
-          .first();
+      page = await PageModel.findRawByProjectPathStatus(
+        origPage.project_id,
+        origPage.path,
+        "draft"
+      )
+        || await PageModel.findRawByProjectPathStatus(
+          origPage.project_id,
+          origPage.path,
+          "published"
+        );
 
       if (!page) throw new Error(`No active page at path ${origPage.path}`);
 
@@ -1058,24 +1033,14 @@ async function saveEditedHtml(rec: any, editedHtml: string, ctx: ExecutionContex
       };
     }
 
-    await db(PAGES_TABLE)
-      .where("id", page.id)
-      .update({
-        sections: JSON.stringify(sections),
-        updated_at: db.fn.now(),
-      });
+    await PageModel.updateSectionsById(page.id, JSON.stringify(sections));
 
     // Don't publish here — batch will publish all drafts at the end
     return;
   }
 
   if (rec.target_type === "post") {
-    await db(POSTS_TABLE)
-      .where("id", rec.target_id)
-      .update({
-        content: editedHtml,
-        updated_at: db.fn.now(),
-      });
+    await PostModel.updateContentById(rec.target_id, editedHtml);
     return;
   }
 
@@ -1087,43 +1052,26 @@ async function saveEditedHtml(rec: any, editedHtml: string, ctx: ExecutionContex
 // ---------------------------------------------------------------------------
 
 export async function getBatch(batchId: string): Promise<any> {
-  return db(BATCHES_TABLE).where("id", batchId).first();
+  return AiCommandBatchModel.findRawById(batchId);
 }
 
 export async function listBatches(projectId: string): Promise<any[]> {
-  return db(BATCHES_TABLE)
-    .where("project_id", projectId)
-    .orderBy("created_at", "desc");
+  return AiCommandBatchModel.listByProjectId(projectId);
 }
 
 export async function deleteBatch(batchId: string): Promise<void> {
-  await db(BATCHES_TABLE).where("id", batchId).del();
+  await AiCommandBatchModel.deleteById(batchId);
 }
 
 export async function updateBatchSummary(batchId: string, summary: string): Promise<any> {
-  const [batch] = await db(BATCHES_TABLE)
-    .where("id", batchId)
-    .update({ summary, updated_at: db.fn.now() })
-    .returning("*");
-  return batch;
+  return AiCommandBatchModel.updateSummaryReturning(batchId, summary);
 }
 
 export async function getBatchRecommendations(
   batchId: string,
   filters?: { status?: string; target_type?: string }
 ): Promise<any[]> {
-  let query = db(RECS_TABLE)
-    .where("batch_id", batchId)
-    .orderBy("sort_order", "asc");
-
-  if (filters?.status) {
-    query = query.where("status", filters.status);
-  }
-  if (filters?.target_type) {
-    query = query.where("target_type", filters.target_type);
-  }
-
-  return query;
+  return AiCommandRecommendationModel.findByBatchId(batchId, filters);
 }
 
 // ---------------------------------------------------------------------------
@@ -1139,7 +1087,7 @@ export async function updateRecommendationStatus(
 
   // Merge reference data into target_meta for create_page/create_post
   if (metaUpdates && (metaUpdates.reference_url || metaUpdates.reference_content)) {
-    const existing = await db(RECS_TABLE).where("id", recommendationId).first();
+    const existing = await AiCommandRecommendationModel.findRawById(recommendationId);
     if (existing) {
       const meta = typeof existing.target_meta === "string"
         ? JSON.parse(existing.target_meta)
@@ -1150,10 +1098,10 @@ export async function updateRecommendationStatus(
     }
   }
 
-  const [rec] = await db(RECS_TABLE)
-    .where("id", recommendationId)
-    .update(updatePayload)
-    .returning("*");
+  const rec = await AiCommandRecommendationModel.updateByIdReturning(
+    recommendationId,
+    updatePayload
+  );
 
   if (rec) {
     await refreshStats(rec.batch_id);
@@ -1167,14 +1115,11 @@ export async function bulkUpdateStatus(
   status: "approved" | "rejected",
   filters?: { target_type?: string }
 ): Promise<number> {
-  let query = db(RECS_TABLE)
-    .where({ batch_id: batchId, status: "pending" });
-
-  if (filters?.target_type) {
-    query = query.where("target_type", filters.target_type);
-  }
-
-  const updated = await query.update({ status });
+  const updated = await AiCommandRecommendationModel.bulkUpdatePendingStatus(
+    batchId,
+    status,
+    filters
+  );
   await refreshStats(batchId);
   return updated;
 }
@@ -1184,24 +1129,8 @@ export async function bulkUpdateStatus(
 // ---------------------------------------------------------------------------
 
 async function refreshStats(batchId: string): Promise<void> {
-  const rows = await db(RECS_TABLE)
-    .where("batch_id", batchId)
-    .select("status")
-    .then((rows) =>
-      rows.reduce(
-        (acc: BatchStats, row: any) => {
-          acc.total++;
-          const s = row.status as keyof BatchStats;
-          if (s in acc) (acc[s] as number)++;
-          return acc;
-        },
-        { total: 0, pending: 0, approved: 0, rejected: 0, executed: 0, failed: 0 }
-      )
-    );
-
-  await db(BATCHES_TABLE)
-    .where("id", batchId)
-    .update({ stats: JSON.stringify(rows), updated_at: db.fn.now() });
+  const stats = await AiCommandRecommendationModel.computeStats(batchId);
+  await AiCommandBatchModel.updateStats(batchId, JSON.stringify(stats));
 }
 
 async function resolvePages(
@@ -1210,11 +1139,7 @@ async function resolvePages(
 ): Promise<any[]> {
   if (target === "all") {
     // For each path, prefer the draft version; fall back to published
-    const allPages = await db(PAGES_TABLE)
-      .where({ project_id: projectId })
-      .whereIn("status", ["draft", "published"])
-      .orderBy("path", "asc")
-      .orderByRaw("CASE WHEN status = 'draft' THEN 0 ELSE 1 END ASC");
+    const allPages = await PageModel.findResolvableByProjectId(projectId);
 
     // Deduplicate by path — keep first (draft preferred)
     const seen = new Set<string>();
@@ -1226,7 +1151,7 @@ async function resolvePages(
   }
 
   // Specific page IDs
-  return db(PAGES_TABLE).whereIn("id", target);
+  return PageModel.findByIds(target);
 }
 
 async function resolvePosts(
@@ -1234,12 +1159,10 @@ async function resolvePosts(
   target: string[] | "all"
 ): Promise<any[]> {
   if (target === "all") {
-    return db(POSTS_TABLE)
-      .where({ project_id: projectId, status: "published" })
-      .orderBy("created_at", "desc");
+    return PostModel.findPublishedByProjectId(projectId);
   }
 
-  return db(POSTS_TABLE).whereIn("id", target);
+  return PostModel.findByIds(target);
 }
 
 function capitalize(s: string): string {
@@ -1260,21 +1183,17 @@ async function executeCreateRedirect(rec: any): Promise<void> {
   });
 
   if (result.error) {
-    await db(RECS_TABLE)
-      .where("id", rec.id)
-      .update({
-        status: "failed",
-        execution_result: JSON.stringify({ success: false, error: result.error.message }),
-      });
+    await AiCommandRecommendationModel.updateById(rec.id, {
+      status: "failed",
+      execution_result: JSON.stringify({ success: false, error: result.error.message }),
+    });
     return;
   }
 
-  await db(RECS_TABLE)
-    .where("id", rec.id)
-    .update({
-      status: "executed",
-      execution_result: JSON.stringify({ success: true, redirect_id: result.redirect.id }),
-    });
+  await AiCommandRecommendationModel.updateById(rec.id, {
+    status: "executed",
+    execution_result: JSON.stringify({ success: true, redirect_id: result.redirect.id }),
+  });
 
   logger.info(`[AiCommand] ✓ Created redirect: ${meta.from_path} → ${meta.to_path}`);
 }
@@ -1284,13 +1203,10 @@ async function executeCreatePage(rec: any, ctx: ExecutionContext): Promise<void>
   const projectId = rec.target_id;
 
   // Check if page already exists
-  const existing = await db(PAGES_TABLE)
-    .where({ project_id: projectId, path: meta.path })
-    .whereIn("status", ["draft", "published"])
-    .first();
+  const existing = await PageModel.findActiveByProjectAndPath(projectId, meta.path);
 
   if (existing) {
-    await db(RECS_TABLE).where("id", rec.id).update({
+    await AiCommandRecommendationModel.updateById(rec.id, {
       status: "failed",
       execution_result: JSON.stringify({ success: false, error: `Page already exists at ${meta.path}` }),
     });
@@ -1298,12 +1214,10 @@ async function executeCreatePage(rec: any, ctx: ExecutionContext): Promise<void>
   }
 
   // Fetch project
-  const project = await db(PROJECTS_TABLE).where("id", projectId).first();
+  const project = await ProjectModel.findRawById(projectId);
 
   // Fetch existing pages for style context (up to 5)
-  const existingPages = await db(PAGES_TABLE)
-    .where({ project_id: projectId, status: "published" })
-    .limit(5);
+  const existingPages = await PageModel.findPublishedByProjectIdLimit(projectId, 5);
 
   const existingSections: Array<{ name: string; summary: string }> = [];
   let siteStyleContext = [
@@ -1362,7 +1276,7 @@ async function executeCreatePage(rec: any, ctx: ExecutionContext): Promise<void>
   }
 
   if (!referenceContent && !meta.reference_url) {
-    await db(RECS_TABLE).where("id", rec.id).update({
+    await AiCommandRecommendationModel.updateById(rec.id, {
       status: "failed",
       execution_result: JSON.stringify({
         success: false,
@@ -1444,7 +1358,7 @@ async function executeCreatePage(rec: any, ctx: ExecutionContext): Promise<void>
   }
 
   if (createdSections.length === 0) {
-    await db(RECS_TABLE).where("id", rec.id).update({
+    await AiCommandRecommendationModel.updateById(rec.id, {
       status: "failed",
       execution_result: JSON.stringify({ success: false, error: "Failed to generate any sections" }),
     });
@@ -1452,17 +1366,15 @@ async function executeCreatePage(rec: any, ctx: ExecutionContext): Promise<void>
   }
 
   // Create the page
-  const [page] = await db(PAGES_TABLE)
-    .insert({
-      project_id: projectId,
-      path: meta.path,
-      version: 1,
-      status: "draft",
-      sections: JSON.stringify(createdSections),
-    })
-    .returning("*");
+  const page = await PageModel.insertReturning({
+    project_id: projectId,
+    path: meta.path,
+    version: 1,
+    status: "draft",
+    sections: JSON.stringify(createdSections),
+  });
 
-  await db(RECS_TABLE).where("id", rec.id).update({
+  await AiCommandRecommendationModel.updateById(rec.id, {
     status: "executed",
     execution_result: JSON.stringify({
       success: true,
@@ -1484,21 +1396,22 @@ async function executeCreatePost(rec: any, ctx: ExecutionContext): Promise<void>
   const projectId = rec.target_id;
 
   // Resolve post type
-  const project = await db(PROJECTS_TABLE).where("id", projectId).first();
+  const project = await ProjectModel.findRawById(projectId);
   if (!project?.template_id) {
-    await db(RECS_TABLE).where("id", rec.id).update({
+    await AiCommandRecommendationModel.updateById(rec.id, {
       status: "failed",
       execution_result: JSON.stringify({ success: false, error: "Project has no template — cannot resolve post types" }),
     });
     return;
   }
 
-  const postType = await db(POST_TYPES_TABLE)
-    .where({ template_id: project.template_id, slug: meta.post_type_slug })
-    .first();
+  const postType = await PostTypeModel.findByTemplateAndSlug(
+    project.template_id,
+    meta.post_type_slug
+  );
 
   if (!postType) {
-    await db(RECS_TABLE).where("id", rec.id).update({
+    await AiCommandRecommendationModel.updateById(rec.id, {
       status: "failed",
       execution_result: JSON.stringify({ success: false, error: `Post type "${meta.post_type_slug}" not found` }),
     });
@@ -1507,12 +1420,10 @@ async function executeCreatePost(rec: any, ctx: ExecutionContext): Promise<void>
 
   // Check if post already exists
   const slug = meta.slug || meta.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-  const existing = await db(POSTS_TABLE)
-    .where({ project_id: projectId, post_type_id: postType.id, slug })
-    .first();
+  const existing = await PostModel.findBySlug(projectId, postType.id, slug);
 
   if (existing) {
-    await db(RECS_TABLE).where("id", rec.id).update({
+    await AiCommandRecommendationModel.updateById(rec.id, {
       status: "failed",
       execution_result: JSON.stringify({ success: false, error: `Post with slug "${slug}" already exists` }),
     });
@@ -1547,7 +1458,7 @@ async function executeCreatePost(rec: any, ctx: ExecutionContext): Promise<void>
   }
 
   if (!referenceContent && !meta.reference_url) {
-    await db(RECS_TABLE).where("id", rec.id).update({
+    await AiCommandRecommendationModel.updateById(rec.id, {
       status: "failed",
       execution_result: JSON.stringify({
         success: false,
@@ -1558,9 +1469,11 @@ async function executeCreatePost(rec: any, ctx: ExecutionContext): Promise<void>
   }
 
   // Fetch existing posts of same type as style context
-  const existingPosts = await db(POSTS_TABLE)
-    .where({ project_id: projectId, post_type_id: postType.id })
-    .limit(2);
+  const existingPosts = await PostModel.findByProjectAndTypeLimit(
+    projectId,
+    postType.id,
+    2
+  );
 
   let styleContext = "";
   for (const ep of existingPosts) {
@@ -1612,19 +1525,17 @@ async function executeCreatePost(rec: any, ctx: ExecutionContext): Promise<void>
   );
 
   // Create the post
-  const [post] = await db(POSTS_TABLE)
-    .insert({
-      project_id: projectId,
-      post_type_id: postType.id,
-      title: meta.title,
-      slug,
-      content: pipelineResult.html,
-      status: "draft",
-      sort_order: 0,
-    })
-    .returning("*");
+  const post = await PostModel.insertReturning({
+    project_id: projectId,
+    post_type_id: postType.id,
+    title: meta.title,
+    slug,
+    content: pipelineResult.html,
+    status: "draft",
+    sort_order: 0,
+  });
 
-  await db(RECS_TABLE).where("id", rec.id).update({
+  await AiCommandRecommendationModel.updateById(rec.id, {
     status: "executed",
     execution_result: JSON.stringify({
       success: true,
@@ -1649,7 +1560,7 @@ async function executeUpdateMenu(rec: any, _ctx: ExecutionContext): Promise<void
   const menu = menus.find((m: any) => m.slug === meta.menu_slug);
 
   if (!menu) {
-    await db(RECS_TABLE).where("id", rec.id).update({
+    await AiCommandRecommendationModel.updateById(rec.id, {
       status: "failed",
       execution_result: JSON.stringify({ success: false, error: `Menu "${meta.menu_slug}" not found` }),
     });
@@ -1661,7 +1572,7 @@ async function executeUpdateMenu(rec: any, _ctx: ExecutionContext): Promise<void
     const itemUrl = (meta.url === "NEEDS_INPUT" && meta.reference_url) ? meta.reference_url : meta.url;
 
     if (itemUrl === "NEEDS_INPUT") {
-      await db(RECS_TABLE).where("id", rec.id).update({
+      await AiCommandRecommendationModel.updateById(rec.id, {
         status: "failed",
         execution_result: JSON.stringify({ success: false, error: "URL was not provided — this link requires user input" }),
       });
@@ -1672,7 +1583,7 @@ async function executeUpdateMenu(rec: any, _ctx: ExecutionContext): Promise<void
     const menuDetail = await menuManager.getMenu(projectId, menu.id);
     const existingItem = findMenuItemByUrl(menuDetail.menu?.items || [], itemUrl);
     if (existingItem) {
-      await db(RECS_TABLE).where("id", rec.id).update({
+      await AiCommandRecommendationModel.updateById(rec.id, {
         status: "failed",
         execution_result: JSON.stringify({ success: false, error: `Menu item with URL "${meta.url}" already exists` }),
       });
@@ -1704,14 +1615,14 @@ async function executeUpdateMenu(rec: any, _ctx: ExecutionContext): Promise<void
     });
 
     if (result.error) {
-      await db(RECS_TABLE).where("id", rec.id).update({
+      await AiCommandRecommendationModel.updateById(rec.id, {
         status: "failed",
         execution_result: JSON.stringify({ success: false, error: result.error.message }),
       });
       return;
     }
 
-    await db(RECS_TABLE).where("id", rec.id).update({
+    await AiCommandRecommendationModel.updateById(rec.id, {
       status: "executed",
       execution_result: JSON.stringify({ success: true, item_id: result.item.id }),
     });
@@ -1722,7 +1633,7 @@ async function executeUpdateMenu(rec: any, _ctx: ExecutionContext): Promise<void
     const item = findMenuItemByLabel(menuDetail.menu?.items || [], meta.label);
 
     if (!item) {
-      await db(RECS_TABLE).where("id", rec.id).update({
+      await AiCommandRecommendationModel.updateById(rec.id, {
         status: "failed",
         execution_result: JSON.stringify({ success: false, error: `Menu item "${meta.label}" not found` }),
       });
@@ -1731,7 +1642,7 @@ async function executeUpdateMenu(rec: any, _ctx: ExecutionContext): Promise<void
 
     await menuManager.deleteMenuItem(projectId, menu.id, item.id);
 
-    await db(RECS_TABLE).where("id", rec.id).update({
+    await AiCommandRecommendationModel.updateById(rec.id, {
       status: "executed",
       execution_result: JSON.stringify({ success: true, deleted_item_id: item.id }),
     });
@@ -1742,7 +1653,7 @@ async function executeUpdateMenu(rec: any, _ctx: ExecutionContext): Promise<void
     const item = findMenuItemByLabel(menuDetail.menu?.items || [], meta.original_label || meta.label);
 
     if (!item) {
-      await db(RECS_TABLE).where("id", rec.id).update({
+      await AiCommandRecommendationModel.updateById(rec.id, {
         status: "failed",
         execution_result: JSON.stringify({ success: false, error: `Menu item "${meta.original_label || meta.label}" not found` }),
       });
@@ -1757,14 +1668,14 @@ async function executeUpdateMenu(rec: any, _ctx: ExecutionContext): Promise<void
     const result = await menuManager.updateMenuItem(projectId, menu.id, item.id, updates);
 
     if (result.error) {
-      await db(RECS_TABLE).where("id", rec.id).update({
+      await AiCommandRecommendationModel.updateById(rec.id, {
         status: "failed",
         execution_result: JSON.stringify({ success: false, error: result.error.message }),
       });
       return;
     }
 
-    await db(RECS_TABLE).where("id", rec.id).update({
+    await AiCommandRecommendationModel.updateById(rec.id, {
       status: "executed",
       execution_result: JSON.stringify({ success: true, item_id: item.id }),
     });
@@ -1802,7 +1713,7 @@ async function executeCreateMenu(rec: any, ctx: ExecutionContext): Promise<void>
   const { menus } = await menuManager.listMenus(projectId);
   const existing = menus.find((m: any) => m.slug === meta.slug);
   if (existing) {
-    await db(RECS_TABLE).where("id", rec.id).update({
+    await AiCommandRecommendationModel.updateById(rec.id, {
       status: "failed",
       execution_result: JSON.stringify({ success: false, error: `Menu "${meta.slug}" already exists` }),
     });
@@ -1811,7 +1722,7 @@ async function executeCreateMenu(rec: any, ctx: ExecutionContext): Promise<void>
 
   const result = await menuManager.createMenu(projectId, { name: meta.name, slug: meta.slug });
   if (result.error) {
-    await db(RECS_TABLE).where("id", rec.id).update({
+    await AiCommandRecommendationModel.updateById(rec.id, {
       status: "failed",
       execution_result: JSON.stringify({ success: false, error: result.error.message }),
     });
@@ -1820,7 +1731,7 @@ async function executeCreateMenu(rec: any, ctx: ExecutionContext): Promise<void>
 
   ctx.createdMenus.set(meta.slug, result.menu.id);
 
-  await db(RECS_TABLE).where("id", rec.id).update({
+  await AiCommandRecommendationModel.updateById(rec.id, {
     status: "executed",
     execution_result: JSON.stringify({ success: true, menu_id: result.menu.id }),
   });
@@ -1831,12 +1742,13 @@ async function executeUpdateRedirect(rec: any): Promise<void> {
   const meta = typeof rec.target_meta === "string" ? JSON.parse(rec.target_meta) : rec.target_meta;
 
   // Find existing redirect by from_path
-  const existing = await db("website_builder.redirects")
-    .where({ project_id: rec.target_id, from_path: meta.from_path })
-    .first();
+  const existing = await RedirectModel.findByProjectAndFromPath(
+    rec.target_id,
+    meta.from_path
+  );
 
   if (!existing) {
-    await db(RECS_TABLE).where("id", rec.id).update({
+    await AiCommandRecommendationModel.updateById(rec.id, {
       status: "failed",
       execution_result: JSON.stringify({ success: false, error: `Redirect from "${meta.from_path}" not found` }),
     });
@@ -1849,14 +1761,14 @@ async function executeUpdateRedirect(rec: any): Promise<void> {
   });
 
   if (result.error) {
-    await db(RECS_TABLE).where("id", rec.id).update({
+    await AiCommandRecommendationModel.updateById(rec.id, {
       status: "failed",
       execution_result: JSON.stringify({ success: false, error: result.error.message }),
     });
     return;
   }
 
-  await db(RECS_TABLE).where("id", rec.id).update({
+  await AiCommandRecommendationModel.updateById(rec.id, {
     status: "executed",
     execution_result: JSON.stringify({ success: true, redirect_id: existing.id }),
   });
@@ -1866,12 +1778,13 @@ async function executeUpdateRedirect(rec: any): Promise<void> {
 async function executeDeleteRedirect(rec: any): Promise<void> {
   const meta = typeof rec.target_meta === "string" ? JSON.parse(rec.target_meta) : rec.target_meta;
 
-  const existing = await db("website_builder.redirects")
-    .where({ project_id: rec.target_id, from_path: meta.from_path })
-    .first();
+  const existing = await RedirectModel.findByProjectAndFromPath(
+    rec.target_id,
+    meta.from_path
+  );
 
   if (!existing) {
-    await db(RECS_TABLE).where("id", rec.id).update({
+    await AiCommandRecommendationModel.updateById(rec.id, {
       status: "failed",
       execution_result: JSON.stringify({ success: false, error: `Redirect from "${meta.from_path}" not found` }),
     });
@@ -1880,7 +1793,7 @@ async function executeDeleteRedirect(rec: any): Promise<void> {
 
   await redirectsService.deleteRedirect(existing.id);
 
-  await db(RECS_TABLE).where("id", rec.id).update({
+  await AiCommandRecommendationModel.updateById(rec.id, {
     status: "executed",
     execution_result: JSON.stringify({ success: true, deleted_redirect_id: existing.id }),
   });
@@ -1890,25 +1803,25 @@ async function executeDeleteRedirect(rec: any): Promise<void> {
 async function executeUpdatePostMeta(rec: any): Promise<void> {
   const meta = typeof rec.target_meta === "string" ? JSON.parse(rec.target_meta) : rec.target_meta;
 
-  const post = await db(POSTS_TABLE).where("id", meta.post_id).first();
+  const post = await PostModel.findRawById(meta.post_id);
   if (!post) {
-    await db(RECS_TABLE).where("id", rec.id).update({
+    await AiCommandRecommendationModel.updateById(rec.id, {
       status: "failed",
       execution_result: JSON.stringify({ success: false, error: `Post ${meta.post_id} not found` }),
     });
     return;
   }
 
-  const updates: Record<string, unknown> = { updated_at: db.fn.now() };
+  const updates: Record<string, unknown> = {};
   if (meta.title !== undefined) updates.title = meta.title;
   if (meta.slug !== undefined) updates.slug = meta.slug;
   if (meta.custom_fields !== undefined) updates.custom_fields = JSON.stringify(meta.custom_fields);
   if (meta.featured_image !== undefined) updates.featured_image = meta.featured_image;
   if (meta.status !== undefined) updates.status = meta.status;
 
-  await db(POSTS_TABLE).where("id", meta.post_id).update(updates);
+  await PostModel.updateFieldsById(meta.post_id, updates);
 
-  await db(RECS_TABLE).where("id", rec.id).update({
+  await AiCommandRecommendationModel.updateById(rec.id, {
     status: "executed",
     execution_result: JSON.stringify({ success: true, post_id: meta.post_id }),
   });
@@ -1918,21 +1831,21 @@ async function executeUpdatePostMeta(rec: any): Promise<void> {
 async function executeUpdatePagePath(rec: any): Promise<void> {
   const meta = typeof rec.target_meta === "string" ? JSON.parse(rec.target_meta) : rec.target_meta;
 
-  const page = await db(PAGES_TABLE).where("id", meta.page_id).first();
+  const page = await PageModel.findRawById(meta.page_id);
   if (!page) {
-    await db(RECS_TABLE).where("id", rec.id).update({
+    await AiCommandRecommendationModel.updateById(rec.id, {
       status: "failed",
       execution_result: JSON.stringify({ success: false, error: `Page ${meta.page_id} not found` }),
     });
     return;
   }
 
-  const updates: Record<string, unknown> = { updated_at: db.fn.now() };
+  const updates: Record<string, unknown> = {};
   if (meta.new_path !== undefined) updates.path = meta.new_path;
 
-  await db(PAGES_TABLE).where("id", meta.page_id).update(updates);
+  await PageModel.updateFieldsById(meta.page_id, updates);
 
-  await db(RECS_TABLE).where("id", rec.id).update({
+  await AiCommandRecommendationModel.updateById(rec.id, {
     status: "executed",
     execution_result: JSON.stringify({ success: true, page_id: meta.page_id }),
   });
@@ -1944,22 +1857,14 @@ async function executeUpdatePagePath(rec: any): Promise<void> {
 // ---------------------------------------------------------------------------
 
 async function getExistingPaths(projectId: string): Promise<string[]> {
-  const pages = await db(PAGES_TABLE)
-    .where({ project_id: projectId })
-    .whereIn("status", ["draft", "published"])
-    .select("path")
-    .groupBy("path");
+  const pages = await PageModel.findExistingPaths(projectId);
   return pages.map((p: any) => p.path);
 }
 
 async function getExistingPostSlugs(
   projectId: string
 ): Promise<Array<{ slug: string; post_type_slug: string }>> {
-  const posts = await db(POSTS_TABLE)
-    .where({ project_id: projectId })
-    .join(POST_TYPES_TABLE, `${POSTS_TABLE}.post_type_id`, `${POST_TYPES_TABLE}.id`)
-    .select(`${POSTS_TABLE}.slug`, `${POST_TYPES_TABLE}.slug as post_type_slug`);
-  return posts;
+  return PostModel.findExistingSlugsWithType(projectId);
 }
 
 async function getProjectPostTypes(
@@ -1967,7 +1872,7 @@ async function getProjectPostTypes(
   templateId: string | null
 ): Promise<any[]> {
   if (!templateId) return [];
-  return db(POST_TYPES_TABLE).where("template_id", templateId);
+  return PostTypeModel.findByTemplateId(templateId);
 }
 
 async function getExistingMenuItems(
@@ -2002,9 +1907,7 @@ function getStructuralIcon(targetType: string): string {
 }
 
 async function buildExecutionSummary(batchId: string): Promise<string> {
-  const allRecs = await db(RECS_TABLE)
-    .where("batch_id", batchId)
-    .orderBy("sort_order", "asc");
+  const allRecs = await AiCommandRecommendationModel.findByBatchId(batchId);
 
   const executed = allRecs.filter((r: any) => r.status === "executed");
   const failed = allRecs.filter((r: any) => r.status === "failed");
@@ -2105,16 +2008,9 @@ async function getProjectTemplates(templateId: string | null): Promise<ProjectTe
   if (!templateId) return empty;
 
   const [postBlocks, menuTemplates, reviewBlocks] = await Promise.all([
-    db("website_builder.post_blocks as pb")
-      .join("website_builder.post_types as pt", "pb.post_type_id", "pt.id")
-      .where("pb.template_id", templateId)
-      .select("pb.slug", "pb.name", "pb.description", "pt.slug as post_type_slug"),
-    db("website_builder.menu_templates")
-      .where("template_id", templateId)
-      .select("slug", "name"),
-    db("website_builder.review_blocks")
-      .where("template_id", templateId)
-      .select("slug", "name", "description"),
+    PostBlockModel.findWithPostTypeByTemplateId(templateId),
+    MenuTemplateModel.findSlugNameByTemplateId(templateId),
+    ReviewBlockModel.findSlugNameDescriptionByTemplateId(templateId),
   ]);
 
   return {
