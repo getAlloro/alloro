@@ -19,13 +19,82 @@ import { PmsJobModel } from "../../../models/PmsJobModel";
 import { AgentResultModel } from "../../../models/AgentResultModel";
 import { AgentRecommendationModel } from "../../../models/AgentRecommendationModel";
 import {
+  RESET_GROUP_KEYS,
   ResetGroupKey,
   ResetPreviewResponse,
   ResetResponse,
 } from "../../../types/adminReset";
+import { AdminOrgError } from "../feature-utils/AdminOrgError";
 import logger from "../../../lib/logger";
 
 const REFERRAL_AGENT_TYPE = "referral_engine";
+
+export interface ValidatedResetRequest {
+  uniqueGroups: ResetGroupKey[];
+  adminEmail: string;
+}
+
+/**
+ * Validate a reset request against domain rules:
+ * org must exist, `confirmName` must match the org name exactly, `groups`
+ * must be a non-empty subset of RESET_GROUP_KEYS, and the acting admin email
+ * must be present. Returns the de-duped groups (order-preserving) + admin email.
+ *
+ * Guard failures throw AdminOrgError carrying the exact status + body so the
+ * controller relays them verbatim.
+ */
+export async function validateResetRequest(
+  orgId: number,
+  body: { groups?: unknown; confirmName?: unknown },
+  adminEmail: string | undefined,
+): Promise<ValidatedResetRequest> {
+  const organization = await OrganizationModel.findById(orgId);
+  if (!organization) {
+    throw new AdminOrgError(404, { error: "Organization not found" });
+  }
+
+  const { groups, confirmName } = body ?? {};
+
+  if (typeof confirmName !== "string" || confirmName !== organization.name) {
+    throw new AdminOrgError(400, {
+      success: false,
+      error:
+        "Confirmation failed. `confirmName` must match the organization name exactly.",
+    });
+  }
+
+  if (!Array.isArray(groups) || groups.length === 0) {
+    throw new AdminOrgError(400, {
+      success: false,
+      error: "`groups` must be a non-empty array of reset group keys.",
+    });
+  }
+
+  const allowed = new Set<string>(RESET_GROUP_KEYS);
+  const invalid = groups.filter(
+    (g): g is unknown => typeof g !== "string" || !allowed.has(g),
+  );
+  if (invalid.length > 0) {
+    throw new AdminOrgError(400, {
+      success: false,
+      error: `Invalid reset group key(s): ${invalid
+        .map((g) => JSON.stringify(g))
+        .join(", ")}. Allowed: ${RESET_GROUP_KEYS.join(", ")}.`,
+    });
+  }
+
+  if (!adminEmail) {
+    throw new AdminOrgError(401, {
+      success: false,
+      error: "Authenticated admin email not found on request.",
+    });
+  }
+
+  // De-dupe while preserving order — guards against `["pms_ingestion","pms_ingestion"]`.
+  const uniqueGroups = Array.from(new Set(groups as ResetGroupKey[]));
+
+  return { uniqueGroups, adminEmail };
+}
 
 /**
  * Read-only count preview for the modal.
