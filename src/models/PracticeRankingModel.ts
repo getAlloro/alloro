@@ -663,4 +663,31 @@ export class PracticeRankingModel extends BaseModel {
       .select("specialty", "location")
       .first();
   }
+
+  /**
+   * llm_analysis from the latest completed, summary-eligible ranking for an
+   * org and optional location, newest-first. Used by the agents Summary v2
+   * input builder to pull ranking recommendations. Mirrors the inline
+   * fetchLatestRankingRecommendations query
+   * (where organization_id + status='completed' +
+   * include_in_summary_recommendations=true, optional location_id,
+   * orderBy created_at desc, select llm_analysis, first). Returned raw — the
+   * caller parses the jsonb llm_analysis field itself.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findLatestLlmAnalysisForSummary(
+    organizationId: number,
+    locationId: number | null,
+    trx?: QueryContext
+  ): Promise<any> {
+    let query = this.table(trx).where({
+      organization_id: organizationId,
+      status: "completed",
+      include_in_summary_recommendations: true,
+    });
+    if (locationId !== null) {
+      query = query.where({ location_id: locationId });
+    }
+    return query.orderBy("created_at", "desc").select("llm_analysis").first();
+  }
 }

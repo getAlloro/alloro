@@ -36,6 +36,77 @@ export class GoogleConnectionModel extends BaseModel {
   }
 
   /**
+   * Find a connection by id, returned as the raw DB row (no JSON
+   * deserialization). Matches callers that consumed the original
+   * db("google_connections").where({ id }).first() result directly and parse
+   * google_property_ids themselves.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findRawById(id: number, trx?: QueryContext): Promise<any> {
+    return this.table(trx).where({ id }).first();
+  }
+
+  /**
+   * Find a single connection by id joined to its organization, projecting the
+   * full connection row plus org domain/name/archived_at. Mirrors the inline
+   * monthly-agents-run account fetch (leftJoin organizations, select gc.*,
+   * o.domain as domain_name, o.name as practice_name, o.archived_at as
+   * org_archived_at). Returned raw to preserve original consumption.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findByIdWithOrganizationDetails(
+    id: number,
+    trx?: QueryContext
+  ): Promise<any> {
+    return (trx || db)("google_connections as gc")
+      .leftJoin("organizations as o", "gc.organization_id", "o.id")
+      .where("gc.id", id)
+      .select(
+        "gc.*",
+        "o.domain as domain_name",
+        "o.name as practice_name",
+        "o.archived_at as org_archived_at"
+      )
+      .first();
+  }
+
+  /**
+   * All onboarded connections joined to their organization, projecting the
+   * full connection row plus org domain/name. Mirrors the inline
+   * gbp-optimizer / process-all account list (join organizations, where
+   * o.onboarding_completed = true, select gc.*, o.domain as domain_name,
+   * o.name as practice_name). Note: no archived filter and no ordering, to
+   * match the original queries exactly.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findOnboardedConnectionsWithOrganization(
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return (trx || db)("google_connections as gc")
+      .join("organizations as o", "gc.organization_id", "o.id")
+      .where("o.onboarding_completed", true)
+      .select("gc.*", "o.domain as domain_name", "o.name as practice_name");
+  }
+
+  /**
+   * All onboarded, non-archived connections joined to their organization,
+   * projecting the full connection row plus org domain/name. Mirrors the
+   * inline proofline account list (join organizations, where
+   * o.onboarding_completed = true, whereNull o.archived_at, select gc.*,
+   * o.domain as domain_name, o.name as practice_name).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findOnboardedActiveConnectionsWithOrganization(
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return (trx || db)("google_connections as gc")
+      .join("organizations as o", "gc.organization_id", "o.id")
+      .where("o.onboarding_completed", true)
+      .whereNull("o.archived_at")
+      .select("gc.*", "o.domain as domain_name", "o.name as practice_name");
+  }
+
+  /**
    * Find a connection by Google user ID.
    * The user_id column was dropped in migration 20260221000004.
    * Looks up by google_user_id only; optionally narrows by organization_id.
@@ -249,5 +320,36 @@ export class GoogleConnectionModel extends BaseModel {
         "o.domain as org_domain"
       )
       .orderBy("o.name", "asc");
+  }
+
+  /**
+   * Onboarded, non-archived org/connection pairs for the ranking batch setup,
+   * optionally narrowed to a single connection id. Mirrors the inline ranking
+   * executor query (organizations join google_connections, where
+   * o.onboarding_completed = true, whereNull o.archived_at, optional
+   * gc.id filter, select o.id as organization_id, o.name as org_name,
+   * o.domain, gc.id as connection_id).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findOnboardedOrgConnectionsForRanking(
+    connectionIdFilter?: number,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    let query = (trx || db)("organizations as o")
+      .join("google_connections as gc", "gc.organization_id", "o.id")
+      .where("o.onboarding_completed", true)
+      .whereNull("o.archived_at")
+      .select(
+        "o.id as organization_id",
+        "o.name as org_name",
+        "o.domain",
+        "gc.id as connection_id"
+      );
+
+    if (connectionIdFilter) {
+      query = query.where("gc.id", connectionIdFilter);
+    }
+
+    return query;
   }
 }

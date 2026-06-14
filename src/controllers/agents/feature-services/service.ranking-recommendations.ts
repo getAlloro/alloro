@@ -8,7 +8,7 @@
  * Mirrors the latest-row query pattern from dashboard-metrics/buildRankingMetrics.
  */
 
-import { db } from "../../../database/connection";
+import { PracticeRankingModel } from "../../../models/PracticeRankingModel";
 import logger from "../../../lib/logger";
 
 export interface RankingRecommendation {
@@ -31,18 +31,10 @@ export async function fetchLatestRankingRecommendations(
   locationId: number | null
 ): Promise<RankingRecommendation[] | null> {
   try {
-    let query = db("practice_rankings").where({
-      organization_id: orgId,
-      status: "completed",
-      include_in_summary_recommendations: true,
-    });
-    if (locationId !== null) {
-      query = query.where({ location_id: locationId });
-    }
-    const row = await query
-      .orderBy("created_at", "desc")
-      .select("llm_analysis")
-      .first();
+    const row = await PracticeRankingModel.findLatestLlmAnalysisForSummary(
+      orgId,
+      locationId
+    );
 
     if (!row || !row.llm_analysis) return null;
 

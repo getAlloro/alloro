@@ -150,6 +150,39 @@ export class TaskModel extends BaseModel {
     await this.table(trx).insert(serialized);
   }
 
+  /**
+   * Insert a single task row verbatim and return its id. The agent
+   * task-creator constructs each row with its own created_at/updated_at and an
+   * already-stringified metadata field, so this insert is a passthrough (no
+   * timestamp injection, no JSON re-serialization) to preserve the original
+   * inline db("tasks").insert(taskData).returning("id") calls.
+   */
+  static async insertReturningId(
+    data: Record<string, unknown>,
+    trx?: QueryContext
+  ): Promise<number> {
+    const [row] = await this.table(trx).insert(data).returning("id");
+    return typeof row === "object" ? row.id : row;
+  }
+
+  /**
+   * Fetch the `category` column for tasks belonging to an organization created
+   * at or after a cutoff. Used to count user/alloro tasks created during a
+   * monthly agent run. Mirrors the inline
+   * db("tasks").where("organization_id", id).where("created_at", ">=", cutoff)
+   * .select("category") query.
+   */
+  static async findCategoriesByOrgSince(
+    organizationId: number,
+    createdAtFrom: Date,
+    trx?: QueryContext
+  ): Promise<Array<{ category: string }>> {
+    return this.table(trx)
+      .where("organization_id", organizationId)
+      .where("created_at", ">=", createdAtFrom)
+      .select("category");
+  }
+
   static async listAdmin(
     filters: TaskAdminFilters,
     pagination: PaginationParams,

@@ -176,6 +176,30 @@ export class PmsJobModel extends BaseModel {
   }
 
   /**
+   * Find an in-flight monthly-agents automation job for an org (optional
+   * location), i.e. automation_status_detail.status = 'processing' and
+   * .currentStep = 'monthly_agents'. Returns the raw first matching row.
+   * Mirrors the inline getLatestReferralEngineOutput active-automation check.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findActiveMonthlyAgentsAutomation(
+    organizationId: number,
+    locationId: number | null,
+    trx?: QueryContext
+  ): Promise<any> {
+    const query = this.table(trx)
+      .where({ organization_id: organizationId })
+      .whereRaw(
+        `automation_status_detail::jsonb->>'status' = 'processing'
+         AND automation_status_detail::jsonb->>'currentStep' = 'monthly_agents'`
+      );
+    if (locationId) {
+      query.where("location_id", locationId);
+    }
+    return query.first();
+  }
+
+  /**
    * List jobs for an organization, optionally filtered by location.
    */
   static async listByOrganization(

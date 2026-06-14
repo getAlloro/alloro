@@ -25,7 +25,6 @@
 
 import { Request, Response } from "express";
 import { v4 as uuidv4 } from "uuid";
-import { db } from "../../database/connection";
 import { getValidOAuth2Client } from "../../auth/oauth2Helper";
 import {
   fetchAllServiceData,
@@ -87,6 +86,10 @@ import { resolveLocationId } from "../../utils/locationResolver";
 import { AgentResultModel } from "../../models/AgentResultModel";
 import { GooglePropertyModel } from "../../models/GooglePropertyModel";
 import { LocationModel } from "../../models/LocationModel";
+import { GoogleConnectionModel } from "../../models/GoogleConnectionModel";
+import { GoogleDataStoreModel } from "../../models/GoogleDataStoreModel";
+import { TaskModel } from "../../models/TaskModel";
+import { PmsJobModel } from "../../models/PmsJobModel";
 
 // =====================================================================
 // POST /proofline-run
@@ -168,16 +171,9 @@ export async function runMonthlyAgents(
 
     // Fetch account (join with org for name/domain)
     log(`\n[SETUP] Fetching account ${googleAccountId}...`);
-    const account = await db("google_connections as gc")
-      .leftJoin("organizations as o", "gc.organization_id", "o.id")
-      .where("gc.id", googleAccountId)
-      .select(
-        "gc.*",
-        "o.domain as domain_name",
-        "o.name as practice_name",
-        "o.archived_at as org_archived_at"
-      )
-      .first();
+    const account = await GoogleConnectionModel.findByIdWithOrganizationDetails(
+      googleAccountId
+    );
 
     if (!account) {
       return res.status(404).json({
@@ -262,7 +258,7 @@ export async function runMonthlyAgents(
     log(`[CLIENT] Agent results saved (Summary: ${summaryId}, Opportunity: ${opportunityId}, CRO: ${croOptimizerId}, Referral: ${referralEngineId})`);
 
     // Save raw GBP data
-    await db("google_data_store").insert(monthlyResult.rawData);
+    await GoogleDataStoreModel.insertRaw(monthlyResult.rawData);
     log(`[CLIENT] \u2713 Raw GBP data saved`);
 
     // Mark all agents complete and move to task creation
@@ -315,10 +311,10 @@ export async function runMonthlyAgents(
     };
 
     try {
-      const recentTasks = await db("tasks")
-        .where("organization_id", account.organization_id)
-        .where("created_at", ">=", new Date(startTime))
-        .select("category");
+      const recentTasks = await TaskModel.findCategoriesByOrgSince(
+        account.organization_id,
+        new Date(startTime)
+      );
 
       tasksCreated.total = recentTasks.length;
       tasksCreated.user = recentTasks.filter(
@@ -438,9 +434,7 @@ export async function runMonthlyAgentsTest(
 
     // Fetch account
     log(`\n[TEST-SETUP] Fetching account ${googleAccountId}...`);
-    const account = await db("google_connections")
-      .where({ id: googleAccountId })
-      .first();
+    const account = await GoogleConnectionModel.findRawById(googleAccountId);
 
     if (!account) {
       return res.status(404).json({
@@ -745,10 +739,7 @@ export async function runGbpOptimizer(
 
     // Fetch all onboarded Google accounts (join with organizations for name/domain)
     log("\n[SETUP] Fetching all onboarded Google accounts...");
-    const accounts = await db("google_connections as gc")
-      .join("organizations as o", "gc.organization_id", "o.id")
-      .where("o.onboarding_completed", true)
-      .select("gc.*", "o.domain as domain_name", "o.name as practice_name");
+    const accounts = await GoogleConnectionModel.findOnboardedConnectionsWithOrganization();
 
     if (!accounts || accounts.length === 0) {
       log("[SETUP] No onboarded accounts found");
@@ -829,15 +820,15 @@ export async function runGbpOptimizer(
 
         // Check for duplicate before running
         log(`[CLIENT] Checking for existing results...`);
-        const existingResult = await db("agent_results")
-          .where({
+        const existingResult = await AgentResultModel.findExistingByConditions(
+          {
             organization_id: account.organization_id,
             agent_type: "gbp_optimizer",
             date_start: monthRange.startDate,
             date_end: monthRange.endDate,
-          })
-          .whereIn("status", ["success", "pending"])
-          .first();
+          },
+          ["success", "pending"],
+        );
 
         if (existingResult) {
           log(
@@ -877,22 +868,18 @@ export async function runGbpOptimizer(
 
         // Save agent result to database
         log(`\n[CLIENT] Saving results to database...`);
-        const [agentResultRecord] = await db("agent_results")
-          .insert({
-            organization_id: account.organization_id,
-            location_id: locationId,
-            agent_type: "gbp_optimizer",
-            date_start: monthRange.startDate,
-            date_end: monthRange.endDate,
-            agent_input: JSON.stringify(result.payload),
-            agent_output: JSON.stringify(result.output),
-            status: "success",
-            created_at: new Date(),
-            updated_at: new Date(),
-          })
-          .returning("id");
-
-        const resultId = agentResultRecord.id;
+        const resultId = await AgentResultModel.insertReturningId({
+          organization_id: account.organization_id,
+          location_id: locationId,
+          agent_type: "gbp_optimizer",
+          date_start: monthRange.startDate,
+          date_end: monthRange.endDate,
+          agent_input: JSON.stringify(result.payload),
+          agent_output: JSON.stringify(result.output),
+          status: "success",
+          created_at: new Date(),
+          updated_at: new Date(),
+        });
         log(`[CLIENT] \u2713 Agent result saved (ID: ${resultId})`);
 
         // Create tasks from recommendations
@@ -1121,10 +1108,7 @@ export async function processAllDeprecated(
   try {
     // Fetch all onboarded Google accounts (join with organizations for name/domain)
     log("\n[SETUP] Fetching all onboarded Google accounts...");
-    const accounts = await db("google_connections as gc")
-      .join("organizations as o", "gc.organization_id", "o.id")
-      .where("o.onboarding_completed", true)
-      .select("gc.*", "o.domain as domain_name", "o.name as practice_name");
+    const accounts = await GoogleConnectionModel.findOnboardedConnectionsWithOrganization();
 
     if (!accounts || accounts.length === 0) {
       log("[SETUP] No onboarded accounts found");
@@ -1306,16 +1290,10 @@ export async function getLatestReferralEngineOutput(
     }
 
     // Check for active automation (monthly agents processing)
-    const pendingQuery = db("pms_jobs")
-      .where({ organization_id: organizationId })
-      .whereRaw(
-        `automation_status_detail::jsonb->>'status' = 'processing'
-         AND automation_status_detail::jsonb->>'currentStep' = 'monthly_agents'`,
-      );
-    if (locationId) {
-      pendingQuery.where("location_id", locationId);
-    }
-    const activeAutomation = await pendingQuery.first();
+    const activeAutomation = await PmsJobModel.findActiveMonthlyAgentsAutomation(
+      organizationId,
+      locationId,
+    );
 
     if (activeAutomation) {
       log(

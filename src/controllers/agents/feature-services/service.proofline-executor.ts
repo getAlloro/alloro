@@ -8,6 +8,9 @@
 import { db } from "../../../database/connection";
 import { getValidOAuth2Client } from "../../../auth/oauth2Helper";
 import { LocationModel } from "../../../models/LocationModel";
+import { GoogleConnectionModel } from "../../../models/GoogleConnectionModel";
+import { GoogleDataStoreModel } from "../../../models/GoogleDataStoreModel";
+import { AgentResultModel } from "../../../models/AgentResultModel";
 import { resolveLocationId } from "../../../utils/locationResolver";
 import { log, logError } from "../feature-utils/agentLogger";
 import { getDailyDates } from "../feature-utils/dateHelpers";
@@ -43,11 +46,7 @@ export async function executeProoflineAgent(referenceDate?: string): Promise<Pro
 
   // Fetch all onboarded Google accounts
   log("\n[SETUP] Fetching all onboarded Google accounts...");
-  const accounts = await db("google_connections as gc")
-    .join("organizations as o", "gc.organization_id", "o.id")
-    .where("o.onboarding_completed", true)
-    .whereNull("o.archived_at")
-    .select("gc.*", "o.domain as domain_name", "o.name as practice_name");
+  const accounts = await GoogleConnectionModel.findOnboardedActiveConnectionsWithOrganization();
 
   if (!accounts || accounts.length === 0) {
     log("[SETUP] No onboarded accounts found");
@@ -111,10 +110,10 @@ export async function executeProoflineAgent(referenceDate?: string): Promise<Pro
           // together. The external agent call (processDailyAgent) already ran
           // above, so the transaction wraps only these two local writes.
           const result = await db.transaction(async (trx) => {
-            await trx("google_data_store").insert(dailyResult.rawData);
+            await GoogleDataStoreModel.insertRaw(dailyResult.rawData, trx);
 
-            const [row] = await trx("agent_results")
-              .insert({
+            const insertedId = await AgentResultModel.insertReturningId(
+              {
                 organization_id: account.organization_id,
                 location_id: locationId,
                 agent_type: "proofline",
@@ -125,12 +124,13 @@ export async function executeProoflineAgent(referenceDate?: string): Promise<Pro
                 status: "success",
                 created_at: new Date(),
                 updated_at: new Date(),
-              })
-              .returning("id");
-            return row;
+              },
+              trx
+            );
+            return insertedId;
           });
 
-          log(`  [LOCATION] \u2713 Proofline result saved for "${locationName}" (ID: ${result.id})`);
+          log(`  [LOCATION] \u2713 Proofline result saved for "${locationName}" (ID: ${result})`);
           totalLocationsProcessed++;
 
           results.push({ googleAccountId, domain, locationId, locationName, success: true });

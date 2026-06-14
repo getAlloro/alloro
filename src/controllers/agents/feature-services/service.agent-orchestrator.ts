@@ -9,6 +9,8 @@
  */
 
 import { db } from "../../../database/connection";
+import { AgentResultModel } from "../../../models/AgentResultModel";
+import { GoogleDataStoreModel } from "../../../models/GoogleDataStoreModel";
 import {
   getValidOAuth2Client,
 } from "../../../auth/oauth2Helper";
@@ -295,23 +297,19 @@ async function runMonthlyAgent(opts: {
 
   // Persist to agent_results (replaces what n8n used to write)
   const runId = uuidv4();
-  const [record] = await db("agent_results")
-    .insert({
-      run_id: runId,
-      organization_id: opts.meta.organizationId,
-      location_id: opts.meta.locationId,
-      agent_type: opts.meta.agentType,
-      date_start: opts.meta.dateStart,
-      date_end: opts.meta.dateEnd,
-      agent_input: userMessage,
-      agent_output: JSON.stringify(result.parsed),
-      status: "success",
-      created_at: new Date(),
-      updated_at: new Date(),
-    })
-    .returning("id");
-
-  const agentResultId = record.id ?? record;
+  const agentResultId = await AgentResultModel.insertReturningId({
+    run_id: runId,
+    organization_id: opts.meta.organizationId,
+    location_id: opts.meta.locationId,
+    agent_type: opts.meta.agentType,
+    date_start: opts.meta.dateStart,
+    date_end: opts.meta.dateEnd,
+    agent_input: userMessage,
+    agent_output: JSON.stringify(result.parsed),
+    status: "success",
+    created_at: new Date(),
+    updated_at: new Date(),
+  });
 
   log(`  ✓ ${opts.agentName} result saved (ID: ${agentResultId}, run_id: ${runId})`);
 
@@ -1062,15 +1060,15 @@ export async function processClient(
 
       if (shouldRunMonthlyAgents(referenceDate)) {
         // Check for duplicate before running
-        const existingSummary = await db("agent_results")
-          .where({
+        const existingSummary = await AgentResultModel.findExistingByConditions(
+          {
             organization_id: account.organization_id,
             agent_type: "summary",
             date_start: monthRange.startDate,
             date_end: monthRange.endDate,
-          })
-          .whereIn("status", ["success", "pending"])
-          .first();
+          },
+          ["success", "pending"],
+        );
 
         if (existingSummary) {
           log(`[CLIENT] Monthly agents already completed - skipping`);
@@ -1105,25 +1103,25 @@ export async function processClient(
       log(`[CLIENT] Persisting results to database...`);
 
       // Check for duplicate daily result before inserting
-      const existingDaily = await db("agent_results")
-        .where({
+      const existingDaily = await AgentResultModel.findExistingByConditions(
+        {
           organization_id: account.organization_id,
           agent_type: "proofline",
           date_start: dailyDates.dayBeforeYesterday,
           date_end: dailyDates.yesterday,
-        })
-        .whereIn("status", ["success", "pending"])
-        .first();
+        },
+        ["success", "pending"],
+      );
 
       if (!existingDaily) {
         // Atomic: the daily raw GBP data and its agent_results row must land
         // together. All external agent work already ran above (in memory), so
         // the transaction wraps only these two local writes.
         const dailyResultId = await db.transaction(async (trx) => {
-          await trx("google_data_store").insert(dailyResult.rawData);
+          await GoogleDataStoreModel.insertRaw(dailyResult.rawData, trx);
 
-          const [row] = await trx("agent_results")
-            .insert({
+          const insertedId = await AgentResultModel.insertReturningId(
+            {
               organization_id: account.organization_id,
               location_id: locationId,
               agent_type: "proofline",
@@ -1134,9 +1132,10 @@ export async function processClient(
               status: "success",
               created_at: new Date(),
               updated_at: new Date(),
-            })
-            .returning("id");
-          return row;
+            },
+            trx,
+          );
+          return insertedId;
         });
 
         log(`[CLIENT] \u2713 Daily result saved (ID: ${dailyResultId})`);
@@ -1147,7 +1146,7 @@ export async function processClient(
       // Monthly agent results already saved by n8n via fire-and-poll
       // Just save raw GBP data
       if (!monthlyResult.skipped && monthlyResult.success) {
-        await db("google_data_store").insert(monthlyResult.rawData);
+        await GoogleDataStoreModel.insertRaw(monthlyResult.rawData);
         log(`[CLIENT] \u2713 Monthly raw GBP data saved`);
         log(`[CLIENT] \u2713 Agent results written by n8n (IDs: ${JSON.stringify(monthlyResult.agentResultIds)})`);
       }
@@ -1171,7 +1170,7 @@ export async function processClient(
           const errorLocationId = await resolveLocationId(
             account.organization_id
           );
-          await db("agent_results").insert({
+          await AgentResultModel.insertRaw({
             organization_id: account.organization_id,
             location_id: errorLocationId,
             agent_type: "proofline",

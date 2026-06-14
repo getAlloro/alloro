@@ -283,6 +283,89 @@ export class AgentResultModel extends BaseModel {
   }
 
   /**
+   * Find an existing agent_results row matching an exact set of equality
+   * conditions and a status whitelist. Mirrors the inline duplicate-check
+   * pattern used before running daily/monthly/optimizer agents:
+   *   .where({ organization_id, agent_type, date_start, date_end })
+   *   .whereIn("status", [...]).first()
+   * Returns the raw row (untyped) to match the original `.first()` consumption.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findExistingByConditions(
+    conditions: Record<string, unknown>,
+    statuses: string[],
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx).where(conditions).whereIn("status", statuses).first();
+  }
+
+  /**
+   * Find an existing system-level guardian result (organization_id IS NULL)
+   * for a given date range and status whitelist. Mirrors the inline
+   * guardian/governance duplicate check in the governance validator.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findExistingSystemResult(
+    conditions: Record<string, unknown>,
+    statuses: string[],
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .where(conditions)
+      .whereNull("organization_id")
+      .whereIn("status", statuses)
+      .first();
+  }
+
+  /**
+   * Fetch all successful agent results within a created_at window, excluding
+   * a set of agent types, ordered by agent_type then created_at. Used by the
+   * governance validator to gather the month's results for guardian review.
+   * Returns raw rows (select *) to preserve the original consumption.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findSuccessfulInWindowExcludingTypes(
+    createdAtStart: Date,
+    createdAtEnd: Date,
+    excludeAgentTypes: string[],
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return this.table(trx)
+      .whereBetween("created_at", [createdAtStart, createdAtEnd])
+      .where("status", "success")
+      .whereNotIn("agent_type", excludeAgentTypes)
+      .orderBy("agent_type")
+      .orderBy("created_at")
+      .select("*");
+  }
+
+  /**
+   * Insert an agent_results row verbatim and return its id. The caller
+   * supplies the full payload (including created_at/updated_at and any
+   * optional run_id), matching the original inline
+   * db("agent_results").insert(...).returning("id") calls. Trx-aware so it
+   * can participate in a caller-owned transaction.
+   */
+  static async insertReturningId(
+    data: Record<string, unknown>,
+    trx?: QueryContext
+  ): Promise<number> {
+    const [row] = await this.table(trx).insert(data).returning("id");
+    return typeof row === "object" ? row.id : row;
+  }
+
+  /**
+   * Insert an agent_results row verbatim (no return value). Used for the
+   * error-result path which discards the inserted id.
+   */
+  static async insertRaw(
+    data: Record<string, unknown>,
+    trx?: QueryContext
+  ): Promise<void> {
+    await this.table(trx).insert(data);
+  }
+
+  /**
    * Delete agent results by agent type array and date range.
    * Used by the clear-month-data endpoint to remove guardian and
    * governance_sentinel results for a specific month.
