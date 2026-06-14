@@ -1,5 +1,6 @@
 import { BaseModel, QueryContext } from "../BaseModel";
-import { db } from "../../database/connection";
+import * as q from "./pageQueries";
+import * as eq from "./pageEditorQueries";
 
 export interface IPage {
   id: string;
@@ -14,6 +15,23 @@ export interface IPage {
   updated_at: Date;
 }
 
+/**
+ * DB-correctness layer for `website_builder.pages`.
+ *
+ * This class is a thin public facade: every method delegates to a query-builder
+ * body in {@link import("./pageQueries")} (reads, simple writes, snapshot,
+ * backup/SEO, generation-pipeline) or {@link import("./pageEditorQueries")}
+ * (page-editor surface, live-section save, the three multi-statement
+ * transactions). The split keeps each model-layer file under the size ceiling
+ * while this public surface — and every caller of it — stays unchanged.
+ *
+ * Behavior is preserved: each delegate builds the SAME query as the original
+ * inline body (identical columns/filters/joins/ordering/limits/return-shapes,
+ * trx threading, raw SQL, and timestamp clocks). The full provenance ("mirrors
+ * X verbatim") lives next to each query body in the helper modules. JSON
+ * (de)serialization stays here via BaseModel: the four list/read methods below
+ * fetch raw rows from the helper and map through `this.deserializeJsonFields`.
+ */
 export class PageModel extends BaseModel {
   protected static tableName = "website_builder.pages";
   protected static jsonFields = ["sections", "seo_data"];
@@ -25,68 +43,50 @@ export class PageModel extends BaseModel {
     return super.findById(id, trx);
   }
 
+  /** Pages for a project (optional status), sort_order asc; deserialized. */
   static async findByProjectId(
     projectId: string,
     status?: string,
     trx?: QueryContext
   ): Promise<IPage[]> {
-    let query = this.table(trx).where({ project_id: projectId });
-    if (status) {
-      query = query.where({ status });
-    }
-    const rows = await query.orderBy("sort_order", "asc");
+    const rows = await q.findByProjectIdQuery(projectId, status, trx);
     return rows.map((row: IPage) => this.deserializeJsonFields(row));
   }
 
-  /**
-   * Find pages by project with specific field selection.
-   * Used by media usage tracking to only fetch path + sections.
-   */
+  /** Pages by project with an explicit field selection (media usage tracking). */
   static async findByProjectWithFields(
     projectId: string,
     fields: string[],
     trx?: QueryContext
   ): Promise<Partial<IPage>[]> {
-    return this.table(trx)
-      .where({ project_id: projectId })
-      .select(fields);
+    return q.findByProjectWithFieldsQuery(projectId, fields, trx);
   }
 
+  /** id/path/sections for a project; deserialized. */
   static async findSectionsByProjectId(
     projectId: string,
     trx?: QueryContext
   ): Promise<Array<Pick<IPage, "id" | "path" | "sections">>> {
-    const rows = await this.table(trx)
-      .where({ project_id: projectId })
-      .select("id", "path", "sections");
+    const rows = await q.findSectionsByProjectIdQuery(projectId, trx);
     return rows.map((row: IPage) => this.deserializeJsonFields(row));
   }
 
-  /**
-   * Find published pages by project, ordered by path.
-   * Used by the user-facing website endpoint.
-   */
+  /** Published pages for a project, path asc; deserialized (user-facing site). */
   static async findPublishedByProjectId(
     projectId: string,
     trx?: QueryContext
   ): Promise<IPage[]> {
-    const rows = await this.table(trx)
-      .where({ project_id: projectId, status: "published" })
-      .orderBy("path");
+    const rows = await q.findPublishedByProjectIdQuery(projectId, trx);
     return rows.map((row: IPage) => this.deserializeJsonFields(row));
   }
 
-  /**
-   * Find a page by ID scoped to a specific project (ownership check).
-   */
+  /** Page by id scoped to a project (ownership check); deserialized. */
   static async findByIdAndProject(
     pageId: string,
     projectId: string,
     trx?: QueryContext
   ): Promise<IPage | undefined> {
-    const row = await this.table(trx)
-      .where({ id: pageId, project_id: projectId })
-      .first();
+    const row = await q.findByIdAndProjectQuery(pageId, projectId, trx);
     return row ? this.deserializeJsonFields(row) : undefined;
   }
 
@@ -112,88 +112,51 @@ export class PageModel extends BaseModel {
     return super.deleteById(id, trx);
   }
 
-  /**
-   * Fetch a page row (full, un-deserialized) by id scoped to a project.
-   * Mirrors the inline db("website_builder.pages").where({id,project_id}).first()
-   * in UserWebsiteController.savePageSections, where the caller reads
-   * version-history columns (version, change_source) not present on IPage and
-   * forwards the raw row to snapshotPageStateIfChanged. Returns the raw row.
-   */
+  /** Full raw row by id scoped to a project (reads version-history columns). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findRawByIdAndProject(
     pageId: string,
     projectId: string,
     trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any> {
-    return this.table(trx).where({ id: pageId, project_id: projectId }).first();
+    return q.findRawByIdAndProjectQuery(pageId, projectId, trx);
   }
 
-  /**
-   * List all version rows for a page's path within a project, newest first,
-   * selecting only the version-history columns. Mirrors the inline query in
-   * userWebsite.service.listPageVersions. Returns raw rows (version-history
-   * columns are not on IPage).
-   */
+  /** Version-history rows for a path within a project, newest first (raw rows). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async listVersionsByProjectAndPath(
     projectId: string,
     path: string,
     trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any[]> {
-    return this.table(trx)
-      .where({ project_id: projectId, path })
-      .orderBy("version", "desc")
-      .select(
-        "id",
-        "version",
-        "status",
-        "created_at",
-        "updated_at",
-        "change_source",
-        "revision_note"
-      );
+    return q.listVersionsByProjectAndPathQuery(projectId, path, trx);
   }
 
-  /**
-   * Fetch a specific version row (full row) by id scoped to a project. Mirrors
-   * the inline lookups in userWebsite.service.getPageVersionContent and
-   * restorePageVersion. Returns the raw row.
-   */
+  /** Full raw version row by id scoped to a project. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findVersionByIdAndProject(
     versionId: string,
     projectId: string,
     trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any> {
-    return this.table(trx)
-      .where({ id: versionId, project_id: projectId })
-      .first();
+    return q.findVersionByIdAndProjectQuery(versionId, projectId, trx);
   }
 
-  /**
-   * Fetch the highest-version row for a project + path (full row). Mirrors the
-   * inline "newest version" lookups in userWebsite.service.restorePageVersion
-   * and UserWebsiteController.savePageSections. Returns the raw row.
-   */
+  /** Highest-version raw row for a project + path. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findLatestByProjectAndPath(
     projectId: string,
     path: string,
     trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any> {
-    return this.table(trx)
-      .where({ project_id: projectId, path })
-      .orderBy("version", "desc")
-      .first();
+    return q.findLatestByProjectAndPathQuery(projectId, path, trx);
   }
 
-  /**
-   * Restore a page version: within a transaction, mark the current draft and
-   * published rows for the path inactive, then insert a new published row and a
-   * new draft row carrying the target version's full state. Mirrors the inline
-   * transaction in userWebsite.service.restorePageVersion verbatim. The model
-   * owns the transaction boundary (mirrors ReviewModel.replaceApifyReviewsForPlace).
-   */
+  /** Restore a page version atomically (transaction owned by the model layer). */
   static async restoreVersion(
     params: {
       projectId: string;
@@ -202,72 +165,13 @@ export class PageModel extends BaseModel {
       sectionsData: string;
       carriedFields: Record<string, unknown>;
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     trx?: QueryContext
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<{ publishedPage: any; draftPage: any }> {
-    const run = async (
-      t: import("knex").Knex.Transaction
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ): Promise<{ publishedPage: any; draftPage: any }> => {
-      // Mark current draft(s) as inactive
-      await t(this.tableName)
-        .where({
-          project_id: params.projectId,
-          path: params.path,
-          status: "draft",
-        })
-        .update({ status: "inactive", updated_at: t.fn.now() });
-
-      // Mark current published as inactive
-      await t(this.tableName)
-        .where({
-          project_id: params.projectId,
-          path: params.path,
-          status: "published",
-        })
-        .update({ status: "inactive", updated_at: t.fn.now() });
-
-      // Create new published version (copy of target's full state)
-      const [publishedPage] = await t(this.tableName)
-        .insert({
-          project_id: params.projectId,
-          path: params.path,
-          version: params.latestVersionNum + 1,
-          status: "published",
-          sections: params.sectionsData,
-          ...params.carriedFields,
-        })
-        .returning("*");
-
-      // Create new draft version (based on published)
-      const [draftPage] = await t(this.tableName)
-        .insert({
-          project_id: params.projectId,
-          path: params.path,
-          version: params.latestVersionNum + 2,
-          status: "draft",
-          sections: params.sectionsData,
-          ...params.carriedFields,
-        })
-        .returning("*");
-
-      return { publishedPage, draftPage };
-    };
-
-    if (trx) {
-      return run(trx as import("knex").Knex.Transaction);
-    }
-    return db.transaction(run);
+    return eq.restoreVersionQuery(params, trx);
   }
 
-  /**
-   * Save sections for the live page row in place, optionally guarded by an
-   * optimistic-concurrency timestamp window, bumping version + change_source.
-   * Mirrors the inline conditional update in
-   * UserWebsiteController.savePageSections (returns the updated_at of the
-   * written row, or undefined when the guarded update matched nothing).
-   */
+  /** Save live-row sections in place (optimistic guard, bumps version + source). */
   static async saveLiveSections(
     params: {
       pageId: string;
@@ -277,377 +181,219 @@ export class PageModel extends BaseModel {
     },
     trx?: QueryContext
   ): Promise<{ updated_at: Date } | undefined> {
-    let updateQuery = (trx || db)("website_builder.pages").where(
-      "id",
-      params.pageId
-    );
-    if (params.expectedUpdatedAt) {
-      const expected = params.expectedUpdatedAt;
-      updateQuery = updateQuery
-        .where("updated_at", ">=", expected)
-        .where("updated_at", "<", new Date(expected.getTime() + 1));
-    }
-    const [updatedPage] = await updateQuery
-      .update({
-        sections: params.sectionsJson,
-        version: params.nextVersion,
-        change_source: "save",
-        updated_at: db.fn.now(),
-      })
-      .returning(["updated_at"]);
-    return updatedPage;
+    return eq.saveLiveSectionsQuery(params, trx);
   }
 
   // ===================================================================
-  // AI command pipeline helpers
-  //
-  // These mirror the inline `db("website_builder.pages")` queries previously
-  // held in admin-websites/feature-services/service.ai-command verbatim (same
-  // columns, filters, ordering, and `db.fn.now()` timestamp sources). The AI
-  // command pipeline reads raw page rows (status/version/sections/path columns
-  // accessed directly), so the read methods return raw rows.
+  // AI command pipeline helpers (service.ai-command)
   // ===================================================================
 
-  /**
-   * Fetch a page (full raw row) by id. Mirrors the inline
-   * db(PAGES_TABLE).where("id").first() lookups in service.ai-command
-   * (executeBatch auto-publish, getCurrentHtml, saveEditedHtml,
-   * executeUpdatePagePath).
-   */
+  /** Full raw page row by id. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findRawById(id: string, trx?: QueryContext): Promise<any> {
-    return this.table(trx).where("id", id).first();
+    return q.findRawByIdQuery(id, trx);
   }
 
-  /**
-   * Fetch a page (full raw row) by project + path + status. Mirrors the inline
-   * draft/published lookups in service.ai-command's getCurrentHtml and
-   * saveEditedHtml.
-   */
+  /** Full raw page row by project + path + status. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findRawByProjectPathStatus(
     projectId: string,
     path: string,
     status: string,
     trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any> {
-    return this.table(trx)
-      .where({ project_id: projectId, path, status })
-      .first();
+    return q.findRawByProjectPathStatusQuery(projectId, path, status, trx);
   }
 
-  /**
-   * Fetch the first draft-or-published page (full raw row) at a project + path.
-   * Mirrors the existence check in service.ai-command.executeCreatePage.
-   */
+  /** First draft-or-published page (raw row) at a project + path. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findActiveByProjectAndPath(
     projectId: string,
     path: string,
     trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any> {
-    return this.table(trx)
-      .where({ project_id: projectId, path })
-      .whereIn("status", ["draft", "published"])
-      .first();
+    return q.findActiveByProjectAndPathQuery(projectId, path, trx);
   }
 
-  /**
-   * Published pages for a project, capped to `limit` (full raw rows). Mirrors
-   * the style-context fetch in service.ai-command.executeCreatePage.
-   */
+  /** Published pages for a project, capped to `limit` (raw rows). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findPublishedByProjectIdLimit(
     projectId: string,
     limit: number,
     trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any[]> {
-    return this.table(trx)
-      .where({ project_id: projectId, status: "published" })
-      .limit(limit);
+    return q.findPublishedByProjectIdLimitQuery(projectId, limit, trx);
   }
 
-  /**
-   * Page rows for a project, draft + published, ordered path asc with drafts
-   * before published at the same path (full raw rows). Mirrors the inline
-   * "resolve all pages" query in service.ai-command.resolvePages verbatim
-   * (including the orderByRaw draft-first tiebreak); the caller dedups by path.
-   */
+  /** Draft + published rows, path asc with drafts first at a path (raw rows). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findResolvableByProjectId(
     projectId: string,
     trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any[]> {
-    return this.table(trx)
-      .where({ project_id: projectId })
-      .whereIn("status", ["draft", "published"])
-      .orderBy("path", "asc")
-      .orderByRaw("CASE WHEN status = 'draft' THEN 0 ELSE 1 END ASC");
+    return q.findResolvableByProjectIdQuery(projectId, trx);
   }
 
-  /**
-   * Page rows for an explicit id set (full raw rows). Mirrors the
-   * specific-ids branch of service.ai-command.resolvePages.
-   */
+  /** Page rows for an explicit id set (raw rows). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findByIds(ids: string[], trx?: QueryContext): Promise<any[]> {
-    return this.table(trx).whereIn("id", ids);
+    return q.findByIdsQuery(ids, trx);
   }
 
-  /**
-   * Distinct path list for a project across draft + published pages. Mirrors
-   * service.ai-command.getExistingPaths verbatim (select("path").groupBy("path")).
-   */
+  /** Distinct path list across draft + published pages. */
   static async findExistingPaths(
     projectId: string,
     trx?: QueryContext
   ): Promise<{ path: string }[]> {
-    return this.table(trx)
-      .where({ project_id: projectId })
-      .whereIn("status", ["draft", "published"])
-      .select("path")
-      .groupBy("path");
+    return q.findExistingPathsQuery(projectId, trx);
   }
 
-  /**
-   * Insert a page row verbatim (raw passthrough) and return it. Mirrors the
-   * insert in service.ai-command.executeCreatePage (project_id, path, version,
-   * status, sections as pre-stringified JSON).
-   */
+  /** Insert a page row verbatim (raw passthrough), returning the row. */
   static async insertReturning(
     row: Record<string, unknown>,
     trx?: QueryContext
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any> {
-    const [page] = await this.table(trx).insert(row).returning("*");
-    return page;
+    return q.insertReturningQuery(row, trx);
   }
 
-  /**
-   * Mark all pages at a project + path with a given status as `inactive`,
-   * stamping updated_at via the DB clock; returns the affected count. Mirrors
-   * the two "mark existing draft/published inactive" writes in
-   * service.artifact-upload.uploadArtifactPage verbatim.
-   */
+  /** Mark pages at a project+path+status inactive (DB clock); returns count. */
   static async markStatusInactiveByProjectPathStatus(
     projectId: string,
     path: string,
     status: string,
     trx?: QueryContext
   ): Promise<number> {
-    return this.table(trx)
-      .where({ project_id: projectId, path, status })
-      .update({ status: "inactive", updated_at: db.fn.now() });
+    return q.markStatusInactiveByProjectPathStatusQuery(
+      projectId,
+      path,
+      status,
+      trx
+    );
   }
 
-  /**
-   * Touch a page's updated_at via the DB clock, returning the updated row.
-   * Mirrors the inline updated_at bump in
-   * service.artifact-upload.replaceArtifactBuild verbatim.
-   */
+  /** Touch updated_at via the DB clock, returning the updated row. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async touchUpdatedAtReturning(
     id: string,
     trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any> {
-    const [updated] = await this.table(trx)
-      .where("id", id)
-      .update({ updated_at: db.fn.now() })
-      .returning("*");
-    return updated;
+    return q.touchUpdatedAtReturningQuery(id, trx);
   }
 
-  /**
-   * Overwrite a draft page's restored content (sections + seo_data),
-   * setting change_source='restore' and clearing revision_note, stamping
-   * updated_at via the DB clock, returning the updated row. Mirrors the inline
-   * draft-overwrite in service.page-versions.restoreVersionIntoDraft verbatim
-   * (the caller pre-stringifies sections + seo_data).
-   */
+  /** Overwrite a draft's restored content (change_source='restore'); returns row. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async updateRestoredDraftReturning(
     id: string,
     restoredSectionsJson: string,
     restoredSeoDataJson: string | null,
     trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any> {
-    const [updated] = await this.table(trx)
-      .where("id", id)
-      .update({
-        sections: restoredSectionsJson,
-        seo_data: restoredSeoDataJson,
-        change_source: "restore",
-        revision_note: null,
-        updated_at: db.fn.now(),
-      })
-      .returning("*");
-    return updated;
+    return q.updateRestoredDraftReturningQuery(
+      id,
+      restoredSectionsJson,
+      restoredSeoDataJson,
+      trx
+    );
   }
 
-  /**
-   * Set sections (pre-stringified) on a page by id, stamping updated_at via the
-   * DB clock. Mirrors the section-write in service.ai-command.saveEditedHtml for
-   * the page_section branch verbatim (distinct from saveLiveSections, which also
-   * bumps version + change_source).
-   */
+  /** Set sections (pre-stringified) by id (DB clock); no version/source bump. */
   static async updateSectionsById(
     id: string,
     sectionsJson: string,
     trx?: QueryContext
   ): Promise<number> {
-    return this.table(trx)
-      .where("id", id)
-      .update({
-        sections: sectionsJson,
-        updated_at: db.fn.now(),
-      });
+    return q.updateSectionsByIdQuery(id, sectionsJson, trx);
   }
 
-  /**
-   * Apply a partial column update to a page by id, stamping updated_at via the
-   * DB clock. The caller passes only the fields it wants to change. Mirrors the
-   * inline db(PAGES_TABLE).where("id").update(updates) in
-   * service.ai-command.executeUpdatePagePath verbatim, where `updates` is
-   * `{ updated_at: db.fn.now(), ...conditionalFields }`.
-   */
+  /** Partial column update by id, stamping updated_at via the DB clock. */
   static async updateFieldsById(
     id: string,
     fields: Record<string, unknown>,
     trx?: QueryContext
   ): Promise<number> {
-    return this.table(trx)
-      .where("id", id)
-      .update({ ...fields, updated_at: db.fn.now() });
+    return q.updateFieldsByIdQuery(id, fields, trx);
   }
 
   // ===================================================================
-  // Snapshot-on-write history helpers
-  //
-  // These mirror the inline queries previously held in
-  // utils/website-utils/pageSnapshots.ts verbatim. The insert is a raw
-  // passthrough (the caller pre-builds the column payload, including
-  // pre-stringified JSON), so behavior is byte-identical to the original.
+  // Snapshot-on-write history helpers (utils/website-utils/pageSnapshots)
   // ===================================================================
 
-  /**
-   * Newest history entry (inactive or published) at a project+path, excluding
-   * a given page id, ordered by version desc. Raw row. Mirrors the dedup read
-   * in pageSnapshots.snapshotPageStateIfChanged.
-   */
+  /** Newest inactive/published entry at a path excluding a page id, version desc. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findNewestHistoryAtPath(
     projectId: string,
     path: string,
     excludePageId: string,
     trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any> {
-    return this.table(trx)
-      .where({ project_id: projectId, path })
-      .whereNot("id", excludePageId)
-      .whereIn("status", ["inactive", "published"])
-      .orderBy("version", "desc")
-      .first();
+    return q.findNewestHistoryAtPathQuery(projectId, path, excludePageId, trx);
   }
 
-  /**
-   * Latest row (any status) at a project+path, ordered by version desc. Raw
-   * row. Mirrors the next-version lookup in
-   * pageSnapshots.snapshotPageStateIfChanged.
-   */
+  /** Latest row (any status) at a project+path, version desc. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findLatestAtPath(
     projectId: string,
     path: string,
     trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any> {
-    return this.table(trx)
-      .where({ project_id: projectId, path })
-      .orderBy("version", "desc")
-      .first();
+    return q.findLatestAtPathQuery(projectId, path, trx);
   }
 
-  /**
-   * Insert an inactive history snapshot row verbatim (raw passthrough).
-   * Mirrors the insert in pageSnapshots.snapshotPageStateIfChanged.
-   */
+  /** Insert an inactive history snapshot row verbatim (raw passthrough). */
   static async insertSnapshotRow(
     row: Record<string, unknown>,
     trx?: QueryContext
   ): Promise<void> {
-    await this.table(trx).insert(row);
+    return q.insertSnapshotRowQuery(row, trx);
   }
 
-  /**
-   * id projection for inactive snapshot rows at a project+path beyond a
-   * retention offset, version desc. Mirrors the stale-rows read in
-   * pageSnapshots.pruneInactiveSnapshots.
-   */
+  /** id projection for inactive snapshots beyond a retention offset, version desc. */
   static async findStaleInactiveSnapshotIds(
     projectId: string,
     path: string,
     offset: number,
     trx?: QueryContext
   ): Promise<{ id: string }[]> {
-    return this.table(trx)
-      .where({ project_id: projectId, path, status: "inactive" })
-      .orderBy("version", "desc")
-      .offset(offset)
-      .select("id");
+    return q.findStaleInactiveSnapshotIdsQuery(projectId, path, offset, trx);
   }
 
-  /**
-   * Delete page rows by id set. Mirrors the prune delete in
-   * pageSnapshots.pruneInactiveSnapshots.
-   */
+  /** Delete page rows by id set. */
   static async deleteByIds(
     ids: string[],
     trx?: QueryContext
   ): Promise<number> {
-    return this.table(trx).whereIn("id", ids).delete();
+    return q.deleteByIdsQuery(ids, trx);
   }
 
-  /**
-   * All page rows for a project (full, un-deserialized rows), ordered by
-   * created_at asc. Mirrors the inline export query in
-   * workers/processors/websiteBackup verbatim — the backup serializes the raw
-   * rows to JSON, so it must NOT use findByProjectId (which orders by
-   * sort_order, a column the backup query does not reference).
-   */
+  /** All rows for a project (raw), created_at asc (backup export). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findAllByProjectIdForBackup(
     projectId: string,
     trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any[]> {
-    return this.table(trx)
-      .where({ project_id: projectId })
-      .orderBy("created_at", "asc");
+    return q.findAllByProjectIdForBackupQuery(projectId, trx);
   }
 
-  /**
-   * Set seo_data (pre-stringified) on a single page by id, bumping updated_at
-   * via the JS clock. Mirrors the inline update in
-   * workers/processors/seoBulkGenerate.processSeoBulkGenerate for the page
-   * branch verbatim.
-   */
+  /** Set seo_data (pre-stringified) by id, updated_at via the JS clock; count. */
   static async updateSeoDataById(
     pageId: string,
     seoDataValue: string,
     trx?: QueryContext
   ): Promise<number> {
-    return this.table(trx)
-      .where({ id: pageId })
-      .update({
-        seo_data: seoDataValue,
-        updated_at: new Date(),
-      });
+    return q.updateSeoDataByIdQuery(pageId, seoDataValue, trx);
   }
 
-  /**
-   * Propagate seo_data (pre-stringified) to all sibling page versions sharing a
-   * project+path that currently have null seo_data, excluding the source page.
-   * Returns the number of rows updated. Mirrors the inline sibling-propagation
-   * update in workers/processors/seoBulkGenerate verbatim.
-   */
+  /** Propagate seo_data to null-seo siblings, excluding the source page; count. */
   static async propagateSeoDataToSiblings(
     params: {
       projectId: string;
@@ -657,339 +403,169 @@ export class PageModel extends BaseModel {
     },
     trx?: QueryContext
   ): Promise<number> {
-    return this.table(trx)
-      .where({ project_id: params.projectId, path: params.path })
-      .whereNull("seo_data")
-      .whereNot("id", params.excludePageId)
-      .update({ seo_data: params.seoDataValue });
+    return q.propagateSeoDataToSiblingsQuery(params, trx);
   }
 
-  /**
-   * Mark all queued/generating pages of a project as failed, clearing progress.
-   * Mirrors the inline catch-block update in
-   * workers/processors/websiteGeneration.processProjectScrape verbatim
-   * (updated_at via the DB clock).
-   */
+  /** Mark queued/generating pages failed, clearing progress (DB clock); count. */
   static async markQueuedGeneratingAsFailed(
     projectId: string,
     trx?: QueryContext
   ): Promise<number> {
-    return this.table(trx)
-      .where("project_id", projectId)
-      .whereIn("generation_status", ["queued", "generating"])
-      .update({
-        generation_status: "failed",
-        generation_progress: null,
-        updated_at: db.fn.now(),
-      });
+    return q.markQueuedGeneratingAsFailedQuery(projectId, trx);
   }
 
-  /**
-   * Set a single page's generation_status (clearing progress) by id, bumping
-   * updated_at via the DB clock. Mirrors the inline cancelled/failed
-   * single-page updates in workers/processors/websiteGeneration.processPageGenerate.
-   */
+  /** Set a single page's generation_status, clearing progress (DB clock); count. */
   static async setGenerationStatusById(
     pageId: string,
     status: string,
     trx?: QueryContext
   ): Promise<number> {
-    return this.table(trx)
-      .where("id", pageId)
-      .update({
-        generation_status: status,
-        generation_progress: null,
-        updated_at: db.fn.now(),
-      });
+    return q.setGenerationStatusByIdQuery(pageId, status, trx);
   }
 
-  /**
-   * All page rows for a project (full raw rows), optionally narrowed to a set
-   * of paths, ordered path asc then version desc. Mirrors the inline pages
-   * query in workers/processors/seoBulkGenerate.getPageEntities verbatim (the
-   * caller groups versions per path and picks the best). Returns raw rows
-   * (status/version/sections columns are read directly).
-   */
+  /** All rows for a project (raw), optional path narrowing, path asc/version desc. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findByProjectIdForSeo(
     projectId: string,
     pagePaths?: string[],
     trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any[]> {
-    let query = this.table(trx)
-      .where({ project_id: projectId })
-      .orderBy("path", "asc")
-      .orderBy("version", "desc");
-
-    if (pagePaths && pagePaths.length > 0) {
-      query = query.whereIn("path", pagePaths);
-    }
-
-    return query;
+    return q.findByProjectIdForSeoQuery(projectId, pagePaths, trx);
   }
 
-  /**
-   * seo_data values for all pages of a project that have non-null seo_data.
-   * Mirrors the pages half of the inline meta gather in
-   * workers/processors/seoBulkGenerate.getAllSeoMeta verbatim.
-   */
+  /** seo_data values for all pages of a project that have non-null seo_data. */
   static async findSeoDataByProjectId(
     projectId: string,
     trx?: QueryContext
   ): Promise<Array<{ seo_data: unknown }>> {
-    return this.table(trx)
-      .where({ project_id: projectId })
-      .whereNotNull("seo_data")
-      .select("seo_data");
+    return q.findSeoDataByProjectIdQuery(projectId, trx);
   }
 
   // ===================================================================
   // Generation-pipeline + admin-controller helpers
-  //
-  // Mirror the inline `db("website_builder.pages")` queries previously held in
-  // admin-websites/feature-services/service.generation-pipeline and
-  // AdminWebsitesController verbatim (same columns, filters, and `db.fn.now()`
-  // timestamp source). The generation pipeline reads/writes raw page rows
-  // (status/version/sections/generation_* columns directly), so the read
-  // methods return raw rows and the updates accept a computed fields bag.
   // ===================================================================
 
-  /**
-   * Mark all queued/generating pages of a project as cancelled, clearing
-   * progress, stamping updated_at via the DB clock; returns the affected count.
-   * Mirrors the inline cancel update in
-   * service.generation-pipeline.cancelProjectGeneration verbatim.
-   */
+  /** Mark queued/generating pages cancelled, clearing progress (DB clock); count. */
   static async cancelQueuedGeneratingByProjectId(
     projectId: string,
     trx?: QueryContext
   ): Promise<number> {
-    return this.table(trx)
-      .where("project_id", projectId)
-      .whereIn("generation_status", ["queued", "generating"])
-      .update({
-        generation_status: "cancelled",
-        generation_progress: null,
-        updated_at: db.fn.now(),
-      });
+    return q.cancelQueuedGeneratingByProjectIdQuery(projectId, trx);
   }
 
-  /**
-   * Insert a page row verbatim (raw passthrough) and return only its new id.
-   * Mirrors the `.insert({...}).returning("id")` in
-   * AdminWebsitesController.startPipeline verbatim.
-   */
+  /** Insert a page row verbatim (raw passthrough), returning only its new id. */
   static async insertReturningId(
     row: Record<string, unknown>,
     trx?: QueryContext
   ): Promise<{ id: string }> {
-    const [page] = await this.table(trx).insert(row).returning("id");
-    return page;
+    return q.insertReturningIdQuery(row, trx);
   }
 
-  /**
-   * Bulk-insert page rows (raw passthrough), returning the requested column
-   * subset for each. Mirrors the `.insert([...]).returning([...])` in
-   * service.project-manager.createAllFromTemplate verbatim.
-   */
+  /** Bulk-insert page rows (raw passthrough), returning the requested columns. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async insertManyReturning(
     rows: Record<string, unknown>[],
     returning: string[],
     trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any[]> {
-    return this.table(trx).insert(rows).returning(returning);
+    return q.insertManyReturningQuery(rows, returning, trx);
   }
 
-  /**
-   * Conditionally advance a project's own pages? No — this is the page-table
-   * twin used by AdminWebsitesController.getAllSeoMeta: pages for a project that
-   * are published or draft, selecting id/path/status/version/seo_data. Mirrors
-   * that inline query verbatim (the caller dedups by path). Raw rows.
-   */
+  /** Published/draft pages: id/path/status/version/seo_data (raw rows). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findSeoMetaByProjectId(
     projectId: string,
     trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any[]> {
-    return this.table(trx)
-      .where({ project_id: projectId })
-      .whereIn("status", ["published", "draft"])
-      .select("id", "path", "status", "version", "seo_data");
+    return q.findSeoMetaByProjectIdQuery(projectId, trx);
   }
 
-  /**
-   * path projection for all pages of a project. Mirrors the unique-path count
-   * read in AdminWebsitesController.startBulkSeoGenerate verbatim (the caller
-   * builds a Set of paths).
-   */
+  /** path projection for all pages of a project. */
   static async findPathsByProjectId(
     projectId: string,
     trx?: QueryContext
   ): Promise<{ path: string }[]> {
-    return this.table(trx).where({ project_id: projectId }).select("path");
+    return q.findPathsByProjectIdQuery(projectId, trx);
   }
 
-  /**
-   * All page rows for a project (full raw rows), ordered path asc then version
-   * desc. Mirrors the inline pages query in
-   * service.project-manager.getProjectById verbatim — distinct from
-   * findByProjectId (which orders by sort_order) and from the SEO/backup
-   * variants. The admin project detail view consumes the raw rows directly.
-   */
+  /** All rows for a project (raw), path asc then version desc (admin detail view). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findByProjectOrderedPathVersion(
     projectId: string,
     trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any[]> {
-    return this.table(trx)
-      .where("project_id", projectId)
-      .orderBy("path", "asc")
-      .orderBy("version", "desc");
+    return q.findByProjectOrderedPathVersionQuery(projectId, trx);
   }
 
-  /**
-   * Per-page generation-status rows for a project, left-joined to template_pages
-   * to surface the template page name, filtered to rows with a non-null
-   * generation_status, ordered path asc. Mirrors the inline join query in
-   * service.project-manager.getPagesGenerationStatus verbatim (same column list,
-   * the `template_pages.name as template_page_name` raw alias, and the filter).
-   */
+  /** Per-page generation-status rows joined to template_pages for the name. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findGenerationStatusWithTemplateName(
     projectId: string,
     trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any[]> {
-    return this.table(trx)
-      .leftJoin(
-        "website_builder.template_pages",
-        `${this.tableName}.template_page_id`,
-        "website_builder.template_pages.id"
-      )
-      .select(
-        `${this.tableName}.id`,
-        `${this.tableName}.path`,
-        `${this.tableName}.status`,
-        `${this.tableName}.generation_status`,
-        `${this.tableName}.generation_progress`,
-        `${this.tableName}.updated_at`,
-        db.raw(`website_builder.template_pages.name as template_page_name`)
-      )
-      .where(`${this.tableName}.project_id`, projectId)
-      .whereNotNull(`${this.tableName}.generation_status`)
-      .orderBy(`${this.tableName}.path`, "asc");
+    return q.findGenerationStatusWithTemplateNameQuery(projectId, trx);
   }
 
-  /**
-   * Progressive-state projection for a single page scoped to its project:
-   * id/path/generation_status/generation_progress/sections/template_page_id.
-   * Mirrors the inline select in
-   * service.project-manager.getPageProgressiveState verbatim (raw row or
-   * undefined; the caller parses sections/progress itself).
-   */
+  /** Progressive-state projection for a single page scoped to its project. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findProgressiveStateByIdAndProject(
     pageId: string,
     projectId: string,
     trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any> {
-    return this.table(trx)
-      .where({ id: pageId, project_id: projectId })
-      .select(
-        "id",
-        "path",
-        "generation_status",
-        "generation_progress",
-        "sections",
-        "template_page_id"
-      )
-      .first();
+    return q.findProgressiveStateByIdAndProjectQuery(pageId, projectId, trx);
   }
 
   // ===================================================================
   // Admin page-editor helpers (service.page-editor)
-  //
-  // Mirror the inline `db("website_builder.pages")` queries (and the two
-  // multi-statement transactions) in service.page-editor verbatim — same
-  // columns, filters, ordering, returning shapes, transaction boundaries, and
-  // timestamp clocks (createPage/publishPage use trx.fn.now(); the SEO/display
-  // writes use db.fn.now()). The page editor reads raw page rows (version,
-  // change_source, generation_status, template_page_id columns accessed
-  // directly), so the read methods return raw rows.
   // ===================================================================
 
-  /**
-   * Pages for a project, optionally narrowed to one path, ordered path asc then
-   * version desc (full raw rows). Mirrors the inline list query in
-   * service.page-editor.listPages verbatim.
-   */
+  /** Pages for a project, optional single-path filter, path asc/version desc. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findByProjectWithOptionalPath(
     projectId: string,
     pathFilter: string | undefined,
     trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any[]> {
-    let query = this.table(trx).where("project_id", projectId);
-    if (pathFilter) {
-      query = query.where("path", pathFilter);
-    }
-    return query.orderBy("path", "asc").orderBy("version", "desc");
+    return eq.findByProjectWithOptionalPathQuery(projectId, pathFilter, trx);
   }
 
-  /**
-   * id projection for every version at a project + path. Mirrors the inline
-   * select-ids read in service.page-editor.deletePagesByPath verbatim.
-   */
+  /** id projection for every version at a project + path. */
   static async findIdsByProjectAndPath(
     projectId: string,
     path: string,
     trx?: QueryContext
   ): Promise<{ id: string }[]> {
-    return this.table(trx)
-      .where({ project_id: projectId, path })
-      .select("id");
+    return eq.findIdsByProjectAndPathQuery(projectId, path, trx);
   }
 
-  /**
-   * Delete every version at a project + path; returns the affected count.
-   * Mirrors the inline delete in service.page-editor.deletePagesByPath.
-   */
+  /** Delete every version at a project + path; returns affected count. */
   static async deleteByProjectAndPath(
     projectId: string,
     path: string,
     trx?: QueryContext
   ): Promise<number> {
-    return this.table(trx)
-      .where({ project_id: projectId, path })
-      .del();
+    return eq.deleteByProjectAndPathQuery(projectId, path, trx);
   }
 
-  /**
-   * Count rows at a project + path. Mirrors the inline sibling-count read in
-   * service.page-editor.deletePage verbatim
-   * (.count("* as count").first(), parsed by the caller).
-   */
+  /** Count rows at a project + path (caller parses the count). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async countByProjectAndPath(
     projectId: string,
     path: string,
     trx?: QueryContext
   ): Promise<{ count: string | number } | undefined> {
-    return this.table(trx)
-      .where({ project_id: projectId, path })
-      .count("* as count")
-      .first();
+    return eq.countByProjectAndPathQuery(projectId, path, trx);
   }
 
-  /**
-   * Create a new page version atomically: within a transaction, mark existing
-   * drafts at the project+path inactive, insert the new row (returning *), and
-   * — when publishing — retire any other published row at the path. Mirrors the
-   * inline db.transaction in service.page-editor.createPage verbatim (trx.fn.now()
-   * clock, the publish-only retire branch). The model owns the transaction
-   * boundary (mirrors ReviewModel.replaceApifyReviewsForPlace); an injected trx
-   * is honored if the caller composes further writes.
-   */
+  /** Create a new page version atomically (transaction owned by the model layer). */
   static async createPageVersion(
     params: {
       projectId: string;
@@ -1000,49 +576,10 @@ export class PageModel extends BaseModel {
     trx?: QueryContext
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const run = async (t: import("knex").Knex.Transaction): Promise<any> => {
-      // Mark existing drafts as inactive
-      await t(this.tableName)
-        .where({
-          project_id: params.projectId,
-          path: params.path,
-          status: "draft",
-        })
-        .update({ status: "inactive", updated_at: t.fn.now() });
-
-      const [created] = await t(this.tableName)
-        .insert(params.insertData)
-        .returning("*");
-
-      // If publishing, mark previous published as inactive
-      if (params.publish) {
-        await t(this.tableName)
-          .where({
-            project_id: params.projectId,
-            path: params.path,
-            status: "published",
-          })
-          .whereNot("id", created.id)
-          .update({ status: "inactive", updated_at: t.fn.now() });
-      }
-
-      return created;
-    };
-
-    if (trx) {
-      return run(trx as import("knex").Knex.Transaction);
-    }
-    return db.transaction(run);
+    return eq.createPageVersionQuery(params, trx);
   }
 
-  /**
-   * Publish a page version atomically: within a transaction, retire any other
-   * published row at the page's project+path, then flip the target row to
-   * published (change_source="publish") and return it. Mirrors the inline
-   * db.transaction in service.page-editor.publishPage verbatim (trx.fn.now()
-   * clock). The model owns the transaction boundary; an injected trx is honored.
-   */
+  /** Publish a page version atomically (transaction owned by the model layer). */
   static async publishPageVersion(
     params: {
       pageId: string;
@@ -1052,44 +589,10 @@ export class PageModel extends BaseModel {
     trx?: QueryContext
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const run = async (t: import("knex").Knex.Transaction): Promise<any> => {
-      await t(this.tableName)
-        .where({
-          project_id: params.projectId,
-          path: params.path,
-          status: "published",
-        })
-        .whereNot("id", params.pageId)
-        .update({ status: "inactive", updated_at: t.fn.now() });
-
-      const [row] = await t(this.tableName)
-        .where("id", params.pageId)
-        .update({
-          status: "published",
-          change_source: "publish",
-          updated_at: t.fn.now(),
-        })
-        .returning("*");
-      return row;
-    };
-
-    if (trx) {
-      return run(trx as import("knex").Knex.Transaction);
-    }
-    return db.transaction(run);
+    return eq.publishPageVersionQuery(params, trx);
   }
 
-  /**
-   * Save a draft page's prebuilt update payload in place, optionally guarded by
-   * an optimistic-concurrency timestamp window, returning the updated row (or
-   * undefined when the guarded update matched nothing). Mirrors the inline
-   * conditional update in service.page-editor.updatePage verbatim — distinct
-   * from saveLiveSections (which always sets change_source + bumps version):
-   * here the caller pre-builds `updatePayload` (which may be only
-   * edit_chat_history, with no version bump) and the method passes it through
-   * unchanged.
-   */
+  /** Save a draft's prebuilt update payload in place (optional optimistic guard). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async updateDraftWithConcurrencyGuard(
     params: {
@@ -1098,51 +601,23 @@ export class PageModel extends BaseModel {
       expectedUpdatedAt?: Date;
     },
     trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any> {
-    let updateQuery = (trx || db)("website_builder.pages").where(
-      "id",
-      params.pageId
-    );
-    if (params.expectedUpdatedAt) {
-      const expected = params.expectedUpdatedAt;
-      updateQuery = updateQuery
-        .where("updated_at", ">=", expected)
-        .where("updated_at", "<", new Date(expected.getTime() + 1));
-    }
-    const [updatedPage] = await updateQuery
-      .update(params.updatePayload)
-      .returning("*");
-    return updatedPage;
+    return eq.updateDraftWithConcurrencyGuardQuery(params, trx);
   }
 
-  /**
-   * Refresh an existing draft row in place with a prebuilt field bag, stamping
-   * updated_at via the DB clock, returning the updated row. Mirrors the inline
-   * stale-draft refresh in service.page-editor.createDraft verbatim (caller
-   * pre-stringifies sections/seo_data/edit_chat_history and nulls
-   * change_source/revision_note).
-   */
+  /** Refresh an existing draft row in place with a prebuilt field bag (DB clock). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async refreshDraftById(
     pageId: string,
     fields: Record<string, unknown>,
     trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any> {
-    const [updated] = await this.table(trx)
-      .where("id", pageId)
-      .update({ ...fields, updated_at: db.fn.now() })
-      .returning("*");
-    return updated;
+    return eq.refreshDraftByIdQuery(pageId, fields, trx);
   }
 
-  /**
-   * Propagate seo_data (pre-stringified) to all sibling versions at a
-   * project+path that currently have null seo_data, optionally excluding one
-   * page id; returns the number of rows updated. Mirrors the inline update in
-   * service.page-editor.propagateSeoToSiblings verbatim — distinct from
-   * propagateSeoDataToSiblings (which requires an exclude id and does not stamp
-   * updated_at): here the exclude is conditional and no timestamp is set.
-   */
+  /** Propagate seo_data to null-seo siblings (conditional exclude, no stamp); count. */
   static async propagateSeoToSiblingsOptionalExclude(
     params: {
       projectId: string;
@@ -1152,53 +627,32 @@ export class PageModel extends BaseModel {
     },
     trx?: QueryContext
   ): Promise<number> {
-    const query = this.table(trx)
-      .where({ project_id: params.projectId, path: params.path })
-      .whereNull("seo_data");
-    if (params.excludePageId) {
-      query.whereNot("id", params.excludePageId);
-    }
-    return query.update({ seo_data: params.seoDataValue });
+    return eq.propagateSeoToSiblingsOptionalExcludeQuery(params, trx);
   }
 
-  /**
-   * Set seo_data (pre-stringified) on a single page by id, stamping updated_at
-   * via the DB clock, returning the updated row. Mirrors the inline update in
-   * service.page-editor.updatePageSeo verbatim (distinct from
-   * updateSeoDataById, which uses the JS clock and returns a count).
-   */
+  /** Set seo_data by id (DB clock), returning the updated row. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async updateSeoDataByIdReturning(
     pageId: string,
     seoDataValue: string,
     trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any> {
-    const [updated] = await this.table(trx)
-      .where("id", pageId)
-      .update({
-        seo_data: seoDataValue,
-        updated_at: db.fn.now(),
-      })
-      .returning("*");
-    return updated;
+    return eq.updateSeoDataByIdReturningQuery(pageId, seoDataValue, trx);
   }
 
-  /**
-   * Set display_name on every version at a project+path, stamping updated_at via
-   * the DB clock; returns the affected count. Mirrors the inline update in
-   * service.page-editor.updatePageDisplayName verbatim.
-   */
+  /** Set display_name on every version at a project+path (DB clock); count. */
   static async updateDisplayNameByProjectAndPath(
     projectId: string,
     path: string,
     displayName: string | null,
     trx?: QueryContext
   ): Promise<number> {
-    return this.table(trx)
-      .where({ project_id: projectId, path })
-      .update({
-        display_name: displayName,
-        updated_at: db.fn.now(),
-      });
+    return eq.updateDisplayNameByProjectAndPathQuery(
+      projectId,
+      path,
+      displayName,
+      trx
+    );
   }
 }
