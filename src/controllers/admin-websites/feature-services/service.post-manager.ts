@@ -5,18 +5,11 @@
  * Handles category/tag assignments and cache invalidation.
  */
 
-import { db } from "../../../database/connection";
+import { ProjectModel } from "../../../models/website-builder/ProjectModel";
+import { PostModel } from "../../../models/website-builder/PostModel";
+import { PostTypeModel } from "../../../models/website-builder/PostTypeModel";
 import { getRedisConnection } from "../../../workers/queues";
 import logger from "../../../lib/logger";
-
-const POSTS_TABLE = "website_builder.posts";
-const POST_TYPES_TABLE = "website_builder.post_types";
-const PROJECTS_TABLE = "website_builder.projects";
-const CAT_ASSIGN_TABLE = "website_builder.post_category_assignments";
-const TAG_ASSIGN_TABLE = "website_builder.post_tag_assignments";
-const CATEGORIES_TABLE = "website_builder.post_categories";
-const TAGS_TABLE = "website_builder.post_tags";
-const ATTACHMENTS_TABLE = "website_builder.post_attachments";
 
 function slugify(text: string): string {
   return text
@@ -83,17 +76,9 @@ async function invalidatePostsCache(projectId: string) {
  */
 async function enrichPost(post: any): Promise<any> {
   const [catRows, tagRows, attachments] = await Promise.all([
-    db(CAT_ASSIGN_TABLE)
-      .join(CATEGORIES_TABLE, `${CAT_ASSIGN_TABLE}.category_id`, `${CATEGORIES_TABLE}.id`)
-      .where(`${CAT_ASSIGN_TABLE}.post_id`, post.id)
-      .select(`${CATEGORIES_TABLE}.id`, `${CATEGORIES_TABLE}.name`, `${CATEGORIES_TABLE}.slug`),
-    db(TAG_ASSIGN_TABLE)
-      .join(TAGS_TABLE, `${TAG_ASSIGN_TABLE}.tag_id`, `${TAGS_TABLE}.id`)
-      .where(`${TAG_ASSIGN_TABLE}.post_id`, post.id)
-      .select(`${TAGS_TABLE}.id`, `${TAGS_TABLE}.name`, `${TAGS_TABLE}.slug`),
-    db(ATTACHMENTS_TABLE)
-      .where("post_id", post.id)
-      .orderBy("order_index", "asc"),
+    PostModel.findAssignedCategories(post.id),
+    PostModel.findAssignedTags(post.id),
+    PostModel.findAttachmentsByPostId(post.id),
   ]);
 
   return {
@@ -115,7 +100,7 @@ export async function listPosts(
   posts: any[];
   error?: { status: number; code: string; message: string };
 }> {
-  const project = await db(PROJECTS_TABLE).where("id", projectId).first();
+  const project = await ProjectModel.findRawById(projectId);
   if (!project) {
     return {
       posts: [],
@@ -123,18 +108,7 @@ export async function listPosts(
     };
   }
 
-  let query = db(POSTS_TABLE).where("project_id", projectId);
-
-  if (filters?.post_type_id) {
-    query = query.where("post_type_id", filters.post_type_id);
-  }
-  if (filters?.status) {
-    query = query.where("status", filters.status);
-  }
-
-  const posts = await query
-    .orderBy("sort_order", "asc")
-    .orderBy("created_at", "desc");
+  const posts = await PostModel.findByProjectFiltered(projectId, filters);
 
   // Enrich with categories and tags
   const enriched = await Promise.all(posts.map(enrichPost));
@@ -179,7 +153,7 @@ export async function createPost(
     };
   }
 
-  const project = await db(PROJECTS_TABLE).where("id", projectId).first();
+  const project = await ProjectModel.findRawById(projectId);
   if (!project) {
     return {
       post: null,
@@ -188,7 +162,7 @@ export async function createPost(
   }
 
   // Verify post type exists (it belongs to a template, not the project directly)
-  const postType = await db(POST_TYPES_TABLE).where("id", post_type_id).first();
+  const postType = await PostTypeModel.findRawById(post_type_id);
   if (!postType) {
     return {
       post: null,
@@ -212,9 +186,7 @@ export async function createPost(
   let slug = slugify(title);
 
   // Ensure slug uniqueness within project + post type
-  const existing = await db(POSTS_TABLE)
-    .where({ project_id: projectId, post_type_id, slug })
-    .first();
+  const existing = await PostModel.findBySlug(projectId, post_type_id, slug);
   if (existing) {
     slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
   }
@@ -223,31 +195,29 @@ export async function createPost(
 
   const postStatus = status || "draft";
 
-  const [post] = await db(POSTS_TABLE)
-    .insert({
-      project_id: projectId,
-      post_type_id,
-      title,
-      slug,
-      content: content || "",
-      excerpt: excerpt || null,
-      featured_image: featured_image || null,
-      custom_fields: JSON.stringify(custom_fields || {}),
-      status: postStatus,
-      published_at: postStatus === "published" ? new Date() : null,
-    })
-    .returning("*");
+  const post = await PostModel.insertReturning({
+    project_id: projectId,
+    post_type_id,
+    title,
+    slug,
+    content: content || "",
+    excerpt: excerpt || null,
+    featured_image: featured_image || null,
+    custom_fields: JSON.stringify(custom_fields || {}),
+    status: postStatus,
+    published_at: postStatus === "published" ? new Date() : null,
+  });
 
   // Assign categories
   if (category_ids && category_ids.length > 0) {
-    await db(CAT_ASSIGN_TABLE).insert(
+    await PostModel.insertCategoryAssignments(
       category_ids.map((cid) => ({ post_id: post.id, category_id: cid }))
     );
   }
 
   // Assign tags
   if (tag_ids && tag_ids.length > 0) {
-    await db(TAG_ASSIGN_TABLE).insert(
+    await PostModel.insertTagAssignments(
       tag_ids.map((tid) => ({ post_id: post.id, tag_id: tid }))
     );
   }
@@ -268,9 +238,7 @@ export async function getPost(
   projectId: string,
   postId: string
 ): Promise<any> {
-  const post = await db(POSTS_TABLE)
-    .where({ id: postId, project_id: projectId })
-    .first();
+  const post = await PostModel.findByIdAndProject(postId, projectId);
   if (!post) return null;
   return enrichPost(post);
 }
@@ -287,9 +255,7 @@ export async function updatePost(
   post: any;
   error?: { status: number; code: string; message: string };
 }> {
-  const existing = await db(POSTS_TABLE)
-    .where({ id: postId, project_id: projectId })
-    .first();
+  const existing = await PostModel.findByIdAndProject(postId, projectId);
   if (!existing) {
     return {
       post: null,
@@ -306,7 +272,7 @@ export async function updatePost(
 
   // Boundary check for gallery fields before serialization.
   if (fieldUpdates.custom_fields !== undefined) {
-    const postType = await db(POST_TYPES_TABLE).where("id", existing.post_type_id).first();
+    const postType = await PostTypeModel.findRawById(existing.post_type_id);
     if (postType) {
       const ptSchema =
         typeof postType.schema === "string"
@@ -333,14 +299,12 @@ export async function updatePost(
   // Re-generate slug if title changed
   if (fieldUpdates.title && fieldUpdates.title !== existing.title) {
     fieldUpdates.slug = slugify(fieldUpdates.title);
-    const conflict = await db(POSTS_TABLE)
-      .where({
-        project_id: projectId,
-        post_type_id: existing.post_type_id,
-        slug: fieldUpdates.slug,
-      })
-      .whereNot("id", postId)
-      .first();
+    const conflict = await PostModel.findSlugConflict(
+      projectId,
+      existing.post_type_id,
+      fieldUpdates.slug,
+      postId
+    );
     if (conflict) {
       fieldUpdates.slug = `${fieldUpdates.slug}-${Date.now().toString(36).slice(-4)}`;
     }
@@ -352,16 +316,14 @@ export async function updatePost(
   }
 
   if (Object.keys(fieldUpdates).length > 0) {
-    await db(POSTS_TABLE)
-      .where({ id: postId, project_id: projectId })
-      .update({ ...fieldUpdates, updated_at: db.fn.now() });
+    await PostModel.updateFieldsByIdAndProject(postId, projectId, fieldUpdates);
   }
 
   // Re-assign categories if provided
   if (category_ids !== undefined) {
-    await db(CAT_ASSIGN_TABLE).where("post_id", postId).del();
+    await PostModel.deleteCategoryAssignmentsByPostId(postId);
     if (category_ids.length > 0) {
-      await db(CAT_ASSIGN_TABLE).insert(
+      await PostModel.insertCategoryAssignments(
         category_ids.map((cid: string) => ({ post_id: postId, category_id: cid }))
       );
     }
@@ -369,9 +331,9 @@ export async function updatePost(
 
   // Re-assign tags if provided
   if (tag_ids !== undefined) {
-    await db(TAG_ASSIGN_TABLE).where("post_id", postId).del();
+    await PostModel.deleteTagAssignmentsByPostId(postId);
     if (tag_ids.length > 0) {
-      await db(TAG_ASSIGN_TABLE).insert(
+      await PostModel.insertTagAssignments(
         tag_ids.map((tid: string) => ({ post_id: postId, tag_id: tid }))
       );
     }
@@ -381,7 +343,7 @@ export async function updatePost(
 
   await invalidatePostsCache(projectId);
 
-  const updated = await db(POSTS_TABLE).where("id", postId).first();
+  const updated = await PostModel.findRawById(postId);
   return { post: await enrichPost(updated) };
 }
 
@@ -393,18 +355,14 @@ export async function deletePost(
   projectId: string,
   postId: string
 ): Promise<{ error?: { status: number; code: string; message: string } }> {
-  const existing = await db(POSTS_TABLE)
-    .where({ id: postId, project_id: projectId })
-    .first();
+  const existing = await PostModel.findByIdAndProject(postId, projectId);
   if (!existing) {
     return {
       error: { status: 404, code: "NOT_FOUND", message: "Post not found" },
     };
   }
 
-  await db(POSTS_TABLE)
-    .where({ id: postId, project_id: projectId })
-    .del();
+  await PostModel.deleteByIdAndProject(postId, projectId);
 
   logger.info(`[Admin Websites] ✓ Deleted post ID: ${postId}`);
 

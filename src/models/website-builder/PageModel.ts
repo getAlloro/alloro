@@ -844,4 +844,300 @@ export class PageModel extends BaseModel {
       )
       .first();
   }
+
+  // ===================================================================
+  // Admin page-editor helpers (service.page-editor)
+  //
+  // Mirror the inline `db("website_builder.pages")` queries (and the two
+  // multi-statement transactions) in service.page-editor verbatim — same
+  // columns, filters, ordering, returning shapes, transaction boundaries, and
+  // timestamp clocks (createPage/publishPage use trx.fn.now(); the SEO/display
+  // writes use db.fn.now()). The page editor reads raw page rows (version,
+  // change_source, generation_status, template_page_id columns accessed
+  // directly), so the read methods return raw rows.
+  // ===================================================================
+
+  /**
+   * Pages for a project, optionally narrowed to one path, ordered path asc then
+   * version desc (full raw rows). Mirrors the inline list query in
+   * service.page-editor.listPages verbatim.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findByProjectWithOptionalPath(
+    projectId: string,
+    pathFilter: string | undefined,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    let query = this.table(trx).where("project_id", projectId);
+    if (pathFilter) {
+      query = query.where("path", pathFilter);
+    }
+    return query.orderBy("path", "asc").orderBy("version", "desc");
+  }
+
+  /**
+   * id projection for every version at a project + path. Mirrors the inline
+   * select-ids read in service.page-editor.deletePagesByPath verbatim.
+   */
+  static async findIdsByProjectAndPath(
+    projectId: string,
+    path: string,
+    trx?: QueryContext
+  ): Promise<{ id: string }[]> {
+    return this.table(trx)
+      .where({ project_id: projectId, path })
+      .select("id");
+  }
+
+  /**
+   * Delete every version at a project + path; returns the affected count.
+   * Mirrors the inline delete in service.page-editor.deletePagesByPath.
+   */
+  static async deleteByProjectAndPath(
+    projectId: string,
+    path: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ project_id: projectId, path })
+      .del();
+  }
+
+  /**
+   * Count rows at a project + path. Mirrors the inline sibling-count read in
+   * service.page-editor.deletePage verbatim
+   * (.count("* as count").first(), parsed by the caller).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async countByProjectAndPath(
+    projectId: string,
+    path: string,
+    trx?: QueryContext
+  ): Promise<{ count: string | number } | undefined> {
+    return this.table(trx)
+      .where({ project_id: projectId, path })
+      .count("* as count")
+      .first();
+  }
+
+  /**
+   * Create a new page version atomically: within a transaction, mark existing
+   * drafts at the project+path inactive, insert the new row (returning *), and
+   * — when publishing — retire any other published row at the path. Mirrors the
+   * inline db.transaction in service.page-editor.createPage verbatim (trx.fn.now()
+   * clock, the publish-only retire branch). The model owns the transaction
+   * boundary (mirrors ReviewModel.replaceApifyReviewsForPlace); an injected trx
+   * is honored if the caller composes further writes.
+   */
+  static async createPageVersion(
+    params: {
+      projectId: string;
+      path: string;
+      publish: boolean;
+      insertData: Record<string, unknown>;
+    },
+    trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ): Promise<any> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const run = async (t: import("knex").Knex.Transaction): Promise<any> => {
+      // Mark existing drafts as inactive
+      await t(this.tableName)
+        .where({
+          project_id: params.projectId,
+          path: params.path,
+          status: "draft",
+        })
+        .update({ status: "inactive", updated_at: t.fn.now() });
+
+      const [created] = await t(this.tableName)
+        .insert(params.insertData)
+        .returning("*");
+
+      // If publishing, mark previous published as inactive
+      if (params.publish) {
+        await t(this.tableName)
+          .where({
+            project_id: params.projectId,
+            path: params.path,
+            status: "published",
+          })
+          .whereNot("id", created.id)
+          .update({ status: "inactive", updated_at: t.fn.now() });
+      }
+
+      return created;
+    };
+
+    if (trx) {
+      return run(trx as import("knex").Knex.Transaction);
+    }
+    return db.transaction(run);
+  }
+
+  /**
+   * Publish a page version atomically: within a transaction, retire any other
+   * published row at the page's project+path, then flip the target row to
+   * published (change_source="publish") and return it. Mirrors the inline
+   * db.transaction in service.page-editor.publishPage verbatim (trx.fn.now()
+   * clock). The model owns the transaction boundary; an injected trx is honored.
+   */
+  static async publishPageVersion(
+    params: {
+      pageId: string;
+      projectId: string;
+      path: string;
+    },
+    trx?: QueryContext
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ): Promise<any> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const run = async (t: import("knex").Knex.Transaction): Promise<any> => {
+      await t(this.tableName)
+        .where({
+          project_id: params.projectId,
+          path: params.path,
+          status: "published",
+        })
+        .whereNot("id", params.pageId)
+        .update({ status: "inactive", updated_at: t.fn.now() });
+
+      const [row] = await t(this.tableName)
+        .where("id", params.pageId)
+        .update({
+          status: "published",
+          change_source: "publish",
+          updated_at: t.fn.now(),
+        })
+        .returning("*");
+      return row;
+    };
+
+    if (trx) {
+      return run(trx as import("knex").Knex.Transaction);
+    }
+    return db.transaction(run);
+  }
+
+  /**
+   * Save a draft page's prebuilt update payload in place, optionally guarded by
+   * an optimistic-concurrency timestamp window, returning the updated row (or
+   * undefined when the guarded update matched nothing). Mirrors the inline
+   * conditional update in service.page-editor.updatePage verbatim — distinct
+   * from saveLiveSections (which always sets change_source + bumps version):
+   * here the caller pre-builds `updatePayload` (which may be only
+   * edit_chat_history, with no version bump) and the method passes it through
+   * unchanged.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async updateDraftWithConcurrencyGuard(
+    params: {
+      pageId: string;
+      updatePayload: Record<string, unknown>;
+      expectedUpdatedAt?: Date;
+    },
+    trx?: QueryContext
+  ): Promise<any> {
+    let updateQuery = (trx || db)("website_builder.pages").where(
+      "id",
+      params.pageId
+    );
+    if (params.expectedUpdatedAt) {
+      const expected = params.expectedUpdatedAt;
+      updateQuery = updateQuery
+        .where("updated_at", ">=", expected)
+        .where("updated_at", "<", new Date(expected.getTime() + 1));
+    }
+    const [updatedPage] = await updateQuery
+      .update(params.updatePayload)
+      .returning("*");
+    return updatedPage;
+  }
+
+  /**
+   * Refresh an existing draft row in place with a prebuilt field bag, stamping
+   * updated_at via the DB clock, returning the updated row. Mirrors the inline
+   * stale-draft refresh in service.page-editor.createDraft verbatim (caller
+   * pre-stringifies sections/seo_data/edit_chat_history and nulls
+   * change_source/revision_note).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async refreshDraftById(
+    pageId: string,
+    fields: Record<string, unknown>,
+    trx?: QueryContext
+  ): Promise<any> {
+    const [updated] = await this.table(trx)
+      .where("id", pageId)
+      .update({ ...fields, updated_at: db.fn.now() })
+      .returning("*");
+    return updated;
+  }
+
+  /**
+   * Propagate seo_data (pre-stringified) to all sibling versions at a
+   * project+path that currently have null seo_data, optionally excluding one
+   * page id; returns the number of rows updated. Mirrors the inline update in
+   * service.page-editor.propagateSeoToSiblings verbatim — distinct from
+   * propagateSeoDataToSiblings (which requires an exclude id and does not stamp
+   * updated_at): here the exclude is conditional and no timestamp is set.
+   */
+  static async propagateSeoToSiblingsOptionalExclude(
+    params: {
+      projectId: string;
+      path: string;
+      seoDataValue: string;
+      excludePageId?: string;
+    },
+    trx?: QueryContext
+  ): Promise<number> {
+    const query = this.table(trx)
+      .where({ project_id: params.projectId, path: params.path })
+      .whereNull("seo_data");
+    if (params.excludePageId) {
+      query.whereNot("id", params.excludePageId);
+    }
+    return query.update({ seo_data: params.seoDataValue });
+  }
+
+  /**
+   * Set seo_data (pre-stringified) on a single page by id, stamping updated_at
+   * via the DB clock, returning the updated row. Mirrors the inline update in
+   * service.page-editor.updatePageSeo verbatim (distinct from
+   * updateSeoDataById, which uses the JS clock and returns a count).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async updateSeoDataByIdReturning(
+    pageId: string,
+    seoDataValue: string,
+    trx?: QueryContext
+  ): Promise<any> {
+    const [updated] = await this.table(trx)
+      .where("id", pageId)
+      .update({
+        seo_data: seoDataValue,
+        updated_at: db.fn.now(),
+      })
+      .returning("*");
+    return updated;
+  }
+
+  /**
+   * Set display_name on every version at a project+path, stamping updated_at via
+   * the DB clock; returns the affected count. Mirrors the inline update in
+   * service.page-editor.updatePageDisplayName verbatim.
+   */
+  static async updateDisplayNameByProjectAndPath(
+    projectId: string,
+    path: string,
+    displayName: string | null,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ project_id: projectId, path })
+      .update({
+        display_name: displayName,
+        updated_at: db.fn.now(),
+      });
+  }
 }

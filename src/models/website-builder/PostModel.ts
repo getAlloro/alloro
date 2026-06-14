@@ -482,4 +482,199 @@ export class PostModel extends BaseModel {
       .where({ project_id: projectId })
       .select("id", "title", "slug", "seo_data");
   }
+
+  // ===================================================================
+  // Admin post-manager helpers (service.post-manager)
+  //
+  // Mirror the inline `db("website_builder.posts")` queries (and the
+  // category/tag assignment + attachment child-table queries the posts domain
+  // owns) in service.post-manager verbatim — same columns, filters, ordering,
+  // joins, and `db.fn.now()` timestamp source. Reads return raw rows.
+  // ===================================================================
+
+  /**
+   * Posts for a project with optional post_type_id + status filters, ordered
+   * sort_order asc then created_at desc (full raw rows). Mirrors the inline
+   * list query in service.post-manager.listPosts verbatim (distinct from
+   * findByProjectId, which has no status/type filter branch, and from
+   * findByProjectAndType, which requires a post type).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findByProjectFiltered(
+    projectId: string,
+    filters: { post_type_id?: string; status?: string } | undefined,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    let query = this.table(trx).where("project_id", projectId);
+    if (filters?.post_type_id) {
+      query = query.where("post_type_id", filters.post_type_id);
+    }
+    if (filters?.status) {
+      query = query.where("status", filters.status);
+    }
+    return query.orderBy("sort_order", "asc").orderBy("created_at", "desc");
+  }
+
+  /**
+   * Apply a partial column update to a post scoped to its project, stamping
+   * updated_at via the DB clock. Mirrors the inline update in
+   * service.post-manager.updatePost verbatim (caller builds the field bag,
+   * pre-stringifying JSON columns). Distinct from updateFieldsById, which is not
+   * project-scoped.
+   */
+  static async updateFieldsByIdAndProject(
+    postId: string,
+    projectId: string,
+    fields: Record<string, unknown>,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id: postId, project_id: projectId })
+      .update({ ...fields, updated_at: db.fn.now() });
+  }
+
+  /**
+   * Delete a post scoped to its project; returns the affected count. Mirrors
+   * the inline delete in service.post-manager.deletePost.
+   */
+  static async deleteByIdAndProject(
+    postId: string,
+    projectId: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id: postId, project_id: projectId })
+      .del();
+  }
+
+  /**
+   * Fetch a post with a given project + post type + slug excluding one id (raw
+   * row or undefined). Mirrors the slug-conflict check in
+   * service.post-manager.updatePost verbatim.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findSlugConflict(
+    projectId: string,
+    postTypeId: string,
+    slug: string,
+    excludePostId: string,
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .where({ project_id: projectId, post_type_id: postTypeId, slug })
+      .whereNot("id", excludePostId)
+      .first();
+  }
+
+  // ---- enrich joins (id/name/slug projections) ----
+
+  /**
+   * (id, name, slug) of categories assigned to a post via the assignment join.
+   * Mirrors the category branch of service.post-manager.enrichPost verbatim.
+   */
+  static async findAssignedCategories(
+    postId: string,
+    trx?: QueryContext
+  ): Promise<Array<{ id: string; name: string; slug: string }>> {
+    return (trx || db)("website_builder.post_category_assignments")
+      .join(
+        "website_builder.post_categories",
+        "website_builder.post_category_assignments.category_id",
+        "website_builder.post_categories.id"
+      )
+      .where("website_builder.post_category_assignments.post_id", postId)
+      .select(
+        "website_builder.post_categories.id",
+        "website_builder.post_categories.name",
+        "website_builder.post_categories.slug"
+      );
+  }
+
+  /**
+   * (id, name, slug) of tags assigned to a post via the assignment join.
+   * Mirrors the tag branch of service.post-manager.enrichPost verbatim.
+   */
+  static async findAssignedTags(
+    postId: string,
+    trx?: QueryContext
+  ): Promise<Array<{ id: string; name: string; slug: string }>> {
+    return (trx || db)("website_builder.post_tag_assignments")
+      .join(
+        "website_builder.post_tags",
+        "website_builder.post_tag_assignments.tag_id",
+        "website_builder.post_tags.id"
+      )
+      .where("website_builder.post_tag_assignments.post_id", postId)
+      .select(
+        "website_builder.post_tags.id",
+        "website_builder.post_tags.name",
+        "website_builder.post_tags.slug"
+      );
+  }
+
+  /**
+   * Attachments for a post, ordered order_index asc (full raw rows). Mirrors
+   * the attachment branch of service.post-manager.enrichPost verbatim.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findAttachmentsByPostId(
+    postId: string,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return (trx || db)("website_builder.post_attachments")
+      .where("post_id", postId)
+      .orderBy("order_index", "asc");
+  }
+
+  // ---- assignment writes ----
+
+  /**
+   * Bulk-insert category assignments ({ post_id, category_id }). Mirrors the
+   * inline insert in service.post-manager.createPost / updatePost verbatim.
+   * Caller guards the empty-array case.
+   */
+  static async insertCategoryAssignments(
+    rows: Array<{ post_id: string; category_id: string }>,
+    trx?: QueryContext
+  ): Promise<void> {
+    await (trx || db)("website_builder.post_category_assignments").insert(rows);
+  }
+
+  /**
+   * Delete all category assignments for a post. Mirrors the inline delete in
+   * service.post-manager.updatePost verbatim.
+   */
+  static async deleteCategoryAssignmentsByPostId(
+    postId: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return (trx || db)("website_builder.post_category_assignments")
+      .where("post_id", postId)
+      .del();
+  }
+
+  /**
+   * Bulk-insert tag assignments ({ post_id, tag_id }). Mirrors the inline
+   * insert in service.post-manager.createPost / updatePost verbatim. Caller
+   * guards the empty-array case.
+   */
+  static async insertTagAssignments(
+    rows: Array<{ post_id: string; tag_id: string }>,
+    trx?: QueryContext
+  ): Promise<void> {
+    await (trx || db)("website_builder.post_tag_assignments").insert(rows);
+  }
+
+  /**
+   * Delete all tag assignments for a post. Mirrors the inline delete in
+   * service.post-manager.updatePost verbatim.
+   */
+  static async deleteTagAssignmentsByPostId(
+    postId: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return (trx || db)("website_builder.post_tag_assignments")
+      .where("post_id", postId)
+      .del();
+  }
 }

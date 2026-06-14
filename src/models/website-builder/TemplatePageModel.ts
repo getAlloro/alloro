@@ -110,4 +110,94 @@ export class TemplatePageModel extends BaseModel {
   static async findRawById(id: string, trx?: QueryContext): Promise<any> {
     return this.table(trx).where("id", id).first();
   }
+
+  // ===================================================================
+  // Admin template-manager helpers (service.template-manager)
+  //
+  // Mirror the inline `db("website_builder.template_pages")` queries in
+  // service.template-manager verbatim (same columns, filters, ordering, and
+  // `db.fn.now()` timestamp source). Distinct from findByTemplateId, which
+  // orders by sort_order — the admin manager orders by created_at asc, so it
+  // gets its own method to keep the output identical. Returns raw rows.
+  // ===================================================================
+
+  /**
+   * All template pages for a template, ordered created_at asc (full raw rows).
+   * Mirrors the inline list query in service.template-manager.getTemplateById /
+   * listTemplatePages verbatim.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findByTemplateIdOrderedByCreatedAt(
+    templateId: string,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return this.table(trx)
+      .where("template_id", templateId)
+      .orderBy("created_at", "asc");
+  }
+
+  /**
+   * Fetch a template page by id scoped to its template (raw row or undefined).
+   * Mirrors the existence/ownership lookups in
+   * service.template-manager.getTemplatePage / updateTemplatePage /
+   * deleteTemplatePage.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findByIdAndTemplate(
+    pageId: string,
+    templateId: string,
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .where({ id: pageId, template_id: templateId })
+      .first();
+  }
+
+  /**
+   * Insert a template page row verbatim (raw passthrough) and return it.
+   * Mirrors the inline insert in service.template-manager.createTemplatePage
+   * verbatim (caller pre-stringifies sections).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async insertReturning(
+    row: Record<string, unknown>,
+    trx?: QueryContext
+  ): Promise<any> {
+    const [created] = await this.table(trx).insert(row).returning("*");
+    return created;
+  }
+
+  /**
+   * Apply a partial column update to a template page scoped to its template,
+   * stamping updated_at via the DB clock, returning the updated row. Mirrors the
+   * inline update in service.template-manager.updateTemplatePage verbatim (the
+   * caller pre-strips id/template_id/created_at and pre-stringifies sections).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async updateByIdAndTemplateReturning(
+    pageId: string,
+    templateId: string,
+    fields: Record<string, unknown>,
+    trx?: QueryContext
+  ): Promise<any> {
+    const [updated] = await this.table(trx)
+      .where({ id: pageId, template_id: templateId })
+      .update({ ...fields, updated_at: db.fn.now() })
+      .returning("*");
+    return updated;
+  }
+
+  /**
+   * Delete a template page scoped to its template; returns the affected count.
+   * Mirrors the inline delete in service.template-manager.deleteTemplatePage.
+   */
+  static async deleteByIdAndTemplate(
+    pageId: string,
+    templateId: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id: pageId, template_id: templateId })
+      .del();
+  }
 }

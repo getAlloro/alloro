@@ -5,11 +5,9 @@
  * template activation, and page editor system prompt.
  */
 
-import { db } from "../../../database/connection";
+import { TemplateModel } from "../../../models/website-builder/TemplateModel";
+import { TemplatePageModel } from "../../../models/website-builder/TemplatePageModel";
 import logger from "../../../lib/logger";
-
-const TEMPLATES_TABLE = "website_builder.templates";
-const TEMPLATE_PAGES_TABLE = "website_builder.template_pages";
 
 // ---------------------------------------------------------------------------
 // List templates
@@ -18,7 +16,7 @@ const TEMPLATE_PAGES_TABLE = "website_builder.template_pages";
 export async function listTemplates(): Promise<any[]> {
   logger.info("[Admin Websites] Fetching templates");
 
-  const templates = await db(TEMPLATES_TABLE).orderBy("created_at", "desc");
+  const templates = await TemplateModel.findAllOrderedByCreatedAt();
 
   logger.info(`[Admin Websites] Found ${templates.length} templates`);
 
@@ -66,23 +64,19 @@ export async function createTemplate(data: {
 
   // If setting as active, deactivate all others
   if (is_active) {
-    await db(TEMPLATES_TABLE)
-      .where({ is_active: true })
-      .update({ is_active: false, updated_at: db.fn.now() });
+    await TemplateModel.deactivateAllActive();
   }
 
-  const [template] = await db(TEMPLATES_TABLE)
-    .insert({
-      name,
-      wrapper: wrapper || "",
-      header: header || "",
-      footer: footer || "",
-      status: "draft",
-      is_active,
-    })
-    .returning("*");
+  const template = await TemplateModel.insertReturning({
+    name,
+    wrapper: wrapper || "",
+    header: header || "",
+    footer: footer || "",
+    status: "draft",
+    is_active,
+  });
 
-  logger.info(`[Admin Websites] \u2713 Created template ID: ${template.id}`);
+  logger.info(`[Admin Websites] ✓ Created template ID: ${template.id}`);
 
   return { template };
 }
@@ -94,12 +88,12 @@ export async function createTemplate(data: {
 export async function getTemplateById(id: string): Promise<any> {
   logger.info(`[Admin Websites] Fetching template ID: ${id}`);
 
-  const template = await db(TEMPLATES_TABLE).where("id", id).first();
+  const template = await TemplateModel.findRawById(id);
   if (!template) return null;
 
-  const templatePages = await db(TEMPLATE_PAGES_TABLE)
-    .where("template_id", id)
-    .orderBy("created_at", "asc");
+  const templatePages = await TemplatePageModel.findByTemplateIdOrderedByCreatedAt(
+    id
+  );
 
   return {
     ...template,
@@ -117,7 +111,7 @@ export async function updateTemplate(
 ): Promise<{ template: any; error?: { status: number; code: string; message: string } }> {
   logger.info(`[Admin Websites] Updating template ID: ${id}`);
 
-  const existing = await db(TEMPLATES_TABLE).where("id", id).first();
+  const existing = await TemplateModel.findRawById(id);
   if (!existing) {
     return {
       template: null,
@@ -146,15 +140,9 @@ export async function updateTemplate(
     };
   }
 
-  const [template] = await db(TEMPLATES_TABLE)
-    .where("id", id)
-    .update({
-      ...updates,
-      updated_at: db.fn.now(),
-    })
-    .returning("*");
+  const template = await TemplateModel.updateByIdReturning(id, updates);
 
-  logger.info(`[Admin Websites] \u2713 Updated template ID: ${id}`);
+  logger.info(`[Admin Websites] ✓ Updated template ID: ${id}`);
 
   return { template };
 }
@@ -168,7 +156,7 @@ export async function deleteTemplate(
 ): Promise<{ error?: { status: number; code: string; message: string } }> {
   logger.info(`[Admin Websites] Deleting template ID: ${id}`);
 
-  const existing = await db(TEMPLATES_TABLE).where("id", id).first();
+  const existing = await TemplateModel.findRawById(id);
   if (!existing) {
     return {
       error: {
@@ -179,9 +167,9 @@ export async function deleteTemplate(
     };
   }
 
-  await db(TEMPLATES_TABLE).where("id", id).del();
+  await TemplateModel.deleteByIdRaw(id);
 
-  logger.info(`[Admin Websites] \u2713 Deleted template ID: ${id}`);
+  logger.info(`[Admin Websites] ✓ Deleted template ID: ${id}`);
 
   return {};
 }
@@ -195,7 +183,7 @@ export async function activateTemplate(
 ): Promise<{ template: any; error?: { status: number; code: string; message: string } }> {
   logger.info(`[Admin Websites] Activating template ID: ${id}`);
 
-  const existing = await db(TEMPLATES_TABLE).where("id", id).first();
+  const existing = await TemplateModel.findRawById(id);
   if (!existing) {
     return {
       template: null,
@@ -208,17 +196,12 @@ export async function activateTemplate(
   }
 
   // Deactivate all templates
-  await db(TEMPLATES_TABLE)
-    .where({ is_active: true })
-    .update({ is_active: false, updated_at: db.fn.now() });
+  await TemplateModel.deactivateAllActive();
 
   // Activate this template
-  const [template] = await db(TEMPLATES_TABLE)
-    .where("id", id)
-    .update({ is_active: true, updated_at: db.fn.now() })
-    .returning("*");
+  const template = await TemplateModel.activateByIdReturning(id);
 
-  logger.info(`[Admin Websites] \u2713 Activated template ID: ${id}`);
+  logger.info(`[Admin Websites] ✓ Activated template ID: ${id}`);
 
   return { template };
 }
@@ -246,9 +229,7 @@ export async function listTemplatePages(templateId: string): Promise<{
     `[Admin Websites] Fetching template pages for template ID: ${templateId}`
   );
 
-  const template = await db(TEMPLATES_TABLE)
-    .where("id", templateId)
-    .first();
+  const template = await TemplateModel.findRawById(templateId);
   if (!template) {
     return {
       pages: [],
@@ -260,9 +241,9 @@ export async function listTemplatePages(templateId: string): Promise<{
     };
   }
 
-  const pages = await db(TEMPLATE_PAGES_TABLE)
-    .where("template_id", templateId)
-    .orderBy("created_at", "asc");
+  const pages = await TemplatePageModel.findByTemplateIdOrderedByCreatedAt(
+    templateId
+  );
 
   return { pages };
 }
@@ -291,9 +272,7 @@ export async function createTemplatePage(
     `[Admin Websites] Creating template page for template ID: ${templateId}`
   );
 
-  const template = await db(TEMPLATES_TABLE)
-    .where("id", templateId)
-    .first();
+  const template = await TemplateModel.findRawById(templateId);
   if (!template) {
     return {
       page: null,
@@ -305,15 +284,13 @@ export async function createTemplatePage(
     };
   }
 
-  const [page] = await db(TEMPLATE_PAGES_TABLE)
-    .insert({
-      template_id: templateId,
-      name,
-      sections: JSON.stringify(sections || []),
-    })
-    .returning("*");
+  const page = await TemplatePageModel.insertReturning({
+    template_id: templateId,
+    name,
+    sections: JSON.stringify(sections || []),
+  });
 
-  logger.info(`[Admin Websites] \u2713 Created template page ID: ${page.id}`);
+  logger.info(`[Admin Websites] ✓ Created template page ID: ${page.id}`);
 
   return { page };
 }
@@ -324,9 +301,7 @@ export async function getTemplatePage(
 ): Promise<any> {
   logger.info(`[Admin Websites] Fetching template page ID: ${pageId}`);
 
-  const page = await db(TEMPLATE_PAGES_TABLE)
-    .where({ id: pageId, template_id: templateId })
-    .first();
+  const page = await TemplatePageModel.findByIdAndTemplate(pageId, templateId);
 
   return page || null;
 }
@@ -341,9 +316,10 @@ export async function updateTemplatePage(
 }> {
   logger.info(`[Admin Websites] Updating template page ID: ${pageId}`);
 
-  const existing = await db(TEMPLATE_PAGES_TABLE)
-    .where({ id: pageId, template_id: templateId })
-    .first();
+  const existing = await TemplatePageModel.findByIdAndTemplate(
+    pageId,
+    templateId
+  );
 
   if (!existing) {
     return {
@@ -365,15 +341,13 @@ export async function updateTemplatePage(
     updates.sections = JSON.stringify(updates.sections);
   }
 
-  const [page] = await db(TEMPLATE_PAGES_TABLE)
-    .where({ id: pageId, template_id: templateId })
-    .update({
-      ...updates,
-      updated_at: db.fn.now(),
-    })
-    .returning("*");
+  const page = await TemplatePageModel.updateByIdAndTemplateReturning(
+    pageId,
+    templateId,
+    updates
+  );
 
-  logger.info(`[Admin Websites] \u2713 Updated template page ID: ${pageId}`);
+  logger.info(`[Admin Websites] ✓ Updated template page ID: ${pageId}`);
 
   return { page };
 }
@@ -384,9 +358,10 @@ export async function deleteTemplatePage(
 ): Promise<{ error?: { status: number; code: string; message: string } }> {
   logger.info(`[Admin Websites] Deleting template page ID: ${pageId}`);
 
-  const existing = await db(TEMPLATE_PAGES_TABLE)
-    .where({ id: pageId, template_id: templateId })
-    .first();
+  const existing = await TemplatePageModel.findByIdAndTemplate(
+    pageId,
+    templateId
+  );
 
   if (!existing) {
     return {
@@ -398,11 +373,9 @@ export async function deleteTemplatePage(
     };
   }
 
-  await db(TEMPLATE_PAGES_TABLE)
-    .where({ id: pageId, template_id: templateId })
-    .del();
+  await TemplatePageModel.deleteByIdAndTemplate(pageId, templateId);
 
-  logger.info(`[Admin Websites] \u2713 Deleted template page ID: ${pageId}`);
+  logger.info(`[Admin Websites] ✓ Deleted template page ID: ${pageId}`);
 
   return {};
 }
