@@ -6,12 +6,12 @@
  *
  * Mounted by `../websites.ts` AFTER the super-admin auth hoist, so every route
  * inherits `[authenticateToken, superAdminMiddleware]`. Recipient list routes
- * delegate to `AdminWebsitesController`; form rule/preference routes delegate to
+ * delegate to `RecipientsController`; form rule/preference routes delegate to
  * `WebsiteFormsController`.
  */
 
 import express from "express";
-import * as controller from "../../../controllers/admin-websites/AdminWebsitesController";
+import * as controller from "../../../controllers/admin-websites/RecipientsController";
 import * as formsController from "../../../controllers/admin-websites/WebsiteFormsController";
 
 const router = express.Router();

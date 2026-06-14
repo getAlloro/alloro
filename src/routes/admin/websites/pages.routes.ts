@@ -14,7 +14,7 @@
 
 import express from "express";
 import multer from "multer";
-import * as controller from "../../../controllers/admin-websites/AdminWebsitesController";
+import * as controller from "../../../controllers/admin-websites/PagesController";
 import { authenticateToken } from "../../../middleware/auth";
 import { superAdminMiddleware } from "../../../middleware/superAdmin";
 

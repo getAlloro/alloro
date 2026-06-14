@@ -11,7 +11,7 @@
  */
 
 import express from "express";
-import * as controller from "../../../controllers/admin-websites/AdminWebsitesController";
+import * as controller from "../../../controllers/admin-websites/SeoController";
 
 const router = express.Router();
 

@@ -10,7 +10,7 @@
  */
 
 import express from "express";
-import * as controller from "../../../controllers/admin-websites/AdminWebsitesController";
+import * as controller from "../../../controllers/admin-websites/CodeSnippetsController";
 
 const router = express.Router();
 

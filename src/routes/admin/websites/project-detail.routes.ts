@@ -16,7 +16,7 @@
  */
 
 import express from "express";
-import * as controller from "../../../controllers/admin-websites/AdminWebsitesController";
+import * as controller from "../../../controllers/admin-websites/ProjectDetailController";
 import { authenticateToken } from "../../../middleware/auth";
 import { superAdminMiddleware } from "../../../middleware/superAdmin";
 
