@@ -25,7 +25,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { getPlaceDetails } from "../controllers/places/feature-services/GooglePlacesApiService";
-import { db } from "../database/connection";
+import { KnowledgeHeuristicModel } from "../models/KnowledgeHeuristicModel";
 import logger from "../lib/logger";
 
 let anthropic: Anthropic | null = null;
@@ -180,19 +180,11 @@ export async function generateOzMoments(data: OzMomentData): Promise<OzMoment[]>
   // No individual business owner could know these. Only the network can.
   let networkIntelligence = "";
   try {
-    const hasHeuristics = await db.schema.hasTable("knowledge_heuristics");
-    if (hasHeuristics) {
-      const heuristics = await db("knowledge_heuristics")
-        .where("source", "collective_intelligence")
-        .where("confidence", ">=", 0.5)
-        .orderBy("confidence", "desc")
-        .limit(3)
-        .select("insight", "actionable", "sample_size");
+    const heuristics = await KnowledgeHeuristicModel.findTopCollectiveIntelligence();
 
-      if (heuristics.length > 0) {
-        networkIntelligence = "\n\nNETWORK INTELLIGENCE (patterns across all Alloro businesses, use these to make insights even more specific):\n" +
-          heuristics.map((h: any) => `- ${h.insight} (n=${h.sample_size})`).join("\n");
-      }
+    if (heuristics.length > 0) {
+      networkIntelligence = "\n\nNETWORK INTELLIGENCE (patterns across all Alloro businesses, use these to make insights even more specific):\n" +
+        heuristics.map((h: any) => `- ${h.insight} (n=${h.sample_size})`).join("\n");
     }
   } catch {}
 

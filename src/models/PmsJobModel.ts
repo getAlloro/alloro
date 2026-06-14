@@ -139,6 +139,22 @@ export class PmsJobModel extends BaseModel {
   }
 
   /**
+   * Persist an already-stringified automation_status_detail value (raw
+   * passthrough). Mirrors the inline updates in
+   * utils/pms/pmsAutomationStatus.ts, which store a pre-stringified JSON string
+   * rather than letting the model serialize.
+   */
+  static async updateAutomationStatusDetailRaw(
+    id: number,
+    statusDetailJson: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id })
+      .update({ automation_status_detail: statusDetailJson });
+  }
+
+  /**
    * Find all active automation jobs (status is pending, processing, or awaiting_approval).
    * Optionally filter by organization.
    */
@@ -755,5 +771,69 @@ export class PmsJobModel extends BaseModel {
       .where({ id })
       .select("id", "organization_id", "location_id", "automation_status_detail")
       .first();
+  }
+
+  /**
+   * timestamp of the most-recent approved (is_approved=1) job for an org
+   * (optional location). Mirrors the last-upload query in
+   * utils/dashboard-metrics/service.dashboard-metrics.buildPmsMetrics verbatim.
+   * Returns the raw row (or undefined).
+   */
+  static async findLastApprovedUploadTimestamp(
+    organizationId: number,
+    locationId: number | null,
+    trx?: QueryContext
+  ): Promise<{ timestamp: Date | string } | undefined> {
+    const where: Record<string, unknown> =
+      locationId !== null
+        ? {
+            organization_id: organizationId,
+            location_id: locationId,
+            is_approved: 1,
+          }
+        : { organization_id: organizationId, is_approved: 1 };
+    return this.table(trx)
+      .where(where)
+      .orderBy("timestamp", "desc")
+      .select("timestamp")
+      .first();
+  }
+
+  /**
+   * Jobs stuck in automation_status_detail.status = 'processing' whose
+   * startedAt is older than `thresholdMinutes`. Mirrors the inline whereRaw in
+   * utils/startup/zombieJobCleanup.cleanupZombieJobs verbatim (the threshold is
+   * interpolated into the interval literal exactly as before). Raw rows.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findZombieProcessingJobs(
+    thresholdMinutes: number,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return this.table(trx)
+      .whereRaw(
+        `automation_status_detail::jsonb->>'status' = 'processing'
+         AND automation_status_detail::jsonb->>'startedAt' IS NOT NULL
+         AND (NOW() - (automation_status_detail::jsonb->>'startedAt')::timestamptz) > interval '${thresholdMinutes} minutes'`,
+      )
+      .select("id", "organization_id", "location_id", "automation_status_detail");
+  }
+
+  /**
+   * Flip a zombie job's automation_status_detail status→failed with the
+   * server-restart message, via a jsonb_set raw expression. Mirrors the inline
+   * update in utils/startup/zombieJobCleanup.cleanupZombieJobs verbatim.
+   */
+  static async markZombieFailed(
+    id: number,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where("id", id)
+      .update({
+        automation_status_detail: db.raw(
+          `jsonb_set(jsonb_set(automation_status_detail::jsonb, '{status}', '"failed"'), '{message}', '"Server restarted — run interrupted and marked failed on startup"')`,
+        ),
+      });
   }
 }

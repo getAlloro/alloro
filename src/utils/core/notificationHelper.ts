@@ -1,4 +1,5 @@
-import { db } from "../../database/connection";
+import { GoogleConnectionModel } from "../../models/GoogleConnectionModel";
+import { NotificationModel } from "../../models/NotificationModel";
 import { resolveLocationId } from "../locationResolver";
 import { resolveRecipients } from "../../services/recipientSettingsService";
 
@@ -66,25 +67,18 @@ export async function createNotification(
     const locationId = options?.locationId ?? await resolveLocationId(organizationId);
 
     // Look up account email for email notification
-    const account = await db("google_connections")
-      .where({ organization_id: organizationId })
-      .first();
+    const account = await GoogleConnectionModel.findFirstByOrganization(
+      organizationId
+    );
 
-    const [result] = await db("notifications")
-      .insert({
-        organization_id: organizationId,
-        location_id: locationId,
-        title,
-        message: message || null,
-        type,
-        metadata: metadata ? JSON.stringify(metadata) : null,
-        read: false,
-        created_at: new Date(),
-        updated_at: new Date(),
-      })
-      .returning("id");
-
-    const notificationId = result?.id || null;
+    const notificationId = await NotificationModel.create({
+      organization_id: organizationId,
+      location_id: locationId,
+      title,
+      message: message || null,
+      type,
+      metadata: metadata ?? null,
+    });
 
     // Send email notification in parallel (non-blocking)
     if (!options?.skipEmail) {

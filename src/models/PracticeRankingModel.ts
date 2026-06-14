@@ -531,6 +531,36 @@ export class PracticeRankingModel extends BaseModel {
     return query;
   }
 
+  /**
+   * Latest completed ranking for an org (optional location), projected to the
+   * dashboard ranking columns. Mirrors the inline query in
+   * utils/dashboard-metrics/service.dashboard-metrics.buildRankingMetrics
+   * verbatim. Returns the raw row (or undefined).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findLatestCompletedRankingMetrics(
+    organizationId: number,
+    locationId: number | null,
+    trx?: QueryContext
+  ): Promise<any> {
+    let query = this.table(trx).where({
+      organization_id: organizationId,
+      status: "completed",
+    });
+    if (locationId !== null) {
+      query = query.where({ location_id: locationId });
+    }
+    return query
+      .orderBy("created_at", "desc")
+      .select(
+        "rank_position",
+        "rank_score",
+        "total_competitors",
+        "ranking_factors"
+      )
+      .first();
+  }
+
   /** Latest completed ranking for an org + GBP location. Raw row. */
   static async findLatestCompletedByOrgAndGbpLocation(
     organizationId: number,

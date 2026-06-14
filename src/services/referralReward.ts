@@ -8,9 +8,11 @@
  * "You both saved a month. We all rise together."
  */
 
-import { db } from "../database/connection";
 import { isStripeConfigured, getStripe } from "../config/stripe";
 import { BehavioralEventModel } from "../models/BehavioralEventModel";
+import { NotificationModel } from "../models/NotificationModel";
+import { OrganizationModel } from "../models/OrganizationModel";
+import { ReferralModel } from "../models/ReferralModel";
 import logger from "../lib/logger";
 
 // ---- Track referral signup ----
@@ -21,46 +23,40 @@ export async function trackReferralSignup(
   referralCode: string
 ): Promise<void> {
   try {
-    const hasTable = await db.schema.hasTable("referrals");
+    const hasTable = await ReferralModel.tableExists();
     if (!hasTable) {
       logger.warn("[Referral] referrals table does not exist, skipping tracking");
       return;
     }
 
     // Dedupe: don't create duplicate referral records
-    const existing = await db("referrals")
-      .where({ referrer_org_id: referrerOrgId, referred_org_id: referredOrgId })
-      .first();
+    const existing = await ReferralModel.findByReferrerAndReferred(
+      referrerOrgId,
+      referredOrgId
+    );
     if (existing) return;
 
-    await db("referrals").insert({
+    await ReferralModel.insertPending({
       referrer_org_id: referrerOrgId,
       referred_org_id: referredOrgId,
       referral_code: referralCode,
-      status: "pending",
       referred_at: new Date(),
     });
 
     // Notify referrer: "[Practice] just ran their checkup using your link."
     try {
-      const referredOrg = await db("organizations")
-        .where({ id: referredOrgId })
-        .select("name")
-        .first();
+      const referredOrg = await OrganizationModel.findNameById(referredOrgId);
       const practiceName = referredOrg?.name || "A new practice";
 
-      await db("notifications").insert({
+      await NotificationModel.create({
         organization_id: referrerOrgId,
         title: "Someone used your referral link",
         message: `${practiceName} just ran their checkup using your link.`,
         type: "system",
-        read: false,
-        metadata: JSON.stringify({
+        metadata: {
           source: "referral_signup",
           referred_org_id: referredOrgId,
-        }),
-        created_at: new Date(),
-        updated_at: new Date(),
+        },
       });
     } catch {
       // Non-blocking
@@ -87,42 +83,33 @@ export async function trackReferralSignup(
 
 export async function applyReferralReward(referredOrgId: number): Promise<void> {
   try {
-    const hasTable = await db.schema.hasTable("referrals");
+    const hasTable = await ReferralModel.tableExists();
     if (!hasTable) return;
 
     // Find the pending/signup referral record
-    const referral = await db("referrals")
-      .where({ referred_org_id: referredOrgId })
-      .whereIn("status", ["pending", "signup"])
-      .first();
+    const referral = await ReferralModel.findPendingForReferred(referredOrgId);
 
     if (!referral) return;
 
     // Mark as converted
-    await db("referrals")
-      .where({ id: referral.id })
-      .update({ status: "converted", converted_at: new Date() });
+    await ReferralModel.markConverted(referral.id, new Date());
 
     // Apply Stripe coupons if configured
     if (!isStripeConfigured()) {
       logger.warn("[Referral] Stripe not configured, skipping coupon application");
-      await db("referrals")
-        .where({ id: referral.id })
-        .update({ status: "rewarded", reward_applied_at: new Date() });
+      await ReferralModel.markRewarded(referral.id, new Date());
       return;
     }
 
     const stripe = getStripe();
 
     // Get both orgs
-    const referrerOrg = await db("organizations")
-      .where({ id: referral.referrer_org_id })
-      .select("id", "name", "stripe_customer_id", "stripe_subscription_id")
-      .first();
-    const referredOrg = await db("organizations")
-      .where({ id: referredOrgId })
-      .select("id", "name", "stripe_customer_id", "stripe_subscription_id")
-      .first();
+    const referrerOrg = await OrganizationModel.findBillingContextById(
+      referral.referrer_org_id
+    );
+    const referredOrg = await OrganizationModel.findBillingContextById(
+      referredOrgId
+    );
 
     // Create a 100% off, 1-month, one-time coupon
     const coupon = await stripe.coupons.create({
@@ -177,9 +164,7 @@ export async function applyReferralReward(referredOrgId: number): Promise<void> 
     }
 
     // Mark as rewarded
-    await db("referrals")
-      .where({ id: referral.id })
-      .update({ status: "rewarded", reward_applied_at: new Date() });
+    await ReferralModel.markRewarded(referral.id, new Date());
 
     // Behavioral events for both
     BehavioralEventModel.create({
@@ -205,31 +190,21 @@ export async function applyReferralReward(referredOrgId: number): Promise<void> 
     // Notifications for both orgs
     const sharedMessage = "You both saved a month. We all rise together.";
 
-    await db("notifications")
-      .insert({
-        organization_id: referral.referrer_org_id,
-        title: "Referral reward applied",
-        message: `${referredOrg?.name || "Your referral"} converted to paid. ${sharedMessage}`,
-        type: "system",
-        read: false,
-        metadata: JSON.stringify({ source: "referral_reward", referred_org_id: referredOrgId }),
-        created_at: new Date(),
-        updated_at: new Date(),
-      })
-      .catch(() => {});
+    await NotificationModel.create({
+      organization_id: referral.referrer_org_id,
+      title: "Referral reward applied",
+      message: `${referredOrg?.name || "Your referral"} converted to paid. ${sharedMessage}`,
+      type: "system",
+      metadata: { source: "referral_reward", referred_org_id: referredOrgId },
+    }).catch(() => {});
 
-    await db("notifications")
-      .insert({
-        organization_id: referredOrgId,
-        title: "Welcome reward applied",
-        message: `Your referrer gets a free month too. ${sharedMessage}`,
-        type: "system",
-        read: false,
-        metadata: JSON.stringify({ source: "referral_reward", referrer_org_id: referral.referrer_org_id }),
-        created_at: new Date(),
-        updated_at: new Date(),
-      })
-      .catch(() => {});
+    await NotificationModel.create({
+      organization_id: referredOrgId,
+      title: "Welcome reward applied",
+      message: `Your referrer gets a free month too. ${sharedMessage}`,
+      type: "system",
+      metadata: { source: "referral_reward", referrer_org_id: referral.referrer_org_id },
+    }).catch(() => {});
 
     logger.info(
       `[Referral] Reward applied: referrer=${referral.referrer_org_id}, referred=${referredOrgId}`
@@ -250,14 +225,12 @@ export interface ReferralStats {
 
 export async function getReferralStats(orgId: number): Promise<ReferralStats> {
   try {
-    const hasTable = await db.schema.hasTable("referrals");
+    const hasTable = await ReferralModel.tableExists();
     if (!hasTable) {
       return { totalReferred: 0, totalConverted: 0, totalRewarded: 0, monthsSaved: 0 };
     }
 
-    const referrals = await db("referrals")
-      .where({ referrer_org_id: orgId })
-      .select("status");
+    const referrals = await ReferralModel.findStatusesByReferrer(orgId);
 
     const totalReferred = referrals.length;
     const totalConverted = referrals.filter(

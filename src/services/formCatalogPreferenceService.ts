@@ -1,4 +1,3 @@
-import { db } from "../database/connection";
 import {
   FormCatalogPreferenceModel,
   type FormCatalogPreferenceUpsert,
@@ -107,7 +106,7 @@ export async function upsertFormCatalogPreferences(params: {
     },
   );
 
-  return db.transaction((trx) =>
+  return FormCatalogPreferenceModel.transaction((trx) =>
     FormCatalogPreferenceModel.upsertMany(preferences, trx),
   );
 }

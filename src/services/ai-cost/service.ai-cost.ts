@@ -15,11 +15,9 @@
  *   - Google Places API (per-call pricing)
  */
 
-import { db } from "../../database/connection";
+import { AiCostEventModel } from "../../models/website-builder/AiCostEventModel";
 import { getModelRate, type ModelRate } from "./pricing";
 import logger from "../../lib/logger";
-
-const TABLE = "website_builder.ai_cost_events";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -126,7 +124,7 @@ export async function logAiCostEvent(
     parent_event_id: input.parentEventId ?? null,
   };
 
-  const [persisted] = await db(TABLE).insert(row).returning("*");
+  const persisted = await AiCostEventModel.insertReturning(row);
   return persisted as LoggedAiCostEvent;
 }
 

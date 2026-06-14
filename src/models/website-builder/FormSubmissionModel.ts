@@ -179,6 +179,41 @@ export class FormSubmissionModel extends BaseModel {
     return parseInt(result?.count as string, 10) || 0;
   }
 
+  /**
+   * Count verified (non-flagged, non-newsletter) submissions for a project
+   * created on/after a cutoff. Mirrors the verifiedThisWeek query in
+   * utils/dashboard-metrics/service.dashboard-metrics.buildFormSubmissionsMetrics.
+   */
+  static async countVerifiedSinceByProjectId(
+    projectId: string,
+    since: Date,
+    trx?: QueryContext,
+  ): Promise<number> {
+    const result = await this.table(trx)
+      .where({ project_id: projectId, is_flagged: false })
+      .whereNot("form_name", "Newsletter Signup")
+      .where("submitted_at", ">=", since)
+      .count<{ count: string }[]>("* as count")
+      .first();
+    return parseInt(result?.count as string, 10) || 0;
+  }
+
+  /**
+   * submitted_at of the oldest unread submission for a project (raw row, or
+   * undefined). Mirrors the oldestUnreadRow query in
+   * utils/dashboard-metrics/service.dashboard-metrics.buildFormSubmissionsMetrics.
+   */
+  static async findOldestUnreadSubmittedAt(
+    projectId: string,
+    trx?: QueryContext,
+  ): Promise<{ submitted_at: Date | string } | undefined> {
+    return this.table(trx)
+      .where({ project_id: projectId, is_read: false })
+      .orderBy("submitted_at", "asc")
+      .select("submitted_at")
+      .first();
+  }
+
   static async listDetectedFormStats(
     projectId: string,
     excludedFormNames: string[] = [],

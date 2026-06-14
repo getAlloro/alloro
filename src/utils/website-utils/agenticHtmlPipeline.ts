@@ -8,10 +8,9 @@
 
 import { validateHtml, type ValidationIssue } from "./htmlValidator";
 import { editHtmlContent } from "./aiCommandService";
-import { db } from "../../database/connection";
+import { AiCommandRecommendationModel } from "../../models/website-builder/AiCommandRecommendationModel";
 import logger from "../../lib/logger";
 
-const RECS_TABLE = "website_builder.ai_command_recommendations";
 const MAX_RETRIES = 2;
 
 export interface PipelineContext {
@@ -121,11 +120,10 @@ export async function runAgenticPipeline(
 
 async function updateRecStatus(recId: string, message: string): Promise<void> {
   try {
-    await db(RECS_TABLE)
-      .where("id", recId)
-      .update({
-        execution_result: JSON.stringify({ in_progress: true, message }),
-      });
+    await AiCommandRecommendationModel.updateExecutionResult(
+      recId,
+      JSON.stringify({ in_progress: true, message }),
+    );
   } catch {
     // Non-fatal
   }

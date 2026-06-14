@@ -297,4 +297,90 @@ export class PageModel extends BaseModel {
       .returning(["updated_at"]);
     return updatedPage;
   }
+
+  // ===================================================================
+  // Snapshot-on-write history helpers
+  //
+  // These mirror the inline queries previously held in
+  // utils/website-utils/pageSnapshots.ts verbatim. The insert is a raw
+  // passthrough (the caller pre-builds the column payload, including
+  // pre-stringified JSON), so behavior is byte-identical to the original.
+  // ===================================================================
+
+  /**
+   * Newest history entry (inactive or published) at a project+path, excluding
+   * a given page id, ordered by version desc. Raw row. Mirrors the dedup read
+   * in pageSnapshots.snapshotPageStateIfChanged.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findNewestHistoryAtPath(
+    projectId: string,
+    path: string,
+    excludePageId: string,
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .where({ project_id: projectId, path })
+      .whereNot("id", excludePageId)
+      .whereIn("status", ["inactive", "published"])
+      .orderBy("version", "desc")
+      .first();
+  }
+
+  /**
+   * Latest row (any status) at a project+path, ordered by version desc. Raw
+   * row. Mirrors the next-version lookup in
+   * pageSnapshots.snapshotPageStateIfChanged.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findLatestAtPath(
+    projectId: string,
+    path: string,
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .where({ project_id: projectId, path })
+      .orderBy("version", "desc")
+      .first();
+  }
+
+  /**
+   * Insert an inactive history snapshot row verbatim (raw passthrough).
+   * Mirrors the insert in pageSnapshots.snapshotPageStateIfChanged.
+   */
+  static async insertSnapshotRow(
+    row: Record<string, unknown>,
+    trx?: QueryContext
+  ): Promise<void> {
+    await this.table(trx).insert(row);
+  }
+
+  /**
+   * id projection for inactive snapshot rows at a project+path beyond a
+   * retention offset, version desc. Mirrors the stale-rows read in
+   * pageSnapshots.pruneInactiveSnapshots.
+   */
+  static async findStaleInactiveSnapshotIds(
+    projectId: string,
+    path: string,
+    offset: number,
+    trx?: QueryContext
+  ): Promise<{ id: string }[]> {
+    return this.table(trx)
+      .where({ project_id: projectId, path, status: "inactive" })
+      .orderBy("version", "desc")
+      .offset(offset)
+      .select("id");
+  }
+
+  /**
+   * Delete page rows by id set. Mirrors the prune delete in
+   * pageSnapshots.pruneInactiveSnapshots.
+   */
+  static async deleteByIds(
+    ids: string[],
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx).whereIn("id", ids).delete();
+  }
 }

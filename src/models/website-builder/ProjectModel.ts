@@ -77,6 +77,49 @@ export class ProjectModel extends BaseModel {
     return super.updateById(id, data as Record<string, unknown>, trx);
   }
 
+  /**
+   * Atomically create the instant-website project + homepage row and flip the
+   * owning organization's patientpath status, in one transaction. Mirrors the
+   * inline `db.transaction` in services/instantWebsiteGenerator verbatim
+   * (projects insert + pages insert + organizations update) — the three writes
+   * must land together so a crash never leaves an orphan project that the
+   * dedup check would treat as "already generated". The model owns the
+   * transaction boundary (mirrors PageModel.restoreVersion); callers composing
+   * further writes may inject a `trx`. Payloads are passed pre-formed and
+   * written verbatim (raw passthrough) so behavior is byte-identical.
+   *
+   * The companion "preview ready" notification is intentionally NOT part of
+   * this method — it stays outside the transaction at the call site so a
+   * notification failure never rolls back the committed website.
+   */
+  static async createInstantWebsiteWithHomepage(
+    params: {
+      projectRow: Record<string, unknown>;
+      pageRow: Record<string, unknown>;
+      organizationId: number;
+      organizationUpdate: Record<string, unknown>;
+    },
+    trx?: QueryContext,
+  ): Promise<void> {
+    const run = async (t: Knex.Transaction): Promise<void> => {
+      // Create project
+      await t(this.tableName).insert(params.projectRow);
+
+      // Create homepage
+      await t("website_builder.pages").insert(params.pageRow);
+
+      // Update org with website status + photo quality for dashboard photo brief
+      await t("organizations")
+        .where({ id: params.organizationId })
+        .update(params.organizationUpdate);
+    };
+
+    if (trx) {
+      return run(trx as Knex.Transaction);
+    }
+    return this.transaction(run);
+  }
+
   static async updateRecipientsByOrganization(
     orgId: number,
     recipients: string[],
@@ -107,6 +150,21 @@ export class ProjectModel extends BaseModel {
         rybbit_site_id: siteId,
         updated_at: new Date(),
       });
+  }
+
+  /**
+   * (rybbit_site_id, rybbit_time_zone) projection for an org's project. Mirrors
+   * the inline lookup in utils/rybbit/service.rybbit-data.getRybbitSiteConfig.
+   * Returns the raw row (or undefined).
+   */
+  static async findRybbitConfigByOrganizationId(
+    organizationId: number,
+    trx?: QueryContext,
+  ): Promise<{ rybbit_site_id: string | null; rybbit_time_zone: string | null } | undefined> {
+    return this.table(trx)
+      .select("rybbit_site_id", "rybbit_time_zone")
+      .where("organization_id", organizationId)
+      .first();
   }
 
   static async getRybbitTimeZone(

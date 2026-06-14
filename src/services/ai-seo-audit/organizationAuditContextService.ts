@@ -1,4 +1,3 @@
-import { db } from "../../database/connection";
 import { getValidOAuth2ClientByConnection } from "../../auth/oauth2Helper";
 import { getGBPAIReadyData } from "../../controllers/gbp/GbpController";
 import { GscDataModel } from "../../models/website-builder/GscDataModel";
@@ -20,24 +19,7 @@ import type {
  * gate so the picker never offers an org that would immediately hard-cap.
  */
 export async function listAuditableOrganizationIds(): Promise<number[]> {
-  const rows = await db("organizations as o")
-    .select("o.id")
-    .whereExists(function () {
-      this.select(db.raw("1"))
-        .from("website_builder.projects as p")
-        .whereRaw("p.organization_id = o.id")
-        .whereRaw(
-          "(p.custom_domain IS NOT NULL OR p.generated_hostname IS NOT NULL OR p.selected_website_url IS NOT NULL)",
-        )
-        .whereExists(function () {
-          this.select(db.raw("1"))
-            .from("website_builder.pages as pg")
-            .whereRaw("pg.project_id = p.id")
-            .andWhere("pg.status", "published");
-        });
-    })
-    .orderBy("o.id");
-  return rows.map((row: { id: number }) => Number(row.id));
+  return OrganizationModel.findAuditableIds();
 }
 
 export async function resolveOrganizationAuditContext(

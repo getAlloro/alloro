@@ -1,4 +1,3 @@
-import { db } from "../../database/connection";
 import {
   AiSeoAuditTargetModel,
   IAiSeoAuditTarget,
@@ -111,7 +110,7 @@ export async function executeTargets(
       })),
     );
 
-    await db.transaction(async (trx) => {
+    await AiSeoAuditTargetModel.transaction(async (trx) => {
       await AiSeoAuditTargetModel.updateTarget(entry.target.id, {
         score: output.summary.score,
         data_coverage: output.summary.dataCoverage,

@@ -5,7 +5,7 @@
  * Status is stored in pms_jobs.automation_status_detail JSONB column.
  */
 
-import { db } from "../../database/connection";
+import { PmsJobModel } from "../../models/PmsJobModel";
 import logger from "../../lib/logger";
 
 // =====================================================================
@@ -225,10 +225,7 @@ export async function updateAutomationStatus(
   }
 ): Promise<void> {
   // Get current status
-  const job = await db("pms_jobs")
-    .where({ id: jobId })
-    .select("automation_status_detail")
-    .first();
+  const job = await PmsJobModel.findAutomationStatusDetailById(jobId);
 
   if (!job) {
     logger.error(`[PMS-AUTOMATION] Job ${jobId} not found`);
@@ -323,11 +320,10 @@ export async function updateAutomationStatus(
   if (updates.completedAt) currentStatus.completedAt = updates.completedAt;
 
   // Save to database
-  await db("pms_jobs")
-    .where({ id: jobId })
-    .update({
-      automation_status_detail: JSON.stringify(currentStatus),
-    });
+  await PmsJobModel.updateAutomationStatusDetailRaw(
+    jobId,
+    JSON.stringify(currentStatus),
+  );
 
   logger.info(
     `[PMS-AUTOMATION] [${jobId}] Status updated: ${currentStatus.currentStep} - ${currentStatus.message} (${currentStatus.progress}%)`
@@ -404,10 +400,7 @@ export async function resetToStep(
   jobId: number,
   targetStep: StepKey
 ): Promise<void> {
-  const job = await db("pms_jobs")
-    .where({ id: jobId })
-    .select("automation_status_detail")
-    .first();
+  const job = await PmsJobModel.findAutomationStatusDetailById(jobId);
 
   if (!job) {
     logger.error(`[PMS-AUTOMATION] Job ${jobId} not found for reset`);
@@ -485,11 +478,10 @@ export async function resetToStep(
   currentStatus.summary = undefined;
 
   // Save to database
-  await db("pms_jobs")
-    .where({ id: jobId })
-    .update({
-      automation_status_detail: JSON.stringify(currentStatus),
-    });
+  await PmsJobModel.updateAutomationStatusDetailRaw(
+    jobId,
+    JSON.stringify(currentStatus),
+  );
 
   logger.info(
     `[PMS-AUTOMATION] [${jobId}] Reset to step: ${targetStep} for retry`
@@ -506,10 +498,7 @@ export async function completeAutomation(
   const now = new Date().toISOString();
 
   // Get current status to update all intermediate steps
-  const job = await db("pms_jobs")
-    .where({ id: jobId })
-    .select("automation_status_detail")
-    .first();
+  const job = await PmsJobModel.findAutomationStatusDetailById(jobId);
 
   let currentStatus: AutomationStatusDetail;
 
@@ -547,11 +536,10 @@ export async function completeAutomation(
   currentStatus.completedAt = now;
 
   // Save to database
-  await db("pms_jobs")
-    .where({ id: jobId })
-    .update({
-      automation_status_detail: JSON.stringify(currentStatus),
-    });
+  await PmsJobModel.updateAutomationStatusDetailRaw(
+    jobId,
+    JSON.stringify(currentStatus),
+  );
 
   logger.info(
     `[PMS-AUTOMATION] [${jobId}] Automation completed - ${summary.tasksCreated.total} tasks created`
@@ -564,10 +552,7 @@ export async function completeAutomation(
 export async function getAutomationStatus(
   jobId: number
 ): Promise<AutomationStatusDetail | null> {
-  const job = await db("pms_jobs")
-    .where({ id: jobId })
-    .select("automation_status_detail")
-    .first();
+  const job = await PmsJobModel.findAutomationStatusDetailById(jobId);
 
   if (!job || !job.automation_status_detail) {
     return null;
@@ -584,11 +569,10 @@ export async function getAutomationStatus(
 export async function initializeAutomationStatus(jobId: number): Promise<void> {
   const initialStatus = createInitialStatus();
 
-  await db("pms_jobs")
-    .where({ id: jobId })
-    .update({
-      automation_status_detail: JSON.stringify(initialStatus),
-    });
+  await PmsJobModel.updateAutomationStatusDetailRaw(
+    jobId,
+    JSON.stringify(initialStatus),
+  );
 
   logger.info(`[PMS-AUTOMATION] [${jobId}] Automation status initialized`);
 }

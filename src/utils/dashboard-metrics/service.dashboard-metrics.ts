@@ -16,7 +16,6 @@
  * error in this file.
  */
 
-import { db } from "../../database/connection";
 import { aggregatePmsData } from "../pms/pmsAggregator";
 import { compareMonthKeys } from "../pms/monthKey";
 import { fetchRybbitMonthlyComparison } from "../rybbit/service.rybbit-data";
@@ -24,6 +23,9 @@ import { fetchGBPDataForRange } from "../dataAggregation/dataAggregator";
 import { listLocalPostsInRange } from "../../controllers/gbp/gbp-services/post-handler.service";
 import { GooglePropertyModel } from "../../models/GooglePropertyModel";
 import { getValidOAuth2ClientByOrg } from "../../auth/oauth2Helper";
+import { FormSubmissionModel } from "../../models/website-builder/FormSubmissionModel";
+import { PmsJobModel } from "../../models/PmsJobModel";
+import { PracticeRankingModel } from "../../models/PracticeRankingModel";
 import { ProjectModel } from "../../models/website-builder/ProjectModel";
 import {
   DashboardMetrics,
@@ -332,20 +334,10 @@ async function buildRankingMetrics(
   locationId: number | null
 ): Promise<RankingMetrics> {
   try {
-    let query = db("practice_rankings")
-      .where({ organization_id: orgId, status: "completed" });
-    if (locationId !== null) {
-      query = query.where({ location_id: locationId });
-    }
-    const row = await query
-      .orderBy("created_at", "desc")
-      .select(
-        "rank_position",
-        "rank_score",
-        "total_competitors",
-        "ranking_factors"
-      )
-      .first();
+    const row = await PracticeRankingModel.findLatestCompletedRankingMetrics(
+      orgId,
+      locationId
+    );
 
     if (!row) {
       return {
@@ -447,47 +439,22 @@ async function buildFormSubmissionsMetrics(
       };
     }
 
-    const FS_TABLE = "website_builder.form_submissions";
     const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * MS_PER_DAY);
 
     const [
-      unreadRow,
-      flaggedRow,
-      verifiedRow,
-      verifiedThisWeekRow,
+      unread,
+      flagged,
+      verified,
+      verifiedThisWeek,
       oldestUnreadRow,
     ] = await Promise.all([
-      db(FS_TABLE)
-        .where({ project_id: project.id, is_read: false })
-        .count<{ count: string }[]>("* as count")
-        .first(),
-      db(FS_TABLE)
-        .where({ project_id: project.id, is_flagged: true })
-        .count<{ count: string }[]>("* as count")
-        .first(),
-      db(FS_TABLE)
-        .where({ project_id: project.id, is_flagged: false })
-        .whereNot("form_name", "Newsletter Signup")
-        .count<{ count: string }[]>("* as count")
-        .first(),
-      db(FS_TABLE)
-        .where({ project_id: project.id, is_flagged: false })
-        .whereNot("form_name", "Newsletter Signup")
-        .where("submitted_at", ">=", weekAgo)
-        .count<{ count: string }[]>("* as count")
-        .first(),
-      db(FS_TABLE)
-        .where({ project_id: project.id, is_read: false })
-        .orderBy("submitted_at", "asc")
-        .select("submitted_at")
-        .first(),
+      FormSubmissionModel.countUnreadByProjectId(project.id),
+      FormSubmissionModel.countFlaggedByProjectId(project.id),
+      FormSubmissionModel.countVerifiedByProjectId(project.id),
+      FormSubmissionModel.countVerifiedSinceByProjectId(project.id, weekAgo),
+      FormSubmissionModel.findOldestUnreadSubmittedAt(project.id),
     ]);
-
-    const unread = Number((unreadRow as any)?.count ?? 0);
-    const flagged = Number((flaggedRow as any)?.count ?? 0);
-    const verified = Number((verifiedRow as any)?.count ?? 0);
-    const verifiedThisWeek = Number((verifiedThisWeekRow as any)?.count ?? 0);
 
     let oldestUnreadHours: number | null = null;
     if (oldestUnreadRow?.submitted_at) {
@@ -538,23 +505,10 @@ async function buildPmsMetrics(
 
     // Last upload: most-recent pms_jobs.timestamp for this org (+ optional location).
     let lastUploadDaysAgo: number | null = null;
-    let lastUploadQuery = db("pms_jobs")
-      .where({ organization_id: orgId, is_approved: 1 })
-      .orderBy("timestamp", "desc")
-      .select("timestamp")
-      .first();
-    if (locationId !== null) {
-      lastUploadQuery = db("pms_jobs")
-        .where({
-          organization_id: orgId,
-          location_id: locationId,
-          is_approved: 1,
-        })
-        .orderBy("timestamp", "desc")
-        .select("timestamp")
-        .first();
-    }
-    const lastUpload = await lastUploadQuery;
+    const lastUpload = await PmsJobModel.findLastApprovedUploadTimestamp(
+      orgId,
+      locationId
+    );
     if (lastUpload?.timestamp) {
       const ts =
         lastUpload.timestamp instanceof Date

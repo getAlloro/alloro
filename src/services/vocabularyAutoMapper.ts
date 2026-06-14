@@ -9,7 +9,7 @@
  * The Marcus Lemonis play: walk in, look around, know the business.
  */
 
-import { db } from "../database/connection";
+import { VocabularyConfigModel } from "../models/VocabularyConfigModel";
 import logger from "../lib/logger";
 
 interface VocabularyPreset {
@@ -570,11 +570,11 @@ export async function autoConfigureVocabulary(
   const preset = detectPreset(gbpCategory, gbpTypes);
 
   // Check if vocabulary already configured
-  const existing = await db("vocabulary_configs").where({ org_id: orgId }).first();
+  const existing = await VocabularyConfigModel.findByOrgId(orgId);
   if (existing) return preset;
 
   // Insert vocabulary config
-  await db("vocabulary_configs").insert({
+  await VocabularyConfigModel.insertConfig({
     org_id: orgId,
     vertical: preset.vertical,
     overrides: JSON.stringify(preset),

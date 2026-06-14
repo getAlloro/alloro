@@ -1,17 +1,13 @@
-import db from "../../database/connection";
+import { PmsJobModel } from "../../models/PmsJobModel";
 import logger from "../../lib/logger";
 
 const ZOMBIE_THRESHOLD_MINUTES = 30;
 
 export async function cleanupZombieJobs(): Promise<void> {
   try {
-    const zombies = await db("pms_jobs")
-      .whereRaw(
-        `automation_status_detail::jsonb->>'status' = 'processing'
-         AND automation_status_detail::jsonb->>'startedAt' IS NOT NULL
-         AND (NOW() - (automation_status_detail::jsonb->>'startedAt')::timestamptz) > interval '${ZOMBIE_THRESHOLD_MINUTES} minutes'`,
-      )
-      .select("id", "organization_id", "location_id", "automation_status_detail");
+    const zombies = await PmsJobModel.findZombieProcessingJobs(
+      ZOMBIE_THRESHOLD_MINUTES,
+    );
 
     if (zombies.length === 0) {
       logger.info("[startup] No zombie jobs found");
@@ -23,13 +19,7 @@ export async function cleanupZombieJobs(): Promise<void> {
     );
 
     for (const job of zombies) {
-      await db("pms_jobs")
-        .where("id", job.id)
-        .update({
-          automation_status_detail: db.raw(
-            `jsonb_set(jsonb_set(automation_status_detail::jsonb, '{status}', '"failed"'), '{message}', '"Server restarted — run interrupted and marked failed on startup"')`,
-          ),
-        });
+      await PmsJobModel.markZombieFailed(job.id);
 
       logger.info(
         `[startup]   Reset job ${job.id} (org=${job.organization_id}, location=${job.location_id}) from processing → failed`,

@@ -9,11 +9,9 @@
  * never throw.
  */
 
-import { db } from "../../database/connection";
+import { ProjectModel } from "../../models/website-builder/ProjectModel";
 import { resolveRybbitTimeZone } from "./rybbit-time-zone";
 import logger from "../../lib/logger";
-
-const PROJECTS_TABLE = "website_builder.projects";
 
 const RYBBIT_API_URL = process.env.RYBBIT_API_URL || "";
 const RYBBIT_API_KEY = process.env.RYBBIT_API_KEY || "";
@@ -36,10 +34,9 @@ export async function getRybbitSiteConfig(
   organizationId: number
 ): Promise<RybbitSiteConfig | null> {
   try {
-    const project = await db(PROJECTS_TABLE)
-      .select("rybbit_site_id", "rybbit_time_zone")
-      .where("organization_id", organizationId)
-      .first();
+    const project = await ProjectModel.findRybbitConfigByOrganizationId(
+      organizationId
+    );
 
     if (!project?.rybbit_site_id) return null;
     return {

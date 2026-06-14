@@ -8,7 +8,7 @@
  * definition outside this file fails the build.
  */
 
-import { db } from "../database/connection";
+import { OrganizationModel } from "../models/OrganizationModel";
 
 // ---- Per-Org Pricing (actual contracted rates) --------------------------------
 // Update this map when pricing changes. It is the ONLY place pricing lives.
@@ -84,12 +84,7 @@ export function getMRRBreakdown(orgs: { id: number }[]): MRRBreakdown {
 // ---- Database-backed MRR (for backend services) --------------------------------
 
 export async function getMRRFromDB(): Promise<MRRBreakdown> {
-  const orgs = await db("organizations")
-    .where(function (this: any) {
-      this.where("subscription_status", "active")
-        .orWhereNotNull("subscription_tier");
-    })
-    .select("id");
+  const orgs = await OrganizationModel.findMrrEligibleIds();
 
   return getMRRBreakdown(orgs);
 }

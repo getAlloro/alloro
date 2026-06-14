@@ -146,6 +146,26 @@ export class GoogleConnectionModel extends BaseModel {
   }
 
   /**
+   * First Google connection for an org with no scope/order constraints,
+   * returned as a raw row (untyped) to match the original untyped
+   * `db(...).first()` consumption — the notification helper reads columns
+   * (practice_name, domain_name) beyond IGoogleConnection. Mirrors the plain
+   * inline lookup in utils/core/notificationHelper.createNotification verbatim
+   * — distinct from findOneByOrganization, which additionally filters on GBP
+   * scope and orders.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findFirstByOrganization(
+    orgId: number,
+    trx?: QueryContext
+  ): Promise<any> {
+    const row = await this.table(trx)
+      .where({ organization_id: orgId })
+      .first();
+    return row ? this.deserializeJsonFields(row) : undefined;
+  }
+
+  /**
    * The organization's primary Google connection — the GBP-capable row.
    * Auxiliary connections (GSC-only harvest accounts, admin overrides) are
    * excluded so they never leak into onboarding status, locations, PMS, or
