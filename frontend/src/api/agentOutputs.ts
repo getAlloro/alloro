@@ -11,8 +11,20 @@ import type {
   DeleteResponse,
   BulkDeleteResponse,
 } from "../types/agentOutputs";
+import { getCommonHeaders } from "./index";
 
 const API_BASE = "/api/admin/agent-outputs";
+
+// Attach the Bearer token (via getCommonHeaders) to every admin agent-outputs
+// call. These routes are protected by the app-level auth guard; bare fetch
+// would 401.
+const adminFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
+  const headers = new Headers(init.headers);
+  Object.entries(getCommonHeaders()).forEach(([key, value]) => {
+    if (!headers.has(key)) headers.set(key, value);
+  });
+  return fetch(input, { ...init, headers });
+};
 
 /**
  * Fetch all agent outputs with filters (admin only)
@@ -28,7 +40,7 @@ export const fetchAgentOutputs = async (
     }
   });
 
-  const response = await fetch(
+  const response = await adminFetch(
     `${API_BASE}${params.toString() ? `?${params.toString()}` : ""}`
   );
 
@@ -45,7 +57,7 @@ export const fetchAgentOutputs = async (
 export const fetchAgentOutputDetail = async (
   id: number
 ): Promise<AgentOutputDetailResponse> => {
-  const response = await fetch(`${API_BASE}/${id}`);
+  const response = await adminFetch(`${API_BASE}/${id}`);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch agent output: ${response.statusText}`);
@@ -58,7 +70,7 @@ export const fetchAgentOutputDetail = async (
  * Get organizations for filter dropdown
  */
 export const fetchOrganizations = async (): Promise<OrganizationsResponse> => {
-  const response = await fetch(`${API_BASE}/organizations`);
+  const response = await adminFetch(`${API_BASE}/organizations`);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch organizations: ${response.statusText}`);
@@ -71,7 +83,7 @@ export const fetchOrganizations = async (): Promise<OrganizationsResponse> => {
  * Get unique agent types for filter dropdown
  */
 export const fetchAgentTypes = async (): Promise<AgentTypesResponse> => {
-  const response = await fetch(`${API_BASE}/agent-types`);
+  const response = await adminFetch(`${API_BASE}/agent-types`);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch agent types: ${response.statusText}`);
@@ -85,7 +97,7 @@ export const fetchAgentTypes = async (): Promise<AgentTypesResponse> => {
  */
 export const fetchAgentOutputStats =
   async (): Promise<AgentOutputStatsResponse> => {
-    const response = await fetch(`${API_BASE}/stats/summary`);
+    const response = await adminFetch(`${API_BASE}/stats/summary`);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch stats: ${response.statusText}`);
@@ -100,7 +112,7 @@ export const fetchAgentOutputStats =
 export const archiveAgentOutput = async (
   id: number
 ): Promise<ArchiveResponse> => {
-  const response = await fetch(`${API_BASE}/${id}/archive`, {
+  const response = await adminFetch(`${API_BASE}/${id}/archive`, {
     method: "PATCH",
   });
 
@@ -118,7 +130,7 @@ export const archiveAgentOutput = async (
 export const unarchiveAgentOutput = async (
   id: number
 ): Promise<ArchiveResponse> => {
-  const response = await fetch(`${API_BASE}/${id}/unarchive`, {
+  const response = await adminFetch(`${API_BASE}/${id}/unarchive`, {
     method: "PATCH",
   });
 
@@ -136,7 +148,7 @@ export const unarchiveAgentOutput = async (
 export const bulkArchiveAgentOutputs = async (
   ids: number[]
 ): Promise<BulkArchiveResponse> => {
-  const response = await fetch(`${API_BASE}/bulk/archive`, {
+  const response = await adminFetch(`${API_BASE}/bulk/archive`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -158,7 +170,7 @@ export const bulkArchiveAgentOutputs = async (
 export const bulkUnarchiveAgentOutputs = async (
   ids: number[]
 ): Promise<BulkUnarchiveResponse> => {
-  const response = await fetch(`${API_BASE}/bulk/unarchive`, {
+  const response = await adminFetch(`${API_BASE}/bulk/unarchive`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -180,7 +192,7 @@ export const bulkUnarchiveAgentOutputs = async (
 export const deleteAgentOutput = async (
   id: number
 ): Promise<DeleteResponse> => {
-  const response = await fetch(`${API_BASE}/${id}`, {
+  const response = await adminFetch(`${API_BASE}/${id}`, {
     method: "DELETE",
   });
 
@@ -198,7 +210,7 @@ export const deleteAgentOutput = async (
 export const bulkDeleteAgentOutputs = async (
   ids: number[]
 ): Promise<BulkDeleteResponse> => {
-  const response = await fetch(`${API_BASE}/bulk/delete`, {
+  const response = await adminFetch(`${API_BASE}/bulk/delete`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

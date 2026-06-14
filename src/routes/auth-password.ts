@@ -12,22 +12,29 @@
 
 import express from "express";
 import * as authPasswordController from "../controllers/auth-password/AuthPasswordController";
+import { authLimiter } from "../middleware/publicRateLimiter";
 
 const authPasswordRoutes = express.Router();
 
-authPasswordRoutes.post("/register", authPasswordController.register);
-authPasswordRoutes.post("/verify-email", authPasswordController.verifyEmail);
-authPasswordRoutes.post("/login", authPasswordController.login);
+// Every endpoint here is part of an unauthenticated credential/code flow
+// (registration, login, email verification, password reset). All are
+// rate-limited to blunt credential stuffing and code brute-force.
+authPasswordRoutes.post("/register", authLimiter, authPasswordController.register);
+authPasswordRoutes.post("/verify-email", authLimiter, authPasswordController.verifyEmail);
+authPasswordRoutes.post("/login", authLimiter, authPasswordController.login);
 authPasswordRoutes.post(
   "/resend-verification",
+  authLimiter,
   authPasswordController.resendVerification
 );
 authPasswordRoutes.post(
   "/forgot-password",
+  authLimiter,
   authPasswordController.forgotPassword
 );
 authPasswordRoutes.post(
   "/reset-password",
+  authLimiter,
   authPasswordController.resetPassword
 );
 

@@ -6,6 +6,7 @@
  */
 
 import { Response } from "express";
+import crypto from "crypto";
 import { AuthRequest } from "../../middleware/auth";
 import { db } from "../../database/connection";
 import bcrypt from "bcrypt";
@@ -901,21 +902,25 @@ function generateTempPassword(): string {
   const digits = "23456789";
   const all = upper + lower + digits;
 
-  // Ensure at least 1 uppercase, 1 lowercase, 1 digit
-  let password = "";
-  password += upper[Math.floor(Math.random() * upper.length)];
-  password += lower[Math.floor(Math.random() * lower.length)];
-  password += digits[Math.floor(Math.random() * digits.length)];
+  // crypto.randomInt is uniform and unpredictable (unlike Math.random, which is
+  // not a CSPRNG and must never seed a credential).
+  const pick = (charset: string): string =>
+    charset[crypto.randomInt(charset.length)];
 
+  // Ensure at least 1 uppercase, 1 lowercase, 1 digit
+  const chars: string[] = [pick(upper), pick(lower), pick(digits)];
   for (let i = 3; i < 12; i++) {
-    password += all[Math.floor(Math.random() * all.length)];
+    chars.push(pick(all));
   }
 
-  // Shuffle
-  return password
-    .split("")
-    .sort(() => Math.random() - 0.5)
-    .join("");
+  // Unbiased Fisher–Yates shuffle (the old `.sort(() => Math.random() - 0.5)`
+  // is statistically biased and non-cryptographic).
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+
+  return chars.join("");
 }
 
 /**

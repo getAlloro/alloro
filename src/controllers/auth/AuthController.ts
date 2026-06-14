@@ -10,10 +10,7 @@ import * as OAuthFlowService from "./feature-services/OAuthFlowService";
 import * as TokenManagementService from "./feature-services/TokenManagementService";
 import * as ScopeManagementService from "./feature-services/ScopeManagementService";
 import { db } from "../../database/connection";
-
-function getJwtSecret(): string {
-  return process.env.JWT_SECRET || "dev-secret-key-change-in-prod";
-}
+import { getJwtSecret } from "../../config/jwt";
 
 /**
  * Tries to extract userId and orgId from the Authorization header.

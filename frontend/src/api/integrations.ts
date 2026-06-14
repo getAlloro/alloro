@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from "./index";
+import { apiGet, apiPost, getCommonHeaders } from "./index";
 
 /**
  * Website Integrations API — admin portal client for per-website connectors.
@@ -309,9 +309,11 @@ interface ApiFailure {
 const BASE = "/api/admin/websites";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  // Attach the Bearer token — these /api/admin/websites/* routes are protected
+  // by the app-level auth guard; bare fetch would 401.
   const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...init,
+    headers: { "Content-Type": "application/json", ...getCommonHeaders(), ...init?.headers },
   });
   if (!res.ok) {
     let msg = res.statusText;

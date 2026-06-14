@@ -314,7 +314,8 @@ export async function resendVerification(req: Request, res: Response) {
 
     await UserModel.setVerificationCode(user.id, code, expiresAt);
 
-    console.log(`[AUTH] Verification code for ${normalizedEmail}: ${code}`);
+    // SECURITY: never log the one-time code value. The "resent" confirmation
+    // below logs the email only, without the code.
 
     const emailResult = await sendEmail({
       subject: "Verify your Alloro account",

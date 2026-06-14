@@ -25,6 +25,7 @@
 import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
 import { db } from "../database/connection";
+import { getJwtSecret } from "../config/jwt";
 
 const EXEMPT_PREFIXES = [
   "/api/auth",
@@ -64,10 +65,7 @@ export const billingGateMiddleware = async (
     let userId: number | undefined;
 
     try {
-      const decoded = jwt.verify(
-        token,
-        process.env.JWT_SECRET || "secret"
-      ) as any;
+      const decoded = jwt.verify(token, getJwtSecret()) as any;
       userId = decoded.userId;
     } catch {
       // Invalid/expired JWT — let downstream auth middleware handle it

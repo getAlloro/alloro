@@ -68,6 +68,7 @@ import internalApiRoutes from "./routes/internalApi";
 import billingRoutes from "./routes/billing";
 import appTelemetryRoutes from "./routes/appTelemetry";
 import { billingGateMiddleware } from "./middleware/billingGate";
+import { requireAuthUnlessPublic } from "./middleware/publicRoutes";
 import {
   isAllowedCustomDomain,
   startCustomDomainCacheRefresh,
@@ -158,6 +159,16 @@ app.get("/api/sentry-test", () => {
 
 // Billing gate — blocks locked-out orgs from protected routes (self-sufficient JWT parsing)
 app.use(billingGateMiddleware);
+
+// Default-deny auth — every /api route requires a valid JWT unless it is on the
+// explicit public allowlist in middleware/publicRoutes.ts. This is the app-level
+// guard that closes the class of unauthenticated admin/destructive endpoints.
+// Mounted AFTER the billing gate (so lockout still resolves first) and BEFORE
+// the router mounts below. Non-/api assets (the SPA / Vite proxy) are served
+// past the routers and are unaffected — this guard only 401s /api requests, and
+// the static/proxy handlers below never see allowlist misses because every
+// route under /api is itself either public-listed or genuinely protected.
+app.use(requireAuthUnlessPublic);
 
 app.use(router);
 app.use("/api/gbp", gbpRoutes);

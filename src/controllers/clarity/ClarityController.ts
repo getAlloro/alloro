@@ -15,9 +15,17 @@ import {
 /**
  * GET /clarity/diag/projects
  * Returns all domain mappings for diagnostics.
+ *
+ * Strips clarity_apiToken before responding — secrets must never leave the
+ * server via a diagnostics endpoint. (The tokens have been removed from source
+ * entirely; this is defense-in-depth in case the field is ever repopulated.)
  */
 export const getDiagProjects = (_req: Request, res: Response) => {
-  return res.json(domainMappings);
+  const sanitized = domainMappings.map(({ clarity_apiToken, ...rest }) => {
+    void clarity_apiToken; // intentionally dropped from the response
+    return rest;
+  });
+  return res.json(sanitized);
 };
 
 /**

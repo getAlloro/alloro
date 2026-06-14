@@ -44,6 +44,7 @@ import type {
   WebsitePage,
 } from "../../api/websites";
 import { toast } from "react-hot-toast";
+import { getCommonHeaders } from "../../api";
 
 interface AiCommandTabProps {
   projectId: string;
@@ -110,7 +111,9 @@ export default function AiCommandTab({ projectId, pages = [], onExecutionComplet
     if (postsLoaded) return;
     (async () => {
       try {
-        const response = await fetch(`/api/admin/websites/${projectId}/posts`);
+        const response = await fetch(`/api/admin/websites/${projectId}/posts`, {
+          headers: getCommonHeaders(),
+        });
         if (response.ok) {
           const data = await response.json();
           setPosts(data.data || []);

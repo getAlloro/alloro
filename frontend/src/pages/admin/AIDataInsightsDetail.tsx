@@ -28,6 +28,7 @@ import { staggerContainer, cardVariants, fadeInUp } from "../../lib/animations";
 import { ConfirmModal } from "../../components/settings/ConfirmModal";
 import { AlertModal } from "../../components/ui/AlertModal";
 import { getAgentIcon } from "../../lib/adminIcons";
+import { getCommonHeaders } from "../../api";
 // AgentRecommendation type used indirectly via TQ hook data
 
 import {
@@ -92,7 +93,7 @@ export default function AIDataInsightsDetail() {
         try {
           const response = await fetch(
             `/api/admin/agent-insights/${agentType}/recommendations/mark-all-completed`,
-            { method: "PATCH" }
+            { method: "PATCH", headers: getCommonHeaders() }
           );
           const data = await response.json();
           if (data.success) {
@@ -140,7 +141,7 @@ export default function AIDataInsightsDetail() {
             "/api/admin/agent-insights/recommendations/bulk-delete",
             {
               method: "DELETE",
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", ...getCommonHeaders() },
               body: JSON.stringify({ ids: Array.from(selectedIds) }),
             }
           );

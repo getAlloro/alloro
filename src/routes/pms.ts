@@ -96,14 +96,19 @@ pmsRoutes.get("/jobs/:id/automation-status", authenticateToken, rbacMiddleware, 
 pmsRoutes.get("/automation/active", authenticateToken, rbacMiddleware, controller.getActiveAutomations);
 
 // =====================================================================
-// ADMIN ENDPOINTS (No auth — accessed from admin dashboard)
+// ADMIN ENDPOINTS (accessed from the admin dashboard)
+// Now require a valid JWT. The app-level default-deny guard also protects these
+// (/api/pms is not on the public allowlist); authenticateToken is declared here
+// too so the requirement is explicit at the route and matches the client block
+// above. Includes destructive ops (DELETE /jobs/:id, POST /jobs/:id/restart),
+// which previously shipped with no auth at all.
 // =====================================================================
 
-pmsRoutes.get("/jobs", controller.listJobs);
-pmsRoutes.patch("/jobs/:id/approval", controller.approveJob);
-pmsRoutes.patch("/jobs/:id/response", controller.updateResponseLog);
-pmsRoutes.delete("/jobs/:id", controller.deleteJob);
-pmsRoutes.post("/jobs/:id/retry", controller.retryJob);
-pmsRoutes.post("/jobs/:id/restart", controller.restartJob);
+pmsRoutes.get("/jobs", authenticateToken, controller.listJobs);
+pmsRoutes.patch("/jobs/:id/approval", authenticateToken, controller.approveJob);
+pmsRoutes.patch("/jobs/:id/response", authenticateToken, controller.updateResponseLog);
+pmsRoutes.delete("/jobs/:id", authenticateToken, controller.deleteJob);
+pmsRoutes.post("/jobs/:id/retry", authenticateToken, controller.retryJob);
+pmsRoutes.post("/jobs/:id/restart", authenticateToken, controller.restartJob);
 
 export default pmsRoutes;

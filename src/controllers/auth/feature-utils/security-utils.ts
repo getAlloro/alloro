@@ -1,18 +1,14 @@
 import crypto from "crypto";
-
-function getJwtSecret(): string {
-  return process.env.JWT_SECRET || "dev-secret-key-change-in-prod";
-}
+import { getJwtSecret } from "../../../config/jwt";
 
 /**
  * Generates a secure random state parameter for CSRF protection.
- * @returns Random state string
+ * Uses crypto.randomBytes (cryptographically secure) rather than Math.random,
+ * which is predictable and unsuitable for security tokens.
+ * @returns Random state string (48 hex chars)
  */
 export function generateSecureState(): string {
-  return (
-    Math.random().toString(36).substring(2, 15) +
-    Math.random().toString(36).substring(2, 15)
-  );
+  return crypto.randomBytes(24).toString("hex");
 }
 
 /** State TTL — 10 minutes */

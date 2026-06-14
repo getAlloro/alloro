@@ -1,7 +1,14 @@
 import express from "express";
 import * as appLogsController from "../controllers/appLogs/appLogsController";
+import { authenticateToken } from "../middleware/auth";
+import { superAdminMiddleware } from "../middleware/superAdmin";
 
 const router = express.Router();
+
+// Super-admin only — app logs can expose sensitive operational data. The
+// app-level guard enforces authentication globally; this adds the super-admin
+// requirement at the router level.
+router.use(authenticateToken, superAdminMiddleware);
 
 /**
  * GET /api/admin/app-logs

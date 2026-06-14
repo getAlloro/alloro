@@ -28,6 +28,24 @@ const artifactUpload = multer({
 });
 
 // =====================================================================
+// MACHINE CALLBACK (PUBLIC — must be declared BEFORE the auth hoist and before
+// the /:id routes). This is an inbound N8N callback that reports page-generation
+// status; it does not carry a super-admin JWT. It stays unauthenticated to
+// preserve the pipeline. (Residual exposure — a dedicated internal-key gate is
+// follow-up work, intentionally out of scope for this hotfix.)
+// =====================================================================
+
+// PATCH /pages/:pageId/generation-status — N8N callback to update page status
+router.patch("/pages/:pageId/generation-status", controller.updatePageGenerationStatus);
+
+// =====================================================================
+// AUTH HOIST — every route below requires authenticated super-admin. Replaces
+// the per-route `...adminWebsiteAuth` spreads (which remain idempotent if still
+// present) and also covers the mounted imports sub-router at the bottom.
+// =====================================================================
+router.use(...adminWebsiteAuth);
+
+// =====================================================================
 // PROJECTS (non-parameterized routes first)
 // =====================================================================
 
@@ -40,15 +58,8 @@ router.post("/", controller.createProject);
 // GET  /statuses — Get unique statuses
 router.get("/statuses", controller.getStatuses);
 
-// POST /start-pipeline — Trigger N8N webhook
+// POST /start-pipeline — Trigger N8N webhook (admin-triggered, now guarded)
 router.post("/start-pipeline", controller.startPipeline);
-
-// =====================================================================
-// PAGE GENERATION STATUS (non-parameterized by project — must be before /:id)
-// =====================================================================
-
-// PATCH /pages/:pageId/generation-status — N8N callback to update page status
-router.patch("/pages/:pageId/generation-status", controller.updatePageGenerationStatus);
 
 // =====================================================================
 // TEMPLATES
