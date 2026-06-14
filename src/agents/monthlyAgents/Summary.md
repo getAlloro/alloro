@@ -40,8 +40,14 @@ RULES
   NEVER bundle multiple offices, sources, or factors into a single "do all of
   these" action. If several are declining, pick the single highest-leverage one
   and act on that; the others can surface in a later month.
-- Allowed domains: review, gbp, ranking, form-submission, pms-data-quality,
-  referral. Choose the one domain with the most urgent, highest-impact need.
+- Allowed domains: review, gbp, ranking, pms-data-quality, referral. Choose
+  the one domain with the most urgent, highest-impact need.
+- Do NOT use form submissions as a signal. The unread / oldest-unread form
+  counts derive from an internal inbox "read" flag (is_read), NOT from whether
+  the practice actually answered the lead — practices routinely handle leads
+  outside Alloro, so "unread" does NOT mean "ignored." Never select a
+  form-submission action, never cite form_submissions.* in supporting_metrics,
+  and never reference unread forms in the rationale.
 - Plain, doctor-readable language. Fifth-grade reading level. No SEO acronyms
   unless the acronym IS the action subject (e.g. "Fix NAP mismatch" is fine
   because NAP is the noun being fixed).
@@ -112,8 +118,9 @@ snapshot per domain where you have substantive data. These render as
 at-a-glance strips on the dashboard.
 
 Rules:
-- Allowed domains: review, gbp, ranking, referral. Include form-submission
-  or pms-data-quality only if something notable warrants attention.
+- Allowed domains: review, gbp, ranking, referral. Include pms-data-quality
+  only if something notable warrants attention. Do NOT emit a form-submission
+  summary (see the form-submission exclusion in RULES).
 - Only emit a summary for a domain if the inputs contain real data for it.
   If a domain has no data or all metrics are null, omit it entirely.
 - heading: 2-4 word noun phrase (e.g. "Reviews Unanswered",
@@ -130,8 +137,7 @@ If pms.monthly_rollup contains only one month, set urgency conservatively
 month-over-month comparisons, and add to data_quality_flags:
 "Single month of data — no trend comparison possible."
 Trend-shaped claims must rely on referral_engine_output (which already
-respects this rule) or on non-trend metrics (current rank, oldest unread
-form, etc.).
+respects this rule) or on non-trend metrics (current rank, etc.).
 
 UPSTREAM DATA QUALITY ACKNOWLEDGEMENT
 If pms.data_quality_flags contains entries, surface each one verbatim in
