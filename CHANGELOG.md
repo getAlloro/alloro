@@ -2,6 +2,22 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.124] - June 2026
+
+### Backend Conventions Checker (`code-constitution`)
+
+A read-only static check that surfaces where `src/` drifts from the backend architecture contract, so violations can't grow silently. Companion to the `code-constitution` skill — the refreshed, renamed backend conventions contract (formerly `alloro-conventions`).
+
+**Key Changes:**
+
+- **`scripts/check-conventions.sh` (new)** — reports files over the ~800-line hard ceiling, stray `console.*` in production code (excludes tests/migrations/seeds), `db()` calls outside `models/`, and an advisory list of route files with no inline auth middleware. Read-only: it mounts nothing and changes no runtime behavior — the auth-on-every-route remediation remains the separate Level-4 security hotfix.
+- **`npm run check:conventions`** — wired into `package.json`. Default exits 0 (the backend carries known, in-flight remediation debt); `--strict` exits non-zero when any clear structural violation exists, for use as a CI gate once the debt clears.
+- **Current snapshot:** 25 files over the ceiling, 2 stray `console.*`, 16 `db()` outside `models/`, 19 advisory unguarded routes.
+
+**Commits:**
+
+- `721a1511` — `scripts/check-conventions.sh` (new) + `check:conventions` npm script; `plans/06142026-alloro-conventions-skill-improvements/spec.html` (plan spec, Rev 2).
+
 ## [0.0.123] - June 2026
 
 ### Dashboard Revamp — 24-Item Feedback Round (Plans 0–5)
