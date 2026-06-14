@@ -148,4 +148,33 @@ export class GooglePropertyModel extends BaseModel {
 
     return query;
   }
+
+  /**
+   * Selected GBP locations for the "sync all published local posts" sweep.
+   * Verbatim move of GbpPublishedLocalPostService.syncAll's inline join
+   * (type=gbp, selected, location_id NOT NULL, org not archived; ordered by location_id asc).
+   */
+  static async findSelectedGbpLocationsForSyncAll(
+    filters: { organizationId?: number; locationId?: number; limit?: number },
+    trx?: QueryContext
+  ): Promise<Array<{ organization_id: number; location_id: number }>> {
+    let query = (trx || db)("google_properties as gp")
+      .join("google_connections as gc", "gp.google_connection_id", "gc.id")
+      .join("organizations as o", "gc.organization_id", "o.id")
+      .where("gp.type", "gbp")
+      .where("gp.selected", true)
+      .whereNotNull("gp.location_id")
+      .whereNull("o.archived_at")
+      .select(
+        "gc.organization_id as organization_id",
+        "gp.location_id as location_id"
+      )
+      .orderBy("gp.location_id", "asc");
+
+    if (filters.organizationId) query = query.where("gc.organization_id", filters.organizationId);
+    if (filters.locationId) query = query.where("gp.location_id", filters.locationId);
+    if (filters.limit) query = query.limit(Math.min(Math.max(filters.limit, 1), 500));
+
+    return query;
+  }
 }
