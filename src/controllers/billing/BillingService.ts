@@ -9,12 +9,12 @@
  */
 
 import Stripe from "stripe";
-import { db } from "../../database/connection";
 import { getStripe, getDefaultPriceId, getWebhookSecret } from "../../config/stripe";
 import {
   OrganizationModel,
   IOrganization,
 } from "../../models/OrganizationModel";
+import { LocationModel } from "../../models/LocationModel";
 import { updateTier } from "../admin-organizations/feature-services/TierManagementService";
 import { OrganizationUserModel } from "../../models/OrganizationUserModel";
 import { sendEmail } from "../../emails/emailService";
@@ -109,10 +109,8 @@ export async function createCheckoutSession(
   if (org.billing_quantity_override != null) {
     locationCount = org.billing_quantity_override;
   } else {
-    const locationCountResult = await db("locations")
-      .where({ organization_id: orgId })
-      .count("id as count")
-      .first();
+    const locationCountResult =
+      await LocationModel.countByOrganizationId(orgId);
     locationCount = Math.max(Number(locationCountResult?.count) || 0, 1);
   }
 
@@ -202,15 +200,9 @@ export async function createPortalSession(
 export async function getSubscriptionStatus(
   orgId: number
 ): Promise<BillingStatus> {
-  const org = (await db("organizations")
-    .where({ id: orgId })
-    .select(
-      "subscription_tier",
-      "subscription_status",
-      "stripe_customer_id",
-      "stripe_subscription_id"
-    )
-    .first()) as any;
+  const org = (await OrganizationModel.findBillingStatusFieldsById(
+    orgId
+  )) as any;
 
   if (!org) {
     throw { statusCode: 404, message: "Organization not found" };
@@ -268,10 +260,7 @@ export async function getSubscriptionStatus(
 export async function getBillingDetails(
   orgId: number
 ): Promise<BillingDetails> {
-  const org = (await db("organizations")
-    .where({ id: orgId })
-    .select("stripe_customer_id", "stripe_subscription_id")
-    .first()) as any;
+  const org = (await OrganizationModel.findStripeIdsById(orgId)) as any;
 
   if (!org) {
     throw { statusCode: 404, message: "Organization not found" };
@@ -455,18 +444,19 @@ async function handleCheckoutCompleted(
     `[Stripe Webhook] Checkout completed for org ${organizationId}, tier: ${tier}`
   );
 
-  const trx = await db.transaction();
+  const trx = await OrganizationModel.beginTransaction();
   try {
     // Save Stripe customer and subscription IDs
-    await trx("organizations")
-      .where({ id: organizationId })
-      .update({
+    await OrganizationModel.updateStripeIdentifiersOnCheckout(
+      organizationId,
+      {
         stripe_customer_id: customerId || null,
         stripe_subscription_id: subscriptionId || null,
-        subscription_status: "active",
         subscription_started_at: new Date(),
         subscription_updated_at: new Date(),
-      });
+      },
+      trx
+    );
 
     // Update tier if specified (triggers DFY upgrade logic if applicable)
     if (tier && ["DWY", "DFY"].includes(tier)) {
@@ -498,12 +488,10 @@ async function handlePaymentSucceeded(
 
   if (!customerId) return;
 
-  await db("organizations")
-    .where({ stripe_customer_id: customerId })
-    .update({
-      subscription_status: "active",
-      subscription_updated_at: new Date(),
-    });
+  await OrganizationModel.updateSubscriptionStatusByCustomerId(
+    customerId,
+    "active"
+  );
 
   logger.info(
     `[Stripe Webhook] Payment succeeded for customer ${customerId}`
@@ -543,12 +531,10 @@ async function handleSubscriptionDeleted(
 
   if (!customerId) return;
 
-  await db("organizations")
-    .where({ stripe_customer_id: customerId })
-    .update({
-      subscription_status: "cancelled",
-      subscription_updated_at: new Date(),
-    });
+  await OrganizationModel.updateSubscriptionStatusByCustomerId(
+    customerId,
+    "cancelled"
+  );
 
   logger.info(
     `[Stripe Webhook] Subscription deleted for customer ${customerId}`
@@ -575,10 +561,8 @@ export async function syncSubscriptionQuantity(
     if (org.billing_quantity_override != null) {
       newQuantity = org.billing_quantity_override;
     } else {
-      const result = await db("locations")
-        .where({ organization_id: organizationId })
-        .count("id as count")
-        .first();
+      const result =
+        await LocationModel.countByOrganizationId(organizationId);
       newQuantity = Math.max(Number(result?.count) || 0, 1);
     }
 
@@ -674,12 +658,10 @@ async function handleSubscriptionUpdated(
   const status =
     subscription.status === "active" ? "active" : "inactive";
 
-  await db("organizations")
-    .where({ stripe_customer_id: customerId })
-    .update({
-      subscription_status: status,
-      subscription_updated_at: new Date(),
-    });
+  await OrganizationModel.updateSubscriptionStatusByCustomerId(
+    customerId,
+    status
+  );
 
   logger.info(
     `[Stripe Webhook] Subscription updated for customer ${customerId}, status: ${status}`

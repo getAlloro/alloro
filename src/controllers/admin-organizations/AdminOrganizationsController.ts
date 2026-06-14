@@ -8,7 +8,6 @@
 import { Response } from "express";
 import crypto from "crypto";
 import { AuthRequest } from "../../middleware/auth";
-import { db } from "../../database/connection";
 import bcrypt from "bcrypt";
 import {
   OrganizationListView,
@@ -507,7 +506,7 @@ export async function updateTier(
   req: AuthRequest,
   res: Response
 ): Promise<Response> {
-  const trx = await db.transaction();
+  const trx = await OrganizationModel.beginTransaction();
 
   try {
     const orgId = parseInt(req.params.id);

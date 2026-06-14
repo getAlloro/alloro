@@ -20,12 +20,13 @@
  */
 
 import { Request, Response } from "express";
-import { db } from "../../database/connection";
 import {
   FinalStage,
   ILeadgenSession,
+  LeadgenSessionModel,
   STAGE_ORDER,
 } from "../../models/LeadgenSessionModel";
+import { LeadgenEventModel } from "../../models/LeadgenEventModel";
 import {
   isLaterStage,
   shouldSetAbandoned,
@@ -161,9 +162,9 @@ export async function upsertSession(
     }
 
     const userAgent = req.headers["user-agent"];
-    const existing = (await db("leadgen_sessions")
-      .where({ id: session_id })
-      .first()) as ILeadgenSession | undefined;
+    const existing = (await LeadgenSessionModel.findById(session_id)) as
+      | ILeadgenSession
+      | undefined;
 
     const now = new Date();
 
@@ -208,12 +209,12 @@ export async function upsertSession(
         }
       }
 
-      await db("leadgen_sessions").where({ id: session_id }).update(update);
+      await LeadgenSessionModel.patchById(session_id, update);
     } else {
       const parsed = parseUserAgent(
         typeof userAgent === "string" ? userAgent : null
       );
-      await db("leadgen_sessions").insert({
+      await LeadgenSessionModel.insertRow({
         id: session_id,
         referrer: typeof referrer === "string" ? referrer : null,
         utm_source: typeof utm_source === "string" ? utm_source : null,
@@ -282,12 +283,12 @@ async function ingestEvent(body: unknown): Promise<{
   const now = new Date();
 
   // Load (or defensively create) the session.
-  let session = (await db("leadgen_sessions")
-    .where({ id: session_id })
-    .first()) as ILeadgenSession | undefined;
+  let session = (await LeadgenSessionModel.findById(session_id)) as
+    | ILeadgenSession
+    | undefined;
 
   if (!session) {
-    await db("leadgen_sessions").insert({
+    await LeadgenSessionModel.insertRow({
       id: session_id,
       final_stage: "landed",
       completed: false,
@@ -297,9 +298,9 @@ async function ingestEvent(body: unknown): Promise<{
       created_at: now,
       updated_at: now,
     });
-    session = (await db("leadgen_sessions")
-      .where({ id: session_id })
-      .first()) as ILeadgenSession;
+    session = (await LeadgenSessionModel.findById(
+      session_id
+    )) as ILeadgenSession;
   }
 
   // Strict-order gate for progression stage events. CTA / interaction
@@ -328,7 +329,7 @@ async function ingestEvent(body: unknown): Promise<{
   }
 
   // Insert the event row.
-  await db("leadgen_events").insert({
+  await LeadgenEventModel.insertRow({
     session_id,
     event_name,
     event_data:
@@ -407,7 +408,7 @@ async function ingestEvent(body: unknown): Promise<{
     }
   }
 
-  await db("leadgen_sessions").where({ id: session_id }).update(patch);
+  await LeadgenSessionModel.patchById(session_id, patch);
 
   return { status: 200, body: { ok: true } };
 }
@@ -477,12 +478,12 @@ async function recordServerSideEvent(
 ): Promise<void> {
   // Idempotent insert: skip if a row with this (session_id, event_name)
   // already exists. Mirrors service.audit-milestone-events.ts.
-  const existing = await db("leadgen_events")
-    .select("id")
-    .where({ session_id, event_name })
-    .first();
-  if (!existing) {
-    await db("leadgen_events").insert({
+  const exists = await LeadgenEventModel.existsForSessionEvent(
+    session_id,
+    event_name
+  );
+  if (!exists) {
+    await LeadgenEventModel.insertRow({
       session_id,
       event_name,
       event_data: { source },
@@ -531,9 +532,7 @@ export async function submitEmailNotify(
       return res.status(400).json({ ok: false, error: "invalid_email" });
     }
 
-    const session = await db<ILeadgenSession>("leadgen_sessions")
-      .where({ id: session_id })
-      .first();
+    const session = await LeadgenSessionModel.findById(session_id);
     if (!session) {
       return res.status(404).json({ ok: false, error: "session_not_found" });
     }
@@ -547,7 +546,7 @@ export async function submitEmailNotify(
       patch.final_stage = "email_submitted";
     }
     if (Object.keys(patch).length > 0) {
-      await db("leadgen_sessions").where({ id: session_id }).update(patch);
+      await LeadgenSessionModel.patchById(session_id, patch);
     }
 
     // Server-authoritative funnel events. The FAB displaying = an email
@@ -601,11 +600,7 @@ export async function getSessionByAudit(
     // Pick the OLDEST matching session — if somehow more than one row
     // got stamped with this audit_id (e.g. an earlier phantom case
     // before this fix landed), treat the first as canonical.
-    const row = await db<ILeadgenSession>("leadgen_sessions")
-      .select("id")
-      .where({ audit_id: auditId })
-      .orderBy("first_seen_at", "asc")
-      .first();
+    const row = await LeadgenSessionModel.findOldestByAuditId(auditId);
 
     return res.json({ ok: true, session_id: row?.id ?? null });
   } catch (error) {
@@ -657,9 +652,7 @@ export async function submitEmailPaywall(
       return res.status(400).json({ ok: false, error: "invalid_email" });
     }
 
-    const session = await db<ILeadgenSession>("leadgen_sessions")
-      .where({ id: session_id })
-      .first();
+    const session = await LeadgenSessionModel.findById(session_id);
     if (!session) {
       return res.status(404).json({ ok: false, error: "session_not_found" });
     }
@@ -671,7 +664,7 @@ export async function submitEmailPaywall(
       patch.final_stage = "email_submitted";
     }
     if (Object.keys(patch).length > 0) {
-      await db("leadgen_sessions").where({ id: session_id }).update(patch);
+      await LeadgenSessionModel.patchById(session_id, patch);
     }
 
     // Server-authoritative funnel events. Idempotent — won't double-write

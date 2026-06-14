@@ -1,5 +1,4 @@
 import { OAuth2Client } from "google-auth-library";
-import { db } from "../../../database/connection";
 import { UserModel, IUser } from "../../../models/UserModel";
 import { GoogleConnectionModel, IGoogleConnection } from "../../../models/GoogleConnectionModel";
 import { OrganizationUserModel } from "../../../models/OrganizationUserModel";
@@ -239,7 +238,7 @@ export async function completeOAuthFlow(
 ): Promise<OAuthFlowResult> {
   logger.info("[AUTH] Starting database transaction");
 
-  const result = await db.transaction(async (trx) => {
+  const result = await UserModel.transaction(async (trx) => {
     let user: IUser;
 
     if (authenticatedContext) {

@@ -1,4 +1,3 @@
-import { db } from "../../../database/connection";
 import { GoogleConnectionModel } from "../../../models/GoogleConnectionModel";
 import { OrganizationModel } from "../../../models/OrganizationModel";
 import { OrganizationUserModel } from "../../../models/OrganizationUserModel";
@@ -31,7 +30,7 @@ export async function completeOnboardingWithProfile(
   googleAccountId: number,
   profileData: ProfileData
 ): Promise<ProfileCompletionResult> {
-  await db.transaction(async (trx) => {
+  await OrganizationModel.transaction(async (trx) => {
     const googleAccount = await GoogleConnectionModel.findById(
       googleAccountId,
       trx
@@ -149,7 +148,7 @@ export async function completeOnboardingForPasswordUser(
 ): Promise<ProfileCompletionResult & { organizationId: number }> {
   let orgId: number;
 
-  await db.transaction(async (trx) => {
+  await OrganizationModel.transaction(async (trx) => {
     const result = await bootstrapOrganization(
       userId,
       profileData.practiceName,
@@ -217,7 +216,7 @@ export async function saveProfileAndBootstrapOrg(
 ): Promise<SaveProfileResult> {
   let orgId: number;
 
-  await db.transaction(async (trx) => {
+  await OrganizationModel.transaction(async (trx) => {
     if (organizationId) {
       // Org already exists — update it
       orgId = organizationId;

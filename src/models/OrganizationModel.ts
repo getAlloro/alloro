@@ -288,4 +288,94 @@ export class OrganizationModel extends BaseModel {
       .select("id", "domain", "archived_at")
       .first();
   }
+
+  // -------------------------------------------------------------------------
+  // Billing (Stripe) projections + writes. Moved verbatim from BillingService.
+  // Writes are column-exact (no auto `updated_at` stamping) to preserve the
+  // original inline-update semantics exactly.
+  // -------------------------------------------------------------------------
+
+  /** Subscription-status projection for the billing-status endpoint. */
+  static async findBillingStatusFieldsById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<
+    | {
+        subscription_tier: string | null;
+        subscription_status: string | null;
+        stripe_customer_id: string | null;
+        stripe_subscription_id: string | null;
+      }
+    | undefined
+  > {
+    return this.table(trx)
+      .where({ id })
+      .select(
+        "subscription_tier",
+        "subscription_status",
+        "stripe_customer_id",
+        "stripe_subscription_id"
+      )
+      .first();
+  }
+
+  /** Stripe-id projection for the billing-details endpoint. */
+  static async findStripeIdsById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<
+    | {
+        stripe_customer_id: string | null;
+        stripe_subscription_id: string | null;
+      }
+    | undefined
+  > {
+    return this.table(trx)
+      .where({ id })
+      .select("stripe_customer_id", "stripe_subscription_id")
+      .first();
+  }
+
+  /**
+   * Persist Stripe customer/subscription IDs + activate on first checkout.
+   * Column-exact write (matches the original inline update); pass the
+   * checkout transaction so it commits atomically with the tier update.
+   */
+  static async updateStripeIdentifiersOnCheckout(
+    id: number,
+    data: {
+      stripe_customer_id: string | null;
+      stripe_subscription_id: string | null;
+      subscription_started_at: Date;
+      subscription_updated_at: Date;
+    },
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id })
+      .update({
+        stripe_customer_id: data.stripe_customer_id,
+        stripe_subscription_id: data.stripe_subscription_id,
+        subscription_status: "active",
+        subscription_started_at: data.subscription_started_at,
+        subscription_updated_at: data.subscription_updated_at,
+      });
+  }
+
+  /**
+   * Update subscription_status (+ subscription_updated_at) for every org with
+   * the given Stripe customer id. Column-exact write (no auto `updated_at`).
+   */
+  static async updateSubscriptionStatusByCustomerId(
+    stripeCustomerId: string,
+    status: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ stripe_customer_id: stripeCustomerId })
+      .update({
+        subscription_status: status,
+        subscription_updated_at: new Date(),
+      });
+  }
 }

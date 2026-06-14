@@ -21,8 +21,8 @@
  * are not allowed to fail auth.
  */
 
-import { db } from "../../../database/connection";
-import type { ILeadgenSession } from "../../../models/LeadgenSessionModel";
+import { LeadgenSessionModel } from "../../../models/LeadgenSessionModel";
+import { LeadgenEventModel } from "../../../models/LeadgenEventModel";
 import logger from "../../../lib/logger";
 
 export interface LinkAccountCreationOptions {
@@ -55,20 +55,10 @@ async function findCandidateSessions(opts: {
   const normalizedEmail = opts.email.toLowerCase();
   const sessionIdValid = isValidUuid(opts.sessionId);
 
-  const query = db<ILeadgenSession>("leadgen_sessions").select("id", "email");
-
-  if (sessionIdValid) {
-    query.where(function () {
-      this.where("id", opts.sessionId as string).orWhereRaw(
-        "LOWER(email) = ?",
-        [normalizedEmail]
-      );
-    });
-  } else {
-    query.whereRaw("LOWER(email) = ?", [normalizedEmail]);
-  }
-
-  const rows = (await query) as Array<Pick<ILeadgenSession, "id" | "email">>;
+  const rows = await LeadgenSessionModel.findCandidatesForAccountLinking(
+    normalizedEmail,
+    sessionIdValid ? opts.sessionId : undefined
+  );
 
   // Tag each candidate with the match reason. If both match, session_id wins.
   return rows.map((row) => ({
@@ -143,37 +133,21 @@ export async function linkAccountCreation(
       try {
         // Idempotency check — skip if this session already has an
         // account_created event.
-        const existing = await db("leadgen_events")
-          .select("id")
-          .where({ session_id: candidate.id, event_name: "account_created" })
-          .first();
+        const existing = await LeadgenEventModel.existsForSessionEvent(
+          candidate.id,
+          "account_created"
+        );
 
         if (existing) {
           continue;
         }
 
-        await db.transaction(async (trx) => {
-          await trx("leadgen_events").insert({
-            session_id: candidate.id,
-            event_name: "account_created",
-            event_data: JSON.stringify({
-              user_id: userIdNum,
-              linked_via: candidate.matchedVia,
-            }),
-            created_at: now,
-          });
-
-          await trx("leadgen_sessions")
-            .where({ id: candidate.id })
-            .update({
-              final_stage: "account_created",
-              completed: true,
-              user_id: userIdNum,
-              converted_at: now,
-              last_seen_at: now,
-              updated_at: now,
-            });
-        });
+        await LeadgenSessionModel.markAccountCreated(
+          candidate.id,
+          userIdNum,
+          candidate.matchedVia,
+          now
+        );
 
         logger.info({ detail: {
                       session_id: candidate.id,

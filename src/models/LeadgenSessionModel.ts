@@ -1,4 +1,7 @@
+import { Knex } from "knex";
 import { BaseModel, QueryContext } from "./BaseModel";
+import { db } from "../database/connection";
+import { LeadgenEventModel } from "./LeadgenEventModel";
 
 /**
  * Funnel stages for the leadgen audit tool. Ordered roughly by user progress;
@@ -93,6 +96,67 @@ export interface ILeadgenSession {
   updated_at: Date;
 }
 
+/** Subset selected by the audit-milestone + tracking flows. */
+export type SessionLite = Pick<
+  ILeadgenSession,
+  "id" | "final_stage" | "completed"
+>;
+
+/** Shared filter set for the admin leadgen list + export queries. */
+export interface AdminListFilters {
+  search?: string;
+  status?: "all" | "completed" | "abandoned" | "in_progress";
+  from?: string;
+  to?: string;
+  hasEmail?: boolean;
+}
+
+/**
+ * Applies the shared admin filter set to a knex query builder against
+ * `leadgen_sessions`. Used by the list, count, and export queries so filters
+ * stay in lockstep. Moved verbatim from AdminLeadgenController.applyListFilters.
+ */
+function applyAdminListFilters(
+  qb: Knex.QueryBuilder,
+  filters: AdminListFilters
+): Knex.QueryBuilder {
+  if (filters.search) {
+    const needle = `%${filters.search}%`;
+    qb = qb.where((inner) => {
+      inner
+        .whereILike("leadgen_sessions.email", needle)
+        .orWhereILike("leadgen_sessions.domain", needle);
+    });
+  }
+
+  switch (filters.status) {
+    case "completed":
+      qb = qb.where("leadgen_sessions.completed", true);
+      break;
+    case "abandoned":
+      qb = qb.where("leadgen_sessions.abandoned", true);
+      break;
+    case "in_progress":
+      qb = qb
+        .where("leadgen_sessions.completed", false)
+        .andWhere("leadgen_sessions.abandoned", false);
+      break;
+    // "all" or default — no filter
+  }
+
+  if (filters.from) {
+    qb = qb.where("leadgen_sessions.created_at", ">=", filters.from);
+  }
+  if (filters.to) {
+    qb = qb.where("leadgen_sessions.created_at", "<=", filters.to);
+  }
+  if (filters.hasEmail) {
+    qb = qb.whereNotNull("leadgen_sessions.email");
+  }
+
+  return qb;
+}
+
 export class LeadgenSessionModel extends BaseModel {
   protected static tableName = "leadgen_sessions";
 
@@ -109,5 +173,402 @@ export class LeadgenSessionModel extends BaseModel {
     trx?: QueryContext
   ): Promise<number> {
     return super.updateById(id, data, trx);
+  }
+
+  /** Raw upsert-time insert — column set + timestamps owned by the caller. */
+  static async insertRow(
+    data: Record<string, unknown>,
+    trx?: QueryContext
+  ): Promise<void> {
+    await this.table(trx).insert(data);
+  }
+
+  /** Patch a session by id with an arbitrary column set (no auto timestamps). */
+  static async patchById(
+    id: string,
+    patch: Record<string, unknown>,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx).where({ id }).update(patch);
+  }
+
+  /** Lite projection (id, final_stage, completed) for every session of an audit. */
+  static async findLiteByAuditId(
+    auditId: string,
+    trx?: QueryContext
+  ): Promise<SessionLite[]> {
+    return this.table(trx)
+      .select("id", "final_stage", "completed")
+      .where({ audit_id: auditId });
+  }
+
+  /** id + email projection for every session matching an audit. */
+  static async findIdEmailByAuditId(
+    auditId: string,
+    trx?: QueryContext
+  ): Promise<Array<Pick<ILeadgenSession, "id" | "email">>> {
+    return this.table(trx).select("id", "email").where({ audit_id: auditId });
+  }
+
+  /** Oldest session id that owns the given audit, or undefined. */
+  static async findOldestByAuditId(
+    auditId: string,
+    trx?: QueryContext
+  ): Promise<Pick<ILeadgenSession, "id"> | undefined> {
+    return this.table(trx)
+      .select("id")
+      .where({ audit_id: auditId })
+      .orderBy("first_seen_at", "asc")
+      .first();
+  }
+
+  /**
+   * Account-linking candidate lookup: sessions matching the explicit session
+   * id OR a case-insensitive email match. When `sessionId` is undefined, only
+   * the email branch runs.
+   */
+  static async findCandidatesForAccountLinking(
+    normalizedEmail: string,
+    sessionId: string | undefined,
+    trx?: QueryContext
+  ): Promise<Array<Pick<ILeadgenSession, "id" | "email">>> {
+    const query = this.table(trx).select("id", "email");
+
+    if (typeof sessionId === "string") {
+      query.where(function () {
+        this.where("id", sessionId).orWhereRaw("LOWER(email) = ?", [
+          normalizedEmail,
+        ]);
+      });
+    } else {
+      query.whereRaw("LOWER(email) = ?", [normalizedEmail]);
+    }
+
+    return query;
+  }
+
+  /**
+   * Atomically stamp account creation on a session: insert the
+   * `account_created` event row and promote the session to converted.
+   * Owns its own transaction (mirrors ReviewModel.replaceApifyReviewsForPlace)
+   * so the event + session write can never partially apply.
+   */
+  static async markAccountCreated(
+    sessionId: string,
+    userId: number,
+    matchedVia: string,
+    now: Date
+  ): Promise<void> {
+    await this.transaction(async (trx) => {
+      await LeadgenEventModel.insertRow(
+        {
+          session_id: sessionId,
+          event_name: "account_created",
+          event_data: JSON.stringify({
+            user_id: userId,
+            linked_via: matchedVia,
+          }),
+          created_at: now,
+        },
+        trx
+      );
+
+      await this.table(trx).where({ id: sessionId }).update({
+        final_stage: "account_created",
+        completed: true,
+        user_id: userId,
+        converted_at: now,
+        last_seen_at: now,
+        updated_at: now,
+      });
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Admin leadgen-submissions queries (moved verbatim from
+  // AdminLeadgenController). The JS aggregation/CSV-streaming stays in the
+  // controller/service; only the DB access lives here.
+  // -------------------------------------------------------------------------
+
+  /** Total sessions matching the admin list filters. */
+  static async countForAdminList(
+    filters: AdminListFilters,
+    trx?: QueryContext
+  ): Promise<number> {
+    const totalRow = await applyAdminListFilters(this.table(trx), filters)
+      .count<{ count: string }[]>({ count: "* " })
+      .first();
+    return parseInt((totalRow?.count as string) ?? "0", 10) || 0;
+  }
+
+  /**
+   * Paginated admin list rows, with the account-linked reconciliation join
+   * (users by email, organizations by normalised domain) and derived
+   * `linked_via` column. SQL preserved verbatim — see controller comments
+   * for the normalisation rationale.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findForAdminList(
+    filters: AdminListFilters,
+    pageSize: number,
+    page: number,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return applyAdminListFilters(
+      this.table(trx)
+        .leftJoin(
+          "audit_processes",
+          "leadgen_sessions.audit_id",
+          "audit_processes.id"
+        )
+        .joinRaw(
+          "LEFT JOIN users AS u ON LOWER(u.email) = LOWER(leadgen_sessions.email)"
+        )
+        .joinRaw(
+          `LEFT JOIN organizations AS org_by_domain ON
+             LOWER(
+               regexp_replace(
+                 regexp_replace(
+                   regexp_replace(COALESCE(audit_processes.domain, ''), '^(http|https)://', ''),
+                   '^www\\.', ''
+                 ),
+                 '/+$', ''
+               )
+             )
+             = LOWER(
+               regexp_replace(
+                 regexp_replace(
+                   regexp_replace(COALESCE(org_by_domain.domain, ''), '^(http|https)://', ''),
+                   '^www\\.', ''
+                 ),
+                 '/+$', ''
+               )
+             )
+             AND COALESCE(audit_processes.domain, '') <> ''
+             AND LOWER(
+               regexp_replace(
+                 regexp_replace(
+                   regexp_replace(COALESCE(audit_processes.domain, ''), '^(http|https)://', ''),
+                   '^www\\.', ''
+                 ),
+                 '/+$', ''
+               )
+             ) NOT IN (
+               'facebook.com', 'instagram.com', 'wixsite.com',
+               'squarespace.com', 'weebly.com', 'wordpress.com',
+               'godaddysites.com', 'sites.google.com'
+             )`
+        )
+        .select(
+          "leadgen_sessions.id as id",
+          "leadgen_sessions.email as email",
+          "leadgen_sessions.domain as domain",
+          "leadgen_sessions.practice_search_string as practice_search_string",
+          "leadgen_sessions.audit_id as audit_id",
+          "audit_processes.status as audit_status",
+          "leadgen_sessions.user_agent as user_agent",
+          "leadgen_sessions.final_stage as final_stage",
+          "leadgen_sessions.completed as completed",
+          "leadgen_sessions.abandoned as abandoned",
+          "leadgen_sessions.first_seen_at as first_seen_at",
+          "leadgen_sessions.last_seen_at as last_seen_at",
+          db.raw(`
+            CASE
+              WHEN leadgen_sessions.user_id IS NOT NULL THEN 'persisted'
+              WHEN u.id IS NOT NULL THEN 'email'
+              WHEN org_by_domain.id IS NOT NULL THEN 'domain'
+              ELSE NULL
+            END AS linked_via
+          `)
+        ),
+      filters
+    )
+      .orderBy("leadgen_sessions.created_at", "desc")
+      .limit(pageSize)
+      .offset((page - 1) * pageSize);
+  }
+
+  /**
+   * Headline conversion metrics in a single round-trip (raw SQL preserved
+   * verbatim, incl. the timestamptz casts that fix the NULL-binding inference).
+   * Returns the raw row object so the controller maps it as before.
+   */
+  static async getAdminStatsRow(
+    from: string | null,
+    to: string | null,
+    trx?: QueryContext
+  ): Promise<Record<string, unknown>> {
+    const rowRaw = await (trx || db).raw(
+      `
+      SELECT
+        COUNT(*)::int AS total_sessions,
+        COUNT(converted_at)::int AS total_conversions,
+        CASE
+          WHEN COUNT(*) = 0 THEN NULL
+          ELSE ROUND((COUNT(converted_at)::numeric / COUNT(*)::numeric) * 100, 2)
+        END AS conversion_rate_pct,
+        percentile_cont(0.5) WITHIN GROUP (
+          ORDER BY EXTRACT(EPOCH FROM (converted_at - first_seen_at)) * 1000
+        ) AS median_time_to_convert_ms
+      FROM leadgen_sessions
+      WHERE (?::timestamptz IS NULL OR first_seen_at >= ?::timestamptz)
+        AND (?::timestamptz IS NULL OR first_seen_at <= ?::timestamptz)
+      `,
+      [from, from, to, to]
+    );
+
+    return (rowRaw as { rows: Array<Record<string, unknown>> }).rows[0] ?? {};
+  }
+
+  /** One CSV-export chunk (filter-respecting, paginated). */
+  static async findForAdminExportChunk(
+    filters: AdminListFilters,
+    limit: number,
+    offset: number,
+    trx?: QueryContext
+  ): Promise<Array<Record<string, unknown>>> {
+    return applyAdminListFilters(
+      this.table(trx)
+        .leftJoin(
+          "audit_processes",
+          "leadgen_sessions.audit_id",
+          "audit_processes.id"
+        )
+        .select(
+          "leadgen_sessions.id as session_id",
+          "leadgen_sessions.email as email",
+          "leadgen_sessions.domain as domain",
+          "leadgen_sessions.practice_search_string as practice_search_string",
+          "leadgen_sessions.audit_id as audit_id",
+          "audit_processes.status as audit_status",
+          "leadgen_sessions.final_stage as final_stage",
+          "leadgen_sessions.completed as completed",
+          "leadgen_sessions.abandoned as abandoned",
+          "leadgen_sessions.first_seen_at as first_seen_at",
+          "leadgen_sessions.last_seen_at as last_seen_at"
+        ),
+      filters
+    )
+      .orderBy("leadgen_sessions.created_at", "desc")
+      .limit(limit)
+      .offset(offset);
+  }
+
+  /** Full session detail row (admin detail view). */
+  static async findDetailById(
+    id: string,
+    trx?: QueryContext
+  ): Promise<ILeadgenSession | undefined> {
+    return this.table(trx).where({ id }).first();
+  }
+
+  /** id + audit_id projection (admin rerun handler). */
+  static async findIdAuditById(
+    id: string,
+    trx?: QueryContext
+  ): Promise<Pick<ILeadgenSession, "id" | "audit_id"> | undefined> {
+    return this.table(trx).select("id", "audit_id").where({ id }).first();
+  }
+
+  /** Hard-delete a session by id (FK cascade drops events). */
+  static async deleteByIdReturningCount(
+    id: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx).where({ id }).del();
+  }
+
+  /** Bulk hard-delete sessions by id (FK cascade). */
+  static async deleteManyByIds(
+    ids: string[],
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx).whereIn("id", ids).del();
+  }
+
+  // -------------------------------------------------------------------------
+  // Funnel aggregation source queries (moved verbatim from
+  // service.funnel-aggregator). The JS aggregation stays in the service.
+  // -------------------------------------------------------------------------
+
+  /**
+   * One row per session with its max reached stage ordinal, filtered by the
+   * funnel date window. `ordinalCase` is the caller-built CASE fragment that
+   * maps event_name → ordinal (abandoned excluded). SQL preserved verbatim.
+   */
+  static async findSessionMaxOrdinalRows(
+    ordinalCase: string,
+    from: string | undefined,
+    to: string | undefined,
+    trx?: QueryContext
+  ): Promise<
+    Array<{
+      max_ordinal: number | string | null;
+      abandoned: boolean;
+      completed: boolean;
+    }>
+  > {
+    const conn = trx || db;
+    const sessionMaxCte = conn
+      .select("session_id")
+      .max({ max_ordinal: conn.raw(ordinalCase) })
+      .from("leadgen_events")
+      .groupBy("session_id");
+
+    let base = conn("leadgen_sessions as s")
+      .leftJoin(sessionMaxCte.as("sm"), "sm.session_id", "s.id")
+      .select<
+        Array<{
+          max_ordinal: number | string | null;
+          abandoned: boolean;
+          completed: boolean;
+        }>
+      >(
+        conn.raw("COALESCE(sm.max_ordinal, 0)::int as max_ordinal"),
+        "s.abandoned as abandoned",
+        "s.completed as completed"
+      );
+
+    if (from) {
+      base = base.where("s.first_seen_at", ">=", from);
+    }
+    if (to) {
+      base = base.where("s.first_seen_at", "<=", to);
+    }
+
+    return base;
+  }
+
+  /**
+   * First-event-per-(session,event_name) timestamps for the timing pass,
+   * filtered by the funnel date window. SQL preserved verbatim.
+   */
+  static async findFirstEventTimings(
+    from: string | undefined,
+    to: string | undefined,
+    trx?: QueryContext
+  ): Promise<
+    Array<{ session_id: string; event_name: FinalStage; first_at: Date }>
+  > {
+    const conn = trx || db;
+    let firstEventQuery = conn("leadgen_events as e")
+      .innerJoin("leadgen_sessions as s", "s.id", "e.session_id")
+      .select<
+        Array<{
+          session_id: string;
+          event_name: FinalStage;
+          first_at: Date;
+        }>
+      >("e.session_id", "e.event_name", conn.raw("MIN(e.created_at) as first_at"))
+      .groupBy("e.session_id", "e.event_name");
+
+    if (from) {
+      firstEventQuery = firstEventQuery.where("s.first_seen_at", ">=", from);
+    }
+    if (to) {
+      firstEventQuery = firstEventQuery.where("s.first_seen_at", "<=", to);
+    }
+
+    return firstEventQuery;
   }
 }

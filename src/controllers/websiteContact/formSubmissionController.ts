@@ -35,7 +35,6 @@ import { WebsiteIntegrationModel } from "../../models/website-builder/WebsiteInt
 import { IntegrationFormMappingModel } from "../../models/website-builder/IntegrationFormMappingModel";
 import { CrmSyncLogModel } from "../../models/website-builder/CrmSyncLogModel";
 import { getCrmQueue } from "../../workers/queues";
-import { db } from "../../database/connection";
 import { NewsletterSignupModel } from "../../models/website-builder/NewsletterSignupModel";
 import { uploadToS3 } from "../../utils/core/s3";
 import { resolveWebsiteFormRecipients } from "../../services/formRecipientRoutingService";
@@ -456,9 +455,7 @@ export async function handleFormSubmission(req: Request, res: Response): Promise
         // Update the saved record to flagged
         if (submissionId) {
           try {
-            await db("website_builder.form_submissions")
-              .where("id", submissionId)
-              .update({ is_flagged: true, flag_reason: flagReason });
+            await FormSubmissionModel.markAsFlagged(submissionId, flagReason);
           } catch (updateErr) {
             logger.error({ err: updateErr }, "[Form Submission] Failed to update flag:");
           }

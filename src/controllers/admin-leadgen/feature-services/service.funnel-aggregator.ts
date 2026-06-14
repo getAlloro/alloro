@@ -26,9 +26,9 @@
  * compute returning a dead bucket in the funnel response.
  */
 
-import { db } from "../../../database/connection";
 import {
   FinalStage,
+  LeadgenSessionModel,
   STAGE_ORDER,
 } from "../../../models/LeadgenSessionModel";
 
@@ -96,36 +96,14 @@ export async function aggregateFunnel(filters: {
   // --------------------------------------------------------------------
   // Count query: one row per session with its max reached ordinal.
   // Sessions with no events default to 0 (`landed`) because the upsert
-  // itself represents "landed".
+  // itself represents "landed". SQL lives in
+  // LeadgenSessionModel.findSessionMaxOrdinalRows.
   // --------------------------------------------------------------------
-  const sessionMaxCte = db
-    .select("session_id")
-    .max({ max_ordinal: db.raw(ordinalCase) })
-    .from("leadgen_events")
-    .groupBy("session_id");
-
-  let base = db("leadgen_sessions as s")
-    .leftJoin(sessionMaxCte.as("sm"), "sm.session_id", "s.id")
-    .select<
-      Array<{
-        max_ordinal: number | string | null;
-        abandoned: boolean;
-        completed: boolean;
-      }>
-    >(
-      db.raw("COALESCE(sm.max_ordinal, 0)::int as max_ordinal"),
-      "s.abandoned as abandoned",
-      "s.completed as completed"
-    );
-
-  if (filters.from) {
-    base = base.where("s.first_seen_at", ">=", filters.from);
-  }
-  if (filters.to) {
-    base = base.where("s.first_seen_at", "<=", filters.to);
-  }
-
-  const sessionRows = await base;
+  const sessionRows = await LeadgenSessionModel.findSessionMaxOrdinalRows(
+    ordinalCase,
+    filters.from,
+    filters.to
+  );
 
   // Count sessions hitting each stage ordinal cumulatively, plus the
   // terminal abandoned bucket.
@@ -158,39 +136,13 @@ export async function aggregateFunnel(filters: {
   // FUNNEL_STAGES and average the deltas in JS.
   //
   // Single query: pull (session_id, event_name, first_created_at) for
-  // every (session, event_name) pair — no N+1.
+  // every (session, event_name) pair — no N+1. SQL lives in
+  // LeadgenSessionModel.findFirstEventTimings.
   // --------------------------------------------------------------------
-  let firstEventQuery = db("leadgen_events as e")
-    .innerJoin("leadgen_sessions as s", "s.id", "e.session_id")
-    .select<
-      Array<{
-        session_id: string;
-        event_name: FinalStage;
-        first_at: Date;
-      }>
-    >(
-      "e.session_id",
-      "e.event_name",
-      db.raw("MIN(e.created_at) as first_at")
-    )
-    .groupBy("e.session_id", "e.event_name");
-
-  if (filters.from) {
-    firstEventQuery = firstEventQuery.where(
-      "s.first_seen_at",
-      ">=",
-      filters.from
-    );
-  }
-  if (filters.to) {
-    firstEventQuery = firstEventQuery.where(
-      "s.first_seen_at",
-      "<=",
-      filters.to
-    );
-  }
-
-  const firstEventRows = await firstEventQuery;
+  const firstEventRows = await LeadgenSessionModel.findFirstEventTimings(
+    filters.from,
+    filters.to
+  );
 
   // session_id -> event_name -> first_at(ms)
   const firstByStage = new Map<string, Map<FinalStage, number>>();

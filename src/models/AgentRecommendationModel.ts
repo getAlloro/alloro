@@ -152,6 +152,28 @@ export class AgentRecommendationModel extends BaseModel {
       .del();
   }
 
+  /**
+   * Delete every recommendation whose parent agent_result belongs to an org
+   * with the given agent type. Raw subquery preserved verbatim from the admin
+   * reset service (no FK cascade — recommendations go before results). Returns
+   * the raw driver result so the caller reads `.rowCount` exactly as before.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async deleteByOrganizationAndAgentType(
+    organizationId: number,
+    agentType: string,
+    trx?: QueryContext
+  ): Promise<any> {
+    return (trx || db).raw(
+      `DELETE FROM agent_recommendations
+         WHERE agent_result_id IN (
+           SELECT id FROM agent_results
+           WHERE organization_id = ? AND agent_type = ?
+         )`,
+      [organizationId, agentType]
+    );
+  }
+
   static async getSummaryByAgent(
     startDate: string,
     endDate: string,

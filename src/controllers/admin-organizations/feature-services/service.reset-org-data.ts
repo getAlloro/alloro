@@ -14,8 +14,10 @@
  *
  * Reference analog: src/controllers/settings/feature-services/service.delete-organization.ts
  */
-import { db } from "../../../database/connection";
 import { OrganizationModel } from "../../../models/OrganizationModel";
+import { PmsJobModel } from "../../../models/PmsJobModel";
+import { AgentResultModel } from "../../../models/AgentResultModel";
+import { AgentRecommendationModel } from "../../../models/AgentRecommendationModel";
 import {
   ResetGroupKey,
   ResetPreviewResponse,
@@ -40,14 +42,11 @@ export async function previewResetCounts(
   }
 
   const [pmsCount, referralCount] = await Promise.all([
-    db("pms_jobs")
-      .where({ organization_id: orgId })
-      .count<{ count: string }[]>("* as count")
-      .first(),
-    db("agent_results")
-      .where({ organization_id: orgId, agent_type: REFERRAL_AGENT_TYPE })
-      .count<{ count: string }[]>("* as count")
-      .first(),
+    PmsJobModel.countByOrganizationId(orgId),
+    AgentResultModel.countByOrganizationAndAgentType(
+      orgId,
+      REFERRAL_AGENT_TYPE
+    ),
   ]);
 
   return {
@@ -80,31 +79,30 @@ export async function resetOrgData(
 
   const deletedCounts: Record<string, number> = {};
 
-  await db.transaction(async (trx) => {
+  await PmsJobModel.transaction(async (trx) => {
     if (groups.includes("pms_ingestion")) {
-      const deleted = await trx("pms_jobs")
-        .where({ organization_id: orgId })
-        .del();
+      const deleted = await PmsJobModel.deleteByOrganizationId(orgId, trx);
       deletedCounts.pms_jobs = deleted;
     }
 
     if (groups.includes("agent_referral")) {
       // FK has no ON DELETE CASCADE — recommendations must go first.
-      const recDeleted = await trx.raw(
-        `DELETE FROM agent_recommendations
-         WHERE agent_result_id IN (
-           SELECT id FROM agent_results
-           WHERE organization_id = ? AND agent_type = ?
-         )`,
-        [orgId, REFERRAL_AGENT_TYPE],
-      );
+      const recDeleted =
+        await AgentRecommendationModel.deleteByOrganizationAndAgentType(
+          orgId,
+          REFERRAL_AGENT_TYPE,
+          trx,
+        );
       // pg returns rowCount; sqlite/mysql shape differs — fall back gracefully.
       deletedCounts.agent_recommendations =
         (recDeleted as any)?.rowCount ?? (recDeleted as any)?.[0]?.affectedRows ?? 0;
 
-      const resultsDeleted = await trx("agent_results")
-        .where({ organization_id: orgId, agent_type: REFERRAL_AGENT_TYPE })
-        .del();
+      const resultsDeleted =
+        await AgentResultModel.deleteByOrganizationAndAgentType(
+          orgId,
+          REFERRAL_AGENT_TYPE,
+          trx,
+        );
       deletedCounts.agent_results = resultsDeleted;
     }
   });

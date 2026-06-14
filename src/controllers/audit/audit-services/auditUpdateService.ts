@@ -1,5 +1,4 @@
 import { AuditProcessModel } from "../../../models/AuditProcessModel";
-import { db } from "../../../database/connection";
 import logger from "../../../lib/logger";
 
 export async function updateAuditFields(
@@ -18,13 +17,7 @@ export async function updateAuditFields(
     const rt = filteredData.realtime_status;
     const rest = { ...filteredData };
     delete rest.realtime_status;
-    await db("audit_processes")
-      .where({ id: auditId })
-      .update({
-        ...rest,
-        realtime_status: db.raw("GREATEST(realtime_status, ?)", [rt]),
-        updated_at: db.fn.now(),
-      });
+    await AuditProcessModel.updateFieldsWithRealtimeFloor(auditId, rest, rt);
   } else {
     await AuditProcessModel.updateById(auditId, filteredData);
   }

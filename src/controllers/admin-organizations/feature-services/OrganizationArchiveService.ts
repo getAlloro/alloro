@@ -1,4 +1,3 @@
-import { db } from "../../../database/connection";
 import {
   IOrganization,
   OrganizationModel,
@@ -92,7 +91,7 @@ export async function archiveOrganization(params: {
   archivedByUserId: number | null;
   reason?: string | null;
 }): Promise<OrganizationArchiveResult> {
-  const result = await db.transaction(async (trx) => {
+  const result = await OrganizationModel.transaction(async (trx) => {
     const organization = await OrganizationModel.findById(params.organizationId, trx);
     if (!organization) {
       const error = new Error("Organization not found") as Error & {
@@ -207,7 +206,7 @@ export async function unarchiveOrganization(params: {
   organizationId: number;
   unarchivedByUserId: number | null;
 }): Promise<OrganizationUnarchiveResult> {
-  const result = await db.transaction(async (trx) => {
+  const result = await OrganizationModel.transaction(async (trx) => {
     const organization = await OrganizationModel.findById(params.organizationId, trx);
     if (!organization) {
       const error = new Error("Organization not found") as Error & {

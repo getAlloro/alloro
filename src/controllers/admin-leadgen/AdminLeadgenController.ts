@@ -15,14 +15,14 @@
  */
 
 import { Request, Response } from "express";
-import { Knex } from "knex";
-import { db } from "../../database/connection";
 import {
+  AdminListFilters,
   FinalStage,
   ILeadgenSession,
+  LeadgenSessionModel,
 } from "../../models/LeadgenSessionModel";
-import { ILeadgenEvent } from "../../models/LeadgenEventModel";
-import { IAuditProcess } from "../../models/AuditProcessModel";
+import { ILeadgenEvent, LeadgenEventModel } from "../../models/LeadgenEventModel";
+import { IAuditProcess, AuditProcessModel } from "../../models/AuditProcessModel";
 import { aggregateFunnel } from "./feature-services/service.funnel-aggregator";
 import {
   escapeCsvField,
@@ -35,17 +35,9 @@ import logger from "../../lib/logger";
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-interface ListFilters {
-  search?: string;
-  status?: "all" | "completed" | "abandoned" | "in_progress";
-  from?: string;
-  to?: string;
-  hasEmail?: boolean;
-}
-
-function parseListFilters(query: Request["query"]): ListFilters {
+function parseListFilters(query: Request["query"]): AdminListFilters {
   const status = query.status as string | undefined;
-  const allowedStatus: ListFilters["status"][] = [
+  const allowedStatus: AdminListFilters["status"][] = [
     "all",
     "completed",
     "abandoned",
@@ -58,58 +50,12 @@ function parseListFilters(query: Request["query"]): ListFilters {
         : undefined,
     status:
       status && (allowedStatus as string[]).includes(status)
-        ? (status as ListFilters["status"])
+        ? (status as AdminListFilters["status"])
         : "all",
     from: typeof query.from === "string" ? query.from : undefined,
     to: typeof query.to === "string" ? query.to : undefined,
     hasEmail: query.hasEmail === "true",
   };
-}
-
-/**
- * Applies the shared filter set to a knex query builder against
- * `leadgen_sessions`. Used by both the list endpoint and the export stream
- * so filters stay in lockstep.
- */
-function applyListFilters(
-  qb: Knex.QueryBuilder,
-  filters: ListFilters
-): Knex.QueryBuilder {
-  if (filters.search) {
-    const needle = `%${filters.search}%`;
-    qb = qb.where((inner) => {
-      inner
-        .whereILike("leadgen_sessions.email", needle)
-        .orWhereILike("leadgen_sessions.domain", needle);
-    });
-  }
-
-  switch (filters.status) {
-    case "completed":
-      qb = qb.where("leadgen_sessions.completed", true);
-      break;
-    case "abandoned":
-      qb = qb.where("leadgen_sessions.abandoned", true);
-      break;
-    case "in_progress":
-      qb = qb
-        .where("leadgen_sessions.completed", false)
-        .andWhere("leadgen_sessions.abandoned", false);
-      break;
-    // "all" or default — no filter
-  }
-
-  if (filters.from) {
-    qb = qb.where("leadgen_sessions.created_at", ">=", filters.from);
-  }
-  if (filters.to) {
-    qb = qb.where("leadgen_sessions.created_at", "<=", filters.to);
-  }
-  if (filters.hasEmail) {
-    qb = qb.whereNotNull("leadgen_sessions.email");
-  }
-
-  return qb;
 }
 
 // ---------------------------------------------------------------------------
@@ -146,125 +92,17 @@ export async function listSubmissions(
 
     const filters = parseListFilters(req.query);
 
-    const countQuery = applyListFilters(
-      db("leadgen_sessions"),
-      filters
-    )
-      .count<{ count: string }[]>({ count: "* " })
-      .first();
-    const totalRow = await countQuery;
-    const total = parseInt((totalRow?.count as string) ?? "0", 10) || 0;
+    const total = await LeadgenSessionModel.countForAdminList(filters);
 
-    // Account-linked reconciliation join.
-    //   - users: exact case-insensitive email match against the session's email
-    //   - organizations: exact domain match against a normalised version of
-    //     audit_processes.domain (strip protocol/www/trailing slash; lower-case)
-    //     EXCLUDING well-known platform domains that would collapse unrelated
-    //     practices onto the same org (facebook.com, wixsite.com, etc.)
-    //
-    // The derived `linked_via` column is what the admin UI reads to decide
-    // whether to render the row as "Account Linked" (and which badge to show).
-    //   'persisted' — session already has user_id set (real conversion happened
-    //                 at OTP verify time)
-    //   'email'    — a users row matches this session's email
-    //   'domain'   — an organizations row matches the audit's normalised domain
-    //   null       — not linked
-    // Embedded directly in the SQL below rather than passed as bindings —
-    // knex would otherwise treat the `?` characters in the regex patterns
-    // (https?, (www\.)?) as binding placeholders and mis-count them.
-    // These values are constants, not user input — no injection risk.
-    //
-    // Keep in sync with the NOT IN list inside the joinRaw block:
-    //   facebook.com / instagram.com / wixsite.com / squarespace.com /
-    //   weebly.com / wordpress.com / godaddysites.com / sites.google.com
-
-    const rowsQuery = applyListFilters(
-      db("leadgen_sessions")
-        .leftJoin(
-          "audit_processes",
-          "leadgen_sessions.audit_id",
-          "audit_processes.id"
-        )
-        // Raw JOIN clauses — knex's JoinClause.on() types want plain strings;
-        // raw-SQL comparisons go through joinRaw instead. Same semantic:
-        //   users: case-insensitive email match
-        //   organizations: normalised-domain exact match, excluding
-        //     well-known platform domains that would collapse unrelated
-        //     practices.
-        //
-        // Normalisation uses three non-`?` regex_replace calls:
-        //   1. strip leading http:// or https://   (alternation, not https?)
-        //   2. strip leading www.
-        //   3. strip trailing slashes (/+$)
-        // This avoids `?` characters that knex would otherwise interpret
-        // as binding placeholders.
-        .joinRaw(
-          "LEFT JOIN users AS u ON LOWER(u.email) = LOWER(leadgen_sessions.email)"
-        )
-        .joinRaw(
-          `LEFT JOIN organizations AS org_by_domain ON
-             LOWER(
-               regexp_replace(
-                 regexp_replace(
-                   regexp_replace(COALESCE(audit_processes.domain, ''), '^(http|https)://', ''),
-                   '^www\\.', ''
-                 ),
-                 '/+$', ''
-               )
-             )
-             = LOWER(
-               regexp_replace(
-                 regexp_replace(
-                   regexp_replace(COALESCE(org_by_domain.domain, ''), '^(http|https)://', ''),
-                   '^www\\.', ''
-                 ),
-                 '/+$', ''
-               )
-             )
-             AND COALESCE(audit_processes.domain, '') <> ''
-             AND LOWER(
-               regexp_replace(
-                 regexp_replace(
-                   regexp_replace(COALESCE(audit_processes.domain, ''), '^(http|https)://', ''),
-                   '^www\\.', ''
-                 ),
-                 '/+$', ''
-               )
-             ) NOT IN (
-               'facebook.com', 'instagram.com', 'wixsite.com',
-               'squarespace.com', 'weebly.com', 'wordpress.com',
-               'godaddysites.com', 'sites.google.com'
-             )`
-        )
-        .select(
-          "leadgen_sessions.id as id",
-          "leadgen_sessions.email as email",
-          "leadgen_sessions.domain as domain",
-          "leadgen_sessions.practice_search_string as practice_search_string",
-          "leadgen_sessions.audit_id as audit_id",
-          "audit_processes.status as audit_status",
-          "leadgen_sessions.user_agent as user_agent",
-          "leadgen_sessions.final_stage as final_stage",
-          "leadgen_sessions.completed as completed",
-          "leadgen_sessions.abandoned as abandoned",
-          "leadgen_sessions.first_seen_at as first_seen_at",
-          "leadgen_sessions.last_seen_at as last_seen_at",
-          db.raw(`
-            CASE
-              WHEN leadgen_sessions.user_id IS NOT NULL THEN 'persisted'
-              WHEN u.id IS NOT NULL THEN 'email'
-              WHEN org_by_domain.id IS NOT NULL THEN 'domain'
-              ELSE NULL
-            END AS linked_via
-          `)
-        ),
-      filters
-    )
-      .orderBy("leadgen_sessions.created_at", "desc")
-      .limit(pageSize)
-      .offset((page - 1) * pageSize);
-
-    const items = (await rowsQuery) as SubmissionSummary[];
+    // Account-linked reconciliation join (users by email, organizations by
+    // normalised domain) + derived `linked_via` column. SQL lives in
+    // LeadgenSessionModel.findForAdminList; see there for the normalisation
+    // rationale.
+    const items = (await LeadgenSessionModel.findForAdminList(
+      filters,
+      pageSize,
+      page
+    )) as SubmissionSummary[];
 
     return res.json({ items, total, page, pageSize });
   } catch (error) {
@@ -318,35 +156,13 @@ export async function getStats(
     const from = typeof req.query.from === "string" ? req.query.from : undefined;
     const to = typeof req.query.to === "string" ? req.query.to : undefined;
 
-    // Single round-trip SQL: aggregate everything in one query. Median uses
-    // percentile_cont(0.5) over the epoch-millisecond delta for converted
-    // sessions (NULL rows are excluded by the WITHIN GROUP, so the median
-    // naturally scopes to converted sessions only).
-    // Cast the bindings to timestamptz BOTH in the IS NULL test and the
-    // range comparison so the pg driver can infer the type when the
-    // binding itself is NULL. The previous shape `(? IS NULL OR ...)` with
-    // an untyped NULL produced `could not determine data type of
-    // parameter $1` on every call from the admin UI.
-    const rowRaw = await db.raw(
-      `
-      SELECT
-        COUNT(*)::int AS total_sessions,
-        COUNT(converted_at)::int AS total_conversions,
-        CASE
-          WHEN COUNT(*) = 0 THEN NULL
-          ELSE ROUND((COUNT(converted_at)::numeric / COUNT(*)::numeric) * 100, 2)
-        END AS conversion_rate_pct,
-        percentile_cont(0.5) WITHIN GROUP (
-          ORDER BY EXTRACT(EPOCH FROM (converted_at - first_seen_at)) * 1000
-        ) AS median_time_to_convert_ms
-      FROM leadgen_sessions
-      WHERE (?::timestamptz IS NULL OR first_seen_at >= ?::timestamptz)
-        AND (?::timestamptz IS NULL OR first_seen_at <= ?::timestamptz)
-      `,
-      [from ?? null, from ?? null, to ?? null, to ?? null]
+    // Single round-trip SQL (lives in LeadgenSessionModel.getAdminStatsRow).
+    // Median uses percentile_cont(0.5) over the epoch-millisecond delta for
+    // converted sessions; the timestamptz casts fix NULL-binding inference.
+    const row = await LeadgenSessionModel.getAdminStatsRow(
+      from ?? null,
+      to ?? null
     );
-
-    const row = (rowRaw as { rows: Array<Record<string, unknown>> }).rows[0] ?? {};
 
     const totalSessions = Number(row.total_sessions ?? 0);
     const totalConversions = Number(row.total_conversions ?? 0);
@@ -415,31 +231,11 @@ export async function exportSubmissionsCsv(
     let offset = 0;
 
     while (true) {
-      const rows = await applyListFilters(
-        db("leadgen_sessions")
-          .leftJoin(
-            "audit_processes",
-            "leadgen_sessions.audit_id",
-            "audit_processes.id"
-          )
-          .select(
-            "leadgen_sessions.id as session_id",
-            "leadgen_sessions.email as email",
-            "leadgen_sessions.domain as domain",
-            "leadgen_sessions.practice_search_string as practice_search_string",
-            "leadgen_sessions.audit_id as audit_id",
-            "audit_processes.status as audit_status",
-            "leadgen_sessions.final_stage as final_stage",
-            "leadgen_sessions.completed as completed",
-            "leadgen_sessions.abandoned as abandoned",
-            "leadgen_sessions.first_seen_at as first_seen_at",
-            "leadgen_sessions.last_seen_at as last_seen_at"
-          ),
-        filters
-      )
-        .orderBy("leadgen_sessions.created_at", "desc")
-        .limit(CHUNK)
-        .offset(offset);
+      const rows = await LeadgenSessionModel.findForAdminExportChunk(
+        filters,
+        CHUNK,
+        offset
+      );
 
       if (rows.length === 0) break;
 
@@ -480,9 +276,9 @@ export async function getSubmissionDetail(
   try {
     const { id } = req.params;
 
-    const session = (await db("leadgen_sessions")
-      .where({ id })
-      .first()) as ILeadgenSession | undefined;
+    const session = (await LeadgenSessionModel.findDetailById(id)) as
+      | ILeadgenSession
+      | undefined;
 
     if (!session) {
       return res
@@ -490,15 +286,13 @@ export async function getSubmissionDetail(
         .json({ error: "not_found", message: "Session not found" });
     }
 
-    const events = (await db("leadgen_events")
-      .where({ session_id: id })
-      .orderBy("created_at", "asc")) as ILeadgenEvent[];
+    const events = (await LeadgenEventModel.findBySessionId(
+      id
+    )) as ILeadgenEvent[];
 
     let audit: IAuditProcess | null = null;
     if (session.audit_id) {
-      const auditRow = await db("audit_processes")
-        .where({ id: session.audit_id })
-        .first();
+      const auditRow = await AuditProcessModel.findById(session.audit_id);
       audit = (auditRow as IAuditProcess | undefined) ?? null;
     }
 
@@ -535,7 +329,7 @@ export async function deleteSubmission(
         .json({ error: "invalid_id", message: "Invalid session id" });
     }
 
-    const deleted = await db("leadgen_sessions").where({ id }).del();
+    const deleted = await LeadgenSessionModel.deleteByIdReturningCount(id);
 
     if (deleted === 0) {
       return res
@@ -604,7 +398,7 @@ export async function bulkDeleteSubmissions(
       });
     }
 
-    const deleted = await db("leadgen_sessions").whereIn("id", ids).del();
+    const deleted = await LeadgenSessionModel.deleteManyByIds(ids);
 
     logger.info({ detail: {
             requested: ids.length,
@@ -652,10 +446,9 @@ export async function rerunAuditFromAdmin(
         .json({ error: "invalid_id", message: "Invalid session id" });
     }
 
-    const session = (await db("leadgen_sessions")
-      .select("id", "audit_id")
-      .where({ id })
-      .first()) as Pick<ILeadgenSession, "id" | "audit_id"> | undefined;
+    const session = (await LeadgenSessionModel.findIdAuditById(id)) as
+      | Pick<ILeadgenSession, "id" | "audit_id">
+      | undefined;
 
     if (!session) {
       return res

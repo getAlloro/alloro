@@ -9,7 +9,7 @@ import { handleError, generatePopupHtml } from "./feature-utils/response-formatt
 import * as OAuthFlowService from "./feature-services/OAuthFlowService";
 import * as TokenManagementService from "./feature-services/TokenManagementService";
 import * as ScopeManagementService from "./feature-services/ScopeManagementService";
-import { db } from "../../database/connection";
+import { OrganizationUserModel } from "../../models/OrganizationUserModel";
 import { getJwtSecret } from "../../config/jwt";
 import logger from "../../lib/logger";
 
@@ -49,9 +49,7 @@ export async function getGoogleAuthUrl(req: Request, res: Response): Promise<voi
     const authCtx = tryExtractAuthContext(req);
     if (authCtx) {
       // Look up the user's organization
-      const orgUser = await db("organization_users")
-        .where({ user_id: authCtx.userId })
-        .first();
+      const orgUser = await OrganizationUserModel.findByUserId(authCtx.userId);
 
       state = encodeAuthState(authCtx.userId, orgUser?.organization_id ?? null);
       logger.info(
@@ -285,9 +283,7 @@ export async function getReconnectUrl(req: Request, res: Response): Promise<Resp
     let state = generateSecureState() + "_reconnect";
     const authCtx = tryExtractAuthContext(req);
     if (authCtx) {
-      const orgUser = await db("organization_users")
-        .where({ user_id: authCtx.userId })
-        .first();
+      const orgUser = await OrganizationUserModel.findByUserId(authCtx.userId);
       state = encodeAuthState(authCtx.userId, orgUser?.organization_id ?? null);
       logger.info(
         `[AUTH] Encoded auth context in reconnect state for user ${authCtx.userId}, org ${orgUser?.organization_id || "none"}`,

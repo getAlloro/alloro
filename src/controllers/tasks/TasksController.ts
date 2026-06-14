@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
 import { TaskModel } from "../../models/TaskModel";
 import { GoogleConnectionModel } from "../../models/GoogleConnectionModel";
-import { db } from "../../database/connection";
 import { resolveLocationId } from "../../utils/locationResolver";
 import { LocationScopedRequest } from "../../middleware/rbac";
 import * as TaskFilteringService from "./feature-services/TaskFilteringService";
@@ -515,11 +514,7 @@ export async function getClients(
   try {
     logger.info("[TASKS] Fetching available clients");
 
-    const accounts = await db("google_connections as gc")
-      .join("organizations as o", "gc.organization_id", "o.id")
-      .where("o.onboarding_completed", true)
-      .select("gc.id", "o.domain as domain_name", "gc.email")
-      .orderBy("o.domain", "asc");
+    const accounts = await GoogleConnectionModel.findOnboardedClientsForTasks();
 
     logger.info(`[TASKS] Found ${accounts.length} onboarded clients`);
 

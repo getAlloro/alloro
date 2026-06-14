@@ -16,6 +16,7 @@ import { listLocalPostsInRange } from "./gbp-services/post-handler.service";
 import { getMonthlyRanges } from "./gbp-utils/date-helper.util";
 import { safePercentageChange, calculateGBPTrendScore } from "./gbp-utils/metric-calculator.util";
 import { handleError } from "./gbp-utils/error-handler.util";
+import { GoogleConnectionModel } from "../../models/GoogleConnectionModel";
 import logger from "../../lib/logger";
 
 /**
@@ -268,17 +269,12 @@ export async function getGBPTextSources(
   const { maxPostsPerLocation = 50, includeEmptyLocations = true } =
     options || {};
 
-  // Import db here to avoid circular dependency
-  const { db } = await import("../../database/connection");
-
   logger.info(
     `[GBP TextSources Export] Starting for googleAccountId ${googleAccountId}`,
   );
 
   // Query database for property IDs
-  const account = await db("google_connections")
-    .where({ id: googleAccountId })
-    .first();
+  const account = await GoogleConnectionModel.findRawById(googleAccountId);
 
   if (!account?.google_property_ids?.gbp) {
     throw new Error(
@@ -451,13 +447,8 @@ export async function getTextSources(req: AuthenticatedRequest, res: express.Res
       `[GBP TextSources] Starting for googleAccountId ${googleAccountId}`,
     );
 
-    // Import db here
-    const { db } = await import("../../database/connection");
-
     // Query database for property IDs
-    const account = await db("google_connections")
-      .where({ id: googleAccountId })
-      .first();
+    const account = await GoogleConnectionModel.findRawById(googleAccountId);
 
     // Validation
     if (!account) {

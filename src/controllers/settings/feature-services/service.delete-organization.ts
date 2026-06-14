@@ -7,9 +7,9 @@
  * 2. Google OAuth token revocation
  * 3. Orphaned user cleanup
  */
-import { db } from "../../../database/connection";
 import { GoogleConnectionModel } from "../../../models/GoogleConnectionModel";
 import { OrganizationModel } from "../../../models/OrganizationModel";
+import { UserModel } from "../../../models/UserModel";
 import { getStripe, isStripeConfigured } from "../../../config/stripe";
 import axios from "axios";
 import logger from "../../../lib/logger";
@@ -50,22 +50,17 @@ export async function deleteOrganization(organizationId: number): Promise<void> 
   }
 
   // 3. Delete the organization — CASCADE handles all FK-linked tables
-  const trx = await db.transaction();
+  const trx = await OrganizationModel.beginTransaction();
   try {
     // Delete the organization — CASCADE handles all FK-linked tables:
     //    locations, google_connections, google_properties, user_locations,
     //    organization_users, invitations, agent_results, tasks,
     //    practice_rankings, pms_jobs, notifications, website_builder.projects,
     //    website_builder.user_edits
-    await trx("organizations").where({ id: organizationId }).del();
+    await OrganizationModel.deleteById(organizationId, trx);
 
     // 4. Clean up orphaned users (users who no longer belong to any organization)
-    await trx.raw(`
-      DELETE FROM users u
-      WHERE NOT EXISTS (
-        SELECT 1 FROM organization_users ou WHERE ou.user_id = u.id
-      )
-    `);
+    await UserModel.deleteOrphaned(trx);
 
     await trx.commit();
 

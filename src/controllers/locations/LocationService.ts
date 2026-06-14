@@ -9,7 +9,6 @@
  * for backward compatibility.
  */
 
-import { db } from "../../database/connection";
 import { QueryContext } from "../../models/BaseModel";
 import { LocationModel, ILocation } from "../../models/LocationModel";
 import {
@@ -29,15 +28,6 @@ interface GBPSelection {
   displayName: string;
 }
 
-// Downstream tables that reference location_id (no FK constraint — must null-out manually)
-const DOWNSTREAM_TABLES = [
-  "agent_results",
-  "tasks",
-  "pms_jobs",
-  "practice_rankings",
-  "notifications",
-];
-
 /**
  * Sync locations + google_properties from a set of GBP selections.
  * Called by onboarding (save-gbp) and can be used for full re-sync from settings.
@@ -54,7 +44,7 @@ export async function syncLocationsFromGBP(
   googleConnectionId: number,
   selections: GBPSelection[]
 ): Promise<ILocation[]> {
-  return db.transaction(async (trx) => {
+  return LocationModel.transaction(async (trx) => {
     // Get org domain for new locations
     const org = await OrganizationModel.findById(organizationId, trx);
     const orgDomain = org?.domain || null;
@@ -92,7 +82,7 @@ export async function syncLocationsFromGBP(
       );
       if (remainingProps.length === 0) {
         // Null out location_id on downstream tables before deleting
-        await nullOutLocationId(prop.location_id, trx);
+        await LocationModel.nullOutLocationReferences(prop.location_id, trx);
         await LocationModel.deleteById(prop.location_id, trx);
       }
     }
@@ -152,7 +142,7 @@ export async function createLocation(
   gbp: GBPSelection,
   domain?: string | null
 ): Promise<ILocation> {
-  const location = await db.transaction(async (trx) => {
+  const location = await LocationModel.transaction(async (trx) => {
     const connection = await GoogleConnectionModel.findOneByOrganization(
       organizationId,
       trx
@@ -215,7 +205,7 @@ export async function removeLocation(
   locationId: number,
   organizationId: number
 ): Promise<void> {
-  await db.transaction(async (trx) => {
+  await LocationModel.transaction(async (trx) => {
     const location = await LocationModel.findById(locationId, trx);
     if (!location || location.organization_id !== organizationId) {
       throw new Error("Location not found or does not belong to organization");
@@ -246,7 +236,7 @@ export async function removeLocation(
     }
 
     // Null out downstream references
-    await nullOutLocationId(locationId, trx);
+    await LocationModel.nullOutLocationReferences(locationId, trx);
 
     // Delete google_properties (cascade would handle this, but be explicit)
     await GooglePropertyModel.deleteByLocationId(locationId, trx);
@@ -276,7 +266,7 @@ export async function updateLocation(
   organizationId: number,
   data: { name?: string; domain?: string; is_primary?: boolean }
 ): Promise<void> {
-  return db.transaction(async (trx) => {
+  return LocationModel.transaction(async (trx) => {
     const location = await LocationModel.findById(locationId, trx);
     if (!location || location.organization_id !== organizationId) {
       throw new Error("Location not found or does not belong to organization");
@@ -309,7 +299,7 @@ export async function setLocationGBP(
   organizationId: number,
   gbp: GBPSelection
 ): Promise<void> {
-  return db.transaction(async (trx) => {
+  return LocationModel.transaction(async (trx) => {
     const location = await LocationModel.findById(locationId, trx);
     if (!location || location.organization_id !== organizationId) {
       throw new Error("Location not found or does not belong to organization");
@@ -352,7 +342,7 @@ export async function disconnectLocationGBP(
   locationId: number,
   organizationId: number
 ): Promise<void> {
-  return db.transaction(async (trx) => {
+  return LocationModel.transaction(async (trx) => {
     const location = await LocationModel.findById(locationId, trx);
     if (!location || location.organization_id !== organizationId) {
       throw new Error("Location not found or does not belong to organization");
@@ -423,18 +413,3 @@ async function ensurePrimary(
   }
 }
 
-/**
- * Null out location_id on all downstream tables for a given location.
- * These tables have no FK constraint, so we must do this manually
- * before deleting the location to avoid dangling references.
- */
-async function nullOutLocationId(
-  locationId: number,
-  trx: QueryContext
-): Promise<void> {
-  for (const table of DOWNSTREAM_TABLES) {
-    await (trx as any)(table)
-      .where({ location_id: locationId })
-      .update({ location_id: null });
-  }
-}

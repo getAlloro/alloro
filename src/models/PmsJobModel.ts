@@ -87,6 +87,25 @@ export class PmsJobModel extends BaseModel {
     return super.deleteById(id, trx);
   }
 
+  /** COUNT(*) of jobs for an org (admin reset preview). */
+  static async countByOrganizationId(
+    organizationId: number,
+    trx?: QueryContext
+  ): Promise<{ count: string } | undefined> {
+    return this.table(trx)
+      .where({ organization_id: organizationId })
+      .count<{ count: string }[]>("* as count")
+      .first();
+  }
+
+  /** Hard-delete all jobs for an org (admin reset). Returns rows deleted. */
+  static async deleteByOrganizationId(
+    organizationId: number,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx).where({ organization_id: organizationId }).del();
+  }
+
   static async listAdmin(
     filters: PmsJobFilters,
     pagination: PaginationParams,

@@ -67,6 +67,57 @@ export class AgentResultModel extends BaseModel {
     return super.deleteById(id, trx);
   }
 
+  /**
+   * Latest result for an org + agent type (optionally scoped to a location),
+   * returned as the RAW DB row (no JSON deserialization) so callers that parse
+   * data/agent_input/agent_output themselves get identical input. Mirrors the
+   * PmsPipelineController fallback query verbatim.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findLatestRawByOrgAndAgent(
+    organizationId: number,
+    agentType: string,
+    locationId: number | null | undefined,
+    trx?: QueryContext
+  ): Promise<any> {
+    const query = this.table(trx)
+      .where({
+        organization_id: organizationId,
+        agent_type: agentType,
+      })
+      .orderBy("created_at", "desc");
+    if (locationId !== null && locationId !== undefined) {
+      query.where({ location_id: locationId });
+    }
+    return query.first();
+  }
+
+  /** COUNT(*) of results for an org + agent type (admin reset preview). */
+  static async countByOrganizationAndAgentType(
+    organizationId: number,
+    agentType: string,
+    trx?: QueryContext
+  ): Promise<{ count: string } | undefined> {
+    return this.table(trx)
+      .where({ organization_id: organizationId, agent_type: agentType })
+      .count<{ count: string }[]>("* as count")
+      .first();
+  }
+
+  /**
+   * Hard-delete all results for an org + agent type (admin reset). Returns
+   * rows deleted. Recommendations must be deleted first (no FK cascade).
+   */
+  static async deleteByOrganizationAndAgentType(
+    organizationId: number,
+    agentType: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ organization_id: organizationId, agent_type: agentType })
+      .del();
+  }
+
   static async listAdmin(
     filters: AgentResultFilters,
     pagination: PaginationParams,

@@ -127,6 +127,20 @@ export class FormSubmissionModel extends BaseModel {
     return this.table(trx).where("id", id).update({ is_read: true });
   }
 
+  /**
+   * Flag a submission with a reason (post-save AI content analysis). Mirrors
+   * the inline update in websiteContact/formSubmissionController verbatim.
+   */
+  static async markAsFlagged(
+    id: string,
+    flagReason: string,
+    trx?: QueryContext,
+  ): Promise<number> {
+    return this.table(trx)
+      .where("id", id)
+      .update({ is_flagged: true, flag_reason: flagReason });
+  }
+
   static async markAsUnread(
     id: string,
     trx?: QueryContext,

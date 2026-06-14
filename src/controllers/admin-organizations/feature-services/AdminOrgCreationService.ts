@@ -8,8 +8,6 @@
  */
 
 import bcrypt from "bcrypt";
-import { Knex } from "knex";
-import { db } from "../../../database/connection";
 import { OrganizationModel } from "../../../models/OrganizationModel";
 import { UserModel } from "../../../models/UserModel";
 import { OrganizationUserModel } from "../../../models/OrganizationUserModel";
@@ -111,7 +109,7 @@ export async function createOrganizationWithUser(
   }
 
   // ── Execute in transaction ──
-  const trx = await db.transaction();
+  const trx = await OrganizationModel.beginTransaction();
 
   try {
     // 1. Create organization

@@ -1,4 +1,5 @@
 import { BaseModel, QueryContext } from "./BaseModel";
+import { db } from "../database/connection";
 
 export interface IUser {
   id: number;
@@ -210,5 +211,21 @@ export class UserModel extends BaseModel {
     return this.table(trx)
       .whereRaw(`LOWER(email) IN (${emailPlaceholders})`, emails)
       .select("id", "email", "name", "first_name", "last_name");
+  }
+
+  /**
+   * Delete users who no longer belong to any organization. Raw statement
+   * preserved verbatim from service.delete-organization (orphan cleanup after
+   * an org delete cascades its organization_users rows). Pass the delete
+   * transaction so it runs atomically with the org removal.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async deleteOrphaned(trx?: QueryContext): Promise<any> {
+    return (trx || db).raw(`
+      DELETE FROM users u
+      WHERE NOT EXISTS (
+        SELECT 1 FROM organization_users ou WHERE ou.user_id = u.id
+      )
+    `);
   }
 }

@@ -34,6 +34,17 @@ export abstract class BaseModel {
     return db.transaction(callback);
   }
 
+  /**
+   * Open a transaction in imperative (non-callback) mode, returning the
+   * `trx` handle for callers that must `commit()`/`rollback()` explicitly
+   * (e.g. a Stripe webhook handler composing a model write + an external
+   * tier update with bespoke error handling). Keeps the raw `db` handle
+   * owned by models/ — callers thread the returned `trx` into model methods.
+   */
+  static beginTransaction(): Promise<Knex.Transaction> {
+    return db.transaction();
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findById(id: number | string, trx?: QueryContext): Promise<any> {
     const row = await this.table(trx).where({ id }).first();

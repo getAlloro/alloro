@@ -1,4 +1,3 @@
-import { db } from "../../../database/connection";
 import { OrganizationModel } from "../../../models/OrganizationModel";
 import {
   AdminTicketFilters,
@@ -76,7 +75,7 @@ export class SupportTicketService {
     }
 
     const assigneeId = await resolveAssigneeId(context.input.type);
-    const ticket = await db.transaction(async (trx) => {
+    const ticket = await SupportTicketModel.transaction(async (trx) => {
       const sequence = await SupportTicketModel.nextPublicSequence(trx);
       const created = await SupportTicketModel.create(
         {
@@ -184,7 +183,7 @@ export class SupportTicketService {
       );
     }
 
-    await db.transaction(async (trx) => {
+    await SupportTicketModel.transaction(async (trx) => {
       await SupportTicketMessageModel.create(
         {
           ticket_id: existing.id,
@@ -261,7 +260,7 @@ export class SupportTicketService {
     assertAdminUpdateAllowed(existing, input);
 
     const updateData = buildAdminUpdateData(input);
-    const updated = await db.transaction(async (trx) => {
+    const updated = await SupportTicketModel.transaction(async (trx) => {
       const ticket = await SupportTicketModel.updateTicket(
         existing.id,
         updateData,
@@ -300,7 +299,7 @@ export class SupportTicketService {
       );
     }
 
-    await db.transaction(async (trx) => {
+    await SupportTicketModel.transaction(async (trx) => {
       await SupportTicketMessageModel.create(
         {
           ticket_id: existing.id,
