@@ -2,7 +2,20 @@
  * Menus API — Admin portal for managing navigation menus
  */
 
+import { getCommonHeaders } from "./index";
+
 const BASE = "/api/admin/websites";
+
+// Attach the Bearer token (via getCommonHeaders) to every admin call. These
+// /api/admin/websites/* routes are protected by the app-level auth guard;
+// bare fetch would 401.
+const adminFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
+  const headers = new Headers(init.headers);
+  Object.entries(getCommonHeaders()).forEach(([key, value]) => {
+    if (!headers.has(key)) headers.set(key, value);
+  });
+  return fetch(input, { ...init, headers });
+};
 
 // =====================================================================
 // TYPES
@@ -40,19 +53,19 @@ export interface MenuWithItems extends Menu {
 // =====================================================================
 
 export async function fetchMenus(projectId: string): Promise<{ success: boolean; data: Menu[] }> {
-  const res = await fetch(`${BASE}/${projectId}/menus`, { credentials: "include" });
+  const res = await adminFetch(`${BASE}/${projectId}/menus`, { credentials: "include" });
   if (!res.ok) throw new Error((await res.json()).message || "Failed to fetch menus");
   return res.json();
 }
 
 export async function fetchMenu(projectId: string, menuId: string): Promise<{ success: boolean; data: MenuWithItems }> {
-  const res = await fetch(`${BASE}/${projectId}/menus/${menuId}`, { credentials: "include" });
+  const res = await adminFetch(`${BASE}/${projectId}/menus/${menuId}`, { credentials: "include" });
   if (!res.ok) throw new Error((await res.json()).message || "Failed to fetch menu");
   return res.json();
 }
 
 export async function createMenu(projectId: string, data: { name: string; slug?: string }): Promise<{ success: boolean; data: MenuWithItems }> {
-  const res = await fetch(`${BASE}/${projectId}/menus`, {
+  const res = await adminFetch(`${BASE}/${projectId}/menus`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -63,7 +76,7 @@ export async function createMenu(projectId: string, data: { name: string; slug?:
 }
 
 export async function updateMenu(projectId: string, menuId: string, data: { name?: string; slug?: string }): Promise<{ success: boolean; data: Menu }> {
-  const res = await fetch(`${BASE}/${projectId}/menus/${menuId}`, {
+  const res = await adminFetch(`${BASE}/${projectId}/menus/${menuId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -74,7 +87,7 @@ export async function updateMenu(projectId: string, menuId: string, data: { name
 }
 
 export async function deleteMenu(projectId: string, menuId: string): Promise<{ success: boolean }> {
-  const res = await fetch(`${BASE}/${projectId}/menus/${menuId}`, {
+  const res = await adminFetch(`${BASE}/${projectId}/menus/${menuId}`, {
     method: "DELETE",
     credentials: "include",
   });
@@ -91,7 +104,7 @@ export async function createMenuItem(
   menuId: string,
   data: { label: string; url: string; target?: string; parent_id?: string | null; order_index?: number }
 ): Promise<{ success: boolean; data: MenuItem }> {
-  const res = await fetch(`${BASE}/${projectId}/menus/${menuId}/items`, {
+  const res = await adminFetch(`${BASE}/${projectId}/menus/${menuId}/items`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -107,7 +120,7 @@ export async function updateMenuItem(
   itemId: string,
   data: { label?: string; url?: string; target?: string; parent_id?: string | null; order_index?: number }
 ): Promise<{ success: boolean; data: MenuItem }> {
-  const res = await fetch(`${BASE}/${projectId}/menus/${menuId}/items/${itemId}`, {
+  const res = await adminFetch(`${BASE}/${projectId}/menus/${menuId}/items/${itemId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -122,7 +135,7 @@ export async function deleteMenuItem(
   menuId: string,
   itemId: string
 ): Promise<{ success: boolean }> {
-  const res = await fetch(`${BASE}/${projectId}/menus/${menuId}/items/${itemId}`, {
+  const res = await adminFetch(`${BASE}/${projectId}/menus/${menuId}/items/${itemId}`, {
     method: "DELETE",
     credentials: "include",
   });
@@ -135,7 +148,7 @@ export async function reorderMenuItems(
   menuId: string,
   items: { id: string; parent_id: string | null; order_index: number }[]
 ): Promise<{ success: boolean }> {
-  const res = await fetch(`${BASE}/${projectId}/menus/${menuId}/items/reorder`, {
+  const res = await adminFetch(`${BASE}/${projectId}/menus/${menuId}/items/reorder`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     credentials: "include",

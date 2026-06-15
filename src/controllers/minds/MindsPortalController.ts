@@ -7,6 +7,7 @@ import { MindSkillNeuronModel } from "../../models/MindSkillNeuronModel";
 import { MindSkillCallModel } from "../../models/MindSkillCallModel";
 import { verifyPortalKey, generatePortalKey } from "./utils/portalKey";
 import { shouldUseRag, retrieveForChat, buildRetrievedContext } from "./feature-services/service.minds-retrieval";
+import logger from "../../lib/logger";
 
 const MODEL = process.env.MINDS_LLM_MODEL || "claude-sonnet-4-6";
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
@@ -103,7 +104,7 @@ RULES:
       tokens_used: tokensUsed,
     });
   } catch (error: any) {
-    console.error("[PORTAL] Mind portal error:", error);
+    logger.error({ err: error }, "[PORTAL] Mind portal error:");
     return res.status(500).json({ error: "Portal query failed" });
   }
 }
@@ -185,7 +186,7 @@ INSTRUCTIONS:
       },
     });
   } catch (error: any) {
-    console.error("[PORTAL] Skill portal error:", error);
+    logger.error({ err: error }, "[PORTAL] Skill portal error:");
     return res.status(500).json({ error: "Portal query failed" });
   }
 }
@@ -257,7 +258,7 @@ RULES:
       tokens_used: tokensUsed,
     });
   } catch (error: any) {
-    console.error("[PORTAL] Test mind portal error:", error);
+    logger.error({ err: error }, "[PORTAL] Test mind portal error:");
     return res.status(500).json({ error: "Test portal query failed" });
   }
 }
@@ -313,7 +314,7 @@ INSTRUCTIONS:
       response: responseText,
     });
   } catch (error: any) {
-    console.error("[PORTAL] Test skill portal error:", error);
+    logger.error({ err: error }, "[PORTAL] Test skill portal error:");
     return res.status(500).json({ error: "Test portal query failed" });
   }
 }

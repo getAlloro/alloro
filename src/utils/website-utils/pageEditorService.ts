@@ -12,6 +12,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getPageEditorPrompt } from "./pageEditorPrompt";
 import { safeLogAiCostEvent } from "../../services/ai-cost/service.ai-cost";
+import logger from "../../lib/logger";
 
 const MODEL = "claude-haiku-4-5-20251001";
 
@@ -84,9 +85,9 @@ Instruction: ${instruction}${mediaContext}`;
 
   const systemPrompt = await getPageEditorPrompt(promptType);
 
-  console.log(`[PageEditor] Sending edit request to Claude for class: ${alloroClass}`);
-  console.log(`[PageEditor] Instruction: ${instruction}`);
-  console.log(`[PageEditor] HTML size: ${currentHtml.length} chars, history: ${chatHistory.length} messages`);
+  logger.info(`[PageEditor] Sending edit request to Claude for class: ${alloroClass}`);
+  logger.info(`[PageEditor] Instruction: ${instruction}`);
+  logger.info(`[PageEditor] HTML size: ${currentHtml.length} chars, history: ${chatHistory.length} messages`);
 
   const response = await ai.messages.create({
     model: MODEL,
@@ -129,7 +130,7 @@ Instruction: ${instruction}${mediaContext}`;
     } catch {
       // If JSON parse fails, check if it looks like raw HTML
       if (cleaned.startsWith("<")) {
-        console.warn("[PageEditor] LLM returned raw HTML instead of JSON — wrapping automatically");
+        logger.warn("[PageEditor] LLM returned raw HTML instead of JSON — wrapping automatically");
         parsed = {
           error: false,
           message: "Applied edit",
@@ -140,12 +141,12 @@ Instruction: ${instruction}${mediaContext}`;
       }
     }
   } catch (parseErr) {
-    console.error("[PageEditor] LLM returned invalid response:", text.substring(0, 200));
+    logger.error({ err: text.substring(0, 200) }, "[PageEditor] LLM returned invalid response:");
     throw new Error("LLM returned invalid response — expected JSON or HTML");
   }
 
   // Log token usage
-  console.log(
+  logger.info(
     `[PageEditor] ✓ Edit complete. Input tokens: ${debugInfo.inputTokens}, Output tokens: ${debugInfo.outputTokens}`
   );
 
@@ -170,7 +171,7 @@ Instruction: ${instruction}${mediaContext}`;
 
   // Handle rejection — LLM flagged the instruction as not allowed
   if (parsed.error) {
-    console.log(`[PageEditor] ✗ Edit rejected: ${parsed.message}`);
+    logger.info(`[PageEditor] ✗ Edit rejected: ${parsed.message}`);
     return {
       editedHtml: null,
       message: parsed.message || "This edit is not allowed.",
@@ -186,7 +187,7 @@ Instruction: ${instruction}${mediaContext}`;
   }
 
   if (!editedHtml.includes(alloroClass)) {
-    console.error(`[PageEditor] Alloro class "${alloroClass}" missing from LLM response`);
+    logger.error(`[PageEditor] Alloro class "${alloroClass}" missing from LLM response`);
     throw new Error(
       `The edit removed the component identifier class "${alloroClass}". This is not allowed.`
     );

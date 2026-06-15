@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { MindSyncProposalModel } from "../../models/MindSyncProposalModel";
+import logger from "../../lib/logger";
 
 export async function updateProposal(req: Request, res: Response): Promise<any> {
   try {
@@ -30,7 +31,7 @@ export async function updateProposal(req: Request, res: Response): Promise<any> 
     await MindSyncProposalModel.updateStatus(proposalId, status);
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[MINDS] Error updating proposal:", error);
+    logger.error({ err: error }, "[MINDS] Error updating proposal:");
     return res.status(500).json({ error: "Failed to update proposal" });
   }
 }

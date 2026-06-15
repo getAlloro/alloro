@@ -3,6 +3,18 @@
  */
 
 import type { Section } from "./templates";
+import { getCommonHeaders } from "./index";
+
+// Attach the Bearer token (via getCommonHeaders) to every admin call. These
+// /api/admin/websites/* routes are protected by the app-level auth guard;
+// bare fetch would 401.
+const adminFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
+  const headers = new Headers(init.headers);
+  Object.entries(getCommonHeaders()).forEach(([key, value]) => {
+    if (!headers.has(key)) headers.set(key, value);
+  });
+  return fetch(input, { ...init, headers });
+};
 
 // =====================================================================
 // TYPES
@@ -28,7 +40,7 @@ const TEMPLATES_BASE = "/api/admin/websites/templates";
 export const fetchReviewBlocks = async (
   templateId: string
 ): Promise<{ success: boolean; data: ReviewBlock[] }> => {
-  const response = await fetch(`${TEMPLATES_BASE}/${templateId}/review-blocks`);
+  const response = await adminFetch(`${TEMPLATES_BASE}/${templateId}/review-blocks`);
   if (!response.ok) throw new Error(`Failed to fetch review blocks: ${response.statusText}`);
   return response.json();
 };
@@ -37,7 +49,7 @@ export const fetchReviewBlock = async (
   templateId: string,
   reviewBlockId: string
 ): Promise<{ success: boolean; data: ReviewBlock }> => {
-  const response = await fetch(`${TEMPLATES_BASE}/${templateId}/review-blocks/${reviewBlockId}`);
+  const response = await adminFetch(`${TEMPLATES_BASE}/${templateId}/review-blocks/${reviewBlockId}`);
   if (!response.ok) throw new Error(`Failed to fetch review block: ${response.statusText}`);
   return response.json();
 };
@@ -46,7 +58,7 @@ export const createReviewBlock = async (
   templateId: string,
   data: { name: string; description?: string; sections?: Section[] }
 ): Promise<{ success: boolean; data: ReviewBlock }> => {
-  const response = await fetch(`${TEMPLATES_BASE}/${templateId}/review-blocks`, {
+  const response = await adminFetch(`${TEMPLATES_BASE}/${templateId}/review-blocks`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -63,7 +75,7 @@ export const updateReviewBlock = async (
   reviewBlockId: string,
   data: Partial<Pick<ReviewBlock, "name" | "sections" | "description">>
 ): Promise<{ success: boolean; data: ReviewBlock }> => {
-  const response = await fetch(`${TEMPLATES_BASE}/${templateId}/review-blocks/${reviewBlockId}`, {
+  const response = await adminFetch(`${TEMPLATES_BASE}/${templateId}/review-blocks/${reviewBlockId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -79,7 +91,7 @@ export const deleteReviewBlock = async (
   templateId: string,
   reviewBlockId: string
 ): Promise<{ success: boolean }> => {
-  const response = await fetch(`${TEMPLATES_BASE}/${templateId}/review-blocks/${reviewBlockId}`, {
+  const response = await adminFetch(`${TEMPLATES_BASE}/${templateId}/review-blocks/${reviewBlockId}`, {
     method: "DELETE",
   });
   if (!response.ok) throw new Error(`Failed to delete review block: ${response.statusText}`);
@@ -93,7 +105,7 @@ export const deleteReviewBlock = async (
 export const triggerReviewSync = async (
   projectId: string
 ): Promise<{ success: boolean; data: { jobId: string } }> => {
-  const response = await fetch(`/api/admin/websites/${projectId}/reviews/sync`, {
+  const response = await adminFetch(`/api/admin/websites/${projectId}/reviews/sync`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
   });
@@ -108,7 +120,7 @@ export const triggerApifyReviewFetch = async (
   projectId: string,
   placeIds?: string[]
 ): Promise<{ success: boolean; data: { jobId: string; placeCount: number } }> => {
-  const response = await fetch(`/api/admin/websites/${projectId}/reviews/fetch`, {
+  const response = await adminFetch(`/api/admin/websites/${projectId}/reviews/fetch`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(placeIds ? { placeIds } : {}),
@@ -124,7 +136,7 @@ export const getReviewJobStatus = async (
   projectId: string,
   jobId: string
 ): Promise<{ success: boolean; data: { jobId: string; state: string; failedReason?: string } }> => {
-  const response = await fetch(`/api/admin/websites/${projectId}/reviews/jobs/${jobId}/status`);
+  const response = await adminFetch(`/api/admin/websites/${projectId}/reviews/jobs/${jobId}/status`);
   if (!response.ok) throw new Error("Failed to fetch job status");
   return response.json();
 };
@@ -160,7 +172,7 @@ export interface ReviewStats {
 export const fetchReviewStats = async (
   projectId: string
 ): Promise<{ success: boolean; data: ReviewStats }> => {
-  const response = await fetch(`/api/admin/websites/${projectId}/reviews/stats`);
+  const response = await adminFetch(`/api/admin/websites/${projectId}/reviews/stats`);
   if (!response.ok) {
     const err = await response.json().catch(() => null);
     throw new Error(err?.message || "Failed to fetch review stats");
@@ -176,7 +188,7 @@ export const fetchReviews = async (
   if (params?.search) qs.set("search", params.search);
   if (params?.stars) qs.set("stars", String(params.stars));
   if (params?.showHidden) qs.set("showHidden", "true");
-  const response = await fetch(`/api/admin/websites/${projectId}/reviews?${qs.toString()}`);
+  const response = await adminFetch(`/api/admin/websites/${projectId}/reviews?${qs.toString()}`);
   if (!response.ok) throw await readReviewApiError(response, "Failed to fetch reviews");
   return response.json();
 };
@@ -186,7 +198,7 @@ export const toggleReviewHidden = async (
   reviewId: string,
   hidden: boolean
 ): Promise<{ success: boolean }> => {
-  const response = await fetch(`/api/admin/websites/${projectId}/reviews/${reviewId}`, {
+  const response = await adminFetch(`/api/admin/websites/${projectId}/reviews/${reviewId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ hidden }),
@@ -199,7 +211,7 @@ export const deleteReview = async (
   projectId: string,
   reviewId: string
 ): Promise<{ success: boolean }> => {
-  const response = await fetch(`/api/admin/websites/${projectId}/reviews/${reviewId}`, {
+  const response = await adminFetch(`/api/admin/websites/${projectId}/reviews/${reviewId}`, {
     method: "DELETE",
   });
   if (!response.ok) throw await readReviewApiError(response, "Failed to delete review");

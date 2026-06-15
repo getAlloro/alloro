@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>agents (controllers) — Conventions Audit</title>
+<style>
+:root{color-scheme:light;--paper:#fff;--ink:#080808;--muted:#5f5f5f;--line:#d8d8d8;--soft:#f5f5f5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
+.shell{width:min(1000px,calc(100% - 32px));margin:0 auto;padding:40px 0}
+.hero,.card{border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.hero{border-color:var(--ink);padding:28px;margin-bottom:18px}
+.topline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.card{padding:24px;margin-top:16px}
+.eyebrow,dt{color:var(--muted);font-size:.74rem;font-weight:700;text-transform:uppercase}
+.eyebrow{margin:0}
+.pill{display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border:1px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper);font-size:.74rem;font-weight:800;text-transform:uppercase}
+h1,h2,h3,p{margin-top:0}
+h1{margin-bottom:18px;font-size:clamp(1.8rem,5vw,3rem);line-height:.98}
+h2{font-size:1.2rem}h3{font-size:.95rem}
+code{padding:.1rem .3rem;border:1px solid var(--line);border-radius:4px;background:var(--soft);font-size:.86em}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:0}
+.meta div{border:1px solid var(--line);border-radius:8px;padding:14px}
+dd{margin:4px 0 0;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:8px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);text-transform:uppercase;font-size:.7rem}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.over{font-weight:800}
+.checklist{list-style:none;padding:0;margin:0}
+.checklist li{display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line);font-size:.88rem}
+.note{border-left:3px solid var(--ink);padding:10px 14px;background:var(--soft);margin:0;font-size:.9rem}
+ul.flags{margin:0;padding-left:18px}ul.flags li{margin-bottom:7px}
+a{color:var(--ink)}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="hero">
+  <div class="topline"><p class="eyebrow">Backend Conventions Audit · Check 04 / 17 · <a href="../spec.html">index</a></p><span class="pill">Audited</span></div>
+  <h1>agents <span style="font-size:.4em;color:var(--muted)">(controllers)</span></h1>
+  <dl class="meta">
+    <div><dt>Scope</dt><dd><code>src/controllers/agents</code></dd></div>
+    <div><dt>Files</dt><dd>13</dd></div>
+    <div><dt>Lines</dt><dd>5,694</dd></div>
+    <div><dt>Over 300</dt><dd>7</dd></div>
+    <div><dt>Priority</dt><dd>P2</dd></div>
+  </dl>
+</header>
+
+<section class="card">
+  <h2>Scope</h2>
+  <p>Agent orchestration: task creation, governance validation, input building, ranking execution, webhook orchestration, output schemas. <strong>Distinct from</strong> the top-level <code>src/agents/</code> LLM runner (audited in Check 17).</p>
+  <table>
+    <thead><tr><th>File (rel. to scope)</th><th class="n">Lines</th></tr></thead>
+    <tbody>
+      <tr><td><code>AgentsController.ts</code></td><td class="n over">1,405 ▲</td></tr>
+      <tr><td><code>feature-services/service.agent-orchestrator.ts</code></td><td class="n over">1,209 ▲</td></tr>
+      <tr><td><code>feature-services/service.task-creator.ts</code></td><td class="n over">580 ▲</td></tr>
+      <tr><td><code>feature-services/service.governance-validator.ts</code></td><td class="n over">439 ▲</td></tr>
+      <tr><td><code>types/agent-output-schemas.ts</code></td><td class="n over">431 ▲</td></tr>
+      <tr><td><code>feature-services/service.agent-input-builder.ts</code></td><td class="n over">419 ▲</td></tr>
+      <tr><td><code>feature-services/service.ranking-executor.ts</code></td><td class="n over">387 ▲</td></tr>
+      <tr><td colspan="2"><em>+ 6 more files ≤ 300 lines</em></td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:.78rem;color:var(--muted);margin:8px 0 0">▲ = over the 300-line cap.</p>
+</section>
+
+<section class="card">
+  <h2>Priority Signals (start here)</h2>
+  <ul class="flags">
+    <li><code>AgentsController</code> 1,405 + <code>service.agent-orchestrator</code> 1,209 — orchestration concentrated. Verify the controller is coordinating, not holding business logic that belongs in services.</li>
+    <li><code>types/agent-output-schemas.ts</code> 431 is over cap but may be acceptable as pure declarations — judge: is it logic or data? The cap is a code rule, not a type-manifest rule.</li>
+    <li><code>service.webhook-orchestrator</code> — external callbacks; audit failure modes + idempotency (duplicate/late webhooks).</li>
+    <li>Nesting: <code>feature-services/</code> + <code>feature-utils/</code> + <code>types/</code> — apply the T01 ruling.</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Audit Dimensions</h2>
+  <p>Run every file in scope against the 16-point contract (full detail in <a href="../spec.html#dimensions">spec.html</a>).</p>
+  <ul class="checklist">
+    <li><input type="checkbox" disabled> File &le; 300 lines</li>
+    <li><input type="checkbox" disabled> Functions &le; 50 lines</li>
+    <li><input type="checkbox" disabled> Nesting &le; 4 levels</li>
+    <li><input type="checkbox" disabled> Correct folder placement</li>
+    <li><input type="checkbox" disabled> Data flow: Routes &rarr; Controllers &rarr; Services &rarr; Models</li>
+    <li><input type="checkbox" disabled> No business logic in routes</li>
+    <li><input type="checkbox" disabled> No DB queries outside <code>models/</code></li>
+    <li><input type="checkbox" disabled> Error handling on every async call</li>
+    <li><input type="checkbox" disabled> <code>{ success, data, error }</code> response shape</li>
+    <li><input type="checkbox" disabled> No <code>console.log</code> (Pino only)</li>
+    <li><input type="checkbox" disabled> No hardcoded secrets / magic values</li>
+    <li><input type="checkbox" disabled> Input validated at route/middleware</li>
+    <li><input type="checkbox" disabled> Auth middleware on protected routes</li>
+    <li><input type="checkbox" disabled> Naming conventions</li>
+    <li><input type="checkbox" disabled> No commented-out code</li>
+    <li><input type="checkbox" disabled> Transactions for multi-table writes</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Findings</h2>
+  <h3>Summary</h3>
+  <p><strong>Verdict: needs changes.</strong> The unit splits cleanly into thin delegating handlers/pure builders (good) and a few god-functions carrying the real orchestration. The headline issue is <strong>not</strong> "controller holds business logic that belongs in services" — that's mostly already extracted. The real damage is concentrated in three places: (1) four enormous, deeply-nested orchestration functions, (2) <strong>multi-table writes with zero transactions</strong> across five files (orphan-row risk on partial failure), and (3) the agent endpoints are mounted with <strong>no auth and no validation middleware</strong>, including a tenant-scoped GET that is an IDOR. <code>types/agent-output-schemas.ts</code> (431 lines) is <strong>acceptable</strong> — pure type + Zod declarations, no logic. Counts: <strong>4 must-fix · 6 concerns · 6 nitpicks</strong>. Coverage: all 13 files read in full.</p>
+
+  <h3>Must-fix</h3>
+  <ul>
+    <li><code>routes/agentsV2.ts</code> (whole file) + <code>AgentsController.ts:1212,1284</code> — <strong>[dim 13 + dim 5/IDOR]</strong> The router applies <em>no</em> middleware and there is no global auth gate (verified in <code>src/index.ts:160-175</code> — only CORS shim, billing-webhook raw parser, json/urlencoded, billingGate run before mounts). Client-facing GETs <code>/latest/:googleAccountId</code> and <code>/getLatestReferralEngineOutput/:googleAccountId</code> read <code>req.organizationId</code> (set only by <code>middleware/rbac.ts</code>, applied per-router) and silently fall back to <code>parseInt(googleAccountId)</code> from the URL when it's undefined — so any unauthenticated caller can read any org's agent outputs by guessing the numeric id. The POST run-triggers (proofline/monthly/ranking/process-all) are also fully open and kick off expensive multi-account LLM + DB-write jobs. <em>Fix:</em> apply <code>rbacMiddleware</code> (+ <code>locationScopeMiddleware</code> for the scoped GETs), matching <code>routes/dashboard.ts</code>; gate the run-trigger POSTs behind admin/role (<code>requireRole</code>) or an internal-scheduler guard. Remove the param fallback once org scoping is guaranteed.</li>
+    <li><code>feature-services/service.governance-validator.ts:358-419</code>, <code>service.proofline-executor.ts:110-125</code>, <code>AgentsController.ts (processClient via orchestrator) service.agent-orchestrator.ts:1118-1148</code>, <code>service.ranking-executor.ts:159-183</code> — <strong>[dim 16]</strong> Multi-table writes with no transaction. Examples: governance inserts <code>agent_results</code> (guardian) → <code>agent_results</code> (governance) → <code>agent_recommendations</code> (3 tables, lines 358/382 + <code>saveRecommendationsFromAgents</code>); proofline & orchestrator <code>processClient</code> insert <code>google_data_store</code> then <code>agent_results</code> back-to-back. If the second write throws, the first is committed → orphaned raw-data rows / half-written governance state. <em>Fix:</em> wrap each related write-set in <code>db.transaction(async (trx) =&gt; {...})</code> and thread <code>trx</code> through. (NB: DB-in-service is itself [systemic] dim-7 — see Concerns — but the missing transaction is unit-specific and corrupting.)</li>
+    <li><code>feature-services/service.agent-orchestrator.ts:480-897</code> (<code>processMonthlyAgents</code> ≈417 lines) · <code>:1003-1209</code> (<code>processClient</code> ≈206) · <code>service.governance-validator.ts:39-439</code> (<code>runGuardianGovernanceAgents</code> ≈400) · <code>service.ranking-executor.ts:206-353</code> (<code>processRankingWork</code> ≈147) — <strong>[dim 2 + dim 3]</strong> Single functions 3-8× over the 50-line cap, each nesting 5+ levels (try → for → try → if-else → for). These are the actual "too much logic in one place" violations, not the controller. <em>Fix:</em> extract per-step named helpers (run-one-agent-with-retry, persist-results, build-RE-input, identify-then-update-ranking) so each stays under cap and ≤4 deep; the retry loop in particular is duplicated verbatim and should be one helper.</li>
+    <li><code>feature-services/service.webhook-orchestrator.ts:46-71</code> (<code>callAgentWebhook</code>) — <strong>[dim 8]</strong> The generic outbound webhook caller has no retry, no idempotency/correlation key, and no failure-mode handling — it does one <code>axios.post</code> (10-min timeout) and re-throws. Idempotency for these external calls lives only as check-then-act dedup in callers (e.g. <code>AgentsController.ts:832</code>, <code>governance-validator.ts:139</code>, <code>orchestrator:1065</code>) with no unique constraint or transaction, so concurrent/duplicate triggers (two schedulers, a retry, a late n8n callback) race and double-insert <code>agent_results</code>/<code>tasks</code> (TOCTOU). Contrast <code>identifyLocationMeta</code> (same file, line 107) which <em>does</em> use <code>runWithRetry</code>. <em>Fix:</em> route <code>callAgentWebhook</code> through <code>runWithRetry</code> with <code>isRetryableExternalError</code>; enforce idempotency with a DB unique index on the dedup tuple (<code>organization_id, agent_type, date_start, date_end</code>) + upsert/transaction instead of read-then-insert.</li>
+  </ul>
+
+  <h3>Concerns</h3>
+  <ul>
+    <li><strong>[systemic] [dim 7]</strong> DB access outside <code>models/</code>: <strong>38 <code>db("table")</code> calls across 8 of 13 files</strong>, all importing <code>db</code> from <code>database/connection</code>. Per-file: <code>AgentsController.ts</code> 9, <code>service.agent-orchestrator.ts</code> 7, <code>service.ranking-executor.ts</code> 6, <code>service.governance-validator.ts</code> 6, <code>service.task-creator.ts</code> 5, <code>service.proofline-executor.ts</code> 3, <code>service.recommendation-parser.ts</code> 1, <code>service.ranking-recommendations.ts</code> 1. Tables hit raw: <code>google_connections</code>, <code>organizations</code>, <code>agent_results</code>, <code>agent_recommendations</code>, <code>tasks</code>, <code>google_data_store</code>, <code>practice_rankings</code>, <code>pms_jobs</code>. Models <em>do</em> exist and are used selectively (<code>AgentResultModel</code>, <code>GooglePropertyModel</code>, <code>LocationModel</code>) which makes the raw queries inconsistent drift, not absence of a pattern. <em>Fix (long-term):</em> move queries into the matching models.</li>
+    <li><strong>[dim 5/6]</strong> <code>AgentsController.ts</code> handlers are uneven. <code>runProoflineAgent</code>/<code>runRankingAgent</code>/<code>runGuardianGovernance</code> are correctly thin (delegate to executors). But <code>runMonthlyAgents</code> (≈284 lines, 126-409), <code>runMonthlyAgentsTest</code> (≈300, 415-718) and the disabled <code>runGbpOptimizer</code> (≈245, 724-970) still do real work in the controller: account fetch+join, GBP-config filtering, sequential client loop, dedup query, <code>agent_results</code> insert, task creation, notification + admin-email orchestration, post-run task counting. <em>Fix:</em> push each into a <code>service.*-executor</code> mirroring the proofline/ranking split already done; controller should reduce to validate → call executor → shape response.</li>
+    <li><strong>[systemic] [dim 9]</strong> Response shape: not one endpoint uses the contract <code>{success, data, error}</code>. All use ad-hoc flat bodies, and on error <code>error</code> is a bare <strong>string code</strong> (<code>"MONTHLY_AGENTS_ERROR"</code>) with a sibling <code>message</code>, not the <code>{code, message, details}</code> object. Payload keys vary per endpoint (<code>processed</code>, <code>summaryId</code>, <code>batches</code>, <code>agents</code>, <code>data</code>, <code>pending</code>…). <em>Fix:</em> standardize on the envelope; nest payloads under <code>data</code>.</li>
+    <li><strong>[dim 11]</strong> Repeated magic numbers, no named constants: <code>delay(30000)</code> appears 5× (orchestrator 673/794/1027, governance 236/291), <code>timeout: 600000</code> (webhook 59), maxTokens literals <code>16384/65536/4096/1024</code> (orchestrator 168/256/694, webhook 112), <code>.limit(50)</code> (governance 197/211), inline <code>attempt &lt;= 3</code> / <code>MAX_*ATTEMPTS = 3</code> redeclared in 4 spots. <em>Fix:</em> hoist to <code>config/</code> (e.g. <code>AGENT_RETRY_DELAY_MS</code>, <code>WEBHOOK_TIMEOUT_MS</code>, per-agent <code>MAX_TOKENS</code>, <code>MAX_AGENT_ATTEMPTS</code>).</li>
+    <li><strong>[dim 8]</strong> <code>agentLogger.ts:24</code> uses <strong>synchronous</strong> <code>fs.appendFileSync</code> on every <code>log()</code> call, invoked hundreds of times per run inside request/await paths — blocks the event loop under concurrency. <em>Fix:</em> async/stream writer, or fold into the proper logger (see dim-10 systemic).</li>
+    <li><strong>[dim 8/4 — minor duplication]</strong> The five <code>createTasksFrom*</code> functions in <code>service.task-creator.ts</code> (63/133/202/289/366) are structurally near-identical (build <code>taskData</code> → per-item try/catch <code>db("tasks").insert</code>), as are the Guardian vs Governance retry blocks (<code>governance-validator.ts</code> 230-264 vs 285-321) and the Guardian vs Governance parse blocks (<code>recommendation-parser.ts</code> 32-91 vs 96-168). This is genuine concept-duplication, not coincidental — but per the contract's "premature abstraction is worse" caution, only consolidate the clearly-identical retry/insert mechanics, keep per-agent field mapping separate. <em>Fix:</em> extract a shared <code>insertTask(trx, fields)</code> + a single retry helper.</li>
+  </ul>
+
+  <h3>Nitpicks</h3>
+  <ul>
+    <li><strong>[dim 1 — acceptable, no action]</strong> <code>types/agent-output-schemas.ts</code> (431) is over the 300 cap but is pure declarations (TS interfaces + Zod schemas + <code>z.infer</code> types), zero runtime logic/IO. Per "cap is a code rule, not a type-manifest rule," this is fine. Optional: split into <code>daily.ts</code>/<code>monthly.ts</code>/<code>governance.ts</code> if it keeps growing.</li>
+    <li><strong>[systemic] [dim 10]</strong> No Pino (not installed repo-wide). In-scope raw console: <code>agentLogger.ts:25,27</code> (inside the <code>log</code>/error helper) and <strong><code>service.ranking-recommendations.ts:71</code> <code>console.warn</code></strong> (the one direct console outside the logger). Everything else funnels through <code>log()</code>.</li>
+    <li><strong>[systemic] [dim 12]</strong> No input validation on any agent route (0 schemas, no <code>validation/</code> middleware). Controllers hand-roll a few guards (<code>!googleAccountId</code>, <code>isNaN(organizationId)</code>) but request bodies (<code>referenceDate</code>, <code>month</code>, <code>pmsJobId</code>, <code>locationId</code>) are otherwise trusted untyped. <em>Fix:</em> add route-level schemas.</li>
+    <li><strong>[dim 3]</strong> <code>service.agent-input-builder.ts:352-405</code> <code>buildCopyCompanionPayload</code> nests for → if/if/if → forEach → if (borderline 4-5 deep); also its file header claims "no logging" yet it calls <code>log()</code> 9×. Minor: flatten + fix the header claim.</li>
+    <li><strong>[dim 14 — minor]</strong> File naming uses the <code>service.kebab-name.ts</code> convention (e.g. <code>service.agent-orchestrator.ts</code>) rather than the contract's <code>PascalCaseService.ts</code>. It's internally consistent across the unit, so treat as the established local pattern, not a per-file defect — flag only for repo-wide naming reconciliation.</li>
+    <li><strong>[dim 15-adjacent / dead code]</strong> <code>feature-utils/dateHelpers.ts:55-65</code> <code>shouldRunMonthlyAgents</code> guard <code>if (dayOfMonth &lt; 1) return false</code> is dead (a date's day is always ≥1), and <code>MONTH_PMS_DATA_AVAILABLE</code> is a hardcoded <code>true</code> placeholder making the whole function effectively <code>return true</code>. Also <code>buildCopyCompanionPayload</code>/<code>buildOpportunityPayload</code>/<code>buildCroOptimizerPayload</code> and the Opportunity/CRO task creators are retained-but-disabled (kept intentionally per Plan-1 revival path; noted, not flagged).</li>
+  </ul>
+
+  <h3>Coverage</h3>
+  <p>Deep-read 13 of 13 (all files in scope read in full, incl. the 1,405-line controller and 1,209-line orchestrator). Grep-sampled the scope for <code>console.*</code>, <code>db(</code>/<code>knex</code>/<code>.raw</code>/<code>whereRaw</code>, <code>.transaction(</code>, magic numerics, commented-out code, and hardcoded secrets; cross-checked route mounting and <code>middleware/rbac.ts</code> in <code>src/</code> outside scope to ground the dim-13 finding. Not examined: 0 files in scope. (Out-of-scope files consulted read-only for context: <code>routes/agentsV2.ts</code>, <code>src/index.ts</code>, <code>middleware/rbac.ts</code> — not part of T04's deliverable.)</p>
+</section>
+</main>
+</body>
+</html>

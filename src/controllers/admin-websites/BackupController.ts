@@ -5,10 +5,11 @@
  */
 
 import { Request, Response } from "express";
-import { db } from "../../database/connection";
 import { BackupJobModel } from "../../models/website-builder/BackupJobModel";
+import { MediaModel } from "../../models/website-builder/MediaModel";
 import { ProjectModel } from "../../models/website-builder/ProjectModel";
 import { generatePresignedUrl, deleteFromS3 } from "../../utils/core/s3";
+import logger from "../../lib/logger";
 
 const MAX_BACKUPS_PER_PROJECT = 5;
 
@@ -39,10 +40,7 @@ export async function createBackup(
     }
 
     // Calculate estimated size
-    const [{ sum }] = await db("website_builder.media")
-      .where({ project_id: projectId })
-      .sum("file_size as sum");
-    const estimatedBytes = Number(sum) || 0;
+    const estimatedBytes = await MediaModel.getProjectStorageUsage(projectId);
 
     // Enforce max backups — delete oldest if at limit
     const completedCount = await BackupJobModel.countByProjectId(
@@ -56,7 +54,7 @@ export async function createBackup(
           try {
             await deleteFromS3(oldest.s3_key);
           } catch (err: any) {
-            console.warn(
+            logger.warn(
               `[BACKUP] Failed to delete old backup S3 file: ${err.message}`
             );
           }
@@ -88,7 +86,7 @@ export async function createBackup(
       },
     });
   } catch (err: any) {
-    console.error("[BACKUP] Create backup error:", err);
+    logger.error({ err: err }, "[BACKUP] Create backup error:");
     return res
       .status(500)
       .json({ success: false, error: "INTERNAL", message: err.message });
@@ -107,7 +105,7 @@ export async function listBackups(
     const jobs = await BackupJobModel.findByProjectId(projectId);
     return res.json({ success: true, data: jobs });
   } catch (err: any) {
-    console.error("[BACKUP] List backups error:", err);
+    logger.error({ err: err }, "[BACKUP] List backups error:");
     return res
       .status(500)
       .json({ success: false, error: "INTERNAL", message: err.message });
@@ -150,7 +148,7 @@ export async function getBackupStatus(
       },
     });
   } catch (err: any) {
-    console.error("[BACKUP] Get status error:", err);
+    logger.error({ err: err }, "[BACKUP] Get status error:");
     return res
       .status(500)
       .json({ success: false, error: "INTERNAL", message: err.message });
@@ -181,7 +179,7 @@ export async function downloadBackup(
       data: { url, filename: job.filename, expires_in: 3600 },
     });
   } catch (err: any) {
-    console.error("[BACKUP] Download error:", err);
+    logger.error({ err: err }, "[BACKUP] Download error:");
     return res
       .status(500)
       .json({ success: false, error: "INTERNAL", message: err.message });
@@ -246,10 +244,14 @@ export async function restoreBackup(
     // Enqueue
     const { getWbQueue } = await import("../../workers/wb-queues");
     const queue = getWbQueue("restore");
+    // attempts: 1 — a restore is a destructive wipe-then-restore. It must never
+    // auto-retry: with the DB wipe+restore now wrapped in a transaction, a
+    // failure rolls back to the pre-restore state, and a single attempt keeps
+    // BullMQ from re-running the destructive job against already-restored data.
     await queue.add(
       "website-restore",
       { jobId: job.id, projectId, backupJobId },
-      { jobId: job.id }
+      { jobId: job.id, attempts: 1 }
     );
 
     return res.status(201).json({
@@ -257,7 +259,7 @@ export async function restoreBackup(
       data: { job_id: job.id },
     });
   } catch (err: any) {
-    console.error("[BACKUP] Restore error:", err);
+    logger.error({ err: err }, "[BACKUP] Restore error:");
     return res
       .status(500)
       .json({ success: false, error: "INTERNAL", message: err.message });
@@ -285,7 +287,7 @@ export async function deleteBackup(
       try {
         await deleteFromS3(job.s3_key);
       } catch (err: any) {
-        console.warn(
+        logger.warn(
           `[BACKUP] Failed to delete S3 file ${job.s3_key}: ${err.message}`
         );
       }
@@ -294,7 +296,7 @@ export async function deleteBackup(
     await BackupJobModel.deleteById(jobId);
     return res.json({ success: true });
   } catch (err: any) {
-    console.error("[BACKUP] Delete error:", err);
+    logger.error({ err: err }, "[BACKUP] Delete error:");
     return res
       .status(500)
       .json({ success: false, error: "INTERNAL", message: err.message });

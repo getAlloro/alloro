@@ -14,6 +14,7 @@
 import { MediaModel } from "../../../models/website-builder/MediaModel";
 import { deleteFromS3 } from "../../../utils/core/s3";
 import * as mediaUsageService from "./service.media-usage";
+import logger from "../../../lib/logger";
 
 /**
  * Delete a media item.
@@ -27,7 +28,7 @@ export async function deleteMedia(
   mediaId: string,
   force: boolean
 ): Promise<void> {
-  console.log(`[Media] Deleting media ${mediaId}`);
+  logger.info(`[Media] Deleting media ${mediaId}`);
 
   // Verify media belongs to project
   const media = await MediaModel.findByIdAndProject(mediaId, projectId);
@@ -61,10 +62,7 @@ export async function deleteMedia(
   try {
     await deleteFromS3(media.s3_key);
   } catch (s3Err) {
-    console.warn(
-      `[Media] Failed to delete S3 object ${media.s3_key}:`,
-      s3Err
-    );
+    logger.warn({ detail: s3Err }, `[Media] Failed to delete S3 object ${media.s3_key}:`);
   }
 
   // Delete thumbnail if exists
@@ -72,15 +70,12 @@ export async function deleteMedia(
     try {
       await deleteFromS3(media.thumbnail_s3_key);
     } catch (s3Err) {
-      console.warn(
-        `[Media] Failed to delete S3 thumbnail ${media.thumbnail_s3_key}:`,
-        s3Err
-      );
+      logger.warn({ detail: s3Err }, `[Media] Failed to delete S3 thumbnail ${media.thumbnail_s3_key}:`);
     }
   }
 
   // Delete from DB
   await MediaModel.deleteById(mediaId);
 
-  console.log(`[Media] Deleted ${media.filename}`);
+  logger.info(`[Media] Deleted ${media.filename}`);
 }

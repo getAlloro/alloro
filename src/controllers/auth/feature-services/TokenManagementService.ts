@@ -1,5 +1,6 @@
 import { getValidOAuth2Client } from "../../../auth/oauth2Helper";
 import { GoogleConnectionModel, IGoogleConnection } from "../../../models/GoogleConnectionModel";
+import logger from "../../../lib/logger";
 
 /**
  * Required OAuth scopes (used as fallback when account has no stored scopes)
@@ -35,7 +36,7 @@ export async function validateAndRefreshToken(
 
     return googleAccount;
   } catch (error) {
-    console.error("[AUTH] Error refreshing access token:", error);
+    logger.error({ err: error }, "[AUTH] Error refreshing access token:");
     throw error;
   }
 }

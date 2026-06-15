@@ -1,5 +1,6 @@
 import { BaseModel, PaginatedResult, PaginationParams, QueryContext } from "../BaseModel";
 import { Knex } from "knex";
+import { db } from "../../database/connection";
 
 export interface FileValue {
   url: string;
@@ -126,6 +127,20 @@ export class FormSubmissionModel extends BaseModel {
     return this.table(trx).where("id", id).update({ is_read: true });
   }
 
+  /**
+   * Flag a submission with a reason (post-save AI content analysis). Mirrors
+   * the inline update in websiteContact/formSubmissionController verbatim.
+   */
+  static async markAsFlagged(
+    id: string,
+    flagReason: string,
+    trx?: QueryContext,
+  ): Promise<number> {
+    return this.table(trx)
+      .where("id", id)
+      .update({ is_flagged: true, flag_reason: flagReason });
+  }
+
   static async markAsUnread(
     id: string,
     trx?: QueryContext,
@@ -176,6 +191,41 @@ export class FormSubmissionModel extends BaseModel {
       .count("* as count")
       .first();
     return parseInt(result?.count as string, 10) || 0;
+  }
+
+  /**
+   * Count verified (non-flagged, non-newsletter) submissions for a project
+   * created on/after a cutoff. Mirrors the verifiedThisWeek query in
+   * utils/dashboard-metrics/service.dashboard-metrics.buildFormSubmissionsMetrics.
+   */
+  static async countVerifiedSinceByProjectId(
+    projectId: string,
+    since: Date,
+    trx?: QueryContext,
+  ): Promise<number> {
+    const result = await this.table(trx)
+      .where({ project_id: projectId, is_flagged: false })
+      .whereNot("form_name", "Newsletter Signup")
+      .where("submitted_at", ">=", since)
+      .count<{ count: string }[]>("* as count")
+      .first();
+    return parseInt(result?.count as string, 10) || 0;
+  }
+
+  /**
+   * submitted_at of the oldest unread submission for a project (raw row, or
+   * undefined). Mirrors the oldestUnreadRow query in
+   * utils/dashboard-metrics/service.dashboard-metrics.buildFormSubmissionsMetrics.
+   */
+  static async findOldestUnreadSubmittedAt(
+    projectId: string,
+    trx?: QueryContext,
+  ): Promise<{ submitted_at: Date | string } | undefined> {
+    return this.table(trx)
+      .where({ project_id: projectId, is_read: false })
+      .orderBy("submitted_at", "asc")
+      .select("submitted_at")
+      .first();
   }
 
   static async listDetectedFormStats(
@@ -315,5 +365,64 @@ export class FormSubmissionModel extends BaseModel {
       .count("* as count")
       .first();
     return parseInt(result?.count as string, 10) || 0;
+  }
+
+  /**
+   * Per-month submission counts (total/verified/unread/flagged/blocked) for a
+   * project from a start date forward, grouped by month. Mirrors the inline
+   * aggregation in UserWebsiteController's monthly form-stats endpoint
+   * verbatim, including the Postgres FILTER expressions. Returns raw rows.
+   */
+  static async getMonthlyStatsByProject(
+    projectId: string,
+    rangeStartIso: string,
+    trx?: QueryContext,
+  ): Promise<
+    Array<{
+      month: string;
+      total: number | string;
+      verified: number | string;
+      unread: number | string;
+      flagged: number | string;
+      blocked: number | string;
+    }>
+  > {
+    return (trx || db)("website_builder.form_submissions")
+      .select(
+        db.raw(
+          "to_char(date_trunc('month', submitted_at), 'YYYY-MM') AS month"
+        ),
+        db.raw(
+          `COUNT(*) FILTER (WHERE form_name <> 'Newsletter Signup')::int AS total`
+        ),
+        db.raw(
+          `COUNT(*) FILTER (WHERE is_flagged = false AND form_name <> 'Newsletter Signup')::int AS verified`
+        ),
+        db.raw(`COUNT(*) FILTER (WHERE is_read = false)::int AS unread`),
+        db.raw(`COUNT(*) FILTER (WHERE is_flagged = true)::int AS flagged`),
+        // Blocked attempts are currently rejected before persistence.
+        db.raw(`0::int AS blocked`)
+      )
+      .where("project_id", projectId)
+      .andWhere("submitted_at", ">=", rangeStartIso)
+      .groupBy(db.raw("date_trunc('month', submitted_at)"))
+      .orderBy("month", "asc");
+  }
+
+  /**
+   * All form-submission rows for a project, ordered submitted_at desc, as raw
+   * rows (unpaginated). Mirrors the inline export query in
+   * workers/processors/websiteBackup verbatim. Distinct from findByProjectId,
+   * which paginates — the backup needs every row, so it gets its own method to
+   * keep the serialized output identical.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findAllByProjectIdForBackup(
+    projectId: string,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return (trx || db)("website_builder.form_submissions")
+      .where({ project_id: projectId })
+      .orderBy("submitted_at", "desc");
   }
 }

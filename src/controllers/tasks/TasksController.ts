@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
 import { TaskModel } from "../../models/TaskModel";
 import { GoogleConnectionModel } from "../../models/GoogleConnectionModel";
-import { db } from "../../database/connection";
 import { resolveLocationId } from "../../utils/locationResolver";
 import { LocationScopedRequest } from "../../middleware/rbac";
 import * as TaskFilteringService from "./feature-services/TaskFilteringService";
@@ -25,13 +24,14 @@ import type {
   CreateActionItemRequest,
   UpdateActionItemRequest,
 } from "./feature-utils/taskValidation";
+import logger from "../../lib/logger";
 
 // =====================================================================
 // Error handler (preserves original handleError response shape)
 // =====================================================================
 
 function handleError(res: Response, error: any, operation: string): Response {
-  console.error(`[TASKS] ${operation} Error:`, error?.message || error);
+  logger.error({ err: error?.message || error }, `[TASKS] ${operation} Error:`);
   return res.status(500).json({
     success: false,
     error: `Failed to ${operation.toLowerCase()}`,
@@ -61,7 +61,7 @@ export async function getTasksForClient(
       const locationId = scopedReq.locationId || null;
       const accessibleLocationIds = scopedReq.accessibleLocationIds;
 
-      console.log(`[TASKS] Fetching tasks for org: ${organizationId}, location: ${locationId || "all"}`);
+      logger.info(`[TASKS] Fetching tasks for org: ${organizationId}, location: ${locationId || "all"}`);
 
       const tasks = await TaskModel.findByOrganizationApproved(
         organizationId,
@@ -71,7 +71,7 @@ export async function getTasksForClient(
       const response = formatGroupedTasks(tasks);
       const alloroCount = response.tasks.ALLORO.length;
       const userCount = response.tasks.USER.length;
-      console.log(`[TASKS] Fetched ${alloroCount} ALLORO tasks and ${userCount} USER tasks for org ${organizationId}`);
+      logger.info(`[TASKS] Fetched ${alloroCount} ALLORO tasks and ${userCount} USER tasks for org ${organizationId}`);
 
       return res.json(response);
     }
@@ -96,14 +96,14 @@ export async function getTasksForClient(
       });
     }
 
-    console.log(`[TASKS] Fetching tasks for org: ${connection.organization_id} (via legacy googleAccountId)`);
+    logger.info(`[TASKS] Fetching tasks for org: ${connection.organization_id} (via legacy googleAccountId)`);
 
     const tasks = await TaskModel.findByOrganizationApproved(connection.organization_id);
     const response = formatGroupedTasks(tasks);
 
     const alloroCount = response.tasks.ALLORO.length;
     const userCount = response.tasks.USER.length;
-    console.log(
+    logger.info(
       `[TASKS] Fetched ${alloroCount} ALLORO tasks and ${userCount} USER tasks for org ${connection.organization_id}`
     );
 
@@ -155,7 +155,7 @@ export async function completeTask(
       }
 
       const updatedTask = await TaskModel.markComplete(taskId);
-      console.log(`[TASKS] Task ${taskId} marked complete for org ${organizationId}`);
+      logger.info(`[TASKS] Task ${taskId} marked complete for org ${organizationId}`);
       return res.json({ success: true, task: updatedTask, message: "Task marked as complete" });
     }
 
@@ -206,7 +206,7 @@ export async function completeTask(
     }
 
     const updatedTask = await TaskModel.markComplete(taskId);
-    console.log(`[TASKS] Task ${taskId} marked complete for org ${connection.organization_id}`);
+    logger.info(`[TASKS] Task ${taskId} marked complete for org ${connection.organization_id}`);
 
     return res.json({
       success: true,
@@ -284,7 +284,7 @@ export async function createTask(
       metadata: metadata || null,
     });
 
-    console.log(
+    logger.info(
       `[TASKS] Created task ${createdTask.id} for org ${resolvedOrgId}`
     );
 
@@ -388,7 +388,7 @@ export async function updateTask(
       );
     }
 
-    console.log(`[TASKS] Updated task ${taskId}`);
+    logger.info(`[TASKS] Updated task ${taskId}`);
 
     return res.json({
       success: true,
@@ -446,7 +446,7 @@ export async function updateCategory(
 
     const updatedTask = await TaskModel.findById(taskId);
 
-    console.log(`[TASKS] Updated task ${taskId} category to ${category}`);
+    logger.info(`[TASKS] Updated task ${taskId} category to ${category}`);
 
     return res.json({
       success: true,
@@ -492,7 +492,7 @@ export async function archiveTask(
     // Archive the task (soft delete)
     await TaskModel.archive(taskId);
 
-    console.log(`[TASKS] Archived task ${taskId}`);
+    logger.info(`[TASKS] Archived task ${taskId}`);
 
     return res.json({
       success: true,
@@ -512,15 +512,11 @@ export async function getClients(
   res: Response
 ): Promise<Response> {
   try {
-    console.log("[TASKS] Fetching available clients");
+    logger.info("[TASKS] Fetching available clients");
 
-    const accounts = await db("google_connections as gc")
-      .join("organizations as o", "gc.organization_id", "o.id")
-      .where("o.onboarding_completed", true)
-      .select("gc.id", "o.domain as domain_name", "gc.email")
-      .orderBy("o.domain", "asc");
+    const accounts = await GoogleConnectionModel.findOnboardedClientsForTasks();
 
-    console.log(`[TASKS] Found ${accounts.length} onboarded clients`);
+    logger.info(`[TASKS] Found ${accounts.length} onboarded clients`);
 
     return res.json({
       success: true,

@@ -7,13 +7,11 @@
  * modal and the Layouts tab to populate slot inputs with sensible defaults.
  */
 
-import { db } from "../../../database/connection";
 import { ProjectIdentityModel } from "../../../models/website-builder/ProjectIdentityModel";
 import { ProjectModel } from "../../../models/website-builder/ProjectModel";
+import { TemplatePageModel } from "../../../models/website-builder/TemplatePageModel";
+import { TemplateModel } from "../../../models/website-builder/TemplateModel";
 import { parseProjectIdentity } from "../feature-utils/util.project-identity";
-
-const TEMPLATE_PAGES_TABLE = "website_builder.template_pages";
-const TEMPLATES_TABLE = "website_builder.templates";
 
 interface SlotDef {
   key: string;
@@ -166,10 +164,7 @@ export async function getPageSlotPrefill(
 ): Promise<{ slots: SlotDef[]; values: Record<string, string> }> {
   const identity = await ProjectIdentityModel.findByProjectId(projectId);
 
-  const templatePage = await db(TEMPLATE_PAGES_TABLE)
-    .where("id", templatePageId)
-    .select("dynamic_slots")
-    .first();
+  const templatePage = await TemplatePageModel.findDynamicSlotsById(templatePageId);
 
   const slots: SlotDef[] =
     parseProjectIdentity(templatePage?.dynamic_slots) || [];
@@ -191,10 +186,7 @@ export async function getLayoutSlotPrefill(
   if (!project) return { slots: [], values: {} };
 
   const template = project.template_id
-    ? await db(TEMPLATES_TABLE)
-        .where("id", project.template_id)
-        .select("layout_slots")
-        .first()
+    ? await TemplateModel.findLayoutSlotsById(project.template_id)
     : null;
 
   const identity = await ProjectIdentityModel.findByProjectId(projectId);

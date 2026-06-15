@@ -1,4 +1,5 @@
 import { extractDomainFromUrl } from "../../places/feature-utils/domainExtractor";
+import logger from "../../../lib/logger";
 
 export interface DomainCheckResult {
   status: "valid" | "warning" | "unreachable";
@@ -113,7 +114,7 @@ export async function checkDomain(domain: string): Promise<DomainCheckResult> {
 
     return { status: "valid", message: "Domain is reachable" };
   } catch (error: any) {
-    console.error(
+    logger.error(
       `[DomainCheck] Failed to reach ${cleaned}: ${error.message}`
     );
 

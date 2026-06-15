@@ -8,9 +8,9 @@
 
 import { validateHtml, type ValidationIssue } from "./htmlValidator";
 import { editHtmlContent } from "./aiCommandService";
-import { db } from "../../database/connection";
+import { AiCommandRecommendationModel } from "../../models/website-builder/AiCommandRecommendationModel";
+import logger from "../../lib/logger";
 
-const RECS_TABLE = "website_builder.ai_command_recommendations";
 const MAX_RETRIES = 2;
 
 export interface PipelineContext {
@@ -46,14 +46,14 @@ export async function runAgenticPipeline(
     const validation = validateHtml(currentHtml, ctx.existingPaths, ctx.existingPostSlugs);
 
     if (validation.valid) {
-      console.log(`[AgenticPipeline] ${targetLabel}: passed all checks (round ${round + 1})`);
+      logger.info(`[AgenticPipeline] ${targetLabel}: passed all checks (round ${round + 1})`);
       break;
     }
 
     const uiIssues = validation.issues.filter((i) => i.type === "ui");
     const linkIssues = validation.issues.filter((i) => i.type === "link");
 
-    console.log(
+    logger.info(
       `[AgenticPipeline] ${targetLabel} round ${round + 1}: ${uiIssues.length} UI issue(s), ${linkIssues.length} link issue(s)`
     );
 
@@ -66,7 +66,7 @@ export async function runAgenticPipeline(
 
     // If this is the last round, accept what we have
     if (round >= MAX_RETRIES) {
-      console.warn(
+      logger.warn(
         `[AgenticPipeline] ${targetLabel}: max retries reached, saving with ${validation.issues.length} remaining issue(s)`
       );
       return {
@@ -101,10 +101,7 @@ export async function runAgenticPipeline(
       uiFixAttempts += uiIssues.length > 0 ? 1 : 0;
       linkFixAttempts += linkIssues.length > 0 ? 1 : 0;
     } catch (err) {
-      console.error(
-        `[AgenticPipeline] ${targetLabel}: fix attempt ${round + 1} failed:`,
-        (err as Error).message
-      );
+      logger.error({ err: (err as Error).message }, `[AgenticPipeline] ${targetLabel}: fix attempt ${round + 1} failed:`);
       // Keep current HTML and continue
       break;
     }
@@ -123,11 +120,10 @@ export async function runAgenticPipeline(
 
 async function updateRecStatus(recId: string, message: string): Promise<void> {
   try {
-    await db(RECS_TABLE)
-      .where("id", recId)
-      .update({
-        execution_result: JSON.stringify({ in_progress: true, message }),
-      });
+    await AiCommandRecommendationModel.updateExecutionResult(
+      recId,
+      JSON.stringify({ in_progress: true, message }),
+    );
   } catch {
     // Non-fatal
   }

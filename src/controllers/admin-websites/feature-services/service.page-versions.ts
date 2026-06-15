@@ -7,11 +7,10 @@
  * editor and publishes deliberately).
  */
 
-import { db } from "../../../database/connection";
+import { PageModel } from "../../../models/website-builder/PageModel";
 import { snapshotPageStateIfChanged } from "../../../utils/website-utils/pageSnapshots";
 import { normalizeSections } from "../feature-utils/util.section-normalizer";
-
-const PAGES_TABLE = "website_builder.pages";
+import logger from "../../../lib/logger";
 
 type ServiceError = { status: number; code: string; message: string };
 
@@ -23,9 +22,7 @@ export async function listPageVersions(
   projectId: string,
   pageId: string
 ): Promise<{ versions: any[]; path?: string; error?: ServiceError }> {
-  const page = await db(PAGES_TABLE)
-    .where({ id: pageId, project_id: projectId })
-    .first();
+  const page = await PageModel.findRawByIdAndProject(pageId, projectId);
 
   if (!page) {
     return {
@@ -34,18 +31,10 @@ export async function listPageVersions(
     };
   }
 
-  const versions = await db(PAGES_TABLE)
-    .where({ project_id: projectId, path: page.path })
-    .orderBy("version", "desc")
-    .select(
-      "id",
-      "version",
-      "status",
-      "created_at",
-      "updated_at",
-      "change_source",
-      "revision_note"
-    );
+  const versions = await PageModel.listVersionsByProjectAndPath(
+    projectId,
+    page.path
+  );
 
   return { versions, path: page.path };
 }
@@ -58,9 +47,7 @@ export async function getPageVersionContent(
   projectId: string,
   versionId: string
 ): Promise<{ version: any; error?: ServiceError }> {
-  const version = await db(PAGES_TABLE)
-    .where({ id: versionId, project_id: projectId })
-    .first();
+  const version = await PageModel.findVersionByIdAndProject(versionId, projectId);
 
   if (!version) {
     return {
@@ -81,7 +68,7 @@ export async function restoreVersionIntoDraft(
   pageId: string,
   versionId: string
 ): Promise<{ page: any; error?: ServiceError }> {
-  console.log(
+  logger.info(
     `[Admin Websites] Restoring version ${versionId} into draft for project ID: ${projectId}`
   );
 
@@ -114,33 +101,33 @@ export async function restoreVersionIntoDraft(
       )
     : null;
 
-  const draft = await db(PAGES_TABLE)
-    .where({ project_id: projectId, path: targetVersion.path, status: "draft" })
-    .first();
+  const draft = await PageModel.findRawByProjectPathStatus(
+    projectId,
+    targetVersion.path,
+    "draft"
+  );
 
   // No draft at this path — create one carrying the restored content.
   if (!draft) {
-    const latestPage = await db(PAGES_TABLE)
-      .where({ project_id: projectId, path: targetVersion.path })
-      .orderBy("version", "desc")
-      .first();
+    const latestPage = await PageModel.findLatestByProjectAndPath(
+      projectId,
+      targetVersion.path
+    );
 
-    const [createdDraft] = await db(PAGES_TABLE)
-      .insert({
-        project_id: projectId,
-        path: targetVersion.path,
-        version: latestPage ? latestPage.version + 1 : 1,
-        status: "draft",
-        sections: restoredSections,
-        seo_data: restoredSeoData,
-        display_name: targetVersion.display_name || null,
-        template_page_id: targetVersion.template_page_id || null,
-        generation_status: "ready",
-        change_source: "restore",
-      })
-      .returning("*");
+    const createdDraft = await PageModel.insertReturning({
+      project_id: projectId,
+      path: targetVersion.path,
+      version: latestPage ? latestPage.version + 1 : 1,
+      status: "draft",
+      sections: restoredSections,
+      seo_data: restoredSeoData,
+      display_name: targetVersion.display_name || null,
+      template_page_id: targetVersion.template_page_id || null,
+      generation_status: "ready",
+      change_source: "restore",
+    });
 
-    console.log(
+    logger.info(
       `[Admin Websites] ✓ Restored version ${targetVersion.version} into new draft ID: ${createdDraft.id}`
     );
     return { page: createdDraft };
@@ -149,18 +136,13 @@ export async function restoreVersionIntoDraft(
   // Preserve the draft's current state as history before overwriting it.
   await snapshotPageStateIfChanged(draft);
 
-  const [updatedDraft] = await db(PAGES_TABLE)
-    .where("id", draft.id)
-    .update({
-      sections: restoredSections,
-      seo_data: restoredSeoData,
-      change_source: "restore",
-      revision_note: null,
-      updated_at: db.fn.now(),
-    })
-    .returning("*");
+  const updatedDraft = await PageModel.updateRestoredDraftReturning(
+    draft.id,
+    restoredSections,
+    restoredSeoData
+  );
 
-  console.log(
+  logger.info(
     `[Admin Websites] ✓ Restored version ${targetVersion.version} into draft ID: ${draft.id}`
   );
 

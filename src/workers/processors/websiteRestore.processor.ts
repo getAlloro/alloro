@@ -10,10 +10,11 @@
  */
 
 import { Job } from "bullmq";
+import { Knex } from "knex";
 import unzipper from "unzipper";
 import { Readable } from "stream";
 import { v4 as uuidv4 } from "uuid";
-import { db } from "../../database/connection";
+import { BaseModel } from "../../models/BaseModel";
 import { BackupJobModel } from "../../models/website-builder/BackupJobModel";
 import { MediaModel, IMedia } from "../../models/website-builder/MediaModel";
 import {
@@ -32,6 +33,7 @@ import {
   rewriteCodeSnippet,
   rewriteUrls,
 } from "./backup-utils/url-rewriter";
+import logger from "../../lib/logger";
 
 export interface RestoreJobData {
   jobId: string;
@@ -54,7 +56,7 @@ export async function processWebsiteRestore(
 ): Promise<void> {
   const { jobId, projectId, backupJobId } = job.data;
   const log = (msg: string) =>
-    console.log(`[WB-RESTORE] [${jobId}] ${msg}`);
+    logger.info(`[WB-RESTORE] [${jobId}] ${msg}`);
 
   try {
     await BackupJobModel.markProcessing(jobId);
@@ -137,16 +139,16 @@ export async function processWebsiteRestore(
     );
     const mediaRecords = parseJson<IMedia[]>("media/media.json");
 
-    // --- WIPE existing project data ---
-    await BackupJobModel.updateProgress(
-      jobId,
-      "Wiping existing project data...",
-      0,
-      0
-    );
-    await wipeProjectData(projectId, log);
+    // --- Capture existing media for post-commit S3 cleanup ---
+    // S3 deletion is deferred until AFTER the DB commit so a mid-restore
+    // failure (which rolls the DB back) leaves the original media intact.
+    const oldMedia: IMedia[] = await MediaModel.findAllByProjectId(projectId);
 
-    // --- Restore media files (new S3 keys) + build URL map ---
+    // --- Upload restored media to S3 (new keys) BEFORE the transaction ---
+    // The new keys are project-scoped UUIDs, so they never collide with the
+    // old keys. Doing all S3 I/O up front keeps the DB transaction from being
+    // held open across slow network calls. On rollback these become orphaned
+    // S3 objects (recoverable manual cleanup) — never data loss.
     await BackupJobModel.updateProgress(
       jobId,
       "Restoring media files...",
@@ -159,6 +161,8 @@ export async function processWebsiteRestore(
       old_thumbnail_s3_url: string | null;
       new_thumbnail_s3_url: string | null;
     }> = [];
+    // DB rows to insert inside the transaction, built from the S3 uploads above.
+    const mediaRowsToInsert: Record<string, unknown>[] = [];
 
     for (let i = 0; i < mediaRecords.length; i++) {
       const m = mediaRecords[i];
@@ -204,8 +208,8 @@ export async function processWebsiteRestore(
         new_thumbnail_s3_url: newThumbS3Url,
       });
 
-      // Insert media DB record with new IDs and URLs
-      await db("website_builder.media").insert({
+      // Stage media DB record (inserted inside the transaction below)
+      mediaRowsToInsert.push({
         id: uuidv4(),
         project_id: projectId,
         filename: m.filename,
@@ -231,6 +235,24 @@ export async function processWebsiteRestore(
     const urlMap = buildUrlRewriteMap(urlMappings);
     log(`Built URL rewrite map with ${urlMap.size} entries`);
 
+    // --- WIPE + RESTORE all DB data atomically ---
+    // Everything from the wipe through the final insert runs in one
+    // transaction: a failure anywhere rolls the project back to its
+    // pre-restore state instead of leaving it half-wiped / half-restored.
+    await BackupJobModel.updateProgress(
+      jobId,
+      "Wiping existing project data...",
+      0,
+      0
+    );
+    await BaseModel.transaction(async (trx) => {
+      await wipeProjectData(projectId, trx, log);
+
+      // Insert restored media DB records (S3 already uploaded above)
+      for (const row of mediaRowsToInsert) {
+        await trx("website_builder.media").insert(row);
+      }
+
     // --- Restore project settings ---
     await BackupJobModel.updateProgress(
       jobId,
@@ -238,7 +260,7 @@ export async function processWebsiteRestore(
       0,
       0
     );
-    await db("website_builder.projects").where({ id: projectId }).update({
+    await trx("website_builder.projects").where({ id: projectId }).update({
       settings: projectSettings.settings
         ? JSON.stringify(projectSettings.settings)
         : null,
@@ -266,7 +288,7 @@ export async function processWebsiteRestore(
         ? rewriteSections(page.sections, urlMap)
         : null;
 
-      await db("website_builder.pages").insert({
+      await trx("website_builder.pages").insert({
         id: newId,
         project_id: projectId,
         title: page.title,
@@ -299,7 +321,7 @@ export async function processWebsiteRestore(
       const c = cat as Record<string, any>;
       const newId = uuidv4();
       categoryIdMap.set(c.id, newId);
-      await db("website_builder.post_categories").insert({
+      await trx("website_builder.post_categories").insert({
         id: newId,
         post_type_id: c.post_type_id,
         name: c.name,
@@ -315,7 +337,7 @@ export async function processWebsiteRestore(
     for (const cat of postCategories) {
       const c = cat as Record<string, any>;
       if (c.parent_id && categoryIdMap.has(c.parent_id)) {
-        await db("website_builder.post_categories")
+        await trx("website_builder.post_categories")
           .where({ id: categoryIdMap.get(c.id) })
           .update({ parent_id: categoryIdMap.get(c.parent_id) });
       }
@@ -326,7 +348,7 @@ export async function processWebsiteRestore(
       const t = tag as Record<string, any>;
       const newId = uuidv4();
       tagIdMap.set(t.id, newId);
-      await db("website_builder.post_tags").insert({
+      await trx("website_builder.post_tags").insert({
         id: newId,
         post_type_id: t.post_type_id,
         name: t.name,
@@ -362,7 +384,7 @@ export async function processWebsiteRestore(
         urlMap
       );
 
-      await db("website_builder.posts").insert({
+      await trx("website_builder.posts").insert({
         id: newId,
         project_id: projectId,
         post_type_id: post.post_type_id,
@@ -397,7 +419,7 @@ export async function processWebsiteRestore(
       const newPostId = postIdMap.get(a.post_id);
       const newCatId = categoryIdMap.get(a.category_id);
       if (newPostId && newCatId) {
-        await db("website_builder.post_category_assignments").insert({
+        await trx("website_builder.post_category_assignments").insert({
           post_id: newPostId,
           category_id: newCatId,
         });
@@ -409,7 +431,7 @@ export async function processWebsiteRestore(
       const newPostId = postIdMap.get(a.post_id);
       const newTagId = tagIdMap.get(a.tag_id);
       if (newPostId && newTagId) {
-        await db("website_builder.post_tag_assignments").insert({
+        await trx("website_builder.post_tag_assignments").insert({
           post_id: newPostId,
           tag_id: newTagId,
         });
@@ -421,7 +443,7 @@ export async function processWebsiteRestore(
       const a = attachment as Record<string, any>;
       const newPostId = postIdMap.get(a.post_id);
       if (!newPostId) continue;
-      await db("website_builder.post_attachments").insert({
+      await trx("website_builder.post_attachments").insert({
         id: uuidv4(),
         post_id: newPostId,
         url: rewriteUrls(a.url || "", urlMap),
@@ -445,7 +467,7 @@ export async function processWebsiteRestore(
       const m = menu as Record<string, any>;
       const newId = uuidv4();
       menuIdMap.set(m.id, newId);
-      await db("website_builder.menus").insert({
+      await trx("website_builder.menus").insert({
         id: newId,
         project_id: projectId,
         name: m.name,
@@ -463,7 +485,7 @@ export async function processWebsiteRestore(
       menuItemIdMap.set(mi.id, newId);
       const newMenuId = menuIdMap.get(mi.menu_id);
       if (!newMenuId) continue;
-      await db("website_builder.menu_items").insert({
+      await trx("website_builder.menu_items").insert({
         id: newId,
         menu_id: newMenuId,
         parent_id: null,
@@ -479,7 +501,7 @@ export async function processWebsiteRestore(
     for (const item of menuItems) {
       const mi = item as Record<string, any>;
       if (mi.parent_id && menuItemIdMap.has(mi.parent_id)) {
-        await db("website_builder.menu_items")
+        await trx("website_builder.menu_items")
           .where({ id: menuItemIdMap.get(mi.id) })
           .update({ parent_id: menuItemIdMap.get(mi.parent_id) });
       }
@@ -495,7 +517,7 @@ export async function processWebsiteRestore(
     );
     for (const code of headerFooterCode) {
       const c = code as Record<string, any>;
-      await db("website_builder.header_footer_code").insert({
+      await trx("website_builder.header_footer_code").insert({
         id: uuidv4(),
         project_id: projectId,
         template_id: c.template_id || null,
@@ -517,7 +539,7 @@ export async function processWebsiteRestore(
     );
     for (const sub of formSubmissions) {
       const s = sub as Record<string, any>;
-      await db("website_builder.form_submissions").insert({
+      await trx("website_builder.form_submissions").insert({
         id: uuidv4(),
         project_id: projectId,
         form_name: s.form_name,
@@ -535,7 +557,7 @@ export async function processWebsiteRestore(
     // --- Restore newsletter signups ---
     for (const signup of newsletterSignups) {
       const s = signup as Record<string, any>;
-      await db("website_builder.newsletter_signups").insert({
+      await trx("website_builder.newsletter_signups").insert({
         id: uuidv4(),
         project_id: projectId,
         email: s.email,
@@ -545,9 +567,27 @@ export async function processWebsiteRestore(
       });
     }
 
-    log(
-      `Restored ${formSubmissions.length} form submissions, ${newsletterSignups.length} newsletter signups`
-    );
+      log(
+        `Restored ${formSubmissions.length} form submissions, ${newsletterSignups.length} newsletter signups`
+      );
+    });
+    // --- DB restore committed ---
+
+    // --- Delete old media from S3 (AFTER the DB commit) ---
+    // Deferred to here so a rolled-back restore leaves the original media in
+    // place. The old keys differ from the new project-scoped UUID keys, so the
+    // freshly-restored media is unaffected by this cleanup.
+    log(`Deleting ${oldMedia.length} old media file(s) from S3...`);
+    for (const m of oldMedia) {
+      try {
+        await deleteFromS3(m.s3_key);
+        if (m.thumbnail_s3_key) {
+          await deleteFromS3(m.thumbnail_s3_key);
+        }
+      } catch (err: any) {
+        log(`Warning: Failed to delete old S3 file ${m.s3_key}: ${err.message}`);
+      }
+    }
 
     // --- Mark completed ---
     await BackupJobModel.markCompleted(jobId);
@@ -560,96 +600,86 @@ export async function processWebsiteRestore(
 }
 
 /**
- * Wipe all project-owned data before restore.
- * Deletes S3 media files first, then cascading DB records.
+ * Wipe all project-owned DB records before restore.
+ *
+ * Runs inside the restore transaction (receives `trx`), so a failed restore
+ * rolls the wipe back. S3 media deletion is intentionally NOT done here — it
+ * happens after the DB commit in the caller, so media stays recoverable if the
+ * restore fails.
  */
 async function wipeProjectData(
   projectId: string,
+  trx: Knex.Transaction,
   log: (msg: string) => void
 ): Promise<void> {
-  // Delete media from S3 first
-  const existingMedia: IMedia[] =
-    await MediaModel.findAllByProjectId(projectId);
-  log(`Wiping ${existingMedia.length} existing media files from S3...`);
-  for (const m of existingMedia) {
-    try {
-      await deleteFromS3(m.s3_key);
-      if (m.thumbnail_s3_key) {
-        await deleteFromS3(m.thumbnail_s3_key);
-      }
-    } catch (err: any) {
-      log(`Warning: Failed to delete S3 file ${m.s3_key}: ${err.message}`);
-    }
-  }
-
   // Delete DB records (order matters for FK constraints)
   // Most of these cascade from pages/posts, but being explicit is safer
   log("Wiping database records...");
   const postIds = (
-    await db("website_builder.posts")
+    await trx("website_builder.posts")
       .where({ project_id: projectId })
       .select("id")
   ).map((r: { id: string }) => r.id);
 
   if (postIds.length > 0) {
-    await db("website_builder.post_category_assignments")
+    await trx("website_builder.post_category_assignments")
       .whereIn("post_id", postIds)
       .del();
-    await db("website_builder.post_tag_assignments")
+    await trx("website_builder.post_tag_assignments")
       .whereIn("post_id", postIds)
       .del();
-    await db("website_builder.post_attachments")
+    await trx("website_builder.post_attachments")
       .whereIn("post_id", postIds)
       .del();
   }
 
   // Get post_type_ids for categories/tags cleanup
   const postTypeIds = (
-    await db("website_builder.posts")
+    await trx("website_builder.posts")
       .where({ project_id: projectId })
       .distinct("post_type_id")
       .select("post_type_id")
   ).map((r: { post_type_id: string }) => r.post_type_id);
 
-  await db("website_builder.posts").where({ project_id: projectId }).del();
+  await trx("website_builder.posts").where({ project_id: projectId }).del();
 
   // Clean up categories and tags for post types used by this project
   if (postTypeIds.length > 0) {
-    await db("website_builder.post_categories")
+    await trx("website_builder.post_categories")
       .whereIn("post_type_id", postTypeIds)
       .del();
-    await db("website_builder.post_tags")
+    await trx("website_builder.post_tags")
       .whereIn("post_type_id", postTypeIds)
       .del();
   }
 
   // Pages
-  await db("website_builder.pages").where({ project_id: projectId }).del();
+  await trx("website_builder.pages").where({ project_id: projectId }).del();
 
   // Media DB records
-  await db("website_builder.media").where({ project_id: projectId }).del();
+  await trx("website_builder.media").where({ project_id: projectId }).del();
 
   // Menus (menu_items cascade from menus FK)
   const menuIds = (
-    await db("website_builder.menus")
+    await trx("website_builder.menus")
       .where({ project_id: projectId })
       .select("id")
   ).map((r: { id: string }) => r.id);
   if (menuIds.length > 0) {
-    await db("website_builder.menu_items").whereIn("menu_id", menuIds).del();
+    await trx("website_builder.menu_items").whereIn("menu_id", menuIds).del();
   }
-  await db("website_builder.menus").where({ project_id: projectId }).del();
+  await trx("website_builder.menus").where({ project_id: projectId }).del();
 
   // Header/footer code
-  await db("website_builder.header_footer_code")
+  await trx("website_builder.header_footer_code")
     .where({ project_id: projectId })
     .del();
 
   // Form submissions + newsletter signups
-  await db("website_builder.form_submissions")
+  await trx("website_builder.form_submissions")
     .where({ project_id: projectId })
     .del();
-  await db("website_builder.newsletter_signups")
+  await trx("website_builder.newsletter_signups")
     .where({ project_id: projectId })
     .del();
 

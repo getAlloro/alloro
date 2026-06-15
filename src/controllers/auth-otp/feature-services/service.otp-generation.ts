@@ -5,11 +5,14 @@
  * Sends OTP email via the mail service.
  */
 
+import crypto from "crypto";
 import { OtpCodeModel } from "../../../models/OtpCodeModel";
 import { sendEmail } from "../../../emails/emailService";
 
 export function generateSixDigitCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  // crypto.randomInt is uniform over [min, max). 100000–999999 inclusive keeps
+  // the output a 6-digit string with no modulo bias (unlike Math.random()).
+  return crypto.randomInt(100000, 1000000).toString();
 }
 
 /**

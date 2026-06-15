@@ -9,10 +9,9 @@
  * never throw.
  */
 
-import { db } from "../../database/connection";
+import { ProjectModel } from "../../models/website-builder/ProjectModel";
 import { resolveRybbitTimeZone } from "./rybbit-time-zone";
-
-const PROJECTS_TABLE = "website_builder.projects";
+import logger from "../../lib/logger";
 
 const RYBBIT_API_URL = process.env.RYBBIT_API_URL || "";
 const RYBBIT_API_KEY = process.env.RYBBIT_API_KEY || "";
@@ -35,10 +34,9 @@ export async function getRybbitSiteConfig(
   organizationId: number
 ): Promise<RybbitSiteConfig | null> {
   try {
-    const project = await db(PROJECTS_TABLE)
-      .select("rybbit_site_id", "rybbit_time_zone")
-      .where("organization_id", organizationId)
-      .first();
+    const project = await ProjectModel.findRybbitConfigByOrganizationId(
+      organizationId
+    );
 
     if (!project?.rybbit_site_id) return null;
     return {
@@ -46,7 +44,7 @@ export async function getRybbitSiteConfig(
       timeZone: resolveRybbitTimeZone(project.rybbit_time_zone),
     };
   } catch (err: any) {
-    console.error(`[Rybbit] Error looking up site config for org ${organizationId}:`, err?.message || err);
+    logger.error({ err: err?.message || err }, `[Rybbit] Error looking up site config for org ${organizationId}:`);
     return null;
   }
 }
@@ -66,7 +64,7 @@ export async function fetchRybbitOverview(
   timeZone: string
 ): Promise<any | null> {
   if (!RYBBIT_API_URL || !RYBBIT_API_KEY) {
-    console.warn("[Rybbit] Skipping fetch — missing RYBBIT_API_URL or RYBBIT_API_KEY");
+    logger.warn("[Rybbit] Skipping fetch — missing RYBBIT_API_URL or RYBBIT_API_KEY");
     return null;
   }
 
@@ -81,13 +79,13 @@ export async function fetchRybbitOverview(
 
     if (!response.ok) {
       const body = await response.text();
-      console.error(`[Rybbit] Overview fetch failed (${response.status}): ${body}`);
+      logger.error(`[Rybbit] Overview fetch failed (${response.status}): ${body}`);
       return null;
     }
 
     return await response.json();
   } catch (err: any) {
-    console.error(`[Rybbit] Overview fetch error for site ${siteId}:`, err?.message || err);
+    logger.error({ err: err?.message || err }, `[Rybbit] Overview fetch error for site ${siteId}:`);
     return null;
   }
 }
@@ -122,12 +120,12 @@ export async function fetchRybbitDailyComparison(
   const config = await getRybbitSiteConfig(organizationId);
 
   if (!config) {
-    console.log(`[Rybbit] No rybbit_site_id for org ${organizationId}, skipping website analytics`);
+    logger.info(`[Rybbit] No rybbit_site_id for org ${organizationId}, skipping website analytics`);
     return null;
   }
 
   const { siteId, timeZone } = config;
-  console.log(`[Rybbit] Fetching daily comparison for site ${siteId} (${dayBefore} vs ${yesterday})`);
+  logger.info(`[Rybbit] Fetching daily comparison for site ${siteId} (${dayBefore} vs ${yesterday})`);
 
   const [yesterdayData, dayBeforeData] = await Promise.all([
     fetchRybbitOverview(siteId, yesterday, yesterday, timeZone),
@@ -135,7 +133,7 @@ export async function fetchRybbitDailyComparison(
   ]);
 
   if (!yesterdayData && !dayBeforeData) {
-    console.warn(`[Rybbit] No data returned for either day, skipping`);
+    logger.warn(`[Rybbit] No data returned for either day, skipping`);
     return null;
   }
 
@@ -168,12 +166,12 @@ export async function fetchRybbitMonthlyComparison(
   const config = await getRybbitSiteConfig(organizationId);
 
   if (!config) {
-    console.log(`[Rybbit] No rybbit_site_id for org ${organizationId}, skipping website analytics`);
+    logger.info(`[Rybbit] No rybbit_site_id for org ${organizationId}, skipping website analytics`);
     return null;
   }
 
   const { siteId, timeZone } = config;
-  console.log(`[Rybbit] Fetching monthly comparison for site ${siteId} (${previousStart}–${previousEnd} vs ${currentStart}–${currentEnd})`);
+  logger.info(`[Rybbit] Fetching monthly comparison for site ${siteId} (${previousStart}–${previousEnd} vs ${currentStart}–${currentEnd})`);
 
   const [currentData, previousData] = await Promise.all([
     fetchRybbitOverview(siteId, currentStart, currentEnd, timeZone),
@@ -181,7 +179,7 @@ export async function fetchRybbitMonthlyComparison(
   ]);
 
   if (!currentData && !previousData) {
-    console.warn(`[Rybbit] No data returned for either month, skipping`);
+    logger.warn(`[Rybbit] No data returned for either month, skipping`);
     return null;
   }
 

@@ -5,9 +5,8 @@
  * Supports exact path matching and wildcard prefixes (e.g., /blog/*).
  */
 
-import { db } from "../../../database/connection";
-
-const TABLE = "website_builder.redirects";
+import { RedirectModel } from "../../../models/website-builder/RedirectModel";
+import logger from "../../../lib/logger";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -45,15 +44,7 @@ export async function listRedirects(
   projectId: string,
   filters?: { type?: number }
 ): Promise<any[]> {
-  let query = db(TABLE)
-    .where("project_id", projectId)
-    .orderBy("from_path", "asc");
-
-  if (filters?.type) {
-    query = query.where("type", filters.type);
-  }
-
-  return query;
+  return RedirectModel.listByProject(projectId, filters);
 }
 
 // ---------------------------------------------------------------------------
@@ -84,9 +75,7 @@ export async function createRedirect(
   }
 
   // Validate: no circular chain (to_path already has a redirect)
-  const chain = await db(TABLE)
-    .where({ project_id: projectId, from_path: to_path })
-    .first();
+  const chain = await RedirectModel.findByProjectAndFromPath(projectId, to_path);
   if (chain) {
     return {
       redirect: null,
@@ -99,9 +88,7 @@ export async function createRedirect(
   }
 
   // Check for duplicate
-  const existing = await db(TABLE)
-    .where({ project_id: projectId, from_path })
-    .first();
+  const existing = await RedirectModel.findByProjectAndFromPath(projectId, from_path);
   if (existing) {
     return {
       redirect: null,
@@ -113,17 +100,15 @@ export async function createRedirect(
     };
   }
 
-  const [redirect] = await db(TABLE)
-    .insert({
-      project_id: projectId,
-      from_path,
-      to_path,
-      type,
-      is_wildcard: isWildcard(from_path),
-    })
-    .returning("*");
+  const redirect = await RedirectModel.insertReturning({
+    project_id: projectId,
+    from_path,
+    to_path,
+    type,
+    is_wildcard: isWildcard(from_path),
+  });
 
-  console.log(
+  logger.info(
     `[Redirects] Created: ${from_path} → ${to_path} (${type}) for project ${projectId}`
   );
 
@@ -166,7 +151,7 @@ export async function updateRedirect(
   redirect: any;
   error?: { status: number; code: string; message: string };
 }> {
-  const existing = await db(TABLE).where("id", redirectId).first();
+  const existing = await RedirectModel.findRawById(redirectId);
   if (!existing) {
     return {
       redirect: null,
@@ -174,7 +159,7 @@ export async function updateRedirect(
     };
   }
 
-  const updates: Record<string, unknown> = { updated_at: db.fn.now() };
+  const updates: Record<string, unknown> = {};
 
   if (input.from_path !== undefined) {
     updates.from_path = normalizePath(input.from_path);
@@ -201,10 +186,7 @@ export async function updateRedirect(
     };
   }
 
-  const [redirect] = await db(TABLE)
-    .where("id", redirectId)
-    .update(updates)
-    .returning("*");
+  const redirect = await RedirectModel.updateByIdReturning(redirectId, updates);
 
   return { redirect };
 }
@@ -216,7 +198,7 @@ export async function updateRedirect(
 export async function deleteRedirect(
   redirectId: string
 ): Promise<{ error?: { status: number; code: string; message: string } }> {
-  const deleted = await db(TABLE).where("id", redirectId).del();
+  const deleted = await RedirectModel.deleteByIdRaw(redirectId);
   if (deleted === 0) {
     return {
       error: { status: 404, code: "NOT_FOUND", message: "Redirect not found" },
@@ -236,18 +218,17 @@ export async function resolveRedirect(
   const normalizedPath = normalizePath(requestPath);
 
   // 1. Try exact match first
-  const exact = await db(TABLE)
-    .where({ project_id: projectId, from_path: normalizedPath, is_wildcard: false })
-    .first();
+  const exact = await RedirectModel.findExactByProjectAndFromPath(
+    projectId,
+    normalizedPath
+  );
 
   if (exact) {
     return { to_path: exact.to_path, type: exact.type };
   }
 
   // 2. Try wildcard matches — longest prefix wins
-  const wildcards = await db(TABLE)
-    .where({ project_id: projectId, is_wildcard: true })
-    .orderByRaw("LENGTH(from_path) DESC");
+  const wildcards = await RedirectModel.findWildcardsByProject(projectId);
 
   for (const wc of wildcards) {
     const prefix = wc.from_path.replace(/\*$/, "").replace(/\/$/, "");
@@ -266,7 +247,5 @@ export async function resolveRedirect(
 export async function getExistingRedirects(
   projectId: string
 ): Promise<Array<{ from_path: string; to_path: string }>> {
-  return db(TABLE)
-    .where("project_id", projectId)
-    .select("from_path", "to_path");
+  return RedirectModel.findFromToByProject(projectId);
 }

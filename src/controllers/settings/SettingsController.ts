@@ -18,6 +18,7 @@ import {
   updateUserRole,
 } from "./feature-services/service.user-management";
 import { UserModel } from "../../models/UserModel";
+import logger from "../../lib/logger";
 
 const BCRYPT_SALT_ROUNDS = 12;
 const PASSWORD_MIN_LENGTH = 8;
@@ -281,7 +282,7 @@ export async function changePassword(req: RBACRequest, res: Response) {
       await UserModel.setEmailVerified(userId);
     }
 
-    console.log(`[Settings] Password ${user.password_hash ? "changed" : "set"} for user ${userId} (${user.email})`);
+    logger.info(`[Settings] Password ${user.password_hash ? "changed" : "set"} for user ${userId} (${user.email})`);
 
     return res.json({
       success: true,

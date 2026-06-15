@@ -21,8 +21,9 @@
  * are not allowed to fail auth.
  */
 
-import { db } from "../../../database/connection";
-import type { ILeadgenSession } from "../../../models/LeadgenSessionModel";
+import { LeadgenSessionModel } from "../../../models/LeadgenSessionModel";
+import { LeadgenEventModel } from "../../../models/LeadgenEventModel";
+import logger from "../../../lib/logger";
 
 export interface LinkAccountCreationOptions {
   email: string;
@@ -54,20 +55,10 @@ async function findCandidateSessions(opts: {
   const normalizedEmail = opts.email.toLowerCase();
   const sessionIdValid = isValidUuid(opts.sessionId);
 
-  const query = db<ILeadgenSession>("leadgen_sessions").select("id", "email");
-
-  if (sessionIdValid) {
-    query.where(function () {
-      this.where("id", opts.sessionId as string).orWhereRaw(
-        "LOWER(email) = ?",
-        [normalizedEmail]
-      );
-    });
-  } else {
-    query.whereRaw("LOWER(email) = ?", [normalizedEmail]);
-  }
-
-  const rows = (await query) as Array<Pick<ILeadgenSession, "id" | "email">>;
+  const rows = await LeadgenSessionModel.findCandidatesForAccountLinking(
+    normalizedEmail,
+    sessionIdValid ? opts.sessionId : undefined
+  );
 
   // Tag each candidate with the match reason. If both match, session_id wins.
   return rows.map((row) => ({
@@ -93,9 +84,9 @@ export async function linkAccountCreation(
 ): Promise<void> {
   try {
     if (!opts.email || typeof opts.email !== "string") {
-      console.log("[LeadgenAccountLinking] invalid email arg", {
-        email: opts.email,
-      });
+      logger.info({ detail: {
+                email: opts.email,
+              } }, "[LeadgenAccountLinking] invalid email arg");
       return;
     }
 
@@ -112,10 +103,10 @@ export async function linkAccountCreation(
           ? Number(rawUserId)
           : NaN;
     if (!Number.isFinite(userIdNum) || !Number.isSafeInteger(userIdNum)) {
-      console.log("[LeadgenAccountLinking] invalid userId arg", {
-        userId: rawUserId,
-        typeofUserId: typeof rawUserId,
-      });
+      logger.info({ detail: {
+                userId: rawUserId,
+                typeofUserId: typeof rawUserId,
+              } }, "[LeadgenAccountLinking] invalid userId arg");
       return;
     }
 
@@ -128,11 +119,11 @@ export async function linkAccountCreation(
       // Diagnostic — silent return masked the real cause of "account_created
       // never fires" for ages. Now we always log when no candidate session
       // matches so future-us can see it in pm2 logs immediately.
-      console.log("[LeadgenAccountLinking] no candidate sessions", {
-        email: opts.email,
-        sessionId: opts.sessionId ?? null,
-        userId: userIdNum,
-      });
+      logger.info({ detail: {
+                email: opts.email,
+                sessionId: opts.sessionId ?? null,
+                userId: userIdNum,
+              } }, "[LeadgenAccountLinking] no candidate sessions");
       return;
     }
 
@@ -142,60 +133,38 @@ export async function linkAccountCreation(
       try {
         // Idempotency check — skip if this session already has an
         // account_created event.
-        const existing = await db("leadgen_events")
-          .select("id")
-          .where({ session_id: candidate.id, event_name: "account_created" })
-          .first();
+        const existing = await LeadgenEventModel.existsForSessionEvent(
+          candidate.id,
+          "account_created"
+        );
 
         if (existing) {
           continue;
         }
 
-        await db.transaction(async (trx) => {
-          await trx("leadgen_events").insert({
-            session_id: candidate.id,
-            event_name: "account_created",
-            event_data: JSON.stringify({
-              user_id: userIdNum,
-              linked_via: candidate.matchedVia,
-            }),
-            created_at: now,
-          });
-
-          await trx("leadgen_sessions")
-            .where({ id: candidate.id })
-            .update({
-              final_stage: "account_created",
-              completed: true,
-              user_id: userIdNum,
-              converted_at: now,
-              last_seen_at: now,
-              updated_at: now,
-            });
-        });
-
-        console.log(
-          "[LeadgenAccountLinking] linked session",
-          {
-            session_id: candidate.id,
-            user_id: userIdNum,
-            matched_via: candidate.matchedVia,
-          }
+        await LeadgenSessionModel.markAccountCreated(
+          candidate.id,
+          userIdNum,
+          candidate.matchedVia,
+          now
         );
+
+        logger.info({ detail: {
+                      session_id: candidate.id,
+                      user_id: userIdNum,
+                      matched_via: candidate.matchedVia,
+                    } }, "[LeadgenAccountLinking] linked session");
       } catch (innerErr) {
         // Per-session failure — log + continue so one bad row doesn't drop
         // the rest. The idempotency check above means a retry is safe.
-        console.error(
-          "[LeadgenAccountLinking] failed to link session",
-          {
-            session_id: candidate.id,
-            user_id: userIdNum,
-            error: innerErr,
-          }
-        );
+        logger.error({ err: {
+                      session_id: candidate.id,
+                      user_id: userIdNum,
+                      error: innerErr,
+                    } }, "[LeadgenAccountLinking] failed to link session");
       }
     }
   } catch (error) {
-    console.error("[LeadgenAccountLinking] linkAccountCreation error:", error);
+    logger.error({ err: error }, "[LeadgenAccountLinking] linkAccountCreation error:");
   }
 }

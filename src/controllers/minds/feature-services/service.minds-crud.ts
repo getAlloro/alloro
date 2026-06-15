@@ -4,9 +4,10 @@ import {
   IMindVersion,
 } from "../../../models/MindVersionModel";
 import { MindSyncRunModel } from "../../../models/MindSyncRunModel";
-import { db } from "../../../database/connection";
+import { BaseModel } from "../../../models/BaseModel";
 import { regenerateEmbeddings } from "./service.minds-embedding";
 import { shouldUseRag } from "./service.minds-retrieval";
+import logger from "../../../lib/logger";
 
 export async function listMinds(): Promise<IMind[]> {
   return MindModel.listAll();
@@ -58,7 +59,7 @@ export async function deleteMind(mindId: string): Promise<void> {
 
   // All child tables have ON DELETE CASCADE
   await MindModel.deleteById(mindId);
-  console.log(`[MINDS] Deleted mind ${mind.name} (${mindId})`);
+  logger.info(`[MINDS] Deleted mind ${mind.name} (${mindId})`);
 }
 
 export async function updateMind(
@@ -85,7 +86,7 @@ export async function updateBrain(
   const mind = await MindModel.findById(mindId);
   if (!mind) throw new Error("Mind not found");
 
-  const version = await db.transaction(async (trx) => {
+  const version = await BaseModel.transaction(async (trx) => {
     const v = await MindVersionModel.createVersion(
       mindId,
       brainMarkdown,
@@ -96,7 +97,7 @@ export async function updateBrain(
     return v;
   });
 
-  console.log(
+  logger.info(
     `[MINDS] Brain updated for mind ${mindId}: version ${version.version_number}, ${brainMarkdown.length} chars`,
   );
 
@@ -105,10 +106,7 @@ export async function updateBrain(
     try {
       await regenerateEmbeddings(mindId, version.id, brainMarkdown, mind.name);
     } catch (err) {
-      console.error(
-        "[MINDS] Embedding regeneration failed (non-blocking):",
-        err,
-      );
+      logger.error({ err: err }, "[MINDS] Embedding regeneration failed (non-blocking):");
       // Non-blocking — brain update still succeeds, RAG will fall back to full brain
     }
   }
@@ -133,7 +131,7 @@ export async function publishVersion(
     throw new Error("Version does not belong to this mind");
 
   await MindModel.setPublishedVersion(mindId, versionId);
-  console.log(
+  logger.info(
     `[MINDS] Published version ${version.version_number} for mind ${mindId}`,
   );
 
@@ -148,10 +146,7 @@ export async function publishVersion(
         mind?.name || "Unknown",
       );
     } catch (err) {
-      console.error(
-        "[MINDS] Embedding regeneration failed (non-blocking):",
-        err,
-      );
+      logger.error({ err: err }, "[MINDS] Embedding regeneration failed (non-blocking):");
     }
   }
 }

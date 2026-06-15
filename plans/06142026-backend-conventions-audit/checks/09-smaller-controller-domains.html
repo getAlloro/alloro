@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>smaller controller domains — Conventions Audit</title>
+<style>
+:root{color-scheme:light;--paper:#fff;--ink:#080808;--muted:#5f5f5f;--line:#d8d8d8;--soft:#f5f5f5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
+.shell{width:min(1000px,calc(100% - 32px));margin:0 auto;padding:40px 0}
+.hero,.card{border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.hero{border-color:var(--ink);padding:28px;margin-bottom:18px}
+.topline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.card{padding:24px;margin-top:16px}
+.eyebrow,dt{color:var(--muted);font-size:.74rem;font-weight:700;text-transform:uppercase}
+.eyebrow{margin:0}
+.pill{display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border:1px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper);font-size:.74rem;font-weight:800;text-transform:uppercase}
+h1,h2,h3,p{margin-top:0}
+h1{margin-bottom:18px;font-size:clamp(1.6rem,4.5vw,2.6rem);line-height:.98}
+h2{font-size:1.2rem}h3{font-size:.95rem}
+code{padding:.1rem .3rem;border:1px solid var(--line);border-radius:4px;background:var(--soft);font-size:.86em}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:0}
+.meta div{border:1px solid var(--line);border-radius:8px;padding:14px}
+dd{margin:4px 0 0;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:.82rem;margin-top:8px}
+th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);text-transform:uppercase;font-size:.7rem}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.over{font-weight:800}
+.sec td:first-child{font-weight:800}
+.checklist{list-style:none;padding:0;margin:0}
+.checklist li{display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line);font-size:.88rem}
+.note{border-left:3px solid var(--ink);padding:10px 14px;background:var(--soft);margin:0;font-size:.9rem}
+ul.flags{margin:0;padding-left:18px}ul.flags li{margin-bottom:7px}
+a{color:var(--ink)}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="hero">
+  <div class="topline"><p class="eyebrow">Backend Conventions Audit · Check 09 / 17 · <a href="../spec.html">index</a></p><span class="pill">Audited</span></div>
+  <h1>smaller controller domains</h1>
+  <dl class="meta">
+    <div><dt>Scope</dt><dd><code>src/controllers/*</code> (39 domains)</dd></div>
+    <div><dt>Files</dt><dd>247</dd></div>
+    <div><dt>Lines</dt><dd>30,001</dd></div>
+    <div><dt>Over 300</dt><dd>21</dd></div>
+    <div><dt>Priority</dt><dd>P2 (mixed)</dd></div>
+  </dl>
+</header>
+
+<section class="card">
+  <h2>Scope</h2>
+  <p>The 39 remaining controller domains — each small individually, collectively the second-largest chunk of the backend. <strong>Bold rows are security-critical: audit them first.</strong></p>
+  <table>
+    <thead><tr><th>Domain</th><th class="n">Files</th><th class="n">Lines</th><th class="n">Over 300</th></tr></thead>
+    <tbody>
+      <tr class="sec"><td>auth</td><td class="n">7</td><td class="n">1,147</td><td class="n over">2</td></tr>
+      <tr class="sec"><td>auth-password</td><td class="n">1</td><td class="n">482</td><td class="n over">1</td></tr>
+      <tr class="sec"><td>auth-otp</td><td class="n">9</td><td class="n">531</td><td class="n">0</td></tr>
+      <tr class="sec"><td>billing</td><td class="n">2</td><td class="n">939</td><td class="n over">1</td></tr>
+      <tr class="sec"><td>websiteContact</td><td class="n">14</td><td class="n">1,573</td><td class="n over">1</td></tr>
+      <tr class="sec"><td>googleauth</td><td class="n">8</td><td class="n">443</td><td class="n">0</td></tr>
+      <tr><td>admin-organizations</td><td class="n">10</td><td class="n">2,034</td><td class="n over">1</td></tr>
+      <tr><td>support</td><td class="n">16</td><td class="n">1,952</td><td class="n over">1</td></tr>
+      <tr><td>leadgen-tracking</td><td class="n">7</td><td class="n">1,464</td><td class="n over">1</td></tr>
+      <tr><td>gbp</td><td class="n">10</td><td class="n">1,378</td><td class="n over">1</td></tr>
+      <tr><td>audit</td><td class="n">13</td><td class="n">1,369</td><td class="n over">1</td></tr>
+      <tr><td>onboarding</td><td class="n">9</td><td class="n">1,338</td><td class="n over">1</td></tr>
+      <tr><td>admin-mission-control</td><td class="n">7</td><td class="n">1,319</td><td class="n">0</td></tr>
+      <tr><td>scraper</td><td class="n">13</td><td class="n">1,259</td><td class="n">0</td></tr>
+      <tr><td>tasks</td><td class="n">6</td><td class="n">1,211</td><td class="n over">1</td></tr>
+      <tr><td>rag</td><td class="n">9</td><td class="n">1,127</td><td class="n over">1</td></tr>
+      <tr><td>settings</td><td class="n">11</td><td class="n">1,060</td><td class="n over">1</td></tr>
+      <tr><td>admin-leadgen</td><td class="n">3</td><td class="n">1,025</td><td class="n over">1</td></tr>
+      <tr><td>monday</td><td class="n">9</td><td class="n">916</td><td class="n over">1</td></tr>
+      <tr><td>admin-agent-insights</td><td class="n">8</td><td class="n">878</td><td class="n over">1</td></tr>
+      <tr><td>admin-media</td><td class="n">11</td><td class="n">874</td><td class="n">0</td></tr>
+      <tr><td>locations</td><td class="n">2</td><td class="n">672</td><td class="n over">1</td></tr>
+      <tr><td>admin-agent-outputs</td><td class="n">8</td><td class="n">640</td><td class="n over">1</td></tr>
+      <tr><td>places</td><td class="n">6</td><td class="n">638</td><td class="n">0</td></tr>
+      <tr><td>admin-imports</td><td class="n">7</td><td class="n">616</td><td class="n over">1</td></tr>
+      <tr><td>notifications</td><td class="n">6</td><td class="n">520</td><td class="n over">1</td></tr>
+      <tr><td>clarity</td><td class="n">7</td><td class="n">472</td><td class="n">0</td></tr>
+      <tr><td>app-telemetry</td><td class="n">3</td><td class="n">285</td><td class="n">0</td></tr>
+      <tr><td>imports</td><td class="n">4</td><td class="n">247</td><td class="n">0</td></tr>
+      <tr><td>admin-schedules</td><td class="n">1</td><td class="n">234</td><td class="n">0</td></tr>
+      <tr><td>admin-ai-seo-audit</td><td class="n">1</td><td class="n">198</td><td class="n">0</td></tr>
+      <tr><td>appLogs</td><td class="n">4</td><td class="n">193</td><td class="n">0</td></tr>
+      <tr><td>admin-support</td><td class="n">1</td><td class="n">170</td><td class="n">0</td></tr>
+      <tr><td>admin-pms-pipeline</td><td class="n">1</td><td class="n">169</td><td class="n">0</td></tr>
+      <tr><td>profile</td><td class="n">4</td><td class="n">165</td><td class="n">0</td></tr>
+      <tr><td>documentation</td><td class="n">3</td><td class="n">156</td><td class="n">0</td></tr>
+      <tr><td>admin</td><td class="n">2</td><td class="n">121</td><td class="n">0</td></tr>
+      <tr><td>admin-settings</td><td class="n">3</td><td class="n">97</td><td class="n">0</td></tr>
+      <tr><td>dashboard</td><td class="n">1</td><td class="n">89</td><td class="n">0</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="card">
+  <h2>Priority Signals (start here)</h2>
+  <ul class="flags">
+    <li><strong>Audit security-critical domains FIRST</strong> (bold above): <code>auth</code> (2 offenders), <code>auth-password</code> (single 482-line file), <code>auth-otp</code>, <code>billing</code> (Stripe — secrets + payment failure modes), <code>websiteContact</code> (public form intake — input sanitization, spam/abuse), <code>googleauth</code> (OAuth token handling).</li>
+    <li><code>admin-organizations</code> holds the largest single offender here (1,091-line controller).</li>
+    <li>This bucket spans 39 domains — it's where nesting / naming drift is most visible. Catalogue the patterns; they inform the repo-wide ruling.</li>
+    <li><strong>Recommend sub-splitting this worksheet</strong> into security-first then the rest if findings get dense — 247 files is a lot for one pass.</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Audit Dimensions</h2>
+  <p>Run every file in scope against the 16-point contract (full detail in <a href="../spec.html#dimensions">spec.html</a>).</p>
+  <ul class="checklist">
+    <li><input type="checkbox" disabled> File &le; 300 lines</li>
+    <li><input type="checkbox" disabled> Functions &le; 50 lines</li>
+    <li><input type="checkbox" disabled> Nesting &le; 4 levels</li>
+    <li><input type="checkbox" disabled> Correct folder placement</li>
+    <li><input type="checkbox" disabled> Data flow: Routes &rarr; Controllers &rarr; Services &rarr; Models</li>
+    <li><input type="checkbox" disabled> No business logic in routes</li>
+    <li><input type="checkbox" disabled> No DB queries outside <code>models/</code></li>
+    <li><input type="checkbox" disabled> Error handling on every async call</li>
+    <li><input type="checkbox" disabled> <code>{ success, data, error }</code> response shape</li>
+    <li><input type="checkbox" disabled> No <code>console.log</code> (Pino only)</li>
+    <li><input type="checkbox" disabled> No hardcoded secrets / magic values</li>
+    <li><input type="checkbox" disabled> Input validated at route/middleware</li>
+    <li><input type="checkbox" disabled> Auth middleware on protected routes</li>
+    <li><input type="checkbox" disabled> Naming conventions</li>
+    <li><input type="checkbox" disabled> No commented-out code</li>
+    <li><input type="checkbox" disabled> Transactions for multi-table writes</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Findings</h2>
+  <h3>Summary</h3>
+  <p><strong>Verdict: needs changes — multiple security must-fixes.</strong> This 39-domain bucket is structurally consistent with the rest of the backend (flat response shape, <code>console.*</code> logging, no validation middleware, DB-outside-models — all systemic) but carries the audit's heaviest concentration of <em>auth-gap</em> and <em>disabled-protection</em> findings. Severity counts (unit-specific, systemic excluded): <strong>9 must-fix</strong>, <strong>9 concerns</strong>, <strong>5 nitpicks</strong>. Billing is the cleanest domain (auth + RBAC + Stripe signature verification + transactions + secrets via <code>config/</code>); the public form intake and several admin domains are the weakest.</p>
+
+  <h3>Auth-gap check</h3>
+  <p>There is <strong>no global <code>authenticateToken</code></strong> in <code>src/index.ts</code> — the only global pre-mount middleware is <code>billingGateMiddleware</code>, which is explicitly <em>non-blocking</em> (it skips when no/invalid JWT is present). So auth is per-router, and several routers omit it entirely. <strong>Guarded correctly</strong> (<code>authenticateToken</code> + <code>superAdminMiddleware</code> via <code>router.use</code> or per-route): admin/organizations, admin/leadgenSubmissions, admin/media, admin/missionControl, admin/pmsPipeline, admin/schedules, admin/support, admin/aiSeoAudit, billing. <strong>UNGUARDED admin/internal domains (must-fix):</strong> <code>adminAgentInsights</code> (top-level route), <code>admin/agentOutputs</code>, <code>admin/imports</code>, <code>admin/settings</code>, <code>appLogs</code>. Their controllers also contain <em>zero</em> internal <code>req.user</code>/role checks (verified). <strong>Unauthenticated proxy/data domains (concern→must-fix):</strong> <code>monday</code> (full task CRUD), <code>clarity</code> (analytics fetch), <code>audit</code> (start/read/PATCH by id — only <code>/retry</code> is shared-secret gated). Public-by-design and acceptable: auth / auth-otp / auth-password (login flows), googleauth (OAuth), websiteContact (public form), billing/webhook (Stripe-signed), scraper (key), leadgenTracking (key + limiter), imports (public file serving), documentation.</p>
+
+  <h3>Must-fix</h3>
+  <ul>
+    <li><code>routes/adminAgentInsights.ts</code>, <code>routes/admin/agentOutputs.ts</code>, <code>routes/admin/imports.ts</code>, <code>routes/admin/settings.ts</code> — [dim 13] admin endpoints (incl. destructive <code>DELETE</code>, bulk-delete, file upload, settings writes) mounted with <strong>no auth middleware</strong>; controllers have no internal guard. Anyone can read/mutate/delete <code>agent_results</code>, agent recommendations, <code>alloro_imports</code>, and app settings. <em>Fix:</em> add <code>router.use(authenticateToken, superAdminMiddleware)</code> to each, matching admin/organizations.</li>
+    <li><code>routes/appLogs.ts:10,16</code> — [dim 13] unauthenticated <code>GET /</code> (read server log file) and <code>DELETE /</code> (clear log file). The logs contain leaked OTP/verification codes (see below), so this compounds. <em>Fix:</em> gate with <code>authenticateToken + superAdminMiddleware</code>.</li>
+    <li><code>routes/auth-password.ts</code>, <code>routes/auth-otp.ts</code>, <code>routes/auth.ts</code> — [dim 12/sec] <strong>zero rate-limiting</strong> on <code>/login</code>, <code>/register</code>, OTP <code>/request</code>+<code>/verify</code>, <code>/forgot-password</code>, <code>/reset-password</code>, <code>/resend-verification</code>. Brute-force/credential-stuffing on login; email-bomb on the code senders; OTP <code>/verify</code> has no per-email attempt cap so the 6-digit space is brute-forceable in the 10-min window. The <code>express-rate-limit</code> infra exists (<code>middleware/publicRateLimiter.ts</code>) but is only wired to checkup/places/practiceRanking. <em>Fix:</em> apply per-IP + per-email limiters to all auth routes.</li>
+    <li><code>controllers/auth-otp/feature-services/service.jwt-management.ts:14</code> — [dim 11] <code>JWT_SECRET</code> falls back to a hardcoded literal <code>"dev-secret-key-change-in-prod"</code>. NODE_ENV is uniformly "production" in this repo (per ecosystem config), so a missing env var would silently sign every token with a public string → forgeable tokens. <em>Fix:</em> throw on missing <code>JWT_SECRET</code> instead of defaulting.</li>
+    <li><code>controllers/auth-password/AuthPasswordController.ts:317</code> + OTP code path — [dim 11/sec] one-time auth codes are logged in plaintext (<code>console.log(`[AUTH] Verification code for ${email}: ${code}`)</code>). Anyone with log access (now also anyone, via unguarded appLogs) can read live login/reset codes. This is distinct from the systemic console issue — it's logging a secret <em>value</em>. <em>Fix:</em> never log code values; redact.</li>
+    <li><code>controllers/websiteContact/formSubmissionController.ts:212-388</code> — [dim 12/15/sec] on the <strong>public, unauthenticated, file-accepting</strong> <code>/form-submission</code> endpoint, nearly the entire anti-abuse stack is commented out "for debugging": honeypot, timing check, JS challenge, origin validation, content-pattern scoring, <strong>IP flood/429 throttle</strong>, and duplicate detection. Only post-hoc AI flagging runs. <em>Fix:</em> restore the protections (re-enable the IP throttle at minimum) and delete the dead blocks.</li>
+    <li><code>routes/websiteContact.ts:31-36</code> — [dim 12/sec] the route-level <code>formSubmissionLimiter</code> (50/15min) is commented out (<code>// TODO: Re-enable</code>), so the multipart endpoint (up to 10 files × 50MB) has no express rate limit; multer buffers uploads into memory before any app-level flood check runs. <em>Fix:</em> re-enable the limiter.</li>
+    <li><code>routes/monday.ts</code> — [dim 13] all 7 endpoints (create/update/archive task, comments, board diag) are unauthenticated; controller does no internal auth. <em>Fix:</em> add <code>authenticateToken</code> (+ org scope) to the router.</li>
+    <li><code>controllers/websiteContact/formSubmissionController.ts:177-196</code> — [dim 12/sec] S3 file uploads sanitize the filename but enforce <strong>no MIME-type allowlist</strong>; any file type up to 50MB×10 is accepted and stored. <em>Fix:</em> validate <code>file.mimetype</code> against an allowlist per the file-upload convention.</li>
+  </ul>
+
+  <h3>Concerns</h3>
+  <ul>
+    <li><code>controllers/auth-otp/feature-utils/util.test-account.ts:7</code> — [dim 11/sec] hardcoded <code>tester@google.com</code> bypasses OTP <em>and</em> email-verification in <code>verifyOtp</code>, shipped in production code with no env gate. If that account exists with any role/org, it is a credential-free login. <em>Fix:</em> env-gate or remove.</li>
+    <li><code>controllers/auth-otp/feature-services/service.otp-generation.ts:12</code> &amp; <code>admin-organizations/AdminOrganizationsController.ts:898-920</code> — [dim 11/sec] security tokens use non-cryptographic <code>Math.random()</code>: 6-digit OTP codes and the admin-set temporary password (whose <code>.sort(() =&gt; Math.random()-0.5)</code> shuffle is also statistically biased). <em>Fix:</em> <code>crypto.randomInt</code>.</li>
+    <li><code>controllers/websiteContact/websiteContact-services/recaptchaService.ts:8-10</code> — [dim 12/sec] reCAPTCHA <strong>fails open</strong>: if <code>RECAPTCHA_SECRET_KEY</code> is unset it returns <code>true</code> (treats every submission as verified), silently disabling bot protection on env misconfig. <em>Fix:</em> fail-closed (or at least warn) in production.</li>
+    <li><code>routes/clarity.ts</code> — [dim 13] all 4 endpoints (incl. POST fetch/getKeyData/getAIReadyData) unauthenticated; returns per-project analytics. Repo treats inbound Clarity token as "optional," but project data should not be world-readable. <em>Fix:</em> require auth or a shared key.</li>
+    <li><code>routes/audit.ts:30-32</code> — [dim 13] only <code>/retry</code> is shared-secret gated; <code>GET /:auditId</code> and <code>PATCH /:auditId</code> are open → IDOR read/mutate of any audit by id. The partial gate signals an inconsistent model. <em>Fix:</em> gate read-by-id and PATCH with the same tracking key.</li>
+    <li><code>controllers/googleauth/GoogleAuthController.ts:55-56,92</code> — [dim 11/sec] OAuth callback returns the Google <strong>refresh token</strong> (long-lived credential) in the JSON body and embeds tokens into an HTML success page; all googleauth routes are unauthenticated. It is an app-level connector-setup flow (single env refresh token), but echoing the refresh token to a browser page is risky. <em>Fix:</em> auth-gate the routes and stop returning the refresh token to the client.</li>
+    <li><code>controllers/admin-organizations/AdminOrganizationsController.ts</code> — [dim 1] 1,091-line controller with 22 exported handlers spanning org lifecycle, billing ops, projects, users, and business-data. It does delegate to <code>feature-services/</code>, but the file should be split by sub-domain. Largest single offender in scope. (Auth is correct — super-admin gated.)</li>
+    <li>[dim 9 — systemic] Response shape: only ~6 in-scope files use the canonical <code>{success, data, error}</code> wrapper; ~40 use flat <code>{success: true, ...}</code> and the auth controllers use bare <code>{error}</code> / <code>{token, user}</code>. Tag <em>[systemic]</em>; auth domain is the most divergent.</li>
+    <li>[dim 7 — systemic] DB access outside <code>models/</code>: 24 in-scope files import <code>database/connection</code> directly. Top offenders: <code>leadgen-tracking/LeadgenTrackingController.ts</code> (12 <code>db(</code>), <code>admin-leadgen/AdminLeadgenController.ts</code> (9), <code>billing/BillingService.ts</code> (7, but transaction-wrapped), <code>leadgen-tracking/feature-services/service.email-notification-queue.ts</code> (7). Tag <em>[systemic]</em>.</li>
+  </ul>
+
+  <h3>Nitpicks</h3>
+  <ul>
+    <li><code>websiteContact-services/recaptchaService.ts:17</code> — [dim 12] reCAPTCHA secret + attacker-supplied <code>token</code> are string-interpolated into the POST body without URL-encoding; use <code>URLSearchParams</code>.</li>
+    <li><code>controllers/googleauth/GoogleAuthController.ts:13-18,45-50,89</code> — [dim 10] verbose OAuth <code>console.log</code> of token <em>metadata</em> (presence booleans, scope, expiry). Stops short of leaking the secret value, but noisy. Tag <em>[systemic]</em> dim-10.</li>
+    <li>[dim 10 — systemic] Pino not installed; <code>console.*</code> is de-facto across 82 in-scope files / 1,008 occurrences. Top: <code>admin-agent-outputs</code> (33), <code>admin-agent-insights</code> (27), <code>auth-password</code> (19), <code>gbp</code> (17), <code>auth/OAuthFlowService</code> (17). Tag <em>[systemic]</em>.</li>
+    <li>[dim 12 — systemic] No <code>validation/</code> schema middleware on any in-scope route; validation is inline in controllers (the auth controllers do reasonable inline checks). Tag <em>[systemic]</em>; flagged specifically for the public/auth/billing surfaces above.</li>
+    <li>Several <code>NODE_ENV === "production"</code> branches (e.g. <code>AdminOrganizationsController.ts:953</code>, <code>BillingService.ts:74</code>, the commented origin check) are effectively dead — NODE_ENV is forced to "production" everywhere in this repo, so the non-prod fallbacks never execute.</li>
+  </ul>
+
+  <h3>Coverage</h3>
+  <p><strong>Deep-read (full controller + route):</strong> auth-password, auth-otp (+ otp-generation/verification, jwt-management, super-admin, test-account services), auth (route + jwt service), billing (controller + route + service secret/transaction spot-checks), websiteContact (route + formSubmissionController + sanitization + floodDetection + recaptcha), googleauth (controller + route + oauthConfig), admin-organizations (route auth + structure + setUserPassword/generateTempPassword). <strong>Route-auth verified for all admin domains</strong> (Group B): agentOutputs, imports, settings, leadgenSubmissions, media, missionControl, organizations, pmsPipeline, schedules, support, aiSeoAudit + top-level adminAgentInsights, appLogs; and for monday, clarity, audit, leadgenTracking. <strong>Grep-sampled</strong> (response shape, try/catch presence, db(/console counts, exported-fn counts): support, leadgen-tracking, gbp, onboarding, settings, places, monday, scraper, clarity, notifications, locations, tasks, rag, audit. <strong>Not deep-opened</strong> (low risk / no auth surface / time — characterized via grep only): app-telemetry, imports (public file serve), admin-schedules, admin-ai-seo-audit, admin-support, admin-pms-pipeline, profile, documentation, admin, admin-settings (route read), dashboard, and the bulk of <code>feature-services/</code> + <code>feature-utils/</code> across the 39 domains (247 files total — full deep-read not feasible; prioritized security + size offenders + auth-mount reality per the unit plan).</p>
+</section>
+</main>
+</body>
+</html>

@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { validateInquiryInput } from "./support-utils/validationUtils";
 import { processInquiry } from "./support-services/inquiryService";
+import logger from "../../lib/logger";
 
 export async function handleInquiry(req: Request, res: Response) {
   try {
@@ -32,10 +33,7 @@ export async function handleInquiry(req: Request, res: Response) {
       messageId: result.messageId,
     });
   } catch (error: any) {
-    console.error(
-      "[Support] Error processing inquiry:",
-      error.message || error
-    );
+    logger.error({ err: error.message || error }, "[Support] Error processing inquiry:");
     return res.status(500).json({
       success: false,
       error: "SERVER_ERROR",

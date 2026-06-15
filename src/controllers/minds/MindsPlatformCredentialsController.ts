@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { PlatformCredentialModel } from "../../models/PlatformCredentialModel";
+import logger from "../../lib/logger";
 
 // =====================================================================
 // LIST — GET /api/minds/:mindId/credentials
@@ -14,7 +15,7 @@ export async function listCredentials(
     const credentials = await PlatformCredentialModel.listByMind(mindId);
     return res.json(credentials);
   } catch (error: any) {
-    console.error("[CREDENTIALS] List error:", error);
+    logger.error({ err: error }, "[CREDENTIALS] List error:");
     return res.status(500).json({ error: "Failed to list credentials" });
   }
 }
@@ -50,7 +51,7 @@ export async function createCredential(
     const { encrypted_credentials, ...safe } = created;
     return res.status(201).json(safe);
   } catch (error: any) {
-    console.error("[CREDENTIALS] Create error:", error);
+    logger.error({ err: error }, "[CREDENTIALS] Create error:");
     return res.status(500).json({ error: "Failed to create credential" });
   }
 }
@@ -78,7 +79,7 @@ export async function updateCredential(
     await PlatformCredentialModel.updateById(credentialId, updates);
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[CREDENTIALS] Update error:", error);
+    logger.error({ err: error }, "[CREDENTIALS] Update error:");
     return res.status(500).json({ error: "Failed to update credential" });
   }
 }
@@ -96,7 +97,7 @@ export async function deleteCredential(
     await PlatformCredentialModel.deleteById(credentialId);
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[CREDENTIALS] Delete error:", error);
+    logger.error({ err: error }, "[CREDENTIALS] Delete error:");
     return res.status(500).json({ error: "Failed to delete credential" });
   }
 }
@@ -116,7 +117,7 @@ export async function revokeCredential(
     });
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[CREDENTIALS] Revoke error:", error);
+    logger.error({ err: error }, "[CREDENTIALS] Revoke error:");
     return res.status(500).json({ error: "Failed to revoke credential" });
   }
 }

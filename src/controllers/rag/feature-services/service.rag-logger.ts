@@ -8,6 +8,7 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import logger from "../../../lib/logger";
 
 // =====================================================================
 // LOG FILE CONFIGURATION
@@ -50,9 +51,9 @@ export function log(message: string, isError: boolean = false): void {
 
   try {
     fs.appendFileSync(logFile, logMessage);
-    console.log(message);
+    logger.info(message);
   } catch (error) {
-    console.error(`Failed to write to log file: ${error}`);
+    logger.error(`Failed to write to log file: ${error}`);
   }
 }
 

@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Logging Decision — Pino vs console Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.86rem; margin-top: 8px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0; }
+    td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+    .p1 { font-weight: 800; }
+    .badge { display: inline-block; padding: 1px 8px; border: 1px solid var(--ink); border-radius: 999px; font-size: 0.7rem; font-weight: 800; }
+    a { color: var(--ink); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>Logging Decision — Pino vs console</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed — Option A (Pino) adopted</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06142026-logging-decision-pino</dd></div>
+        <div><dt>Size</dt><dd>Medium-Large (~277-file codemod)</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="decision">
+      <h2>Decision Required — Read First</h2>
+      <p>This plan resolves a <strong>contradiction inside the contract itself</strong>. The <code>/alloro-conventions</code> contract (dimension 10) mandates <strong>Pino with <code>pino-http</code></strong> and forbids <code>console.log</code>. But the codebase does the opposite: <strong>Pino is not installed</strong> (absent from <code>package.json</code>; <code>express ^5.1.0</code> is there, no <code>pino</code>, no <code>pino-http</code>), there are <strong>zero <code>pino</code> imports</strong> in <code>src/</code>, and <strong>277 of 922</strong> <code>.ts</code> files use <code>console.*</code> as the de-facto logger. The contract and the code cannot both be right. The owner must pick a direction before the codemod runs — the spec cannot pick for you.</p>
+
+      <div style="border:2px solid var(--ink); border-radius:8px; padding:20px; margin:16px 0;">
+        <h3 style="margin-top:0;">A / B — pick one</h3>
+        <table>
+          <thead><tr><th>&nbsp;</th><th>Option A — ADOPT Pino <span class="badge">RECOMMENDED</span></th><th>Option B — AMEND the contract</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>Move</strong></td>
+              <td>Install <code>pino</code> + <code>pino-http</code>, add a logger module, wire request logging in <code>src/index.ts</code>, codemod <code>console.*</code> &rarr; <code>logger.*</code> across ~277 files. Code conforms to the contract as written.</td>
+              <td>Keep <code>console</code> at the core, wrap it in a thin leveled logger (<code>debug/info/warn/error</code>) with redaction, codemod <code>console.*</code> &rarr; <code>logger.*</code>, and rewrite dimension 10 of the convention doc to bless the wrapper. Contract bends to the code.</td>
+            </tr>
+            <tr>
+              <td><strong>New deps</strong></td>
+              <td><code>pino</code>, <code>pino-http</code> (+ <code>pino-pretty</code> dev-only). 2 prod deps.</td>
+              <td>None. Zero new runtime deps.</td>
+            </tr>
+            <tr>
+              <td><strong>PII / OTP fix</strong></td>
+              <td><strong>Structural.</strong> <code>pino</code>'s built-in <code>redact</code> paths scrub secrets/PII at serialize time, app-wide, even for logs added later. Directly mitigates the verified plaintext-OTP / recipient-email finding.</td>
+              <td><strong>Manual.</strong> Redaction is hand-rolled in the wrapper; only catches fields the wrapper is told about. Token-interpolated strings (<code>`code: ${code}`</code>) still leak unless each call site is also fixed.</td>
+            </tr>
+            <tr>
+              <td><strong>Output</strong></td>
+              <td>Structured JSON — queryable, fields, levels, request-correlated. Prod-grade. Plays into Sentry / log aggregation later.</td>
+              <td>Still unstructured strings. Levels + redaction only. No correlation, no JSON.</td>
+            </tr>
+            <tr>
+              <td><strong>Risk / cost</strong></td>
+              <td>2 new deps; <code>pino-http</code> wiring on Express 5; slightly larger blast radius. Codemod identical size either way.</td>
+              <td>Lower blast radius; but you are <em>documenting</em> drift away from a prod-grade standard, and re-litigating redaction on every future log line.</td>
+            </tr>
+          </tbody>
+        </table>
+        <p style="margin-bottom:0;"><strong>Recommendation: Option A.</strong> The deciding factor is not log aesthetics — it is the verified security finding. <code>AuthPasswordController.ts:317</code> logs a live OTP <em>and</em> the user's email in plaintext (<code>console.log(`[AUTH] Verification code for ${email}: ${code}`)</code>), and <code>OAuthFlowService.ts:50,62,92</code> log OAuth tokens. Pino's <code>redact</code> is a real, configured, app-wide mitigation that also covers <em>future</em> careless log lines; Option B's hand-rolled redaction does not, and only delays adopting a real logger. Picking A also makes the code match the contract instead of weakening the contract to match the code. Both options carry the same ~277-file codemod, so A's marginal cost over B is just two pinned deps and the <code>pino-http</code> wiring — cheap for the upside. The tasks below are written for Option A; if the owner chooses B, drop T1/T3-wiring and swap the logger module body for the console wrapper (the codemod task T4 and verification T6 are identical).</p>
+      </div>
+    </section>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The backend conventions audit (<a href="../06142026-backend-conventions-audit/spec.html">plans/06142026-backend-conventions-audit</a>) flagged this as one of <strong>5 systemic, repo-wide breaches</strong>, and check 17 (<a href="../06142026-backend-conventions-audit/checks/17-auth-core-shared.html">auth-core-shared</a>) recorded it as a <strong>must-fix</strong> against dimension 10. The contract mandates Pino; Pino is not installed and <code>console.*</code> is everywhere. Left unresolved, every future backend PR either silently violates dimension 10 or gets blocked by it for no reason. Resolve the contradiction once, repo-wide, and stop the bleeding — including the plaintext-PII logging that rides on top of it.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>A single owner decision (A or B) plus its mechanical follow-through: one logger module, request-logging wired into the bootstrap, and a repo-wide codemod that replaces <code>console.*</code> with the logger across the ~277 offending files — isolated in its own commit, separate from the logic/wiring changes. <strong>Done when:</strong> the decision is recorded in the convention doc, the logger module exists with redaction configured, request logging is live, and a verification grep finds <strong>zero raw <code>console.*</code></strong> in <code>src/</code> outside the logger module itself (excluding <code>database/migrations</code> and <code>seeds</code>, which are out of the audit's scope).</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>package.json</code> — no <code>pino</code> / <code>pino-http</code> today; <code>express ^5.1.0</code> present. Pin exact versions when adding (see Operating Rules).</li>
+        <li><code>src/index.ts</code> (273 lines) — the bootstrap / entry point; where <code>pino-http</code> request logging would mount. Check 17 already flags a ~57-line inline CORS block here (<code>index.ts:83-139</code>) — do <strong>not</strong> touch it; logging wiring only.</li>
+        <li><code>src/lib/</code> — currently holds only <code>userAgent.ts</code>. Natural home for <code>src/lib/logger.ts</code>.</li>
+        <li><code>src/logs/</code> — already exists as a <strong>log-output</strong> directory (<code>agent-run.log</code>, <code>email.log</code>), <em>not</em> a code module dir. Do not place the logger module here — name collision / intent clash. Use <code>src/lib/logger.ts</code>.</li>
+        <li><code>src/controllers/auth-password/AuthPasswordController.ts:317,336,398</code> — verified plaintext logging of OTP codes + emails (the security tie-in). <code>src/controllers/auth/feature-services/OAuthFlowService.ts:50,62,92</code> — OAuth token logging.</li>
+        <li><code>src/emails/emailInterceptor.ts</code>, <code>src/emails/emailService.ts</code> — recipient-email handling; redaction config must cover <code>email</code> / <code>to</code> / <code>recipient</code> fields.</li>
+      </ul>
+      <h3>Existing domain-local "loggers" (fold into the codemod, don't fight them)</h3>
+      <ul>
+        <li><code>src/controllers/agents/feature-utils/agentLogger.ts</code>, <code>src/controllers/practice-ranking/feature-utils/util.ranking-logger.ts</code>, <code>src/controllers/scraper/feature-utils/util.scraper-logger.ts</code>, <code>src/controllers/rag/feature-services/service.rag-logger.ts</code>, <code>src/controllers/pm/pmActivityLogger.ts</code> — these are thin wrappers over <code>console.*</code>. They should call the new shared logger internally rather than <code>console</code> directly. Re-pointing their internals is in scope; renaming/relocating them is <strong>not</strong>.</li>
+      </ul>
+      <h3>Top <code>console.*</code> concentration (codemod hot spots)</h3>
+      <ul>
+        <li><code>src/controllers/admin-websites/AdminWebsitesController.ts</code> (180), <code>.../feature-services/service.ai-command.ts</code> (43), <code>src/routes/checkup.ts</code> (40), <code>src/controllers/admin-agent-outputs/AdminAgentOutputsController.ts</code> (33), <code>src/workers/worker.ts</code> (30).</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Single module, default export + named levels — match the shape of the existing domain loggers (e.g. <code>agentLogger.ts</code>) so adoption is familiar.</li>
+        <li>The codemod must respect the audit's exclusions: <strong>do not</strong> rewrite <code>src/database/migrations/**</code> or <code>seeds/**</code> (different rules; out of scope), and <strong>do not</strong> rewrite the frontend (<code>frontend/</code> — separate <code>/alloro-frontend</code> contract).</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/controllers/agents/feature-utils/agentLogger.ts</code> — closest existing analog for a leveled logger wrapper; match its export/usage shape for the new <code>src/lib/logger.ts</code>.</p>
+      <h3>Dependencies &amp; coordination</h3>
+      <ul>
+        <li><strong>Independent</strong> of the other backend-cleanup plans — no task here depends on another plan landing first.</li>
+        <li><strong>Coordinate redaction with the security-hotfix.</strong> The security-hotfix track also removes the plaintext-OTP logging at <code>AuthPasswordController.ts:317</code> (and the unauthenticated <code>/api/admin/app-logs</code> endpoint that exposes such logs). Whichever lands first wins; the other must not re-introduce the leak. Pino <code>redact</code> here is defense-in-depth, not a replacement for deleting the OTP-in-log line.</li>
+        <li><strong>Touches the validation-layer plan only at the bootstrap.</strong> Both wire middleware into <code>src/index.ts</code>; sequence the edits to avoid a merge conflict in the registration block, but there is no logical dependency.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Land the decision in the convention doc (dimension 10) before/with execution — spec-code-contract parity.</li>
+            <li><strong>Isolate the ~277-file codemod in its own commit</strong>, separate from the logger-module + wiring + redaction commit (see Pushback).</li>
+            <li>Pin exact dependency versions — no <code>^</code> / <code>~</code> ranges for <code>pino</code> / <code>pino-http</code> (Operating Rules).</li>
+            <li>Configure redaction for secrets/PII (OTP <code>code</code>, <code>password</code>, <code>token</code>/<code>accessToken</code>/<code>refreshToken</code>, <code>authorization</code>, <code>email</code>/<code>to</code>/<code>recipient</code>) in the logger module.</li>
+            <li>Run the verification grep and confirm zero raw <code>console.*</code> outside the logger module.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Mix logic/feature changes into the codemod commit — codemod = pure mechanical replacement.</li>
+            <li>Rewrite <code>console.*</code> in <code>src/database/migrations/**</code>, <code>seeds/**</code>, or <code>frontend/**</code>.</li>
+            <li>Refactor, rename, or relocate the existing domain loggers, or touch the <code>index.ts</code> CORS block — out of scope.</li>
+            <li>Add a second logging abstraction — one shared logger only (no parallel systems).</li>
+            <li>Change log <em>destinations</em> (files in <code>src/logs/</code>, Sentry) — that is a follow-up, not this plan.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Deleting the OTP-in-log line itself — owned by the security-hotfix (coordinate, don't duplicate).</li>
+        <li>Log shipping / aggregation / Sentry transport, log rotation, per-env log levels beyond a basic env switch.</li>
+        <li>The other 4 systemic breaches (validation, DB-outside-models, response shape, transactions) — separate plans.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 (Concern) — the codemod is <strong>mechanical with low logic risk</strong> (a token-for-token call swap), but it is wide (~277 files) and changes a contract-level standard, so it is not zero-risk.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>A 277-file codemod is noisy in git</strong> and will bury any real change reviewed alongside it. <strong>Mitigation:</strong> isolate the codemod in its own commit (<code>refactor: codemod console.* -&gt; logger</code>) with nothing else in it; put the logger module, wiring, redaction, and doc edit in a separate prior commit. Reviewers diff the small commit; the big one is a rubber-stamp.</li>
+        <li><strong>Mechanical replacement can mangle edge cases</strong> — <code>console.table</code>, <code>console.group</code>, <code>console.assert</code>, multi-arg calls, or <code>console</code> referenced as a value. <strong>Mitigation:</strong> use an AST codemod (<code>jscodeshift</code> / <code>ts-morph</code>), not a regex; map only <code>log/info/warn/error/debug</code>; leave anything unmapped for a manual sweep and list it in the commit body.</li>
+        <li><strong>Pino redaction misconfigured</strong> could still leak, or over-redact useful context. <strong>Mitigation:</strong> unit-assert the redact paths against a sample payload containing <code>code</code>/<code>token</code>/<code>email</code> before the codemod lands; coordinate the exact field list with the security-hotfix owner.</li>
+        <li><strong><code>pino-http</code> on Express 5</strong> — confirm version compatibility at install (Express 5 changed router internals). <strong>Mitigation:</strong> pin a <code>pino-http</code> version with documented Express 5 support; smoke-test one request path locally before the codemod.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> ~277 <code>.ts</code> files in <code>src/</code> (every <code>console.*</code> consumer), <code>src/index.ts</code> (one middleware registration), <code>package.json</code> + lockfile, the 5 domain-logger wrappers (internals re-pointed), and the <code>/alloro-conventions</code> SKILL doc (dimension 10 text). No runtime behavior changes beyond log format/redaction.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>Do not commit the codemod and the logic together.</strong> If the logger module, the <code>index.ts</code> wiring, and the 277-file sweep all land in one commit, the meaningful 30 lines are invisible inside a 277-file diff and the change becomes unreviewable and unbisectable. Two commits, always: logic first, codemod second.</li>
+        <li>If the owner leans Option B to "avoid new deps," push back: the dep count (2) is trivial next to re-litigating PII redaction by hand forever and documenting drift away from a prod-grade standard. B is the worse long-term trade.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <p>Written for <strong>Option A</strong>. T0 is the gate. T4 (codemod) is its <strong>own commit</strong>, separate from T1–T3, T5 (logic/wiring/doc). For Option B: skip the install in T1 and the <code>pino-http</code> wiring in T3, swap the T2 module body for a console wrapper — T4/T6 are unchanged.</p>
+
+      <article class="task-card">
+        <h3>T0: Owner decision (gate)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Owner picks Option A or B. Nothing below executes until this is recorded. Default recommendation is A.</dd></div>
+          <div><dt>Files</dt><dd>none (decision)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: decision written into the convention doc's dimension-10 section.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T1: Install + pin deps <span style="font-weight:400;color:var(--muted)">(Commit 1)</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>pino</code> and <code>pino-http</code> at exact pinned versions (no caret/tilde); add <code>pino-pretty</code> as a dev dependency for local readable output. Confirm <code>pino-http</code> ↔ Express 5 compatibility.</dd></div>
+          <div><dt>Files</dt><dd><code>package.json</code>, lockfile</dd></div>
+          <div><dt>Depends on</dt><dd>T0 = A</dd></div>
+          <div><dt>Verify</dt><dd><code>npm ls pino pino-http</code> resolves; versions are exact-pinned.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Logger module + redaction <span style="font-weight:400;color:var(--muted)">(Commit 1)</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create <code>src/lib/logger.ts</code> exporting a configured Pino instance (named levels <code>debug/info/warn/error</code>), modeled on <code>agentLogger.ts</code>'s shape. Configure <code>redact</code> paths for OTP <code>code</code>, <code>password</code>, <code>token</code>/<code>accessToken</code>/<code>refreshToken</code>, <code>authorization</code>, and <code>email</code>/<code>to</code>/<code>recipient</code>. Basic env-driven level + <code>pino-pretty</code> transport in dev only.</dd></div>
+          <div><dt>Files</dt><dd><code>src/lib/logger.ts</code> (new)</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Unit assert: logging an object with <code>code</code>/<code>token</code>/<code>email</code> emits <code>[Redacted]</code> for those keys; <code>tsc -p tsconfig.json --noEmit</code> clean.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Wire request logging <span style="font-weight:400;color:var(--muted)">(Commit 1)</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Mount <code>pino-http</code> (sharing the T2 logger) in <code>src/index.ts</code> as the first middleware. Registration only — do not touch the existing inline CORS block (<code>index.ts:83-139</code>).</dd></div>
+          <div><dt>Files</dt><dd><code>src/index.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>Local smoke test: one request emits a structured JSON log line with method/path/status and no leaked secret fields.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Codemod <code>console.*</code> &rarr; <code>logger.*</code> <span style="font-weight:800">(Commit 2 — codemod only, nothing else)</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>AST codemod (<code>jscodeshift</code>/<code>ts-morph</code>, pinned) across <code>src/**/*.ts</code> mapping <code>console.{log&rarr;info, info, warn, error, debug}</code> to the shared logger and inserting the import. Re-point the 5 domain-logger wrappers' internals to the shared logger. <strong>Exclude</strong> <code>src/lib/logger.ts</code>, <code>src/database/migrations/**</code>, <code>seeds/**</code>, <code>frontend/**</code>. Leave unmapped variants (<code>console.table/group/assert</code>, <code>console</code>-as-value) untouched and list them in the commit body for a manual sweep.</dd></div>
+          <div><dt>Files</dt><dd>~277 <code>.ts</code> files under <code>src/</code> + the 5 domain loggers</dd></div>
+          <div><dt>Depends on</dt><dd>T2 (logger must exist before anything imports it)</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc -p tsconfig.json --noEmit</code> clean; grep in T6.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Update the convention doc <span style="font-weight:400;color:var(--muted)">(Commit 1)</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Record the ruling in <code>~/.claude/skills/alloro-conventions/SKILL.md</code> dimension 10: under A, restate Pino + <code>pino-http</code> as the live standard and name <code>src/lib/logger.ts</code>; under B, replace the Pino mandate with the wrapper standard. Either way, the doc must match reality.</dd></div>
+          <div><dt>Files</dt><dd><code>~/.claude/skills/alloro-conventions/SKILL.md</code></dd></div>
+          <div><dt>Depends on</dt><dd>T0</dd></div>
+          <div><dt>Verify</dt><dd>Manual: dimension 10 text matches the shipped logger.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Verification grep (Done gate)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Confirm no raw <code>console.*</code> remains in <code>src/</code> outside the logger module and the allowed exclusions.</dd></div>
+          <div><dt>Files</dt><dd>none (check)</dd></div>
+          <div><dt>Depends on</dt><dd>T4</dd></div>
+          <div><dt>Verify</dt><dd><code>grep -rnE 'console\.(log|info|warn|error|debug)' src --include='*.ts' | grep -vE 'src/lib/logger.ts|src/database/migrations/' </code> &rarr; <strong>0 lines</strong> (started at 277 files).</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> Owner decision (A or B) recorded in the convention doc (dimension 10)</li>
+        <li><input type="checkbox" disabled> <code>pino</code> + <code>pino-http</code> installed at <strong>exact pinned</strong> versions (Option A)</li>
+        <li><input type="checkbox" disabled> <code>src/lib/logger.ts</code> exists; redaction unit-asserts <code>[Redacted]</code> for <code>code</code>/<code>token</code>/<code>email</code></li>
+        <li><input type="checkbox" disabled> <code>pino-http</code> wired in <code>src/index.ts</code>; one request emits a structured, redacted log line</li>
+        <li><input type="checkbox" disabled> Codemod landed as its <strong>own commit</strong>, separate from logic/wiring/doc</li>
+        <li><input type="checkbox" disabled> <code>grep -rnE 'console\.(log|info|warn|error|debug)' src --include='*.ts'</code> (minus logger + migrations) returns <strong>0</strong></li>
+        <li><input type="checkbox" disabled> <code>tsc -p tsconfig.json --noEmit</code> — zero errors from this change</li>
+        <li><input type="checkbox" disabled> Coordinated with security-hotfix: OTP/PII plaintext logging not re-introduced</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-06-14</h3>
+        <p><strong>Change:</strong> Executed Option A (adopt Pino). Installed <code>pino@10.3.1</code> + <code>pino-http@11.0.0</code> (prod, exact-pinned) and <code>pino-pretty@13.1.3</code> + <code>ts-morph@27.0.0</code> (dev, exact-pinned). Created <code>src/lib/logger.ts</code> (configured pino instance, default + named levels, env-driven level, dev-only pino-pretty, exported <code>REDACT_PATHS</code> / <code>REDACT_OPTIONS</code>) with redaction over authorization/cookie, token/accessToken/refreshToken/secret, password, OTP <code>code</code>/<code>otp</code>, and <code>email</code>/<code>to</code>/<code>recipient</code> (top-level + <code>*.key</code> + req/res header shapes). Wired <code>pino-http</code> as the FIRST middleware in <code>src/app.ts</code> (the importable app factory — the bootstrap moved out of <code>src/index.ts</code> since the spec was written), gated off under <code>VITEST</code>. Ran an AST codemod (ts-morph) mapping <code>console.{log→info,info,warn,error,debug}</code> → shared logger across <code>src/</code>, with <code>console.error(strMsg, err)</code> → <code>logger.error({ err }, strMsg)</code>. Added a redaction unit test (<code>src/__tests__/logger.redaction.test.ts</code>) and re-pointed the validate-middleware test from <code>console</code> spies to <code>logger</code> spies.</p>
+        <p><strong>Reason — Execution deviations (vs spec assumptions):</strong></p>
+        <ul>
+          <li><strong>Scope was per-call larger than stated.</strong> The spec's "~277 files" counts files; the actual mechanical surface was <strong>1,373 <code>console.*</code> call-sites across 243 files</strong> (codemod), with only <code>log</code>/<code>warn</code>/<code>error</code> present (no <code>console.info</code>/<code>console.debug</code> existed). 604 of those were the <code>console.error(msg, err)</code> → <code>{ err }</code> rewrite.</li>
+          <li><strong>The "5 domain loggers" were 4.</strong> <code>controllers/pm/pmActivityLogger.ts</code> writes to a DB model and contains no <code>console.*</code>; the real console-wrapping loggers (agentLogger, ranking-logger, scraper-logger, rag-logger) had their internals re-pointed by the codemod as intended.</li>
+          <li><strong>False-positive guard held.</strong> A naive regex flags <code>searchconsole.sites</code> / <code>searchconsole.searchanalytics</code> (Google Search Console SDK). The AST codemod matched only the global <code>console</code> identifier, so those 4 lines were correctly left untouched.</li>
+          <li><strong>4 call sites needed manual handling (codemod-excluded):</strong> three practice-ranking services bind a <code>logger</code> PARAM / use <code>= console.log</code> as a default-param value (<code>service.identifier.ts</code>, <code>service.ranking-pipeline.ts</code>, <code>service.competitor-source-resolver.ts</code>) — fixed by importing the shared logger as <code>appLogger</code> and wrapping <code>(msg) =&gt; appLogger.info(msg)</code> to avoid shadowing.</li>
+          <li><strong>Pino's strict LogFn typing forced a follow-up arg codemod.</strong> Pino types only allow trailing args that match printf specifiers parsed out of a string-literal message, so the bulk's <code>logger.X("msg", data)</code> output (66 calls / 39 files) was a type error. A second AST pass rewrote string-first multi-arg calls to pino merge-object form: 1 trailing arg → <code>{ err: x }</code> (error level / error-named) or <code>{ detail: x }</code>; N trailing → <code>{ details: [...] }</code>. Behavior-preserving (output form changes only).</li>
+          <li><strong><code>validate.ts</code> hand-corrected to idiomatic pino.</strong> Its warn/error calls were converted to merge-object-first (<code>logger.warn({meta}, msg)</code> / <code>logger.error({ err, ...meta }, msg)</code>) so the redaction-safe metadata is actually emitted rather than dropped as an unformatted printf extra.</li>
+          <li><strong>Redaction test capture strategy.</strong> Pino writes via sonic-boom to fd 1, which a <code>process.stdout.write</code> spy cannot intercept; the unit test builds a logger from the exported <code>REDACT_OPTIONS</code> over an in-memory stream to assert the SHIPPED path list.</li>
+          <li><strong>Residual.</strong> Exactly 1 <code>console.*</code> remains in app code — a browser-side <code>console.error</code> inside an HTML <code>&lt;script&gt;</code> string in <code>controllers/googleauth/utils/templates/successTemplate.ts</code> (runs in the user's browser, not Node) — correctly NOT repointed. Seeds + tests excluded per scope.</li>
+        </ul>
+        <p><strong>Verification:</strong> <code>tsc --noEmit -p tsconfig.json</code> → 0 errors; <code>npm run build</code> (tsc emit) → 0 errors; <code>npm test</code> → 31/31 pass (7 files); 0 orphan <code>logger.</code> refs, 0 duplicate imports; prod=JSON / dev=pretty / test=JSON output branching confirmed. <strong>NOT committed</strong> (per execution constraints) — the spec's two-commit isolation (logic/wiring/doc vs codemod) is left for the owner to stage.</p>
+        <p><strong>Updated Done criteria:</strong> deps pinned ✓; logger module + redaction unit-assert ✓; pino-http wired (in <code>app.ts</code>, not <code>index.ts</code>) ✓; codemod applied ✓; residual grep ≈0 (1 intentional browser line) ✓; tsc clean ✓. Convention-doc edit (T5/dimension-10) and the security-hotfix coordination remain owner follow-ups; commit isolation not yet performed.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

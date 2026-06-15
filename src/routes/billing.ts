@@ -11,17 +11,24 @@ import express from "express";
 import { authenticateToken } from "../middleware/auth";
 import { rbacMiddleware, requireRole } from "../middleware/rbac";
 import * as BillingController from "../controllers/billing/BillingController";
+import { validate } from "../middleware/validate";
+import { checkoutSchema } from "../validation/billing.schemas";
 
 const billingRoutes = express.Router();
 
 // ─── Authenticated Endpoints ───
 
 // POST /api/billing/checkout — Create Stripe Checkout Session
+// Validation: WARN-ONLY for this pass — logs would-be rejections of the
+// { tier, isOnboarding } body (field names + issue codes only) and lets the
+// request through. Flip to enforce only after a clean soak. The controller's
+// own `tier ∈ {DWY,DFY}` guard stays in place alongside this.
 billingRoutes.post(
   "/checkout",
   authenticateToken,
   rbacMiddleware,
   requireRole("admin"),
+  validate(checkoutSchema),
   BillingController.createCheckout
 );
 

@@ -10,7 +10,7 @@
  * on the next monthly run.
  */
 
-import { db } from "../../../database/connection";
+import { PracticeRankingModel } from "../../../models/PracticeRankingModel";
 import { log } from "../feature-utils/util.ranking-logger";
 
 /**
@@ -22,28 +22,26 @@ export async function handleErrorResponse(
   errorCode: string | undefined,
   errorMessage: string | undefined,
 ): Promise<void> {
-  await db("practice_rankings")
-    .where({ id: practiceRankingId })
-    .update({
-      status: "completed",
-      status_detail: JSON.stringify({
-        currentStep: "done",
-        message: `Completed with LLM error: ${errorMessage}`,
-        progress: 100,
-        stepsCompleted: [
-          "queued",
-          "fetching_client_gbp",
-          "discovering_competitors",
-          "scraping_competitors",
-          "auditing_website",
-          "calculating_scores",
-          "awaiting_llm",
-        ],
-        timestamps: {},
-      }),
-      error_message: `LLM Error: ${errorCode} - ${errorMessage}`,
-      updated_at: new Date(),
-    });
+  await PracticeRankingModel.updateByIdRaw(practiceRankingId, {
+    status: "completed",
+    status_detail: JSON.stringify({
+      currentStep: "done",
+      message: `Completed with LLM error: ${errorMessage}`,
+      progress: 100,
+      stepsCompleted: [
+        "queued",
+        "fetching_client_gbp",
+        "discovering_competitors",
+        "scraping_competitors",
+        "auditing_website",
+        "calculating_scores",
+        "awaiting_llm",
+      ],
+      timestamps: {},
+    }),
+    error_message: `LLM Error: ${errorCode} - ${errorMessage}`,
+    updated_at: new Date(),
+  });
 }
 
 /**
@@ -53,29 +51,27 @@ export async function saveLlmAnalysis(
   practiceRankingId: number,
   llmAnalysis: any,
 ): Promise<void> {
-  await db("practice_rankings")
-    .where({ id: practiceRankingId })
-    .update({
-      llm_analysis: JSON.stringify(llmAnalysis),
-      status: "completed",
-      status_detail: JSON.stringify({
-        currentStep: "done",
-        message: "Analysis complete with AI insights",
-        progress: 100,
-        stepsCompleted: [
-          "queued",
-          "fetching_client_gbp",
-          "discovering_competitors",
-          "scraping_competitors",
-          "auditing_website",
-          "calculating_scores",
-          "awaiting_llm",
-          "done",
-        ],
-        timestamps: { completed_at: new Date().toISOString() },
-      }),
-      updated_at: new Date(),
-    });
+  await PracticeRankingModel.updateByIdRaw(practiceRankingId, {
+    llm_analysis: JSON.stringify(llmAnalysis),
+    status: "completed",
+    status_detail: JSON.stringify({
+      currentStep: "done",
+      message: "Analysis complete with AI insights",
+      progress: 100,
+      stepsCompleted: [
+        "queued",
+        "fetching_client_gbp",
+        "discovering_competitors",
+        "scraping_competitors",
+        "auditing_website",
+        "calculating_scores",
+        "awaiting_llm",
+        "done",
+      ],
+      timestamps: { completed_at: new Date().toISOString() },
+    }),
+    updated_at: new Date(),
+  });
 
   log(`[${practiceRankingId}] LLM analysis saved, status: completed`);
 }

@@ -6,12 +6,11 @@
  * referenced via {{ post_block }} shortcodes in project pages.
  */
 
-import { db } from "../../../database/connection";
+import { PostBlockModel } from "../../../models/website-builder/PostBlockModel";
+import { PostTypeModel } from "../../../models/website-builder/PostTypeModel";
+import { TemplateModel } from "../../../models/website-builder/TemplateModel";
 import { getRedisConnection } from "../../../workers/queues";
-
-const POST_BLOCKS_TABLE = "website_builder.post_blocks";
-const POST_TYPES_TABLE = "website_builder.post_types";
-const TEMPLATES_TABLE = "website_builder.templates";
+import logger from "../../../lib/logger";
 
 function slugify(text: string): string {
   return text
@@ -25,7 +24,7 @@ async function invalidatePostBlockCache(templateId: string, slug: string) {
     const redis = getRedisConnection();
     await redis.del(`pb:${templateId}:${slug}`);
   } catch (err) {
-    console.error("[Admin Websites] Failed to invalidate post block cache:", err);
+    logger.error({ err: err }, "[Admin Websites] Failed to invalidate post block cache:");
   }
 }
 
@@ -37,7 +36,7 @@ export async function listPostBlocks(templateId: string): Promise<{
   postBlocks: any[];
   error?: { status: number; code: string; message: string };
 }> {
-  const template = await db(TEMPLATES_TABLE).where("id", templateId).first();
+  const template = await TemplateModel.findRawById(templateId);
   if (!template) {
     return {
       postBlocks: [],
@@ -45,9 +44,7 @@ export async function listPostBlocks(templateId: string): Promise<{
     };
   }
 
-  const postBlocks = await db(POST_BLOCKS_TABLE)
-    .where("template_id", templateId)
-    .orderBy("created_at", "asc");
+  const postBlocks = await PostBlockModel.findByTemplateIdOrdered(templateId);
 
   return { postBlocks };
 }
@@ -84,7 +81,7 @@ export async function createPostBlock(
     };
   }
 
-  const template = await db(TEMPLATES_TABLE).where("id", templateId).first();
+  const template = await TemplateModel.findRawById(templateId);
   if (!template) {
     return {
       postBlock: null,
@@ -93,9 +90,7 @@ export async function createPostBlock(
   }
 
   // Verify post type belongs to this template
-  const postType = await db(POST_TYPES_TABLE)
-    .where({ id: post_type_id, template_id: templateId })
-    .first();
+  const postType = await PostTypeModel.findByIdAndTemplate(post_type_id, templateId);
   if (!postType) {
     return {
       postBlock: null,
@@ -104,9 +99,7 @@ export async function createPostBlock(
   }
 
   const slug = slugify(name);
-  const existing = await db(POST_BLOCKS_TABLE)
-    .where({ template_id: templateId, slug })
-    .first();
+  const existing = await PostBlockModel.findByTemplateAndSlugRaw(templateId, slug);
   if (existing) {
     return {
       postBlock: null,
@@ -118,20 +111,18 @@ export async function createPostBlock(
     };
   }
 
-  console.log(`[Admin Websites] Creating post block "${name}" for template ${templateId}`);
+  logger.info(`[Admin Websites] Creating post block "${name}" for template ${templateId}`);
 
-  const [postBlock] = await db(POST_BLOCKS_TABLE)
-    .insert({
-      template_id: templateId,
-      post_type_id,
-      name,
-      slug,
-      description: description || null,
-      sections: JSON.stringify(sections || []),
-    })
-    .returning("*");
+  const postBlock = await PostBlockModel.insertReturning({
+    template_id: templateId,
+    post_type_id,
+    name,
+    slug,
+    description: description || null,
+    sections: JSON.stringify(sections || []),
+  });
 
-  console.log(`[Admin Websites] ✓ Created post block ID: ${postBlock.id}`);
+  logger.info(`[Admin Websites] ✓ Created post block ID: ${postBlock.id}`);
 
   return { postBlock };
 }
@@ -144,9 +135,7 @@ export async function getPostBlock(
   templateId: string,
   postBlockId: string
 ): Promise<any> {
-  const block = await db(POST_BLOCKS_TABLE)
-    .where({ id: postBlockId, template_id: templateId })
-    .first();
+  const block = await PostBlockModel.findByIdAndTemplate(postBlockId, templateId);
 
   if (block && typeof block.sections === "string") {
     block.sections = JSON.parse(block.sections);
@@ -167,9 +156,7 @@ export async function updatePostBlock(
   postBlock: any;
   error?: { status: number; code: string; message: string };
 }> {
-  const existing = await db(POST_BLOCKS_TABLE)
-    .where({ id: postBlockId, template_id: templateId })
-    .first();
+  const existing = await PostBlockModel.findByIdAndTemplate(postBlockId, templateId);
   if (!existing) {
     return {
       postBlock: null,
@@ -183,10 +170,11 @@ export async function updatePostBlock(
 
   if (updates.name && updates.name !== existing.name) {
     updates.slug = slugify(updates.name);
-    const conflict = await db(POST_BLOCKS_TABLE)
-      .where({ template_id: templateId, slug: updates.slug })
-      .whereNot("id", postBlockId)
-      .first();
+    const conflict = await PostBlockModel.findSlugConflictExcludingId(
+      templateId,
+      updates.slug,
+      postBlockId
+    );
     if (conflict) {
       return {
         postBlock: null,
@@ -200,9 +188,10 @@ export async function updatePostBlock(
   }
 
   if (updates.post_type_id) {
-    const postType = await db(POST_TYPES_TABLE)
-      .where({ id: updates.post_type_id, template_id: templateId })
-      .first();
+    const postType = await PostTypeModel.findByIdAndTemplate(
+      updates.post_type_id,
+      templateId
+    );
     if (!postType) {
       return {
         postBlock: null,
@@ -211,12 +200,13 @@ export async function updatePostBlock(
     }
   }
 
-  const [postBlock] = await db(POST_BLOCKS_TABLE)
-    .where({ id: postBlockId, template_id: templateId })
-    .update({ ...updates, updated_at: db.fn.now() })
-    .returning("*");
+  const postBlock = await PostBlockModel.updateByIdAndTemplateReturning(
+    postBlockId,
+    templateId,
+    updates
+  );
 
-  console.log(`[Admin Websites] ✓ Updated post block ID: ${postBlockId}`);
+  logger.info(`[Admin Websites] ✓ Updated post block ID: ${postBlockId}`);
 
   // Invalidate cache
   await invalidatePostBlockCache(templateId, existing.slug);
@@ -235,20 +225,16 @@ export async function deletePostBlock(
   templateId: string,
   postBlockId: string
 ): Promise<{ error?: { status: number; code: string; message: string } }> {
-  const existing = await db(POST_BLOCKS_TABLE)
-    .where({ id: postBlockId, template_id: templateId })
-    .first();
+  const existing = await PostBlockModel.findByIdAndTemplate(postBlockId, templateId);
   if (!existing) {
     return {
       error: { status: 404, code: "NOT_FOUND", message: "Post block not found" },
     };
   }
 
-  await db(POST_BLOCKS_TABLE)
-    .where({ id: postBlockId, template_id: templateId })
-    .del();
+  await PostBlockModel.deleteByIdAndTemplate(postBlockId, templateId);
 
-  console.log(`[Admin Websites] ✓ Deleted post block ID: ${postBlockId}`);
+  logger.info(`[Admin Websites] ✓ Deleted post block ID: ${postBlockId}`);
 
   await invalidatePostBlockCache(templateId, existing.slug);
 

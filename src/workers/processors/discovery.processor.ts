@@ -1,13 +1,14 @@
 import { Job } from "bullmq";
 import { MindModel } from "../../models/MindModel";
 import { runDiscoveryForMind } from "../../controllers/minds/feature-services/service.minds-discovery";
+import logger from "../../lib/logger";
 
 interface DiscoveryJobData {
   mindId?: string; // If provided, run for specific mind; otherwise run for all
 }
 
 export async function processDiscovery(job: Job<DiscoveryJobData>): Promise<void> {
-  console.log("[MINDS-WORKER] Starting discovery job");
+  logger.info("[MINDS-WORKER] Starting discovery job");
 
   const { mindId } = job.data;
 
@@ -15,11 +16,11 @@ export async function processDiscovery(job: Job<DiscoveryJobData>): Promise<void
     // Run for specific mind
     try {
       const result = await runDiscoveryForMind(mindId);
-      console.log(
+      logger.info(
         `[MINDS-WORKER] Discovery for mind ${mindId}: ${result.newPostsCount} new posts, ${result.errors.length} errors`
       );
     } catch (err: any) {
-      console.error(`[MINDS-WORKER] Discovery failed for mind ${mindId}:`, err);
+      logger.error({ err: err }, `[MINDS-WORKER] Discovery failed for mind ${mindId}:`);
     }
     return;
   }
@@ -29,13 +30,13 @@ export async function processDiscovery(job: Job<DiscoveryJobData>): Promise<void
   for (const mind of minds) {
     try {
       const result = await runDiscoveryForMind(mind.id);
-      console.log(
+      logger.info(
         `[MINDS-WORKER] Discovery for ${mind.name}: ${result.newPostsCount} new posts, ${result.errors.length} errors`
       );
     } catch (err: any) {
-      console.error(`[MINDS-WORKER] Discovery failed for ${mind.name}:`, err);
+      logger.error({ err: err }, `[MINDS-WORKER] Discovery failed for ${mind.name}:`);
     }
   }
 
-  console.log("[MINDS-WORKER] Discovery job completed");
+  logger.info("[MINDS-WORKER] Discovery job completed");
 }

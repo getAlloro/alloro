@@ -2,7 +2,20 @@
  * Backups API — Admin portal for website backup and restore
  */
 
+import { getCommonHeaders } from "./index";
+
 const BASE = "/api/admin/websites";
+
+// Attach the Bearer token (via getCommonHeaders) to every admin call. These
+// /api/admin/websites/* routes are protected by the app-level auth guard;
+// bare fetch would 401.
+const adminFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
+  const headers = new Headers(init.headers);
+  Object.entries(getCommonHeaders()).forEach(([key, value]) => {
+    if (!headers.has(key)) headers.set(key, value);
+  });
+  return fetch(input, { ...init, headers });
+};
 
 // =====================================================================
 // TYPES
@@ -31,7 +44,7 @@ export interface BackupJob {
 export const createBackup = async (
   projectId: string
 ): Promise<{ success: boolean; data: { job_id: string; estimated_bytes: number; already_active?: boolean } }> => {
-  const response = await fetch(`${BASE}/${projectId}/backups`, {
+  const response = await adminFetch(`${BASE}/${projectId}/backups`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
   });
@@ -42,7 +55,7 @@ export const createBackup = async (
 export const listBackups = async (
   projectId: string
 ): Promise<{ success: boolean; data: BackupJob[] }> => {
-  const response = await fetch(`${BASE}/${projectId}/backups`);
+  const response = await adminFetch(`${BASE}/${projectId}/backups`);
   if (!response.ok) throw new Error((await response.json()).message || "Failed to list backups");
   return response.json();
 };
@@ -51,7 +64,7 @@ export const getBackupStatus = async (
   projectId: string,
   jobId: string
 ): Promise<{ success: boolean; data: BackupJob }> => {
-  const response = await fetch(`${BASE}/${projectId}/backups/${jobId}/status`);
+  const response = await adminFetch(`${BASE}/${projectId}/backups/${jobId}/status`);
   if (!response.ok) throw new Error((await response.json()).message || "Failed to get backup status");
   return response.json();
 };
@@ -60,7 +73,7 @@ export const getBackupDownloadUrl = async (
   projectId: string,
   jobId: string
 ): Promise<{ success: boolean; data: { url: string; filename: string; expires_in: number } }> => {
-  const response = await fetch(`${BASE}/${projectId}/backups/${jobId}/download`);
+  const response = await adminFetch(`${BASE}/${projectId}/backups/${jobId}/download`);
   if (!response.ok) throw new Error((await response.json()).message || "Failed to get download URL");
   return response.json();
 };
@@ -70,7 +83,7 @@ export const restoreBackup = async (
   jobId: string,
   confirmation: string
 ): Promise<{ success: boolean; data: { job_id: string } }> => {
-  const response = await fetch(`${BASE}/${projectId}/backups/${jobId}/restore`, {
+  const response = await adminFetch(`${BASE}/${projectId}/backups/${jobId}/restore`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ confirmation }),
@@ -86,7 +99,7 @@ export const deleteBackupApi = async (
   projectId: string,
   jobId: string
 ): Promise<{ success: boolean }> => {
-  const response = await fetch(`${BASE}/${projectId}/backups/${jobId}`, {
+  const response = await adminFetch(`${BASE}/${projectId}/backups/${jobId}`, {
     method: "DELETE",
   });
   if (!response.ok) throw new Error((await response.json()).message || "Failed to delete backup");

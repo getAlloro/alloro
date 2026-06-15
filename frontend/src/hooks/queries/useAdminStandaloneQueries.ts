@@ -8,6 +8,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryClient, QUERY_KEYS } from "../../lib/queryClient";
 
 // ─── API imports ─────────────────────────────────────────────────
+import { getCommonHeaders } from "../../api";
 import { fetchAllTasks } from "../../api/tasks";
 import {
   fetchAgentOutputs,
@@ -44,6 +45,7 @@ export function useAdminInsightsSummary(page: number, month: string) {
     queryFn: async () => {
       const response = await fetch(
         `/api/admin/agent-insights/summary?page=${page}&limit=50&month=${month}`,
+        { headers: getCommonHeaders() },
       );
       const json: AgentInsightsSummaryResponse = await response.json();
 
@@ -86,6 +88,7 @@ export function useAdminInsightsRecommendations(
       const monthParam = month ? `&month=${month}` : "";
       const response = await fetch(
         `/api/admin/agent-insights/${agentType}/recommendations?page=${page}&limit=50${monthParam}`,
+        { headers: getCommonHeaders() },
       );
       const json: AgentRecommendationsResponse = await response.json();
 

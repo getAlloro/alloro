@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Alloro Conventions Skill — Accuracy &amp; Examples Pass Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 12px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>Alloro Conventions Skill — Accuracy &amp; Examples Pass</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06142026-alloro-conventions-skill-improvements</dd></div>
+        <div><dt>Size</dt><dd>Small (1 file)</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The <code>/alloro-conventions</code> skill drifted from the codebase the 06142026 backend audit verified. Its in-domain nesting guidance (<code>services/</code> / <code>utils/</code>) contradicts the dominant reality — <strong>27 <code>feature-services/</code> + 25 <code>feature-utils/</code></strong> dirs vs 4/4 plain. It names no canonical domain to copy, ships zero concrete examples, and its flat &ldquo;200–300 line&rdquo; rule contradicts its own would-be reference, <code>gbp-automation</code> (controllers at 442/425, services at 641/707). A conventions skill that is wrong teaches the wrong pattern on every backend edit.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Revise <code>~/.claude/skills/code-constitution/SKILL.md</code> to: (1) document <code>feature-services/</code> / <code>feature-utils/</code> as the standard in-domain nesting; (2) name <code>src/controllers/gbp-automation/</code> as the reference implementation to copy; (3) replace the flat file-size limit with a tiered target-plus-ceiling rule; (4) add authentic code examples sourced verbatim from <code>gbp-automation</code>. Done = the skill reads true against verified reality, every example traces to a real file, and no section contradicts another.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>~/.claude/skills/code-constitution/SKILL.md</code> — the skill (edit target, 219 lines)</li>
+        <li><code>src/controllers/gbp-automation/</code> — reference domain, source of all examples (read-only)</li>
+        <li><code>src/controllers/gbp-automation/feature-utils/controllerResponses.ts</code> — <code>ok()</code> / <code>fail()</code> / <code>handleGbpError()</code></li>
+        <li><code>src/controllers/gbp-automation/feature-services/GbpReviewInsightService.ts</code> — service → model, no inline <code>db()</code></li>
+        <li><code>src/routes/gbpAutomation.ts</code> — thin routes + auth middleware up front</li>
+        <li><code>plans/06142026-backend-conventions-audit/</code> — the audit that surfaced the drift</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Match the skill's existing voice and section structure; insert, don't rewrite.</li>
+        <li>Every code example is a real snippet from <code>gbp-automation</code>, lightly trimmed for length only.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Keep all changes factual and verified by grep/read.</li>
+            <li>Source examples from real <code>gbp-automation</code> files.</li>
+            <li>Tiered file-size rule per owner ruling (target + ~800 ceiling).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Invent or paraphrase examples that don't exist in the repo.</li>
+            <li>Soften any security rule.</li>
+            <li>Touch backend code or expand beyond the 4 agreed items.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Greppable verification commands in the checklist — <strong>addressed in Rev 1.</strong></li>
+        <li>Detection/CI enforcement of the contract — <strong>addressed in Rev 1</strong> (<code>check-conventions.sh</code>). Mounting auth middleware / the default-deny flip stays out of scope → Level-4 <code>06142026-security-hotfix</code>.</li>
+        <li>The backend remediation itself (separate roadmap, in progress).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 (Concern)</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li>The skill governs all future backend generation. <strong>Mitigation:</strong> every change grounded in verified greps/reads; file-size threshold ruled by owner.</li>
+        <li>Example bloat — skill loads on every backend edit. <strong>Mitigation:</strong> three tight example blocks + one folder sub-tree, each high-value.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> every future session that triggers <code>code-constitution</code> (all backend coding). No runtime code touched.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Tiered file-size encodes a softer rule than &ldquo;200–300.&rdquo; Accepted by owner to stop the reference domain from contradicting rule #1; the hard ceiling (~800) still catches the real offenders (legacy 1.5k–5k controllers).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Document feature-services / feature-utils nesting</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Replace the <code>services/</code>/<code>utils/</code> nested-dir paragraph with the <code>feature-</code>-prefixed standard + a real <code>gbp-automation</code> sub-tree.</dd></div>
+          <div><dt>Files</dt><dd><code>SKILL.md</code> (Folder Structure)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>No remaining in-domain <code>services/</code>/<code>utils/</code> guidance; sub-tree matches the real folder.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Add Reference Implementation section</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Insert a section naming <code>src/controllers/gbp-automation/</code> as the copy-this reference.</dd></div>
+          <div><dt>Files</dt><dd><code>SKILL.md</code> (after intro)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Section present and consistent with the examples.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: Tiered file-size rule + legacy-conflict note</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Replace flat 200–300 with target (single-purpose) / accepted (controllers &amp; complex services) / hard ceiling (~800) tiers; note legacy giants are being decomposed — never add to them.</dd></div>
+          <div><dt>Files</dt><dd><code>SKILL.md</code> (File Size &amp; Structure)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>No contradiction with the gbp-automation reference's real sizes.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T4: Add authentic examples from gbp-automation</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add route→controller→service chain, the <code>ok</code>/<code>fail</code> response builders, and the typed-error + <code>handleGbpError</code> mapping.</dd></div>
+          <div><dt>Files</dt><dd><code>SKILL.md</code> (Data Flow, Error Handling)</dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>Each snippet traces to a real file; no fabricated symbols.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> SKILL.md documents <code>feature-services/</code> / <code>feature-utils/</code> as the standard</li>
+        <li><input type="checkbox" checked disabled> <code>gbp-automation</code> named as the reference implementation</li>
+        <li><input type="checkbox" checked disabled> Tiered file-size rule present; no self-contradiction with the reference</li>
+        <li><input type="checkbox" checked disabled> ≥3 authentic examples sourced from real <code>gbp-automation</code> files</li>
+        <li><input type="checkbox" checked disabled> Skill re-read for internal consistency; no fabricated paths/symbols</li>
+        <li><input type="checkbox" checked disabled> (Rev 1) Verification Checklist items tied to a mechanized check (🔎 markers + <code>npm run check:conventions</code>)</li>
+        <li><input type="checkbox" checked disabled> (Rev 1) <code>scripts/check-conventions.sh</code> runs, reports size/console/db + advisory auth, <code>--strict</code> gates CI</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-06-14</h3>
+        <p><strong>Change:</strong> Applied the two follow-ups that were originally out of scope. (1) The skill's Verification Checklist now flags which items are mechanically checkable (🔎) and points to <code>npm run check:conventions</code>; the stale &ldquo;File under 300 lines?&rdquo; item was corrected to the tiered rule. (2) Added <code>scripts/check-conventions.sh</code> + the <code>check:conventions</code> npm script — a read-only detector for the file-size hard ceiling, stray <code>console.*</code>, <code>db()</code> outside <code>models/</code>, plus an advisory list of route files with no inline auth. Default exit 0; <code>--strict</code> exits 1 for CI.</p>
+        <p><strong>Reason:</strong> User QA: &ldquo;yes please apply those too.&rdquo;</p>
+        <p><strong>Boundary held:</strong> Did NOT mount auth middleware or flip default-deny — that is the Level-4 <code>06142026-security-hotfix</code> (requires the frontend caller-audit gate first). The detector only <em>surfaces</em> the auth gap, read-only.</p>
+        <p><strong>Verified:</strong> script runs green (default exit 0, <code>--strict</code> exit 1 while debt exists); refined to exclude tests/migrations/seeds so counts reflect production debt (live: 25 oversized, 2 <code>console.*</code>, 16 <code>db()</code>, 19 advisory routes).</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-06-14</h3>
+        <p><strong>Change:</strong> Renamed the skill <code>alloro-conventions</code> → <code>code-constitution</code> (directory <code>~/.claude/skills/code-constitution/</code>, frontmatter <code>name:</code>, and H1 → &ldquo;Code Constitution&rdquo;). Updated references in <code>scripts/check-conventions.sh</code> and this spec. Substantive skill content unchanged.</p>
+        <p><strong>Reason:</strong> User request: &ldquo;change the skill name to code-constitution.&rdquo;</p>
+        <p><strong>Not touched:</strong> a stale duplicate at <code>~/.agents/skills/alloro-conventions/</code> (flagged to owner) and historical references in other plan folders (<code>backend-conventions-audit</code>, <code>logging-decision-pino</code>, etc.) — left as point-in-time records.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

@@ -17,8 +17,9 @@
  *     `{ ok: false, reason: "not_found" }` (safest default).
  */
 
-import { db } from "../../../database/connection";
+import { AuditProcessModel } from "../../../models/AuditProcessModel";
 import { getAuditQueue } from "../../../workers/queues";
+import logger from "../../../lib/logger";
 
 const MAX_RETRIES = 3;
 
@@ -54,31 +55,11 @@ export async function retryAuditById(
   const countsTowardLimit = options.countsTowardLimit !== false;
 
   try {
-    const updatePatch: Record<string, unknown> = {
-      status: "pending",
-      realtime_status: 0,
-      error_message: null,
-      updated_at: new Date(),
-    };
-    if (countsTowardLimit) {
-      updatePatch.retry_count = db.raw("retry_count + 1");
-    }
-
-    const query = db("audit_processes")
-      .where({ id: auditId, status: "failed" })
-      .update(updatePatch)
-      .returning(["id", "domain", "practice_search_string", "retry_count"]);
-
-    if (!skipLimit) {
-      query.andWhere("retry_count", "<", MAX_RETRIES);
-    }
-
-    const updated: Array<{
-      id: string;
-      domain: string | null;
-      practice_search_string: string | null;
-      retry_count: number;
-    }> = await query;
+    const updated = await AuditProcessModel.resetFailedForRetry(auditId, {
+      countsTowardLimit,
+      skipLimit,
+      maxRetries: MAX_RETRIES,
+    });
 
     if (updated.length === 0) {
       return disambiguateFailure(auditId, skipLimit);
@@ -92,13 +73,13 @@ export async function retryAuditById(
       practiceSearchString: row.practice_search_string,
     });
 
-    console.log(
+    logger.info(
       `[AuditRetry] Re-enqueued audit ${row.id} (retry_count=${row.retry_count}, admin=${skipLimit})`
     );
 
     return { ok: true, auditId: row.id, retryCount: row.retry_count };
   } catch (error) {
-    console.error(`[AuditRetry] Error retrying audit ${auditId}:`, error);
+    logger.error({ err: error }, `[AuditRetry] Error retrying audit ${auditId}:`);
     return { ok: false, reason: "not_found" };
   }
 }
@@ -111,10 +92,8 @@ async function disambiguateFailure(
   auditId: string,
   skipLimit: boolean
 ): Promise<RetryResult> {
-  const row: AuditRow | undefined = await db("audit_processes")
-    .select("id", "domain", "practice_search_string", "status", "retry_count")
-    .where({ id: auditId })
-    .first();
+  const row: AuditRow | undefined =
+    await AuditProcessModel.findRetryStateById(auditId);
 
   if (!row) {
     return { ok: false, reason: "not_found" };

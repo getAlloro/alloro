@@ -21,6 +21,7 @@ import os from "os";
 import path from "path";
 import { readWorkerHealth, getHealthFilePath } from "../workers/workerHealth";
 import { sendEmail } from "../emails/emailService";
+import logger from "../lib/logger";
 
 const TICK_STALE_MIN = parseInt(process.env.WORKER_TICK_STALE_MIN || "5", 10);
 const HARVEST_STALE_HOURS = parseInt(process.env.HARVEST_STALE_HOURS || "26", 10);
@@ -47,7 +48,7 @@ function writeState(state: WatchdogState): void {
   try {
     fs.writeFileSync(STATE_FILE, JSON.stringify(state), "utf8");
   } catch (err) {
-    console.warn("[WATCHDOG] Failed to write state file:", (err as Error)?.message);
+    logger.warn({ err: (err as Error)?.message }, "[WATCHDOG] Failed to write state file:");
   }
 }
 
@@ -82,10 +83,7 @@ async function main(): Promise<void> {
 
   if (!isUnhealthy) {
     if (state.unhealthy) writeState({ unhealthy: false, lastAlertAt: null });
-    console.log(
-      "[WATCHDOG] OK",
-      JSON.stringify({ tickAgeMin, harvestAgeMin }),
-    );
+    logger.info({ detail: JSON.stringify({ tickAgeMin, harvestAgeMin }) }, "[WATCHDOG] OK");
     return;
   }
 
@@ -96,7 +94,7 @@ async function main(): Promise<void> {
     lastAlertAgeMin > ALERT_REPEAT_HOURS * 60;
 
   if (!shouldAlert) {
-    console.log("[WATCHDOG] Still unhealthy; within repeat window — not re-alerting.");
+    logger.info("[WATCHDOG] Still unhealthy; within repeat window — not re-alerting.");
     return;
   }
 
@@ -120,12 +118,12 @@ async function main(): Promise<void> {
     recipients: [ALERT_RECIPIENT],
   });
 
-  console.log("[WATCHDOG] Alert sent:", result.success, result.error || "");
+  logger.info({ details: [result.success, result.error || ""] }, "[WATCHDOG] Alert sent:");
   writeState({ unhealthy: true, lastAlertAt: new Date().toISOString() });
 }
 
 main()
   .catch((err) => {
-    console.error("[WATCHDOG] error:", err);
+    logger.error({ err: err }, "[WATCHDOG] error:");
   })
   .finally(() => process.exit(0));

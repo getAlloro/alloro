@@ -1,8 +1,9 @@
 import { Response, NextFunction } from "express";
-import { db } from "../database/connection";
 import { AuthRequest } from "./auth";
 import { LocationModel } from "../models/LocationModel";
 import { UserLocationModel } from "../models/UserLocationModel";
+import { OrganizationUserModel } from "../models/OrganizationUserModel";
+import logger from "../lib/logger";
 
 export type UserRole = "admin" | "manager" | "viewer";
 
@@ -34,10 +35,8 @@ export const rbacMiddleware = async (
     }
 
     // Get user role from organization_users — prefer highest privilege when multiple memberships exist
-    const orgUser = await db("organization_users")
-      .where({ user_id: userId })
-      .orderByRaw("CASE role WHEN 'admin' THEN 1 WHEN 'manager' THEN 2 ELSE 3 END")
-      .first();
+    const orgUser =
+      await OrganizationUserModel.findHighestPrivilegeByUserId(userId);
 
     if (!orgUser) {
       // User has no organization yet (onboarding not complete)
@@ -54,7 +53,7 @@ export const rbacMiddleware = async (
 
     next();
   } catch (error) {
-    console.error("[RBAC] Error checking role:", error);
+    logger.error({ err: error }, "[RBAC] Error checking role:");
     return res.status(500).json({ error: "Failed to verify permissions" });
   }
 };
@@ -165,7 +164,7 @@ export const locationScopeMiddleware = async (
 
     next();
   } catch (error) {
-    console.error("[RBAC] Error resolving location scope:", error);
+    logger.error({ err: error }, "[RBAC] Error resolving location scope:");
     return res.status(500).json({ error: "Unable to resolve location access" });
   }
 };

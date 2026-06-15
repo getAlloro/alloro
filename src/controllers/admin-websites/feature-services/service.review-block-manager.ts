@@ -6,11 +6,10 @@
  * referenced via {{ review_block }} shortcodes in project pages.
  */
 
-import { db } from "../../../database/connection";
+import { ReviewBlockModel } from "../../../models/website-builder/ReviewBlockModel";
+import { TemplateModel } from "../../../models/website-builder/TemplateModel";
 import { getRedisConnection } from "../../../workers/queues";
-
-const REVIEW_BLOCKS_TABLE = "website_builder.review_blocks";
-const TEMPLATES_TABLE = "website_builder.templates";
+import logger from "../../../lib/logger";
 
 function slugify(text: string): string {
   return text
@@ -28,7 +27,7 @@ async function invalidateReviewBlockCache(templateId: string, slug: string) {
       await redis.del(...keys);
     }
   } catch (err) {
-    console.error("[Admin Websites] Failed to invalidate review block cache:", err);
+    logger.error({ err: err }, "[Admin Websites] Failed to invalidate review block cache:");
   }
 }
 
@@ -40,7 +39,7 @@ export async function listReviewBlocks(templateId: string): Promise<{
   reviewBlocks: any[];
   error?: { status: number; code: string; message: string };
 }> {
-  const template = await db(TEMPLATES_TABLE).where("id", templateId).first();
+  const template = await TemplateModel.findRawById(templateId);
   if (!template) {
     return {
       reviewBlocks: [],
@@ -48,9 +47,7 @@ export async function listReviewBlocks(templateId: string): Promise<{
     };
   }
 
-  const reviewBlocks = await db(REVIEW_BLOCKS_TABLE)
-    .where("template_id", templateId)
-    .orderBy("created_at", "asc");
+  const reviewBlocks = await ReviewBlockModel.findByTemplateIdOrdered(templateId);
 
   return { reviewBlocks };
 }
@@ -79,7 +76,7 @@ export async function createReviewBlock(
     };
   }
 
-  const template = await db(TEMPLATES_TABLE).where("id", templateId).first();
+  const template = await TemplateModel.findRawById(templateId);
   if (!template) {
     return {
       reviewBlock: null,
@@ -88,9 +85,7 @@ export async function createReviewBlock(
   }
 
   const slug = slugify(name);
-  const existing = await db(REVIEW_BLOCKS_TABLE)
-    .where({ template_id: templateId, slug })
-    .first();
+  const existing = await ReviewBlockModel.findByTemplateAndSlugRaw(templateId, slug);
   if (existing) {
     return {
       reviewBlock: null,
@@ -102,19 +97,17 @@ export async function createReviewBlock(
     };
   }
 
-  console.log(`[Admin Websites] Creating review block "${name}" for template ${templateId}`);
+  logger.info(`[Admin Websites] Creating review block "${name}" for template ${templateId}`);
 
-  const [reviewBlock] = await db(REVIEW_BLOCKS_TABLE)
-    .insert({
-      template_id: templateId,
-      name,
-      slug,
-      description: description || null,
-      sections: JSON.stringify(sections || []),
-    })
-    .returning("*");
+  const reviewBlock = await ReviewBlockModel.insertReturning({
+    template_id: templateId,
+    name,
+    slug,
+    description: description || null,
+    sections: JSON.stringify(sections || []),
+  });
 
-  console.log(`[Admin Websites] Created review block ID: ${reviewBlock.id}`);
+  logger.info(`[Admin Websites] Created review block ID: ${reviewBlock.id}`);
 
   return { reviewBlock };
 }
@@ -127,9 +120,7 @@ export async function getReviewBlock(
   templateId: string,
   reviewBlockId: string
 ): Promise<any> {
-  const block = await db(REVIEW_BLOCKS_TABLE)
-    .where({ id: reviewBlockId, template_id: templateId })
-    .first();
+  const block = await ReviewBlockModel.findByIdAndTemplate(reviewBlockId, templateId);
 
   if (block && typeof block.sections === "string") {
     block.sections = JSON.parse(block.sections);
@@ -150,9 +141,7 @@ export async function updateReviewBlock(
   reviewBlock: any;
   error?: { status: number; code: string; message: string };
 }> {
-  const existing = await db(REVIEW_BLOCKS_TABLE)
-    .where({ id: reviewBlockId, template_id: templateId })
-    .first();
+  const existing = await ReviewBlockModel.findByIdAndTemplate(reviewBlockId, templateId);
   if (!existing) {
     return {
       reviewBlock: null,
@@ -166,10 +155,11 @@ export async function updateReviewBlock(
 
   if (updates.name && updates.name !== existing.name) {
     updates.slug = slugify(updates.name);
-    const conflict = await db(REVIEW_BLOCKS_TABLE)
-      .where({ template_id: templateId, slug: updates.slug })
-      .whereNot("id", reviewBlockId)
-      .first();
+    const conflict = await ReviewBlockModel.findSlugConflictExcludingId(
+      templateId,
+      updates.slug,
+      reviewBlockId
+    );
     if (conflict) {
       return {
         reviewBlock: null,
@@ -182,12 +172,13 @@ export async function updateReviewBlock(
     updates.sections = JSON.stringify(updates.sections);
   }
 
-  const [reviewBlock] = await db(REVIEW_BLOCKS_TABLE)
-    .where({ id: reviewBlockId, template_id: templateId })
-    .update({ ...updates, updated_at: db.fn.now() })
-    .returning("*");
+  const reviewBlock = await ReviewBlockModel.updateByIdAndTemplateReturning(
+    reviewBlockId,
+    templateId,
+    updates
+  );
 
-  console.log(`[Admin Websites] Updated review block ID: ${reviewBlockId}`);
+  logger.info(`[Admin Websites] Updated review block ID: ${reviewBlockId}`);
 
   // Invalidate cache
   await invalidateReviewBlockCache(templateId, existing.slug);
@@ -206,20 +197,16 @@ export async function deleteReviewBlock(
   templateId: string,
   reviewBlockId: string
 ): Promise<{ error?: { status: number; code: string; message: string } }> {
-  const existing = await db(REVIEW_BLOCKS_TABLE)
-    .where({ id: reviewBlockId, template_id: templateId })
-    .first();
+  const existing = await ReviewBlockModel.findByIdAndTemplate(reviewBlockId, templateId);
   if (!existing) {
     return {
       error: { status: 404, code: "NOT_FOUND", message: "Review block not found" },
     };
   }
 
-  await db(REVIEW_BLOCKS_TABLE)
-    .where({ id: reviewBlockId, template_id: templateId })
-    .del();
+  await ReviewBlockModel.deleteByIdAndTemplate(reviewBlockId, templateId);
 
-  console.log(`[Admin Websites] Deleted review block ID: ${reviewBlockId}`);
+  logger.info(`[Admin Websites] Deleted review block ID: ${reviewBlockId}`);
 
   await invalidateReviewBlockCache(templateId, existing.slug);
 

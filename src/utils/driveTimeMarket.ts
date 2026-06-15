@@ -10,6 +10,7 @@
  */
 
 import axios from "axios";
+import logger from "../lib/logger";
 
 const GOOGLE_API_KEY = process.env.GOOGLE_PLACES_API;
 
@@ -80,7 +81,7 @@ export async function filterByDriveTime<
   competitors: T[]
 ): Promise<(T & { driveTimeMinutes: number })[]> {
   if (!GOOGLE_API_KEY) {
-    console.warn("[DriveTime] No API key — skipping drive time filter");
+    logger.warn("[DriveTime] No API key — skipping drive time filter");
     return competitors.map((c) => ({ ...c, driveTimeMinutes: 0 }));
   }
 
@@ -89,11 +90,11 @@ export async function filterByDriveTime<
   const withoutLocation = competitors.filter((c) => !c.location);
 
   if (withLocation.length === 0) {
-    console.log("[DriveTime] No competitors with coordinates — skipping filter");
+    logger.info("[DriveTime] No competitors with coordinates — skipping filter");
     return competitors.map((c) => ({ ...c, driveTimeMinutes: 0 }));
   }
 
-  console.log(
+  logger.info(
     `[DriveTime] Checking ${withLocation.length} competitors against ${threshold}min threshold (${specialty})`
   );
 
@@ -162,7 +163,7 @@ export async function filterByDriveTime<
         if (minutes <= threshold) {
           results.push({ ...comp, driveTimeMinutes: minutes });
         } else {
-          console.log(
+          logger.info(
             `[DriveTime] Excluded: ${(comp as any).name || "unknown"} (${minutes}min > ${threshold}min)`
           );
         }
@@ -172,9 +173,9 @@ export async function filterByDriveTime<
       }
     });
   } catch (err: any) {
-    console.error(`[DriveTime] Routes API failed: ${err.message}`);
+    logger.error(`[DriveTime] Routes API failed: ${err.message}`);
     if (err.response?.data) {
-      console.error(`[DriveTime] Response:`, JSON.stringify(err.response.data).slice(0, 200));
+      logger.error({ err: JSON.stringify(err.response.data).slice(0, 200) }, `[DriveTime] Response:`);
     }
     // On error, include all competitors — don't silently exclude
     withLocation.forEach((c) => results.push({ ...c, driveTimeMinutes: 0 }));
@@ -183,7 +184,7 @@ export async function filterByDriveTime<
   // Include competitors without coordinates
   withoutLocation.forEach((c) => results.push({ ...c, driveTimeMinutes: 0 }));
 
-  console.log(
+  logger.info(
     `[DriveTime] ${results.length}/${competitors.length} competitors within ${threshold}min drive`
   );
 

@@ -7,8 +7,14 @@
 
 import express from "express";
 import * as controller from "../controllers/admin-agent-insights/AdminAgentInsightsController";
+import { authenticateToken } from "../middleware/auth";
+import { superAdminMiddleware } from "../middleware/superAdmin";
 
 const router = express.Router();
+
+// Super-admin only. The app-level guard enforces authentication globally; this
+// router-level layer additionally requires super-admin.
+router.use(authenticateToken, superAdminMiddleware);
 
 router.get("/summary", controller.getSummary);
 router.get("/:agentType/recommendations", controller.getRecommendations);

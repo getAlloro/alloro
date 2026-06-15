@@ -1,5 +1,6 @@
 import type { Knex } from "knex";
 import * as dotenv from "dotenv";
+import logger from "../lib/logger";
 
 // Load environment variables
 dotenv.config();
@@ -50,17 +51,17 @@ const config: { [key: string]: Knex.Config } = {
     useNullAsDefault: true,
     log: {
       warn(message) {
-        console.warn("[DB WARNING]", message);
+        logger.warn({ detail: message }, "[DB WARNING]");
       },
       error(message) {
-        console.error("[DB ERROR]", message);
+        logger.error({ err: message }, "[DB ERROR]");
       },
       deprecate(message) {
-        console.warn("[DB DEPRECATED]", message);
+        logger.warn({ detail: message }, "[DB DEPRECATED]");
       },
       debug(message) {
         if (process.env.DB_DEBUG === "true") {
-          console.log("[DB DEBUG]", message);
+          logger.info({ detail: message }, "[DB DEBUG]");
         }
       },
     },
@@ -98,17 +99,17 @@ const config: { [key: string]: Knex.Config } = {
     useNullAsDefault: true,
     log: {
       warn(message) {
-        console.warn("[DB WARNING]", message);
+        logger.warn({ detail: message }, "[DB WARNING]");
       },
       error(message) {
-        console.error("[DB ERROR]", message);
+        logger.error({ err: message }, "[DB ERROR]");
       },
       deprecate(message) {
-        console.warn("[DB DEPRECATED]", message);
+        logger.warn({ detail: message }, "[DB DEPRECATED]");
       },
       debug(message) {
         if (process.env.DB_DEBUG === "true") {
-          console.log("[DB DEBUG]", message);
+          logger.info({ detail: message }, "[DB DEBUG]");
         }
       },
     },

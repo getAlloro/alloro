@@ -5,6 +5,7 @@ import { GoogleConnectionModel } from "../../../models/GoogleConnectionModel";
 import { buildAuthHeaders } from "../../gbp/gbp-services/gbp-api.service";
 import { extractDomainFromUrl } from "../../places/feature-utils/domainExtractor";
 import axios from "axios";
+import logger from "../../../lib/logger";
 
 export interface GBPLocationItem {
   accountId: string;
@@ -78,13 +79,13 @@ export async function getGBPLocationWebsite(
     const websiteUri = data?.websiteUri || null;
     const domain = extractDomainFromUrl(websiteUri);
 
-    console.log(
+    logger.info(
       `[GBP Onboarding] Fetched website for ${locationId}: ${websiteUri} → ${domain}`
     );
 
     return { websiteUri, domain };
   } catch (error: any) {
-    console.warn(
+    logger.warn(
       `[GBP Onboarding] Could not fetch website for location ${locationId}: ${error.message}`
     );
     return { websiteUri: null, domain: "" };

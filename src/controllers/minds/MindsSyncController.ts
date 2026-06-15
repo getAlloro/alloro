@@ -5,6 +5,7 @@ import { MindDiscoveryBatchModel } from "../../models/MindDiscoveryBatchModel";
 import * as gating from "./feature-services/service.minds-gating";
 import * as syncService from "./feature-services/service.minds-sync";
 import { getMindsQueue } from "../../workers/queues";
+import logger from "../../lib/logger";
 
 export async function startScrapeCompare(req: Request, res: Response): Promise<any> {
   try {
@@ -33,7 +34,7 @@ export async function startScrapeCompare(req: Request, res: Response): Promise<a
 
     return res.status(201).json({ success: true, data: { runId } });
   } catch (error: any) {
-    console.error("[MINDS] Error starting scrape-compare:", error);
+    logger.error({ err: error }, "[MINDS] Error starting scrape-compare:");
     return res.status(500).json({ error: "Failed to start scrape & compare" });
   }
 }
@@ -65,7 +66,7 @@ export async function startCompile(req: Request, res: Response): Promise<any> {
 
     return res.status(201).json({ success: true, data: { runId } });
   } catch (error: any) {
-    console.error("[MINDS] Error starting compile:", error);
+    logger.error({ err: error }, "[MINDS] Error starting compile:");
     return res.status(500).json({ error: "Failed to start compile & publish" });
   }
 }
@@ -76,7 +77,7 @@ export async function listSyncRuns(req: Request, res: Response): Promise<any> {
     const runs = await MindSyncRunModel.listByMind(mindId);
     return res.json({ success: true, data: runs });
   } catch (error: any) {
-    console.error("[MINDS] Error listing sync runs:", error);
+    logger.error({ err: error }, "[MINDS] Error listing sync runs:");
     return res.status(500).json({ error: "Failed to list sync runs" });
   }
 }
@@ -87,7 +88,7 @@ export async function listSyncRunsByBatch(req: Request, res: Response): Promise<
     const runs = await MindSyncRunModel.listByBatch(batchId);
     return res.json({ success: true, data: runs });
   } catch (error: any) {
-    console.error("[MINDS] Error listing sync runs by batch:", error);
+    logger.error({ err: error }, "[MINDS] Error listing sync runs by batch:");
     return res.status(500).json({ error: "Failed to list sync runs" });
   }
 }
@@ -98,7 +99,7 @@ export async function getSyncRun(req: Request, res: Response): Promise<any> {
     const details = await syncService.getRunDetails(runId);
     return res.json({ success: true, data: details });
   } catch (error: any) {
-    console.error("[MINDS] Error getting sync run:", error);
+    logger.error({ err: error }, "[MINDS] Error getting sync run:");
     if (error.message?.includes("not found")) {
       return res.status(404).json({ error: "Sync run not found" });
     }
@@ -112,7 +113,7 @@ export async function getRunProposals(req: Request, res: Response): Promise<any>
     const proposals = await MindSyncProposalModel.listByRun(runId);
     return res.json({ success: true, data: proposals });
   } catch (error: any) {
-    console.error("[MINDS] Error getting proposals:", error);
+    logger.error({ err: error }, "[MINDS] Error getting proposals:");
     return res.status(500).json({ error: "Failed to get proposals" });
   }
 }
@@ -123,7 +124,7 @@ export async function getMindStatus(req: Request, res: Response): Promise<any> {
     const status = await gating.getMindStatus(mindId);
     return res.json({ success: true, data: status });
   } catch (error: any) {
-    console.error("[MINDS] Error getting mind status:", error);
+    logger.error({ err: error }, "[MINDS] Error getting mind status:");
     return res.status(500).json({ error: "Failed to get mind status" });
   }
 }

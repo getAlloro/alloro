@@ -1,4 +1,5 @@
 import { BaseModel, QueryContext } from "./BaseModel";
+import { db } from "../database/connection";
 
 export interface IUser {
   id: number;
@@ -173,5 +174,58 @@ export class UserModel extends BaseModel {
     trx?: QueryContext
   ): Promise<number> {
     return super.updateById(id, { password_hash: passwordHash }, trx);
+  }
+
+  // Fetch a single user's email (used by PM enrichment helpers).
+  static async findEmailById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<{ email: string | null } | undefined> {
+    return this.table(trx).where({ id }).select("email").first();
+  }
+
+  // Fetch id+email for a set of user ids (used by PM mention resolution).
+  static async findIdEmailByIds(
+    ids: number[],
+    trx?: QueryContext
+  ): Promise<Array<{ id: number; email: string | null }>> {
+    return this.table(trx).whereIn("id", ids).select("id", "email");
+  }
+
+  // Resolve a list of emails (case-insensitive) to id/email/name fields.
+  // Used by the PM user picker, which sources its roster from
+  // SUPER_ADMIN_EMAILS and hydrates display names from the users table.
+  static async findManyByEmailsInsensitive(
+    emails: string[],
+    trx?: QueryContext
+  ): Promise<
+    Array<{
+      id: number | string;
+      email: string;
+      name: string | null;
+      first_name: string | null;
+      last_name: string | null;
+    }>
+  > {
+    const emailPlaceholders = emails.map(() => "?").join(", ");
+    return this.table(trx)
+      .whereRaw(`LOWER(email) IN (${emailPlaceholders})`, emails)
+      .select("id", "email", "name", "first_name", "last_name");
+  }
+
+  /**
+   * Delete users who no longer belong to any organization. Raw statement
+   * preserved verbatim from service.delete-organization (orphan cleanup after
+   * an org delete cascades its organization_users rows). Pass the delete
+   * transaction so it runs atomically with the org removal.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async deleteOrphaned(trx?: QueryContext): Promise<any> {
+    return (trx || db).raw(`
+      DELETE FROM users u
+      WHERE NOT EXISTS (
+        SELECT 1 FROM organization_users ou WHERE ou.user_id = u.id
+      )
+    `);
   }
 }

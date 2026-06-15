@@ -5,12 +5,10 @@
  * Handles cache invalidation for runtime menu resolution.
  */
 
-import { db } from "../../../database/connection";
+import { ProjectModel } from "../../../models/website-builder/ProjectModel";
+import { MenuModel, MenuItemModel } from "../../../models/website-builder/MenuModel";
 import { getRedisConnection } from "../../../workers/queues";
-
-const MENUS_TABLE = "website_builder.menus";
-const MENU_ITEMS_TABLE = "website_builder.menu_items";
-const PROJECTS_TABLE = "website_builder.projects";
+import logger from "../../../lib/logger";
 
 function slugify(text: string): string {
   return text
@@ -35,7 +33,7 @@ async function invalidateMenuCache(projectId: string) {
       if (keys.length > 0) await redis.del(...keys);
     } while (cursor !== "0");
   } catch (err) {
-    console.error("[Menu Manager] Failed to invalidate menu cache:", err);
+    logger.error({ err: err }, "[Menu Manager] Failed to invalidate menu cache:");
   }
 }
 
@@ -72,7 +70,7 @@ export async function listMenus(
   menus: any[];
   error?: { status: number; code: string; message: string };
 }> {
-  const project = await db(PROJECTS_TABLE).where("id", projectId).first();
+  const project = await ProjectModel.findRawById(projectId);
   if (!project) {
     return {
       menus: [],
@@ -80,18 +78,12 @@ export async function listMenus(
     };
   }
 
-  const menus = await db(MENUS_TABLE)
-    .where("project_id", projectId)
-    .orderBy("created_at", "asc");
+  const menus = await MenuModel.findByProjectId(projectId);
 
   // Attach item counts
   const menuIds = menus.map((m: any) => m.id);
   const counts = menuIds.length > 0
-    ? await db(MENU_ITEMS_TABLE)
-        .whereIn("menu_id", menuIds)
-        .groupBy("menu_id")
-        .select("menu_id")
-        .count("* as count")
+    ? await MenuItemModel.countByMenuIds(menuIds)
     : [];
 
   const countMap = new Map(counts.map((c: any) => [c.menu_id, parseInt(c.count, 10)]));
@@ -115,9 +107,7 @@ export async function getMenu(
   menu: any;
   error?: { status: number; code: string; message: string };
 }> {
-  const menu = await db(MENUS_TABLE)
-    .where({ id: menuId, project_id: projectId })
-    .first();
+  const menu = await MenuModel.findByIdAndProject(menuId, projectId);
 
   if (!menu) {
     return {
@@ -126,9 +116,7 @@ export async function getMenu(
     };
   }
 
-  const items = await db(MENU_ITEMS_TABLE)
-    .where("menu_id", menuId)
-    .orderBy("order_index", "asc");
+  const items = await MenuItemModel.findByMenuIdOrderedByOrderIndex(menuId);
 
   return {
     menu: {
@@ -158,7 +146,7 @@ export async function createMenu(
     };
   }
 
-  const project = await db(PROJECTS_TABLE).where("id", projectId).first();
+  const project = await ProjectModel.findRawById(projectId);
   if (!project) {
     return {
       menu: null,
@@ -169,22 +157,18 @@ export async function createMenu(
   let slug = providedSlug || slugify(name);
 
   // Ensure slug uniqueness within project
-  const existing = await db(MENUS_TABLE)
-    .where({ project_id: projectId, slug })
-    .first();
+  const existing = await MenuModel.findByProjectAndSlug(projectId, slug);
   if (existing) {
     slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
   }
 
-  const [menu] = await db(MENUS_TABLE)
-    .insert({
-      project_id: projectId,
-      name,
-      slug,
-    })
-    .returning("*");
+  const menu = await MenuModel.insertReturning({
+    project_id: projectId,
+    name,
+    slug,
+  });
 
-  console.log(`[Menu Manager] ✓ Created menu "${name}" (${slug}) for project ${projectId}`);
+  logger.info(`[Menu Manager] ✓ Created menu "${name}" (${slug}) for project ${projectId}`);
 
   await invalidateMenuCache(projectId);
 
@@ -203,9 +187,7 @@ export async function updateMenu(
   menu: any;
   error?: { status: number; code: string; message: string };
 }> {
-  const existing = await db(MENUS_TABLE)
-    .where({ id: menuId, project_id: projectId })
-    .first();
+  const existing = await MenuModel.findByIdAndProject(menuId, projectId);
   if (!existing) {
     return {
       menu: null,
@@ -217,10 +199,11 @@ export async function updateMenu(
   if (updates.name) fieldUpdates.name = updates.name;
   if (updates.slug) {
     // Check slug uniqueness
-    const conflict = await db(MENUS_TABLE)
-      .where({ project_id: projectId, slug: updates.slug })
-      .whereNot("id", menuId)
-      .first();
+    const conflict = await MenuModel.findSlugConflict(
+      projectId,
+      updates.slug,
+      menuId
+    );
     if (conflict) {
       return {
         menu: null,
@@ -231,14 +214,12 @@ export async function updateMenu(
   }
 
   if (Object.keys(fieldUpdates).length > 0) {
-    await db(MENUS_TABLE)
-      .where({ id: menuId })
-      .update({ ...fieldUpdates, updated_at: db.fn.now() });
+    await MenuModel.updateFieldsById(menuId, fieldUpdates);
   }
 
   await invalidateMenuCache(projectId);
 
-  const updated = await db(MENUS_TABLE).where("id", menuId).first();
+  const updated = await MenuModel.findById(menuId);
   return { menu: updated };
 }
 
@@ -250,18 +231,16 @@ export async function deleteMenu(
   projectId: string,
   menuId: string
 ): Promise<{ error?: { status: number; code: string; message: string } }> {
-  const existing = await db(MENUS_TABLE)
-    .where({ id: menuId, project_id: projectId })
-    .first();
+  const existing = await MenuModel.findByIdAndProject(menuId, projectId);
   if (!existing) {
     return {
       error: { status: 404, code: "NOT_FOUND", message: "Menu not found" },
     };
   }
 
-  await db(MENUS_TABLE).where({ id: menuId }).del();
+  await MenuModel.deleteById(menuId);
 
-  console.log(`[Menu Manager] ✓ Deleted menu ID: ${menuId}`);
+  logger.info(`[Menu Manager] ✓ Deleted menu ID: ${menuId}`);
 
   await invalidateMenuCache(projectId);
 
@@ -275,9 +254,7 @@ export async function deleteMenu(
 export async function listMenuItems(
   menuId: string
 ): Promise<any[]> {
-  return db(MENU_ITEMS_TABLE)
-    .where("menu_id", menuId)
-    .orderBy("order_index", "asc");
+  return MenuItemModel.findByMenuIdOrderedByOrderIndex(menuId);
 }
 
 // ---------------------------------------------------------------------------
@@ -308,9 +285,7 @@ export async function createMenuItem(
   }
 
   // Verify menu belongs to project
-  const menu = await db(MENUS_TABLE)
-    .where({ id: menuId, project_id: projectId })
-    .first();
+  const menu = await MenuModel.findByIdAndProject(menuId, projectId);
   if (!menu) {
     return {
       item: null,
@@ -321,23 +296,21 @@ export async function createMenuItem(
   // Auto-assign order_index at end if not provided
   let idx = order_index;
   if (idx === undefined) {
-    const last = await db(MENU_ITEMS_TABLE)
-      .where({ menu_id: menuId, parent_id: parent_id || null })
-      .orderBy("order_index", "desc")
-      .first();
+    const last = await MenuItemModel.findLastByMenuAndParent(
+      menuId,
+      parent_id || null
+    );
     idx = last ? last.order_index + 1 : 0;
   }
 
-  const [item] = await db(MENU_ITEMS_TABLE)
-    .insert({
-      menu_id: menuId,
-      parent_id: parent_id || null,
-      label,
-      url,
-      target: target || "_self",
-      order_index: idx,
-    })
-    .returning("*");
+  const item = await MenuItemModel.insertReturning({
+    menu_id: menuId,
+    parent_id: parent_id || null,
+    label,
+    url,
+    target: target || "_self",
+    order_index: idx,
+  });
 
   await invalidateMenuCache(projectId);
 
@@ -364,9 +337,7 @@ export async function updateMenuItem(
   error?: { status: number; code: string; message: string };
 }> {
   // Verify menu belongs to project
-  const menu = await db(MENUS_TABLE)
-    .where({ id: menuId, project_id: projectId })
-    .first();
+  const menu = await MenuModel.findByIdAndProject(menuId, projectId);
   if (!menu) {
     return {
       item: null,
@@ -374,9 +345,7 @@ export async function updateMenuItem(
     };
   }
 
-  const existing = await db(MENU_ITEMS_TABLE)
-    .where({ id: itemId, menu_id: menuId })
-    .first();
+  const existing = await MenuItemModel.findByIdAndMenu(itemId, menuId);
   if (!existing) {
     return {
       item: null,
@@ -392,14 +361,12 @@ export async function updateMenuItem(
   if (updates.order_index !== undefined) fieldUpdates.order_index = updates.order_index;
 
   if (Object.keys(fieldUpdates).length > 0) {
-    await db(MENU_ITEMS_TABLE)
-      .where({ id: itemId })
-      .update({ ...fieldUpdates, updated_at: db.fn.now() });
+    await MenuItemModel.updateFieldsById(itemId, fieldUpdates);
   }
 
   await invalidateMenuCache(projectId);
 
-  const updated = await db(MENU_ITEMS_TABLE).where("id", itemId).first();
+  const updated = await MenuItemModel.findById(itemId);
   return { item: updated };
 }
 
@@ -412,25 +379,21 @@ export async function deleteMenuItem(
   menuId: string,
   itemId: string
 ): Promise<{ error?: { status: number; code: string; message: string } }> {
-  const menu = await db(MENUS_TABLE)
-    .where({ id: menuId, project_id: projectId })
-    .first();
+  const menu = await MenuModel.findByIdAndProject(menuId, projectId);
   if (!menu) {
     return {
       error: { status: 404, code: "NOT_FOUND", message: "Menu not found" },
     };
   }
 
-  const existing = await db(MENU_ITEMS_TABLE)
-    .where({ id: itemId, menu_id: menuId })
-    .first();
+  const existing = await MenuItemModel.findByIdAndMenu(itemId, menuId);
   if (!existing) {
     return {
       error: { status: 404, code: "NOT_FOUND", message: "Menu item not found" },
     };
   }
 
-  await db(MENU_ITEMS_TABLE).where({ id: itemId }).del();
+  await MenuItemModel.deleteById(itemId);
 
   await invalidateMenuCache(projectId);
 
@@ -446,26 +409,14 @@ export async function reorderItems(
   menuId: string,
   items: { id: string; parent_id: string | null; order_index: number }[]
 ): Promise<{ error?: { status: number; code: string; message: string } }> {
-  const menu = await db(MENUS_TABLE)
-    .where({ id: menuId, project_id: projectId })
-    .first();
+  const menu = await MenuModel.findByIdAndProject(menuId, projectId);
   if (!menu) {
     return {
       error: { status: 404, code: "NOT_FOUND", message: "Menu not found" },
     };
   }
 
-  await db.transaction(async (trx) => {
-    for (const item of items) {
-      await trx(MENU_ITEMS_TABLE)
-        .where({ id: item.id, menu_id: menuId })
-        .update({
-          parent_id: item.parent_id,
-          order_index: item.order_index,
-          updated_at: trx.fn.now(),
-        });
-    }
-  });
+  await MenuItemModel.reorder(menuId, items);
 
   await invalidateMenuCache(projectId);
 

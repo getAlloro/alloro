@@ -13,6 +13,7 @@
 import { loadPrompt } from "../../../agents/service.prompt-loader";
 import { runAgent } from "../../../agents/service.llm-runner";
 import { parseAgentJson } from "../pms-utils/agent-json-parse.util";
+import logger from "../../../lib/logger";
 
 const MODEL = "claude-haiku-4-5-20251001";
 const GROUPS_PER_AI_CHUNK = 10;
@@ -276,7 +277,7 @@ async function runSanitizationChunk(
 
   const userMessage = `Review these potential duplicate groups and determine which sources should be merged:\n\n${JSON.stringify(payload, null, 2)}`;
 
-  console.log(
+  logger.info(
     `[PMS-Sanitizer] AI chunk: ${groups.length} groups, ${groups.reduce((n, g) => n + g.distinctNames.length, 0)} distinct names`
   );
 
@@ -289,7 +290,7 @@ async function runSanitizationChunk(
 
   const result = await runAgent(agentOptions);
 
-  console.log(
+  logger.info(
     `[PMS-Sanitizer] AI chunk response: ${result.inputTokens} in / ${result.outputTokens} out`
   );
 
@@ -315,7 +316,7 @@ async function runChunkedSanitization(
     const chunkIdx = Math.floor(i / GROUPS_PER_AI_CHUNK) + 1;
     const totalChunks = Math.ceil(groups.length / GROUPS_PER_AI_CHUNK);
 
-    console.log(`[PMS-Sanitizer] Processing AI chunk ${chunkIdx}/${totalChunks}...`);
+    logger.info(`[PMS-Sanitizer] Processing AI chunk ${chunkIdx}/${totalChunks}...`);
 
     const decisions = await runSanitizationChunk(chunk);
     allDecisions.push(...decisions);
@@ -348,7 +349,7 @@ export async function sanitizeParsedData(
     };
   }
 
-  console.log(`[PMS-Sanitizer] Starting sanitization of ${allRows.length} rows`);
+  logger.info(`[PMS-Sanitizer] Starting sanitization of ${allRows.length} rows`);
 
   // Step 1: Group by exact name
   const groupedSources = groupByExactName(allRows);
@@ -356,14 +357,14 @@ export async function sanitizeParsedData(
     (g) => g.originalRows.length > 1
   ).length;
 
-  console.log(
+  logger.info(
     `[PMS-Sanitizer] Exact grouping: ${allRows.length} rows → ${groupedSources.size} unique sources (${exactGroupsMerged} had duplicates)`
   );
 
   // Step 2: Find fuzzy groups
   const { fuzzyGroups, uniqueKeys } = findFuzzyGroups(groupedSources);
 
-  console.log(
+  logger.info(
     `[PMS-Sanitizer] Fuzzy detection: ${fuzzyGroups.length} potential groups, ${uniqueKeys.length} unique sources`
   );
 
@@ -378,7 +379,7 @@ export async function sanitizeParsedData(
 
   // If no fuzzy groups, we're done with just exact dedup
   if (fuzzyGroups.length === 0) {
-    console.log("[PMS-Sanitizer] No fuzzy duplicates, skipping AI");
+    logger.info("[PMS-Sanitizer] No fuzzy duplicates, skipping AI");
     return {
       allRows: uniqueRows,
       mergeGroups,
@@ -401,7 +402,7 @@ export async function sanitizeParsedData(
   for (const d of decisions) decisionMap.set(d.groupId, d);
 
   const mergeCount = decisions.filter((d) => d.action === "merge").length;
-  console.log(
+  logger.info(
     `[PMS-Sanitizer] AI verdict: ${mergeCount} merge, ${decisions.length - mergeCount} split`
   );
 
@@ -486,7 +487,7 @@ export async function sanitizeParsedData(
     },
   };
 
-  console.log(`[PMS-Sanitizer] Final stats:`, JSON.stringify(result.stats));
+  logger.info({ detail: JSON.stringify(result.stats) }, `[PMS-Sanitizer] Final stats:`);
 
   return result;
 }

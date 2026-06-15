@@ -1,11 +1,11 @@
 import { OAuth2Client } from "google-auth-library";
-import { db } from "../../../database/connection";
 import { UserModel, IUser } from "../../../models/UserModel";
 import { GoogleConnectionModel, IGoogleConnection } from "../../../models/GoogleConnectionModel";
 import { OrganizationUserModel } from "../../../models/OrganizationUserModel";
 import { OrganizationModel } from "../../../models/OrganizationModel";
 import { QueryContext } from "../../../models/BaseModel";
 import type { AuthenticatedContext } from "../feature-utils/security-utils";
+import logger from "../../../lib/logger";
 
 /**
  * Google user profile from OAuth response
@@ -47,30 +47,30 @@ export async function exchangeCodeForTokens(
   oauth2Client: OAuth2Client,
   code: string,
 ): Promise<any> {
-  console.log("[AUTH] Exchanging authorization code for tokens");
+  logger.info("[AUTH] Exchanging authorization code for tokens");
   const { tokens } = await oauth2Client.getToken(code);
 
   // Set credentials on client BEFORE using it
   oauth2Client.setCredentials(tokens);
 
   if (!tokens.refresh_token) {
-    console.warn(
+    logger.warn(
       "[AUTH] No refresh token received - user may have already authorized",
     );
   }
 
-  console.log("[AUTH] OAuth tokens received:", {
-    hasAccessToken: !!tokens.access_token,
-    hasRefreshToken: !!tokens.refresh_token,
-    expiryDate: tokens.expiry_date,
-    scopes: tokens.scope,
-    accessTokenPreview: tokens.access_token
-      ? `${tokens.access_token.substring(0, 10)}...${tokens.access_token.substring(
-          tokens.access_token.length - 10,
-        )}`
-      : "NONE",
-    accessTokenLength: tokens.access_token?.length || 0,
-  });
+  logger.info({ detail: {
+        hasAccessToken: !!tokens.access_token,
+        hasRefreshToken: !!tokens.refresh_token,
+        expiryDate: tokens.expiry_date,
+        scopes: tokens.scope,
+        accessTokenPreview: tokens.access_token
+          ? `${tokens.access_token.substring(0, 10)}...${tokens.access_token.substring(
+              tokens.access_token.length - 10,
+            )}`
+          : "NONE",
+        accessTokenLength: tokens.access_token?.length || 0,
+      } }, "[AUTH] OAuth tokens received:");
 
   if (!tokens.access_token) {
     throw new Error("No access token received from Google OAuth");
@@ -88,14 +88,14 @@ export async function exchangeCodeForTokens(
 export async function fetchGoogleUserProfile(
   accessToken: string,
 ): Promise<GoogleUserProfile> {
-  console.log("[AUTH] Fetching user profile from Google");
-  console.log("[AUTH] Using access token:", {
-    preview: `${accessToken.substring(0, 10)}...${accessToken.substring(
-      accessToken.length - 10,
-    )}`,
-    length: accessToken.length,
-    authHeader: `Bearer ${accessToken.substring(0, 20)}...`,
-  });
+  logger.info("[AUTH] Fetching user profile from Google");
+  logger.info({ detail: {
+        preview: `${accessToken.substring(0, 10)}...${accessToken.substring(
+          accessToken.length - 10,
+        )}`,
+        length: accessToken.length,
+        authHeader: `Bearer ${accessToken.substring(0, 20)}...`,
+      } }, "[AUTH] Using access token:");
 
   const userInfoResponse = await fetch(
     "https://www.googleapis.com/oauth2/v2/userinfo",
@@ -127,12 +127,12 @@ export async function fetchGoogleUserProfile(
     verified_email: profile.verified_email || undefined,
   };
 
-  console.log("[AUTH] Google profile fetched:", {
-    id: googleProfile.id,
-    email: googleProfile.email,
-    name: googleProfile.name,
-    verified: googleProfile.verified_email,
-  });
+  logger.info({ detail: {
+        id: googleProfile.id,
+        email: googleProfile.email,
+        name: googleProfile.name,
+        verified: googleProfile.verified_email,
+      } }, "[AUTH] Google profile fetched:");
 
   return googleProfile;
 }
@@ -188,7 +188,7 @@ async function ensureOrganizationLink(
       },
       trx,
     );
-    console.log(
+    logger.info(
       `[AUTH] Created admin role for user ${userId} in organization`,
     );
   }
@@ -201,7 +201,7 @@ async function resolveOAuthOrganizationId(
   trx?: QueryContext,
 ): Promise<number> {
   if (authenticatedOrgId) {
-    console.log(`[AUTH] Using authenticated org ${authenticatedOrgId}`);
+    logger.info(`[AUTH] Using authenticated org ${authenticatedOrgId}`);
     return authenticatedOrgId;
   }
 
@@ -218,7 +218,7 @@ async function resolveOAuthOrganizationId(
     { user_id: user.id, organization_id: newOrg.id, role: "admin" },
     trx,
   );
-  console.log(`[AUTH] Created organization ${newOrg.id} for user ${user.id}`);
+  logger.info(`[AUTH] Created organization ${newOrg.id} for user ${user.id}`);
 
   return newOrg.id;
 }
@@ -236,9 +236,9 @@ export async function completeOAuthFlow(
   googleProfile: GoogleUserProfile,
   authenticatedContext?: AuthenticatedContext | null,
 ): Promise<OAuthFlowResult> {
-  console.log("[AUTH] Starting database transaction");
+  logger.info("[AUTH] Starting database transaction");
 
-  const result = await db.transaction(async (trx) => {
+  const result = await UserModel.transaction(async (trx) => {
     let user: IUser;
 
     if (authenticatedContext) {
@@ -248,7 +248,7 @@ export async function completeOAuthFlow(
         throw new Error(`Authenticated user ${authenticatedContext.userId} not found`);
       }
       user = existingUser;
-      console.log(`[AUTH] Using authenticated user: ${user.email} (ID: ${user.id})`);
+      logger.info(`[AUTH] Using authenticated user: ${user.email} (ID: ${user.id})`);
     } else {
       // Unauthenticated flow (sign-up via Google) — find or create by email
       user = await UserModel.findOrCreate(
@@ -256,7 +256,7 @@ export async function completeOAuthFlow(
         googleProfile.name,
         trx,
       );
-      console.log(`[AUTH] User resolved: ${googleProfile.email} (ID: ${user.id})`);
+      logger.info(`[AUTH] User resolved: ${googleProfile.email} (ID: ${user.id})`);
     }
 
     // Build account data
@@ -286,7 +286,7 @@ export async function completeOAuthFlow(
     if (existingAccount) {
       await GoogleConnectionModel.updateById(existingAccount.id, accountData, trx);
       googleAccount = { ...existingAccount, ...accountData } as IGoogleConnection;
-      console.log(`[AUTH] Updated Google account for user ${user.id}, org ${googleAccount.organization_id}`);
+      logger.info(`[AUTH] Updated Google account for user ${user.id}, org ${googleAccount.organization_id}`);
     } else {
       // Determine organization — prefer authenticated context, then existing org, then create new
       const organizationId =
@@ -301,7 +301,7 @@ export async function completeOAuthFlow(
         { ...accountData, organization_id: organizationId },
         trx,
       );
-      console.log(`[AUTH] Created new Google connection for user ${user.id}, org ${organizationId}`);
+      logger.info(`[AUTH] Created new Google connection for user ${user.id}, org ${organizationId}`);
     }
 
     // Ensure organization link if applicable
@@ -312,7 +312,7 @@ export async function completeOAuthFlow(
     return { user, googleAccount };
   });
 
-  console.log("[AUTH] Database transaction completed successfully");
+  logger.info("[AUTH] Database transaction completed successfully");
   return result;
 }
 
@@ -329,7 +329,7 @@ export async function handleFallbackAuth(
   googleProfile: GoogleUserProfile,
   authenticatedContext?: AuthenticatedContext | null,
 ): Promise<OAuthFlowResult> {
-  console.log("[AUTH] Attempting fallback non-transactional save...");
+  logger.info("[AUTH] Attempting fallback non-transactional save...");
 
   let user: IUser;
   if (authenticatedContext) {
@@ -382,7 +382,7 @@ export async function handleFallbackAuth(
     );
   }
 
-  console.log("[AUTH] Fallback non-transactional save completed");
+  logger.info("[AUTH] Fallback non-transactional save completed");
   return { user, googleAccount };
 }
 

@@ -11,13 +11,22 @@ import {
   getKeyDataForClient,
   getAIReadyDataForClient,
 } from "./feature-services/service.clarity-data";
+import logger from "../../lib/logger";
 
 /**
  * GET /clarity/diag/projects
  * Returns all domain mappings for diagnostics.
+ *
+ * Strips clarity_apiToken before responding — secrets must never leave the
+ * server via a diagnostics endpoint. (The tokens have been removed from source
+ * entirely; this is defense-in-depth in case the field is ever repopulated.)
  */
 export const getDiagProjects = (_req: Request, res: Response) => {
-  return res.json(domainMappings);
+  const sanitized = domainMappings.map(({ clarity_apiToken, ...rest }) => {
+    void clarity_apiToken; // intentionally dropped from the response
+    return rest;
+  });
+  return res.json(sanitized);
 };
 
 /**
@@ -41,7 +50,7 @@ export const fetch = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "No mapping found for clientId" });
     }
 
-    console.log(
+    logger.info(
       `📡 Fetching Clarity data for ${mapping.domain} (projectId=${mapping.clarity_projectId})`
     );
 
@@ -62,7 +71,7 @@ export const fetch = async (req: Request, res: Response) => {
       message: "Clarity data fetched and stored successfully",
     });
   } catch (err: any) {
-    console.error("❌ Error in /clarity/fetch:", err?.message || err);
+    logger.error({ err: err?.message || err }, "❌ Error in /clarity/fetch:");
     return res
       .status(500)
       .json({ error: `Failed to fetch Clarity data: ${err.message}` });
@@ -83,7 +92,7 @@ export const getKeyData = async (req: Request, res: Response) => {
     const result = await getKeyDataForClient(clientId);
     return res.json(result);
   } catch (err: any) {
-    console.error("❌ Error in /clarity/getKeyData:", err?.message || err);
+    logger.error({ err: err?.message || err }, "❌ Error in /clarity/getKeyData:");
     return res
       .status(500)
       .json({ error: `Failed to get Clarity key data: ${err.message}` });
@@ -107,7 +116,7 @@ export const getAIReadyData = async (req: Request, res: Response) => {
       ...result,
     });
   } catch (err: any) {
-    console.error("❌ Error in /clarity/getAIReadyData:", err?.message || err);
+    logger.error({ err: err?.message || err }, "❌ Error in /clarity/getAIReadyData:");
     return res
       .status(500)
       .json({ error: `Failed to get Clarity AI Ready data: ${err.message}` });

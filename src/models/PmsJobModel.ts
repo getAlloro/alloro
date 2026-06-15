@@ -1,6 +1,5 @@
-import { Knex } from "knex";
 import { BaseModel, PaginatedResult, PaginationParams, QueryContext } from "./BaseModel";
-import { db } from "../database/connection";
+import * as q from "./pmsJobQueries";
 
 export interface IPmsJob {
   id: number;
@@ -37,6 +36,24 @@ export interface PmsJobFilters {
   is_approved?: boolean;
 }
 
+/**
+ * DB-correctness layer for `pms_jobs`.
+ *
+ * This class is a thin public facade: every non-trivial method delegates to a
+ * query-builder body in {@link import("./pmsJobQueries")}, keeping this file
+ * under the size ceiling while the public surface — and every caller of it,
+ * plus the `vi.mock("../models/PmsJobModel")` smoke-test seam — stays
+ * unchanged. The BaseModel passthroughs (findById / deleteById), the
+ * `create`/`updateById` overrides (which own JSON serialization for the
+ * `timestamp`-column quirk), the `updateById`-based approval/status wrappers,
+ * and the `paginate`-driven list methods remain here.
+ *
+ * Behavior is preserved: each delegate builds the SAME query as the original
+ * inline body (identical columns/filters/joins/ordering/limits/return-shapes,
+ * trx threading, raw SQL, and timestamp clocks). JSON (de)serialization stays
+ * owned here via BaseModel: the read methods that deserialize fetch raw rows
+ * from the helper and map through `this.deserializeJsonFields`.
+ */
 export class PmsJobModel extends BaseModel {
   protected static tableName = "pms_jobs";
   protected static jsonFields = [
@@ -87,27 +104,32 @@ export class PmsJobModel extends BaseModel {
     return super.deleteById(id, trx);
   }
 
+  /** COUNT(*) of jobs for an org (admin reset preview). */
+  static async countByOrganizationId(
+    organizationId: number,
+    trx?: QueryContext
+  ): Promise<{ count: string } | undefined> {
+    return q.countByOrganizationIdQuery(organizationId, trx);
+  }
+
+  /** Hard-delete all jobs for an org (admin reset). Returns rows deleted. */
+  static async deleteByOrganizationId(
+    organizationId: number,
+    trx?: QueryContext
+  ): Promise<number> {
+    return q.deleteByOrganizationIdQuery(organizationId, trx);
+  }
+
   static async listAdmin(
     filters: PmsJobFilters,
     pagination: PaginationParams,
     trx?: QueryContext
   ): Promise<PaginatedResult<IPmsJob>> {
-    const buildQuery = (qb: Knex.QueryBuilder) => {
-      if (filters.organization_id) {
-        qb = qb.where("organization_id", filters.organization_id);
-      }
-      if (filters.status) {
-        qb = qb.where("status", filters.status);
-      }
-      if (filters.statuses && filters.statuses.length > 0) {
-        qb = qb.whereIn("status", filters.statuses);
-      }
-      if (filters.is_approved !== undefined) {
-        qb = qb.where("is_approved", filters.is_approved);
-      }
-      return qb.orderBy("timestamp", "desc");
-    };
-    return this.paginate<IPmsJob>(buildQuery, pagination, trx);
+    return this.paginate<IPmsJob>(
+      q.listAdminBuildQuery(filters),
+      pagination,
+      trx
+    );
   }
 
   static async updateApproval(
@@ -139,6 +161,20 @@ export class PmsJobModel extends BaseModel {
   }
 
   /**
+   * Persist an already-stringified automation_status_detail value (raw
+   * passthrough). Mirrors the inline updates in
+   * utils/pms/pmsAutomationStatus.ts, which store a pre-stringified JSON string
+   * rather than letting the model serialize.
+   */
+  static async updateAutomationStatusDetailRaw(
+    id: number,
+    statusDetailJson: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return q.updateAutomationStatusDetailRawQuery(id, statusDetailJson, trx);
+  }
+
+  /**
    * Find all active automation jobs (status is pending, processing, or awaiting_approval).
    * Optionally filter by organization.
    */
@@ -147,32 +183,30 @@ export class PmsJobModel extends BaseModel {
     locationId?: number,
     trx?: QueryContext
   ): Promise<IPmsJob[]> {
-    let query = this.table(trx)
-      .whereNotNull("automation_status_detail")
-      .whereRaw(
-        "automation_status_detail::jsonb->>'status' IN ('pending', 'processing', 'awaiting_approval')"
-      )
-      .select(
-        "id",
-        "organization_id",
-        "location_id",
-        "status",
-        "is_approved",
-        "is_client_approved",
-        "automation_status_detail",
-        "timestamp"
-      )
-      .orderBy("timestamp", "desc");
-
-    if (organizationId) {
-      query = query.where("organization_id", organizationId);
-    }
-    if (locationId) {
-      query = query.where("location_id", locationId);
-    }
-
-    const rows = await query;
+    const rows = await q.findActiveAutomationJobsQuery(
+      organizationId,
+      locationId,
+      trx
+    );
     return rows.map((row: IPmsJob) => this.deserializeJsonFields(row));
+  }
+
+  /**
+   * Find an in-flight monthly-agents automation job for an org (optional
+   * location), i.e. automation_status_detail.status = 'processing' and
+   * .currentStep = 'monthly_agents'. Returns the raw first matching row.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findActiveMonthlyAgentsAutomation(
+    organizationId: number,
+    locationId: number | null,
+    trx?: QueryContext
+  ): Promise<any> {
+    return q.findActiveMonthlyAgentsAutomationQuery(
+      organizationId,
+      locationId,
+      trx
+    );
   }
 
   /**
@@ -188,20 +222,11 @@ export class PmsJobModel extends BaseModel {
     },
     trx?: QueryContext
   ): Promise<PaginatedResult<IPmsJob>> {
-    const buildQuery = (qb: Knex.QueryBuilder) => {
-      qb = qb.where("organization_id", organizationId);
-      if (options?.locationId) {
-        qb = qb.where("location_id", options.locationId);
-      }
-      if (options?.status) {
-        qb = qb.where("status", options.status);
-      }
-      if (options?.isApproved !== undefined) {
-        qb = qb.where("is_approved", options.isApproved);
-      }
-      return qb.orderBy("timestamp", "desc");
-    };
-    return this.paginate<IPmsJob>(buildQuery, pagination, trx);
+    return this.paginate<IPmsJob>(
+      q.listByOrganizationBuildQuery(organizationId, options),
+      pagination,
+      trx
+    );
   }
 
   /**
@@ -212,24 +237,11 @@ export class PmsJobModel extends BaseModel {
     locationId?: number | null,
     trx?: QueryContext
   ): Promise<IPmsJob[]> {
-    let query = this.table(trx)
-      .select(
-        "id",
-        "timestamp",
-        "status",
-        "response_log",
-        "is_approved",
-        "is_client_approved"
-      )
-      .where("organization_id", organizationId)
-      .whereNull("deleted_at")
-      .orderBy("timestamp", "asc");
-
-    if (locationId) {
-      query = query.where("location_id", locationId);
-    }
-
-    const rows = await query;
+    const rows = await q.findJobsForKeyDataByOrganizationQuery(
+      organizationId,
+      locationId,
+      trx
+    );
     return rows.map((row: IPmsJob) => this.deserializeJsonFields(row));
   }
 
@@ -238,24 +250,11 @@ export class PmsJobModel extends BaseModel {
     locationId?: number | null,
     trx?: QueryContext
   ): Promise<IPmsJob | undefined> {
-    let query = this.table(trx)
-      .select(
-        "id",
-        "timestamp",
-        "status",
-        "is_approved",
-        "is_client_approved",
-        "response_log"
-      )
-      .where("organization_id", organizationId)
-      .whereNull("deleted_at")
-      .orderBy("timestamp", "desc");
-
-    if (locationId) {
-      query = query.where("location_id", locationId);
-    }
-
-    const row = await query.first();
+    const row = await q.findLatestJobForKeyDataByOrganizationQuery(
+      organizationId,
+      locationId,
+      trx
+    );
     return row ? this.deserializeJsonFields(row) : undefined;
   }
 
@@ -264,23 +263,11 @@ export class PmsJobModel extends BaseModel {
     locationId?: number | null,
     trx?: QueryContext
   ): Promise<IPmsJob[]> {
-    let query = this.table(trx)
-      .select(
-        "id",
-        "timestamp",
-        "response_log",
-        "raw_input_data",
-        "column_mapping_id"
-      )
-      .where({ organization_id: organizationId, is_approved: 1 })
-      .whereNull("deleted_at")
-      .orderBy("timestamp", "asc");
-
-    if (locationId) {
-      query = query.where("location_id", locationId);
-    }
-
-    const rows = await query;
+    const rows = await q.findApprovedJobsForPmsAggregationQuery(
+      organizationId,
+      locationId,
+      trx
+    );
     return rows.map((row: IPmsJob) => this.deserializeJsonFields(row));
   }
 
@@ -290,15 +277,12 @@ export class PmsJobModel extends BaseModel {
     locationId?: number | null,
     trx?: QueryContext
   ): Promise<IPmsJob | undefined> {
-    let query = this.table(trx)
-      .where("id", id)
-      .where("organization_id", organizationId);
-
-    if (locationId) {
-      query = query.where("location_id", locationId);
-    }
-
-    const row = await query.first();
+    const row = await q.findForOrganizationLocationQuery(
+      id,
+      organizationId,
+      locationId,
+      trx
+    );
     return row ? this.deserializeJsonFields(row) : undefined;
   }
 
@@ -307,36 +291,11 @@ export class PmsJobModel extends BaseModel {
     locationId?: number | null,
     trx?: QueryContext
   ): Promise<IPmsJob[]> {
-    let query = this.table(trx)
-      .leftJoin(
-        "users as uploaded_users",
-        "uploaded_users.id",
-        "pms_jobs.uploaded_by_user_id"
-      )
-      .leftJoin(
-        "users as deleted_users",
-        "deleted_users.id",
-        "pms_jobs.deleted_by_user_id"
-      )
-      .where("pms_jobs.organization_id", organizationId)
-      .orderBy("pms_jobs.timestamp", "desc")
-      .select(
-        "pms_jobs.*",
-        "uploaded_users.email as uploaded_by_email",
-        "deleted_users.email as deleted_by_email",
-        db.raw(
-          "COALESCE(uploaded_users.name, NULLIF(CONCAT_WS(' ', uploaded_users.first_name, uploaded_users.last_name), ''), uploaded_users.email) AS uploaded_by_name"
-        ),
-        db.raw(
-          "COALESCE(deleted_users.name, NULLIF(CONCAT_WS(' ', deleted_users.first_name, deleted_users.last_name), ''), deleted_users.email) AS deleted_by_name"
-        )
-      );
-
-    if (locationId) {
-      query = query.where("pms_jobs.location_id", locationId);
-    }
-
-    const rows = await query;
+    const rows = await q.listForFileManagerQuery(
+      organizationId,
+      locationId,
+      trx
+    );
     return rows.map((row: IPmsJob) => this.deserializeJsonFields(row));
   }
 
@@ -349,23 +308,11 @@ export class PmsJobModel extends BaseModel {
     locationId: number,
     trx?: QueryContext
   ): Promise<IPmsJob | undefined> {
-    const row = await this.table(trx)
-      .select(
-        "id",
-        "organization_id",
-        "location_id",
-        "timestamp",
-        "status",
-        "is_approved",
-        "automation_status_detail"
-      )
-      .where("organization_id", organizationId)
-      .where("location_id", locationId)
-      .where("is_approved", 1)
-      .whereNull("deleted_at")
-      .orderBy("timestamp", "desc")
-      .first();
-
+    const row = await q.findLatestActiveJobForLocationQuery(
+      organizationId,
+      locationId,
+      trx
+    );
     return row ? this.deserializeJsonFields(row) : undefined;
   }
 
@@ -379,26 +326,251 @@ export class PmsJobModel extends BaseModel {
     locationId: number,
     trx?: QueryContext
   ): Promise<{ lastCompletedAt: string | null; hasActiveRun: boolean }> {
-    const row = await this.table(trx)
-      .where("organization_id", organizationId)
-      .where("location_id", locationId)
-      .whereNull("deleted_at")
-      .whereNotNull("automation_status_detail")
-      .select(
-        db.raw(
-          "MAX((automation_status_detail::jsonb->>'completedAt')::timestamptz) FILTER (WHERE automation_status_detail::jsonb->>'status' = 'completed') AS last_completed_at"
-        ),
-        db.raw(
-          "BOOL_OR(automation_status_detail::jsonb->>'status' IN ('pending', 'processing', 'awaiting_approval')) AS has_active_run"
-        )
-      )
-      .first();
+    return q.getInsightsRunSummaryForLocationQuery(
+      organizationId,
+      locationId,
+      trx
+    );
+  }
 
-    return {
-      lastCompletedAt: row?.last_completed_at
-        ? new Date(row.last_completed_at).toISOString()
-        : null,
-      hasActiveRun: Boolean(row?.has_active_run),
-    };
+  /**
+   * Count jobs matching the admin list filters. Mirrors the inline count query
+   * in pms-data.service.listJobsPaginated (status whitelist, is_approved 1/0,
+   * org, location).
+   */
+  static async countJobsForList(
+    filters: {
+      statuses?: string[];
+      approvedFilter?: boolean;
+      organizationFilter?: number;
+      locationFilter?: number;
+    },
+    trx?: QueryContext
+  ): Promise<number> {
+    return q.countJobsForListQuery(filters, trx);
+  }
+
+  /**
+   * List jobs (joined to locations for location_name) matching the admin list
+   * filters, ordered by timestamp desc with limit/offset. Mirrors the inline
+   * data query in pms-data.service.listJobsPaginated. Returns raw rows
+   * (select pms_jobs.* + locations.name) to preserve original consumption.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async listJobsWithLocationName(
+    filters: {
+      statuses?: string[];
+      approvedFilter?: boolean;
+      organizationFilter?: number;
+      locationFilter?: number;
+    },
+    pagination: { limit: number; offset: number },
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return q.listJobsWithLocationNameQuery(filters, pagination, trx);
+  }
+
+  /**
+   * Persist a raw response_log value (already serialized to a string or null)
+   * for a job. Mirrors the inline update in pms-data.service.updateJobResponse,
+   * which stores a pre-stringified value rather than letting the model
+   * serialize.
+   */
+  static async updateResponseLogRaw(
+    id: number,
+    responseLogValue: string | null,
+    trx?: QueryContext
+  ): Promise<number> {
+    return q.updateResponseLogRawQuery(id, responseLogValue, trx);
+  }
+
+  /**
+   * Fetch the response-summary columns for a job. Mirrors the post-update
+   * select in pms-data.service.updateJobResponse. Returns the raw row.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findResponseSummaryById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<any> {
+    return q.findResponseSummaryByIdQuery(id, trx);
+  }
+
+  /**
+   * Fetch the admin-approval columns for a job. Mirrors the lead select in
+   * pms-approval.service.approveByAdmin. Returns the raw row.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findForAdminApprovalById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<any> {
+    return q.findForAdminApprovalByIdQuery(id, trx);
+  }
+
+  /**
+   * Apply an arbitrary approval update payload (is_approved and optionally
+   * status). Mirrors the inline update in pms-approval.service.approveByAdmin.
+   */
+  static async applyApprovalUpdate(
+    id: number,
+    updatePayload: Record<string, unknown>,
+    trx?: QueryContext
+  ): Promise<number> {
+    return q.applyApprovalUpdateQuery(id, updatePayload, trx);
+  }
+
+  /**
+   * Fetch the post-admin-approval summary columns. Mirrors the trailing select
+   * in pms-approval.service.approveByAdmin. Returns the raw row.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findAdminApprovalSummaryById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<any> {
+    return q.findAdminApprovalSummaryByIdQuery(id, trx);
+  }
+
+  /**
+   * Fetch the client-approval columns for a job. Mirrors the lead select in
+   * pms-approval.service.approveByClient. Returns the raw row.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findForClientApprovalById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<any> {
+    return q.findForClientApprovalByIdQuery(id, trx);
+  }
+
+  /**
+   * Set the is_client_approved flag (1/0). Mirrors the inline update in
+   * pms-approval.service.approveByClient.
+   */
+  static async setClientApprovalFlag(
+    id: number,
+    clientApproval: boolean,
+    trx?: QueryContext
+  ): Promise<number> {
+    return q.setClientApprovalFlagQuery(id, clientApproval, trx);
+  }
+
+  /**
+   * Fetch the post-client-approval summary columns (includes org + location for
+   * the monthly-agents trigger). Mirrors the trailing select in
+   * pms-approval.service.approveByClient. Returns the raw row.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findClientApprovalResultById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<any> {
+    return q.findClientApprovalResultByIdQuery(id, trx);
+  }
+
+  /**
+   * Fetch the automation-status columns for a job. Mirrors the lead select in
+   * pms-automation.service.getJobAutomationStatus. Returns the raw row.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findForAutomationStatusById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<any> {
+    return q.findForAutomationStatusByIdQuery(id, trx);
+  }
+
+  /**
+   * Fetch just the automation_status_detail column for a job. Mirrors the
+   * refresh select in pms-automation.service.getJobAutomationStatus. Returns
+   * the raw row.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findAutomationStatusDetailById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<any> {
+    return q.findAutomationStatusDetailByIdQuery(id, trx);
+  }
+
+  /**
+   * Fetch the columns needed to retry a failed step. Mirrors the lead select in
+   * pms-retry.service.retryFailedStep. Returns the raw row.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findForRetryById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<any> {
+    return q.findForRetryByIdQuery(id, trx);
+  }
+
+  /**
+   * Reset a job to pending before re-running the PMS parser. Mirrors the inline
+   * update in pms-retry.service.retryPmsParser.
+   */
+  static async resetForPmsParserRetry(
+    id: number,
+    trx?: QueryContext
+  ): Promise<number> {
+    return q.resetForPmsParserRetryQuery(id, trx);
+  }
+
+  /**
+   * Fetch the columns needed to restart a completed monthly-agents run. Mirrors
+   * the lead select in pms-retry.service.restartMonthlyAgents. Returns the raw
+   * row.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findForRestartById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<any> {
+    return q.findForRestartByIdQuery(id, trx);
+  }
+
+  /**
+   * timestamp of the most-recent approved (is_approved=1) job for an org
+   * (optional location). Mirrors the last-upload query in
+   * utils/dashboard-metrics/service.dashboard-metrics.buildPmsMetrics verbatim.
+   * Returns the raw row (or undefined).
+   */
+  static async findLastApprovedUploadTimestamp(
+    organizationId: number,
+    locationId: number | null,
+    trx?: QueryContext
+  ): Promise<{ timestamp: Date | string } | undefined> {
+    return q.findLastApprovedUploadTimestampQuery(
+      organizationId,
+      locationId,
+      trx
+    );
+  }
+
+  /**
+   * Jobs stuck in automation_status_detail.status = 'processing' whose
+   * startedAt is older than `thresholdMinutes`. Mirrors the inline whereRaw in
+   * utils/startup/zombieJobCleanup.cleanupZombieJobs verbatim (the threshold is
+   * interpolated into the interval literal exactly as before). Raw rows.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findZombieProcessingJobs(
+    thresholdMinutes: number,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return q.findZombieProcessingJobsQuery(thresholdMinutes, trx);
+  }
+
+  /**
+   * Flip a zombie job's automation_status_detail status→failed with the
+   * server-restart message, via a jsonb_set raw expression. Mirrors the inline
+   * update in utils/startup/zombieJobCleanup.cleanupZombieJobs verbatim.
+   */
+  static async markZombieFailed(
+    id: number,
+    trx?: QueryContext
+  ): Promise<number> {
+    return q.markZombieFailedQuery(id, trx);
   }
 }

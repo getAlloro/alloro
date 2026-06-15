@@ -9,6 +9,7 @@ import { MindScrapedPostModel } from "../../models/MindScrapedPostModel";
 import { MindSyncProposalModel } from "../../models/MindSyncProposalModel";
 import { scrapeUrl } from "../../controllers/minds/feature-services/service.minds-scraper";
 import { compareContent } from "../../controllers/minds/feature-services/service.minds-comparison";
+import logger from "../../lib/logger";
 
 const MAX_POSTS_PER_SCRAPE_RUN = parseInt(
   process.env.MINDS_MAX_POSTS_PER_SCRAPE_RUN || "10",
@@ -52,7 +53,7 @@ async function runStep(
 
 export async function processScrapeCompare(job: Job<ScrapeCompareJobData>): Promise<void> {
   const { mindId, runId } = job.data;
-  console.log(`[MINDS-WORKER] Starting scrape_compare run ${runId} for mind ${mindId}`);
+  logger.info(`[MINDS-WORKER] Starting scrape_compare run ${runId} for mind ${mindId}`);
 
   await MindSyncRunModel.markRunning(runId);
 
@@ -211,9 +212,9 @@ export async function processScrapeCompare(job: Job<ScrapeCompareJobData>): Prom
     });
 
     await MindSyncRunModel.markCompleted(runId);
-    console.log(`[MINDS-WORKER] Scrape_compare run ${runId} completed`);
+    logger.info(`[MINDS-WORKER] Scrape_compare run ${runId} completed`);
   } catch (err: any) {
-    console.error(`[MINDS-WORKER] Scrape_compare run ${runId} failed:`, err);
+    logger.error({ err: err }, `[MINDS-WORKER] Scrape_compare run ${runId} failed:`);
     await MindSyncRunModel.markFailed(runId, err.message);
   }
 }

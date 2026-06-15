@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Security Hotfix Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.86rem; margin-top: 8px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0; }
+    td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+    .p1 { font-weight: 800; }
+    .badge { display: inline-block; padding: 1px 8px; border: 1px solid var(--ink); border-radius: 999px; font-size: 0.7rem; font-weight: 800; }
+    a { color: var(--ink); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Pending Execution</span>
+      </div>
+      <h1>Security Hotfix — Phase 1</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06142026-security-hotfix</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 4</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The backend conventions audit (<code>plans/06142026-backend-conventions-audit</code>) surfaced a cluster of <strong>live, verified security exposures</strong> that outrank every other finding. They are exploitable today: admin and destructive endpoints are reachable with no authentication, the JWT secret fails <em>open</em> if an env var is missing, live third-party API credentials are committed to source, one-time auth codes are generated with a non-cryptographic RNG and written to logs in plaintext, a credential-free login bypass ships in production code, and the entire auth attack surface (login / OTP / password reset) has zero rate limiting. This is Phase 1 of the cleanup — it runs <strong>first</strong>, ahead of the slow conventions remediation, and is independent of every other cleanup spec.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>A behavior-preserving (except where explicitly tightening security) hotfix that closes seven verified exposures:</p>
+      <ol>
+        <li><strong>Default-deny auth.</strong> Mount <code>authenticateToken</code> as an app-level guard in <code>src/index.ts</code> with an explicit allowlist of genuinely-public routes — killing the class of unauthenticated admin/destructive endpoints at once instead of patching routers one by one.</li>
+        <li><strong>JWT fail-closed.</strong> One config getter for <code>JWT_SECRET</code> that throws at startup if unset; delete every <code>|| "..."</code> fallback literal.</li>
+        <li><strong>Rotate &amp; externalize</strong> the 16 hardcoded Clarity JWT tokens in <code>domainMappings.ts</code>.</li>
+        <li><strong>Crypto RNG</strong> for OTP codes and admin temp-passwords.</li>
+        <li><strong>Stop logging</strong> one-time codes in plaintext.</li>
+        <li><strong>Gate / remove</strong> the <code>tester@google.com</code> bypass.</li>
+        <li><strong>Rate-limit</strong> login / OTP / reset by wiring a new strict auth limiter into <code>publicRateLimiter.ts</code>.</li>
+      </ol>
+      <p><strong>How we'll know it's done:</strong> <code>npm run build</code> (tsc) clean, eslint clean, a manual endpoint smoke (an unauthenticated <code>curl</code> to a previously-open admin route returns 401; a real admin token still works; the admin UI pages still load), and the app boots with <code>JWT_SECRET</code> set and refuses to boot without it.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+
+      <h3>Dependencies / sequencing</h3>
+      <p><strong>None — this is FIRST.</strong> It is independent of all other backend-cleanup specs and must land before them. No spec depends on it being deferred; several conventions fixes (response-shape, DB-in-models) will be easier once auth is uniformly enforced, but none block this one.</p>
+
+      <h3>Relevant files (all verified to exist with the cited content)</h3>
+      <ul>
+        <li><code>src/index.ts</code> — entry point. Line 160 mounts <code>billingGateMiddleware</code> globally; there is <strong>no</strong> global <code>authenticateToken</code>. Lines 162-210 bare-mount every router. This is where default-deny goes.</li>
+        <li><code>src/middleware/auth.ts:13</code> — <code>getJwtSecret()</code> returns <code>process.env.JWT_SECRET || "dev-secret-key-change-in-prod"</code> (fail-open).</li>
+        <li><code>src/middleware/billingGate.ts:69</code> — <code>jwt.verify(token, process.env.JWT_SECRET || "secret")</code> — a <em>second, different</em> fallback literal; sign/verify desync.</li>
+        <li><code>src/middleware/publicRateLimiter.ts</code> — express-rate-limit infra exists (checkup / places / referral / gbp limiters at lines 25-98); <strong>no auth limiter exists</strong> and none is wired to login/OTP/reset.</li>
+        <li><code>src/middleware/rbac.ts</code>, <code>src/middleware/superAdmin.ts</code> — sound guards, correctly exported, already consumed by many routers. The fix is to <em>mount</em> them, not rewrite them. (rbac default-allows orgless users as <code>viewer</code> — see Risk.)</li>
+        <li><code>src/routes/pms.ts:98-107</code> — six admin routes self-labeled "ADMIN ENDPOINTS (No auth)", incl. <code>DELETE /jobs/:id</code> (permanent delete) and <code>POST /jobs/:id/restart</code> (destructive cleanup + re-trigger), with no org scoping.</li>
+        <li><code>src/routes/admin/settings.ts</code>, <code>src/routes/appLogs.ts</code>, <code>src/routes/adminAgentInsights.ts</code>, <code>src/routes/admin/agentOutputs.ts</code>, <code>src/routes/admin/imports.ts</code> — admin CRUD/destructive routes with no router-level auth and no controller-side guard.</li>
+        <li><code>src/routes/admin/websites.ts</code> — ~176 of ~210 route registrations unguarded (only ~34 spread <code>...adminWebsiteAuth</code>).</li>
+        <li><code>src/routes/agentsV2.ts</code> — IDOR (read any org's outputs); <code>src/routes/minds.public-api.ts</code> mounted at <code>/api/minds</code> (proprietary-prompt theft + LLM cost).</li>
+        <li><code>src/utils/core/domainMappings.ts:20,32,49,61,74,86,98,110,...</code> — <strong>16</strong> hardcoded Clarity JWT API tokens (<code>clarity_apiToken</code>, scope <code>Data.Export</code>, exp 2125). Verified by grep (17 matches; one is the <code>clarity_apiToken?</code> interface field at line 7).</li>
+        <li><code>src/controllers/auth-otp/feature-services/service.otp-generation.ts:12</code> — <code>Math.floor(100000 + Math.random() * 900000)</code> for the 6-digit OTP.</li>
+        <li><code>src/controllers/auth/feature-utils/security-utils.ts</code> — <code>generateSecureState()</code> uses <code>Math.random().toString(36)</code> (the file already imports <code>crypto</code> and uses <code>randomBytes</code> elsewhere — inconsistent).</li>
+        <li><code>src/controllers/admin-organizations/AdminOrganizationsController.ts:898-920</code> — admin temp-password uses <code>Math.random()</code> + a statistically-biased <code>.sort(() =&gt; Math.random()-0.5)</code> shuffle.</li>
+        <li><code>src/controllers/auth-password/AuthPasswordController.ts:317</code> (+ OTP path) — <code>console.log</code> of a verification code <em>value</em> in plaintext.</li>
+        <li><code>src/controllers/auth-otp/feature-utils/util.test-account.ts</code> — <code>TEST_EMAIL = "tester@google.com"</code>, <code>isTestAccount()</code> bypasses OTP; no env gate.</li>
+      </ul>
+
+      <h3>Frontend caller files (the T1 gate touches these — verified)</h3>
+      <ul>
+        <li><code>frontend/src/api/index.ts</code> — the central <code>apiGet</code>/<code>apiPost</code> helpers attach <code>Authorization: Bearer &lt;jwt&gt;</code> via <code>getCommonHeaders()</code>. This is the correct pattern callers must use.</li>
+        <li><code>frontend/src/api/settings.ts</code> — bare <code>fetch(API_BASE)</code>, <strong>no Authorization header</strong> → calls <code>/api/admin/settings</code>.</li>
+        <li><code>frontend/src/api/agentOutputs.ts</code> — bare <code>fetch</code> throughout; only sets <code>Content-Type</code>, <strong>no Authorization</strong> → <code>/api/admin/agent-outputs</code>.</li>
+        <li><code>frontend/src/pages/admin/AppLogs.tsx:77,105</code> — bare <code>fetch</code> GET + DELETE, <strong>no token</strong> → <code>/api/admin/app-logs</code>.</li>
+        <li><code>frontend/src/components/Admin/RecommendationCard.tsx:142</code>, <code>frontend/src/pages/admin/AIDataInsightsList.tsx:106,152,185</code> — bare <code>fetch</code>, only <code>Content-Type</code>, <strong>no Authorization</strong> → <code>/api/admin/agent-insights</code>.</li>
+      </ul>
+
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li><strong>Router-level auth.</strong> The healthy routers already do <code>router.use(authenticateToken, superAdminMiddleware)</code> (e.g. <code>src/routes/minds.ts:21</code>, <code>src/routes/admin/organizations.ts</code>). The default-deny mount in <code>index.ts</code> is the app-level version of the same guard.</li>
+        <li><strong>Config getter, not inline env.</strong> Read a required secret once and throw at startup if unset (fail-closed). Mirror how <code>src/config/stripe.ts</code> centralizes Stripe config.</li>
+        <li><strong>Crypto for secrets.</strong> Use <code>crypto.randomInt</code> / <code>crypto.randomBytes</code> — already the pattern in <code>security-utils.ts</code> (<code>crypto.randomBytes(8)</code> for the OAuth nonce).</li>
+        <li><strong>Frontend auth.</strong> Route admin calls through <code>apiGet</code>/<code>apiPost</code> from <code>frontend/src/api/index.ts</code> (which attaches the Bearer token) rather than bare <code>fetch</code>.</li>
+      </ul>
+
+      <p><strong>Reference domain:</strong> <code>gbp-automation</code> (<code>src/controllers/gbp-automation/*</code>, <code>src/routes/gbpAutomation.ts</code>) is the repo's reference domain — thin controllers, the only mature <code>{success,data,error}</code> + sanitizer standard, 0 must-fix in the audit. Match its router-auth and error-handling shape for any new middleware/glue added here.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Run T1 (frontend caller audit) <strong>before</strong> flipping default-deny — it gates the auth change.</li>
+            <li>Default-deny + explicit public allowlist (fail-safe), not per-router patching.</li>
+            <li>Fail-closed on a missing <code>JWT_SECRET</code> (throw at startup), single config source for sign &amp; verify.</li>
+            <li>Use <code>crypto.randomInt</code>/<code>randomBytes</code> for OTP, temp-passwords, and the OAuth state string.</li>
+            <li>Commit before each unit; one concern per commit; per-unit checkpoints (build + eslint + smoke) — not one unstoppable run.</li>
+            <li>Behavior-preserving except where the change <em>is</em> the security tightening (401 on previously-open routes, refusal to boot without the secret, rate-limit 429s).</li>
+            <li>Treat the 16 Clarity tokens as <strong>burned</strong> — rotate them, do not merely move the existing values.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No unrelated refactors / drive-by cleanups. The conventions debt (god-controllers, DB-outside-models, response shape, Pino) is a <em>separate</em> plan — do not touch it here.</li>
+            <li>No new dependencies unless justified (express-rate-limit is already present; a new auth limiter reuses it — no new dep needed).</li>
+            <li>Do not rewrite the middleware guards themselves — they are sound; mount them.</li>
+            <li>Do not change the public renderer app, n8n webhooks, or migrations as part of this.</li>
+            <li>Do not silently broaden the public allowlist to make a test pass — every entry must be justified.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Per-route RBAC role-tightening beyond "authenticated + (super-admin where the router already implied it)" — granular role matrices are conventions work.</li>
+        <li>Input-validation middleware (dim 12), Pino adoption (dim 10), DB-in-models (dim 7), response-shape normalization (dim 9) — all later phases.</li>
+        <li>The <code>websiteContact</code> commented-out anti-abuse stack and reCAPTCHA fail-open — real, but a separate public-form hardening unit (flagged, not fixed here, to keep this hotfix tight). Re-confirm scope with owner if they want it folded in.</li>
+        <li>Constant-time API-key compare in <code>scraperAuth.ts</code> (low practical risk; nitpick).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level: 4 (Major Impact).</strong> This changes the auth model and its blast radius is <em>every route in the app</em>. A default-deny flip that misclassifies even one legitimate public route, or misses one unauthenticated legitimate caller, takes down a user-facing or admin surface. Recommend the owner is aware before this lands; it is not a quiet patch. The mitigating factor: the guards being mounted are already proven in production on the healthy routers, so the risk is in <em>classification</em> (which routes are public) and <em>caller readiness</em> (does every legit call send a token), not in the guard logic.</p>
+
+      <h3>Risks identified</h3>
+      <ul>
+        <li><strong>Default-deny breaks legitimate unauthenticated callers.</strong> Already confirmed live: <code>frontend/src/api/settings.ts</code>, <code>frontend/src/api/agentOutputs.ts</code>, <code>frontend/src/pages/admin/AppLogs.tsx</code>, and the <code>agent-insights</code> callers (<code>RecommendationCard.tsx</code>, <code>AIDataInsightsList.tsx</code>) call soon-to-be-protected admin routes with <strong>no Authorization header</strong>. <strong>Mitigation:</strong> T1 is a hard gate — audit and remediate these callers (migrate to <code>apiGet</code>/<code>apiPost</code> or add the Bearer header) in the same unit, before the flip. The flip does not merge until T1's list is green.</li>
+        <li><strong>A genuinely-public route gets caught by default-deny.</strong> Login, OTP issue/verify, password reset, Stripe webhook (signature-verified, no JWT), the public scraper (key-gated), public file serving, the public contact form, and the public skill/portal API are legitimately unauthenticated. <strong>Mitigation:</strong> build the allowlist from the audit's verified "public-by-design" set (worksheet 09 enumerates it) and assert each one with a smoke check after the flip.</li>
+        <li><strong>rbac default-allow.</strong> <code>rbac.ts:42-48</code> falls an orgless authenticated user through to <code>viewer</code> + <code>next()</code> rather than 403. So "authenticated" alone is weaker than it looks on org-scoped admin routes. <strong>Mitigation:</strong> for the admin routers in scope, layer the existing <code>superAdminMiddleware</code>/<code>requireRole</code> the healthy admin routers already use; do not rely on <code>authenticateToken</code> alone for super-admin surfaces.</li>
+        <li><strong>Rotating the Clarity tokens breaks live analytics fetches.</strong> <strong>Mitigation:</strong> coordinate rotation with the Clarity integration owner; move values to env/secret store and verify a Clarity data fetch still succeeds before closing the unit. (Per repo memory, the renderer-side injection is separate and unaffected.)</li>
+        <li><strong>JWT fail-closed could refuse to boot in an environment where the var is genuinely unset.</strong> That is the <em>intended</em> behavior, but it must be verified that dev/prod actually have <code>JWT_SECRET</code> set before deploy. <strong>Mitigation:</strong> confirm the env var on dev and prod hosts (PM2 ecosystem / host env) before merging; the throw is the safety net, not a surprise.</li>
+        <li><strong>Auth rate-limiter false-positives</strong> (shared-IP clinics, NAT). <strong>Mitigation:</strong> tune <code>max</code> conservatively, per-IP + per-email, return the standard <code>{ success:false, error }</code> body already used in the limiter file; note the single-instance in-memory caveat (worksheet 16 — counts don't aggregate across PM2 workers; acceptable for v1, Redis-back later).</li>
+      </ul>
+
+      <h3>Blast radius — concrete consumers</h3>
+      <ul>
+        <li><strong>Default-deny flip (<code>index.ts</code>):</strong> every router mounted at lines 162-210 — gbp, clarity, tasks, auth, otp, pms, pm, dashboard, onboarding, rag, agents, notifications, all <code>/api/admin/*</code>, settings, profile, leadgen, support, scraper, places, audit, imports, websites (public contact), user/website, locations, minds (admin + public), skills, internal, billing, telemetry. Each must be classified public or protected.</li>
+        <li><strong>Frontend:</strong> <code>frontend/src/api/settings.ts</code>, <code>agentOutputs.ts</code>, <code>AppLogs.tsx</code>, <code>RecommendationCard.tsx</code>, <code>AIDataInsightsList.tsx</code> (confirmed unauth callers) — plus any other module using bare <code>fetch('/api/...')</code> instead of <code>apiGet</code>/<code>apiPost</code> (T1 must grep the full set).</li>
+        <li><strong>JWT secret change:</strong> every token-issuing and token-verifying site — <code>auth.ts</code>, <code>billingGate.ts</code>, <code>AuthController.ts:15</code>, <code>PilotSessionService.ts:12</code>, <code>security-utils.ts:4</code>, <code>service.jwt-management.ts:14</code> (the six fallback sites the audit flagged). All must read the one config getter so sign and verify agree.</li>
+        <li><strong>Clarity token externalization:</strong> every consumer of <code>domainMappings.ts</code> (the Clarity data-fetch path) plus the Clarity integration upstream.</li>
+        <li><strong>Auth limiter:</strong> <code>routes/auth.ts</code>, <code>routes/auth-otp.ts</code>, <code>routes/auth-password.ts</code> and their real users (the login / verify / reset UI flows).</li>
+      </ul>
+
+      <h3>Pushback — default-deny vs per-router mounting</h3>
+      <ul>
+        <li><strong>Option A — App-level default-deny + explicit public allowlist (RECOMMENDED).</strong> Mount <code>authenticateToken</code> once in <code>index.ts</code> ahead of the router mounts; maintain a small, reviewed allowlist of public path-prefixes that skip it. <em>Pro:</em> fail-safe — a newly-added route is protected by default; kills the entire class (admin/settings, app-logs, agent-outputs, agent-insights, pms admin block, agentsV2 IDOR, minds public surface) in one change; future routers can't silently reintroduce the hole. <em>Con:</em> the allowlist is now a security-critical artifact; a misclassification breaks a public route; requires the T1 caller audit up front. <strong>Recommended precisely because the failure mode is "something breaks loudly in testing," not "something stays silently open in prod" — and the T1 caller-audit is the gate that converts the loud-break risk into a pre-flight checklist.</strong></li>
+        <li><strong>Option B — Per-router <code>router.use(auth)</code> on each unguarded file.</strong> Add the guard to <code>admin/settings.ts</code>, <code>appLogs.ts</code>, <code>adminAgentInsights.ts</code>, <code>admin/agentOutputs.ts</code>, <code>admin/imports.ts</code>, <code>admin/websites.ts</code> (hoist), the pms admin block, <code>agentsV2.ts</code>, and the minds public API individually. <em>Pro:</em> surgical, smaller blast radius per change, no allowlist artifact. <em>Con:</em> fail-open by default — this is exactly how the holes appeared; you are guaranteed to miss one now and the next new router reopens the class. It treats symptoms, not the root cause (no global guard).</li>
+        <li><strong>Verdict:</strong> Option A, gated by T1. Default-deny is the only option that closes the <em>class</em>; per-router patching is what produced the bug. Accept the allowlist as a deliberate, reviewed security surface and protect it with the smoke checks in Done.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <p>Commit before each unit; one concern per commit; per-unit checkpoint (<code>npm run build</code> + eslint + smoke) before moving on. There is no backend test suite — the gate is build + eslint + manual endpoint smoke. T1 gates T2.</p>
+
+      <article class="task-card">
+        <h3>T1: Frontend caller audit — the auth-flip safety gate <span class="badge">P1 · GATES T2</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Grep <code>frontend/</code> for every caller of the routes that will become protected (<code>/api/admin/settings</code>, <code>/api/admin/app-logs</code>, <code>/api/admin/pms-jobs</code>, <code>/api/admin/agent-outputs</code>, <code>/api/admin/agent-insights</code>, the <code>/api/pms</code> admin block, agentsV2, etc.) and confirm each sends an <code>Authorization</code> token. Already-found unauth callers: <code>api/settings.ts</code>, <code>api/agentOutputs.ts</code>, <code>pages/admin/AppLogs.tsx</code>, <code>components/Admin/RecommendationCard.tsx</code>, <code>pages/admin/AIDataInsightsList.tsx</code> (all bare <code>fetch</code>, no Bearer). Remediate them: migrate to <code>apiGet</code>/<code>apiPost</code> from <code>api/index.ts</code> (which attaches the token) or add the Bearer header. Produce the complete authenticated/unauthenticated caller list. If any legit caller can't authenticate, document the remediation here before the flip.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/api/settings.ts</code>, <code>frontend/src/api/agentOutputs.ts</code>, <code>frontend/src/pages/admin/AppLogs.tsx</code>, <code>frontend/src/components/Admin/RecommendationCard.tsx</code>, <code>frontend/src/pages/admin/AIDataInsightsList.tsx</code>, <code>frontend/src/api/index.ts</code> (reference), + any others the grep surfaces</dd></div>
+          <div><dt>Depends on</dt><dd>none (first)</dd></div>
+          <div><dt>Verify</dt><dd><code>cd frontend &amp;&amp; npx tsc -p tsconfig.app.json</code> clean; grep shows zero bare-<code>fetch</code> admin callers remaining; manual: the Settings, App Logs, Agent Outputs, and AI Data Insights pages still load and now send a Bearer token (Network tab)</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: App-level default-deny auth + public allowlist <span class="badge">P1</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Mount <code>authenticateToken</code> as an app-level guard in <code>src/index.ts</code> ahead of the router mounts (lines 162-210), with an explicit allowlist of public path-prefixes (auth, otp, auth-password, billing webhook, scraper, public imports, public contact, public skill/portal API, places/leadgen where key-gated, etc. — built from the audit's verified public-by-design set). For super-admin surfaces (settings, app-logs, agent-insights, agent-outputs, imports, admin/websites, pms admin block, agentsV2, minds public-admin), confirm the existing <code>superAdminMiddleware</code>/<code>requireRole</code> is layered (don't rely on <code>authenticateToken</code> alone — rbac default-allows orgless users). Hoist <code>admin/websites.ts</code> auth to a single <code>router.use(...adminWebsiteAuth)</code> and drop per-route spreads. Add auth to the six <code>routes/pms.ts:98-107</code> admin routes.</dd></div>
+          <div><dt>Files</dt><dd><code>src/index.ts</code>, <code>src/routes/pms.ts</code>, <code>src/routes/admin/websites.ts</code>, <code>src/routes/admin/settings.ts</code>, <code>src/routes/appLogs.ts</code>, <code>src/routes/adminAgentInsights.ts</code>, <code>src/routes/admin/agentOutputs.ts</code>, <code>src/routes/admin/imports.ts</code>, <code>src/routes/agentsV2.ts</code>, <code>src/routes/minds.public-api.ts</code> (verify intended exposure)</dd></div>
+          <div><dt>Depends on</dt><dd>T1 (must be green)</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run build</code>; smoke: unauthenticated <code>curl /api/admin/settings</code> → 401; same with a valid admin token → 200; each allowlisted public route → still reachable unauthenticated; admin UI pages load</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: JWT secret fail-closed via single config source <span class="badge">P1</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add one config getter that reads <code>JWT_SECRET</code> and <strong>throws at startup if unset</strong>. Replace every inline fallback so sign and verify use the same source: <code>auth.ts:13</code> (<code>"dev-secret-key-change-in-prod"</code>), <code>billingGate.ts:69</code> (<code>"secret"</code>), <code>AuthController.ts:15</code>, <code>PilotSessionService.ts:12</code>, <code>security-utils.ts:4</code>, <code>service.jwt-management.ts:14</code>. Delete all fallback literals. Confirm <code>JWT_SECRET</code> is set on dev + prod hosts before merge.</dd></div>
+          <div><dt>Files</dt><dd><code>src/config/</code> (new getter), <code>src/middleware/auth.ts</code>, <code>src/middleware/billingGate.ts</code>, <code>src/controllers/auth/AuthController.ts</code>, <code>src/controllers/auth/feature-services/PilotSessionService.ts</code>, <code>src/controllers/auth/feature-utils/security-utils.ts</code>, <code>src/controllers/auth-otp/feature-services/service.jwt-management.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run build</code>; boot with <code>JWT_SECRET</code> set → starts; boot with it unset → throws at startup; login issues a token and a protected route accepts it (sign/verify agree)</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Rotate + externalize the 16 Clarity JWT tokens</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Remove the 16 hardcoded <code>clarity_apiToken</code> JWTs from <code>domainMappings.ts</code>; source them from env/secret store (or a DB <code>website_integrations</code> row, which the Clarity architecture already models) via <code>config/</code>. <strong>Rotate all 16</strong> — they are in git history and must be treated as burned. Coordinate rotation with the Clarity integration owner.</dd></div>
+          <div><dt>Files</dt><dd><code>src/utils/core/domainMappings.ts</code>, <code>src/config/</code>, any Clarity-fetch consumer of <code>domainMappings</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run build</code>; grep shows zero JWT literals in <code>domainMappings.ts</code>; manual: a Clarity data fetch still succeeds with the rotated, env-sourced token</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Crypto RNG for OTP, temp-passwords, and OAuth state</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Replace <code>Math.random()</code> with <code>crypto.randomInt</code>/<code>randomBytes</code>: the 6-digit OTP in <code>service.otp-generation.ts:12</code>; the admin temp-password + its biased <code>.sort(() =&gt; Math.random()-0.5)</code> shuffle in <code>AdminOrganizationsController.ts:898-920</code>; the OAuth state string in <code>security-utils.ts</code> (<code>generateSecureState</code>). Keep output formats identical (still a 6-digit string, same temp-password shape).</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/auth-otp/feature-services/service.otp-generation.ts</code>, <code>src/controllers/admin-organizations/AdminOrganizationsController.ts</code>, <code>src/controllers/auth/feature-utils/security-utils.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run build</code> + eslint; manual: request an OTP → 6-digit code still issued and verifies; admin temp-password generation still works</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Stop logging one-time codes in plaintext</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Remove/redact the plaintext code log in <code>AuthPasswordController.ts:317</code> (<code>console.log(\`[AUTH] Verification code for ${email}: ${code}\`)</code>) and any sibling OTP code-value logs. Log "code sent to &lt;email&gt;" without the value. (Compounds with T2: the app-logs endpoint that exposed these is now authenticated.)</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/auth-password/AuthPasswordController.ts</code>, <code>src/controllers/auth-otp/feature-services/service.otp-generation.ts</code> (audit for code-value logs)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run build</code>; grep confirms no code-value interpolation in logs; manual: trigger a reset/OTP → logs show no code value</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: Gate or remove the tester@google.com bypass</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>util.test-account.ts</code>, gate <code>isTestAccount</code> behind a non-prod check (note: <code>NODE_ENV</code> is uniformly <code>production</code> in this repo per ecosystem config, so a NODE_ENV gate is effectively "always off" — use a dedicated explicit flag like <code>ALLOW_TEST_ACCOUNT</code>, or remove the bypass entirely). Confirm with owner whether the test account is still needed; default to removal.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/auth-otp/feature-utils/util.test-account.ts</code> (+ its callers in the OTP verify path)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run build</code>; manual: <code>tester@google.com</code> no longer bypasses OTP in a prod-config environment; normal OTP login unaffected</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T8: Wire a strict auth rate-limiter onto login / OTP / reset</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a strict auth limiter (per-IP + per-email, low <code>max</code>, standard <code>{ success:false, error }</code> body) to <code>publicRateLimiter.ts</code> — express-rate-limit is already a dependency, no new dep. Mount it on <code>routes/auth.ts</code> (register/login), <code>routes/auth-otp.ts</code> (OTP issue + verify — verify needs a per-email attempt cap so the 6-digit space isn't brute-forceable in the 10-min window), and <code>routes/auth-password.ts</code> (forgot/reset/resend). Note the single-instance in-memory caveat in a comment (Redis-back later).</dd></div>
+          <div><dt>Files</dt><dd><code>src/middleware/publicRateLimiter.ts</code>, <code>src/routes/auth.ts</code>, <code>src/routes/auth-otp.ts</code>, <code>src/routes/auth-password.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run build</code> + eslint; manual: rapid repeated login/OTP-verify attempts → 429 after the threshold; a normal single login still succeeds</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npm run build</code> (tsc) — zero errors from these changes</li>
+        <li><input type="checkbox" disabled> eslint clean on touched files (frontend: <code>tsc -p tsconfig.app.json</code> clean for T1)</li>
+        <li><input type="checkbox" disabled> T1: every frontend caller of a now-protected route sends a Bearer token; zero bare-<code>fetch</code> admin callers remain</li>
+        <li><input type="checkbox" disabled> Manual smoke: unauthenticated <code>curl /api/admin/settings</code> (and app-logs, agent-outputs, agent-insights, pms <code>DELETE /jobs/:id</code>) → <strong>401</strong></li>
+        <li><input type="checkbox" disabled> Manual smoke: same routes with a valid admin token → 200; admin UI pages (Settings, App Logs, Agent Outputs, AI Data Insights) load</li>
+        <li><input type="checkbox" disabled> Manual smoke: every allowlisted public route still reachable unauthenticated (login, OTP, reset, Stripe webhook, scraper, public contact, public skill API, public imports)</li>
+        <li><input type="checkbox" disabled> App boots with <code>JWT_SECRET</code> set; throws at startup when unset; a token signed at login verifies on a protected route</li>
+        <li><input type="checkbox" disabled> Zero Clarity JWT literals in <code>domainMappings.ts</code>; tokens rotated + env-sourced; a Clarity fetch still succeeds</li>
+        <li><input type="checkbox" disabled> OTP / temp-password / OAuth-state use crypto RNG; OTP still issues a working 6-digit code</li>
+        <li><input type="checkbox" disabled> No one-time code values appear in logs</li>
+        <li><input type="checkbox" disabled> <code>tester@google.com</code> bypass gated behind an explicit non-prod flag or removed</li>
+        <li><input type="checkbox" disabled> Auth limiter returns 429 on brute-force; single legitimate login/OTP unaffected</li>
+        <li><input type="checkbox" disabled> No regressions in unrelated flows (billing gate still works; healthy routers unchanged in behavior)</li>
+        <li><input type="checkbox" disabled> One concern per commit; committed before each unit; <code>JWT_SECRET</code> confirmed present on dev + prod before deploy</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

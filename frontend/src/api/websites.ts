@@ -241,7 +241,7 @@ export const fetchWebsites = async (
     }
   });
 
-  const response = await fetch(
+  const response = await adminFetch(
     `${API_BASE}${params.toString() ? `?${params.toString()}` : ""}`,
   );
 
@@ -271,7 +271,7 @@ export const fetchWebsiteDetail = async (
  * Get unique statuses for filter dropdown
  */
 export const fetchStatuses = async (): Promise<StatusesResponse> => {
-  const response = await fetch(`${API_BASE}/statuses`);
+  const response = await adminFetch(`${API_BASE}/statuses`);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch statuses: ${response.statusText}`);
@@ -287,7 +287,7 @@ export const createWebsite = async (data: {
   user_id?: string;
   hostname?: string;
 }): Promise<{ success: boolean; data: WebsiteProject }> => {
-  const response = await fetch(API_BASE, {
+  const response = await adminFetch(API_BASE, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -309,7 +309,7 @@ export const createWebsite = async (data: {
 export const deleteWebsite = async (
   id: string,
 ): Promise<{ success: boolean; message: string }> => {
-  const response = await fetch(`${API_BASE}/${id}`, {
+  const response = await adminFetch(`${API_BASE}/${id}`, {
     method: "DELETE",
   });
 
@@ -328,7 +328,7 @@ export const updateWebsite = async (
   id: string,
   data: Partial<WebsiteProject>,
 ): Promise<{ success: boolean; data: WebsiteProject }> => {
-  const response = await fetch(`${API_BASE}/${id}`, {
+  const response = await adminFetch(`${API_BASE}/${id}`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
@@ -411,7 +411,7 @@ export const startLayoutGeneration = async (
   projectId: string,
   slotValues: Record<string, string>,
 ): Promise<{ success: boolean }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/generate-layouts`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/generate-layouts`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ slotValues }),
@@ -424,7 +424,7 @@ export const startLayoutGeneration = async (
 export const fetchLayoutsStatus = async (
   projectId: string,
 ): Promise<{ success: boolean; data: LayoutsStatus }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/layouts-status`);
+  const response = await adminFetch(`${API_BASE}/${projectId}/layouts-status`);
   if (!response.ok) throw new Error(`Failed to fetch layouts status: ${response.statusText}`);
   return response.json();
 };
@@ -433,7 +433,7 @@ export const fetchLayoutsStatus = async (
 export const startPipeline = async (
   data: StartPipelineRequest,
 ): Promise<{ success: boolean; message: string }> => {
-  const response = await fetch(`${API_BASE}/start-pipeline`, {
+  const response = await adminFetch(`${API_BASE}/start-pipeline`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -468,7 +468,7 @@ export interface WebsiteStatusResponse {
 export const pollWebsiteStatus = async (
   id: string,
 ): Promise<WebsiteStatusResponse> => {
-  const response = await fetch(`${API_BASE}/${id}/status`);
+  const response = await adminFetch(`${API_BASE}/${id}/status`);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch website status: ${response.statusText}`);
@@ -505,7 +505,7 @@ export interface PageGenerationStatusItem {
 export const fetchPagesGenerationStatus = async (
   projectId: string,
 ): Promise<{ success: boolean; data: PageGenerationStatusItem[] }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/pages/generation-status`);
+  const response = await adminFetch(`${API_BASE}/${projectId}/pages/generation-status`);
   if (!response.ok) {
     throw new Error(`Failed to fetch page generation status: ${response.statusText}`);
   }
@@ -534,7 +534,7 @@ export const fetchPageProgressiveState = async (
   projectId: string,
   pageId: string,
 ): Promise<{ success: boolean; data: PageProgressiveState }> => {
-  const response = await fetch(
+  const response = await adminFetch(
     `${API_BASE}/${projectId}/pages/${pageId}/progressive-state`,
   );
   if (!response.ok) {
@@ -551,7 +551,7 @@ export const fetchPageProgressiveState = async (
 export const cancelGeneration = async (
   projectId: string,
 ): Promise<{ success: boolean; cancelledPages: number }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/cancel-generation`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/cancel-generation`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
   });
@@ -621,7 +621,7 @@ export const startIdentityWarmup = async (
   projectId: string,
   inputs: WarmupInputs,
 ): Promise<{ success: boolean }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/identity/warmup`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/identity/warmup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(inputs),
@@ -634,7 +634,7 @@ export const startIdentityWarmup = async (
 export const fetchIdentity = async (
   projectId: string,
 ): Promise<{ success: boolean; data: ProjectIdentity | null }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/identity`);
+  const response = await adminFetch(`${API_BASE}/${projectId}/identity`);
   if (!response.ok) throw new Error(`Failed to fetch identity: ${response.statusText}`);
   return response.json();
 };
@@ -646,7 +646,7 @@ export const fetchIdentityStatus = async (
   success: boolean;
   data: { warmup_status: WarmupStatus; warmed_up_at: string | null };
 }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/identity/status`);
+  const response = await adminFetch(`${API_BASE}/${projectId}/identity/status`);
   if (!response.ok) throw new Error(`Failed to fetch identity status: ${response.statusText}`);
   return response.json();
 };
@@ -656,7 +656,7 @@ export const updateIdentity = async (
   projectId: string,
   identity: ProjectIdentity,
 ): Promise<{ success: boolean; data: ProjectIdentity }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/identity`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/identity`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ identity }),
@@ -714,7 +714,7 @@ export const testUrl = async (
   projectId: string,
   url: string,
 ): Promise<{ success: boolean; data: BlockCheckResult }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/test-url`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/test-url`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url }),
@@ -771,7 +771,7 @@ export const fetchTemplatePageSlots = async (
   templateId: string,
   pageId: string,
 ): Promise<{ success: boolean; data: DynamicSlotDef[] }> => {
-  const response = await fetch(
+  const response = await adminFetch(
     `${API_BASE}/templates/${templateId}/pages/${pageId}/slots`,
   );
   if (!response.ok) throw new Error(`Failed to fetch slots: ${response.statusText}`);
@@ -789,7 +789,7 @@ export const fetchSlotPrefill = async (
   const qs = opts.layout
     ? "?layout=true"
     : `?templatePageId=${encodeURIComponent(opts.templatePageId || "")}`;
-  const response = await fetch(`${API_BASE}/${projectId}/slot-prefill${qs}`);
+  const response = await adminFetch(`${API_BASE}/${projectId}/slot-prefill${qs}`);
   if (!response.ok) throw new Error(`Failed to fetch slot prefill: ${response.statusText}`);
   return response.json();
 };
@@ -803,7 +803,7 @@ export const generateSlotValues = async (
   success: boolean;
   data: { values: Record<string, string> };
 }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/slot-generate`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/slot-generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ templatePageId, pageContext }),
@@ -822,7 +822,7 @@ export const createAllFromTemplate = async (
   projectId: string,
   data: CreateAllFromTemplateRequest,
 ): Promise<{ success: boolean; data: Array<{ id: string; path: string; templatePageId: string; generation_status: string }> }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/create-all-from-template`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/create-all-from-template`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -853,7 +853,7 @@ export interface ScrapeResponse {
  * Scrape a website for multi-page HTML content + images
  */
 export const scrapeWebsite = async (url: string): Promise<ScrapeResponse> => {
-  const response = await fetch(`${API_BASE}/scrape`, {
+  const response = await adminFetch(`${API_BASE}/scrape`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -1273,7 +1273,7 @@ export const connectDomain = async (
   projectId: string,
   domain: string,
 ): Promise<ConnectDomainResponse> => {
-  const response = await fetch(`${API_BASE}/${projectId}/connect-domain`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/connect-domain`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ domain }),
@@ -1291,7 +1291,7 @@ export const connectDomain = async (
 export const verifyDomainAdmin = async (
   projectId: string,
 ): Promise<VerifyDomainResponse> => {
-  const response = await fetch(`${API_BASE}/${projectId}/verify-domain`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/verify-domain`, {
     method: "POST",
   });
 
@@ -1307,7 +1307,7 @@ export const verifyDomainAdmin = async (
 export const disconnectDomain = async (
   projectId: string,
 ): Promise<{ success: boolean }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/disconnect-domain`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/disconnect-domain`, {
     method: "DELETE",
   });
 
@@ -1331,7 +1331,7 @@ export const linkWebsiteToOrganization = async (
   organizationId: number | null,
 ): Promise<{ success: boolean; data: WebsiteProject }> => {
   const token = localStorage.getItem("auth_token");
-  const response = await fetch(`${API_BASE}/${projectId}/link-organization`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/link-organization`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
@@ -1376,7 +1376,7 @@ export interface RecipientsResponse {
 export const fetchRecipients = async (
   projectId: string,
 ): Promise<RecipientsResponse> => {
-  const response = await fetch(`${API_BASE}/${projectId}/recipients`);
+  const response = await adminFetch(`${API_BASE}/${projectId}/recipients`);
   if (!response.ok) throw new Error("Failed to fetch recipients");
   return response.json();
 };
@@ -1385,7 +1385,7 @@ export const updateRecipients = async (
   projectId: string,
   recipients: string[],
 ): Promise<{ success: boolean; data: { recipients: string[] } }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/recipients`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/recipients`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ recipients }),
@@ -1425,7 +1425,7 @@ export interface FormRecipientCatalogResponse {
 export const fetchFormRecipientCatalog = async (
   projectId: string,
 ): Promise<FormRecipientCatalogResponse> => {
-  const response = await fetch(`${API_BASE}/${projectId}/forms/catalog`);
+  const response = await adminFetch(`${API_BASE}/${projectId}/forms/catalog`);
   if (!response.ok) throw new Error("Failed to fetch form catalog");
   return response.json();
 };
@@ -1445,7 +1445,7 @@ export const updateFormRecipientRule = async (
     updated_at: string;
   };
 }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/forms/recipients`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/forms/recipients`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -1478,7 +1478,7 @@ export const updateFormCatalogPreferences = async (
     updated_at: string;
   }>;
 }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/forms/preferences`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/forms/preferences`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -1542,7 +1542,7 @@ export const fetchFormSubmissions = async (
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (filter) params.set("filter", filter);
   if (formName) params.set("formName", formName);
-  const response = await fetch(`${API_BASE}/${projectId}/form-submissions?${params}`);
+  const response = await adminFetch(`${API_BASE}/${projectId}/form-submissions?${params}`);
   if (!response.ok) throw new Error("Failed to fetch form submissions");
   return response.json();
 };
@@ -1551,7 +1551,7 @@ export const markAllFormSubmissionsRead = async (
   projectId: string,
   formName?: string,
 ): Promise<{ success: boolean; data?: { updated: number }; updated?: number }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/form-submissions/mark-all-read`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/form-submissions/mark-all-read`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ formName }),
@@ -1564,7 +1564,7 @@ export const fetchFormSubmission = async (
   projectId: string,
   submissionId: string,
 ): Promise<{ success: boolean; data: FormSubmission }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/form-submissions/${submissionId}`);
+  const response = await adminFetch(`${API_BASE}/${projectId}/form-submissions/${submissionId}`);
   if (!response.ok) throw new Error("Failed to fetch submission");
   return response.json();
 };
@@ -1574,7 +1574,7 @@ export const toggleFormSubmissionRead = async (
   submissionId: string,
   is_read: boolean,
 ): Promise<{ success: boolean }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/form-submissions/${submissionId}/read`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/form-submissions/${submissionId}/read`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ is_read }),
@@ -1587,7 +1587,7 @@ export const deleteFormSubmission = async (
   projectId: string,
   submissionId: string,
 ): Promise<{ success: boolean }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/form-submissions/${submissionId}`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/form-submissions/${submissionId}`, {
     method: "DELETE",
   });
   if (!response.ok) throw new Error("Failed to delete submission");
@@ -1598,7 +1598,7 @@ export const sendFormSubmissionEmail = async (
   projectId: string,
   submissionId: string,
 ): Promise<{ success: boolean }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/form-submissions/${submissionId}/send-email`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/form-submissions/${submissionId}/send-email`, {
     method: "POST",
   });
   if (!response.ok) throw new Error("Failed to send submission");
@@ -1609,7 +1609,7 @@ export const bulkSendFormSubmissionsEmail = async (
   projectId: string,
   submissionIds: string[],
 ): Promise<{ success: boolean; data: { sent: number; skipped: number } }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/form-submissions/bulk/send-email`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/form-submissions/bulk/send-email`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ submissionIds }),
@@ -1622,7 +1622,7 @@ export const bulkDeleteFormSubmissions = async (
   projectId: string,
   submissionIds: string[],
 ): Promise<{ success: boolean }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/form-submissions/bulk`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/form-submissions/bulk`, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ submissionIds }),
@@ -1636,7 +1636,7 @@ export const bulkToggleFormSubmissionsRead = async (
   submissionIds: string[],
   is_read: boolean,
 ): Promise<{ success: boolean }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/form-submissions/bulk/read`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/form-submissions/bulk/read`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ submissionIds, is_read }),
@@ -1651,7 +1651,7 @@ export const bulkToggleFormSubmissionsRead = async (
 export const submitContactForm = async (
   data: ContactFormData,
 ): Promise<{ success: boolean }> => {
-  const response = await fetch("/api/websites/contact", {
+  const response = await adminFetch("/api/websites/contact", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -1679,7 +1679,7 @@ export const updatePageSeo = async (
   pageId: string,
   seoData: SeoData,
 ): Promise<{ success: boolean; data: WebsitePage }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/pages/${pageId}/seo`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/pages/${pageId}/seo`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ seo_data: seoData }),
@@ -1699,7 +1699,7 @@ export const updatePostSeo = async (
   postId: string,
   seoData: SeoData,
 ): Promise<{ success: boolean; data: unknown }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/posts/${postId}/seo`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/posts/${postId}/seo`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ seo_data: seoData }),
@@ -1723,7 +1723,7 @@ export const generateSeo = async (
   const path = entityType === "page"
     ? `${API_BASE}/${projectId}/pages/${entityId}/seo/generate`
     : `${API_BASE}/${projectId}/posts/${entityId}/seo/generate`;
-  const response = await fetch(path, {
+  const response = await adminFetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -1747,7 +1747,7 @@ export const generateAllSeo = async (
   const path = entityType === "page"
     ? `${API_BASE}/${projectId}/pages/${entityId}/seo/generate-all`
     : `${API_BASE}/${projectId}/posts/${entityId}/seo/generate-all`;
-  const response = await fetch(path, {
+  const response = await adminFetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -1771,7 +1771,7 @@ export const analyzeSeo = async (
   const path = entityType === "page"
     ? `${API_BASE}/${projectId}/pages/${entityId}/seo/analyze`
     : `${API_BASE}/${projectId}/posts/${entityId}/seo/analyze`;
-  const response = await fetch(path, {
+  const response = await adminFetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -1790,7 +1790,7 @@ export const aiGeneratePostContent = async (
   projectId: string,
   data: { post_type_id: string; title: string; reference_url?: string; reference_content?: string },
 ): Promise<{ success: boolean; data: { content: string } }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/posts/ai-generate`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/posts/ai-generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -1822,7 +1822,7 @@ export const startBulkSeoGenerate = async (
   postTypeId?: string,
   pagePaths?: string[],
 ): Promise<{ success: boolean; job_id: string; already_active?: boolean }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/seo/bulk-generate`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/seo/bulk-generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ entity_type: entityType, post_type_id: postTypeId, page_paths: pagePaths }),
@@ -1850,7 +1850,7 @@ export const getBulkSeoStatus = async (
   projectId: string,
   jobId: string,
 ): Promise<{ success: boolean; data: BulkSeoStatus }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/seo/bulk-generate/${jobId}/status`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/seo/bulk-generate/${jobId}/status`, {
     headers: { "Cache-Control": "no-cache" },
   });
   if (!response.ok) {
@@ -1870,7 +1870,7 @@ export const getActiveBulkSeoJob = async (
 ): Promise<{ success: boolean; data: BulkSeoStatus | null }> => {
   const params = new URLSearchParams({ entity_type: entityType });
   if (postTypeId) params.set("post_type_id", postTypeId);
-  const response = await fetch(`${API_BASE}/${projectId}/seo/bulk-generate/active?${params.toString()}`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/seo/bulk-generate/active?${params.toString()}`, {
     headers: { "Cache-Control": "no-cache" },
   });
   if (!response.ok) {
@@ -1892,7 +1892,7 @@ export const fetchAllSeoMeta = async (
     posts: Array<{ id: string; title: string; slug: string; meta_title: string | null; meta_description: string | null }>;
   };
 }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/seo/all-meta`);
+  const response = await adminFetch(`${API_BASE}/${projectId}/seo/all-meta`);
   if (!response.ok) throw new Error("Failed to fetch SEO meta");
   return response.json();
 };
@@ -1948,7 +1948,7 @@ export const createAiCommandBatch = async (
   projectId: string,
   data: { prompt?: string; targets?: AiCommandTargets; batch_type?: "ai_editor" | "ui_checker" | "link_checker" },
 ): Promise<{ success: boolean; data: AiCommandBatch }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/ai-command`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/ai-command`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -1961,7 +1961,7 @@ export const fetchAiCommandBatch = async (
   projectId: string,
   batchId: string,
 ): Promise<{ success: boolean; data: AiCommandBatch }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/ai-command/${batchId}`);
+  const response = await adminFetch(`${API_BASE}/${projectId}/ai-command/${batchId}`);
   if (!response.ok) throw new Error("Failed to fetch AI command batch");
   return response.json();
 };
@@ -1976,7 +1976,7 @@ export const fetchAiCommandRecommendations = async (
   if (filters?.target_type) params.append("target_type", filters.target_type);
   const qs = params.toString() ? `?${params.toString()}` : "";
 
-  const response = await fetch(
+  const response = await adminFetch(
     `${API_BASE}/${projectId}/ai-command/${batchId}/recommendations${qs}`,
   );
   if (!response.ok) throw new Error("Failed to fetch recommendations");
@@ -1990,7 +1990,7 @@ export const updateAiCommandRecommendation = async (
   status: "approved" | "rejected",
   referenceData?: { reference_url?: string; reference_content?: string },
 ): Promise<{ success: boolean; data: AiCommandRecommendation }> => {
-  const response = await fetch(
+  const response = await adminFetch(
     `${API_BASE}/${projectId}/ai-command/${batchId}/recommendations/${recId}`,
     {
       method: "PATCH",
@@ -2008,7 +2008,7 @@ export const bulkUpdateAiCommandRecommendations = async (
   status: "approved" | "rejected",
   filters?: { target_type?: string },
 ): Promise<{ success: boolean; data: { updated: number } }> => {
-  const response = await fetch(
+  const response = await adminFetch(
     `${API_BASE}/${projectId}/ai-command/${batchId}/recommendations/bulk`,
     {
       method: "PATCH",
@@ -2024,7 +2024,7 @@ export const executeAiCommandBatch = async (
   projectId: string,
   batchId: string,
 ): Promise<{ success: boolean; data: { status: string } }> => {
-  const response = await fetch(
+  const response = await adminFetch(
     `${API_BASE}/${projectId}/ai-command/${batchId}/execute`,
     { method: "POST" },
   );
@@ -2050,7 +2050,7 @@ export interface Redirect {
 export const listRedirects = async (
   projectId: string,
 ): Promise<{ success: boolean; data: Redirect[] }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/redirects`);
+  const response = await adminFetch(`${API_BASE}/${projectId}/redirects`);
   if (!response.ok) throw new Error("Failed to list redirects");
   return response.json();
 };
@@ -2059,7 +2059,7 @@ export const createRedirect = async (
   projectId: string,
   data: { from_path: string; to_path: string; type?: number },
 ): Promise<{ success: boolean; data: Redirect }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/redirects`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/redirects`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -2076,7 +2076,7 @@ export const updateRedirect = async (
   redirectId: string,
   data: Partial<{ from_path: string; to_path: string; type: number }>,
 ): Promise<{ success: boolean; data: Redirect }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/redirects/${redirectId}`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/redirects/${redirectId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -2089,7 +2089,7 @@ export const deleteRedirect = async (
   projectId: string,
   redirectId: string,
 ): Promise<{ success: boolean }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/redirects/${redirectId}`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/redirects/${redirectId}`, {
     method: "DELETE",
   });
   if (!response.ok) throw new Error("Failed to delete redirect");
@@ -2099,7 +2099,7 @@ export const deleteRedirect = async (
 export const listAiCommandBatches = async (
   projectId: string,
 ): Promise<{ success: boolean; data: AiCommandBatch[] }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/ai-command`);
+  const response = await adminFetch(`${API_BASE}/${projectId}/ai-command`);
   if (!response.ok) throw new Error("Failed to list AI command batches");
   return response.json();
 };
@@ -2109,7 +2109,7 @@ export const renameAiCommandBatch = async (
   batchId: string,
   summary: string,
 ): Promise<{ success: boolean; data: AiCommandBatch }> => {
-  const response = await fetch(
+  const response = await adminFetch(
     `${API_BASE}/${projectId}/ai-command/${batchId}`,
     {
       method: "PATCH",
@@ -2125,7 +2125,7 @@ export const deleteAiCommandBatch = async (
   projectId: string,
   batchId: string,
 ): Promise<{ success: boolean }> => {
-  const response = await fetch(
+  const response = await adminFetch(
     `${API_BASE}/${projectId}/ai-command/${batchId}`,
     { method: "DELETE" },
   );
@@ -2171,7 +2171,7 @@ export interface ProjectCostsResponse {
 export const fetchProjectCosts = async (
   projectId: string,
 ): Promise<ProjectCostsResponse> => {
-  const response = await fetch(`${API_BASE}/${projectId}/costs`);
+  const response = await adminFetch(`${API_BASE}/${projectId}/costs`);
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(error.message || "Failed to fetch project costs");
@@ -2236,7 +2236,7 @@ export const resyncProjectIdentityList = async (
     stale_count: number;
   };
 }> => {
-  const response = await fetch(
+  const response = await adminFetch(
     `${API_BASE}/${projectId}/identity/resync-list`,
     {
       method: "POST",
@@ -2265,7 +2265,7 @@ export const addProjectLocation = async (
     added: ProjectIdentityLocation;
   };
 }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/locations`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/locations`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ place_id: placeId }),
@@ -2288,7 +2288,7 @@ export const setPrimaryLocation = async (
   success: boolean;
   data: { identity: ProjectIdentity; primary_place_id: string };
 }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/locations/primary`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/locations/primary`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ place_id: placeId }),
@@ -2311,7 +2311,7 @@ export const removeProjectLocation = async (
   success: boolean;
   data: { locations: ProjectIdentityLocation[] };
 }> => {
-  const response = await fetch(
+  const response = await adminFetch(
     `${API_BASE}/${projectId}/locations/${encodeURIComponent(placeId)}`,
     { method: "DELETE" },
   );
@@ -2333,7 +2333,7 @@ export const resyncProjectLocation = async (
     locations: ProjectIdentityLocation[];
   };
 }> => {
-  const response = await fetch(
+  const response = await adminFetch(
     `${API_BASE}/${projectId}/locations/${encodeURIComponent(placeId)}/resync`,
     { method: "POST" },
   );
@@ -2418,7 +2418,7 @@ export const startPostImport = async (
     overwrite?: boolean;
   },
 ): Promise<{ success: boolean; data: { jobId: string; total: number } }> => {
-  const response = await fetch(`${API_BASE}/${projectId}/posts/import`, {
+  const response = await adminFetch(`${API_BASE}/${projectId}/posts/import`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(args),
@@ -2435,7 +2435,7 @@ export const fetchPostImportStatus = async (
   projectId: string,
   jobId: string,
 ): Promise<PostImportStatusResponse> => {
-  const response = await fetch(
+  const response = await adminFetch(
     `${API_BASE}/${projectId}/posts/import/${jobId}`,
   );
   if (!response.ok) {
@@ -2463,7 +2463,7 @@ export const patchIdentitySlice = async (
   path: string,
   value: unknown,
 ): Promise<{ success: boolean; data: ProjectIdentity }> => {
-  const response = await fetch(
+  const response = await adminFetch(
     `${API_BASE}/${projectId}/identity/slice`,
     {
       method: "PATCH",

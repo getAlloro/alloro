@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import type { AgentRecommendation } from "../../types/agentInsights";
 import { AlertModal } from "@/components/ui/AlertModal";
+import { getCommonHeaders } from "../../api";
 
 interface Props {
   recommendation: AgentRecommendation;
@@ -143,7 +144,7 @@ export default function RecommendationCard({
         `/api/admin/agent-insights/recommendations/${recommendation.id}`,
         {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...getCommonHeaders() },
           body: JSON.stringify({ status: newStatus }),
         }
       );

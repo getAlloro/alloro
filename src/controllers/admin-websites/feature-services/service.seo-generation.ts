@@ -6,15 +6,12 @@
  * Uses CroSEO mind skills for enhanced context.
  */
 
-import { db } from "../../../database/connection";
 import { LocationModel } from "../../../models/LocationModel";
 import { OrganizationModel } from "../../../models/OrganizationModel";
+import { ProjectModel } from "../../../models/website-builder/ProjectModel";
 import { loadPrompt } from "../../../agents/service.prompt-loader";
 import { runAgent } from "../../../agents/service.llm-runner";
-
-const PAGES_TABLE = "website_builder.pages";
-const POSTS_TABLE = "website_builder.posts";
-const PROJECTS_TABLE = "website_builder.projects";
+import logger from "../../../lib/logger";
 
 const MODEL = "claude-sonnet-4-6";
 const MAX_TOKENS = 4096;
@@ -78,14 +75,14 @@ async function fetchMindSkillCreator(): Promise<string> {
       }
     );
     if (!res.ok) {
-      console.warn("[SEO] Mind skill creator returned", res.status);
+      logger.warn({ detail: res.status }, "[SEO] Mind skill creator returned");
       return "";
     }
     const data = await res.json();
     cachedCreatorContext = data.response || data.result || data.output || "";
     return cachedCreatorContext as string;
   } catch (err) {
-    console.warn("[SEO] Failed to fetch mind skill creator context:", err);
+    logger.warn({ err: err }, "[SEO] Failed to fetch mind skill creator context:");
     return "";
   }
 }
@@ -108,14 +105,14 @@ async function fetchMindSkillValidator(): Promise<string> {
       }
     );
     if (!res.ok) {
-      console.warn("[SEO] Mind skill validator returned", res.status);
+      logger.warn({ detail: res.status }, "[SEO] Mind skill validator returned");
       return "";
     }
     const data = await res.json();
     cachedValidatorContext = data.response || data.result || data.output || "";
     return cachedValidatorContext as string;
   } catch (err) {
-    console.warn("[SEO] Failed to fetch mind skill validator context:", err);
+    logger.warn({ err: err }, "[SEO] Failed to fetch mind skill validator context:");
     return "";
   }
 }
@@ -420,7 +417,7 @@ Provide a brief insight about this generated "${section}" section. Return ONLY v
     const parsed = result.parsed || parseGeneratedSeo(result.raw, section);
     return (parsed.insight as string) || "";
   } catch (err) {
-    console.warn("[SEO] Failed to generate insight:", err);
+    logger.warn({ err: err }, "[SEO] Failed to generate insight:");
     return "";
   }
 }
@@ -524,10 +521,7 @@ async function fetchBusinessData(
   projectId: string,
   locationContext: string | null
 ): Promise<Record<string, unknown> | null> {
-  const project = await db(PROJECTS_TABLE)
-    .where({ id: projectId })
-    .select("organization_id")
-    .first();
+  const project = await ProjectModel.findOrganizationIdById(projectId);
   if (!project?.organization_id) return null;
 
   const orgId = project.organization_id;
@@ -666,10 +660,7 @@ function parseGeneratedSeo(
   try {
     return JSON.parse(cleaned);
   } catch {
-    console.error(
-      `[SEO Generation] Failed to parse response for section "${section}":`,
-      cleaned.slice(0, 200)
-    );
+    logger.error({ err: cleaned.slice(0, 200) }, `[SEO Generation] Failed to parse response for section "${section}":`);
     return {};
   }
 }

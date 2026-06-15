@@ -4,6 +4,7 @@
  */
 
 import { runAgent, type LlmRunnerOptions } from "../../../agents/service.llm-runner";
+import logger from "../../../lib/logger";
 
 const DEFAULT_MAX_RETRIES = 3;
 
@@ -93,32 +94,32 @@ export async function parseAgentJson<T = any>(
   const initial = extractJsonFromText(rawText);
   if (initial !== null) return initial as T;
 
-  console.log(`[PMS-${label}] Initial JSON parse failed, starting retries...`);
+  logger.info(`[PMS-${label}] Initial JSON parse failed, starting retries...`);
 
   // Retry loop
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    console.log(`[PMS-${label}] JSON parse retry ${attempt}/${maxRetries}...`);
+    logger.info(`[PMS-${label}] JSON parse retry ${attempt}/${maxRetries}...`);
 
     const retryResult = await runAgent(agentOptions);
 
-    console.log(
+    logger.info(
       `[PMS-${label}] Retry ${attempt} response: ${retryResult.inputTokens} in / ${retryResult.outputTokens} out`
     );
 
     // Try runAgent's built-in parsed result first
     if (retryResult.parsed !== null) {
-      console.log(`[PMS-${label}] Retry ${attempt} parsed via runAgent`);
+      logger.info(`[PMS-${label}] Retry ${attempt} parsed via runAgent`);
       return retryResult.parsed as T;
     }
 
     // Try our extraction strategies
     const extracted = extractJsonFromText(retryResult.raw);
     if (extracted !== null) {
-      console.log(`[PMS-${label}] Retry ${attempt} parsed via extraction`);
+      logger.info(`[PMS-${label}] Retry ${attempt} parsed via extraction`);
       return extracted as T;
     }
 
-    console.log(
+    logger.info(
       `[PMS-${label}] Retry ${attempt} failed. Raw (first 500 chars): ${retryResult.raw.substring(0, 500)}`
     );
   }

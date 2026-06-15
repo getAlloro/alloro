@@ -150,6 +150,62 @@ export class TaskModel extends BaseModel {
     await this.table(trx).insert(serialized);
   }
 
+  /**
+   * Insert a single task row verbatim and return its id. The agent
+   * task-creator constructs each row with its own created_at/updated_at and an
+   * already-stringified metadata field, so this insert is a passthrough (no
+   * timestamp injection, no JSON re-serialization) to preserve the original
+   * inline db("tasks").insert(taskData).returning("id") calls.
+   */
+  static async insertReturningId(
+    data: Record<string, unknown>,
+    trx?: QueryContext
+  ): Promise<number> {
+    const [row] = await this.table(trx).insert(data).returning("id");
+    return typeof row === "object" ? row.id : row;
+  }
+
+  /**
+   * Delete tasks for an organization within a created_at window, restricted to
+   * a set of agent types and optionally a location. Mirrors the inline tasks
+   * delete in pms-retry.cleanupMonthlyRunData's transaction. Trx-aware.
+   */
+  static async deleteByOrgAgentTypesInWindow(
+    organizationId: number,
+    agentTypes: string[],
+    createdAtStart: string,
+    createdAtEnd: string,
+    locationId?: number | null,
+    trx?: QueryContext
+  ): Promise<number> {
+    const query = this.table(trx)
+      .where({ organization_id: organizationId })
+      .whereIn("agent_type", agentTypes)
+      .whereBetween("created_at", [createdAtStart, createdAtEnd]);
+    if (locationId) {
+      query.where({ location_id: locationId });
+    }
+    return query.del();
+  }
+
+  /**
+   * Fetch the `category` column for tasks belonging to an organization created
+   * at or after a cutoff. Used to count user/alloro tasks created during a
+   * monthly agent run. Mirrors the inline
+   * db("tasks").where("organization_id", id).where("created_at", ">=", cutoff)
+   * .select("category") query.
+   */
+  static async findCategoriesByOrgSince(
+    organizationId: number,
+    createdAtFrom: Date,
+    trx?: QueryContext
+  ): Promise<Array<{ category: string }>> {
+    return this.table(trx)
+      .where("organization_id", organizationId)
+      .where("created_at", ">=", createdAtFrom)
+      .select("category");
+  }
+
   static async listAdmin(
     filters: TaskAdminFilters,
     pagination: PaginationParams,
@@ -232,5 +288,46 @@ export class TaskModel extends BaseModel {
       .where({ id, organization_id: organizationId })
       .first();
     return row ? this.deserializeJsonFields(row) : undefined;
+  }
+
+  /**
+   * Approved, non-archived RANKING-agent tasks tied to a specific practice
+   * ranking id (matched on metadata->>'practice_ranking_id'), oldest-first.
+   * Raw rows (caller's formatter parses metadata).
+   */
+  static async findApprovedRankingTasksForRanking(
+    practiceRankingId: string,
+    trx?: QueryContext
+  ): Promise<ITask[]> {
+    return this.table(trx)
+      .where({
+        agent_type: "RANKING",
+        is_approved: true,
+      })
+      .whereRaw("metadata::jsonb->>'practice_ranking_id' = ?", [
+        practiceRankingId,
+      ])
+      .whereNot({ status: "archived" })
+      .orderBy("created_at", "asc")
+      .select("*");
+  }
+
+  /**
+   * All approved, non-archived RANKING-agent tasks for an organization
+   * (across locations), oldest-first. Raw rows.
+   */
+  static async findApprovedRankingTasksForOrganization(
+    organizationId: number,
+    trx?: QueryContext
+  ): Promise<ITask[]> {
+    return this.table(trx)
+      .where({
+        organization_id: organizationId,
+        agent_type: "RANKING",
+        is_approved: true,
+      })
+      .whereNot({ status: "archived" })
+      .orderBy("created_at", "asc")
+      .select("*");
   }
 }

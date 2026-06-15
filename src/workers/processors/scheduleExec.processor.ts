@@ -12,6 +12,7 @@ import { Job } from "bullmq";
 import { CronExpressionParser } from "cron-parser";
 import { ScheduleModel, ScheduleRunModel, ISchedule } from "../../models/ScheduleModel";
 import { getAgentHandler } from "../../services/agentRegistry";
+import logger from "../../lib/logger";
 
 interface ScheduleExecJobData {
   scheduleId: number;
@@ -39,7 +40,7 @@ export async function processScheduleExec(job: Job<ScheduleExecJobData>): Promis
 
   const schedule = await ScheduleModel.findById(scheduleId);
   if (!schedule) {
-    console.warn(`[SCHEDULE-EXEC] Schedule ${scheduleId} not found — skipping`);
+    logger.warn(`[SCHEDULE-EXEC] Schedule ${scheduleId} not found — skipping`);
     return;
   }
 
@@ -47,17 +48,17 @@ export async function processScheduleExec(job: Job<ScheduleExecJobData>): Promis
   // may lag, so guard again to keep at-most-one active run per schedule.
   const isRunning = await ScheduleRunModel.hasActiveRun(scheduleId);
   if (isRunning) {
-    console.log(`[SCHEDULE-EXEC] Schedule ${scheduleId} already running — skipping`);
+    logger.info(`[SCHEDULE-EXEC] Schedule ${scheduleId} already running — skipping`);
     return;
   }
 
   const agent = getAgentHandler(schedule.agent_key);
   if (!agent) {
-    console.error(`[SCHEDULE-EXEC] No handler registered for agent_key "${schedule.agent_key}"`);
+    logger.error(`[SCHEDULE-EXEC] No handler registered for agent_key "${schedule.agent_key}"`);
     return;
   }
 
-  console.log(`[SCHEDULE-EXEC] Executing "${schedule.agent_key}" (${agent.displayName})`);
+  logger.info(`[SCHEDULE-EXEC] Executing "${schedule.agent_key}" (${agent.displayName})`);
 
   const run = await ScheduleRunModel.createRun(schedule.id);
 
@@ -72,9 +73,9 @@ export async function processScheduleExec(job: Job<ScheduleExecJobData>): Promis
       next_run_at: nextRunAt,
     });
 
-    console.log(`[SCHEDULE-EXEC] "${schedule.agent_key}" completed. Next run: ${nextRunAt.toISOString()}`);
+    logger.info(`[SCHEDULE-EXEC] "${schedule.agent_key}" completed. Next run: ${nextRunAt.toISOString()}`);
   } catch (error: any) {
-    console.error(`[SCHEDULE-EXEC] "${schedule.agent_key}" failed:`, error.message);
+    logger.error({ err: error.message }, `[SCHEDULE-EXEC] "${schedule.agent_key}" failed:`);
     await ScheduleRunModel.failRun(run.id, error.message || String(error));
 
     // Still advance next_run_at so we don't retry immediately.

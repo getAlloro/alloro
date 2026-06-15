@@ -14,6 +14,7 @@
 import { randomUUID } from "crypto";
 import { AuditProcessModel } from "../../../models/AuditProcessModel";
 import { getAuditQueue } from "../../../workers/queues";
+import logger from "../../../lib/logger";
 
 export async function triggerAuditWorkflow(
   domain: string,
@@ -36,7 +37,7 @@ export async function triggerAuditWorkflow(
     practiceSearchString,
   });
 
-  console.log(`[Audit] Enqueued audit job ${auditId} for domain=${domain}`);
+  logger.info(`[Audit] Enqueued audit job ${auditId} for domain=${domain}`);
 
   return auditId;
 }

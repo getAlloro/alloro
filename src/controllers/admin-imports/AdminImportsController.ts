@@ -5,6 +5,7 @@ import { groupImportsByFilename } from "./feature-utils/importGrouper";
 import * as importS3Service from "./feature-services/ImportS3Service";
 import * as importVersionService from "./feature-services/ImportVersionService";
 import * as importStatusService from "./feature-services/ImportStatusService";
+import logger from "../../lib/logger";
 
 // =====================================================================
 // GET /imports — List all imports
@@ -17,7 +18,7 @@ export async function listImports(
   try {
     const { type, status, search } = req.query;
 
-    console.log("[Admin Imports] Fetching imports with filters:", req.query);
+    logger.info({ detail: req.query }, "[Admin Imports] Fetching imports with filters:");
 
     const imports = await AlloroImportModel.listWithFilters({
       type: type as string | undefined,
@@ -27,11 +28,11 @@ export async function listImports(
 
     const result = groupImportsByFilename(imports);
 
-    console.log(`[Admin Imports] Found ${result.length} unique imports`);
+    logger.info(`[Admin Imports] Found ${result.length} unique imports`);
 
     return res.json({ success: true, data: result });
   } catch (error: any) {
-    console.error("[Admin Imports] Error fetching imports:", error);
+    logger.error({ err: error }, "[Admin Imports] Error fetching imports:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -88,7 +89,7 @@ export async function createImport(
       mimeType
     );
 
-    console.log(`[Admin Imports] Creating import: ${filename}`);
+    logger.info(`[Admin Imports] Creating import: ${filename}`);
 
     const record = await importVersionService.createFirstVersion({
       filename,
@@ -102,11 +103,11 @@ export async function createImport(
       text_content: isTextType(type) ? buffer.toString("utf-8") : null,
     });
 
-    console.log(`[Admin Imports] Created import ID: ${record.id}`);
+    logger.info(`[Admin Imports] Created import ID: ${record.id}`);
 
     return res.status(201).json({ success: true, data: record });
   } catch (error: any) {
-    console.error("[Admin Imports] Error creating import:", error);
+    logger.error({ err: error }, "[Admin Imports] Error creating import:");
     return res.status(500).json({
       success: false,
       error: "CREATE_ERROR",
@@ -126,7 +127,7 @@ export async function getImport(
   try {
     const { id } = req.params;
 
-    console.log(`[Admin Imports] Fetching import ID: ${id}`);
+    logger.info(`[Admin Imports] Fetching import ID: ${id}`);
 
     const record = await AlloroImportModel.findById(id);
 
@@ -146,7 +147,7 @@ export async function getImport(
       data: { ...record, versions },
     });
   } catch (error: any) {
-    console.error("[Admin Imports] Error fetching import:", error);
+    logger.error({ err: error }, "[Admin Imports] Error fetching import:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -204,7 +205,7 @@ export async function createNewVersion(
       mimeType as string
     );
 
-    console.log(
+    logger.info(
       `[Admin Imports] Creating version ${newVersion} for: ${existing.filename}`
     );
 
@@ -220,13 +221,13 @@ export async function createNewVersion(
       buffer
     );
 
-    console.log(
+    logger.info(
       `[Admin Imports] Created and published version ${newVersion}, ID: ${record.id}`
     );
 
     return res.status(201).json({ success: true, data: record });
   } catch (error: any) {
-    console.error("[Admin Imports] Error creating new version:", error);
+    logger.error({ err: error }, "[Admin Imports] Error creating new version:");
     return res.status(500).json({
       success: false,
       error: "CREATE_ERROR",
@@ -257,7 +258,7 @@ export async function updateStatus(
 
     const result = await importStatusService.changeStatus(id, status);
 
-    console.log(
+    logger.info(
       `[Admin Imports] Updated status of ${result.updated.filename} v${result.updated.version} to ${status}`
     );
 
@@ -274,7 +275,7 @@ export async function updateStatus(
         message: "Import not found",
       });
     }
-    console.error("[Admin Imports] Error updating status:", error);
+    logger.error({ err: error }, "[Admin Imports] Error updating status:");
     return res.status(500).json({
       success: false,
       error: "UPDATE_ERROR",
@@ -314,7 +315,7 @@ export async function deleteImport(
     // Delete all versions from database
     await AlloroImportModel.deleteByFilename(record.filename);
 
-    console.log(
+    logger.info(
       `[Admin Imports] Deleted all ${allVersions.length} versions of ${record.filename}`
     );
 
@@ -324,7 +325,7 @@ export async function deleteImport(
       data: { id, filename: record.filename, deletedCount: allVersions.length },
     });
   } catch (error: any) {
-    console.error("[Admin Imports] Error deleting import:", error);
+    logger.error({ err: error }, "[Admin Imports] Error deleting import:");
     return res.status(500).json({
       success: false,
       error: "DELETE_ERROR",

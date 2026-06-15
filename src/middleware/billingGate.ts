@@ -24,7 +24,10 @@
 
 import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
-import { db } from "../database/connection";
+import { OrganizationUserModel } from "../models/OrganizationUserModel";
+import { OrganizationModel } from "../models/OrganizationModel";
+import { getJwtSecret } from "../config/jwt";
+import logger from "../lib/logger";
 
 const EXEMPT_PREFIXES = [
   "/api/auth",
@@ -64,10 +67,7 @@ export const billingGateMiddleware = async (
     let userId: number | undefined;
 
     try {
-      const decoded = jwt.verify(
-        token,
-        process.env.JWT_SECRET || "secret"
-      ) as any;
+      const decoded = jwt.verify(token, getJwtSecret()) as any;
       userId = decoded.userId;
     } catch {
       // Invalid/expired JWT — let downstream auth middleware handle it
@@ -79,20 +79,17 @@ export const billingGateMiddleware = async (
     }
 
     // Look up the user's organization
-    const orgUser = await db("organization_users")
-      .where({ user_id: userId })
-      .select("organization_id")
-      .first();
+    const orgUser =
+      await OrganizationUserModel.findOrganizationIdByUserId(userId);
 
     if (!orgUser) {
       // No org yet (pre-onboarding) — pass through
       return next();
     }
 
-    const org = await db("organizations")
-      .where({ id: orgUser.organization_id })
-      .select("subscription_status")
-      .first();
+    const org = await OrganizationModel.findSubscriptionStatusById(
+      orgUser.organization_id
+    );
 
     if (!org) {
       return next();
@@ -109,7 +106,7 @@ export const billingGateMiddleware = async (
 
     return next();
   } catch (error) {
-    console.error("[BillingGate] Error checking billing status:", error);
+    logger.error({ err: error }, "[BillingGate] Error checking billing status:");
     // On error, let the request through — don't lock out on middleware failure
     return next();
   }

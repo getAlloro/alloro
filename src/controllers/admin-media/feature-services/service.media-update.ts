@@ -6,6 +6,7 @@
  */
 
 import { MediaModel, IMedia } from "../../../models/website-builder/MediaModel";
+import logger from "../../../lib/logger";
 
 /**
  * Update metadata for a media item.
@@ -17,7 +18,7 @@ export async function updateMetadata(
   mediaId: string,
   updates: { display_name?: string; alt_text?: string }
 ): Promise<IMedia> {
-  console.log(`[Media] Updating media ${mediaId}`);
+  logger.info(`[Media] Updating media ${mediaId}`);
 
   // Verify media belongs to project
   const media = await MediaModel.findByIdAndProject(mediaId, projectId);

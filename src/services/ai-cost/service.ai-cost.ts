@@ -15,10 +15,9 @@
  *   - Google Places API (per-call pricing)
  */
 
-import { db } from "../../database/connection";
+import { AiCostEventModel } from "../../models/website-builder/AiCostEventModel";
 import { getModelRate, type ModelRate } from "./pricing";
-
-const TABLE = "website_builder.ai_cost_events";
+import logger from "../../lib/logger";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -125,12 +124,12 @@ export async function logAiCostEvent(
     parent_event_id: input.parentEventId ?? null,
   };
 
-  const [persisted] = await db(TABLE).insert(row).returning("*");
+  const persisted = await AiCostEventModel.insertReturning(row);
   return persisted as LoggedAiCostEvent;
 }
 
 /**
- * Fire-and-forget wrapper. Swallows all errors after a console.warn. Returns
+ * Fire-and-forget wrapper. Swallows all errors after a logged warning. Returns
  * the persisted event (or null on failure) for callers that need the id to
  * thread `parent_event_id` through nested tool calls.
  */
@@ -140,7 +139,7 @@ export async function safeLogAiCostEvent(
   try {
     return await logAiCostEvent(input);
   } catch (err: any) {
-    console.warn(
+    logger.warn(
       `[ai-cost] Failed to log event (${input.eventType} / ${input.model}): ${err?.message || err}`,
     );
     return null;

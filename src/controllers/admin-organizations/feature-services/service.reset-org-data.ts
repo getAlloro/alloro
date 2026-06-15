@@ -14,15 +14,87 @@
  *
  * Reference analog: src/controllers/settings/feature-services/service.delete-organization.ts
  */
-import { db } from "../../../database/connection";
 import { OrganizationModel } from "../../../models/OrganizationModel";
+import { PmsJobModel } from "../../../models/PmsJobModel";
+import { AgentResultModel } from "../../../models/AgentResultModel";
+import { AgentRecommendationModel } from "../../../models/AgentRecommendationModel";
 import {
+  RESET_GROUP_KEYS,
   ResetGroupKey,
   ResetPreviewResponse,
   ResetResponse,
 } from "../../../types/adminReset";
+import { AdminOrgError } from "../feature-utils/AdminOrgError";
+import logger from "../../../lib/logger";
 
 const REFERRAL_AGENT_TYPE = "referral_engine";
+
+export interface ValidatedResetRequest {
+  uniqueGroups: ResetGroupKey[];
+  adminEmail: string;
+}
+
+/**
+ * Validate a reset request against domain rules:
+ * org must exist, `confirmName` must match the org name exactly, `groups`
+ * must be a non-empty subset of RESET_GROUP_KEYS, and the acting admin email
+ * must be present. Returns the de-duped groups (order-preserving) + admin email.
+ *
+ * Guard failures throw AdminOrgError carrying the exact status + body so the
+ * controller relays them verbatim.
+ */
+export async function validateResetRequest(
+  orgId: number,
+  body: { groups?: unknown; confirmName?: unknown },
+  adminEmail: string | undefined,
+): Promise<ValidatedResetRequest> {
+  const organization = await OrganizationModel.findById(orgId);
+  if (!organization) {
+    throw new AdminOrgError(404, { error: "Organization not found" });
+  }
+
+  const { groups, confirmName } = body ?? {};
+
+  if (typeof confirmName !== "string" || confirmName !== organization.name) {
+    throw new AdminOrgError(400, {
+      success: false,
+      error:
+        "Confirmation failed. `confirmName` must match the organization name exactly.",
+    });
+  }
+
+  if (!Array.isArray(groups) || groups.length === 0) {
+    throw new AdminOrgError(400, {
+      success: false,
+      error: "`groups` must be a non-empty array of reset group keys.",
+    });
+  }
+
+  const allowed = new Set<string>(RESET_GROUP_KEYS);
+  const invalid = groups.filter(
+    (g): g is unknown => typeof g !== "string" || !allowed.has(g),
+  );
+  if (invalid.length > 0) {
+    throw new AdminOrgError(400, {
+      success: false,
+      error: `Invalid reset group key(s): ${invalid
+        .map((g) => JSON.stringify(g))
+        .join(", ")}. Allowed: ${RESET_GROUP_KEYS.join(", ")}.`,
+    });
+  }
+
+  if (!adminEmail) {
+    throw new AdminOrgError(401, {
+      success: false,
+      error: "Authenticated admin email not found on request.",
+    });
+  }
+
+  // De-dupe while preserving order — guards against `["pms_ingestion","pms_ingestion"]`.
+  const uniqueGroups = Array.from(new Set(groups as ResetGroupKey[]));
+
+  return { uniqueGroups, adminEmail };
+}
 
 /**
  * Read-only count preview for the modal.
@@ -39,14 +111,11 @@ export async function previewResetCounts(
   }
 
   const [pmsCount, referralCount] = await Promise.all([
-    db("pms_jobs")
-      .where({ organization_id: orgId })
-      .count<{ count: string }[]>("* as count")
-      .first(),
-    db("agent_results")
-      .where({ organization_id: orgId, agent_type: REFERRAL_AGENT_TYPE })
-      .count<{ count: string }[]>("* as count")
-      .first(),
+    PmsJobModel.countByOrganizationId(orgId),
+    AgentResultModel.countByOrganizationAndAgentType(
+      orgId,
+      REFERRAL_AGENT_TYPE
+    ),
   ]);
 
   return {
@@ -79,46 +148,42 @@ export async function resetOrgData(
 
   const deletedCounts: Record<string, number> = {};
 
-  await db.transaction(async (trx) => {
+  await PmsJobModel.transaction(async (trx) => {
     if (groups.includes("pms_ingestion")) {
-      const deleted = await trx("pms_jobs")
-        .where({ organization_id: orgId })
-        .del();
+      const deleted = await PmsJobModel.deleteByOrganizationId(orgId, trx);
       deletedCounts.pms_jobs = deleted;
     }
 
     if (groups.includes("agent_referral")) {
       // FK has no ON DELETE CASCADE — recommendations must go first.
-      const recDeleted = await trx.raw(
-        `DELETE FROM agent_recommendations
-         WHERE agent_result_id IN (
-           SELECT id FROM agent_results
-           WHERE organization_id = ? AND agent_type = ?
-         )`,
-        [orgId, REFERRAL_AGENT_TYPE],
-      );
+      const recDeleted =
+        await AgentRecommendationModel.deleteByOrganizationAndAgentType(
+          orgId,
+          REFERRAL_AGENT_TYPE,
+          trx,
+        );
       // pg returns rowCount; sqlite/mysql shape differs — fall back gracefully.
       deletedCounts.agent_recommendations =
         (recDeleted as any)?.rowCount ?? (recDeleted as any)?.[0]?.affectedRows ?? 0;
 
-      const resultsDeleted = await trx("agent_results")
-        .where({ organization_id: orgId, agent_type: REFERRAL_AGENT_TYPE })
-        .del();
+      const resultsDeleted =
+        await AgentResultModel.deleteByOrganizationAndAgentType(
+          orgId,
+          REFERRAL_AGENT_TYPE,
+          trx,
+        );
       deletedCounts.agent_results = resultsDeleted;
     }
   });
 
-  console.log(
-    "[admin-reset]",
-    JSON.stringify({
-      adminEmail,
-      orgId,
-      orgName: org.name,
-      groups,
-      deletedCounts,
-      timestamp: new Date().toISOString(),
-    }),
-  );
+  logger.info({ detail: JSON.stringify({
+          adminEmail,
+          orgId,
+          orgName: org.name,
+          groups,
+          deletedCounts,
+          timestamp: new Date().toISOString(),
+        }) }, "[admin-reset]");
 
   return {
     success: true,

@@ -10,6 +10,7 @@
  */
 
 import { uploadToS3 } from "../../../utils/core/s3";
+import logger from "../../../lib/logger";
 
 type ScreenshotVariant = "desktop" | "mobile";
 
@@ -81,7 +82,7 @@ export async function uploadAuditScreenshot(
   await uploadToS3(key, buffer, "image/png");
 
   const sizeKB = Math.round(buffer.length / 1024);
-  console.log(`[AUDIT-S3] Uploaded ${key}, ${sizeKB}KB`);
+  logger.info(`[AUDIT-S3] Uploaded ${key}, ${sizeKB}KB`);
 
   return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
 }

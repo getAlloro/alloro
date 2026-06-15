@@ -11,7 +11,7 @@
  * - Opportunity / CRO Optimizer: DISABLED in orchestrator (preserved here for revival path)
  */
 
-import { db } from "../../../database/connection";
+import { TaskModel } from "../../../models/TaskModel";
 import { log, logError } from "../feature-utils/agentLogger";
 import type {
   OpportunityAgentOutput,
@@ -102,8 +102,7 @@ export async function createTasksFromOpportunityOutput(
         };
 
         try {
-          const [result] = await db("tasks").insert(taskData).returning("id");
-          const taskId = result.id;
+          const taskId = await TaskModel.insertReturningId(taskData);
           log(
             `    \u2713 Created ${type} task (ID: ${taskId}): ${taskData.title}`,
           );
@@ -171,8 +170,7 @@ export async function createTasksFromCroOptimizerOutput(
         };
 
         try {
-          const [result] = await db("tasks").insert(taskData).returning("id");
-          const taskId = result.id;
+          const taskId = await TaskModel.insertReturningId(taskData);
           log(
             `    \u2713 Created ${type} task (ID: ${taskId}): ${taskData.title}`,
           );
@@ -247,8 +245,7 @@ export async function createTasksFromReferralEngineOutput(
         };
 
         try {
-          const [result] = await db("tasks").insert(taskData).returning("id");
-          const taskId = result.id;
+          const taskId = await TaskModel.insertReturningId(taskData);
           log(`    \u2713 Created ALLORO task (ID: ${taskId}): ${taskData.title}`);
         } catch (taskError: any) {
           log(
@@ -338,8 +335,7 @@ export async function createTasksFromSummaryV2Output(
       };
 
       try {
-        const [result] = await db("tasks").insert(taskData).returning("id");
-        const taskId = result.id;
+        const taskId = await TaskModel.insertReturningId(taskData);
         log(
           `    ✓ Created SUMMARY USER task (ID: ${taskId}, priority=${action.priority_score.toFixed(2)}, domain=${action.domain}): ${action.title}`,
         );
@@ -452,8 +448,7 @@ ${
       };
 
       try {
-        const [result] = await db("tasks").insert(taskData).returning("id");
-        const taskId = result.id;
+        const taskId = await TaskModel.insertReturningId(taskData);
         log(`      \u2713 Created task (ID: ${taskId}): ${taskData.title}`);
         createdCount++;
       } catch (taskError: any) {

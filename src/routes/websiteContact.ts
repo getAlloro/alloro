@@ -11,6 +11,11 @@ import multer from "multer";
 import { handleContactSubmission } from "../controllers/websiteContact/websiteContactController";
 import { handleFormSubmission } from "../controllers/websiteContact/formSubmissionController";
 import { handleNewsletterConfirm } from "../controllers/websiteContact/newsletterConfirmController";
+import { validate } from "../middleware/validate";
+import {
+  contactSubmissionSchema,
+  formSubmissionSchema,
+} from "../validation/websiteContact.schemas";
 
 const router = express.Router();
 
@@ -27,12 +32,19 @@ const formUpload = multer({
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB per file
 });
 
-router.post("/contact", handleContactSubmission);
-// TODO: Re-enable formSubmissionLimiter once protections are restored
+// Validation: WARN-ONLY for this pass — logs would-be rejections (field names
+// + issue codes only, never visitor-entered values) and lets the request
+// through. Flip to enforce only after a clean soak. The controller's own
+// reCAPTCHA / sanitize / field-cap checks stay in place alongside this.
+router.post("/contact", validate(contactSubmissionSchema), handleContactSubmission);
+// TODO: Re-enable formSubmissionLimiter once protections are restored.
+// `validate` runs AFTER multer so req.body is populated from the multipart
+// payload (contents may still be a JSON string — the schema tolerates that).
 router.post(
   "/form-submission",
   // formSubmissionLimiter,
   formUpload.array("files", 10),
+  validate(formSubmissionSchema),
   handleFormSubmission,
 );
 router.get("/confirm-newsletter", handleNewsletterConfirm);

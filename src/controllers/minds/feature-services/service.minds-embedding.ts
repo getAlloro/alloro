@@ -1,5 +1,6 @@
 import axios from "axios";
 import Anthropic from "@anthropic-ai/sdk";
+import logger from "../../../lib/logger";
 
 const EMBEDDING_MODEL = process.env.MINDS_EMBEDDING_MODEL || "text-embedding-3-small";
 const CHUNK_MAX_CHARS = parseInt(process.env.MINDS_CHUNK_MAX_CHARS || "2048", 10);
@@ -297,13 +298,13 @@ export async function regenerateEmbeddings(
 ): Promise<{ chunksCreated: number }> {
   const { MindBrainChunkModel } = await import("../../../models/MindBrainChunkModel");
 
-  console.log(
+  logger.info(
     `[MINDS-RAG] Regenerating embeddings for mind ${mindId}, version ${versionId}, ${brainMarkdown.length} chars`
   );
 
   // Chunk the brain
   const chunks = chunkBrainMarkdown(brainMarkdown);
-  console.log(`[MINDS-RAG] Created ${chunks.length} chunks`);
+  logger.info(`[MINDS-RAG] Created ${chunks.length} chunks`);
 
   if (chunks.length === 0) {
     await MindBrainChunkModel.deleteByMind(mindId);
@@ -348,7 +349,7 @@ export async function regenerateEmbeddings(
 
   await MindBrainChunkModel.bulkInsert(chunkRecords);
 
-  console.log(
+  logger.info(
     `[MINDS-RAG] Stored ${chunkRecords.length} chunks (${chunks.length} content + 1 summary)`
   );
 

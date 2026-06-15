@@ -11,6 +11,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { ZodTypeAny } from "zod";
 import { safeLogAiCostEvent } from "../services/ai-cost/service.ai-cost";
+import logger from "../lib/logger";
 
 const DEFAULT_MODEL = process.env.AGENTS_LLM_MODEL || "claude-sonnet-4-6";
 
@@ -147,7 +148,7 @@ export async function runAgent(
   // The `extractJson` helper handles markdown fences + brace matching, so
   // prefill is no longer needed for JSON-shape steering.
   if (prefill) {
-    console.warn(
+    logger.warn(
       `[LLM] prefill="${prefill}" ignored — Claude 4.x rejects assistant prefill. ` +
         `Remove prefill from your runAgent call; extractJson handles JSON parsing.`,
     );
@@ -162,7 +163,7 @@ export async function runAgent(
       )
     : 0;
   const imgCount = images?.length ?? 0;
-  console.log(
+  logger.info(
     `[LLM] → ${model} system=${systemPrompt.length}ch user=${userMessage.length}ch ` +
       `images=${imgCount}${imgCount ? ` (${imgSizeKB}kB)` : ""} maxTokens=${maxTokens}`
   );
@@ -202,11 +203,11 @@ export async function runAgent(
   } catch (err: any) {
     const status = err?.status ?? err?.response?.status ?? "?";
     const body = err?.error ?? err?.response?.data ?? err?.body;
-    console.error(
+    logger.error(
       `[LLM] ✗ API error (${Date.now() - callStart}ms) status=${status} message="${err?.message}"`
     );
     if (body) {
-      console.error(
+      logger.error(
         `[LLM]   body: ${typeof body === "string" ? body : JSON.stringify(body).slice(0, 500)}`
       );
     }
@@ -233,14 +234,14 @@ export async function runAgent(
     : "";
 
   const stopReason = response.stop_reason ?? "unknown";
-  console.log(
+  logger.info(
     `[LLM] ✓ ${response.model} (${Date.now() - callStart}ms) ` +
       `tokens=${response.usage.input_tokens}/${response.usage.output_tokens}${cacheSuffix} ` +
       `stop=${stopReason} parsed=${parsed ? "ok" : "null"} raw=${raw.length}ch`
   );
 
   if (stopReason === "max_tokens" && !parsed) {
-    console.warn(
+    logger.warn(
       `[LLM] ⚠ Output truncated at max_tokens=${maxTokens} — JSON likely incomplete. ` +
       `Consider increasing maxTokens for this agent.`
     );
@@ -278,7 +279,7 @@ export async function runAgent(
         0,
         2000,
       );
-      console.warn(
+      logger.warn(
         `[zod-retry] first attempt failed schema validation. issues: ${issues}`,
       );
 
@@ -312,7 +313,7 @@ export async function runAgent(
         );
       } catch (err: any) {
         const status = err?.status ?? err?.response?.status ?? "?";
-        console.error(
+        logger.error(
           `[zod-retry] ✗ API error (${Date.now() - retryStart}ms) status=${status} message="${err?.message}"`,
         );
         // Swallow retry errors — we still have a usable first parsed payload.
@@ -333,7 +334,7 @@ export async function runAgent(
           : "";
         const parsed2 = extractJson(raw2);
 
-        console.log(
+        logger.info(
           `[LLM] ✓ ${retryResponse.model} (${Date.now() - retryStart}ms) ` +
             `tokens=${retryResponse.usage.input_tokens}/${retryResponse.usage.output_tokens}${retryCacheSuffix} ` +
             `parsed=${parsed2 ? "ok" : "null"} raw=${raw2.length}ch [zod-retry]`,
@@ -362,7 +363,7 @@ export async function runAgent(
         if (parsed2 !== null) {
           const secondResult = outputSchema.safeParse(parsed2);
           if (secondResult.success) {
-            console.log(`[zod-retry] succeeded on second attempt`);
+            logger.info(`[zod-retry] succeeded on second attempt`);
             // Promote second-attempt outputs as the canonical result.
             raw = raw2;
             parsed = parsed2;
@@ -377,14 +378,14 @@ export async function runAgent(
               null,
               2,
             ).slice(0, 2000);
-            console.warn(
+            logger.warn(
               `[zod-retry] failed both attempts: ${issues2}`,
             );
             // Fall through with first parsed — outer caller's
             // legacy `isValidAgentOutput` will run on it.
           }
         } else {
-          console.warn(
+          logger.warn(
             `[zod-retry] second response did not yield parseable JSON; falling back to first attempt`,
           );
         }
@@ -499,7 +500,7 @@ export async function runWithTools(
     costContext,
   } = options;
 
-  console.log(
+  logger.info(
     `[LLM-TOOLS] → ${model} system=${systemPrompt.length}ch user=${userMessage.length}ch ` +
       `tools=${tools.length} maxTokens=${maxTokens}`,
   );
@@ -549,7 +550,7 @@ export async function runWithTools(
     );
   } catch (err: any) {
     const status = err?.status ?? err?.response?.status ?? "?";
-    console.error(
+    logger.error(
       `[LLM-TOOLS] ✗ API error (${Date.now() - callStart}ms) status=${status} message="${err?.message}"`,
     );
     throw err;
@@ -577,7 +578,7 @@ export async function runWithTools(
     ? ` cacheWrite=${cacheCreationTokens} cacheRead=${cacheReadTokens}`
     : "";
 
-  console.log(
+  logger.info(
     `[LLM-TOOLS] ✓ ${response.model} (${Date.now() - callStart}ms) ` +
       `tokens=${response.usage.input_tokens}/${response.usage.output_tokens}${cacheSuffix} ` +
       `toolCalls=${toolCalls.length} stop=${response.stop_reason}`,

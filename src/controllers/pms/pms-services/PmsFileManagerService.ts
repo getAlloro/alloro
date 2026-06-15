@@ -1,4 +1,4 @@
-import { db } from "../../../database/connection";
+import { BaseModel } from "../../../models/BaseModel";
 import { PmsJobModel, type IPmsJob } from "../../../models/PmsJobModel";
 import { PmsJobEventModel } from "../../../models/PmsJobEventModel";
 import { generatePresignedUrl } from "../../../utils/core/s3";
@@ -151,7 +151,7 @@ export async function updateFileData(
   await assertNoActivePmsAutomation(context.organizationId, job.location_id);
 
   const changes = diffMonthFields(job.response_log, responseLog);
-  await db.transaction(async (trx) => {
+  await BaseModel.transaction(async (trx) => {
     await PmsJobModel.updateById(jobId, { response_log: responseLog }, trx);
     await PmsJobEventModel.create(
       {
@@ -181,7 +181,7 @@ export async function softDeleteFile(
   const job = await findScopedJob(jobId, context);
   await assertNoActivePmsAutomation(context.organizationId, job.location_id);
 
-  await db.transaction(async (trx) => {
+  await BaseModel.transaction(async (trx) => {
     await PmsJobModel.updateById(
       jobId,
       {

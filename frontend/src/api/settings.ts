@@ -2,7 +2,19 @@
  * Admin Settings API
  */
 
+import { getCommonHeaders } from "./index";
+
 const API_BASE = "/api/admin/settings";
+
+// Attach the Bearer token (via getCommonHeaders) to every admin settings call.
+// These routes are protected by the app-level auth guard; bare fetch would 401.
+const adminFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
+  const headers = new Headers(init.headers);
+  Object.entries(getCommonHeaders()).forEach(([key, value]) => {
+    if (!headers.has(key)) headers.set(key, value);
+  });
+  return fetch(input, { ...init, headers });
+};
 
 export interface SettingRow {
   category: string;
@@ -18,7 +30,7 @@ export const fetchSettings = async (): Promise<{
   success: boolean;
   data: Record<string, Record<string, string>>;
 }> => {
-  const response = await fetch(API_BASE);
+  const response = await adminFetch(API_BASE);
 
   if (!response.ok) {
     const error = await response.json();
@@ -35,7 +47,7 @@ export const fetchSetting = async (
   category: string,
   key: string
 ): Promise<{ success: boolean; data: SettingRow }> => {
-  const response = await fetch(`${API_BASE}/${category}/${key}`);
+  const response = await adminFetch(`${API_BASE}/${category}/${key}`);
 
   if (!response.ok) {
     const error = await response.json();
@@ -53,7 +65,7 @@ export const updateSetting = async (
   key: string,
   value: string
 ): Promise<{ success: boolean; data: SettingRow }> => {
-  const response = await fetch(`${API_BASE}/${category}/${key}`, {
+  const response = await adminFetch(`${API_BASE}/${category}/${key}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ value }),

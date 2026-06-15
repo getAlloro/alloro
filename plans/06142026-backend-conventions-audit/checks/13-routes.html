@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>routes — Conventions Audit</title>
+<style>
+:root{color-scheme:light;--paper:#fff;--ink:#080808;--muted:#5f5f5f;--line:#d8d8d8;--soft:#f5f5f5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
+.shell{width:min(1000px,calc(100% - 32px));margin:0 auto;padding:40px 0}
+.hero,.card{border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.hero{border-color:var(--ink);padding:28px;margin-bottom:18px}
+.topline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.card{padding:24px;margin-top:16px}
+.eyebrow,dt{color:var(--muted);font-size:.74rem;font-weight:700;text-transform:uppercase}
+.eyebrow{margin:0}
+.pill{display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border:1px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper);font-size:.74rem;font-weight:800;text-transform:uppercase}
+h1,h2,h3,p{margin-top:0}
+h1{margin-bottom:18px;font-size:clamp(1.8rem,5vw,3rem);line-height:.98}
+h2{font-size:1.2rem}h3{font-size:.95rem}
+code{padding:.1rem .3rem;border:1px solid var(--line);border-radius:4px;background:var(--soft);font-size:.86em}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:0}
+.meta div{border:1px solid var(--line);border-radius:8px;padding:14px}
+dd{margin:4px 0 0;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:8px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);text-transform:uppercase;font-size:.7rem}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.over{font-weight:800}
+.checklist{list-style:none;padding:0;margin:0}
+.checklist li{display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line);font-size:.88rem}
+.note{border-left:3px solid var(--ink);padding:10px 14px;background:var(--soft);margin:0;font-size:.9rem}
+ul.flags{margin:0;padding-left:18px}ul.flags li{margin-bottom:7px}
+a{color:var(--ink)}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="hero">
+  <div class="topline"><p class="eyebrow">Backend Conventions Audit · Check 13 / 17 · <a href="../spec.html">index</a> · <strong>recommended first scan</strong></p><span class="pill">Audited</span></div>
+  <h1>routes</h1>
+  <dl class="meta">
+    <div><dt>Scope</dt><dd><code>src/routes</code></dd></div>
+    <div><dt>Files</dt><dd>62</dd></div>
+    <div><dt>Lines</dt><dd>6,674</dd></div>
+    <div><dt>Over 300</dt><dd>4</dd></div>
+    <div><dt>Priority</dt><dd>P1 (structural)</dd></div>
+  </dl>
+</header>
+
+<section class="card">
+  <h2>Scope</h2>
+  <p>Route definitions — must be <strong>thin</strong>: HTTP method + path + middleware (auth, validation) + controller call + response. No business logic.</p>
+  <table>
+    <thead><tr><th>File (rel. to scope)</th><th class="n">Lines</th></tr></thead>
+    <tbody>
+      <tr><td><code>checkup.ts</code></td><td class="n over">2,140 ▲</td></tr>
+      <tr><td><code>admin/websites.ts</code></td><td class="n over">907 ▲</td></tr>
+      <tr><td><code>locations.ts</code></td><td class="n over">526 ▲</td></tr>
+      <tr><td><code>user/website.ts</code></td><td class="n over">430 ▲</td></tr>
+      <tr><td colspan="2"><em>+ 58 more files ≤ 300 lines</em></td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:.78rem;color:var(--muted);margin:8px 0 0">▲ = over the 300-line cap.</p>
+</section>
+
+<section class="card">
+  <h2>Priority Signals (start here)</h2>
+  <ul class="flags">
+    <li><strong><code>checkup.ts</code> = 2,140 lines.</strong> A route file this size is the single clearest data-flow violation in the backend — business logic living in routes (dimension 6). <strong>Scan this first</strong>: it's the cheapest confirmation and validates the worksheet format before the big controller domains.</li>
+    <li><code>admin/websites.ts</code> 907, <code>locations.ts</code> 526, <code>user/website.ts</code> 430 — same smell, smaller. Logic that belongs in controllers/services.</li>
+    <li>For the 58 thin files: spot-check that input validation is applied via middleware from <code>validation/</code>. It likely isn't — see Check 17, where only one validation schema exists for the whole app.</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Audit Dimensions</h2>
+  <p>Run every file in scope against the 16-point contract (full detail in <a href="../spec.html#dimensions">spec.html</a>). Dimensions 6 (no business logic in routes) and 12 (validation via middleware) are primary.</p>
+  <ul class="checklist">
+    <li><input type="checkbox" disabled> File &le; 300 lines</li>
+    <li><input type="checkbox" disabled> Functions &le; 50 lines</li>
+    <li><input type="checkbox" disabled> Nesting &le; 4 levels</li>
+    <li><input type="checkbox" disabled> Correct folder placement</li>
+    <li><input type="checkbox" disabled> Data flow: Routes &rarr; Controllers &rarr; Services &rarr; Models</li>
+    <li><input type="checkbox" disabled> No business logic in routes</li>
+    <li><input type="checkbox" disabled> No DB queries outside <code>models/</code></li>
+    <li><input type="checkbox" disabled> Error handling on every async call</li>
+    <li><input type="checkbox" disabled> <code>{ success, data, error }</code> response shape</li>
+    <li><input type="checkbox" disabled> No <code>console.log</code> (Pino only)</li>
+    <li><input type="checkbox" disabled> No hardcoded secrets / magic values</li>
+    <li><input type="checkbox" disabled> Input validated at route/middleware</li>
+    <li><input type="checkbox" disabled> Auth middleware on protected routes</li>
+    <li><input type="checkbox" disabled> Naming conventions</li>
+    <li><input type="checkbox" disabled> No commented-out code</li>
+    <li><input type="checkbox" disabled> Transactions for multi-table writes</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Findings</h2>
+
+  <h3>Summary</h3>
+  <p>The unit is sharply bimodal. Most of the ~58 thin files are <strong>exemplary</strong>: <code>minds.ts</code> and <code>practiceRanking.ts</code> show the codebase already knows the right pattern (router-level <code>.use(authenticateToken, superAdminMiddleware)</code> or per-route middleware chains, then pure <code>path → controller</code> one-liners with no try/catch because the controller owns errors). But two structural failures dominate: (1) <code>checkup.ts</code> (2,140 lines) is a wholesale data-flow inversion — scoring algorithms, economics tables, AI orchestration, multi-table transactions, and ~25 direct <code>db("…")</code> Knex calls all live inside route handlers; and (2) a cluster of <strong>admin route files mounted with zero authentication</strong> (settings, agent-outputs, app-logs, imports) — confirmed unprotected at the route, mount, and controller layers, and explicitly exempted from the only global gate (<code>billingGate</code>, which is a billing check, not auth). Validation is systemically hand-rolled: the entire app ships ONE schema file (<code>validation/minds.schemas.ts</code>) and not a single route in scope imports a validation middleware (dimension 12 effectively unmet repo-wide). <code>console.*</code> is used instead of Pino in <code>checkup.ts</code> (40×), <code>locations.ts</code> (11×), and <code>auth.ts</code> (1×). Severity counts: <strong>must-fix 6 · concern 7 · nitpick 5</strong>.</p>
+
+  <h3>Must-fix</h3>
+  <ul>
+    <li><code>admin/settings.ts:6-8</code> — <strong>[dim 13]</strong> <code>GET / · GET /:category/:key · PUT /:category/:key</code> have NO auth at any layer. Mounted at <code>/api/admin/settings</code> (index.ts:185); <code>billingGate</code> exempts <code>/api/admin</code>; <code>AdminSettingsController</code> has no auth check. Anyone can read and overwrite arbitrary app settings unauthenticated. <em>Fix:</em> add <code>router.use(authenticateToken, superAdminMiddleware)</code> at the top, mirroring <code>minds.ts:21</code>.</li>
+    <li><code>appLogs.ts:10,16</code> — <strong>[dim 13]</strong> mounted at <code>/api/admin/app-logs</code> (index.ts:178) with no auth: <code>GET /</code> returns raw server log file contents (log/PII exposure) and <code>DELETE /</code> clears logs (destructive). Unauthenticated. <em>Fix:</em> router-level <code>authenticateToken + superAdminMiddleware</code>.</li>
+    <li><code>admin/agentOutputs.ts:14-24</code> &amp; <code>admin/imports.ts:18+</code> — <strong>[dim 13]</strong> full CRUD (incl. <code>DELETE /:id</code> and authenticated-looking file upload) with no auth middleware and no controller-side guard. <em>Fix:</em> add router-level auth to both, same pattern as <code>minds.ts</code>.</li>
+    <li><code>admin/websites.ts</code> (whole file) — <strong>[dim 13]</strong> ~162 of ~196 routes delegate straight to a controller with NO auth; only ~34 spread <code>...adminWebsiteAuth</code>/<code>...adminGscAuth</code>. <code>AdminWebsitesController</code> performs no auth check and there is no <code>router.use(auth)</code>. So list/create/delete projects, all templates, posts, menus, SEO, redirects, AI-command, and integration CRUD are unauthenticated. <em>Fix:</em> hoist auth to <code>router.use(...adminWebsiteAuth)</code> once at the top and drop the per-route spreads (the partial application is the smell that proves the gap).</li>
+    <li><code>checkup.ts</code> (entire file, 2,140 lines) — <strong>[dims 1, 2, 6, 7, 16]</strong> the prime offender. The <code>POST /analyze</code> handler alone is ~1,090 lines (153→1245), containing the Business-Clarity scoring engine, a hardcoded <code>specialtyEconomics</code> table (179-214), findings/gap generation, and AI orchestration. ~25 inline Knex calls hit <code>organizations</code>, <code>users</code>, <code>vocabulary_configs</code>, <code>weekly_ranking_snapshots</code>, <code>vendors</code>, <code>checkup_shares</code>, <code>checkup_invitations</code> directly (e.g. 1509-1618 transaction, 1645, 1734, 1895, 1996, 2036, 2112). <em>Fix:</em> extract a <code>controllers/checkup/</code> domain — <code>CheckupScoringService</code>, <code>CheckupAccountService</code>, and models for every table touched. Routes should shrink to method + path + limiter + controller call. (NOTE: the file's <code>default export checkupRoutes</code> has no consumer in <code>src/</code> — it appears currently unwired; the violations stand regardless, but verify before investing in the refactor.)</li>
+    <li><code>checkup.ts:2130-2138</code> — <strong>[dim 8]</strong> <code>GET /invite/:token</code> is an <code>async</code> handler with a bare top-level <code>await db(...).first()</code> and NO try/catch (unlike every sibling route). A DB error here is an unhandled rejection. <em>Fix:</em> wrap in try/catch returning a safe redirect, or move to a controller with the standard wrapper.</li>
+  </ul>
+
+  <h3>Concerns</h3>
+  <ul>
+    <li><code>checkup.ts</code> (40×), <code>locations.ts</code> (11×: lines 88,138,170,198,246,304,339,399,434,479,517), <code>auth.ts:25</code> — <strong>[dim 10]</strong> <code>console.log/error/warn</code> used throughout instead of the Pino logger. <em>Fix:</em> replace with the request-scoped logger; include route + org/user id context.</li>
+    <li>Validation systemically absent — <strong>[dim 12]</strong> only <code>validation/minds.schemas.ts</code> exists for the whole app and NO in-scope route imports a validation middleware. <code>checkup.ts</code> and <code>locations.ts</code> hand-roll checks (<code>if (!name) … 400</code>, inline email regex at 1307 &amp; 1474, <code>parseInt(req.params.id)</code> NaN guards). <em>Fix:</em> introduce schema-based validation middleware (Zod is already a dependency — <code>AdminWebsitesController</code> imports it) and apply per route.</li>
+    <li><code>checkup.ts:2050,2120</code> — <strong>[dim 11]</strong> hardcoded URL fallbacks <code>process.env.APP_URL || "https://app.getalloro.com"</code> and <code>|| "https://getalloro.com"</code> (two different defaults for the same var). <em>Fix:</em> resolve via <code>config/</code> with one canonical default.</li>
+    <li><code>checkup.ts:179-214, 1587-1595</code> — <strong>[dim 11]</strong> large magic-value maps (<code>specialtyEconomics</code> case values/conversion rates; <code>CATEGORY_TO_VERTICAL</code>) embedded in a route. <em>Fix:</em> move to <code>config/</code> or a service constant alongside the extracted scoring logic.</li>
+    <li>Response-shape drift — <strong>[dim 9]</strong> almost no in-scope route returns the contract <code>{ success, data, error }</code>. <code>locations.ts</code> returns <code>{ success, location, total }</code> / <code>{ success, error, message }</code>; <code>checkup.ts</code> returns bespoke top-level keys (<code>score</code>, <code>findings</code>, <code>gaps</code>, <code>token</code>, etc.) and on error <code>{ success:false, error:"string" }</code> (error as a bare string, not the <code>{code,message,details}</code> object). <em>Fix:</em> normalize via a response helper; this is a broad but low-risk cleanup.</li>
+    <li><code>checkup.ts:1890-1985</code> — <strong>[dim 13]</strong> <code>PATCH /first-login</code>, <code>/ttfv</code>, <code>/billing-prompt-shown</code>, <code>GET /ttfv-status</code> read <code>req.organizationId</code> but apply NO auth middleware to populate/verify it; they only null-check it. If wired, they depend on an upstream gate that isn't present on this router. <em>Fix:</em> attach <code>authenticateToken</code> (these are per-account, not public like <code>/analyze</code>).</li>
+    <li><code>checkup.ts:153-1245</code> — <strong>[dim 3]</strong> the <code>/analyze</code> handler nests well beyond 4 levels (enrichment <code>if (placeId){ try{ if(details){ if(field){…} } } }</code>, scoring branches, findings loops). Inseparable from the dim-6 refactor but called out for completeness.</li>
+  </ul>
+
+  <h3>Nitpicks</h3>
+  <ul>
+    <li><code>agentsV2.ts:29,32</code> and <code>websiteContact.ts:34</code> — <strong>[dim 15]</strong> commented-out route registrations / middleware. <em>Fix:</em> delete; git has history.</li>
+    <li><code>checkup.ts:37-76</code> — <strong>[dim 6]</strong> <code>deriveSpecialtyFromName()</code> (a pure business helper) is defined inside the route file. Belongs in a service/util.</li>
+    <li><code>checkup.ts:87-93</code> — <strong>[dim 11]</strong> an inline <code>rateLimit</code> (<code>emailLimiter</code>) is constructed in the route file while sibling limiters are imported from <code>middleware/publicRateLimiter</code>. Move it there for consistency.</li>
+    <li><code>locations.ts</code> (526) and <code>admin/websites.ts</code> (907) — <strong>[dim 1]</strong> over the 300-line cap. <code>admin/websites.ts</code> is otherwise clean routing; splitting into domain sub-routers (templates, posts, integrations, SEO, pages) is the natural fix. <code>locations.ts</code> shrinks naturally once console→Pino and validation move out.</li>
+    <li><code>checkup.ts:322,325,442,1089</code> etc. — <strong>[dim 14]</strong> heavy use of <code>any</code> (<code>enrichedReviews: any[]</code>, <code>placeDetails: any</code>, <code>(r: any)</code>). Typing tightens once the scoring logic moves into a typed service.</li>
+  </ul>
+
+  <h3>Coverage</h3>
+  <p>Files deep-read: 4 (the offenders <code>checkup.ts</code> 2,140, <code>admin/websites.ts</code> 907, <code>locations.ts</code> 526, <code>user/website.ts</code> 430) plus full reads of <code>minds.ts</code>, <code>admin/settings.ts</code>, <code>admin/agentOutputs.ts</code>, <code>appLogs.ts</code>, <code>admin/imports.ts</code> and the head of <code>practiceRanking.ts</code> as thin-file reference points. Grep-sampled across all 62 files: <code>console.*</code>, inline Knex/<code>db(</code>/<code>.raw(</code>, auth-middleware imports (37/62 import auth; 25 do not — most legitimately public, but 4 admin files are the must-fix gap), <code>validation/</code> imports, commented-out code, <code>process.env</code> fallbacks, and per-route auth-spread counts in <code>admin/websites.ts</code>. Verified mount + global-middleware reality in <code>index.ts</code> (CORS-only at :83, <code>billingGate</code> at :160 which exempts <code>/api/admin</code>) and that <code>AdminWebsitesController</code>/<code>AdminSettingsController</code> hold no auth. Not exhaustively line-read: the ~50 small files outside the offenders/references (grep-sampled only) and the <code>pm/*</code> sub-router internals (spot-checked <code>pm/index.ts</code>); no additional violations surfaced in sampling beyond those listed.</p>
+</section>
+</main>
+</body>
+</html>

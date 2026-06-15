@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gbp-automation — Conventions Audit</title>
+<style>
+:root{color-scheme:light;--paper:#fff;--ink:#080808;--muted:#5f5f5f;--line:#d8d8d8;--soft:#f5f5f5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
+.shell{width:min(1000px,calc(100% - 32px));margin:0 auto;padding:40px 0}
+.hero,.card{border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.hero{border-color:var(--ink);padding:28px;margin-bottom:18px}
+.topline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.card{padding:24px;margin-top:16px}
+.eyebrow,dt{color:var(--muted);font-size:.74rem;font-weight:700;text-transform:uppercase}
+.eyebrow{margin:0}
+.pill{display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border:1px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper);font-size:.74rem;font-weight:800;text-transform:uppercase}
+h1,h2,h3,p{margin-top:0}
+h1{margin-bottom:18px;font-size:clamp(1.8rem,5vw,3rem);line-height:.98}
+h2{font-size:1.2rem}h3{font-size:.95rem}
+code{padding:.1rem .3rem;border:1px solid var(--line);border-radius:4px;background:var(--soft);font-size:.86em}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:0}
+.meta div{border:1px solid var(--line);border-radius:8px;padding:14px}
+dd{margin:4px 0 0;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:8px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);text-transform:uppercase;font-size:.7rem}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.over{font-weight:800}
+.checklist{list-style:none;padding:0;margin:0}
+.checklist li{display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line);font-size:.88rem}
+.note{border-left:3px solid var(--ink);padding:10px 14px;background:var(--soft);margin:0;font-size:.9rem}
+ul.flags{margin:0;padding-left:18px}ul.flags li{margin-bottom:7px}
+a{color:var(--ink)}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="hero">
+  <div class="topline"><p class="eyebrow">Backend Conventions Audit · Check 05 / 17 · <a href="../spec.html">index</a></p><span class="pill">Audited</span></div>
+  <h1>gbp-automation</h1>
+  <dl class="meta">
+    <div><dt>Scope</dt><dd><code>src/controllers/gbp-automation</code></dd></div>
+    <div><dt>Files</dt><dd>28</dd></div>
+    <div><dt>Lines</dt><dd>5,174</dd></div>
+    <div><dt>Over 300</dt><dd>6</dd></div>
+    <div><dt>Priority</dt><dd>P2</dd></div>
+  </dl>
+</header>
+
+<section class="card">
+  <h2>Scope</h2>
+  <p>Google Business Profile automation: local-post drafts/publishing, review replies, deployment, scheduling, content safety, media.</p>
+  <table>
+    <thead><tr><th>File (rel. to scope)</th><th class="n">Lines</th></tr></thead>
+    <tbody>
+      <tr><td><code>feature-services/GbpLocalPostDraftService.ts</code></td><td class="n over">707 ▲</td></tr>
+      <tr><td><code>feature-services/GbpPublishedLocalPostService.ts</code></td><td class="n over">640 ▲</td></tr>
+      <tr><td><code>AdminGbpAutomationController.ts</code></td><td class="n over">442 ▲</td></tr>
+      <tr><td><code>GbpAutomationController.ts</code></td><td class="n over">425 ▲</td></tr>
+      <tr><td><code>feature-services/GbpReviewReplyService.ts</code></td><td class="n over">392 ▲</td></tr>
+      <tr><td><code>feature-services/GbpLocalPostDeploymentService.ts</code></td><td class="n over">364 ▲</td></tr>
+      <tr><td colspan="2"><em>+ 22 more files ≤ 300 lines</em></td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:.78rem;color:var(--muted);margin:8px 0 0">▲ = over the 300-line cap.</p>
+</section>
+
+<section class="card">
+  <h2>Priority Signals (start here)</h2>
+  <ul class="flags">
+    <li><strong>Best-structured big domain</strong> — PascalCase <code>XxxService.ts</code> inside <code>feature-services/</code> matches the Service-suffix convention; many small focused files. Use it as the positive reference for other domains.</li>
+    <li>Heavy Google API surface — audit failure modes (quota, auth expiry, partial deploy) and the content-safety / sanitizer paths (<code>GbpContentSafetyService</code>, <code>GbpInputSanitizer</code>).</li>
+    <li>Confirm DB access routes through <code>models/</code> (<code>GbpWorkItemModel</code> exists) and isn't inline in the services.</li>
+    <li>Largest: <code>GbpLocalPostDraftService</code> 707, <code>GbpPublishedLocalPostService</code> 640 — split candidates, not architectural alarms.</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Audit Dimensions</h2>
+  <p>Run every file in scope against the 16-point contract (full detail in <a href="../spec.html#dimensions">spec.html</a>).</p>
+  <ul class="checklist">
+    <li><input type="checkbox" disabled> File &le; 300 lines</li>
+    <li><input type="checkbox" disabled> Functions &le; 50 lines</li>
+    <li><input type="checkbox" disabled> Nesting &le; 4 levels</li>
+    <li><input type="checkbox" disabled> Correct folder placement</li>
+    <li><input type="checkbox" disabled> Data flow: Routes &rarr; Controllers &rarr; Services &rarr; Models</li>
+    <li><input type="checkbox" disabled> No business logic in routes</li>
+    <li><input type="checkbox" disabled> No DB queries outside <code>models/</code></li>
+    <li><input type="checkbox" disabled> Error handling on every async call</li>
+    <li><input type="checkbox" disabled> <code>{ success, data, error }</code> response shape</li>
+    <li><input type="checkbox" disabled> No <code>console.log</code> (Pino only)</li>
+    <li><input type="checkbox" disabled> No hardcoded secrets / magic values</li>
+    <li><input type="checkbox" disabled> Input validated at route/middleware</li>
+    <li><input type="checkbox" disabled> Auth middleware on protected routes</li>
+    <li><input type="checkbox" disabled> Naming conventions</li>
+    <li><input type="checkbox" disabled> No commented-out code</li>
+    <li><input type="checkbox" disabled> Transactions for multi-table writes</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Findings</h2>
+  <h3>Summary</h3>
+  <p><strong>Verdict: this is the reference domain.</strong> The positive baseline the audit expected holds up — every file routes DB through <code>models/</code>, every controller handler is a thin try/catch &rarr; context &rarr; service &rarr; <code>ok()</code>/<code>handleGbpError()</code>, and the shared <code>feature-utils/</code> layer (response shape, Google-error classification, input sanitizer) is the <code>{success,data,error}</code> + dim-12 gold standard the rest of the repo lacks. No unique <code>console.*</code> beyond 1 [systemic], no inline DB beyond the trx pattern + 1 raw join, zero hardcoded secrets, zero commented-out code. Violations are genuine but bounded: oversized files/functions, one dead-branch bug, a duplicated model-id constant, and one partial-failure gap. <strong>Severity: 0 must-fix · 5 concerns · 6 nitpicks</strong> (must-fix reserved for correctness/architecture breaks; the dead branch is the closest call, filed as a concern because it is currently behavior-neutral).</p>
+
+  <h3>Must-fix</h3>
+  <p>None. No correctness-breaking, security, or hard-architecture violations found.</p>
+
+  <h3>Concerns</h3>
+  <ul>
+    <li><code>feature-services/GbpWorkItemActionService.ts:63-68</code> — [dim 15/correctness] <code>reject()</code> has a dead conditional: both the <code>content_type === "local_post"</code> branch and the else branch call <code>GbpReviewReplyService.reject(params)</code>. It is a behavior-neutral landmine — reads as if local posts have a distinct reject path, but they do not (<code>GbpLocalPostDeploymentService</code> has no <code>reject</code>). <em>Fix:</em> collapse to a single unconditional call, or add the real local-post reject the branch implies. Don't leave a fake fork.</li>
+    <li><code>feature-services/GbpLocalPostDeploymentService.ts:266-288</code> &amp; <code>GbpReviewReplyDeploymentService.ts:83-100</code> — [dim 16] post-Google bookkeeping (<code>markPublished</code> + <code>markSucceeded</code> + <code>WorkEvent.create</code> + <code>Notification.create</code> / <code>ReviewModel.updateReplyFields</code>) runs as sequential awaits with no <code>db.transaction</code> wrapper. Deliberate (can't hold a trx open across the slow Google call), and the catch handles the Google-succeeded/local-failed case via <code>LOCAL_PUBLISH_SYNC_FAILED</code> — but a mid-sequence failure after <code>markPublished</code> can still half-write the local bookkeeping. <em>Fix:</em> wrap the post-Google local writes (everything after the API returns) in a single short transaction so the success path is atomic; keep the existing partial-failure fallback.</li>
+    <li><code>feature-services/GbpPublishedReplyService.ts:82-83,101-102</code> — [dim 16/dim 8] <code>updateReply</code>/<code>deleteReply</code> call Google then a single local write, but unlike the deploy services they record NO deployment attempt and have NO Google-succeeded/local-failed guard. If <code>ReviewModel.updateReplyFields</code>/<code>clearReplyFields</code> fails after Google succeeds, Google is live and the local <code>reviews</code> row is silently stale. <em>Fix:</em> mirror the <code>if (googleResult)</code> reconciliation used in the deploy services, or at minimum log + surface the divergence.</li>
+    <li><code>feature-services/GbpDraftGenerationService.ts:44-160</code> vs <code>GbpLocalPostDraftService.ts:98-216</code> — [dim 2/DRY] the distinct-draft + safety-repair LLM loop is duplicated near-verbatim across both services (<code>normalizedContent</code>, <code>isSameAsPreviousDraft</code>, <code>pickVariationInstruction</code>, <code>safetyRepairInstruction</code>, <code>generateDistinct*</code>, <code>generateSafe*</code>). This is the same concept, not coincidental similarity — the convention's DRY carve-out doesn't apply. <em>Fix:</em> extract a shared <code>feature-utils</code> helper parameterized by variation text + safety validator; keep review-vs-post wording as inputs.</li>
+    <li>Long functions [dim 2] — <code>GbpLocalPostDeploymentService.deployNow</code> 139 lines (194-332), <code>GbpReviewReplyService.generateDraft</code> 134 lines (46-179), <code>GbpReviewReplyDeploymentService.deployNow</code> 123 lines (22-144), <code>GbpLocalPostDraftService.completeQueuedGeneration</code> 120 lines (569-688). All 2.4-2.8&times; the 50-line cap. <em>Fix:</em> extract the readiness/safety/property preflight and the success-vs-failure bookkeeping into named helpers (the codebase already favors this style — see the file-level helpers).</li>
+  </ul>
+
+  <h3>Nitpicks</h3>
+  <ul>
+    <li>Files over 300 [dim 1] — <code>GbpLocalPostDraftService.ts</code> 707, <code>GbpPublishedLocalPostService.ts</code> 640, <code>AdminGbpAutomationController.ts</code> 442, <code>GbpAutomationController.ts</code> 425, <code>GbpReviewReplyService.ts</code> 392, <code>GbpLocalPostDeploymentService.ts</code> 364. The two controllers are over purely from many thin handlers (split into client/admin sub-routers by resource if desired); the services are real split candidates, not alarms.</li>
+    <li><code>feature-services/GbpDraftGenerationService.ts:21</code> &amp; <code>GbpLocalPostDraftService.ts:31</code> — [dim 11] default LLM model string <code>"claude-haiku-4-5-20251001"</code> is hardcoded in both services as the env fallback. <em>Fix:</em> lift to a single named constant in <code>config/</code> and import it in both (also kills a drift risk).</li>
+    <li><code>feature-services/GbpLocalPostDeploymentService.ts:160-166</code> &amp; <code>GbpReviewReplyService.ts:338-344</code> — [dim 11] BullMQ options (<code>attempts: 3</code>, <code>delay: 30000</code>, <code>removeOnComplete age 86400</code>, <code>removeOnFail age 604800</code>) are inline magic numbers duplicated across both deploy enqueues. <em>Fix:</em> extract a shared deploy-queue options constant.</li>
+    <li><code>feature-services/GbpPostMediaService.ts:13</code> vs <code>routes/gbpAutomation.ts:9</code> — [dim 11] image size ceiling is 5 MB in the service but the multer route limit is 25 MB; the route limit is effectively dead (looser than the service). <em>Fix:</em> align the two on one named constant so the rejection boundary is single-sourced.</li>
+    <li><code>feature-services/GbpLocalPostScheduleService.ts:172-217</code> — [dim 15-adjacent/stale logic] <code>processDueSettings</code> only ever increments <code>skipped</code> (always writes <code>lastLocalPostSkipReason: "per_post_image_required"</code>); it never generates, so <code>result.created</code> is dead in the scheduled path. Likely intentional after per-post images became mandatory, but the unused counter + "process due" name now mislead. <em>Fix:</em> drop the dead branch/counter or add a comment stating the scheduled path is intentionally skip-only.</li>
+    <li><code>feature-services/GbpPublishedReplyService.ts:43-46</code> — [dim 14/clarity] <code>getEditableReview</code> validates <code>property.google_connection_id</code> then discards it; <code>getAuthForLocation</code> re-fetches the same property a line later. Harmless double-fetch. <em>Fix:</em> pass the resolved property/connection through instead of re-querying.</li>
+  </ul>
+
+  <h3>What this domain does right (positive baseline)</h3>
+  <ul>
+    <li><strong>Data flow &amp; response shape [dim 5/6/9]</strong> — both controllers are pure orchestration; <code>feature-utils/controllerResponses.ts</code> centralizes <em>both</em> <code>{success,data,error}</code> branches and maps error codes &rarr; HTTP status. This is the contract-correct shape the rest of the repo skips.</li>
+    <li><strong>Google failure modes [dim 8]</strong> — <code>feature-utils/googleApiErrors.ts</code> classifies 401&rarr;reconnect / 403&rarr;permission / 429&rarr;rate-limit / 5xx&rarr;transient with a transient-retry flag; deploy paths distinguish transient (rethrow for BullMQ retry) from terminal, and <code>deployNow</code> correctly handles the Google-succeeded/local-failed partial failure instead of orphaning a live post.</li>
+    <li><strong>Input handling &amp; AI safety [dim 12]</strong> — <code>GbpInputSanitizer</code> (control-char strip, length caps, URL protocol allowlist) is applied at <code>settingsPayload</code>; <code>GbpContentSafetyService</code>/<code>GbpLocalPostSafetyService</code> gate PHI/medical-claim content; both generation services inject an <code>untrustedInputNotice</code> into the LLM prompt and run a regenerate-on-unsafe repair loop. <code>GbpPostMediaService</code> enforces MIME allowlist + size bounds + project ownership on uploads.</li>
+    <li><strong>Transactions [dim 16]</strong> — every multi-table draft/approve/reject write threads <code>trx</code> from <code>db.transaction</code> into <code>trx</code>-aware model methods (19 call sites). The trx orchestration in services + queries-in-models split is a defensible read of the contract, not a dim-7 break.</li>
+    <li><strong>Naming [dim 14]</strong> — uniform <code>XxxController</code>/<code>XxxService</code> PascalCase, descriptive function names, boolean-as-question (<code>isSafe</code>, <code>isGoogleReady</code>, <code>hasBusinessManageScope</code>). Auth [dim 13] applied at the router via <code>router.use(...)</code> on both client and admin route files.</li>
+  </ul>
+
+  <h3>Coverage</h3>
+  <p>Deep-read 28 of 28 (100%) — all 3 controllers, all 21 feature-services, all 4 feature-utils, plus both route files (<code>routes/gbpAutomation.ts</code>, <code>routes/admin/gbpAutomation.ts</code>) and a spot-check of <code>models/</code> (8 Gbp* models confirmed present). Grep-swept the full scope for <code>console.*</code> (1 hit), <code>db(</code>/<code>db.</code>/<code>knex</code>/<code>.raw</code> (1 raw join + 19 trx, all else via models), commented-out code (0), hardcoded secrets (0), and <code>process.env</code> (3, all the model-id fallback). Not examined: 0 files. Systemic items (console, input-validation-at-route, flat response shape elsewhere) noted only as this unit's instances per wave-1 ruling.</p>
+  <p style="font-size:.82rem;color:var(--muted);margin-top:6px"><strong>[systemic]</strong> dim-10: 1 <code>console.error</code> at <code>GbpPublishedLocalPostService.ts:527</code> (auto-sync loop). dim-7: <code>db</code> imported in 6 services — 19 <code>db.transaction</code> call sites (acceptable trx pattern, queries live in models) + 1 genuine inline query builder <code>db("google_properties as gp")</code> at <code>GbpPublishedLocalPostService.ts:491-508</code> (the <code>syncAll</code> cross-org join) that belongs in a model. dim-12: route-level schema validation absent (relies on in-controller <code>String()</code> coercion + service-layer sanitizer) — far better mitigated here than elsewhere, but still no <code>validation/</code> schemas. dim-9: nested error shape unused; this domain uses the correct flat shape via the shared helper.</p>
+</section>
+</main>
+</body>
+</html>

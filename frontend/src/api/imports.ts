@@ -3,6 +3,19 @@
  * (CSS, JS, images, fonts, etc.) used by website-builder templates.
  */
 
+import { getCommonHeaders } from "./index";
+
+// Attach the Bearer token (via getCommonHeaders) to every admin call. The
+// /api/admin/websites/imports routes are protected by the app-level auth guard;
+// bare fetch would 401.
+const adminFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
+  const headers = new Headers(init.headers);
+  Object.entries(getCommonHeaders()).forEach(([key, value]) => {
+    if (!headers.has(key)) headers.set(key, value);
+  });
+  return fetch(input, { ...init, headers });
+};
+
 export type ImportType = "css" | "javascript" | "image" | "font" | "file";
 export type ImportStatus = "published" | "active" | "deprecated";
 
@@ -54,7 +67,7 @@ export const fetchImports = async (filters?: {
   const qs = params.toString();
   const url = qs ? `${API_BASE}?${qs}` : API_BASE;
 
-  const response = await fetch(url);
+  const response = await adminFetch(url);
   if (!response.ok) {
     throw new Error(`Failed to fetch imports: ${response.statusText}`);
   }
@@ -67,7 +80,7 @@ export const fetchImports = async (filters?: {
 export const fetchImport = async (
   id: string
 ): Promise<{ success: boolean; data: ImportVersion & { versions: ImportVersion[] } }> => {
-  const response = await fetch(`${API_BASE}/${id}`);
+  const response = await adminFetch(`${API_BASE}/${id}`);
   if (!response.ok) {
     throw new Error(`Failed to fetch import: ${response.statusText}`);
   }
@@ -80,7 +93,7 @@ export const fetchImport = async (
 export const createImport = async (
   data: FormData
 ): Promise<{ success: boolean; data: ImportVersion }> => {
-  const response = await fetch(API_BASE, {
+  const response = await adminFetch(API_BASE, {
     method: "POST",
     body: data,
   });
@@ -98,7 +111,7 @@ export const createNewVersion = async (
   id: string,
   data: FormData
 ): Promise<{ success: boolean; data: ImportVersion }> => {
-  const response = await fetch(`${API_BASE}/${id}/new-version`, {
+  const response = await adminFetch(`${API_BASE}/${id}/new-version`, {
     method: "POST",
     body: data,
   });
@@ -120,7 +133,7 @@ export const updateImportStatus = async (
   data: ImportVersion;
   previouslyPublished: { id: string; version: number } | null;
 }> => {
-  const response = await fetch(`${API_BASE}/${id}/status`, {
+  const response = await adminFetch(`${API_BASE}/${id}/status`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status }),
@@ -138,7 +151,7 @@ export const updateImportStatus = async (
 export const deleteImport = async (
   id: string
 ): Promise<{ success: boolean; message: string }> => {
-  const response = await fetch(`${API_BASE}/${id}`, {
+  const response = await adminFetch(`${API_BASE}/${id}`, {
     method: "DELETE",
   });
   if (!response.ok) {

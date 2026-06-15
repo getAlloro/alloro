@@ -1,10 +1,11 @@
 import { Response } from "express";
 import { AuthRequest } from "../../middleware/auth";
-import { db } from "../../database/connection";
 import { PmTaskModel, PmVelocityRange } from "../../models/PmTaskModel";
+import { PmActivityLogModel } from "../../models/PmActivityLogModel";
+import logger from "../../lib/logger";
 
 function handleError(res: Response, error: unknown, operation: string): Response {
-  console.error(`[PM-STATS] ${operation} failed:`, error);
+  logger.error({ err: error }, `[PM-STATS] ${operation} failed:`);
   const message = error instanceof Error ? error.message : String(error);
   return res.status(500).json({ success: false, error: message });
 }
@@ -23,32 +24,13 @@ function parseVelocityRange(value: unknown): PmVelocityRange {
 export async function getStats(_req: AuthRequest, res: Response): Promise<any> {
   try {
     // Focus Today: tasks with priority P1 (top of the hour) or P2 (today), not completed
-    const [focusResult] = await db("pm_tasks")
-      .join("pm_projects", "pm_tasks.project_id", "pm_projects.id")
-      .where("pm_projects.status", "active")
-      .whereNull("pm_tasks.completed_at")
-      .whereIn("pm_tasks.priority", ["P1", "P2"])
-      .count("* as count");
-    const focusCount = parseInt(focusResult.count as string, 10) || 0;
+    const focusCount = await PmTaskModel.countActiveByPriorities(["P1", "P2"]);
 
     // This Week: tasks with priority P3 (3 days) or P4 (this week), not completed
-    const [weekResult] = await db("pm_tasks")
-      .join("pm_projects", "pm_tasks.project_id", "pm_projects.id")
-      .where("pm_projects.status", "active")
-      .whereNull("pm_tasks.completed_at")
-      .whereIn("pm_tasks.priority", ["P3", "P4"])
-      .count("* as count");
-    const weekCount = parseInt(weekResult.count as string, 10) || 0;
+    const weekCount = await PmTaskModel.countActiveByPriorities(["P3", "P4"]);
 
     // Backlog: tasks in Backlog columns of active projects
-    const [backlogResult] = await db("pm_tasks")
-      .join("pm_columns", "pm_tasks.column_id", "pm_columns.id")
-      .join("pm_projects", "pm_tasks.project_id", "pm_projects.id")
-      .where("pm_columns.is_backlog", true)
-      .where("pm_projects.status", "active")
-      .whereNull("pm_tasks.completed_at")
-      .count("* as count");
-    const backlogCount = parseInt(backlogResult.count as string, 10) || 0;
+    const backlogCount = await PmTaskModel.countActiveBacklog();
 
     // Compute subtitles + severity
     const focus_today = {
@@ -136,10 +118,11 @@ export async function getVelocity(req: AuthRequest, res: Response): Promise<any>
       labelFormat = "day";
     }
 
-    const [completedRows, overdueRows] = await Promise.all([
-      db.raw(completedQuery),
-      db.raw(overdueQuery),
-    ]);
+    const [completedRows, overdueRows] = await PmTaskModel.runVelocityRaw(
+      completedQuery,
+      overdueQuery,
+      []
+    );
 
     const completedMap = new Map<string, number>();
     for (const r of completedRows.rows) {
@@ -186,17 +169,9 @@ export async function getVelocity(req: AuthRequest, res: Response): Promise<any>
 // 14-day daily task_completed counts, zero-filled
 export async function getChartData(_req: AuthRequest, res: Response): Promise<any> {
   try {
-    const rawRows = await db.raw(`
-      SELECT d.date::date as date, COUNT(a.id)::int as count
-      FROM generate_series(CURRENT_DATE - INTERVAL '13 days', CURRENT_DATE, '1 day') as d(date)
-      LEFT JOIN pm_activity_log a
-        ON a.action = 'task_completed'
-        AND DATE(a.created_at) = d.date::date
-      GROUP BY d.date
-      ORDER BY d.date ASC
-    `);
+    const rows = await PmActivityLogModel.getDailyCompletionRows();
 
-    const daily_completions = rawRows.rows.map((r: any) => ({
+    const daily_completions = rows.map((r: any) => ({
       date:
         r.date instanceof Date
           ? r.date.toISOString().slice(0, 10)

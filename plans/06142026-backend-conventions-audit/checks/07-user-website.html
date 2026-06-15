@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>user-website — Conventions Audit</title>
+<style>
+:root{color-scheme:light;--paper:#fff;--ink:#080808;--muted:#5f5f5f;--line:#d8d8d8;--soft:#f5f5f5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
+.shell{width:min(1000px,calc(100% - 32px));margin:0 auto;padding:40px 0}
+.hero,.card{border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.hero{border-color:var(--ink);padding:28px;margin-bottom:18px}
+.topline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.card{padding:24px;margin-top:16px}
+.eyebrow,dt{color:var(--muted);font-size:.74rem;font-weight:700;text-transform:uppercase}
+.eyebrow{margin:0}
+.pill{display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border:1px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper);font-size:.74rem;font-weight:800;text-transform:uppercase}
+h1,h2,h3,p{margin-top:0}
+h1{margin-bottom:18px;font-size:clamp(1.8rem,5vw,3rem);line-height:.98}
+h2{font-size:1.2rem}h3{font-size:.95rem}
+code{padding:.1rem .3rem;border:1px solid var(--line);border-radius:4px;background:var(--soft);font-size:.86em}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:0}
+.meta div{border:1px solid var(--line);border-radius:8px;padding:14px}
+dd{margin:4px 0 0;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:8px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);text-transform:uppercase;font-size:.7rem}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.over{font-weight:800}
+.checklist{list-style:none;padding:0;margin:0}
+.checklist li{display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line);font-size:.88rem}
+.note{border-left:3px solid var(--ink);padding:10px 14px;background:var(--soft);margin:0;font-size:.9rem}
+ul.flags{margin:0;padding-left:18px}ul.flags li{margin-bottom:7px}
+a{color:var(--ink)}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="hero">
+  <div class="topline"><p class="eyebrow">Backend Conventions Audit · Check 07 / 17 · <a href="../spec.html">index</a></p><span class="pill">Audited</span></div>
+  <h1>user-website</h1>
+  <dl class="meta">
+    <div><dt>Scope</dt><dd><code>src/controllers/user-website</code></dd></div>
+    <div><dt>Files</dt><dd>3</dd></div>
+    <div><dt>Lines</dt><dd>3,269</dd></div>
+    <div><dt>Over 300</dt><dd>3 / 3</dd></div>
+    <div><dt>Priority</dt><dd>P1</dd></div>
+  </dl>
+</header>
+
+<section class="card">
+  <h2>Scope</h2>
+  <p>Public / user-facing website rendering: shortcode resolution + site serving. Only 3 files — but the worst lines-per-file density in the backend, and it is <strong>public-facing</strong>.</p>
+  <table>
+    <thead><tr><th>File (rel. to scope)</th><th class="n">Lines</th></tr></thead>
+    <tbody>
+      <tr><td><code>UserWebsiteController.ts</code></td><td class="n over">1,690 ▲</td></tr>
+      <tr><td><code>user-website-services/shortcodeResolver.service.ts</code></td><td class="n over">1,003 ▲</td></tr>
+      <tr><td><code>user-website-services/userWebsite.service.ts</code></td><td class="n over">576 ▲</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:.78rem;color:var(--muted);margin:8px 0 0">▲ = over the 300-line cap. All three files exceed it.</p>
+</section>
+
+<section class="card">
+  <h2>Priority Signals (start here)</h2>
+  <ul class="flags">
+    <li><strong>Public-facing → security first.</strong> Audit input sanitization, XSS, and path-traversal on every user-supplied input (skill security rules). Untrusted traffic hits this code path directly.</li>
+    <li><code>shortcodeResolver.service</code> 1,003 — shortcode expansion is a classic injection surface. Verify resolved content is escaped and inputs are validated.</li>
+    <li>Verify rendering / shortcode logic isn't doing inline DB access; it should route through <code>models/</code>.</li>
+    <li>3 files / 3,269 lines is a <strong>decomposition</strong> target as much as a compliance one — splitting is the primary remediation.</li>
+    <li>Fourth nesting variant: <code>user-website-services/</code>. Feeds the repo-wide ruling.</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Audit Dimensions</h2>
+  <p>Run every file in scope against the 16-point contract (full detail in <a href="../spec.html#dimensions">spec.html</a>).</p>
+  <ul class="checklist">
+    <li><input type="checkbox" disabled> File &le; 300 lines</li>
+    <li><input type="checkbox" disabled> Functions &le; 50 lines</li>
+    <li><input type="checkbox" disabled> Nesting &le; 4 levels</li>
+    <li><input type="checkbox" disabled> Correct folder placement</li>
+    <li><input type="checkbox" disabled> Data flow: Routes &rarr; Controllers &rarr; Services &rarr; Models</li>
+    <li><input type="checkbox" disabled> No business logic in routes</li>
+    <li><input type="checkbox" disabled> No DB queries outside <code>models/</code></li>
+    <li><input type="checkbox" disabled> Error handling on every async call</li>
+    <li><input type="checkbox" disabled> <code>{ success, data, error }</code> response shape</li>
+    <li><input type="checkbox" disabled> No <code>console.log</code> (Pino only)</li>
+    <li><input type="checkbox" disabled> No hardcoded secrets / magic values</li>
+    <li><input type="checkbox" disabled> Input validated at route/middleware</li>
+    <li><input type="checkbox" disabled> Auth middleware on protected routes</li>
+    <li><input type="checkbox" disabled> Naming conventions</li>
+    <li><input type="checkbox" disabled> No commented-out code</li>
+    <li><input type="checkbox" disabled> Transactions for multi-table writes</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Findings</h2>
+  <h3>Summary</h3>
+  <p><strong>Verdict: needs changes — decomposition-first, not a security panic.</strong> All 3 files exceed the 300-line cap and the controller is 5.6&times; over (1,690). The dominant violations are structural: oversized files/functions and DB access outside <code>models/</code>. <strong>Security-wise the brief's premise is wrong for this layer.</strong> Every route in <code>src/routes/user/website.ts</code> is gated by <code>authenticateToken + rbacMiddleware + requireRole("admin"|"manager")</code> — there is no anonymous traffic here. The genuinely public renderer is a separate app (<code>website-builder-rebuild</code>, per the resolver's own header). So the attacker model is an authenticated admin/manager editing their own org's site, which downgrades XSS/injection from "must-fix" to "concern." <strong>No SQL injection exists</strong> — every <code>db.raw</code> is a static literal and all variable inputs go through Knex's parameterized builder. Counts: <strong>0 critical · ~4 must-fix · ~6 concerns · ~5 nitpicks.</strong></p>
+
+  <h3>Must-fix</h3>
+  <ul>
+    <li><code>UserWebsiteController.ts:1</code> — [dim 1] 1,690 lines, the worst density in the backend. <em>Fix:</em> split by domain into separate controllers (forms/submissions, posts, post-types+taxonomy, menus, domain, GSC, analytics, pages/versions). Each is an independent route group already — decomposition is mechanical and the primary remediation for this unit.</li>
+    <li><code>shortcodeResolver.service.ts:1</code> (1,003) &amp; <code>userWebsite.service.ts:1</code> (576) — [dim 1] both over cap. <em>Fix:</em> resolver splits cleanly into post-block / review-block / menu / conditional-engine modules; service splits into media, page-edit, and version-history services.</li>
+    <li><code>UserWebsiteController.ts:798-817, 1223-1296, 1459-1462, 1478-1480, 1495, 1514-1516, 1534-1537</code> &amp; <code>userWebsite.service.ts:324, 376, 410-411, 450-541</code> &amp; <code>shortcodeResolver.service.ts:187, 224, 284, 293, 629, 785, 797, 814</code> — [dim 7] DB access outside <code>models/</code>. 26 inline <code>db(...)</code> calls across the unit (10 controller / 6 service / 10 resolver), incl. raw <code>db.raw</code> aggregation, page-save writes, taxonomy CRUD, and the entire shortcode read layer. The controller writing rows directly (e.g. category/tag <code>insert</code>, post SEO <code>update</code>) is also [dim 6] business/DB logic in the controller layer. [systemic] repo-wide, but this is one of the densest offenders. <em>Fix:</em> move all queries into the relevant Models (<code>FormSubmissionModel</code>, <code>PageModel</code>, <code>PostModel</code>, <code>MenuModel</code>, <code>PostBlockModel</code>, etc.); controllers/services call models only.</li>
+    <li><code>UserWebsiteController.ts:1205 savePageSections (115), :773 getFormSubmissionsTimeseries (111), :687 getWebsiteAnalytics (87), :206 editPageComponent (82), :910 listFormSubmissions (78)</code> and <code>userWebsite.service.ts:427 restorePageVersion (132), :245 editPageComponent (114)</code> and <code>shortcodeResolver.service.ts:219 fetchFilteredPosts (122), :488 renderPostBlock (113)</code> — [dim 2] functions far over the 50-line cap (9 functions, worst is 132). <em>Fix:</em> extract named helpers (e.g. concurrency-check, snapshot, version-bump in <code>savePageSections</code>; query-build vs token-replace in the resolver). Decomposition into models (above) shrinks most of these automatically.</li>
+  </ul>
+
+  <h3>Concerns</h3>
+  <ul>
+    <li><code>UserWebsiteController.ts:206 editPageComponent</code>, <code>:1320 resolvePreview</code>, <code>:1205 savePageSections</code> — [dim 12] raw <code>currentHtml</code> / <code>html</code> / <code>sections</code> are accepted, then stored and re-served. <code>resolveShortcodes</code> escapes most tokens (<code>escapeHtml</code>) but intentionally injects three raw HTML sinks: <code>{{post.content}}</code> (<code>shortcodeResolver.service.ts:537</code>), the marker wrapper at <code>:944</code>, and <code>buildVideoEmbed</code> at <code>:568</code>/<code>:951</code>. This is a <strong>stored-XSS surface</strong>, but it is auth-gated to an admin/manager mutating their own org's site, and the public renderer re-resolves independently — so it is a real concern, not the must-fix the brief implied. <em>Fix:</em> sanitize stored HTML (e.g. DOMPurify server-side) on the edit/save path, or document the trust boundary explicitly. Track as systemic [dim 12] — 0/route input-validation schemas in this unit.</li>
+    <li><code>shortcodeResolver.service.ts:64-66, 102-110</code> — [dim 12] shortcode attribute parsing is hand-rolled regex with no length/cardinality bounds; a pathological template could enqueue many sub-queries (one extra <code>db</code> round-trip per post block, per menu, per review block — see N+1 below). Inputs feed Knex <code>.where</code> so they are parameterized (no SQLi / no path traversal — slugs never hit the filesystem). <em>Fix:</em> cap shortcode count + attribute list length per resolve call.</li>
+    <li><code>shortcodeResolver.service.ts:200-214</code> (post blocks) &amp; <code>:784-837</code> (menus) — [dim perf] N+1 query pattern: a per-shortcode loop issues <code>fetchFilteredPosts</code> (itself 1-3 queries) / per-menu <code>menu_items</code> + <code>menu_templates</code> lookups. Bounded by template authoring today, but unbounded in principle. <em>Fix:</em> batch by slug where feasible (post-block metadata is already batched; the post fetch is not).</li>
+    <li><code>UserWebsiteController.ts:50-91</code> — [dim 9] dual ad-hoc error handlers (<code>handleError</code>/<code>handleGscError</code>) emit a non-standard <code>{success,error,message,...}</code> shape, and success responses across the file are flat (<code>{project,pages,...}</code>, <code>{success,allCount,...}</code>) rather than the contract's <code>{success,data,error}</code>. [systemic] flat shape dominates repo-wide. <em>Fix:</em> none required unless standardizing globally; note for the systemic rollup.</li>
+    <li><code>userWebsite.service.ts:69-103, 217-239</code> — [dim 5] data-flow inversion: the <strong>service</strong> performs the tier/auth gate (<code>getOrgAndValidateTier</code>) which is closer to a middleware/authorization concern, while the <strong>controller</strong> performs raw DB writes. Layering is muddled in both directions. <em>Fix:</em> push the DFY-tier check into middleware; pull DB writes down into models.</li>
+    <li><code>UserWebsiteController.ts:1138-1199 exportFormSubmissions</code> — [dim 8/11] hard-caps export at <code>limit: 10000</code> (magic number, no pagination) and on error returns a bare <code>res.status(500)</code> bypassing the shared handler. <em>Fix:</em> stream/paginate the export; extract the cap to a named constant in <code>config/</code>.</li>
+  </ul>
+
+  <h3>Nitpicks</h3>
+  <ul>
+    <li><code>userWebsite.service.ts:305, 338, 548</code>, <code>UserWebsiteController.ts:66, 276</code>, <code>shortcodeResolver.service.ts:374, 428, 1000</code> — [dim 10] 8 <code>console.*</code> calls (log/warn/error). [systemic] Pino not installed repo-wide. <em>Fix:</em> swap to Pino when the logger lands.</li>
+    <li><code>userWebsite.service.ts:32-34</code> — [dim 11] in-file constants (<code>DAILY_EDIT_LIMIT=50</code>, <code>USER_STORAGE_LIMIT=1GB</code>) are named but live in the service rather than <code>config/</code>. Minor; they are at least not bare literals.</li>
+    <li><code>UserWebsiteController.ts:1477, 1513</code> — [dim 11] slug-generation regex (<code>name.toLowerCase().replace(...)</code>) is duplicated inline in <code>createUserCategory</code> and <code>createUserTag</code>. <em>Fix:</em> extract a <code>slugify</code> util.</li>
+    <li><code>shortcodeResolver.service.ts:328-333, 422</code> — [dim 15-adjacent] the conditional engine is flagged (in comments) as triplicated across this file, <code>website-builder-rebuild</code>, and a frontend component, with a "keep in sync" note. Not commented-out code, but a known DRY/drift hazard worth a shared module.</li>
+    <li><code>UserWebsiteController.ts:151, 154-161</code> etc. — [dim 14-adjacent] heavy <code>(project as any)</code> casting throughout <code>fetchUserWebsiteData</code> indicates the <code>Project</code> model type is incomplete. <em>Fix:</em> extend the type instead of casting.</li>
+    <li>No commented-out code found [dim 15] — clean. No hardcoded secrets [dim 11] — clean.</li>
+  </ul>
+
+  <h3>Coverage</h3>
+  <p>Deep-read 3 (all scope files, read fully: <code>UserWebsiteController.ts</code>, <code>shortcodeResolver.service.ts</code>, <code>userWebsite.service.ts</code>) · Grep-sampled supporting context — <code>src/routes/user/website.ts</code> (read fully for auth/validation middleware), plus greps for <code>console.*</code>, <code>db(</code>/<code>db.raw</code>/<code>.raw(</code>, <code>db.transaction</code>, commented-out code, secrets, and the <code>resolveShortcodes</code> output sink (confirmed consumed by <code>resolvePreview</code> + <code>frontend/DFYWebsite.tsx</code>). Function lengths approximated via awk block-counting · Not examined 0 in-scope; cross-app public renderer (<code>website-builder-rebuild</code>) is out of scope — noted only because it changes the trust model.</p>
+</section>
+</main>
+</body>
+</html>

@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import logger from "../../../lib/logger";
 
 const MODEL = process.env.MINDS_LLM_MODEL || "claude-sonnet-4-6";
 
@@ -56,7 +57,7 @@ export async function extractKnowledgeFromTranscript(
     ? `CONVERSATION TRANSCRIPT:\n${transcript}\n\nACCUMULATED KNOWLEDGE NOTES:\n${knowledgeBuffer}`
     : `CONVERSATION TRANSCRIPT:\n${transcript}`;
 
-  console.log(
+  logger.info(
     `[MINDS] Extracting knowledge from transcript: ${combined.length} chars`
   );
 
@@ -80,7 +81,7 @@ export async function extractKnowledgeFromTranscript(
   const text =
     response.content[0]?.type === "text" ? response.content[0].text : "EMPTY";
 
-  console.log(
+  logger.info(
     `[MINDS] Extraction result: ${text.length} chars, empty: ${text.trim() === "EMPTY"}`
   );
 

@@ -16,9 +16,9 @@
  */
 
 import { Request, Response } from "express";
-import { db } from "../../database/connection";
 import { PmsJobModel } from "../../models/PmsJobModel";
 import { AgentResultModel, IAgentResult } from "../../models/AgentResultModel";
+import logger from "../../lib/logger";
 
 interface AgentNode {
   agent_type: string;
@@ -92,16 +92,11 @@ export async function getPipelineForPmsJob(
 
       // Fallback: org+location join if no recorded id (legacy runs / partial failures)
       if (!row && job.organization_id) {
-        const fallbackQuery = db("agent_results")
-          .where({
-            organization_id: job.organization_id,
-            agent_type: agentType,
-          })
-          .orderBy("created_at", "desc");
-        if (job.location_id !== null && job.location_id !== undefined) {
-          fallbackQuery.where({ location_id: job.location_id });
-        }
-        const fallbackRow = await fallbackQuery.first();
+        const fallbackRow = await AgentResultModel.findLatestRawByOrgAndAgent(
+          job.organization_id,
+          agentType,
+          job.location_id
+        );
         if (fallbackRow) {
           row = {
             ...fallbackRow,
@@ -157,7 +152,7 @@ export async function getPipelineForPmsJob(
       agents: nodes,
     });
   } catch (error: any) {
-    console.error(
+    logger.error(
       `[admin-pms-pipeline] getPipelineForPmsJob(${jobId}) failed: ${error?.message || error}`
     );
     return res.status(500).json({

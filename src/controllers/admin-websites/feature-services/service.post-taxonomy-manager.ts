@@ -5,11 +5,10 @@
  * Categories are hierarchical (parent_id). Tags are flat.
  */
 
-import { db } from "../../../database/connection";
-
-const POST_TYPES_TABLE = "website_builder.post_types";
-const CATEGORIES_TABLE = "website_builder.post_categories";
-const TAGS_TABLE = "website_builder.post_tags";
+import { PostTypeModel } from "../../../models/website-builder/PostTypeModel";
+import { PostCategoryModel } from "../../../models/website-builder/PostCategoryModel";
+import { PostTagModel } from "../../../models/website-builder/PostTagModel";
+import logger from "../../../lib/logger";
 
 function slugify(text: string): string {
   return text
@@ -26,7 +25,7 @@ export async function listCategories(postTypeId: string): Promise<{
   categories: any[];
   error?: { status: number; code: string; message: string };
 }> {
-  const postType = await db(POST_TYPES_TABLE).where("id", postTypeId).first();
+  const postType = await PostTypeModel.findRawById(postTypeId);
   if (!postType) {
     return {
       categories: [],
@@ -34,9 +33,7 @@ export async function listCategories(postTypeId: string): Promise<{
     };
   }
 
-  const categories = await db(CATEGORIES_TABLE)
-    .where("post_type_id", postTypeId)
-    .orderBy("sort_order", "asc");
+  const categories = await PostCategoryModel.findByPostTypeId(postTypeId);
 
   return { categories };
 }
@@ -57,7 +54,7 @@ export async function createCategory(
     };
   }
 
-  const postType = await db(POST_TYPES_TABLE).where("id", postTypeId).first();
+  const postType = await PostTypeModel.findRawById(postTypeId);
   if (!postType) {
     return {
       category: null,
@@ -66,9 +63,10 @@ export async function createCategory(
   }
 
   const slug = slugify(name);
-  const existing = await db(CATEGORIES_TABLE)
-    .where({ post_type_id: postTypeId, slug })
-    .first();
+  const existing = await PostCategoryModel.findByPostTypeAndSlug(
+    postTypeId,
+    slug
+  );
   if (existing) {
     return {
       category: null,
@@ -82,9 +80,10 @@ export async function createCategory(
 
   // Validate parent_id if provided
   if (parent_id) {
-    const parent = await db(CATEGORIES_TABLE)
-      .where({ id: parent_id, post_type_id: postTypeId })
-      .first();
+    const parent = await PostCategoryModel.findByIdAndPostType(
+      parent_id,
+      postTypeId
+    );
     if (!parent) {
       return {
         category: null,
@@ -93,17 +92,15 @@ export async function createCategory(
     }
   }
 
-  const [category] = await db(CATEGORIES_TABLE)
-    .insert({
-      post_type_id: postTypeId,
-      name,
-      slug,
-      description: description || null,
-      parent_id: parent_id || null,
-    })
-    .returning("*");
+  const category = await PostCategoryModel.insertRawReturning({
+    post_type_id: postTypeId,
+    name,
+    slug,
+    description: description || null,
+    parent_id: parent_id || null,
+  });
 
-  console.log(`[Admin Websites] ✓ Created category "${name}" for post type ${postTypeId}`);
+  logger.info(`[Admin Websites] ✓ Created category "${name}" for post type ${postTypeId}`);
 
   return { category };
 }
@@ -116,9 +113,10 @@ export async function updateCategory(
   category: any;
   error?: { status: number; code: string; message: string };
 }> {
-  const existing = await db(CATEGORIES_TABLE)
-    .where({ id: categoryId, post_type_id: postTypeId })
-    .first();
+  const existing = await PostCategoryModel.findByIdAndPostType(
+    categoryId,
+    postTypeId
+  );
   if (!existing) {
     return {
       category: null,
@@ -132,10 +130,11 @@ export async function updateCategory(
 
   if (updates.name && updates.name !== existing.name) {
     updates.slug = slugify(updates.name);
-    const conflict = await db(CATEGORIES_TABLE)
-      .where({ post_type_id: postTypeId, slug: updates.slug })
-      .whereNot("id", categoryId)
-      .first();
+    const conflict = await PostCategoryModel.findSlugConflict(
+      postTypeId,
+      updates.slug,
+      categoryId
+    );
     if (conflict) {
       return {
         category: null,
@@ -152,10 +151,11 @@ export async function updateCategory(
     };
   }
 
-  const [category] = await db(CATEGORIES_TABLE)
-    .where({ id: categoryId, post_type_id: postTypeId })
-    .update({ ...updates, updated_at: db.fn.now() })
-    .returning("*");
+  const category = await PostCategoryModel.updateByIdAndPostTypeReturning(
+    categoryId,
+    postTypeId,
+    updates
+  );
 
   return { category };
 }
@@ -164,20 +164,19 @@ export async function deleteCategory(
   postTypeId: string,
   categoryId: string
 ): Promise<{ error?: { status: number; code: string; message: string } }> {
-  const existing = await db(CATEGORIES_TABLE)
-    .where({ id: categoryId, post_type_id: postTypeId })
-    .first();
+  const existing = await PostCategoryModel.findByIdAndPostType(
+    categoryId,
+    postTypeId
+  );
   if (!existing) {
     return {
       error: { status: 404, code: "NOT_FOUND", message: "Category not found" },
     };
   }
 
-  await db(CATEGORIES_TABLE)
-    .where({ id: categoryId, post_type_id: postTypeId })
-    .del();
+  await PostCategoryModel.deleteByIdAndPostType(categoryId, postTypeId);
 
-  console.log(`[Admin Websites] ✓ Deleted category ID: ${categoryId}`);
+  logger.info(`[Admin Websites] ✓ Deleted category ID: ${categoryId}`);
 
   return {};
 }
@@ -190,7 +189,7 @@ export async function listTags(postTypeId: string): Promise<{
   tags: any[];
   error?: { status: number; code: string; message: string };
 }> {
-  const postType = await db(POST_TYPES_TABLE).where("id", postTypeId).first();
+  const postType = await PostTypeModel.findRawById(postTypeId);
   if (!postType) {
     return {
       tags: [],
@@ -198,9 +197,7 @@ export async function listTags(postTypeId: string): Promise<{
     };
   }
 
-  const tags = await db(TAGS_TABLE)
-    .where("post_type_id", postTypeId)
-    .orderBy("name", "asc");
+  const tags = await PostTagModel.findByPostTypeId(postTypeId);
 
   return { tags };
 }
@@ -221,7 +218,7 @@ export async function createTag(
     };
   }
 
-  const postType = await db(POST_TYPES_TABLE).where("id", postTypeId).first();
+  const postType = await PostTypeModel.findRawById(postTypeId);
   if (!postType) {
     return {
       tag: null,
@@ -230,9 +227,7 @@ export async function createTag(
   }
 
   const slug = slugify(name);
-  const existing = await db(TAGS_TABLE)
-    .where({ post_type_id: postTypeId, slug })
-    .first();
+  const existing = await PostTagModel.findByPostTypeAndSlug(postTypeId, slug);
   if (existing) {
     return {
       tag: null,
@@ -240,11 +235,13 @@ export async function createTag(
     };
   }
 
-  const [tag] = await db(TAGS_TABLE)
-    .insert({ post_type_id: postTypeId, name, slug })
-    .returning("*");
+  const tag = await PostTagModel.insertRawReturning({
+    post_type_id: postTypeId,
+    name,
+    slug,
+  });
 
-  console.log(`[Admin Websites] ✓ Created tag "${name}" for post type ${postTypeId}`);
+  logger.info(`[Admin Websites] ✓ Created tag "${name}" for post type ${postTypeId}`);
 
   return { tag };
 }
@@ -257,9 +254,7 @@ export async function updateTag(
   tag: any;
   error?: { status: number; code: string; message: string };
 }> {
-  const existing = await db(TAGS_TABLE)
-    .where({ id: tagId, post_type_id: postTypeId })
-    .first();
+  const existing = await PostTagModel.findByIdAndPostType(tagId, postTypeId);
   if (!existing) {
     return {
       tag: null,
@@ -273,10 +268,11 @@ export async function updateTag(
 
   if (updates.name && updates.name !== existing.name) {
     updates.slug = slugify(updates.name);
-    const conflict = await db(TAGS_TABLE)
-      .where({ post_type_id: postTypeId, slug: updates.slug })
-      .whereNot("id", tagId)
-      .first();
+    const conflict = await PostTagModel.findSlugConflict(
+      postTypeId,
+      updates.slug,
+      tagId
+    );
     if (conflict) {
       return {
         tag: null,
@@ -285,10 +281,11 @@ export async function updateTag(
     }
   }
 
-  const [tag] = await db(TAGS_TABLE)
-    .where({ id: tagId, post_type_id: postTypeId })
-    .update({ ...updates, updated_at: db.fn.now() })
-    .returning("*");
+  const tag = await PostTagModel.updateByIdAndPostTypeReturning(
+    tagId,
+    postTypeId,
+    updates
+  );
 
   return { tag };
 }
@@ -297,20 +294,16 @@ export async function deleteTag(
   postTypeId: string,
   tagId: string
 ): Promise<{ error?: { status: number; code: string; message: string } }> {
-  const existing = await db(TAGS_TABLE)
-    .where({ id: tagId, post_type_id: postTypeId })
-    .first();
+  const existing = await PostTagModel.findByIdAndPostType(tagId, postTypeId);
   if (!existing) {
     return {
       error: { status: 404, code: "NOT_FOUND", message: "Tag not found" },
     };
   }
 
-  await db(TAGS_TABLE)
-    .where({ id: tagId, post_type_id: postTypeId })
-    .del();
+  await PostTagModel.deleteByIdAndPostType(tagId, postTypeId);
 
-  console.log(`[Admin Websites] ✓ Deleted tag ID: ${tagId}`);
+  logger.info(`[Admin Websites] ✓ Deleted tag ID: ${tagId}`);
 
   return {};
 }

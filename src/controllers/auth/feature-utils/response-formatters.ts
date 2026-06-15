@@ -1,4 +1,5 @@
 import { Response } from "express";
+import logger from "../../../lib/logger";
 
 /**
  * Error response interface matching the original route's shape
@@ -28,10 +29,10 @@ export function handleError(res: Response, error: any, operation: string): Respo
     stack: process.env.NODE_ENV === "development" ? error?.stack : undefined,
   };
 
-  console.error(`[AUTH ERROR] ${operation}:`, {
-    ...errorDetails,
-    ...(error?.response?.data && { googleApiError: error.response.data }),
-  });
+  logger.error({ err: {
+        ...errorDetails,
+        ...(error?.response?.data && { googleApiError: error.response.data }),
+      } }, `[AUTH ERROR] ${operation}:`);
 
   const response: ErrorResponse = {
     error: `Failed to ${operation.toLowerCase()}`,

@@ -1,3 +1,5 @@
+import { Knex } from "knex";
+import { db } from "../database/connection";
 import { BaseModel, QueryContext } from "./BaseModel";
 
 export interface IOrganization {
@@ -151,5 +153,229 @@ export class OrganizationModel extends BaseModel {
       { setup_progress: progress } as Record<string, unknown>,
       trx
     );
+  }
+
+  /**
+   * Ids of organizations eligible for a full AI-SEO audit: a website project
+   * with a resolvable URL and at least one published page. Mirrors the inline
+   * whereExists query in
+   * services/ai-seo-audit/organizationAuditContextService.listAuditableOrganizationIds
+   * verbatim (including the nested raw subqueries against website_builder.*).
+   */
+  static async findAuditableIds(trx?: QueryContext): Promise<number[]> {
+    const knex = trx || db;
+    const rows = await knex("organizations as o")
+      .select("o.id")
+      .whereExists(function () {
+        this.select(knex.raw("1"))
+          .from("website_builder.projects as p")
+          .whereRaw("p.organization_id = o.id")
+          .whereRaw(
+            "(p.custom_domain IS NOT NULL OR p.generated_hostname IS NOT NULL OR p.selected_website_url IS NOT NULL)",
+          )
+          .whereExists(function () {
+            this.select(knex.raw("1"))
+              .from("website_builder.pages as pg")
+              .whereRaw("pg.project_id = p.id")
+              .andWhere("pg.status", "published");
+          });
+      })
+      .orderBy("o.id");
+    return rows.map((row: { id: number }) => Number(row.id));
+  }
+
+  /** name-only projection for an org (raw row, or undefined). */
+  static async findNameById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<{ name: string } | undefined> {
+    return this.table(trx).where({ id }).select("name").first();
+  }
+
+  /**
+   * Billing-context projection (id, name, stripe_customer_id,
+   * stripe_subscription_id) for an org. Mirrors the referrer/referred reads in
+   * services/referralReward.applyReferralReward. Returned as a raw row
+   * (untyped) to match the original untyped `db(...).first()` consumption — the
+   * Stripe calls pass stripe_customer_id where a `string | undefined` is
+   * expected, which the loose row shape preserves.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findBillingContextById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .where({ id })
+      .select("id", "name", "stripe_customer_id", "stripe_subscription_id")
+      .first();
+  }
+
+  /**
+   * engagement_score projection for an org. Mirrors the cached-value read in
+   * services/behavioralIntelligence.getEngagementScore. Returns the raw row.
+   */
+  static async findEngagementScore(
+    id: number,
+    trx?: QueryContext
+  ): Promise<{ engagement_score: number | null } | undefined> {
+    return this.table(trx).where({ id }).select("engagement_score").first();
+  }
+
+  /**
+   * subscription_status projection for an org. Mirrors the inline lookup in
+   * middleware/billingGate.billingGateMiddleware verbatim
+   * (.select("subscription_status").first()).
+   */
+  static async findSubscriptionStatusById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<{ subscription_status: string | null } | undefined> {
+    return this.table(trx).where({ id }).select("subscription_status").first();
+  }
+
+  /**
+   * Persist a recomputed engagement score and its timestamp. Mirrors the inline
+   * update in services/behavioralIntelligence.getEngagementScore.
+   */
+  static async updateEngagementScore(
+    id: number,
+    score: number,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx).where({ id }).update({
+      engagement_score: score,
+      engagement_score_updated_at: new Date(),
+    });
+  }
+
+  /**
+   * (id) projection for organizations counting toward MRR: subscription_status
+   * 'active' OR any non-null subscription_tier. Mirrors the inline query in
+   * services/businessMetrics.getMRRFromDB verbatim.
+   */
+  static async findMrrEligibleIds(
+    trx?: QueryContext
+  ): Promise<{ id: number }[]> {
+    return this.table(trx)
+      .where(function (this: Knex.QueryBuilder) {
+        this.where("subscription_status", "active")
+          .orWhereNotNull("subscription_tier");
+      })
+      .select("id");
+  }
+
+  /** Domain-only projection for an organization (or undefined if missing). */
+  static async findDomainById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<{ domain: string | null } | undefined> {
+    return this.table(trx).where({ id }).select("domain").first();
+  }
+
+  /**
+   * (id, domain, archived_at) projection — used by ranking competitor
+   * onboarding to load org context and enforce the archived guard.
+   */
+  static async findContextById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<
+    { id: number; domain: string | null; archived_at: Date | null } | undefined
+  > {
+    return this.table(trx)
+      .where({ id })
+      .select("id", "domain", "archived_at")
+      .first();
+  }
+
+  // -------------------------------------------------------------------------
+  // Billing (Stripe) projections + writes. Moved verbatim from BillingService.
+  // Writes are column-exact (no auto `updated_at` stamping) to preserve the
+  // original inline-update semantics exactly.
+  // -------------------------------------------------------------------------
+
+  /** Subscription-status projection for the billing-status endpoint. */
+  static async findBillingStatusFieldsById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<
+    | {
+        subscription_tier: string | null;
+        subscription_status: string | null;
+        stripe_customer_id: string | null;
+        stripe_subscription_id: string | null;
+      }
+    | undefined
+  > {
+    return this.table(trx)
+      .where({ id })
+      .select(
+        "subscription_tier",
+        "subscription_status",
+        "stripe_customer_id",
+        "stripe_subscription_id"
+      )
+      .first();
+  }
+
+  /** Stripe-id projection for the billing-details endpoint. */
+  static async findStripeIdsById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<
+    | {
+        stripe_customer_id: string | null;
+        stripe_subscription_id: string | null;
+      }
+    | undefined
+  > {
+    return this.table(trx)
+      .where({ id })
+      .select("stripe_customer_id", "stripe_subscription_id")
+      .first();
+  }
+
+  /**
+   * Persist Stripe customer/subscription IDs + activate on first checkout.
+   * Column-exact write (matches the original inline update); pass the
+   * checkout transaction so it commits atomically with the tier update.
+   */
+  static async updateStripeIdentifiersOnCheckout(
+    id: number,
+    data: {
+      stripe_customer_id: string | null;
+      stripe_subscription_id: string | null;
+      subscription_started_at: Date;
+      subscription_updated_at: Date;
+    },
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ id })
+      .update({
+        stripe_customer_id: data.stripe_customer_id,
+        stripe_subscription_id: data.stripe_subscription_id,
+        subscription_status: "active",
+        subscription_started_at: data.subscription_started_at,
+        subscription_updated_at: data.subscription_updated_at,
+      });
+  }
+
+  /**
+   * Update subscription_status (+ subscription_updated_at) for every org with
+   * the given Stripe customer id. Column-exact write (no auto `updated_at`).
+   */
+  static async updateSubscriptionStatusByCustomerId(
+    stripeCustomerId: string,
+    status: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ stripe_customer_id: stripeCustomerId })
+      .update({
+        subscription_status: status,
+        subscription_updated_at: new Date(),
+      });
   }
 }

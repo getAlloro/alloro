@@ -24,6 +24,7 @@ import {
   OrganizationArchivedError,
   OrganizationLifecycleService,
 } from "../../../services/OrganizationLifecycleService";
+import logger from "../../../lib/logger";
 
 const MAX_GOOGLE_POSTS = 1000;
 
@@ -488,24 +489,11 @@ export class GbpPublishedLocalPostService {
     jobId?: string | null;
     jobName?: string | null;
   } = {}): Promise<SyncAllLocalPostsResult> {
-    let query = db("google_properties as gp")
-      .join("google_connections as gc", "gp.google_connection_id", "gc.id")
-      .join("organizations as o", "gc.organization_id", "o.id")
-      .where("gp.type", "gbp")
-      .where("gp.selected", true)
-      .whereNotNull("gp.location_id")
-      .whereNull("o.archived_at")
-      .select(
-        "gc.organization_id as organization_id",
-        "gp.location_id as location_id"
-      )
-      .orderBy("gp.location_id", "asc");
-
-    if (params.organizationId) query = query.where("gc.organization_id", params.organizationId);
-    if (params.locationId) query = query.where("gp.location_id", params.locationId);
-    if (params.limit) query = query.limit(Math.min(Math.max(params.limit, 1), 500));
-
-    const rows = await query;
+    const rows = await GooglePropertyModel.findSelectedGbpLocationsForSyncAll({
+      organizationId: params.organizationId,
+      locationId: params.locationId,
+      limit: params.limit,
+    });
     let syncedCount = 0;
     let syncedLocations = 0;
     let failedLocations = 0;
@@ -524,7 +512,7 @@ export class GbpPublishedLocalPostService {
       } catch (error) {
         failedLocations += 1;
         const message = error instanceof Error ? error.message : "Unknown sync error";
-        console.error(
+        logger.error(
           `[GBP-POST-SYNC] Location ${row.location_id} failed during auto sync: ${message}`
         );
       }

@@ -4,6 +4,18 @@
 
 import type { Section } from "./templates";
 import type { SeoData } from "./websites";
+import { getCommonHeaders } from "./index";
+
+// Attach the Bearer token (via getCommonHeaders) to every admin call. These
+// /api/admin/websites/* routes are protected by the app-level auth guard;
+// bare fetch would 401.
+const adminFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
+  const headers = new Headers(init.headers);
+  Object.entries(getCommonHeaders()).forEach(([key, value]) => {
+    if (!headers.has(key)) headers.set(key, value);
+  });
+  return fetch(input, { ...init, headers });
+};
 
 // =====================================================================
 // TYPES
@@ -103,7 +115,7 @@ const TAXONOMY_BASE = "/api/admin/websites/post-types";
 export const fetchPostTypes = async (
   templateId: string
 ): Promise<{ success: boolean; data: PostType[] }> => {
-  const response = await fetch(`${TEMPLATES_BASE}/${templateId}/post-types`);
+  const response = await adminFetch(`${TEMPLATES_BASE}/${templateId}/post-types`);
   if (!response.ok) throw new Error(`Failed to fetch post types: ${response.statusText}`);
   return response.json();
 };
@@ -112,7 +124,7 @@ export const createPostType = async (
   templateId: string,
   data: { name: string; description?: string; schema?: Record<string, unknown>[]; single_template?: Section[] }
 ): Promise<{ success: boolean; data: PostType }> => {
-  const response = await fetch(`${TEMPLATES_BASE}/${templateId}/post-types`, {
+  const response = await adminFetch(`${TEMPLATES_BASE}/${templateId}/post-types`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -129,7 +141,7 @@ export const updatePostType = async (
   postTypeId: string,
   data: Partial<Pick<PostType, "name" | "description" | "schema" | "single_template">>
 ): Promise<{ success: boolean; data: PostType }> => {
-  const response = await fetch(`${TEMPLATES_BASE}/${templateId}/post-types/${postTypeId}`, {
+  const response = await adminFetch(`${TEMPLATES_BASE}/${templateId}/post-types/${postTypeId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -145,7 +157,7 @@ export const deletePostType = async (
   templateId: string,
   postTypeId: string
 ): Promise<{ success: boolean }> => {
-  const response = await fetch(`${TEMPLATES_BASE}/${templateId}/post-types/${postTypeId}`, {
+  const response = await adminFetch(`${TEMPLATES_BASE}/${templateId}/post-types/${postTypeId}`, {
     method: "DELETE",
   });
   if (!response.ok) {
@@ -162,7 +174,7 @@ export const deletePostType = async (
 export const fetchPostBlocks = async (
   templateId: string
 ): Promise<{ success: boolean; data: PostBlock[] }> => {
-  const response = await fetch(`${TEMPLATES_BASE}/${templateId}/post-blocks`);
+  const response = await adminFetch(`${TEMPLATES_BASE}/${templateId}/post-blocks`);
   if (!response.ok) throw new Error(`Failed to fetch post blocks: ${response.statusText}`);
   return response.json();
 };
@@ -171,7 +183,7 @@ export const fetchPostBlock = async (
   templateId: string,
   postBlockId: string
 ): Promise<{ success: boolean; data: PostBlock }> => {
-  const response = await fetch(`${TEMPLATES_BASE}/${templateId}/post-blocks/${postBlockId}`);
+  const response = await adminFetch(`${TEMPLATES_BASE}/${templateId}/post-blocks/${postBlockId}`);
   if (!response.ok) throw new Error(`Failed to fetch post block: ${response.statusText}`);
   return response.json();
 };
@@ -180,7 +192,7 @@ export const createPostBlock = async (
   templateId: string,
   data: { name: string; post_type_id: string; description?: string; sections?: Section[] }
 ): Promise<{ success: boolean; data: PostBlock }> => {
-  const response = await fetch(`${TEMPLATES_BASE}/${templateId}/post-blocks`, {
+  const response = await adminFetch(`${TEMPLATES_BASE}/${templateId}/post-blocks`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -197,7 +209,7 @@ export const updatePostBlock = async (
   postBlockId: string,
   data: Partial<Pick<PostBlock, "name" | "description" | "sections" | "post_type_id">>
 ): Promise<{ success: boolean; data: PostBlock }> => {
-  const response = await fetch(`${TEMPLATES_BASE}/${templateId}/post-blocks/${postBlockId}`, {
+  const response = await adminFetch(`${TEMPLATES_BASE}/${templateId}/post-blocks/${postBlockId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -213,7 +225,7 @@ export const deletePostBlock = async (
   templateId: string,
   postBlockId: string
 ): Promise<{ success: boolean }> => {
-  const response = await fetch(`${TEMPLATES_BASE}/${templateId}/post-blocks/${postBlockId}`, {
+  const response = await adminFetch(`${TEMPLATES_BASE}/${templateId}/post-blocks/${postBlockId}`, {
     method: "DELETE",
   });
   if (!response.ok) {
@@ -230,7 +242,7 @@ export const deletePostBlock = async (
 export const fetchCategories = async (
   postTypeId: string
 ): Promise<{ success: boolean; data: PostCategory[] }> => {
-  const response = await fetch(`${TAXONOMY_BASE}/${postTypeId}/categories`);
+  const response = await adminFetch(`${TAXONOMY_BASE}/${postTypeId}/categories`);
   if (!response.ok) throw new Error(`Failed to fetch categories: ${response.statusText}`);
   return response.json();
 };
@@ -239,7 +251,7 @@ export const createCategory = async (
   postTypeId: string,
   data: { name: string; description?: string; parent_id?: string }
 ): Promise<{ success: boolean; data: PostCategory }> => {
-  const response = await fetch(`${TAXONOMY_BASE}/${postTypeId}/categories`, {
+  const response = await adminFetch(`${TAXONOMY_BASE}/${postTypeId}/categories`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -256,7 +268,7 @@ export const updateCategory = async (
   categoryId: string,
   data: Partial<Pick<PostCategory, "name" | "description" | "parent_id" | "sort_order">>
 ): Promise<{ success: boolean; data: PostCategory }> => {
-  const response = await fetch(`${TAXONOMY_BASE}/${postTypeId}/categories/${categoryId}`, {
+  const response = await adminFetch(`${TAXONOMY_BASE}/${postTypeId}/categories/${categoryId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -272,7 +284,7 @@ export const deleteCategory = async (
   postTypeId: string,
   categoryId: string
 ): Promise<{ success: boolean }> => {
-  const response = await fetch(`${TAXONOMY_BASE}/${postTypeId}/categories/${categoryId}`, {
+  const response = await adminFetch(`${TAXONOMY_BASE}/${postTypeId}/categories/${categoryId}`, {
     method: "DELETE",
   });
   if (!response.ok) {
@@ -285,7 +297,7 @@ export const deleteCategory = async (
 export const fetchTags = async (
   postTypeId: string
 ): Promise<{ success: boolean; data: PostTag[] }> => {
-  const response = await fetch(`${TAXONOMY_BASE}/${postTypeId}/tags`);
+  const response = await adminFetch(`${TAXONOMY_BASE}/${postTypeId}/tags`);
   if (!response.ok) throw new Error(`Failed to fetch tags: ${response.statusText}`);
   return response.json();
 };
@@ -294,7 +306,7 @@ export const createTag = async (
   postTypeId: string,
   data: { name: string }
 ): Promise<{ success: boolean; data: PostTag }> => {
-  const response = await fetch(`${TAXONOMY_BASE}/${postTypeId}/tags`, {
+  const response = await adminFetch(`${TAXONOMY_BASE}/${postTypeId}/tags`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -311,7 +323,7 @@ export const updateTag = async (
   tagId: string,
   data: { name: string }
 ): Promise<{ success: boolean; data: PostTag }> => {
-  const response = await fetch(`${TAXONOMY_BASE}/${postTypeId}/tags/${tagId}`, {
+  const response = await adminFetch(`${TAXONOMY_BASE}/${postTypeId}/tags/${tagId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -327,7 +339,7 @@ export const deleteTag = async (
   postTypeId: string,
   tagId: string
 ): Promise<{ success: boolean }> => {
-  const response = await fetch(`${TAXONOMY_BASE}/${postTypeId}/tags/${tagId}`, {
+  const response = await adminFetch(`${TAXONOMY_BASE}/${postTypeId}/tags/${tagId}`, {
     method: "DELETE",
   });
   if (!response.ok) {
@@ -349,7 +361,7 @@ export const fetchPosts = async (
   if (filters?.post_type_id) params.set("post_type_id", filters.post_type_id);
   if (filters?.status) params.set("status", filters.status);
   const qs = params.toString() ? `?${params.toString()}` : "";
-  const response = await fetch(`${PROJECTS_BASE}/${projectId}/posts${qs}`);
+  const response = await adminFetch(`${PROJECTS_BASE}/${projectId}/posts${qs}`);
   if (!response.ok) throw new Error(`Failed to fetch posts: ${response.statusText}`);
   return response.json();
 };
@@ -358,7 +370,7 @@ export const fetchPost = async (
   projectId: string,
   postId: string
 ): Promise<{ success: boolean; data: Post }> => {
-  const response = await fetch(`${PROJECTS_BASE}/${projectId}/posts/${postId}`);
+  const response = await adminFetch(`${PROJECTS_BASE}/${projectId}/posts/${postId}`);
   if (!response.ok) throw new Error(`Failed to fetch post: ${response.statusText}`);
   return response.json();
 };
@@ -377,7 +389,7 @@ export const createPost = async (
     tag_ids?: string[];
   }
 ): Promise<{ success: boolean; data: Post }> => {
-  const response = await fetch(`${PROJECTS_BASE}/${projectId}/posts`, {
+  const response = await adminFetch(`${PROJECTS_BASE}/${projectId}/posts`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -394,7 +406,7 @@ export const updatePost = async (
   postId: string,
   data: Record<string, unknown>
 ): Promise<{ success: boolean; data: Post }> => {
-  const response = await fetch(`${PROJECTS_BASE}/${projectId}/posts/${postId}`, {
+  const response = await adminFetch(`${PROJECTS_BASE}/${projectId}/posts/${postId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -410,7 +422,7 @@ export const deletePost = async (
   projectId: string,
   postId: string
 ): Promise<{ success: boolean }> => {
-  const response = await fetch(`${PROJECTS_BASE}/${projectId}/posts/${postId}`, {
+  const response = await adminFetch(`${PROJECTS_BASE}/${projectId}/posts/${postId}`, {
     method: "DELETE",
   });
   if (!response.ok) {

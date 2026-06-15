@@ -5,10 +5,9 @@
  * custom domain is verified. The renderer owns script injection.
  */
 
-import { db } from "../../../database/connection";
+import { ProjectModel } from "../../../models/website-builder/ProjectModel";
 import { WebsiteIntegrationModel } from "../../../models/website-builder/WebsiteIntegrationModel";
-
-const PROJECTS_TABLE = "website_builder.projects";
+import logger from "../../../lib/logger";
 
 const RYBBIT_API_URL = process.env.RYBBIT_API_URL || "";
 const RYBBIT_API_KEY = process.env.RYBBIT_API_KEY || "";
@@ -25,25 +24,19 @@ export async function provisionRybbitSite(
 ): Promise<void> {
   try {
     if (!RYBBIT_API_URL || !RYBBIT_API_KEY || !RYBBIT_ORG_ID) {
-      console.warn("[Rybbit] Skipping — missing RYBBIT_API_URL, RYBBIT_API_KEY, or RYBBIT_ORG_ID env vars");
+      logger.warn("[Rybbit] Skipping — missing RYBBIT_API_URL, RYBBIT_API_KEY, or RYBBIT_ORG_ID env vars");
       return;
     }
 
-    const project = await db(PROJECTS_TABLE)
-      .select("rybbit_site_id")
-      .where("id", projectId)
-      .first();
+    const project = await ProjectModel.findRybbitSiteIdById(projectId);
 
     const existingIntegration = await WebsiteIntegrationModel.findByProjectAndPlatform(projectId, "rybbit");
     const existingSiteId = existingIntegration?.metadata?.siteId;
     if (typeof existingSiteId === "string" && existingSiteId.trim()) {
       if (project && project.rybbit_site_id !== existingSiteId) {
-        await db(PROJECTS_TABLE).where("id", projectId).update({
-          rybbit_site_id: existingSiteId,
-          updated_at: db.fn.now(),
-        });
+        await ProjectModel.updateRybbitSiteId(projectId, existingSiteId);
       }
-      console.log(`[Rybbit] Integration already provisioned (${existingSiteId}) for project ${projectId}, skipping`);
+      logger.info(`[Rybbit] Integration already provisioned (${existingSiteId}) for project ${projectId}, skipping`);
       return;
     }
 
@@ -67,12 +60,12 @@ export async function provisionRybbitSite(
           connected_by: "system",
         });
       }
-      console.log(`[Rybbit] Existing project site ID registered (${siteId}) for project ${projectId}`);
+      logger.info(`[Rybbit] Existing project site ID registered (${siteId}) for project ${projectId}`);
       return;
     }
 
     // Create site in Rybbit
-    console.log(`[Rybbit] Creating site for domain: ${domain}`);
+    logger.info(`[Rybbit] Creating site for domain: ${domain}`);
 
     const response = await fetch(`${RYBBIT_API_URL}/api/organizations/${RYBBIT_ORG_ID}/sites`, {
       method: "POST",
@@ -89,7 +82,7 @@ export async function provisionRybbitSite(
 
     if (!response.ok) {
       const body = await response.text();
-      console.error(`[Rybbit] Failed to create site (${response.status}): ${body}`);
+      logger.error(`[Rybbit] Failed to create site (${response.status}): ${body}`);
       return;
     }
 
@@ -97,17 +90,14 @@ export async function provisionRybbitSite(
     const siteId = site.siteId || site.id;
 
     if (!siteId) {
-      console.error("[Rybbit] API returned success but no siteId:", JSON.stringify(site));
+      logger.error({ err: JSON.stringify(site) }, "[Rybbit] API returned success but no siteId:");
       return;
     }
 
-    console.log(`[Rybbit] Site created: siteId=${siteId} for ${domain}`);
+    logger.info(`[Rybbit] Site created: siteId=${siteId} for ${domain}`);
 
     // Store siteId on project
-    await db(PROJECTS_TABLE).where("id", projectId).update({
-      rybbit_site_id: String(siteId),
-      updated_at: db.fn.now(),
-    });
+    await ProjectModel.updateRybbitSiteId(projectId, String(siteId));
 
     if (!existingIntegration) {
       await WebsiteIntegrationModel.create({
@@ -118,7 +108,7 @@ export async function provisionRybbitSite(
         status: "active",
         connected_by: "system",
       });
-      console.log(`[Rybbit] Integration row created for project ${projectId}`);
+      logger.info(`[Rybbit] Integration row created for project ${projectId}`);
     } else {
       await WebsiteIntegrationModel.update(existingIntegration.id, {
         type: "hybrid",
@@ -127,11 +117,11 @@ export async function provisionRybbitSite(
         connected_by: existingIntegration.connected_by ?? "system",
         last_error: null,
       });
-      console.log(`[Rybbit] Integration row updated for project ${projectId}`);
+      logger.info(`[Rybbit] Integration row updated for project ${projectId}`);
     }
 
-    console.log(`[Rybbit] Renderer-managed tracking enabled for project ${projectId}`);
+    logger.info(`[Rybbit] Renderer-managed tracking enabled for project ${projectId}`);
   } catch (err: any) {
-    console.error(`[Rybbit] Error provisioning site for project ${projectId}:`, err?.message || err);
+    logger.error({ err: err?.message || err }, `[Rybbit] Error provisioning site for project ${projectId}:`);
   }
 }

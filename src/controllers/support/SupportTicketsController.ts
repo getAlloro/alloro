@@ -18,6 +18,7 @@ import {
   presentClientTicket,
 } from "./support-utils/supportTicketPresenter";
 import { sendError, sendSuccess } from "./support-utils/supportResponses";
+import logger from "../../lib/logger";
 
 export async function listTickets(req: LocationScopedRequest, res: Response) {
   try {
@@ -147,7 +148,7 @@ function handleSupportError(
     return sendError(res, error.code, error.message, error.statusCode);
   }
 
-  console.error("[SupportTicketsController]", error);
+  logger.error({ err: error }, "[SupportTicketsController]");
   return sendError(res, "SUPPORT_ERROR", fallbackMessage, 500);
 }
 

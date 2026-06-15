@@ -1,4 +1,3 @@
-import { db } from "../../../database/connection";
 import { SupportTicketAttachmentModel } from "../../../models/SupportTicketAttachmentModel";
 import type {
   SupportAttachmentUploaderRole,
@@ -154,7 +153,7 @@ export class SupportTicketAttachmentService {
     await uploadToS3(s3Key, file.buffer, mimeType);
 
     try {
-      return await db.transaction(async (trx) => {
+      return await SupportTicketModel.transaction(async (trx) => {
         const attachment = await SupportTicketAttachmentModel.create(
           {
             ticket_id: ticketId,

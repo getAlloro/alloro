@@ -9,16 +9,17 @@
  */
 
 import Stripe from "stripe";
-import { db } from "../../database/connection";
 import { getStripe, getDefaultPriceId, getWebhookSecret } from "../../config/stripe";
 import {
   OrganizationModel,
   IOrganization,
 } from "../../models/OrganizationModel";
+import { LocationModel } from "../../models/LocationModel";
 import { updateTier } from "../admin-organizations/feature-services/TierManagementService";
 import { OrganizationUserModel } from "../../models/OrganizationUserModel";
 import { sendEmail } from "../../emails/emailService";
 import { isStripeConfigured } from "../../config/stripe";
+import logger from "../../lib/logger";
 
 // ─── Types ───
 
@@ -108,10 +109,8 @@ export async function createCheckoutSession(
   if (org.billing_quantity_override != null) {
     locationCount = org.billing_quantity_override;
   } else {
-    const locationCountResult = await db("locations")
-      .where({ organization_id: orgId })
-      .count("id as count")
-      .first();
+    const locationCountResult =
+      await LocationModel.countByOrganizationId(orgId);
     locationCount = Math.max(Number(locationCountResult?.count) || 0, 1);
   }
 
@@ -201,15 +200,9 @@ export async function createPortalSession(
 export async function getSubscriptionStatus(
   orgId: number
 ): Promise<BillingStatus> {
-  const org = (await db("organizations")
-    .where({ id: orgId })
-    .select(
-      "subscription_tier",
-      "subscription_status",
-      "stripe_customer_id",
-      "stripe_subscription_id"
-    )
-    .first()) as any;
+  const org = (await OrganizationModel.findBillingStatusFieldsById(
+    orgId
+  )) as any;
 
   if (!org) {
     throw { statusCode: 404, message: "Organization not found" };
@@ -241,7 +234,7 @@ export async function getSubscriptionStatus(
         currentPeriodEnd = new Date(sub.current_period_end * 1000).toISOString();
       }
     } catch (err: any) {
-      console.error(`[Billing] Failed to fetch subscription ${org.stripe_subscription_id}:`, err?.message || err);
+      logger.error({ err: err?.message || err }, `[Billing] Failed to fetch subscription ${org.stripe_subscription_id}:`);
     }
   }
 
@@ -267,10 +260,7 @@ export async function getSubscriptionStatus(
 export async function getBillingDetails(
   orgId: number
 ): Promise<BillingDetails> {
-  const org = (await db("organizations")
-    .where({ id: orgId })
-    .select("stripe_customer_id", "stripe_subscription_id")
-    .first()) as any;
+  const org = (await OrganizationModel.findStripeIdsById(orgId)) as any;
 
   if (!org) {
     throw { statusCode: 404, message: "Organization not found" };
@@ -409,7 +399,7 @@ export async function handleWebhookEvent(
       break;
 
     default:
-      console.log(`[Stripe Webhook] Unhandled event type: ${event.type}`);
+      logger.info(`[Stripe Webhook] Unhandled event type: ${event.type}`);
   }
 }
 
@@ -426,7 +416,7 @@ async function handleCheckoutCompleted(
   const tier = session.metadata?.tier as "DWY" | "DFY" | undefined;
 
   if (!orgId) {
-    console.error(
+    logger.error(
       "[Stripe Webhook] checkout.session.completed missing organization_id in metadata"
     );
     return;
@@ -434,7 +424,7 @@ async function handleCheckoutCompleted(
 
   const organizationId = parseInt(orgId, 10);
   if (isNaN(organizationId)) {
-    console.error(
+    logger.error(
       `[Stripe Webhook] Invalid organization_id: ${orgId}`
     );
     return;
@@ -450,22 +440,23 @@ async function handleCheckoutCompleted(
       ? session.subscription
       : session.subscription?.id;
 
-  console.log(
+  logger.info(
     `[Stripe Webhook] Checkout completed for org ${organizationId}, tier: ${tier}`
   );
 
-  const trx = await db.transaction();
+  const trx = await OrganizationModel.beginTransaction();
   try {
     // Save Stripe customer and subscription IDs
-    await trx("organizations")
-      .where({ id: organizationId })
-      .update({
+    await OrganizationModel.updateStripeIdentifiersOnCheckout(
+      organizationId,
+      {
         stripe_customer_id: customerId || null,
         stripe_subscription_id: subscriptionId || null,
-        subscription_status: "active",
         subscription_started_at: new Date(),
         subscription_updated_at: new Date(),
-      });
+      },
+      trx
+    );
 
     // Update tier if specified (triggers DFY upgrade logic if applicable)
     if (tier && ["DWY", "DFY"].includes(tier)) {
@@ -473,15 +464,12 @@ async function handleCheckoutCompleted(
     }
 
     await trx.commit();
-    console.log(
+    logger.info(
       `[Stripe Webhook] Successfully processed checkout for org ${organizationId}`
     );
   } catch (error) {
     await trx.rollback();
-    console.error(
-      `[Stripe Webhook] Error processing checkout for org ${organizationId}:`,
-      error
-    );
+    logger.error({ err: error }, `[Stripe Webhook] Error processing checkout for org ${organizationId}:`);
     throw error;
   }
 }
@@ -500,14 +488,12 @@ async function handlePaymentSucceeded(
 
   if (!customerId) return;
 
-  await db("organizations")
-    .where({ stripe_customer_id: customerId })
-    .update({
-      subscription_status: "active",
-      subscription_updated_at: new Date(),
-    });
+  await OrganizationModel.updateSubscriptionStatusByCustomerId(
+    customerId,
+    "active"
+  );
 
-  console.log(
+  logger.info(
     `[Stripe Webhook] Payment succeeded for customer ${customerId}`
   );
 }
@@ -527,7 +513,7 @@ async function handlePaymentFailed(
 
   // Don't immediately lock out — Stripe will retry. Just log it.
   // If subscription is eventually cancelled, handleSubscriptionDeleted will fire.
-  console.warn(
+  logger.warn(
     `[Stripe Webhook] Payment failed for customer ${customerId}`
   );
 }
@@ -545,14 +531,12 @@ async function handleSubscriptionDeleted(
 
   if (!customerId) return;
 
-  await db("organizations")
-    .where({ stripe_customer_id: customerId })
-    .update({
-      subscription_status: "cancelled",
-      subscription_updated_at: new Date(),
-    });
+  await OrganizationModel.updateSubscriptionStatusByCustomerId(
+    customerId,
+    "cancelled"
+  );
 
-  console.log(
+  logger.info(
     `[Stripe Webhook] Subscription deleted for customer ${customerId}`
   );
 }
@@ -577,10 +561,8 @@ export async function syncSubscriptionQuantity(
     if (org.billing_quantity_override != null) {
       newQuantity = org.billing_quantity_override;
     } else {
-      const result = await db("locations")
-        .where({ organization_id: organizationId })
-        .count("id as count")
-        .first();
+      const result =
+        await LocationModel.countByOrganizationId(organizationId);
       newQuantity = Math.max(Number(result?.count) || 0, 1);
     }
 
@@ -592,7 +574,7 @@ export async function syncSubscriptionQuantity(
 
     const item = subscription.items.data[0];
     if (!item) {
-      console.warn(
+      logger.warn(
         `[Billing] No subscription items found for org ${organizationId}`
       );
       return;
@@ -606,7 +588,7 @@ export async function syncSubscriptionQuantity(
       quantity: newQuantity,
     });
 
-    console.log(
+    logger.info(
       `[Billing] Subscription quantity updated for org ${organizationId}: ${oldQuantity} → ${newQuantity}`
     );
 
@@ -652,16 +634,10 @@ export async function syncSubscriptionQuantity(
         recipients: adminEmails,
       });
     } catch (emailErr) {
-      console.warn(
-        `[Billing] Failed to send quantity update email for org ${organizationId}:`,
-        emailErr
-      );
+      logger.warn({ detail: emailErr }, `[Billing] Failed to send quantity update email for org ${organizationId}:`);
     }
   } catch (error) {
-    console.error(
-      `[Billing] Failed to sync subscription quantity for org ${organizationId}:`,
-      error
-    );
+    logger.error({ err: error }, `[Billing] Failed to sync subscription quantity for org ${organizationId}:`);
   }
 }
 
@@ -682,14 +658,12 @@ async function handleSubscriptionUpdated(
   const status =
     subscription.status === "active" ? "active" : "inactive";
 
-  await db("organizations")
-    .where({ stripe_customer_id: customerId })
-    .update({
-      subscription_status: status,
-      subscription_updated_at: new Date(),
-    });
+  await OrganizationModel.updateSubscriptionStatusByCustomerId(
+    customerId,
+    status
+  );
 
-  console.log(
+  logger.info(
     `[Stripe Webhook] Subscription updated for customer ${customerId}, status: ${status}`
   );
 }

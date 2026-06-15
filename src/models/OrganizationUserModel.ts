@@ -36,6 +36,38 @@ export class OrganizationUserModel extends BaseModel {
     return this.table(trx).where({ user_id: userId }).first();
   }
 
+  /**
+   * The user's highest-privilege membership row (admin > manager > viewer).
+   * Mirrors the inline RBAC role lookup in middleware/rbac.rbacMiddleware
+   * verbatim — orders by a CASE role rank and returns the first row, so a user
+   * with multiple memberships resolves to their most-privileged role. Distinct
+   * from findByUserId, which returns an arbitrary membership.
+   */
+  static async findHighestPrivilegeByUserId(
+    userId: number,
+    trx?: QueryContext
+  ): Promise<IOrganizationUser | undefined> {
+    return this.table(trx)
+      .where({ user_id: userId })
+      .orderByRaw("CASE role WHEN 'admin' THEN 1 WHEN 'manager' THEN 2 ELSE 3 END")
+      .first();
+  }
+
+  /**
+   * The organization_id of a user's membership (single column projection).
+   * Mirrors the inline lookup in middleware/billingGate.billingGateMiddleware
+   * verbatim (.select("organization_id").first()).
+   */
+  static async findOrganizationIdByUserId(
+    userId: number,
+    trx?: QueryContext
+  ): Promise<{ organization_id: number } | undefined> {
+    return this.table(trx)
+      .where({ user_id: userId })
+      .select("organization_id")
+      .first();
+  }
+
   static async create(
     data: {
       user_id: number;

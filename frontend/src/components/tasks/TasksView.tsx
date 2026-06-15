@@ -19,6 +19,7 @@ import {
   Send,
 } from "lucide-react";
 import { fetchClientTasks, completeTask } from "../../api/tasks";
+import { getCommonHeaders } from "../../api";
 import type { GroupedActionItems, ActionItem } from "../../types/tasks";
 import { parseHighlightTags } from "../../utils/textFormatting";
 import { useIsWizardActive, useWizardDemoData } from "../../contexts/OnboardingWizardContext";
@@ -499,6 +500,7 @@ export function TasksView({ organizationId, locationId }: TasksViewProps) {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
+            ...getCommonHeaders(),
           },
           body: JSON.stringify({ status: "pending" }),
         });

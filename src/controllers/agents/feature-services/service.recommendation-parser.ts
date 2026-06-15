@@ -8,7 +8,7 @@
  * Logs warnings instead.
  */
 
-import { db } from "../../../database/connection";
+import { AgentRecommendationModel } from "../../../models/AgentRecommendationModel";
 import { log, logError } from "../feature-utils/agentLogger";
 
 /**
@@ -172,7 +172,7 @@ export async function saveRecommendationsFromAgents(
   // ============================================================
   if (recommendations.length > 0) {
     try {
-      await db("agent_recommendations").insert(recommendations);
+      await AgentRecommendationModel.bulkInsertRaw(recommendations);
       log(
         `[GUARDIAN-GOV] \u2713 Saved ${recommendations.length} total recommendation(s) to database`,
       );

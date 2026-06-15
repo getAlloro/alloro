@@ -2,6 +2,63 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.126] - June 2026
+
+### Codebase Orphan Cleanup
+
+Removed confirmed orphaned source and asset files after a static reachability audit, exact-reference checks, and sibling-folder scan. The cleanup is intentionally conservative: parked product route islands and currently active model files were retained rather than deleted for the sake of a bigger number.
+
+**Key Changes:**
+
+- Deleted 78 tracked orphan files: unreferenced public/prototype assets, obsolete frontend component islands, backup artifacts, and backend zero-inbound helpers.
+- Confirmed no runtime dependency from `website-builder-rebuild`, `alloro-leadgen-tool`, `alloro-site`, or other Desktop `alloro*` / `orange*` folders before deleting candidates.
+- Preserved Monday, Documentation, and ranking-history parked files for explicit product follow-up instead of treating unmounted route code as disposable; Checkup route files were already absent from the current tracked baseline and are not part of this cleanup diff.
+- Retained active PM and website-builder model files after finalization found live imports from admin website services, user website services, workers, and PM controllers.
+- Verified cleanup with `npx tsc --noEmit`, `npm run build`, `cd frontend && npm run build`, and root Vitest (`31/31`). Frontend lint still has pre-existing failures unrelated to this deletion-only cleanup.
+
+**Commits:**
+
+- `prototype-v2.png`, `frontend/public/*` - removed unreferenced tracked assets.
+- `frontend/src/components/*`, `frontend/src/hooks/*`, `frontend/src/types/*` - removed orphaned frontend component, hook, and type islands.
+- `src/controllers/*`, `src/models/GoogleAccountModel.ts`, `src/models/index.ts`, `src/utils/core/weekDates.ts` - removed backend zero-inbound orphan files.
+- `plans/06142026-codebase-orphan-cleanup/spec.html` - completed cleanup spec with sibling audit evidence and finalization reconciliation.
+
+## [0.0.125] - June 2026
+
+### Backend God-File Decomposition + Remediation QA
+
+The final wave of the backend remediation: every code file over the ~800-line hard ceiling was decomposed into focused modules, behavior-preserving (verbatim bodies, route bindings and import surfaces preserved via re-export/delegation — zero caller edits). `npm run check:conventions` now reports the only file over the ceiling as an immutable DB migration. The full remediation (security hotfix, transactions, validation, Pino logging, db-into-models, decomposition) was then QA'd live against a local One Endodontics build.
+
+**Key Changes:**
+
+- **`AdminWebsitesController` 5,504 → deleted**, split into 18 domain controllers + 18 resource sub-routers.
+- **Ranking pipeline** `service.ranking-pipeline` 1,910 → 261 (5 stage modules); `location-competitor-onboarding` 1,602 → 55 (barrel + 7 modules); `PracticeRankingController` 1,792 → 777; `places-competitor-discovery` 1,017 → 341 (5 modules).
+- **Agents** `service.agent-orchestrator` 1,212 → 255 (4 processors); `AgentsController` 1,383 → 544 (3 runner services).
+- **Client/website** `UserWebsiteController` 1,668 → 634; `shortcodeResolver.service` 955 → 109; `PmsController` 1,158 → 799; `aiCommandService` 882 → 722 + `dashboard-metrics` 831 → 205.
+- **Models** `PageModel` 1,204 → 658, `ProjectModel` 1,084 → 603, `PmsJobModel` 858 → 576 (query-helper delegation).
+- **QA verified live:** 14 admin + client surfaces render real data with zero console errors; write paths (set-password, org/redirect CRUD, lifecycle guards) pass; security (default-deny 401, super-admin gate, fixed no-token callers) confirmed; **email interception proven end-to-end** (non-prod sender reroutes all mail to dave@). Gate green: `tsc` 0, Vitest 31/31, `check:conventions` 0. Full matrix in `plans/06142026-backend-remediation-qa/test-plan.html`.
+
+**Commits:**
+
+- `df94db6f 3dc55bfe d7e3de41 cf981b26 cbb61817 49007d3e 28dd8851 278d1df6 7d111e4b 9b95134a 7b1a27ff d719e5b0 c310ec23` — decomposition refactors (13).
+- `plans/06142026-*` — audit + 7 remediation specs + QA test plan (planning/verification artifacts).
+
+## [0.0.124] - June 2026
+
+### Backend Conventions Checker (`code-constitution`)
+
+A read-only static check that surfaces where `src/` drifts from the backend architecture contract, so violations can't grow silently. Companion to the `code-constitution` skill — the refreshed, renamed backend conventions contract (formerly `alloro-conventions`).
+
+**Key Changes:**
+
+- **`scripts/check-conventions.sh` (new)** — reports files over the ~800-line hard ceiling, stray `console.*` in production code (excludes tests/migrations/seeds), `db()` calls outside `models/`, and an advisory list of route files with no inline auth middleware. Read-only: it mounts nothing and changes no runtime behavior — the auth-on-every-route remediation remains the separate Level-4 security hotfix.
+- **`npm run check:conventions`** — wired into `package.json`. Default exits 0 (the backend carries known, in-flight remediation debt); `--strict` exits non-zero when any clear structural violation exists, for use as a CI gate once the debt clears.
+- **Current snapshot:** 25 files over the ceiling, 2 stray `console.*`, 16 `db()` outside `models/`, 19 advisory unguarded routes.
+
+**Commits:**
+
+- `721a1511` — `scripts/check-conventions.sh` (new) + `check:conventions` npm script; `plans/06142026-alloro-conventions-skill-improvements/spec.html` (plan spec, Rev 2).
+
 ## [0.0.123] - June 2026
 
 ### Dashboard Revamp — 24-Item Feedback Round (Plans 0–5)

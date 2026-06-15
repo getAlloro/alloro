@@ -25,6 +25,7 @@ import {
   type ImportEntryResult,
   type ImportResultSummary,
 } from "../../controllers/admin-websites/feature-services/service.post-importer";
+import logger from "../../lib/logger";
 
 const LOG_PREFIX = "[WB-POST-IMPORT]";
 
@@ -47,7 +48,7 @@ export async function processPostImport(
 ): Promise<ImportResultSummary> {
   const { projectId, postType, entries, overwrite } = job.data;
   const log = (msg: string) =>
-    console.log(`${LOG_PREFIX} [${job.id}] ${msg}`);
+    logger.info(`${LOG_PREFIX} [${job.id}] ${msg}`);
 
   log(
     `Starting import: project=${projectId} type=${postType} entries=${entries?.length ?? 0} overwrite=${!!overwrite}`,

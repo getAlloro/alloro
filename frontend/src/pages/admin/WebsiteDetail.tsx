@@ -87,6 +87,7 @@ import IntegrationsTab from "../../components/Admin/IntegrationsTab";
 import FindReplaceModal from "../../components/Admin/FindReplaceModal";
 import { fetchProjectCodeSnippets } from "../../api/codeSnippets";
 import type { CodeSnippet } from "../../api/codeSnippets";
+import { getCommonHeaders } from "../../api";
 import { useConfirm } from "../../components/ui/ConfirmModal";
 
 type OrganizationListItem = {
@@ -1819,7 +1820,7 @@ export default function WebsiteDetail({
                                             // Create a new page version with this version's sections
                                             await fetch(`/api/admin/websites/${id}/pages`, {
                                               method: "POST",
-                                              headers: { "Content-Type": "application/json" },
+                                              headers: { "Content-Type": "application/json", ...getCommonHeaders() },
                                               body: JSON.stringify({
                                                 path: page.path,
                                                 sections: page.sections,
@@ -1893,7 +1894,7 @@ export default function WebsiteDetail({
                                     });
                                     if (!ok) return;
                                     for (const v of toDelete) {
-                                      await fetch(`/api/admin/websites/${id}/pages/${v.id}`, { method: "DELETE" }).catch(() => {});
+                                      await fetch(`/api/admin/websites/${id}/pages/${v.id}`, { method: "DELETE", headers: getCommonHeaders() }).catch(() => {});
                                     }
                                     invalidateWebsite(id!);
                                     toast.success(`Cleaned up ${toDelete.length} old version(s)`);
@@ -1950,7 +1951,7 @@ export default function WebsiteDetail({
                     const target = group?.pages.find((p) => p.status === "draft") || group?.pages[0];
                     if (target && target.status !== "published") {
                       try {
-                        const res = await fetch(`/api/admin/websites/${id}/pages/${target.id}/publish`, { method: "POST" });
+                        const res = await fetch(`/api/admin/websites/${id}/pages/${target.id}/publish`, { method: "POST", headers: getCommonHeaders() });
                         if (res.ok) {
                           published++;
                         } else {

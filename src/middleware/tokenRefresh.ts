@@ -1,5 +1,5 @@
 import { Response, NextFunction } from "express";
-import { db } from "../database/connection";
+import { GoogleConnectionModel } from "../models/GoogleConnectionModel";
 import { createOAuth2ClientForConnection } from "../auth/oauth2Helper";
 import { OAuth2Client } from "google-auth-library";
 import { RBACRequest } from "./rbac";
@@ -7,6 +7,7 @@ import {
   getOrganizationLifecycleErrorStatus,
   OrganizationLifecycleService,
 } from "../services/OrganizationLifecycleService";
+import logger from "../lib/logger";
 
 /**
  * Extended Express Request type with OAuth2Client.
@@ -47,9 +48,8 @@ export const tokenRefreshMiddleware = async (
     }
 
     // Fetch Google connection for this organization
-    const googleConnection = await db("google_connections")
-      .where({ organization_id: organizationId })
-      .first();
+    const googleConnection =
+      await GoogleConnectionModel.findFirstByOrganization(organizationId);
 
     if (!googleConnection) {
       return res.status(404).json({
@@ -74,7 +74,7 @@ export const tokenRefreshMiddleware = async (
       const oauth2Client = await createOAuth2ClientForConnection(connectionId);
 
       if (isExpiringSoon) {
-        console.log(
+        logger.info(
           `[Token Refresh] Token expiring soon, refreshing for connection ${connectionId}`
         );
 
@@ -88,13 +88,12 @@ export const tokenRefreshMiddleware = async (
           ? new Date(credentials.expiry_date)
           : new Date(Date.now() + 3600000);
 
-        await db("google_connections").where({ id: connectionId }).update({
+        await GoogleConnectionModel.updateTokens(connectionId, {
           access_token: credentials.access_token,
           expiry_date: newExpiry,
-          updated_at: new Date(),
         });
 
-        console.log(
+        logger.info(
           `[Token Refresh] Token refreshed for connection ${connectionId}`
         );
 
@@ -106,7 +105,7 @@ export const tokenRefreshMiddleware = async (
           token_type: credentials.token_type,
         });
       } else {
-        console.log(
+        logger.info(
           `[Token Refresh] Token valid for connection ${connectionId}, skipping refresh`
         );
         oauth2Client.setCredentials({
@@ -131,10 +130,7 @@ export const tokenRefreshMiddleware = async (
         });
       }
 
-      console.error(
-        `[Token Refresh] Failed to refresh token for connection ${connectionId}:`,
-        refreshError.message
-      );
+      logger.error({ err: refreshError.message }, `[Token Refresh] Failed to refresh token for connection ${connectionId}:`);
 
       return res.status(401).json({
         error: "Token refresh failed",
@@ -149,7 +145,7 @@ export const tokenRefreshMiddleware = async (
 
     next();
   } catch (error: any) {
-    console.error("[Token Refresh] Middleware error:", error);
+    logger.error({ err: error }, "[Token Refresh] Middleware error:");
 
     return res.status(500).json({
       error: "Authentication error",

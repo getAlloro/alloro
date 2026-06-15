@@ -16,6 +16,7 @@ import * as mediaUploadService from "./feature-services/service.media-upload";
 import * as mediaListService from "./feature-services/service.media-list";
 import * as mediaUpdateService from "./feature-services/service.media-update";
 import * as mediaDeleteService from "./feature-services/service.media-delete";
+import logger from "../../lib/logger";
 
 // =====================================================================
 // POST /api/admin/websites/:projectId/media - Upload media (bulk)
@@ -49,7 +50,7 @@ export async function uploadMedia(
       }
       return res.status(error.statusCode).json(body);
     }
-    console.error("[Media] Upload error:", error);
+    logger.error({ err: error }, "[Media] Upload error:");
     return res.status(500).json({
       success: false,
       error: "UPLOAD_ERROR",
@@ -84,7 +85,7 @@ export async function listMedia(
       quota: result.quota,
     });
   } catch (error: any) {
-    console.error("[Media] List error:", error);
+    logger.error({ err: error }, "[Media] List error:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -123,7 +124,7 @@ export async function updateMedia(
         message: error.message || "Media not found",
       });
     }
-    console.error("[Media] Update error:", error);
+    logger.error({ err: error }, "[Media] Update error:");
     return res.status(500).json({
       success: false,
       error: "UPDATE_ERROR",
@@ -166,7 +167,7 @@ export async function deleteMedia(
       }
       return res.status(error.statusCode).json(body);
     }
-    console.error("[Media] Delete error:", error);
+    logger.error({ err: error }, "[Media] Delete error:");
     return res.status(500).json({
       success: false,
       error: "DELETE_ERROR",

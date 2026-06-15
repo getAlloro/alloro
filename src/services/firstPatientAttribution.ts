@@ -10,10 +10,10 @@
  * writes a behavioral_event "patient.attributed" and creates a notification.
  */
 
-import { db } from "../database/connection";
 import { BehavioralEventModel } from "../models/BehavioralEventModel";
 import { OrganizationModel } from "../models/OrganizationModel";
 import { createNotification } from "../utils/core/notificationHelper";
+import logger from "../lib/logger";
 
 export interface AttributionResult {
   attributed: boolean;
@@ -47,10 +47,10 @@ export async function attributeCheckupToOrg(
 
   // Deduplicate: check if this session already attributed
   if (sessionId) {
-    const existing = await db("behavioral_events")
-      .where({ event_type: "patient.attributed" })
-      .where("session_id", sessionId)
-      .first();
+    const existing = await BehavioralEventModel.findFirstByTypeAndSession(
+      "patient.attributed",
+      sessionId
+    );
 
     if (existing) {
       return { attributed: false, reason: "Session already attributed" };
@@ -77,11 +77,11 @@ export async function attributeCheckupToOrg(
   weekStart.setDate(weekStart.getDate() - weekStart.getDay());
   weekStart.setHours(0, 0, 0, 0);
 
-  const weeklyCount = await db("behavioral_events")
-    .where({ event_type: "patient.attributed", org_id: org.id })
-    .where("created_at", ">=", weekStart)
-    .count("id as count")
-    .first();
+  const weeklyCount = await BehavioralEventModel.countByTypeAndOrgSince(
+    "patient.attributed",
+    org.id,
+    weekStart
+  );
 
   const count = Number(weeklyCount?.count ?? 1);
 
@@ -109,13 +109,10 @@ export async function attributeCheckupToOrg(
     { skipEmail: true },
   ).catch((err: unknown) => {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(
-      `[FirstPatientAttribution] Failed to create notification for org ${org.id}:`,
-      message,
-    );
+    logger.error({ err: message }, `[FirstPatientAttribution] Failed to create notification for org ${org.id}:`);
   });
 
-  console.log(
+  logger.info(
     `[FirstPatientAttribution] Attributed checkup to org ${org.id} (${orgName}) via ref ${normalizedCode}`,
   );
 

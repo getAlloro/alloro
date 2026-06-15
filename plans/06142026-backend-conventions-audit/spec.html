@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Backend Conventions Audit Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.86rem; margin-top: 8px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0; }
+    td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+    .p1 { font-weight: 800; }
+    .badge { display: inline-block; padding: 1px 8px; border: 1px solid var(--ink); border-radius: 999px; font-size: 0.7rem; font-weight: 800; }
+    a { color: var(--ink); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed · 17/17 audited</span>
+      </div>
+      <h1>Backend Conventions Audit</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed — audit</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06142026-backend-conventions-audit</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="exec-summary">
+      <h2>Executive Summary — Audit Complete</h2>
+      <p>All 17 units audited (read-only, via subagents). Roughly <strong>61 must-fix · 100 concerns · 78 nitpicks</strong> across the backend, plus <strong>5 systemic breaches</strong> that recur on top of the per-unit counts. The audit was scoped to conventions but surfaced a cluster of <strong>live, verified security exposures</strong> that outrank everything else — called out first.</p>
+
+      <div style="border:2px solid var(--ink); border-radius:8px; padding:20px; margin:16px 0;">
+        <h3 style="margin-top:0;">⚠ Security — verified, urgent (beyond the original conventions scope)</h3>
+        <ul>
+          <li><strong>Unauthenticated admin / destructive endpoints.</strong> No global auth guard in <code>index.ts</code>; auth is per-router and many omit it. Verified bare-mounted with zero auth middleware: <code>/api/admin/settings</code>, <code>/api/admin/app-logs</code>, <code>/api/admin/agent-insights</code>, <code>/api/admin/agent-outputs</code>, <code>/api/admin/pms-jobs</code>, the <code>/api/pms</code> admin block (incl. <code>DELETE /jobs/:id</code>, marked <em>"// No auth"</em> in source), <code>agentsV2</code> (IDOR — read any org's outputs), and the <code>minds</code> public skill API (proprietary-prompt theft + LLM cost). <code>routes/admin/websites.ts</code>: 176/210 registrations unguarded. The middleware guards themselves are sound → fix = mount them.</li>
+          <li><strong>JWT secret fails open.</strong> <code>auth.ts:13</code> <code>|| "dev-secret-key-change-in-prod"</code> and <code>billingGate.ts:69</code> <code>|| "secret"</code> — forged tokens validate if <code>JWT_SECRET</code> is unset, and the two different literals desync sign/verify. Fix: one config source, throw at startup if unset.</li>
+          <li><strong>Secrets committed in source.</strong> <code>utils/core/domainMappings.ts</code> holds 16 hardcoded JWT-shaped Clarity tokens. Rotate + move to env regardless of refactor.</li>
+          <li><strong>Auth hygiene.</strong> OTP + temp-passwords use <code>Math.random()</code> (not crypto); one-time codes logged in plaintext (and the log endpoint is unauthenticated); a <code>tester@google.com</code> bypass util exists (verify it's disabled in prod); zero rate-limiting on login/OTP/reset (limiters exist but unwired); the public <code>websiteContact</code> upload form has its anti-abuse stack commented out + reCAPTCHA fails open.</li>
+        </ul>
+        <p style="margin-bottom:0;"><strong>Recommendation:</strong> a small <em>security hotfix</em> track, separate from and ahead of the slow conventions remediation.</p>
+      </div>
+
+      <h3>Systemic breaches (repo-wide — count once, not per file)</h3>
+      <ol>
+        <li><strong>No request validation.</strong> 0 / 39 route files validate input; the lone <code>validation/</code> schema validates LLM output. No validation middleware exists (dim 12).</li>
+        <li><strong>Pino not installed.</strong> The contract assumes Pino; it's absent from <code>package.json</code>. <code>console.*</code> is the de-facto logger across ~277 files. Owner decision: adopt Pino or amend the contract (dim 10).</li>
+        <li><strong>DB access outside <code>models/</code>.</strong> ~125 files / ~507 sites call <code>db("table")</code> directly in controllers/services/utils/workers/routes (dim 7).</li>
+        <li><strong>Response shape ignored.</strong> The nested <code>{success,data,error:{code,message,details}}</code> contract is essentially unused; a flat shape dominates (dim 9).</li>
+        <li><strong>No transactions on multi-table writes.</strong> Recurs across services + workers (<code>websiteRestore</code> wipes ~13 tables + S3 with zero transaction) — partial-write corruption risk (dim 16).</li>
+      </ol>
+
+      <h3>Rulings &amp; reference</h3>
+      <p><strong>Nesting:</strong> <code>feature-services/</code> + <code>feature-utils/</code> (and <code>pms-services/</code>, <code>user-website-services/</code> variants) is <strong>ACCEPTED</strong> — keep repo-wide; carve-out: must not be used to skip <code>models/</code>. <strong>Reference domain:</strong> <code>gbp-automation</code> is the model to copy (thin controllers, PascalCase <code>*Service</code>, the repo's only real <code>{success,data,error}</code> + sanitizer standard, mature partial-failure handling, 0 must-fix). <strong>Correction:</strong> <code>user-website</code> is admin-gated, not public — the real public renderer is a separate app.</p>
+
+      <h3>Per-unit roll-up</h3>
+      <table>
+        <thead><tr><th>Unit</th><th class="n">Must-fix</th><th class="n">Concern</th><th class="n">Nitpick</th><th>Notable</th></tr></thead>
+        <tbody>
+          <tr><td>01 admin-websites</td><td class="n">5</td><td class="n">6</td><td class="n">4</td><td>5,567-ln god-controller; 176/210 routes unauthed</td></tr>
+          <tr><td>02 practice-ranking</td><td class="n">4</td><td class="n">5</td><td class="n">4</td><td>~17 v1 routes unauthed (paid triggers, DELETE)</td></tr>
+          <tr><td>03 minds</td><td class="n">3</td><td class="n">5</td><td class="n">5</td><td>healthiest big domain; public skill API open</td></tr>
+          <tr><td>04 agents</td><td class="n">4</td><td class="n">6</td><td class="n">6</td><td>IDOR on v2; 4 txn-less multi-table writes</td></tr>
+          <tr><td>05 gbp-automation</td><td class="n">0</td><td class="n">5</td><td class="n">6</td><td>reference domain</td></tr>
+          <tr><td>06 pms</td><td class="n">3</td><td class="n">7</td><td class="n">6</td><td>6 admin routes "// No auth" incl. DELETE</td></tr>
+          <tr><td>07 user-website</td><td class="n">4</td><td class="n">6</td><td class="n">5</td><td>3 files / 3,269 ln; admin-gated (not public)</td></tr>
+          <tr><td>08 pm</td><td class="n">2</td><td class="n">8</td><td class="n">5</td><td>dead placeholder exports; solid attachment security</td></tr>
+          <tr><td>09 smaller-domains</td><td class="n">9</td><td class="n">9</td><td class="n">5</td><td>auth holes + JWT fallback + OTP bypass cluster</td></tr>
+          <tr><td>10 models</td><td class="n">2</td><td class="n">3</td><td class="n">3</td><td>layer itself exemplary; 125 files leak DB out</td></tr>
+          <tr><td>11 services</td><td class="n">5</td><td class="n">8</td><td class="n">5</td><td>txn-less writes; naming drift; inline SQL</td></tr>
+          <tr><td>12 utils</td><td class="n">4</td><td class="n">7</td><td class="n">4</td><td>16 committed Clarity tokens; misplaced services</td></tr>
+          <tr><td>13 routes</td><td class="n">6</td><td class="n">7</td><td class="n">5</td><td>checkup.ts 2,140-ln logic-in-routes; unauthed admin</td></tr>
+          <tr><td>14 workers</td><td class="n">3</td><td class="n">5</td><td class="n">4</td><td>websiteRestore 0-txn wipe; compilePublish swallows fail</td></tr>
+          <tr><td>15 emails</td><td class="n">3</td><td class="n">4</td><td class="n">3</td><td>PII logged; sender is n8n webhook (not Mailgun)</td></tr>
+          <tr><td>16 middleware</td><td class="n">2</td><td class="n">4</td><td class="n">4</td><td>guards sound; JWT fallback; rate-limit unwired</td></tr>
+          <tr><td>17 auth-core-shared</td><td class="n">2</td><td class="n">5</td><td class="n">4</td><td>validation-gap headline; llm-runner no timeout</td></tr>
+          <tr><td><strong>Total</strong></td><td class="n"><strong>~61</strong></td><td class="n"><strong>~100</strong></td><td class="n"><strong>~78</strong></td><td>+ 5 systemic root causes</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:.8rem;color:var(--muted);">Per-unit counts fold in each unit's tagged instance of the systemic items; the 5 systemic breaches are the same root causes recurring, not 85 separate bugs. Full per-file detail with <code>file:line</code> lives in each <code>checks/NN-*.html</code> worksheet's Findings card.</p>
+    </section>
+
+    <section class="spec-card" id="roadmap">
+      <h2>Remediation Roadmap — 7 plans</h2>
+      <p>The findings above are decomposed into <strong>7 execution-ready specs (~77 tasks)</strong>, sequenced by risk + dependency — <em>not</em> the audit's unit order. Each is its own plan folder; execute one at a time, commit-per-unit. Gate everywhere: <code>npm run build</code> (tsc) + manual endpoint smoke (there is no backend test suite until Wave 2 builds one; backend has no eslint either).</p>
+      <table>
+        <thead><tr><th>#</th><th>Plan</th><th>Size</th><th>Risk</th><th>Depends on</th></tr></thead>
+        <tbody>
+          <tr><td colspan="5"><strong>Wave 1 — urgent (ship now)</strong></td></tr>
+          <tr><td>1</td><td><a href="../06142026-security-hotfix/spec.html">security-hotfix</a></td><td>Medium</td><td><span class="badge">L4</span></td><td>none — FIRST; T1 caller-audit gates the auth flip</td></tr>
+          <tr><td>2</td><td><a href="../06142026-data-integrity-transactions/spec.html">data-integrity-transactions</a></td><td>Medium</td><td><span class="badge">L3</span></td><td>none — parallel-ok with #1</td></tr>
+          <tr><td colspan="5"><strong>Wave 2 — foundations</strong></td></tr>
+          <tr><td>3</td><td><a href="../06142026-backend-smoke-test-harness/spec.html">backend-smoke-test-harness</a></td><td>Medium</td><td><span class="badge">L2</span></td><td>none — enables #6, #7</td></tr>
+          <tr><td>4</td><td><a href="../06142026-backend-validation-layer/spec.html">backend-validation-layer</a></td><td>Large</td><td><span class="badge">L3</span></td><td>soft-after #1</td></tr>
+          <tr><td>5</td><td><a href="../06142026-logging-decision-pino/spec.html">logging-decision-pino</a></td><td>Med–Lg</td><td><span class="badge">L2</span></td><td>none — decision-led; coordinate redaction with #1</td></tr>
+          <tr><td colspan="5"><strong>Wave 3 — big refactors (gated on the test net)</strong></td></tr>
+          <tr><td>6</td><td><a href="../06142026-db-access-into-models/spec.html">db-access-into-models</a></td><td>Large</td><td><span class="badge">L3</span></td><td>after #3</td></tr>
+          <tr><td>7</td><td><a href="../06142026-god-file-decomposition/spec.html">god-file-decomposition</a></td><td>Large</td><td><span class="badge">L4</span></td><td>after #3 + #6 — LAST</td></tr>
+        </tbody>
+      </table>
+      <p>Recommended start: <strong>#1 security-hotfix</strong> (live exposure). Its T1 already surfaced 5 frontend admin pages calling soon-to-be-protected routes with no auth header — the default-deny flip is gated on fixing those callers first.</p>
+    </section>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The backend (<code>src/</code>) has grown to ~743 files / ~142K lines, and an initial recon found <strong>128 files (~17%) over the 300-line cap</strong> alone — before checking any other rule. We need a structured, per-unit map of where the codebase drifts from the <code>/alloro-conventions</code> contract so remediation can be planned and prioritized instead of guessed at.</p>
+      <p><strong>This plan maps the audit. It does not run it.</strong> Map now, check later.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>One master index (this file) plus <strong>17 per-unit audit worksheets</strong> under <code>checks/</code>. Each worksheet scopes one slice of the backend (a feature domain or a cross-cutting layer), lists its real files with line counts, pre-flags the size offenders and unit-specific red flags found during recon, and carries the 16-point checklist plus an empty Findings section to fill during the check-later phase.</p>
+      <p><strong>Done (this plan):</strong> all 17 worksheets exist and map real files. <strong>Done (execution, later):</strong> every worksheet audited, findings recorded, a ranked remediation backlog produced.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>The contract</h3>
+      <ul>
+        <li><code>~/.claude/skills/alloro-conventions/SKILL.md</code> — the 16-point backend architecture contract this audit checks against.</li>
+      </ul>
+      <h3>Backend structure</h3>
+      <ul>
+        <li><code>src/controllers/</code> — 436 files / ~96K lines, nested by domain. The bulk of the surface.</li>
+        <li><code>src/models/</code> · <code>services/</code> · <code>utils/</code> · <code>routes/</code> · <code>workers/</code> · <code>middleware/</code> · <code>emails/</code> — cross-cutting layers.</li>
+      </ul>
+      <h3>Pattern note (decide once, repo-wide)</h3>
+      <ul>
+        <li>The repo has evolved domain-nested sub-folders: <code>feature-services/</code>, <code>feature-utils/</code> (admin-websites, practice-ranking, agents), plus variants <code>pms-services/</code> / <code>pms-utils/</code> and <code>user-website-services/</code>. The skill's example uses plain <code>services/</code> / <code>utils/</code> nesting. <strong>This is either accepted evolution or naming drift — rule on it during the first scan and apply the ruling everywhere.</strong></li>
+      </ul>
+      <p><strong>Reference unit:</strong> start with <code>checks/13-routes.html</code> (<code>checkup.ts</code> = 2,140 lines) — the single clearest, fastest-to-confirm violation. It validates the worksheet format before the big units.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Audit read-only — no application code changes during any scan.</li>
+            <li>Check every file in a unit against the 16-point checklist, not just file size.</li>
+            <li>Record findings inside the unit's own worksheet (spec-code parity).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Modify, refactor, or "drive-by clean" any source during mapping or scanning.</li>
+            <li>Scan the frontend — that is the <code>/alloro-frontend</code> contract, a separate effort.</li>
+            <li>Scan <code>database/migrations</code> or <code>seeds</code> — different rules apply.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Fixing the violations. Remediation is a separate plan, written after findings exist.</li>
+        <li>Frontend (<code>frontend/</code>) and migration/seed files.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 (Concern) — the audit itself is read-only and safe; the <em>findings</em> are expected to surface Level 3+ architectural debt (god-controllers, DB access outside models, business logic in routes).</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li>File-size is a weak proxy for real violations. <strong>Mitigation:</strong> every worksheet carries the full 16-point checklist; size offenders are only the starting point, not the verdict.</li>
+        <li>The <code>09-smaller-controller-domains</code> bucket spans 247 files / 38 domains and could hide security-critical drift. <strong>Mitigation:</strong> sub-prioritize <code>auth</code>, <code>billing</code>, and <code>websiteContact</code> first within that worksheet.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> none — no source files are touched by this plan or by the scans.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Auditing all 741 files exhaustively is expensive. Recommended alternative: run the worksheets in the priority order below, stop at diminishing returns, and let the P1 findings seed the remediation plan rather than waiting for 100% coverage.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="dimensions">
+      <h2>Audit Dimensions (the 16-point contract)</h2>
+      <p>Every file in every unit is checked against these. Worksheets carry the same list as a runnable checklist.</p>
+      <ol>
+        <li>File &le; 300 lines</li>
+        <li>Functions &le; 50 lines</li>
+        <li>Nesting &le; 4 levels</li>
+        <li>Correct folder placement</li>
+        <li>Data flow: Routes &rarr; Controllers &rarr; Services &rarr; Models</li>
+        <li>No business logic in routes</li>
+        <li>No DB queries outside <code>models/</code></li>
+        <li>Error handling on every async call</li>
+        <li><code>{ success, data, error }</code> response shape</li>
+        <li>No <code>console.log</code> — Pino logger only</li>
+        <li>No hardcoded secrets or magic values</li>
+        <li>Input validated/sanitized at route/middleware level</li>
+        <li>Auth middleware on protected routes</li>
+        <li>Naming (PascalCase controllers/services, descriptive fns, boolean-as-question)</li>
+        <li>No commented-out code</li>
+        <li>Transactions for multi-table writes</li>
+      </ol>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks &amp; Status Dashboard</h2>
+      <p>Each row is an independent task (T01–T17), fully parallelizable — no cross-unit dependencies. <code>P1</code> = audit first. Counts are from recon on 2026-06-14.</p>
+      <table>
+        <thead>
+          <tr><th>#</th><th>Unit / Worksheet</th><th class="n">Files</th><th class="n">Lines</th><th class="n">Over 300</th><th>Pri</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>T01</td><td><a href="checks/01-admin-websites.html">admin-websites</a></td><td class="n">50</td><td class="n">25,727</td><td class="n p1">27</td><td><span class="badge">P1</span></td><td>Audited</td></tr>
+          <tr><td>T02</td><td><a href="checks/02-practice-ranking.html">practice-ranking</a></td><td class="n">26</td><td class="n">11,768</td><td class="n p1">9</td><td><span class="badge">P1</span></td><td>Audited</td></tr>
+          <tr><td>T03</td><td><a href="checks/03-minds.html">minds</a></td><td class="n">34</td><td class="n">6,629</td><td class="n">8</td><td><span class="badge">P2</span></td><td>Audited</td></tr>
+          <tr><td>T04</td><td><a href="checks/04-agents.html">agents (controllers)</a></td><td class="n">13</td><td class="n">5,694</td><td class="n">7</td><td><span class="badge">P2</span></td><td>Audited</td></tr>
+          <tr><td>T05</td><td><a href="checks/05-gbp-automation.html">gbp-automation</a></td><td class="n">28</td><td class="n">5,174</td><td class="n">6</td><td><span class="badge">P2</span></td><td>Audited</td></tr>
+          <tr><td>T06</td><td><a href="checks/06-pms.html">pms</a></td><td class="n">22</td><td class="n">4,851</td><td class="n">7</td><td><span class="badge">P2</span></td><td>Audited</td></tr>
+          <tr><td>T07</td><td><a href="checks/07-user-website.html">user-website</a></td><td class="n">3</td><td class="n">3,269</td><td class="n p1">3/3</td><td><span class="badge">P1</span></td><td>Audited</td></tr>
+          <tr><td>T08</td><td><a href="checks/08-pm.html">pm</a></td><td class="n">13</td><td class="n">2,760</td><td class="n">4</td><td><span class="badge">P3</span></td><td>Audited</td></tr>
+          <tr><td>T09</td><td><a href="checks/09-smaller-controller-domains.html">smaller controller domains (39)</a></td><td class="n">247</td><td class="n">30,001</td><td class="n">21</td><td><span class="badge">P2</span></td><td>Audited</td></tr>
+          <tr><td>T10</td><td><a href="checks/10-models.html">models</a></td><td class="n">109</td><td class="n">14,067</td><td class="n p1">11</td><td><span class="badge">P1</span></td><td>Audited</td></tr>
+          <tr><td>T11</td><td><a href="checks/11-services.html">services</a></td><td class="n">42</td><td class="n">7,527</td><td class="n">6</td><td><span class="badge">P2</span></td><td>Audited</td></tr>
+          <tr><td>T12</td><td><a href="checks/12-utils.html">utils</a></td><td class="n">37</td><td class="n">8,114</td><td class="n">9</td><td><span class="badge">P2</span></td><td>Audited</td></tr>
+          <tr><td>T13</td><td><a href="checks/13-routes.html">routes</a></td><td class="n">62</td><td class="n">6,674</td><td class="n p1">4</td><td><span class="badge">P1</span></td><td>Audited</td></tr>
+          <tr><td>T14</td><td><a href="checks/14-workers.html">workers</a></td><td class="n">27</td><td class="n">5,188</td><td class="n">3</td><td><span class="badge">P2</span></td><td>Audited</td></tr>
+          <tr><td>T15</td><td><a href="checks/15-emails.html">emails</a></td><td class="n">11</td><td class="n">2,159</td><td class="n">2</td><td><span class="badge">P3</span></td><td>Audited</td></tr>
+          <tr><td>T16</td><td><a href="checks/16-middleware.html">middleware</a></td><td class="n">8</td><td class="n">815</td><td class="n">0</td><td><span class="badge">P2</span></td><td>Audited</td></tr>
+          <tr><td>T17</td><td><a href="checks/17-auth-core-shared.html">auth, core &amp; shared</a></td><td class="n">11</td><td class="n">1,933</td><td class="n">1</td><td><span class="badge">P2</span></td><td>Audited</td></tr>
+          <tr><td></td><td><strong>Total backend audit surface</strong></td><td class="n"><strong>743</strong></td><td class="n"><strong>~142,350</strong></td><td class="n"><strong>128</strong></td><td></td><td></td></tr>
+        </tbody>
+      </table>
+      <h3>Recommended scan order</h3>
+      <p>Structural / clearest-first, so early passes teach the dominant anti-patterns before the long tail:</p>
+      <p><code>T13 routes</code> &rarr; <code>T01 admin-websites</code> &rarr; <code>T10 models</code> &rarr; <code>T02 practice-ranking</code> &rarr; <code>T07 user-website</code> &rarr; <code>T12 utils</code> &rarr; <code>T11 services</code> &rarr; <code>T04 agents</code> &rarr; <code>T06 pms</code> &rarr; <code>T05 gbp-automation</code> &rarr; <code>T03 minds</code> &rarr; <code>T14 workers</code> &rarr; <code>T16 middleware</code> &rarr; <code>T17 auth-core-shared</code> &rarr; <code>T09 smaller-domains</code> &rarr; <code>T08 pm</code> &rarr; <code>T15 emails</code></p>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <h3>Map phase (this plan)</h3>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled checked> Master <code>spec.html</code> with 17-unit dashboard</li>
+        <li><input type="checkbox" disabled checked> 17 worksheets under <code>checks/</code>, each mapping real files + line counts</li>
+        <li><input type="checkbox" disabled checked> Pre-identified offenders and red flags recorded per unit</li>
+      </ul>
+      <h3>Execution phase (check later)</h3>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled checked> Each worksheet's files audited against all 16 dimensions</li>
+        <li><input type="checkbox" disabled checked> Findings + severity recorded in each worksheet's Findings section</li>
+        <li><input type="checkbox" disabled checked> <code>feature-services</code> / nesting pattern ruled on (ACCEPTED), applied repo-wide</li>
+        <li><input type="checkbox" disabled> Ranked remediation backlog / security-hotfix plan produced from findings (next step)</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

@@ -16,6 +16,8 @@ import { listLocalPostsInRange } from "./gbp-services/post-handler.service";
 import { getMonthlyRanges } from "./gbp-utils/date-helper.util";
 import { safePercentageChange, calculateGBPTrendScore } from "./gbp-utils/metric-calculator.util";
 import { handleError } from "./gbp-utils/error-handler.util";
+import { GoogleConnectionModel } from "../../models/GoogleConnectionModel";
+import logger from "../../lib/logger";
 
 /**
  * POST /gbp/getKeyData
@@ -267,17 +269,12 @@ export async function getGBPTextSources(
   const { maxPostsPerLocation = 50, includeEmptyLocations = true } =
     options || {};
 
-  // Import db here to avoid circular dependency
-  const { db } = await import("../../database/connection");
-
-  console.log(
+  logger.info(
     `[GBP TextSources Export] Starting for googleAccountId ${googleAccountId}`,
   );
 
   // Query database for property IDs
-  const account = await db("google_connections")
-    .where({ id: googleAccountId })
-    .first();
+  const account = await GoogleConnectionModel.findRawById(googleAccountId);
 
   if (!account?.google_property_ids?.gbp) {
     throw new Error(
@@ -301,7 +298,7 @@ export async function getGBPTextSources(
     };
   }
 
-  console.log(
+  logger.info(
     `[GBP TextSources Export] Processing ${gbpLocations.length} locations`,
   );
 
@@ -324,7 +321,7 @@ export async function getGBPTextSources(
   const finalStartDate = startDate || prevMonth.startDate;
   const finalEndDate = endDate || prevMonth.endDate;
 
-  console.log(
+  logger.info(
     `[GBP TextSources Export] Date range: ${finalStartDate} to ${finalEndDate}`,
   );
 
@@ -335,7 +332,7 @@ export async function getGBPTextSources(
 
   for (let i = 0; i < gbpLocations.length; i += batchSize) {
     const batch = gbpLocations.slice(i, i + batchSize);
-    console.log(
+    logger.info(
       `[GBP TextSources Export] Processing batch ${
         Math.floor(i / batchSize) + 1
       }/${Math.ceil(gbpLocations.length / batchSize)}`,
@@ -385,10 +382,7 @@ export async function getGBPTextSources(
             },
           };
         } catch (error: any) {
-          console.error(
-            `[GBP TextSources Export] Failed for location ${location.locationId}:`,
-            error.message,
-          );
+          logger.error({ err: error.message }, `[GBP TextSources Export] Failed for location ${location.locationId}:`);
           errors.push({
             locationId: location.locationId,
             displayName: location.displayName,
@@ -411,7 +405,7 @@ export async function getGBPTextSources(
   // Filter out failed locations
   const locations = locationResults.filter((loc) => loc !== null);
 
-  console.log(
+  logger.info(
     `[GBP TextSources Export] ✓ Completed: ${locations.length} successful, ${errors.length} errors`,
   );
 
@@ -449,17 +443,12 @@ export async function getTextSources(req: AuthenticatedRequest, res: express.Res
       });
     }
 
-    console.log(
+    logger.info(
       `[GBP TextSources] Starting for googleAccountId ${googleAccountId}`,
     );
 
-    // Import db here
-    const { db } = await import("../../database/connection");
-
     // Query database for property IDs
-    const account = await db("google_connections")
-      .where({ id: googleAccountId })
-      .first();
+    const account = await GoogleConnectionModel.findRawById(googleAccountId);
 
     // Validation
     if (!account) {
@@ -493,7 +482,7 @@ export async function getTextSources(req: AuthenticatedRequest, res: express.Res
       });
     }
 
-    console.log(
+    logger.info(
       `[GBP TextSources] Processing ${gbpLocations.length} locations`,
     );
 
@@ -516,8 +505,8 @@ export async function getTextSources(req: AuthenticatedRequest, res: express.Res
     const startDate = body.startDate || prevMonth.startDate;
     const endDate = body.endDate || prevMonth.endDate;
 
-    console.log(`[GBP TextSources] Date range: ${startDate} to ${endDate}`);
-    console.log(
+    logger.info(`[GBP TextSources] Date range: ${startDate} to ${endDate}`);
+    logger.info(
       `[GBP TextSources] Max posts per location: ${maxPostsPerLocation}`,
     );
 
@@ -531,7 +520,7 @@ export async function getTextSources(req: AuthenticatedRequest, res: express.Res
 
     for (let i = 0; i < gbpLocations.length; i += batchSize) {
       const batch = gbpLocations.slice(i, i + batchSize);
-      console.log(
+      logger.info(
         `[GBP TextSources] Processing batch ${
           Math.floor(i / batchSize) + 1
         }/${Math.ceil(gbpLocations.length / batchSize)}`,
@@ -581,10 +570,7 @@ export async function getTextSources(req: AuthenticatedRequest, res: express.Res
               },
             };
           } catch (error: any) {
-            console.error(
-              `[GBP TextSources] Failed for location ${location.locationId}:`,
-              error.message,
-            );
+            logger.error({ err: error.message }, `[GBP TextSources] Failed for location ${location.locationId}:`);
             errors.push({
               locationId: location.locationId,
               displayName: location.displayName,
@@ -608,8 +594,8 @@ export async function getTextSources(req: AuthenticatedRequest, res: express.Res
     const locations = locationResults.filter((loc) => loc !== null);
 
     const duration = Date.now() - startTime;
-    console.log(`[GBP TextSources] ✓ Completed in ${duration}ms`);
-    console.log(
+    logger.info(`[GBP TextSources] ✓ Completed in ${duration}ms`);
+    logger.info(
       `[GBP TextSources] Success: ${locations.length}, Errors: ${errors.length}`,
     );
 
@@ -630,10 +616,7 @@ export async function getTextSources(req: AuthenticatedRequest, res: express.Res
     });
   } catch (error: any) {
     const duration = Date.now() - startTime;
-    console.error(
-      `[GBP TextSources] ✗ Failed after ${duration}ms:`,
-      error.message,
-    );
+    logger.error({ err: error.message }, `[GBP TextSources] ✗ Failed after ${duration}ms:`);
     return handleError(res, error, "GBP text sources");
   }
 }
@@ -650,10 +633,7 @@ export async function diagAccounts(req: AuthenticatedRequest, res: express.Respo
     const { data } = await acctMgmt.accounts.list({});
     return res.json(data.accounts ?? []);
   } catch (err: any) {
-    console.error(
-      "List accounts Error:",
-      err?.response?.data || err?.message || err,
-    );
+    logger.error({ err: err?.response?.data || err?.message || err }, "List accounts Error:");
     return res.status(500).json({ error: "Failed to list accounts" });
   }
 }
@@ -702,10 +682,7 @@ export async function diagLocations(req: AuthenticatedRequest, res: express.Resp
 
     return res.json(locations);
   } catch (e: any) {
-    console.error(
-      "List locations Error:",
-      e?.response?.data || e?.message || e,
-    );
+    logger.error({ err: e?.response?.data || e?.message || e }, "List locations Error:");
     return res.status(500).json({ error: "Failed to list locations" });
   }
 }

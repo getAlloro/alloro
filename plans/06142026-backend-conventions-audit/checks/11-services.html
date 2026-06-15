@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>services — Conventions Audit</title>
+<style>
+:root{color-scheme:light;--paper:#fff;--ink:#080808;--muted:#5f5f5f;--line:#d8d8d8;--soft:#f5f5f5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
+.shell{width:min(1000px,calc(100% - 32px));margin:0 auto;padding:40px 0}
+.hero,.card{border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.hero{border-color:var(--ink);padding:28px;margin-bottom:18px}
+.topline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.card{padding:24px;margin-top:16px}
+.eyebrow,dt{color:var(--muted);font-size:.74rem;font-weight:700;text-transform:uppercase}
+.eyebrow{margin:0}
+.pill{display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border:1px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper);font-size:.74rem;font-weight:800;text-transform:uppercase}
+h1,h2,h3,p{margin-top:0}
+h1{margin-bottom:18px;font-size:clamp(1.8rem,5vw,3rem);line-height:.98}
+h2{font-size:1.2rem}h3{font-size:.95rem}
+code{padding:.1rem .3rem;border:1px solid var(--line);border-radius:4px;background:var(--soft);font-size:.86em}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:0}
+.meta div{border:1px solid var(--line);border-radius:8px;padding:14px}
+dd{margin:4px 0 0;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:8px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);text-transform:uppercase;font-size:.7rem}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.over{font-weight:800}
+.checklist{list-style:none;padding:0;margin:0}
+.checklist li{display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line);font-size:.88rem}
+.note{border-left:3px solid var(--ink);padding:10px 14px;background:var(--soft);margin:0;font-size:.9rem}
+ul.flags{margin:0;padding-left:18px}ul.flags li{margin-bottom:7px}
+a{color:var(--ink)}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="hero">
+  <div class="topline"><p class="eyebrow">Backend Conventions Audit · Check 11 / 17 · <a href="../spec.html">index</a></p><span class="pill">Audited</span></div>
+  <h1>services</h1>
+  <dl class="meta">
+    <div><dt>Scope</dt><dd><code>src/services</code></dd></div>
+    <div><dt>Files</dt><dd>42</dd></div>
+    <div><dt>Lines</dt><dd>7,527</dd></div>
+    <div><dt>Over 300</dt><dd>6</dd></div>
+    <div><dt>Priority</dt><dd>P2</dd></div>
+  </dl>
+</header>
+
+<section class="card">
+  <h2>Scope</h2>
+  <p>Top-level shared business-logic services (cross-domain). Should call <code>models/</code> for data and hold no inline SQL.</p>
+  <table>
+    <thead><tr><th>File (rel. to scope)</th><th class="n">Lines</th></tr></thead>
+    <tbody>
+      <tr><td><code>vocabularyAutoMapper.ts</code></td><td class="n over">585 ▲</td></tr>
+      <tr><td><code>instantWebsiteGenerator.ts</code></td><td class="n over">570 ▲</td></tr>
+      <tr><td><code>surpriseFindings.ts</code></td><td class="n over">419 ▲</td></tr>
+      <tr><td><code>ozMoment.ts</code></td><td class="n over">346 ▲</td></tr>
+      <tr><td><code>behavioralIntelligence.ts</code></td><td class="n over">322 ▲</td></tr>
+      <tr><td><code>ai-seo-audit/organizationAuditContextService.ts</code></td><td class="n over">307 ▲</td></tr>
+      <tr><td colspan="2"><em>+ 36 more files ≤ 300 lines</em></td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:.78rem;color:var(--muted);margin:8px 0 0">▲ = over the 300-line cap.</p>
+</section>
+
+<section class="card">
+  <h2>Priority Signals (start here)</h2>
+  <ul class="flags">
+    <li><strong>Naming drift:</strong> several files are lowercase with no <code>Service</code> suffix — <code>vocabularyAutoMapper.ts</code>, <code>surpriseFindings.ts</code>, <code>ozMoment.ts</code>, <code>behavioralIntelligence.ts</code>, <code>instantWebsiteGenerator.ts</code>. Convention wants PascalCase + <code>Service</code> suffix. Systemic dimension-14 finding.</li>
+    <li>Verify these call <code>models/</code> for DB access, not inline SQL (dimension 7).</li>
+    <li><code>ai-seo-audit/</code> subfolder — nested services; confirm consistent with the layer convention.</li>
+    <li>Largest: <code>vocabularyAutoMapper</code> 585, <code>instantWebsiteGenerator</code> 570 — split candidates.</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Audit Dimensions</h2>
+  <p>Run every file in scope against the 16-point contract (full detail in <a href="../spec.html#dimensions">spec.html</a>).</p>
+  <ul class="checklist">
+    <li><input type="checkbox" disabled> File &le; 300 lines</li>
+    <li><input type="checkbox" disabled> Functions &le; 50 lines</li>
+    <li><input type="checkbox" disabled> Nesting &le; 4 levels</li>
+    <li><input type="checkbox" disabled> Correct folder placement</li>
+    <li><input type="checkbox" disabled> Data flow: Routes &rarr; Controllers &rarr; Services &rarr; Models</li>
+    <li><input type="checkbox" disabled> No business logic in routes</li>
+    <li><input type="checkbox" disabled> No DB queries outside <code>models/</code></li>
+    <li><input type="checkbox" disabled> Error handling on every async call</li>
+    <li><input type="checkbox" disabled> <code>{ success, data, error }</code> response shape (callers)</li>
+    <li><input type="checkbox" disabled> No <code>console.log</code> (Pino only)</li>
+    <li><input type="checkbox" disabled> No hardcoded secrets / magic values</li>
+    <li><input type="checkbox" disabled> Input validated at route/middleware</li>
+    <li><input type="checkbox" disabled> Auth middleware on protected routes (callers)</li>
+    <li><input type="checkbox" disabled> Naming (PascalCase + Service suffix)</li>
+    <li><input type="checkbox" disabled> No commented-out code</li>
+    <li><input type="checkbox" disabled> Transactions for multi-table writes</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Findings</h2>
+  <h3>Summary</h3>
+  <p><strong>Verdict: needs work.</strong> The top-level <code>services/</code> tier is the architectural inverse of its own <code>ai-seo-audit/</code> subfolder. The subfolder is the gold standard (consistent <code>*Service</code> naming, routes <strong>data through <code>models/</code></strong>, uses <code>db.transaction</code> for multi-table writes). The flat top-level files do the opposite: they <strong>own inline DB access</strong> (12 / 42 files run <code>db("table")</code> directly — services holding SQL is the worst dim-7 case), skip the controller layer, and ship 150–230-line functions. The single most dangerous finding is unguarded multi-table writes with no transaction (referral rewards, instant-website creation). Severity: <strong>5 must-fix · 8 concerns · 5 nitpicks</strong>. Most DB/console/validation items are repo-wide [systemic]; the unit's own headline is <em>fat functions + transaction-less multi-table writes + naming drift broader than flagged</em>.</p>
+
+  <h3>Must-fix</h3>
+  <ul>
+    <li><code>referralReward.ts:35–231</code> — [dim 16] <code>applyReferralReward</code> + <code>trackReferralSignup</code> write across <code>referrals</code>, <code>notifications</code>, and read <code>organizations</code> with <strong>no transaction</strong>. A failure between the <code>referrals.update({status:"converted"})</code> and the later <code>update({status:"rewarded"})</code> (e.g. Stripe throws) leaves the referral half-rewarded and notifications inconsistent. <em>Fix:</em> wrap the status transitions + notification inserts in <code>db.transaction</code>; move all queries into a <code>ReferralModel</code> (this file alone holds 13 inline <code>db()</code> calls). Mirror <code>ai-seo-audit/auditTargetExecutionService.ts:114</code>, which does this correctly.</li>
+    <li><code>instantWebsiteGenerator.ts:510–565</code> — [dim 16] writes four tables in sequence (<code>website_builder.projects</code>, <code>website_builder.pages</code>, <code>organizations</code>, <code>notifications</code>) with <strong>no transaction</strong>. A crash after the project insert but before the page insert yields a project with no homepage. <em>Fix:</em> wrap the project+page+org writes in <code>db.transaction</code>; relocate the inserts to models.</li>
+    <li><code>referralReward.ts</code>, <code>behavioralIntelligence.ts</code>, <code>instantWebsiteGenerator.ts</code>, <code>configStore.ts</code>, <code>vocabularyAutoMapper.ts</code>, <code>firstPatientAttribution.ts</code>, <code>ozMoment.ts</code>, <code>businessMetrics.ts</code>, <code>ai-cost/service.ai-cost.ts</code> — [dim 7] inline <code>db("table")</code> in services (12 files total, counts: referralReward 13, behavioralIntelligence 8, configStore 6, instantWebsiteGenerator 5). <code>behavioralIntelligence.ts:177</code> and <code>ai-seo-audit/organizationAuditContextService.ts:26,33</code> also use <code>db.raw(...)</code>. Services holding SQL is the most severe form of the [systemic] dim-7 drift. <em>Fix:</em> push every query into the matching model (<code>ReferralModel</code>, <code>SystemConfigModel</code>, <code>VocabularyConfigModel</code>, etc.); services call models only.</li>
+    <li><code>surpriseFindings.ts:97</code> (<code>generateSurpriseFindings</code> 232 lines), <code>instantWebsiteGenerator.ts:182</code> (<code>buildHomepageSections</code> 215), <code>ozMoment.ts:118</code> (<code>generateOzMoments</code> 163), <code>referralReward.ts:87</code> (<code>applyReferralReward</code> 153) — [dim 2] functions 3–5× the 50-line cap. <em>Fix:</em> extract named helpers (per-finding-type builders; per-section HTML builders already partially factored in instantWebsiteGenerator — finish the pattern; split the AI-prompt assembly from the orchestration in ozMoment).</li>
+    <li><code>configStore.ts:43–67</code> — [dim 8] <code>setConfig</code> and <code>deleteConfig</code> have <strong>no try/catch</strong> while <code>getConfig</code>/<code>getAllConfig</code> do — asymmetric error handling, and <code>setConfig</code>'s read-then-insert/update is a non-atomic check (TOCTOU; concurrent writers can both hit the <code>insert</code> branch and collide on the <code>key</code> unique constraint). <em>Fix:</em> use a single upsert (<code>onConflict("key").merge()</code>) inside a model, wrapped in try/catch.</li>
+  </ul>
+
+  <h3>Concerns</h3>
+  <ul>
+    <li><code>routes/checkup.ts</code> imports <code>vocabularyAutoMapper</code>, <code>surpriseFindings</code>, <code>ozMoment</code>, <code>instantWebsiteGenerator</code>, <code>referralReward</code> <strong>directly</strong> — [dim 5/6] the route skips the controller layer (Routes → Controllers → Services). <em>Fix:</em> route through a checkup controller; keep routes thin.</li>
+    <li><code>models/BehavioralEventModel.ts</code> imports <code>services/behavioralIntelligence.ts</code> — [dim 5] <strong>layer inversion</strong>: a model depends on a service (models are the bottom layer and must not call up into services). Risks circular imports. <em>Fix:</em> invert the dependency — the service calls the model, never the reverse.</li>
+    <li>Hardcoded Claude model IDs as magic strings — [dim 11] <code>reviewSentiment.ts:90</code> (<code>"claude-haiku-4-5-20251001"</code>), <code>ozMoment.ts:202</code> (same), <code>reviewThemeExtractor.ts:95</code> falls back to <code>"claude-sonnet-4-6"</code>. <em>Fix:</em> name these in <code>config/</code> (one source of truth for model selection). Note: <code>ai-cost/pricing.ts</code> model IDs are a legit pricing lookup table, not a violation.</li>
+    <li><code>$2000</code> referral reward hardcoded as <code>-200000</code> cents — [dim 11] <code>referralReward.ts:143,170</code>, duplicated. <em>Fix:</em> a named constant (or pull from <code>configStore</code>, which already de-hardcodes <code>org_monthly_rates</code>).</li>
+    <li>Direct <code>process.env.*</code> reads bypassing <code>config/</code> — [dim 11] <code>instantWebsiteGenerator.ts:205</code>, <code>reviewThemeExtractor.ts:65,95</code>, <code>recipientSettingsService.ts:98–101</code>, <code>integrations/rybbitHarvestAdapter.ts:6–7</code>, <code>ai-seo-audit/externalEntitySearchService.ts:10</code>. Contract says secrets/env are accessed via <code>config/</code>. <em>Fix:</em> centralize in a config module.</li>
+    <li><code>console.*</code> in 10 files (referralReward 9, then instantWebsiteGenerator/firstPatientAttribution/ai-cost 2 each, +6 singles) — [systemic] dim-10 (Pino not installed). <em>Fix:</em> swap to the Pino logger once available; referralReward is the worst concentration.</li>
+    <li>Silent error-swallowing — [dim 8] empty <code>catch {}</code> / <code>.catch(() =&gt; {})</code> at <code>referralReward.ts:64,75,218,231</code>, <code>instantWebsiteGenerator.ts:565</code>, <code>vocabularyAutoMapper.ts:580</code>, <code>ozMoment.ts:~280</code>. Some are intentional "non-blocking" by design, but several drop errors with no log at all (violates "if you catch it, log it"). <em>Fix:</em> at minimum log before swallowing.</li>
+    <li>Input validation absent on the route consumers of these services — [systemic] dim-12 (0/39 routes validated). Services trust raw caller input (org IDs, GBP category strings, checkup payloads). <em>Fix:</em> add <code>validation/</code> schemas at the route layer.</li>
+  </ul>
+
+  <h3>Nitpicks</h3>
+  <ul>
+    <li>Naming drift is <strong>wider than the 5 files flagged</strong> — [dim 14] 12 top-level files lack PascalCase + <code>Service</code> suffix: the 5 listed (<code>vocabularyAutoMapper</code>, <code>surpriseFindings</code>, <code>ozMoment</code>, <code>behavioralIntelligence</code>, <code>instantWebsiteGenerator</code>) plus <code>agentRegistry</code>, <code>businessMetrics</code>, <code>configStore</code>, <code>firstPatientAttribution</code>, <code>reviewSentiment</code>, <code>reviewThemeExtractor</code>, <code>referralReward</code>. <em>Fix:</em> rename to <code>VocabularyMapperService.ts</code> etc. (large blast radius — many importers; do as a dedicated rename pass, not piecemeal).</li>
+    <li><code>ai-cost/service.ai-cost.ts</code> — [dim 14] inverted/dotted filename; convention wants <code>AiCostService.ts</code>. <code>integrations/harvest-registry.ts</code>, <code>harvest-types.ts</code> use kebab-case where the rest of the tree is camelCase.</li>
+    <li><code>vocabularyAutoMapper.ts</code> 585 lines &amp; <code>ai-seo-audit/types.ts</code> 161 — [dim 1] over/near cap, but both are mostly <strong>static lookup data</strong> (category→preset map; type defs), not branching logic. Lower severity than a 585-line logic file; still a split candidate (move the <code>CATEGORY_MAP</code> table to a data module).</li>
+    <li>Pleasant surprises worth noting: <strong>zero commented-out code</strong> across the whole scope (dim-15 clean); <code>surpriseFindings.ts</code> is a correctly-pure transformer (no DB, returns data); <code>ozMoment.ts</code> AI call has a proper try/catch + <code>buildTemplateFallback</code>; the entire <code>ai-seo-audit/</code> subfolder is consistent and uses models + transactions correctly.</li>
+  </ul>
+
+  <h3>Coverage</h3>
+  <p>Deep-read 8 (<code>referralReward</code>, <code>instantWebsiteGenerator</code>, <code>configStore</code>, <code>behavioralIntelligence</code>, <code>ozMoment</code>, <code>surpriseFindings</code> [head+tail], <code>vocabularyAutoMapper</code> [tail], <code>ai-seo-audit/organizationAuditContextService</code>) · Grep-sampled all 42 (console.*, <code>db(</code>/<code>db.raw</code>/<code>db.transaction</code>, write ops, transactions, model imports, env reads, model-ID magic strings, commented-out code, importer/data-flow trace, per-function line counts via brace-tracking) · Not deep-read 34 — but every file was grep-swept for the 16 dimensions and the mid-tier ones (<code>recipientSettingsService</code>, <code>businessMetrics</code>, <code>firstPatientAttribution</code>, <code>OrganizationLifecycleService</code>, the 9 <code>integrations/</code> adapters, the rest of <code>ai-seo-audit/</code>) were spot-checked for error-handling, multi-table writes, and naming; no new must-fix class surfaced beyond what is recorded.</p>
+</section>
+</main>
+</body>
+</html>

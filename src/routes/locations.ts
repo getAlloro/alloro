@@ -27,6 +27,7 @@ import {
   tokenRefreshMiddleware,
   AuthenticatedRequest,
 } from "../middleware/tokenRefresh";
+import logger from "../lib/logger";
 
 const router = express.Router();
 
@@ -85,7 +86,7 @@ router.get(
         total: locationsWithProperties.length,
       });
     } catch (error: any) {
-      console.error("[LOCATIONS] Error fetching locations:", error);
+      logger.error({ err: error }, "[LOCATIONS] Error fetching locations:");
       return res.status(500).json({
         success: false,
         error: "Failed to fetch locations",
@@ -135,7 +136,7 @@ router.get(
         },
       });
     } catch (error: any) {
-      console.error("[LOCATIONS] Error fetching primary location:", error);
+      logger.error({ err: error }, "[LOCATIONS] Error fetching primary location:");
       return res.status(500).json({
         success: false,
         error: "Failed to fetch primary location",
@@ -167,7 +168,7 @@ router.get(
       const data = await getOrgBusinessData(organizationId);
       return res.json({ success: true, ...data });
     } catch (error: any) {
-      console.error("[LOCATIONS] Error fetching business data:", error);
+      logger.error({ err: error }, "[LOCATIONS] Error fetching business data:");
       return res.status(500).json({
         success: false,
         error: error.message || "Failed to fetch business data",
@@ -195,7 +196,7 @@ router.patch(
       const businessData = await updateOrgBusinessData(organizationId, req.body);
       return res.json({ success: true, business_data: businessData });
     } catch (error: any) {
-      console.error("[LOCATIONS] Error updating org business data:", error);
+      logger.error({ err: error }, "[LOCATIONS] Error updating org business data:");
       return res.status(500).json({
         success: false,
         error: error.message || "Failed to update organization business data",
@@ -243,7 +244,7 @@ router.post(
         location: { ...location, googleProperties: properties },
       });
     } catch (error: any) {
-      console.error("[LOCATIONS] Error creating location:", error);
+      logger.error({ err: error }, "[LOCATIONS] Error creating location:");
       return res.status(500).json({
         success: false,
         error: error.message || "Failed to create location",
@@ -301,7 +302,7 @@ router.put(
         location: updated ? { ...updated, googleProperties: properties } : null,
       });
     } catch (error: any) {
-      console.error("[LOCATIONS] Error updating location:", error);
+      logger.error({ err: error }, "[LOCATIONS] Error updating location:");
       const status = error.message.includes("not found") ? 404 : 500;
       return res.status(status).json({
         success: false,
@@ -336,7 +337,7 @@ router.delete(
 
       return res.json({ success: true, message: "Location removed" });
     } catch (error: any) {
-      console.error("[LOCATIONS] Error removing location:", error);
+      logger.error({ err: error }, "[LOCATIONS] Error removing location:");
       const status = error.message.includes("not found")
         ? 404
         : error.message.includes("Cannot remove")
@@ -396,7 +397,7 @@ router.put(
         location: location ? { ...location, googleProperties: properties } : null,
       });
     } catch (error: any) {
-      console.error("[LOCATIONS] Error setting GBP:", error);
+      logger.error({ err: error }, "[LOCATIONS] Error setting GBP:");
       const status = error.message.includes("not found") ? 404 : 500;
       return res.status(status).json({
         success: false,
@@ -431,7 +432,7 @@ router.delete(
 
       return res.json({ success: true, message: "GBP disconnected" });
     } catch (error: any) {
-      console.error("[LOCATIONS] Error disconnecting GBP:", error);
+      logger.error({ err: error }, "[LOCATIONS] Error disconnecting GBP:");
       const status = error.message.includes("not found") ? 404 : 500;
       return res.status(status).json({
         success: false,
@@ -476,7 +477,7 @@ router.post(
 
       return res.json({ success: true, business_data: businessData });
     } catch (error: any) {
-      console.error("[LOCATIONS] Error refreshing business data:", error);
+      logger.error({ err: error }, "[LOCATIONS] Error refreshing business data:");
       return res.status(500).json({
         success: false,
         error: error.message || "Failed to refresh business data",
@@ -514,7 +515,7 @@ router.patch(
 
       return res.json({ success: true, business_data: businessData });
     } catch (error: any) {
-      console.error("[LOCATIONS] Error updating business data:", error);
+      logger.error({ err: error }, "[LOCATIONS] Error updating business data:");
       return res.status(500).json({
         success: false,
         error: error.message || "Failed to update business data",

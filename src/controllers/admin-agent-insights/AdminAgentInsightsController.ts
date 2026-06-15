@@ -13,6 +13,7 @@ import { isValidStatus } from "./feature-utils/statusMapper";
 import * as summaryService from "./feature-services/summaryService";
 import * as recommendationService from "./feature-services/recommendationService";
 import * as governanceService from "./feature-services/governanceService";
+import logger from "../../lib/logger";
 
 // =====================================================================
 // GET /summary
@@ -28,7 +29,7 @@ export async function getSummary(req: Request, res: Response): Promise<Response>
 
     const { startDate, endDate, endDateTime } = buildDateRange(month as string | undefined);
 
-    console.log(
+    logger.info(
       `[Admin Agent Insights] Fetching summary for ${startDate} to ${endDate}`
     );
 
@@ -41,14 +42,14 @@ export async function getSummary(req: Request, res: Response): Promise<Response>
     );
 
     if (result.message) {
-      console.log(
+      logger.info(
         "[Admin Agent Insights] No recommendations found for this period"
       );
     } else {
-      console.log(
+      logger.info(
         `[Admin Agent Insights] Found ${result.pagination.total} agent types with recommendations`
       );
-      console.log(
+      logger.info(
         `[Admin Agent Insights] Returning ${result.data.length} of ${result.pagination.total} agent types (page ${result.pagination.page})`
       );
     }
@@ -61,7 +62,7 @@ export async function getSummary(req: Request, res: Response): Promise<Response>
       ...(result.message ? { message: result.message } : {}),
     });
   } catch (error: any) {
-    console.error("[Admin Agent Insights] Error fetching summary:", error);
+    logger.error({ err: error }, "[Admin Agent Insights] Error fetching summary:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -87,7 +88,7 @@ export async function getRecommendations(req: Request, res: Response): Promise<R
       req.query.limit as string
     );
 
-    console.log(
+    logger.info(
       `[Admin Agent Insights] Fetching recommendations for ${agentType}, month=${
         month || "all"
       }, source=${source}, status=${status}, page=${page}`
@@ -102,7 +103,7 @@ export async function getRecommendations(req: Request, res: Response): Promise<R
       limit
     );
 
-    console.log(
+    logger.info(
       `[Admin Agent Insights] Found ${result.data.length} of ${result.pagination.total} recommendations (page ${page})`
     );
 
@@ -112,10 +113,7 @@ export async function getRecommendations(req: Request, res: Response): Promise<R
       pagination: result.pagination,
     });
   } catch (error: any) {
-    console.error(
-      "[Admin Agent Insights] Error fetching recommendations:",
-      error
-    );
+    logger.error({ err: error }, "[Admin Agent Insights] Error fetching recommendations:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -141,13 +139,13 @@ export async function updateRecommendation(req: Request, res: Response): Promise
       });
     }
 
-    console.log(
+    logger.info(
       `[Admin Agent Insights] Updating recommendation ${id} to status ${status}`
     );
 
     const result = await recommendationService.updateRecommendationStatus(id, status);
 
-    console.log(`[Admin Agent Insights] Updated recommendation ${id}`);
+    logger.info(`[Admin Agent Insights] Updated recommendation ${id}`);
 
     return res.json({
       success: true,
@@ -162,10 +160,7 @@ export async function updateRecommendation(req: Request, res: Response): Promise
         message: "Recommendation not found",
       });
     }
-    console.error(
-      "[Admin Agent Insights] Error updating recommendation:",
-      error
-    );
+    logger.error({ err: error }, "[Admin Agent Insights] Error updating recommendation:");
     return res.status(500).json({
       success: false,
       error: "UPDATE_ERROR",
@@ -183,7 +178,7 @@ export async function markAllPass(req: Request, res: Response): Promise<Response
     const { agentType } = req.params;
     const { source } = req.query;
 
-    console.log(
+    logger.info(
       `[Admin Agent Insights] Marking all recommendations as PASS for ${agentType}${
         source ? ` (source: ${source})` : ""
       }`
@@ -194,7 +189,7 @@ export async function markAllPass(req: Request, res: Response): Promise<Response
       source as string | undefined
     );
 
-    console.log(
+    logger.info(
       `[Admin Agent Insights] Marked ${result.updated} recommendation(s) as PASS`
     );
 
@@ -204,7 +199,7 @@ export async function markAllPass(req: Request, res: Response): Promise<Response
       data: result,
     });
   } catch (error: any) {
-    console.error("[Admin Agent Insights] Error marking all as PASS:", error);
+    logger.error({ err: error }, "[Admin Agent Insights] Error marking all as PASS:");
     return res.status(500).json({
       success: false,
       error: "UPDATE_ERROR",
@@ -229,13 +224,13 @@ export async function bulkDeleteRecommendations(req: Request, res: Response): Pr
       });
     }
 
-    console.log(
+    logger.info(
       `[Admin Agent Insights] Bulk deleting ${ids.length} recommendation(s)`
     );
 
     const result = await recommendationService.bulkDelete(ids);
 
-    console.log(
+    logger.info(
       `[Admin Agent Insights] Deleted ${result.deleted} recommendation(s)`
     );
 
@@ -245,10 +240,7 @@ export async function bulkDeleteRecommendations(req: Request, res: Response): Pr
       data: result,
     });
   } catch (error: any) {
-    console.error(
-      "[Admin Agent Insights] Error bulk deleting recommendations:",
-      error
-    );
+    logger.error({ err: error }, "[Admin Agent Insights] Error bulk deleting recommendations:");
     return res.status(500).json({
       success: false,
       error: "DELETE_ERROR",
@@ -266,7 +258,7 @@ export async function clearMonthData(req: Request, res: Response): Promise<Respo
     const { month } = req.query;
     const { startDate, endDate, endDateTime } = buildDateRange(month as string | undefined);
 
-    console.log(
+    logger.info(
       `[Admin Agent Insights] Clearing Guardian/Governance data for ${startDate} to ${endDate}`
     );
 
@@ -276,7 +268,7 @@ export async function clearMonthData(req: Request, res: Response): Promise<Respo
       endDateTime
     );
 
-    console.log(
+    logger.info(
       `[Admin Agent Insights] Deleted ${result.deletedResults} agent results and ${result.deletedRecommendations} recommendations`
     );
 
@@ -289,7 +281,7 @@ export async function clearMonthData(req: Request, res: Response): Promise<Respo
       },
     });
   } catch (error: any) {
-    console.error("[Admin Agent Insights] Error clearing month data:", error);
+    logger.error({ err: error }, "[Admin Agent Insights] Error clearing month data:");
     return res.status(500).json({
       success: false,
       error: "DELETE_ERROR",
@@ -306,13 +298,13 @@ export async function getGovernanceIds(req: Request, res: Response): Promise<Res
   try {
     const { agentType } = req.params;
 
-    console.log(
+    logger.info(
       `[Admin Agent Insights] Fetching governance recommendation IDs for ${agentType}`
     );
 
     const result = await governanceService.fetchGovernanceIds(agentType);
 
-    console.log(
+    logger.info(
       `[Admin Agent Insights] Found ${result.passed.length} PASS and ${result.rejected.length} REJECT recommendations for ${agentType}`
     );
 
@@ -323,10 +315,7 @@ export async function getGovernanceIds(req: Request, res: Response): Promise<Res
       counts: result.counts,
     });
   } catch (error: any) {
-    console.error(
-      "[Admin Agent Insights] Error fetching governance IDs:",
-      error
-    );
+    logger.error({ err: error }, "[Admin Agent Insights] Error fetching governance IDs:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",
@@ -342,7 +331,7 @@ export async function getGovernanceIds(req: Request, res: Response): Promise<Res
 
 export async function getByIds(req: Request, res: Response): Promise<Response> {
   try {
-    console.log("reached here");
+    logger.info("reached here");
     const { passed, rejected } = req.body;
 
     if (!passed && !rejected) {
@@ -353,7 +342,7 @@ export async function getByIds(req: Request, res: Response): Promise<Response> {
       });
     }
 
-    console.log(
+    logger.info(
       `[Admin Agent Insights] Fetching recommendations: ${
         passed?.length || 0
       } passed, ${rejected?.length || 0} rejected`
@@ -361,7 +350,7 @@ export async function getByIds(req: Request, res: Response): Promise<Response> {
 
     const result = await governanceService.fetchByIds(passed, rejected);
 
-    console.log(
+    logger.info(
       `[Admin Agent Insights] Found ${result.passed.length} passed and ${result.rejected.length} rejected recommendation(s)`
     );
 
@@ -372,10 +361,7 @@ export async function getByIds(req: Request, res: Response): Promise<Response> {
       counts: result.counts,
     });
   } catch (error: any) {
-    console.error(
-      "[Admin Agent Insights] Error fetching recommendations by IDs:",
-      error
-    );
+    logger.error({ err: error }, "[Admin Agent Insights] Error fetching recommendations by IDs:");
     return res.status(500).json({
       success: false,
       error: "FETCH_ERROR",

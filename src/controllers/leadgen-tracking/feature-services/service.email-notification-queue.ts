@@ -17,11 +17,13 @@
  * must not be killed by an email hiccup.
  */
 
-import { db } from "../../../database/connection";
+import { AuditProcessModel } from "../../../models/AuditProcessModel";
+import { LeadgenEmailNotificationModel } from "../../../models/LeadgenEmailNotificationModel";
 import { sendAuditReportEmail } from "./service.n8n-email-sender";
+import logger from "../../../lib/logger";
 
 function log(message: string): void {
-  console.log(`[LEADGEN-NOTIFY] ${message}`);
+  logger.info(`[LEADGEN-NOTIFY] ${message}`);
 }
 
 interface EnqueueOpts {
@@ -63,22 +65,15 @@ export async function enqueueEmailNotification(
   try {
     // Upsert: latest email wins on conflict, but never overwrite a row
     // that's already been sent (don't double-email the user).
-    await db.raw(
-      `
-      INSERT INTO leadgen_email_notifications
-        (session_id, audit_id, email, status, created_at)
-      VALUES (?, ?, ?, 'pending', NOW())
-      ON CONFLICT (session_id, audit_id) DO UPDATE
-        SET email = EXCLUDED.email
-        WHERE leadgen_email_notifications.status <> 'sent'
-      `,
-      [opts.session_id, opts.audit_id, opts.email]
+    await LeadgenEmailNotificationModel.upsertPending(
+      opts.session_id,
+      opts.audit_id,
+      opts.email
     );
 
-    const audit = (await db("audit_processes")
-      .select("id", "status", "step_self_gbp")
-      .where({ id: opts.audit_id })
-      .first()) as AuditRow | undefined;
+    const audit = (await AuditProcessModel.findStatusAndGbpById(
+      opts.audit_id
+    )) as AuditRow | undefined;
 
     if (audit?.status === "completed" || audit?.status === "failed") {
       // Audit already done — send immediately, don't leave the user
@@ -90,18 +85,19 @@ export async function enqueueEmailNotification(
       });
 
       if (result.ok) {
-        await db("leadgen_email_notifications")
-          .where({ session_id: opts.session_id, audit_id: opts.audit_id })
-          .update({ status: "sent", sent_at: db.fn.now() })
-          .increment("attempt_count", 1);
+        await LeadgenEmailNotificationModel.markSentBySessionAudit(
+          opts.session_id,
+          opts.audit_id
+        );
         log(
           `enqueue → audit already done → sent inline (audit=${opts.audit_id}, email=${opts.email})`
         );
       } else {
-        await db("leadgen_email_notifications")
-          .where({ session_id: opts.session_id, audit_id: opts.audit_id })
-          .update({ status: "failed", last_error: result.error ?? null })
-          .increment("attempt_count", 1);
+        await LeadgenEmailNotificationModel.markFailedBySessionAudit(
+          opts.session_id,
+          opts.audit_id,
+          result.error ?? null
+        );
         log(
           `enqueue inline send FAILED (audit=${opts.audit_id}): ${result.error}`
         );
@@ -125,16 +121,15 @@ export async function drainNotificationsForAudit(
   audit_id: string
 ): Promise<void> {
   try {
-    const pending = (await db("leadgen_email_notifications")
-      .select("id", "session_id", "audit_id", "email", "status")
-      .where({ audit_id, status: "pending" })) as NotifRow[];
+    const pending = (await LeadgenEmailNotificationModel.findPendingForAudit(
+      audit_id
+    )) as NotifRow[];
 
     if (pending.length === 0) return;
 
-    const audit = (await db("audit_processes")
-      .select("id", "status", "step_self_gbp")
-      .where({ id: audit_id })
-      .first()) as AuditRow | undefined;
+    const audit = (await AuditProcessModel.findStatusAndGbpById(
+      audit_id
+    )) as AuditRow | undefined;
 
     log(`drain audit=${audit_id}: ${pending.length} pending notification(s)`);
 
@@ -146,16 +141,13 @@ export async function drainNotificationsForAudit(
       });
 
       if (result.ok) {
-        await db("leadgen_email_notifications")
-          .where({ id: row.id })
-          .update({ status: "sent", sent_at: db.fn.now() })
-          .increment("attempt_count", 1);
+        await LeadgenEmailNotificationModel.markSentById(row.id);
         log(`  ✓ sent → ${row.email}`);
       } else {
-        await db("leadgen_email_notifications")
-          .where({ id: row.id })
-          .update({ status: "failed", last_error: result.error ?? null })
-          .increment("attempt_count", 1);
+        await LeadgenEmailNotificationModel.markFailedById(
+          row.id,
+          result.error ?? null
+        );
         log(`  ✗ failed → ${row.email}: ${result.error}`);
       }
     }

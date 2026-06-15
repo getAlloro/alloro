@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Consolidate DB Access Into models/ Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.86rem; margin-top: 8px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0; }
+    td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+    .p1 { font-weight: 800; }
+    .badge { display: inline-block; padding: 1px 8px; border: 1px solid var(--ink); border-radius: 999px; font-size: 0.7rem; font-weight: 800; }
+    a { color: var(--ink); }
+    .task-card dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 10px 0 0; }
+    .task-card dt { padding-top: 2px; }
+    .task-card dd { margin: 0; font-weight: 500; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+      .task-card dl { grid-template-columns: 1fr; gap: 2px; }
+      .task-card dd { margin-bottom: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Pending Execution</span>
+      </div>
+      <h1>Consolidate DB Access Into models/</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06142026-db-access-into-models</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The conventions audit named DB-access-outside-<code>models/</code> the <strong>single largest contract breach in the backend</strong> (dim 7). <strong>126 non-model files</strong> import the raw connection and run <strong>~507 direct <code>db("table")</code> / <code>db.raw</code> / <code>db.transaction</code> call-sites</strong> — controllers 96, services 12, workers 8, utils 8, routes 1. Query logic that lives in controllers and services is unmemoizable, untestable in isolation, duplicated across domains, and — because the writes leaked out with it — frequently runs <em>without</em> the transactions the owning model would have wrapped them in (dim 16). See <a href="../06142026-backend-conventions-audit/checks/10-models.html">checks/10-models.html</a> for the full inventory.</p>
+      <p><strong>Now, because:</strong> the audit is complete and ruled. The <code>models/</code> layer is already exemplary (parameterized everywhere, transactions correct internally), so this is consolidation <em>into</em> a known-good layer — not a rewrite. It should be done while the audit's per-file <code>file:line</code> evidence is fresh.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>A <strong>behavior-preserving</strong> refactor that moves every <code>db(…)</code> call out of <code>controllers/</code>, <code>services/</code>, <code>utils/</code>, <code>workers/</code>, and <code>routes/</code> and behind a model in <code>src/models/</code>, reusing or extending the existing models. Done <strong>domain by domain</strong>: each domain is one task, one commit, one verification pass (smoke harness + <code>npm run build</code> + eslint). One concern per commit.</p>
+      <p><strong>How we'll know it's done:</strong> a repo-wide grep for <code>database/connection</code> across <code>src/controllers src/services src/utils src/workers src/routes</code> returns <strong>0 files</strong> (today: 126); <code>npm run build</code> stays green; the smoke harness passes after every domain; query results and side-effects are identical (same WHERE clauses, same column lists, same transaction boundaries — just relocated). No endpoint behavior changes.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+
+      <h3>The target shape (already exists, copy it)</h3>
+      <p>The <code>models/</code> layer is the reference, not a thing to invent. <code>src/models/BaseModel.ts</code> defines <code>QueryContext = Knex | Knex.Transaction</code> and a static surface (<code>findById</code>, <code>findOne</code>, <code>findMany</code>, <code>create</code>, <code>createReturningId</code>, <code>updateById</code>, <code>deleteById</code>) that every method threads a trailing <code>trx?: QueryContext</code> through via <code>this.table(trx)</code>. The canonical concrete example is <strong><code>src/models/GbpWorkItemModel.ts</code></strong> — every query method takes <code>trx?: QueryContext</code> and routes through <code>this.table(trx)</code>; <code>gbp-automation</code> controllers/services call only these methods and hold zero inline <code>db()</code> (audit: 0 must-fix, the reference domain). <strong>Every extracted method must match this shape</strong> so callers can pass a transaction when they need one. Inside <code>models/</code>, <code>ReviewModel.replaceApifyReviewsForPlace</code> is the reference for a transaction-owning write (wraps del + upsert-loop in <code>db.transaction</code>).</p>
+
+      <h3>The leak, by file</h3>
+      <ul>
+        <li><strong>The handle:</strong> <code>import { db } from "../../database/connection"</code> (a knex instance; <code>src/database/connection.ts</code>), used dominantly as the query-builder call <code>db("table")…</code>. This token is neither <code>knex</code> nor <code>.raw(</code>, which is why the audit's narrow grep undercounted — the accurate surface is found by grepping the connection import.</li>
+        <li><strong>Worst offenders</strong> (call-site density, from <a href="../06142026-backend-conventions-audit/checks/10-models.html">10-models.html</a>): <code>controllers/admin-websites/feature-services/service.ai-command.ts</code> ~106 · <code>controllers/admin-websites/AdminWebsitesController.ts</code> ~40 · <code>controllers/practice-ranking/PracticeRankingController.ts</code> ~33 · <code>service.project-manager.ts</code> ~33 · <code>workers/processors/websiteRestore.processor.ts</code> ~32 · <code>service.page-editor.ts</code> ~31 · <code>service.menu-manager.ts</code> ~28 · <code>controllers/pm/PmTasksController.ts</code> ~27 · <code>controllers/pm/PmAiSynthController.ts</code> ~24 · <code>routes/checkup.ts</code> ~22.</li>
+        <li><strong>Existing models to extend, not duplicate:</strong> the <code>admin-websites</code> domain already has 33 models under <code>src/models/website-builder/*</code> that the feature-services bypass (audit, check 01). Most domains already have the right model — the work is adding methods, not adding model files.</li>
+      </ul>
+
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Extend the model that already owns the table; only create a new <code>*Model.ts</code> when no model owns it. New model files match <code>GbpWorkItemModel.ts</code> structure, naming (<code>*Model</code> suffix, descriptive query-fn names), and <code>trx?: QueryContext</code> threading.</li>
+        <li>Move the query <em>verbatim</em> first (same builder chain, same columns, same <code>.raw()</code> string), then name the method for what it fetches/writes. Do not "improve" the query while moving it.</li>
+        <li>When relocating a multi-table write, the destination model method owns the <code>db.transaction</code> (or accepts an injected <code>trx</code>); the caller passes one if it is composing several writes. Mirror <code>ReviewModel.replaceApifyReviewsForPlace</code>.</li>
+        <li>Leave existing <code>console.*</code>, response-shape, validation, and naming issues alone — those are separate audit dimensions with their own remediation plans. This plan touches dim 7 (and the dim-16 transactions that fall out of it) <strong>only</strong>.</li>
+      </ul>
+
+      <h3>Dependency — sequence after the smoke harness</h3>
+      <ul>
+        <li>This plan should run <strong>after <code>plans/06142026-backend-smoke-test-harness</code> exists</strong>. Each domain's verification step assumes that harness as the behavior-preserving safety net. <strong>It does not exist on disk yet</strong> — without it, every domain falls back to slow, error-prone manual endpoint verification, which is not acceptable at this volume. <em>Do not start this plan until the harness is in place.</em> (Build the harness first, or this plan's Verify steps degrade to manual.)</li>
+      </ul>
+
+      <p><strong>Reference file:</strong> <code>src/models/GbpWorkItemModel.ts</code> — closest existing analog for the method shape every extraction must match. <strong>Reference domain:</strong> <code>gbp-automation</code> (controllers route 100% through models, 0 inline <code>db()</code>) is the end-state every domain in this plan is converging toward.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Be behavior-preserving — same query semantics, same transaction boundaries, same return values. Relocation, not redesign.</li>
+            <li>Reuse/extend the existing model that owns the table; match <code>GbpWorkItemModel.ts</code> + <code>BaseModel</code> <code>trx?: QueryContext</code> shape.</li>
+            <li>Commit <strong>per domain</strong> (one concern per commit) and run the smoke harness + <code>npm run build</code> + eslint after each domain before moving on.</li>
+            <li>Where a leaked multi-table write had no transaction, the destination model method adds one (dim 16) — this is the one behavior the move is allowed to tighten, because it only prevents partial-write corruption.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Change query logic, column selection, ordering, or filters while moving a query.</li>
+            <li>Fix unrelated audit dimensions in the same commit (no <code>console.log</code>→Pino, no response-shape, no validation, no renames, no file-size splits, no auth).</li>
+            <li>Add new dependencies or new patterns; the model layer's pattern already exists.</li>
+            <li>Touch <code>frontend/</code>, <code>database/migrations</code>, or <code>seeds</code>.</li>
+            <li>Big-bang the whole repo — domains are isolated and verified independently.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>God-controller decomposition / file-size remediation (separate plan — admin-websites, user-website).</li>
+        <li>Misplaced-services relocation (<code>utils/</code> → <code>services/</code>) — that is the utils plan; here we only pull their <code>db()</code> into models, in place.</li>
+        <li>Pino adoption, <code>{success,data,error}</code> response shape, input validation, auth-mounting, secret rotation — all separate audit-driven plans.</li>
+        <li>Naming drift (<code>service.kebab.ts</code> / missing <code>Service</code> suffix).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 (Structural Risk) — high-volume, cross-cutting refactor (~126 files / ~507 sites). The risk is not the destination (the model layer is sound) but the volume: a subtly altered builder chain, a dropped <code>.where</code>, or a moved write that changes a transaction boundary can silently corrupt behavior, and the blast radius spans most of the backend.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Subtle query-behavior drift during relocation</strong> (the headline risk). A copied query that loses a clause or changes return shape passes <code>tsc</code> but breaks at runtime. <strong>Mitigation:</strong> move queries verbatim before renaming; do not refactor the chain; rely on the smoke harness after every domain; keep each commit to one domain so a regression is bisectable to a single, reviewable diff.</li>
+        <li><strong>No test net yet.</strong> The smoke harness (<code>06142026-backend-smoke-test-harness</code>) does not exist. <strong>Mitigation:</strong> hard prerequisite — do not begin until it lands. Until then, each domain would need full manual endpoint verification (slow, unreliable at this scale). This is the primary pushback below.</li>
+        <li><strong>Transaction boundaries move with the writes.</strong> <code>AdminWebsitesController.ts</code> has 4 correct multi-table <code>db.transaction</code> blocks (<code>addProjectLocation</code> L5105, <code>setPrimaryLocation</code> L5212, <code>removeProjectLocation</code> L5296, + L597); relocating them must preserve atomicity, and the model method must own the trx. <strong>Mitigation:</strong> extract the whole transaction as one model method; pass an injected <code>trx</code> only where the caller composes further writes.</li>
+        <li><strong>Layer-inversion landmine.</strong> <code>models/BehavioralEventModel.ts</code> imports <code>services/behavioralIntelligence.ts</code> (audit check 11) — a model calling up into a service. Pulling that service's <code>db()</code> into a model risks a circular import. <strong>Mitigation:</strong> when the services domain is reached, invert the dependency (service → model) as part of that domain's task; do not deepen the inversion.</li>
+        <li><strong>Type-only false positives.</strong> <code>AdminOrgCreationService.ts</code>, <code>TierManagementService.ts</code>, <code>OrganizationBootstrapService.ts</code> import <code>Knex</code> only to type an injected <code>trx</code> (correct pattern), and <code>routes/billing.ts</code> matches on <code>express.raw()</code> not DB. <strong>Mitigation:</strong> these are NOT leaks — skip them; the connection-import grep already excludes them (they import the type, not <code>db</code>).</li>
+      </ul>
+      <p><strong>Blast radius:</strong> every domain whose controllers/services currently hold queries — admin-websites (28 controller files), pm (9), practice-ranking (9), agents (8), user-website (3), leadgen-tracking (4); top-level <code>services/</code> (9 files), <code>utils/</code> (8), <code>workers/</code> (8), and <code>routes/checkup.ts</code>. Consumers are the route handlers that call these; behavior-preservation keeps them unaffected, but they are the verification surface. The <code>models/</code> layer itself gains methods (additive) — existing model consumers are not changed.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>Do not attempt this without the test net.</strong> A behavior-preserving refactor at 507 sites is exactly the case where "looks the same" is a trap. Recommended path: <strong>(A)</strong> land <code>06142026-backend-smoke-test-harness</code> first, then run this plan domain-by-domain against it — <em>recommended</em>. Alternatives if the harness slips: <strong>(B)</strong> scope this plan to read-only queries first (lower risk, still valuable) and defer write/transaction moves until the harness exists; <strong>(C)</strong> manual endpoint verification per domain — rejected at this volume, too slow and miss-prone. Recommendation: <strong>A</strong>.</li>
+        <li>This is the <strong>largest sweep in the cleanup</strong>. Sequence it after the harness and after (or alongside) the smaller dimension fixes so the diffs stay legible; do not interleave it with the god-controller decomposition, or the two refactors will collide in the same files and neither will be reviewable.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <p>Organized <strong>domain-by-domain</strong>, biggest cluster first. Each task = one domain = one commit = one verification pass (smoke harness + <code>npm run build</code> + eslint). <code>T0</code> is the prerequisite gate. Counts are from the audit + on-disk re-confirmation (2026-06-14).</p>
+
+      <table>
+        <thead>
+          <tr><th>#</th><th>Domain</th><th class="n">Leak files</th><th class="n">~Sites</th><th>Order</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>T0</td><td>Prerequisite gate (smoke harness)</td><td class="n">—</td><td class="n">—</td><td><span class="badge">GATE</span></td></tr>
+          <tr><td>T1</td><td>admin-websites — website-builder cluster</td><td class="n p1">28</td><td class="n p1">~400+</td><td><span class="badge">1</span></td></tr>
+          <tr><td>T2</td><td>pm</td><td class="n">9</td><td class="n">~73</td><td><span class="badge">2</span></td></tr>
+          <tr><td>T3</td><td>practice-ranking</td><td class="n">9</td><td class="n">~33</td><td><span class="badge">3</span></td></tr>
+          <tr><td>T4</td><td>agents (controllers)</td><td class="n">8</td><td class="n">~30</td><td><span class="badge">4</span></td></tr>
+          <tr><td>T5</td><td>user-website</td><td class="n">3</td><td class="n">~26</td><td><span class="badge">5</span></td></tr>
+          <tr><td>T6</td><td>leadgen-tracking + remaining smaller controllers</td><td class="n">~4+</td><td class="n">~20+</td><td><span class="badge">6</span></td></tr>
+          <tr><td>T7</td><td>top-level services/</td><td class="n">9</td><td class="n">~45</td><td><span class="badge">7</span></td></tr>
+          <tr><td>T8</td><td>utils/</td><td class="n">8</td><td class="n">~30</td><td><span class="badge">8</span></td></tr>
+          <tr><td>T9</td><td>workers/</td><td class="n">8</td><td class="n">~45</td><td><span class="badge">9</span></td></tr>
+          <tr><td>T10</td><td>routes/checkup.ts (dim 6+7)</td><td class="n">1</td><td class="n">~22</td><td><span class="badge">10</span></td></tr>
+          <tr><td>T11</td><td>Final sweep + grep gate</td><td class="n">0</td><td class="n">0</td><td><span class="badge">11</span></td></tr>
+        </tbody>
+      </table>
+
+      <article class="task-card">
+        <h3>T0: Prerequisite gate — smoke harness present</h3>
+        <dl>
+          <dt>Do</dt><dd>Confirm <code>plans/06142026-backend-smoke-test-harness</code> is built and runnable. If absent, <strong>halt</strong> — build it first (separate plan). Capture the harness invocation command (used as the Verify step for every task below).</dd>
+          <dt>Files</dt><dd>none (gate only)</dd>
+          <dt>Depends on</dt><dd>none</dd>
+          <dt>Verify</dt><dd>Harness runs green against current <code>main</code>/<code>dev/dave</code> before any extraction begins (baseline).</dd>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T1: admin-websites — website-builder feature-services cluster</h3>
+        <dl>
+          <dt>Do</dt><dd>Move all inline <code>db("website_builder.…")</code> and <code>db.transaction</code> blocks into <code>src/models/website-builder/*</code> (33 models already exist — extend them). Highest density: <code>service.ai-command.ts</code> (~106), <code>service.project-manager.ts</code> (~33), <code>service.page-editor.ts</code> (~31), <code>service.menu-manager.ts</code> (~28), <code>service.post-manager.ts</code> (~23), <code>service.template-manager.ts</code> (~21), <code>service.post-taxonomy-manager.ts</code> (~21), <code>service.hfcm-manager.ts</code> (~20), <code>service.generation-pipeline.ts</code> (~19), the remaining feature-services, and <code>AdminWebsitesController.ts</code> (~40, incl. the 4 transaction blocks at L597/L5105/L5212/L5296). Preserve transaction atomicity; method shape per <code>GbpWorkItemModel</code>. <strong>Largest cluster — may be split into sub-commits</strong> (e.g. ai-command alone, then the rest) but stays one domain, verified as a whole.</dd>
+          <dt>Files</dt><dd><code>src/controllers/admin-websites/**</code> (28 files); targets in <code>src/models/website-builder/*</code> (e.g. <code>ProjectModel</code>, <code>PageModel</code>, <code>PostModel</code>, <code>MenuModel</code>, <code>ProjectIdentityModel</code>, taxonomy/redirect models)</dd>
+          <dt>Depends on</dt><dd>T0</dd>
+          <dt>Verify</dt><dd>Smoke harness green; <code>npm run build</code>; eslint; <code>grep -rl database/connection src/controllers/admin-websites</code> → 0. Commit: <code>refactor: route admin-websites DB access through website-builder models</code>.</dd>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: pm</h3>
+        <dl>
+          <dt>Do</dt><dd>Move inline <code>db()</code> from the pm controllers into the pm-owning models (e.g. <code>PmTaskModel</code> 302, <code>PmProjectModel</code>, <code>PmCommentModel</code>). Density: <code>PmTasksController.ts</code> (~27), <code>PmAiSynthController.ts</code> (~24), <code>PmProjectsController.ts</code> (~11), <code>PmCommentsController.ts</code> (~11). Watch for txn-less multi-table writes flagged by the audit — wrap in the model.</dd>
+          <dt>Files</dt><dd><code>src/controllers/pm/**</code> (9 files); <code>src/models/PmTaskModel.ts</code> + sibling pm models</dd>
+          <dt>Depends on</dt><dd>T0</dd>
+          <dt>Verify</dt><dd>Harness green; build; eslint; <code>grep -rl database/connection src/controllers/pm</code> → 0. Commit: <code>refactor: route pm DB access through models</code>.</dd>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: practice-ranking</h3>
+        <dl>
+          <dt>Do</dt><dd>Move <code>PracticeRankingController.ts</code> inline queries (~33) and the rest of the domain's leak files into the ranking models (<code>LocationCompetitorModel</code> 378, <code>PracticeRankingModel</code>, plus the <code>feature-services</code> e.g. <code>service.competitor-cache.ts</code> noted by the audit as txn-less). Method shape per <code>GbpWorkItemModel</code>.</dd>
+          <dt>Files</dt><dd><code>src/controllers/practice-ranking/**</code> (9 files); <code>src/models/LocationCompetitorModel.ts</code>, <code>src/models/PracticeRankingModel.ts</code> + ranking models</dd>
+          <dt>Depends on</dt><dd>T0</dd>
+          <dt>Verify</dt><dd>Harness green; build; eslint; <code>grep -rl database/connection src/controllers/practice-ranking</code> → 0. Commit: <code>refactor: route practice-ranking DB access through models</code>.</dd>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: agents (controllers)</h3>
+        <dl>
+          <dt>Do</dt><dd>Move inline <code>db()</code> from the agents controllers into <code>AgentRecommendationModel</code> (351), <code>AgentResultModel</code> (302), and siblings. The audit flagged 4 txn-less multi-table writes in <code>AgentsController.ts</code> — the destination model methods must own a transaction.</dd>
+          <dt>Files</dt><dd><code>src/controllers/agents/**</code> (8 files); <code>src/models/AgentRecommendationModel.ts</code>, <code>src/models/AgentResultModel.ts</code> + agent models</dd>
+          <dt>Depends on</dt><dd>T0</dd>
+          <dt>Verify</dt><dd>Harness green; build; eslint; <code>grep -rl database/connection src/controllers/agents</code> → 0. Commit: <code>refactor: route agents DB access through models</code>.</dd>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: user-website</h3>
+        <dl>
+          <dt>Do</dt><dd>Move the 26 inline <code>db(...)</code> calls (10 controller / 6 service / 10 resolver, incl. raw <code>db.raw</code> aggregation, page-save writes, taxonomy CRUD, the shortcode read layer) into the owning models (<code>FormSubmissionModel</code>, <code>PageModel</code>, <code>PostModel</code>, <code>MenuModel</code>, <code>PostBlockModel</code>, etc.). Note the controller currently does category/tag <code>insert</code> + post-SEO <code>update</code> directly — relocate to models; do <strong>not</strong> decompose the 1,690-line controller (separate plan).</dd>
+          <dt>Files</dt><dd><code>src/controllers/user-website/UserWebsiteController.ts</code>, <code>user-website-services/shortcodeResolver.service.ts</code>, <code>user-website-services/userWebsite.service.ts</code>; targets in <code>src/models/website-builder/*</code></dd>
+          <dt>Depends on</dt><dd>T0</dd>
+          <dt>Verify</dt><dd>Harness green; build; eslint; <code>grep -rl database/connection src/controllers/user-website</code> → 0. Commit: <code>refactor: route user-website DB access through models</code>.</dd>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: leadgen-tracking + remaining smaller controllers</h3>
+        <dl>
+          <dt>Do</dt><dd>Mop up the remaining controller-layer leak files not covered by T1–T5 — <code>LeadgenTrackingController.ts</code> (~12) and any other smaller-domain controllers that still import the connection. Extend or add the owning model. Enumerate first with <code>grep -rl database/connection src/controllers</code> minus the already-cleared domains.</dd>
+          <dt>Files</dt><dd><code>src/controllers/leadgen-tracking/**</code> (4 files) + any residual <code>src/controllers/**</code> leak files; their owning models in <code>src/models/*</code></dd>
+          <dt>Depends on</dt><dd>T1–T5</dd>
+          <dt>Verify</dt><dd>Harness green; build; eslint; <code>grep -rl database/connection src/controllers</code> → 0 (entire controllers tree clean). Commit: <code>refactor: route remaining controller DB access through models</code>.</dd>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: top-level services/</h3>
+        <dl>
+          <dt>Do</dt><dd>Move inline <code>db()</code> from the 9 flat <code>services/*.ts</code> offenders into models: <code>referralReward.ts</code> (~13 → <code>ReferralModel</code>, wrap the status-transition + notification writes in a transaction — audit must-fix), <code>behavioralIntelligence.ts</code> (~8, incl. <code>db.raw</code>), <code>configStore.ts</code> (~6 → <code>SystemConfigModel</code>, use <code>onConflict.merge()</code> upsert), <code>instantWebsiteGenerator.ts</code> (~5, wrap project+page+org write in a transaction — audit must-fix), <code>vocabularyAutoMapper.ts</code>, <code>firstPatientAttribution.ts</code>, <code>ozMoment.ts</code>, <code>businessMetrics.ts</code>, <code>ai-cost/service.ai-cost.ts</code>. <strong>Also invert the layer inversion:</strong> <code>models/BehavioralEventModel.ts</code> imports <code>services/behavioralIntelligence.ts</code> — flip so the service calls the model (prevents circular import when the service's <code>db()</code> moves down).</dd>
+          <dt>Files</dt><dd><code>src/services/*.ts</code> (9 leak files), <code>src/services/ai-cost/service.ai-cost.ts</code>, <code>src/models/BehavioralEventModel.ts</code>; target models (<code>ReferralModel</code>, <code>SystemConfigModel</code>, <code>VocabularyConfigModel</code>, etc.)</dd>
+          <dt>Depends on</dt><dd>T0</dd>
+          <dt>Verify</dt><dd>Harness green; build; eslint; <code>grep -rl database/connection src/services</code> → 0. Commit: <code>refactor: route services DB access through models + fix BehavioralEvent layer inversion</code>.</dd>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T8: utils/</h3>
+        <dl>
+          <dt>Do</dt><dd>Pull the <code>db()</code> out of the 8 utils leak files <strong>in place</strong> — relocating the misplaced "services" out of <code>utils/</code> is a different plan; here only their queries move into models. Targets: <code>pms/pmsAutomationStatus.ts</code> (8 → <code>PmsJobModel</code>; the RMW on <code>automation_status_detail</code> JSONB needs a transaction/row-lock or JSONB-merge — audit dim 16), <code>dashboard-metrics/service.dashboard-metrics.ts</code> (8 → <code>PracticeRankingModel</code>/<code>FormSubmissionModel</code>/<code>PmsJobModel</code>), <code>website-utils/pageSnapshots.ts</code> (incl. <code>.insert()</code>), <code>startup/zombieJobCleanup.ts</code> (<code>db.raw</code>), <code>website-utils/agenticHtmlPipeline.ts</code>, <code>website-utils/pageEditorPrompt.ts</code>, <code>core/notificationHelper.ts</code>, <code>rybbit/service.rybbit-data.ts</code>.</dd>
+          <dt>Files</dt><dd><code>src/utils/**</code> (8 leak files); target models <code>src/models/PmsJobModel.ts</code>, <code>PracticeRankingModel.ts</code>, <code>FormSubmissionModel.ts</code>, etc.</dd>
+          <dt>Depends on</dt><dd>T0</dd>
+          <dt>Verify</dt><dd>Harness green; build; eslint; <code>grep -rl database/connection src/utils</code> → 0. Commit: <code>refactor: route utils DB access through models</code>.</dd>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T9: workers/</h3>
+        <dl>
+          <dt>Do</dt><dd>Move the 8 worker leak files' <code>db()</code> into models. Headline: <code>workers/processors/websiteRestore.processor.ts</code> (~32 DB ops across ~13 tables + S3, <strong>0 transactions</strong> today — audit dim 16) — relocate the writes into model methods that own a transaction so the restore is atomic. Cover the remaining 7 worker/processor leak files.</dd>
+          <dt>Files</dt><dd><code>src/workers/**</code> (8 leak files); target models per table touched</dd>
+          <dt>Depends on</dt><dd>T0</dd>
+          <dt>Verify</dt><dd>Harness green (+ worker-path smoke if the harness covers it); build; eslint; <code>grep -rl database/connection src/workers</code> → 0. Commit: <code>refactor: route worker DB access through models + wrap websiteRestore in a transaction</code>.</dd>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T10: routes/checkup.ts (dim 6 + 7 — worst single instance)</h3>
+        <dl>
+          <dt>Do</dt><dd>The only route file with inline DB writes (~22 sites, incl. <code>db("organizations").update()</code> and <code>db("weekly_ranking_snapshots").insert()</code>). Move the queries into models (<code>OrganizationModel</code>, a weekly-snapshot model) and the orchestration into a checkup controller so the route is thin (also resolves the dim-6 logic-in-routes for these handlers — the data-flow fix and the dim-7 fix coincide here).</dd>
+          <dt>Files</dt><dd><code>src/routes/checkup.ts</code>; new/extended <code>src/controllers/checkup/*</code> (thin); target models</dd>
+          <dt>Depends on</dt><dd>T0, T3 (ranking models likely shared)</dd>
+          <dt>Verify</dt><dd>Harness green; build; eslint; <code>grep -rl database/connection src/routes</code> → 0. Commit: <code>refactor: move checkup route DB writes into a controller + models</code>.</dd>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T11: Final sweep + grep gate</h3>
+        <dl>
+          <dt>Do</dt><dd>Repo-wide confirmation that no leak remains. Run the connection-import grep across all five non-model layers; expect 0. Confirm the four known false-positives (<code>AdminOrgCreationService</code>, <code>TierManagementService</code>, <code>OrganizationBootstrapService</code> type-only <code>Knex</code> imports; <code>routes/billing.ts</code> <code>express.raw()</code>) are not <code>db</code>-handle imports and were correctly skipped.</dd>
+          <dt>Files</dt><dd>none (verification only)</dd>
+          <dt>Depends on</dt><dd>T1–T10</dd>
+          <dt>Verify</dt><dd><code>grep -rl 'database/connection' src/controllers src/services src/utils src/workers src/routes</code> → <strong>0 files</strong> (today: 126). Full smoke harness green; <code>npm run build</code> clean; eslint clean.</dd>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>plans/06142026-backend-smoke-test-harness</code> exists and ran green as the baseline before extraction (T0)</li>
+        <li><input type="checkbox" disabled> <code>grep -rl 'database/connection' src/controllers src/services src/utils src/workers src/routes</code> → 0 files (was 126)</li>
+        <li><input type="checkbox" disabled> Smoke harness green after <em>every</em> domain commit (T1–T10), not just at the end</li>
+        <li><input type="checkbox" disabled> <code>npm run build</code> — zero errors after each domain</li>
+        <li><input type="checkbox" disabled> eslint clean after each domain</li>
+        <li><input type="checkbox" disabled> Every extracted method threads <code>trx?: QueryContext</code> and matches the <code>GbpWorkItemModel</code> / <code>BaseModel</code> shape</li>
+        <li><input type="checkbox" disabled> Multi-table writes that leaked without a transaction now run inside one (<code>websiteRestore</code>, <code>referralReward</code>, <code>instantWebsiteGenerator</code>, <code>AdminWebsites</code> location txns preserved)</li>
+        <li><input type="checkbox" disabled> One concern per commit; commits are per-domain and individually bisectable</li>
+        <li><input type="checkbox" disabled> Manual: spot-check 2–3 representative endpoints per domain return identical payloads to pre-refactor (no query-behavior drift)</li>
+        <li><input type="checkbox" disabled> No regressions in out-of-scope dimensions (no accidental console/response-shape/naming changes slipped in)</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

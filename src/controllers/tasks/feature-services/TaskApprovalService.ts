@@ -1,5 +1,6 @@
 import { createNotification } from "../../../utils/core/notificationHelper";
 import type { ITask } from "../../../models/TaskModel";
+import logger from "../../../lib/logger";
 
 /**
  * Handle notification when a single USER task is approved.
@@ -28,11 +29,11 @@ export async function handleApprovalNotification(
       { taskId: task.id, taskTitle: task.title },
       { locationId: task.location_id }
     );
-    console.log(
+    logger.info(
       `[TASKS] Created notification for approved USER task ${task.id}`
     );
   } catch (notificationError: any) {
-    console.error(
+    logger.error(
       `[TASKS] Failed to create notification: ${notificationError.message}`
     );
     // Don't fail the update if notification creation fails
@@ -63,11 +64,11 @@ export async function createBulkApprovalNotifications(
         "task",
         { taskCount: count }
       );
-      console.log(
+      logger.info(
         `[TASKS] Created notification for ${count} approved USER task(s) for org ${organization_id}`
       );
     } catch (notificationError: any) {
-      console.error(
+      logger.error(
         `[TASKS] Failed to create notification for org ${organization_id}: ${notificationError.message}`
       );
       // Don't fail the approval if notification creation fails

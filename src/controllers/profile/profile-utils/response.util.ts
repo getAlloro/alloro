@@ -1,3 +1,5 @@
+import logger from "../../../lib/logger";
+
 export interface ProfileData {
   operational_jurisdiction: string | null;
 }
@@ -22,7 +24,7 @@ export function formatProfileUpdateResponse(data: ProfileData) {
 }
 
 export function formatErrorResponse(error: any, operation: string) {
-  console.error(`[Profile] ${operation} Error:`, error?.message || error);
+  logger.error({ err: error?.message || error }, `[Profile] ${operation} Error:`);
 
   const statusCode = error?.statusCode || 500;
 

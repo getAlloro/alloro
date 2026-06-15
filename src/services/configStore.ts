@@ -8,7 +8,8 @@
  * Cache: 60-second in-memory TTL. Reads are fast. Writes bust the cache.
  */
 
-import { db } from "../database/connection";
+import { SystemConfigModel } from "../models/SystemConfigModel";
+import logger from "../lib/logger";
 
 // ---- Cache ------------------------------------------------------------------
 
@@ -28,31 +29,31 @@ export async function getConfig<T>(key: string, defaultValue: T): Promise<T> {
   const cached = getCached(key);
   if (cached !== undefined) return cached as T;
   try {
-    const row = await db("system_config").where({ key }).first();
+    const row = await SystemConfigModel.findByKey(key);
     if (row?.value != null) {
       const val = typeof row.value === "string" ? JSON.parse(row.value) : row.value;
       cache.set(key, { value: val, expiresAt: Date.now() + CACHE_TTL });
       return val as T;
     }
   } catch (err: any) {
-    console.warn(`[ConfigStore] Read "${key}" failed:`, err.message);
+    logger.warn({ detail: err.message }, `[ConfigStore] Read "${key}" failed:`);
   }
   return defaultValue;
 }
 
 export async function setConfig(key: string, value: any): Promise<void> {
-  const existing = await db("system_config").where({ key }).first();
+  const existing = await SystemConfigModel.findByKey(key);
   if (existing) {
-    await db("system_config").where({ key }).update({ value: JSON.stringify(value), updated_at: new Date() });
+    await SystemConfigModel.updateValueByKey(key, JSON.stringify(value));
   } else {
-    await db("system_config").insert({ key, value: JSON.stringify(value), updated_at: new Date() });
+    await SystemConfigModel.insertValue(key, JSON.stringify(value));
   }
   cache.delete(key);
 }
 
 export async function getAllConfig(): Promise<Record<string, any>> {
   try {
-    const rows = await db("system_config").orderBy("key");
+    const rows = await SystemConfigModel.findAllOrderedByKey();
     const result: Record<string, any> = {};
     for (const row of rows) {
       result[row.key] = typeof row.value === "string" ? JSON.parse(row.value) : row.value;
@@ -62,7 +63,7 @@ export async function getAllConfig(): Promise<Record<string, any>> {
 }
 
 export async function deleteConfig(key: string): Promise<void> {
-  await db("system_config").where({ key }).del();
+  await SystemConfigModel.deleteByKey(key);
   cache.delete(key);
 }
 

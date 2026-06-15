@@ -10,6 +10,7 @@ import {
   runWithRetry,
   summarizeRetryAttempts,
 } from "./service.ranking-resilience";
+import logger from "../../../lib/logger";
 
 const APIFY_API_TOKEN = process.env.APIFY_TOKEN;
 const APIFY_API_BASE = "https://api.apify.com/v2";
@@ -88,7 +89,7 @@ interface CompetitorDetailedData {
  * Log helper for Apify operations
  */
 function log(message: string): void {
-  console.log(`[APIFY] ${message}`);
+  logger.info(`[APIFY] ${message}`);
 }
 
 /**

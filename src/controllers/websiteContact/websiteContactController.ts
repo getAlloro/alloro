@@ -11,6 +11,7 @@ import { extractHostname } from "./websiteContact-utils/hostnameExtractor";
 import { buildEmailBody } from "./websiteContact-utils/emailTemplateBuilder";
 import { verifyRecaptcha } from "./websiteContact-services/recaptchaService";
 import { sendEmailWebhook, WebhookError } from "./websiteContact-services/emailWebhookService";
+import logger from "../../lib/logger";
 
 export async function handleContactSubmission(req: Request, res: Response): Promise<Response> {
   try {
@@ -73,7 +74,7 @@ export async function handleContactSubmission(req: Request, res: Response): Prom
       return res.status(500).json({ error: "Email service not configured" });
     }
 
-    console.error("[Website Contact] Error:", error);
+    logger.error({ err: error }, "[Website Contact] Error:");
     return res.status(500).json({ error: "Internal server error" });
   }
 }

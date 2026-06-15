@@ -1,4 +1,5 @@
-import { db } from "../../database/connection";
+import { GoogleConnectionModel } from "../../models/GoogleConnectionModel";
+import { NotificationModel } from "../../models/NotificationModel";
 import { resolveLocationId } from "../locationResolver";
 import { resolveRecipients } from "../../services/recipientSettingsService";
 
@@ -15,6 +16,7 @@ import type {
   AdminErrorData,
   UserInquiryData,
 } from "../../emails";
+import logger from "../../lib/logger";
 
 // Use explicit APP_URL environment variable, fallback to production URL by default
 const APP_URL =
@@ -65,25 +67,18 @@ export async function createNotification(
     const locationId = options?.locationId ?? await resolveLocationId(organizationId);
 
     // Look up account email for email notification
-    const account = await db("google_connections")
-      .where({ organization_id: organizationId })
-      .first();
+    const account = await GoogleConnectionModel.findFirstByOrganization(
+      organizationId
+    );
 
-    const [result] = await db("notifications")
-      .insert({
-        organization_id: organizationId,
-        location_id: locationId,
-        title,
-        message: message || null,
-        type,
-        metadata: metadata ? JSON.stringify(metadata) : null,
-        read: false,
-        created_at: new Date(),
-        updated_at: new Date(),
-      })
-      .returning("id");
-
-    const notificationId = result?.id || null;
+    const notificationId = await NotificationModel.create({
+      organization_id: organizationId,
+      location_id: locationId,
+      title,
+      message: message || null,
+      type,
+      metadata: metadata ?? null,
+    });
 
     // Send email notification in parallel (non-blocking)
     if (!options?.skipEmail) {
@@ -147,7 +142,7 @@ export async function createNotification(
             })
           )
         ).catch((err) => {
-          console.error(
+          logger.error(
             `[NotificationHelper] Failed to send user email for org ${organizationId}: ${err.message}`
           );
         });
@@ -156,7 +151,7 @@ export async function createNotification(
 
     return notificationId;
   } catch (error) {
-    console.error(`[NotificationHelper] Failed to create notification:`, error);
+    logger.error({ err: error }, `[NotificationHelper] Failed to create notification:`);
     return null;
   }
 }
@@ -171,17 +166,11 @@ export async function notifyAdmins(data: AdminNotificationData) {
   try {
     const result = await sendAdminNotification(data);
     if (!result.success) {
-      console.error(
-        `[NotificationHelper] Admin notification failed:`,
-        result.error
-      );
+      logger.error({ err: result.error }, `[NotificationHelper] Admin notification failed:`);
     }
     return result;
   } catch (error: any) {
-    console.error(
-      `[NotificationHelper] Admin notification error:`,
-      error.message
-    );
+    logger.error({ err: error.message }, `[NotificationHelper] Admin notification error:`);
     return {
       success: false,
       error: error.message,
@@ -200,17 +189,11 @@ export async function notifyAdminsOfError(data: AdminErrorData) {
   try {
     const result = await sendAdminError(data);
     if (!result.success) {
-      console.error(
-        `[NotificationHelper] Admin error notification failed:`,
-        result.error
-      );
+      logger.error({ err: result.error }, `[NotificationHelper] Admin error notification failed:`);
     }
     return result;
   } catch (error: any) {
-    console.error(
-      `[NotificationHelper] Admin error notification error:`,
-      error.message
-    );
+    logger.error({ err: error.message }, `[NotificationHelper] Admin error notification error:`);
     return {
       success: false,
       error: error.message,
@@ -229,17 +212,11 @@ export async function forwardUserInquiry(data: UserInquiryData) {
   try {
     const result = await sendUserInquiry(data);
     if (!result.success) {
-      console.error(
-        `[NotificationHelper] User inquiry forward failed:`,
-        result.error
-      );
+      logger.error({ err: result.error }, `[NotificationHelper] User inquiry forward failed:`);
     }
     return result;
   } catch (error: any) {
-    console.error(
-      `[NotificationHelper] User inquiry forward error:`,
-      error.message
-    );
+    logger.error({ err: error.message }, `[NotificationHelper] User inquiry forward error:`);
     return {
       success: false,
       error: error.message,

@@ -1,16 +1,10 @@
 import jwt from "jsonwebtoken";
 import { SESSION_TOKEN_TTL } from "../../../auth-otp/feature-services/service.jwt-management";
+import { getJwtSecret } from "../../../../config/jwt";
 import { UserModel } from "../../../../models/UserModel";
 import { GoogleConnectionModel } from "../../../../models/GoogleConnectionModel";
 import { OrganizationUserModel } from "../../../../models/OrganizationUserModel";
-
-/**
- * Read JWT_SECRET lazily at call time so dotenv.config() has already run.
- * Top-level const would capture the value before dotenv loads .env (ESM hoisting).
- */
-function getJwtSecret(): string {
-  return process.env.JWT_SECRET || "dev-secret-key-change-in-prod";
-}
+import logger from "../../../../lib/logger";
 
 export interface PilotSessionResult {
   token: string;
@@ -58,7 +52,7 @@ export class PilotSessionService {
       { expiresIn: SESSION_TOKEN_TTL }
     );
 
-    console.log(
+    logger.info(
       `[ADMIN PILOT] Super Admin ${adminEmail} started pilot session for user ${targetUser.email}`
     );
 

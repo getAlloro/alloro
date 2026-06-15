@@ -7,6 +7,7 @@ import {
   IMindSkillNeuron,
 } from "../../../models/MindSkillNeuronModel";
 import { MindSkillCallModel } from "../../../models/MindSkillCallModel";
+import logger from "../../../lib/logger";
 
 const MODEL = process.env.MINDS_LLM_MODEL || "claude-sonnet-4-6";
 
@@ -152,7 +153,7 @@ ${JSON.stringify(skill.output_schema, null, 2)}
 Include a section in the prompt called "RESPONSE FORMAT:" that tells the agent to respond ONLY with a JSON object matching this schema and nothing else.`;
     }
 
-    console.log(
+    logger.info(
       `[MINDS] Generating neuron for skill "${skill.name}" (mind: ${mind.name})`,
     );
 
@@ -179,13 +180,13 @@ Include a section in the prompt called "RESPONSE FORMAT:" that tells the agent t
 
     await MindSkillModel.updateStatus(skillId, "ready");
 
-    console.log(
+    logger.info(
       `[MINDS] Neuron generated for skill "${skill.name}" (${neuronMarkdown.length} chars)`,
     );
 
     return neuron;
   } catch (err) {
-    console.error(`[MINDS] Neuron generation failed for skill ${skillId}:`, err);
+    logger.error({ err: err }, `[MINDS] Neuron generation failed for skill ${skillId}:`);
     await MindSkillModel.updateStatus(skillId, "failed");
     throw err;
   }

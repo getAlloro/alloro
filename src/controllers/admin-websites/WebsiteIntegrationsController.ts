@@ -1,7 +1,10 @@
 /**
  * Website Integrations Controller
  *
- * CRUD + HubSpot operations for per-website CRM integrations.
+ * Thin HTTP layer for per-website integrations (CRM push, GSC, Rybbit, Clarity,
+ * data harvest). Each handler parses input, delegates business logic to a
+ * feature-service, and shapes the response. Shared response + error-mapping
+ * helpers live in feature-utils/util.integration-responses.
  *
  * Endpoints (mounted under /api/admin/websites/:id):
  *   GET    /integrations                                      list
@@ -23,18 +26,11 @@
  */
 
 import { Request, Response } from "express";
-import type { RBACRequest } from "../../middleware/rbac";
-import {
-  WebsiteIntegrationModel,
-  type IntegrationStatus,
-} from "../../models/website-builder/WebsiteIntegrationModel";
+import { WebsiteIntegrationModel } from "../../models/website-builder/WebsiteIntegrationModel";
 import { IntegrationFormMappingModel } from "../../models/website-builder/IntegrationFormMappingModel";
 import { CrmSyncLogModel } from "../../models/website-builder/CrmSyncLogModel";
 import { IntegrationHarvestLogModel } from "../../models/website-builder/IntegrationHarvestLogModel";
 import { getAdapter } from "../../services/integrations";
-import { getHarvestAdapter } from "../../services/integrations/harvest-registry";
-import { inferFieldMapping } from "../../services/integrations/fieldInference";
-import { getHarvestQueue } from "../../workers/queues";
 import * as formDetection from "./feature-services/service.form-detection";
 import * as clarityIntegration from "./feature-services/service.clarity-integration";
 import * as gscIntegration from "./feature-services/service.gsc-integration";
@@ -43,21 +39,21 @@ import * as harvestLogInspector from "./feature-services/service.harvest-log-ins
 import * as rybbitHistory from "./feature-services/service.rybbit-history";
 import * as rybbitIntegration from "./feature-services/service.rybbit-integration";
 import * as rybbitPerformance from "./feature-services/service.rybbit-performance";
-
-const LOG_PREFIX = "[Website Integrations]";
-
-function ok<T>(res: Response, data: T, status = 200): Response {
-  return res.status(status).json({ success: true, data });
-}
-
-function fail(
-  res: Response,
-  status: number,
-  code: string,
-  message: string,
-): Response {
-  return res.status(status).json({ success: false, error: code, message });
-}
+import * as crmIntegration from "./feature-services/service.crm-integration";
+import { CrmIntegrationError } from "./feature-services/service.crm-integration";
+import * as harvestOrchestration from "./feature-services/service.harvest-orchestration";
+import { HarvestOrchestrationError } from "./feature-services/service.harvest-orchestration";
+import {
+  LOG_PREFIX,
+  ok,
+  fail,
+  failClarityError,
+  failGscError,
+  failRybbitError,
+  failRybbitHistoryError,
+  getAdminGscActor,
+} from "./feature-utils/util.integration-responses";
+import logger from "../../lib/logger";
 
 /**
  * Verify that the integration belongs to the website project in the URL.
@@ -101,7 +97,7 @@ export async function listDetectedForms(req: Request, res: Response): Promise<Re
     const data = await formDetection.listDetectedForms(projectId);
     return ok(res, data);
   } catch (error) {
-    console.error(`${LOG_PREFIX} listDetectedForms failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} listDetectedForms failed:`);
     return fail(res, 500, "FETCH_ERROR", "Failed to list detected forms");
   }
 }
@@ -117,7 +113,7 @@ export async function getDetectedFormFieldShape(req: Request, res: Response): Pr
     const data = await formDetection.getFormFieldShape(projectId, formName, sampleSize);
     return ok(res, data);
   } catch (error) {
-    console.error(`${LOG_PREFIX} getDetectedFormFieldShape failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} getDetectedFormFieldShape failed:`);
     return fail(res, 500, "FETCH_ERROR", "Failed to fetch form field shape");
   }
 }
@@ -132,7 +128,7 @@ export async function listIntegrations(req: Request, res: Response): Promise<Res
     const data = await WebsiteIntegrationModel.findByProjectId(projectId);
     return ok(res, data);
   } catch (error) {
-    console.error(`${LOG_PREFIX} listIntegrations failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} listIntegrations failed:`);
     return fail(res, 500, "FETCH_ERROR", "Failed to list integrations");
   }
 }
@@ -143,7 +139,7 @@ export async function getIntegration(req: Request, res: Response): Promise<Respo
     if (!integration) return res;
     return ok(res, integration);
   } catch (error) {
-    console.error(`${LOG_PREFIX} getIntegration failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} getIntegration failed:`);
     return fail(res, 500, "FETCH_ERROR", "Failed to fetch integration");
   }
 }
@@ -151,63 +147,16 @@ export async function getIntegration(req: Request, res: Response): Promise<Respo
 export async function createIntegration(req: Request, res: Response): Promise<Response> {
   try {
     const projectId = String(req.params.id);
-    const { platform, label, credentials } = req.body as {
-      platform?: string;
-      label?: string | null;
-      credentials?: string;
-    };
-
-    if (!platform || typeof platform !== "string") {
-      return fail(res, 400, "INVALID_INPUT", "platform is required");
-    }
-    if (!credentials || typeof credentials !== "string" || credentials.length < 8) {
-      return fail(res, 400, "INVALID_INPUT", "credentials are required");
-    }
-
-    let adapter;
-    try {
-      adapter = getAdapter(platform);
-    } catch {
-      return fail(res, 400, "UNSUPPORTED_PLATFORM", `Platform '${platform}' is not supported`);
-    }
-
-    const validation = await adapter.validateConnection(credentials);
-    if (!validation.ok) {
-      return fail(
-        res,
-        400,
-        "INVALID_CREDENTIALS",
-        validation.errorMessage || "Vendor rejected credentials",
-      );
-    }
-
-    const existing = await WebsiteIntegrationModel.findByProjectAndPlatform(projectId, platform);
-    if (existing) {
-      return fail(
-        res,
-        409,
-        "ALREADY_CONNECTED",
-        `An ${platform} integration already exists for this project`,
-      );
-    }
-
-    const integration = await WebsiteIntegrationModel.create({
-      project_id: projectId,
-      platform: platform as import("../../models/website-builder/WebsiteIntegrationModel").IntegrationPlatform,
-      credentials,
-      label: label ?? null,
-      metadata: {
-        portalId: validation.portalId,
-        accountName: validation.accountName,
-      },
-      status: "active",
-    });
-
-    await WebsiteIntegrationModel.updateLastValidated(integration.id, new Date());
-
+    const integration = await crmIntegration.createIntegration(
+      projectId,
+      req.body as crmIntegration.CreateIntegrationInput,
+    );
     return ok(res, integration, 201);
   } catch (error) {
-    console.error(`${LOG_PREFIX} createIntegration failed:`, error);
+    if (error instanceof CrmIntegrationError) {
+      return fail(res, error.status, error.code, error.message);
+    }
+    logger.error({ err: error }, `${LOG_PREFIX} createIntegration failed:`);
     return fail(res, 500, "CREATE_ERROR", "Failed to create integration");
   }
 }
@@ -217,50 +166,16 @@ export async function updateIntegration(req: Request, res: Response): Promise<Re
     const integration = await loadIntegrationForProject(req, res);
     if (!integration) return res;
 
-    const { label, credentials } = req.body as {
-      label?: string | null;
-      credentials?: string;
-    };
-
-    const update: {
-      label?: string | null;
-      credentials?: string;
-      metadata?: Record<string, unknown>;
-      status?: IntegrationStatus;
-      last_validated_at?: Date;
-      last_error?: string | null;
-    } = {};
-    if (label !== undefined) update.label = label;
-
-    if (credentials !== undefined) {
-      if (typeof credentials !== "string" || credentials.length < 8) {
-        return fail(res, 400, "INVALID_INPUT", "credentials must be a non-empty string");
-      }
-      const adapter = getAdapter(integration.platform);
-      const validation = await adapter.validateConnection(credentials);
-      if (!validation.ok) {
-        return fail(
-          res,
-          400,
-          "INVALID_CREDENTIALS",
-          validation.errorMessage || "Vendor rejected credentials",
-        );
-      }
-      update.credentials = credentials;
-      update.metadata = {
-        ...(integration.metadata ?? {}),
-        portalId: validation.portalId,
-        accountName: validation.accountName,
-      };
-      update.status = "active";
-      update.last_validated_at = new Date();
-      update.last_error = null;
-    }
-
-    const updated = await WebsiteIntegrationModel.update(integration.id, update);
+    const updated = await crmIntegration.updateIntegration(
+      integration,
+      req.body as crmIntegration.UpdateIntegrationInput,
+    );
     return ok(res, updated);
   } catch (error) {
-    console.error(`${LOG_PREFIX} updateIntegration failed:`, error);
+    if (error instanceof CrmIntegrationError) {
+      return fail(res, error.status, error.code, error.message);
+    }
+    logger.error({ err: error }, `${LOG_PREFIX} updateIntegration failed:`);
     return fail(res, 500, "UPDATE_ERROR", "Failed to update integration");
   }
 }
@@ -272,7 +187,7 @@ export async function deleteIntegration(req: Request, res: Response): Promise<Re
     await WebsiteIntegrationModel.deleteById(integration.id);
     return ok(res, { deleted: true });
   } catch (error) {
-    console.error(`${LOG_PREFIX} deleteIntegration failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} deleteIntegration failed:`);
     return fail(res, 500, "DELETE_ERROR", "Failed to delete integration");
   }
 }
@@ -285,7 +200,7 @@ export async function revokeIntegration(req: Request, res: Response): Promise<Re
     const updated = await WebsiteIntegrationModel.findById(integration.id);
     return ok(res, updated);
   } catch (error) {
-    console.error(`${LOG_PREFIX} revokeIntegration failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} revokeIntegration failed:`);
     return fail(res, 500, "REVOKE_ERROR", "Failed to revoke integration");
   }
 }
@@ -311,7 +226,7 @@ export async function listVendorForms(req: Request, res: Response): Promise<Resp
     const forms = await adapter.listForms(creds);
     return ok(res, forms);
   } catch (error) {
-    console.error(`${LOG_PREFIX} listVendorForms failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} listVendorForms failed:`);
     return fail(res, 502, "VENDOR_ERROR", "Failed to list vendor forms");
   }
 }
@@ -321,37 +236,13 @@ export async function validateMappings(req: Request, res: Response): Promise<Res
     const integration = await loadIntegrationForProject(req, res);
     if (!integration) return res;
 
-    const creds = await WebsiteIntegrationModel.getDecryptedCredentials(integration.id);
-    if (!creds) {
-      return fail(res, 500, "MISSING_CREDENTIALS", "Could not decrypt credentials");
-    }
-
-    const adapter = getAdapter(integration.platform);
-
-    const validation = await adapter.validateConnection(creds);
-    if (!validation.ok) {
-      await WebsiteIntegrationModel.updateStatus(
-        integration.id,
-        "revoked",
-        validation.errorMessage ?? validation.error ?? "Token validation failed",
-      );
-      return fail(res, 401, "TOKEN_REJECTED", "Token rejected during validation");
-    }
-
-    const forms = await adapter.listForms(creds);
-    const validVendorIds = forms.map((f) => f.id);
-
-    await IntegrationFormMappingModel.bulkMarkBrokenForMissingVendorForms(
-      integration.id,
-      validVendorIds,
-    );
-    await IntegrationFormMappingModel.bulkMarkValidated(integration.id, validVendorIds);
-    await WebsiteIntegrationModel.updateLastValidated(integration.id, new Date());
-
-    const mappings = await IntegrationFormMappingModel.findByIntegrationId(integration.id);
+    const mappings = await crmIntegration.validateMappings(integration);
     return ok(res, mappings);
   } catch (error) {
-    console.error(`${LOG_PREFIX} validateMappings failed:`, error);
+    if (error instanceof CrmIntegrationError) {
+      return fail(res, error.status, error.code, error.message);
+    }
+    logger.error({ err: error }, `${LOG_PREFIX} validateMappings failed:`);
     return fail(res, 500, "VALIDATE_ERROR", "Failed to validate mappings");
   }
 }
@@ -362,41 +253,17 @@ export async function inferMapping(req: Request, res: Response): Promise<Respons
     if (!integration) return res;
 
     const projectId = String(req.params.id);
-    const { website_form_name, vendor_form_id } = req.body as {
-      website_form_name?: string;
-      vendor_form_id?: string;
-    };
-    if (!website_form_name || !vendor_form_id) {
-      return fail(
-        res,
-        400,
-        "INVALID_INPUT",
-        "website_form_name and vendor_form_id are required",
-      );
-    }
-
-    const creds = await WebsiteIntegrationModel.getDecryptedCredentials(integration.id);
-    if (!creds) {
-      return fail(res, 500, "MISSING_CREDENTIALS", "Could not decrypt credentials");
-    }
-
-    const adapter = getAdapter(integration.platform);
-    const form = await adapter.getFormSchema(creds, vendor_form_id);
-    if (!form) {
-      return fail(res, 404, "VENDOR_FORM_NOT_FOUND", "Vendor form not found");
-    }
-
-    const fieldShape = await formDetection.getFormFieldShape(projectId, website_form_name);
-    const websiteFieldKeys = fieldShape.map((f) => f.key);
-
-    const inferred = inferFieldMapping(websiteFieldKeys, form.fields);
-    return ok(res, {
-      vendor_form: form,
-      website_fields: fieldShape,
-      inferred_mapping: inferred,
-    });
+    const result = await crmIntegration.inferMapping(
+      projectId,
+      integration,
+      req.body as { website_form_name?: string; vendor_form_id?: string },
+    );
+    return ok(res, result);
   } catch (error) {
-    console.error(`${LOG_PREFIX} inferMapping failed:`, error);
+    if (error instanceof CrmIntegrationError) {
+      return fail(res, error.status, error.code, error.message);
+    }
+    logger.error({ err: error }, `${LOG_PREFIX} inferMapping failed:`);
     return fail(res, 500, "INFER_ERROR", "Failed to infer field mapping");
   }
 }
@@ -420,7 +287,7 @@ export async function listSyncLogs(req: Request, res: Response): Promise<Respons
       pagination: { limit, offset, total: result.total },
     });
   } catch (error) {
-    console.error(`${LOG_PREFIX} listSyncLogs failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} listSyncLogs failed:`);
     return fail(res, 500, "FETCH_ERROR", "Failed to list sync logs");
   }
 }
@@ -436,7 +303,7 @@ export async function listMappings(req: Request, res: Response): Promise<Respons
     const data = await IntegrationFormMappingModel.findByIntegrationId(integration.id);
     return ok(res, data);
   } catch (error) {
-    console.error(`${LOG_PREFIX} listMappings failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} listMappings failed:`);
     return fail(res, 500, "FETCH_ERROR", "Failed to list mappings");
   }
 }
@@ -491,7 +358,7 @@ export async function createMapping(req: Request, res: Response): Promise<Respon
 
     return ok(res, mapping, 201);
   } catch (error) {
-    console.error(`${LOG_PREFIX} createMapping failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} createMapping failed:`);
     return fail(res, 500, "CREATE_ERROR", "Failed to create mapping");
   }
 }
@@ -518,7 +385,7 @@ export async function updateMapping(req: Request, res: Response): Promise<Respon
     });
     return ok(res, updated);
   } catch (error) {
-    console.error(`${LOG_PREFIX} updateMapping failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} updateMapping failed:`);
     return fail(res, 500, "UPDATE_ERROR", "Failed to update mapping");
   }
 }
@@ -532,37 +399,27 @@ export async function deleteMapping(req: Request, res: Response): Promise<Respon
     await IntegrationFormMappingModel.deleteById(mapping.id);
     return ok(res, { deleted: true });
   } catch (error) {
-    console.error(`${LOG_PREFIX} deleteMapping failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} deleteMapping failed:`);
     return fail(res, 500, "DELETE_ERROR", "Failed to delete mapping");
   }
 }
+
+// ---------------------------------------------------------------------------
+// Data harvest (validate / logs / payload / rerun)
+// ---------------------------------------------------------------------------
 
 export async function validateHarvestIntegration(req: Request, res: Response): Promise<Response> {
   try {
     const integration = await loadIntegrationForProject(req, res);
     if (!integration) return res;
 
-    let adapter;
-    try {
-      adapter = getHarvestAdapter(integration.platform);
-    } catch {
-      return fail(res, 400, "UNSUPPORTED_PLATFORM", `No harvest adapter for platform '${integration.platform}'`);
-    }
-
-    const result = await adapter.validateConnection(integration);
-
-    await WebsiteIntegrationModel.updateLastValidated(
-      integration.id,
-      new Date(),
-      result.ok ? null : result.errorMessage ?? null,
-    );
-
-    if (!result.ok) {
-      return ok(res, { valid: false, error: result.error, message: result.errorMessage });
-    }
-    return ok(res, { valid: true });
+    const result = await harvestOrchestration.validateHarvestConnection(integration);
+    return ok(res, result);
   } catch (error) {
-    console.error(`${LOG_PREFIX} validateHarvestIntegration failed:`, error);
+    if (error instanceof HarvestOrchestrationError) {
+      return fail(res, error.status, error.code, error.message);
+    }
+    logger.error({ err: error }, `${LOG_PREFIX} validateHarvestIntegration failed:`);
     return fail(res, 500, "VALIDATION_ERROR", "Failed to validate integration");
   }
 }
@@ -575,16 +432,10 @@ export async function getHarvestLogs(req: Request, res: Response): Promise<Respo
     const limit = Math.min(Number(req.query.limit) || 30, 100);
     const offset = Number(req.query.offset) || 0;
 
-    const result = await IntegrationHarvestLogModel.findByIntegrationId(
-      integration.id,
-      { limit, offset },
-    );
-
-    const successRate = await IntegrationHarvestLogModel.getSuccessRate(integration.id, 30);
-
-    return ok(res, { ...result, successRate });
+    const result = await harvestOrchestration.listHarvestLogs(integration, { limit, offset });
+    return ok(res, result);
   } catch (error) {
-    console.error(`${LOG_PREFIX} getHarvestLogs failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} getHarvestLogs failed:`);
     return fail(res, 500, "FETCH_ERROR", "Failed to fetch harvest logs");
   }
 }
@@ -606,7 +457,7 @@ export async function getHarvestLogPayload(req: Request, res: Response): Promise
     const payload = await harvestLogInspector.getPayload(integration, log);
     return ok(res, payload);
   } catch (error) {
-    console.error(`${LOG_PREFIX} getHarvestLogPayload failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} getHarvestLogPayload failed:`);
     return fail(res, 500, "FETCH_ERROR", "Failed to fetch harvest payload");
   }
 }
@@ -617,101 +468,20 @@ export async function rerunHarvest(req: Request, res: Response): Promise<Respons
     if (!integration) return res;
 
     const { harvestDate } = req.body as { harvestDate?: string };
-    if (!harvestDate || !/^\d{4}-\d{2}-\d{2}$/.test(harvestDate)) {
-      return fail(res, 400, "INVALID_INPUT", "harvestDate is required (YYYY-MM-DD)");
-    }
-
-    const retryCount = await IntegrationHarvestLogModel.getLatestRetryCount(integration.id, harvestDate);
-    if (retryCount >= 3) {
-      return fail(res, 409, "MAX_RETRIES", "Maximum retry count (3) reached for this date");
-    }
-
-    const queue = getHarvestQueue("daily");
-    await queue.add(
-      "manual-rerun",
-      { integrationId: integration.id, harvestDate },
-      {
-        jobId: `rerun-${integration.id}-${harvestDate}-${Date.now()}`,
-        attempts: 1,
-        removeOnComplete: { count: 50 },
-        removeOnFail: { count: 50 },
-      },
-    );
-
-    return ok(res, { queued: true, harvestDate, retryCount: retryCount + 1 });
+    const result = await harvestOrchestration.rerunHarvest(integration, harvestDate);
+    return ok(res, result);
   } catch (error) {
-    console.error(`${LOG_PREFIX} rerunHarvest failed:`, error);
+    if (error instanceof HarvestOrchestrationError) {
+      return fail(res, error.status, error.code, error.message);
+    }
+    logger.error({ err: error }, `${LOG_PREFIX} rerunHarvest failed:`);
     return fail(res, 500, "RERUN_ERROR", "Failed to enqueue harvest rerun");
   }
 }
 
 // ---------------------------------------------------------------------------
-// GSC (Google Search Console) — admin connect flow
+// Clarity
 // ---------------------------------------------------------------------------
-
-function failGscError(res: Response, error: unknown, fallbackMessage: string): Response {
-  if (error instanceof gscIntegration.GscIntegrationError) {
-    return fail(res, error.status, error.code, error.message);
-  }
-
-  console.error(`${LOG_PREFIX} ${fallbackMessage}:`, error);
-  const maybeCode = (error as { code?: number; response?: { status?: number } })?.code;
-  const maybeStatus = (error as { response?: { status?: number } })?.response?.status;
-  const status = maybeCode || maybeStatus;
-  if (status === 401 || status === 403) {
-    return fail(res, 401, "AUTH_FAILED", "Google OAuth token is invalid or expired");
-  }
-
-  return fail(res, 500, "GSC_ERROR", fallbackMessage);
-}
-
-function getAdminGscActor(req: Request): gscIntegration.GscActorContext {
-  const authReq = req as RBACRequest;
-  if (!authReq.userId) {
-    throw new gscIntegration.GscIntegrationError(
-      401,
-      "AUTH_REQUIRED",
-      "Authentication is required to manage Search Console integrations",
-    );
-  }
-
-  return {
-    mode: "admin",
-    userId: authReq.userId,
-    organizationId: authReq.organizationId,
-  };
-}
-
-function failRybbitError(res: Response, error: unknown, fallbackMessage: string): Response {
-  if (error instanceof rybbitIntegration.RybbitIntegrationError) {
-    return fail(res, error.status, error.code, error.message);
-  }
-
-  console.error(`${LOG_PREFIX} ${fallbackMessage}:`, error);
-  return fail(res, 500, "RYBBIT_ERROR", fallbackMessage);
-}
-
-function failRybbitHistoryError(
-  res: Response,
-  error: unknown,
-  fallbackMessage: string,
-): Response {
-  if (error instanceof rybbitHistory.RybbitHistoryError) {
-    return fail(res, error.status, error.code, error.message);
-  }
-
-  console.error(`${LOG_PREFIX} ${fallbackMessage}:`, error);
-  return fail(res, 500, "RYBBIT_HISTORY_ERROR", fallbackMessage);
-}
-
-function failClarityError(res: Response, error: unknown, fallbackMessage: string): Response {
-  if (error instanceof clarityIntegration.ClarityIntegrationError) {
-    return fail(res, error.status, error.code, error.message);
-  }
-
-  console.error(`${LOG_PREFIX} ${fallbackMessage}:`, error);
-  return fail(res, 500, "CLARITY_ERROR", fallbackMessage);
-}
 
 export async function getClarityStatus(req: Request, res: Response): Promise<Response> {
   try {
@@ -770,6 +540,10 @@ export async function validateClarityInstallation(req: Request, res: Response): 
     return failClarityError(res, error, "Failed to validate Clarity installation");
   }
 }
+
+// ---------------------------------------------------------------------------
+// Rybbit
+// ---------------------------------------------------------------------------
 
 export async function getRybbitStatus(req: Request, res: Response): Promise<Response> {
   try {
@@ -866,6 +640,10 @@ export async function backfillAllRybbitHistory(_req: Request, res: Response): Pr
   }
 }
 
+// ---------------------------------------------------------------------------
+// GSC (Google Search Console) — admin connect flow
+// ---------------------------------------------------------------------------
+
 export async function listGscConnections(req: Request, res: Response): Promise<Response> {
   try {
     const projectId = String(req.params.id);
@@ -950,7 +728,7 @@ export async function getGscPerformance(req: Request, res: Response): Promise<Re
     );
     return ok(res, result);
   } catch (error) {
-    console.error(`${LOG_PREFIX} getGscPerformance failed:`, error);
+    logger.error({ err: error }, `${LOG_PREFIX} getGscPerformance failed:`);
     return fail(res, 500, "FETCH_ERROR", "Failed to fetch GSC performance");
   }
 }

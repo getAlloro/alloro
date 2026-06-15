@@ -5,12 +5,12 @@
  * AI-powered component editing (Claude integration), and layout editing.
  */
 
-import { db } from "../../../database/connection";
+import { ProjectModel } from "../../../models/website-builder/ProjectModel";
+import { PageModel } from "../../../models/website-builder/PageModel";
+import { MediaModel } from "../../../models/website-builder/MediaModel";
 import { normalizeSections } from "../feature-utils/util.section-normalizer";
 import { snapshotPageStateIfChanged } from "../../../utils/website-utils/pageSnapshots";
-
-const PROJECTS_TABLE = "website_builder.projects";
-const PAGES_TABLE = "website_builder.pages";
+import logger from "../../../lib/logger";
 
 // ---------------------------------------------------------------------------
 // List pages for a project
@@ -20,17 +20,14 @@ export async function listPages(
   projectId: string,
   pathFilter?: string
 ): Promise<any[]> {
-  console.log(`[Admin Websites] Fetching pages for project ID: ${projectId}`);
+  logger.info(`[Admin Websites] Fetching pages for project ID: ${projectId}`);
 
-  let query = db(PAGES_TABLE).where("project_id", projectId);
+  const pages = await PageModel.findByProjectWithOptionalPath(
+    projectId,
+    pathFilter
+  );
 
-  if (pathFilter) {
-    query = query.where("path", pathFilter);
-  }
-
-  const pages = await query.orderBy("path", "asc").orderBy("version", "desc");
-
-  console.log(`[Admin Websites] Found ${pages.length} pages`);
+  logger.info(`[Admin Websites] Found ${pages.length} pages`);
 
   return pages;
 }
@@ -48,15 +45,12 @@ export async function createPage(
 }> {
   const { path = "/", sections = [], publish = false, display_name } = data;
 
-  console.log(
+  logger.info(
     `[Admin Websites] Creating page for project ID: ${projectId}, path: ${path}`
   );
 
   // Get latest version for this project+path
-  const latestPage = await db(PAGES_TABLE)
-    .where({ project_id: projectId, path })
-    .orderBy("version", "desc")
-    .first();
+  const latestPage = await PageModel.findLatestByProjectAndPath(projectId, path);
 
   const newVersion = latestPage ? latestPage.version + 1 : 1;
 
@@ -80,28 +74,14 @@ export async function createPage(
     insertData.display_name = display_name;
   }
 
-  const page = await db.transaction(async (trx) => {
-    // Mark existing drafts as inactive
-    await trx(PAGES_TABLE)
-      .where({ project_id: projectId, path, status: "draft" })
-      .update({ status: "inactive", updated_at: trx.fn.now() });
-
-    const [created] = await trx(PAGES_TABLE)
-      .insert(insertData)
-      .returning("*");
-
-    // If publishing, mark previous published as inactive
-    if (publish) {
-      await trx(PAGES_TABLE)
-        .where({ project_id: projectId, path, status: "published" })
-        .whereNot("id", created.id)
-        .update({ status: "inactive", updated_at: trx.fn.now() });
-    }
-
-    return created;
+  const page = await PageModel.createPageVersion({
+    projectId,
+    path,
+    publish,
+    insertData,
   });
 
-  console.log(
+  logger.info(
     `[Admin Websites] \u2713 Created page ID: ${page.id}, version: ${newVersion}`
   );
 
@@ -119,15 +99,13 @@ export async function publishPage(
   page: any;
   error?: { status: number; code: string; message: string };
 }> {
-  console.log(
+  logger.info(
     `[Admin Websites] Publishing page ID: ${pageId} for project ID: ${projectId}`
   );
 
   // Get the page \u2014 scoped to the project so a pageId from another project
   // can never be published through this route.
-  const page = await db(PAGES_TABLE)
-    .where({ id: pageId, project_id: projectId })
-    .first();
+  const page = await PageModel.findRawByIdAndProject(pageId, projectId);
 
   if (!page) {
     return {
@@ -150,28 +128,13 @@ export async function publishPage(
   // Unpublish-then-publish atomically \u2014 a crash between the two statements
   // would otherwise leave the path with NO published row (page down on the
   // live site) until someone manually re-publishes.
-  const publishedPage = await db.transaction(async (trx) => {
-    await trx(PAGES_TABLE)
-      .where({
-        project_id: page.project_id,
-        path: page.path,
-        status: "published",
-      })
-      .whereNot("id", pageId)
-      .update({ status: "inactive", updated_at: trx.fn.now() });
-
-    const [row] = await trx(PAGES_TABLE)
-      .where("id", pageId)
-      .update({
-        status: "published",
-        change_source: "publish",
-        updated_at: trx.fn.now(),
-      })
-      .returning("*");
-    return row;
+  const publishedPage = await PageModel.publishPageVersion({
+    pageId,
+    projectId: page.project_id,
+    path: page.path,
   });
 
-  console.log(`[Admin Websites] \u2713 Published page ID: ${pageId}`);
+  logger.info(`[Admin Websites] \u2713 Published page ID: ${pageId}`);
 
   return { page: publishedPage };
 }
@@ -184,13 +147,11 @@ export async function getPageById(
   projectId: string,
   pageId: string
 ): Promise<any> {
-  console.log(
+  logger.info(
     `[Admin Websites] Fetching page ID: ${pageId} for project ID: ${projectId}`
   );
 
-  const page = await db(PAGES_TABLE)
-    .where({ id: pageId, project_id: projectId })
-    .first();
+  const page = await PageModel.findRawByIdAndProject(pageId, projectId);
 
   return page || null;
 }
@@ -226,13 +187,11 @@ export async function updatePage(
     };
   }
 
-  console.log(
+  logger.info(
     `[Admin Websites] Updating page ID: ${pageId} for project ID: ${projectId}`
   );
 
-  const page = await db(PAGES_TABLE)
-    .where({ id: pageId, project_id: projectId })
-    .first();
+  const page = await PageModel.findRawByIdAndProject(pageId, projectId);
 
   if (!page) {
     return {
@@ -275,9 +234,9 @@ export async function updatePage(
     };
   }
 
-  const updatePayload: Record<string, unknown> = {
-    updated_at: db.fn.now(),
-  };
+  // updated_at is stamped via the DB clock inside the model write (mirrors the
+  // original updatePayload updated_at set to the DB-now timestamp).
+  const updatePayload: Record<string, unknown> = {};
 
   if (sections) {
     // Preserve the draft's pre-save state as a restorable history entry
@@ -288,10 +247,10 @@ export async function updatePage(
     // than its own archived history and sink below it in the History tab
     // (the "latest version is Archived" bug). Bumping the draft above the
     // snapshot keeps it pinned to the top as the current editable version.
-    const newest = await db(PAGES_TABLE)
-      .where({ project_id: page.project_id, path: page.path })
-      .orderBy("version", "desc")
-      .first();
+    const newest = await PageModel.findLatestByProjectAndPath(
+      page.project_id,
+      page.path
+    );
     updatePayload.version = (newest?.version ?? page.version) + 1;
     updatePayload.sections = JSON.stringify(sections);
     updatePayload.change_source = "save";
@@ -310,17 +269,14 @@ export async function updatePage(
   // conditional on the expected timestamp so exactly one wins. Matched as a
   // 1ms range because updated_at carries microsecond precision while the
   // client echoes the millisecond-truncated ISO string.
-  let updateQuery = db(PAGES_TABLE).where("id", pageId);
-  if (data.expected_updated_at && !data.force) {
-    const expected = new Date(data.expected_updated_at);
-    updateQuery = updateQuery
-      .where("updated_at", ">=", expected)
-      .where("updated_at", "<", new Date(expected.getTime() + 1));
-  }
-
-  const [updatedPage] = await updateQuery
-    .update(updatePayload)
-    .returning("*");
+  const updatedPage = await PageModel.updateDraftWithConcurrencyGuard({
+    pageId,
+    updatePayload,
+    expectedUpdatedAt:
+      data.expected_updated_at && !data.force
+        ? new Date(data.expected_updated_at)
+        : undefined,
+  });
 
   if (!updatedPage) {
     return {
@@ -334,7 +290,7 @@ export async function updatePage(
     };
   }
 
-  console.log(`[Admin Websites] \u2713 Updated page ID: ${pageId}`);
+  logger.info(`[Admin Websites] \u2713 Updated page ID: ${pageId}`);
 
   return { page: updatedPage };
 }
@@ -350,13 +306,11 @@ export async function deletePagesByPath(
   deletedCount: number;
   error?: { status: number; code: string; message: string };
 }> {
-  console.log(
+  logger.info(
     `[Admin Websites] Deleting all versions at path "${pagePath}" for project ID: ${projectId}`
   );
 
-  const pages = await db(PAGES_TABLE)
-    .where({ project_id: projectId, path: pagePath })
-    .select("id");
+  const pages = await PageModel.findIdsByProjectAndPath(projectId, pagePath);
 
   if (pages.length === 0) {
     return {
@@ -369,11 +323,12 @@ export async function deletePagesByPath(
     };
   }
 
-  const deletedCount = await db(PAGES_TABLE)
-    .where({ project_id: projectId, path: pagePath })
-    .del();
+  const deletedCount = await PageModel.deleteByProjectAndPath(
+    projectId,
+    pagePath
+  );
 
-  console.log(
+  logger.info(
     `[Admin Websites] \u2713 Deleted ${deletedCount} version(s) at path "${pagePath}"`
   );
 
@@ -388,13 +343,11 @@ export async function deletePage(
   projectId: string,
   pageId: string
 ): Promise<{ error?: { status: number; code: string; message: string } }> {
-  console.log(
+  logger.info(
     `[Admin Websites] Deleting page ID: ${pageId} for project ID: ${projectId}`
   );
 
-  const page = await db(PAGES_TABLE)
-    .where({ id: pageId, project_id: projectId })
-    .first();
+  const page = await PageModel.findRawByIdAndProject(pageId, projectId);
 
   if (!page) {
     return {
@@ -417,10 +370,10 @@ export async function deletePage(
   }
 
   // Check if this is the last remaining version for this path
-  const siblingCount = await db(PAGES_TABLE)
-    .where({ project_id: projectId, path: page.path })
-    .count("* as count")
-    .first();
+  const siblingCount = await PageModel.countByProjectAndPath(
+    projectId,
+    page.path
+  );
 
   if (siblingCount && parseInt(siblingCount.count as string, 10) <= 1) {
     return {
@@ -432,9 +385,9 @@ export async function deletePage(
     };
   }
 
-  await db(PAGES_TABLE).where("id", pageId).del();
+  await PageModel.deleteById(pageId);
 
-  console.log(`[Admin Websites] \u2713 Deleted page ID: ${pageId}`);
+  logger.info(`[Admin Websites] \u2713 Deleted page ID: ${pageId}`);
 
   return {};
 }
@@ -451,13 +404,14 @@ export async function createDraft(
   isExisting: boolean;
   error?: { status: number; code: string; message: string };
 }> {
-  console.log(
+  logger.info(
     `[Admin Websites] Creating draft from page ID: ${sourcePageId} for project ID: ${projectId}`
   );
 
-  const sourcePage = await db(PAGES_TABLE)
-    .where({ id: sourcePageId, project_id: projectId })
-    .first();
+  const sourcePage = await PageModel.findRawByIdAndProject(
+    sourcePageId,
+    projectId
+  );
 
   if (!sourcePage) {
     return {
@@ -484,9 +438,11 @@ export async function createDraft(
   }
 
   // Check if a draft already exists for this project+path (idempotent)
-  const existingDraft = await db(PAGES_TABLE)
-    .where({ project_id: projectId, path: sourcePage.path, status: "draft" })
-    .first();
+  const existingDraft = await PageModel.findRawByProjectPathStatus(
+    projectId,
+    sourcePage.path,
+    "draft"
+  );
 
   if (existingDraft) {
     // Check if the published page has been updated since this draft was last
@@ -502,40 +458,38 @@ export async function createDraft(
     ).getTime();
 
     if (publishedUpdated > draftUpdated) {
-      console.log(
+      logger.info(
         `[Admin Websites] Stale draft detected (draft created: ${existingDraft.created_at}, published updated: ${sourcePage.updated_at}). Snapshotting then refreshing sections.`
       );
 
       await snapshotPageStateIfChanged(existingDraft);
 
-      const [refreshedDraft] = await db(PAGES_TABLE)
-        .where("id", existingDraft.id)
-        .update({
-          sections: JSON.stringify(normalizeSections(sourcePage.sections)),
-          seo_data: sourcePage.seo_data ? JSON.stringify(sourcePage.seo_data) : null,
-          edit_chat_history: JSON.stringify({}),
-          // The refreshed draft is a copy of published, not an explicit save —
-          // stale provenance from the replaced content must not survive.
-          change_source: null,
-          revision_note: null,
-          updated_at: db.fn.now(),
-        })
-        .returning("*");
+      // updated_at is stamped via the DB clock inside refreshDraftById (mirrors
+      // the original update that set updated_at to the DB-now timestamp).
+      const refreshedDraft = await PageModel.refreshDraftById(existingDraft.id, {
+        sections: JSON.stringify(normalizeSections(sourcePage.sections)),
+        seo_data: sourcePage.seo_data ? JSON.stringify(sourcePage.seo_data) : null,
+        edit_chat_history: JSON.stringify({}),
+        // The refreshed draft is a copy of published, not an explicit save —
+        // stale provenance from the replaced content must not survive.
+        change_source: null,
+        revision_note: null,
+      });
 
       return { page: refreshedDraft, isExisting: true };
     }
 
-    console.log(
+    logger.info(
       `[Admin Websites] Returning existing draft ID: ${existingDraft.id}`
     );
     return { page: existingDraft, isExisting: true };
   }
 
   // Get latest version number
-  const latestPage = await db(PAGES_TABLE)
-    .where({ project_id: projectId, path: sourcePage.path })
-    .orderBy("version", "desc")
-    .first();
+  const latestPage = await PageModel.findLatestByProjectAndPath(
+    projectId,
+    sourcePage.path
+  );
 
   const newVersion = latestPage ? latestPage.version + 1 : 1;
 
@@ -543,19 +497,17 @@ export async function createDraft(
   // regeneration can still resolve the source template. Without it,
   // buildComponentList(templatePage=null) returns [] and the pipeline
   // silently does nothing.
-  const [draftPage] = await db(PAGES_TABLE)
-    .insert({
-      project_id: projectId,
-      path: sourcePage.path,
-      version: newVersion,
-      status: "draft",
-      template_page_id: sourcePage.template_page_id || null,
-      sections: JSON.stringify(normalizeSections(sourcePage.sections)),
-      seo_data: sourcePage.seo_data ? JSON.stringify(sourcePage.seo_data) : null,
-    })
-    .returning("*");
+  const draftPage = await PageModel.insertReturning({
+    project_id: projectId,
+    path: sourcePage.path,
+    version: newVersion,
+    status: "draft",
+    template_page_id: sourcePage.template_page_id || null,
+    sections: JSON.stringify(normalizeSections(sourcePage.sections)),
+    seo_data: sourcePage.seo_data ? JSON.stringify(sourcePage.seo_data) : null,
+  });
 
-  console.log(
+  logger.info(
     `[Admin Websites] \u2713 Created draft page ID: ${draftPage.id}, version: ${newVersion}`
   );
 
@@ -592,14 +544,12 @@ export async function editPageComponent(
     };
   }
 
-  console.log(
+  logger.info(
     `[Admin Websites] Edit request for page ${pageId}, class: ${alloroClass}`
   );
 
   // Verify page exists and belongs to project
-  const page = await db(PAGES_TABLE)
-    .where({ id: pageId, project_id: projectId })
-    .first();
+  const page = await PageModel.findRawByIdAndProject(pageId, projectId);
 
   if (!page) {
     return {
@@ -633,7 +583,7 @@ export async function editPageComponent(
     },
   });
 
-  console.log(
+  logger.info(
     `[Admin Websites] \u2713 Edit completed for class: ${alloroClass}`
   );
 
@@ -669,12 +619,12 @@ export async function editLayoutComponent(
     };
   }
 
-  console.log(
+  logger.info(
     `[Admin Websites] Layout edit request for project ${projectId}, class: ${alloroClass}`
   );
 
   // Verify project exists
-  const project = await db(PROJECTS_TABLE).where("id", projectId).first();
+  const project = await ProjectModel.findRawById(projectId);
   if (!project) {
     return {
       result: null,
@@ -706,7 +656,7 @@ export async function editLayoutComponent(
     },
   });
 
-  console.log(
+  logger.info(
     `[Admin Websites] \u2713 Layout edit completed for class: ${alloroClass}`
   );
 
@@ -723,20 +673,15 @@ export async function propagateSeoToSiblings(
   seoData: Record<string, unknown>,
   excludePageId?: string
 ): Promise<void> {
-  const query = db(PAGES_TABLE)
-    .where({ project_id: projectId, path })
-    .whereNull("seo_data");
-
-  if (excludePageId) {
-    query.whereNot("id", excludePageId);
-  }
-
-  const updated = await query.update({
-    seo_data: JSON.stringify(seoData),
+  const updated = await PageModel.propagateSeoToSiblingsOptionalExclude({
+    projectId,
+    path,
+    seoDataValue: JSON.stringify(seoData),
+    excludePageId,
   });
 
   if (updated > 0) {
-    console.log(
+    logger.info(
       `[Admin Websites] ✓ Propagated seo_data to ${updated} sibling version(s) for path: ${path}`
     );
   }
@@ -754,13 +699,11 @@ export async function updatePageSeo(
   page: any;
   error?: { status: number; code: string; message: string };
 }> {
-  console.log(
+  logger.info(
     `[Admin Websites] Updating SEO for page ID: ${pageId}, project ID: ${projectId}`
   );
 
-  const page = await db(PAGES_TABLE)
-    .where({ id: pageId, project_id: projectId })
-    .first();
+  const page = await PageModel.findRawByIdAndProject(pageId, projectId);
 
   if (!page) {
     return {
@@ -769,18 +712,15 @@ export async function updatePageSeo(
     };
   }
 
-  const [updatedPage] = await db(PAGES_TABLE)
-    .where("id", pageId)
-    .update({
-      seo_data: JSON.stringify(seoData),
-      updated_at: db.fn.now(),
-    })
-    .returning("*");
+  const updatedPage = await PageModel.updateSeoDataByIdReturning(
+    pageId,
+    JSON.stringify(seoData)
+  );
 
   // Propagate to all sibling versions with null seo_data
   await propagateSeoToSiblings(projectId, page.path, seoData, pageId);
 
-  console.log(`[Admin Websites] ✓ Updated SEO for page ID: ${pageId}`);
+  logger.info(`[Admin Websites] ✓ Updated SEO for page ID: ${pageId}`);
 
   return { page: updatedPage };
 }
@@ -790,17 +730,7 @@ export async function updatePageSeo(
 // ---------------------------------------------------------------------------
 
 async function buildMediaContext(projectId: string): Promise<string> {
-  const mediaItems = await db("website_builder.media")
-    .where({ project_id: projectId })
-    .orderBy("created_at", "desc")
-    .select(
-      "display_name",
-      "s3_url",
-      "alt_text",
-      "mime_type",
-      "width",
-      "height"
-    );
+  const mediaItems = await MediaModel.findForAIContext(projectId);
 
   let mediaContext = "";
   if (mediaItems.length > 0) {
@@ -826,14 +756,13 @@ export async function updatePageDisplayName(
   path: string,
   displayName: string | null
 ): Promise<number> {
-  const updated = await db(PAGES_TABLE)
-    .where({ project_id: projectId, path })
-    .update({
-      display_name: displayName,
-      updated_at: db.fn.now(),
-    });
+  const updated = await PageModel.updateDisplayNameByProjectAndPath(
+    projectId,
+    path,
+    displayName
+  );
 
-  console.log(
+  logger.info(
     `[Admin Websites] ✓ Updated display_name for path "${path}" to "${displayName}" (${updated} version(s))`
   );
 

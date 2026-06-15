@@ -1,3 +1,5 @@
+import logger from "../../../lib/logger";
+
 /**
  * Practice Ranking Logger
  *
@@ -21,30 +23,30 @@ function formatTimestamp(): string {
 
 export function logDebug(message: string): void {
   if (CURRENT_LOG_LEVEL <= LOG_LEVELS.DEBUG) {
-    console.log(`[${formatTimestamp()}] [PRACTICE-RANKING] [DEBUG] ${message}`);
+    logger.info(`[${formatTimestamp()}] [PRACTICE-RANKING] [DEBUG] ${message}`);
   }
 }
 
 export function log(message: string): void {
   if (CURRENT_LOG_LEVEL <= LOG_LEVELS.INFO) {
-    console.log(`[${formatTimestamp()}] [PRACTICE-RANKING] [INFO] ${message}`);
+    logger.info(`[${formatTimestamp()}] [PRACTICE-RANKING] [INFO] ${message}`);
   }
 }
 
 export function logWarn(message: string): void {
   if (CURRENT_LOG_LEVEL <= LOG_LEVELS.WARN) {
-    console.warn(`[${formatTimestamp()}] [PRACTICE-RANKING] [WARN] ${message}`);
+    logger.warn(`[${formatTimestamp()}] [PRACTICE-RANKING] [WARN] ${message}`);
   }
 }
 
 export function logError(operation: string, error: any): void {
-  console.error(
+  logger.error(
     `[${formatTimestamp()}] [PRACTICE-RANKING] [ERROR] ${operation}: ${
       error.message || error
     }`,
   );
   if (error.stack) {
-    console.error(
+    logger.error(
       `[${formatTimestamp()}] [PRACTICE-RANKING] [ERROR] Stack: ${error.stack}`,
     );
   }

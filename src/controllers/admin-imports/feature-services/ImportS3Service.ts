@@ -5,6 +5,7 @@ import {
   buildS3Key,
   bucket,
 } from "../../../utils/core/s3";
+import logger from "../../../lib/logger";
 
 export interface S3UploadResult {
   s3_key: string;
@@ -42,10 +43,7 @@ export async function deleteAllVersions(
       try {
         await deleteFromS3(version.s3_key);
       } catch (s3Err) {
-        console.warn(
-          `[Admin Imports] Failed to delete S3 object ${version.s3_key}:`,
-          s3Err
-        );
+        logger.warn({ detail: s3Err }, `[Admin Imports] Failed to delete S3 object ${version.s3_key}:`);
       }
     }
   }

@@ -1,3 +1,5 @@
+import logger from "../../../lib/logger";
+
 export interface PropertyIds {
   gbp: any[];
 }
@@ -15,7 +17,7 @@ export function parsePropertyIds(
     try {
       return JSON.parse(raw);
     } catch (e) {
-      console.error("Error parsing property IDs:", e);
+      logger.error({ err: e }, "Error parsing property IDs:");
       return { ...DEFAULT_PROPERTIES };
     }
   }

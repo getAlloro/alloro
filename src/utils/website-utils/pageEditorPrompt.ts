@@ -8,10 +8,8 @@
  * It wraps the editor prompt and cannot be diluted by prompt edits.
  */
 
-import { db } from "../../database/connection";
+import { AdminSettingModel } from "../../models/website-builder/AdminSettingModel";
 import { loadPrompt } from "../../agents/service.prompt-loader";
-
-const SETTINGS_TABLE = "website_builder.admin_settings";
 
 export async function getPageEditorPrompt(promptType: "admin" | "user" = "admin"): Promise<string> {
   const formatEnvelope = loadPrompt("websiteAgents/PageEditorFormat");
@@ -24,9 +22,7 @@ export async function getPageEditorPrompt(promptType: "admin" | "user" = "admin"
   let editorPrompt: string | null = null;
 
   try {
-    const row = await db(SETTINGS_TABLE)
-      .where({ category: "websites", key })
-      .first();
+    const row = await AdminSettingModel.findByCategoryAndKey("websites", key);
     if (row?.value?.trim()) {
       editorPrompt = row.value;
     }

@@ -8,13 +8,14 @@
  */
 
 import Stripe from "stripe";
+import logger from "../lib/logger";
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 const STRIPE_DEFAULT_PRICE_ID = process.env.STRIPE_HEALTH_PRICE_ID;
 
 if (!STRIPE_SECRET_KEY) {
-  console.warn(
+  logger.warn(
     "[Stripe] STRIPE_SECRET_KEY is not set. Billing features will be unavailable."
   );
 }

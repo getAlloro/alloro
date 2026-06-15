@@ -10,6 +10,7 @@ import { Response } from "express";
 import { RBACRequest } from "../../middleware/rbac";
 import { Request } from "express";
 import * as BillingService from "./BillingService";
+import logger from "../../lib/logger";
 
 /**
  * POST /api/billing/checkout
@@ -49,7 +50,7 @@ export async function createCheckout(
 
     res.json({ success: true, url: result.url });
   } catch (error: any) {
-    console.error("[Billing] Checkout error:", error?.message || error);
+    logger.error({ err: error?.message || error }, "[Billing] Checkout error:");
     const statusCode = error?.statusCode || 500;
     res.status(statusCode).json({
       success: false,
@@ -82,7 +83,7 @@ export async function createPortal(
 
     res.json({ success: true, url: result.url });
   } catch (error: any) {
-    console.error("[Billing] Portal error:", error?.message || error);
+    logger.error({ err: error?.message || error }, "[Billing] Portal error:");
     const statusCode = error?.statusCode || 500;
     res.status(statusCode).json({
       success: false,
@@ -122,7 +123,7 @@ export async function getStatus(
 
     res.json({ success: true, ...status });
   } catch (error: any) {
-    console.error("[Billing] Status error:", error?.message || error);
+    logger.error({ err: error?.message || error }, "[Billing] Status error:");
     const statusCode = error?.statusCode || 500;
     res.status(statusCode).json({
       success: false,
@@ -157,7 +158,7 @@ export async function getDetails(
     const details = await BillingService.getBillingDetails(organizationId);
     res.json({ success: true, ...details });
   } catch (error: any) {
-    console.error("[Billing] Details error:", error?.message || error);
+    logger.error({ err: error?.message || error }, "[Billing] Details error:");
     const statusCode = error?.statusCode || 500;
     res.status(statusCode).json({
       success: false,
@@ -185,7 +186,7 @@ export async function getAdminDetails(
     const details = await BillingService.getBillingDetails(orgId);
     res.json({ success: true, ...details });
   } catch (error: any) {
-    console.error("[Billing] Admin details error:", error?.message || error);
+    logger.error({ err: error?.message || error }, "[Billing] Admin details error:");
     const statusCode = error?.statusCode || 500;
     res.status(statusCode).json({
       success: false,
@@ -226,10 +227,7 @@ export async function handleWebhook(
     // we don't want Stripe to keep retrying
     res.status(200).json({ received: true });
   } catch (error: any) {
-    console.error(
-      "[Stripe Webhook] Verification or processing error:",
-      error?.message || error
-    );
+    logger.error({ err: error?.message || error }, "[Stripe Webhook] Verification or processing error:");
 
     // Signature verification failure → 400
     if (error?.type === "StripeSignatureVerificationError") {

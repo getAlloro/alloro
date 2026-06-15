@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import * as logFileService from "./feature-services/logFileService";
 import { validateLogType, parseMaxLines } from "./feature-utils/logFileValidator";
 import { DEFAULT_LOG_TYPE, DEFAULT_MAX_LINES } from "./feature-utils/logFileConfig";
+import logger from "../../lib/logger";
 
 export async function getLogFile(req: Request, res: Response): Promise<Response> {
   try {
@@ -42,7 +43,7 @@ export async function getLogFile(req: Request, res: Response): Promise<Response>
       },
     });
   } catch (error: any) {
-    console.error("[App Logs] Error reading log file:", error);
+    logger.error({ err: error }, "[App Logs] Error reading log file:");
     return res.status(500).json({
       success: false,
       error: "READ_ERROR",
@@ -73,7 +74,7 @@ export async function clearLogFile(req: Request, res: Response): Promise<Respons
       });
     }
 
-    console.log(`[App Logs] \u2713 ${logType} log file cleared successfully`);
+    logger.info(`[App Logs] \u2713 ${logType} log file cleared successfully`);
 
     return res.json({
       success: true,
@@ -81,7 +82,7 @@ export async function clearLogFile(req: Request, res: Response): Promise<Respons
       timestamp: new Date().toISOString(),
     });
   } catch (error: any) {
-    console.error("[App Logs] Error clearing log file:", error);
+    logger.error({ err: error }, "[App Logs] Error clearing log file:");
     return res.status(500).json({
       success: false,
       error: "CLEAR_ERROR",

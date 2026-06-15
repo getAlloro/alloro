@@ -67,6 +67,57 @@ export class AgentResultModel extends BaseModel {
     return super.deleteById(id, trx);
   }
 
+  /**
+   * Latest result for an org + agent type (optionally scoped to a location),
+   * returned as the RAW DB row (no JSON deserialization) so callers that parse
+   * data/agent_input/agent_output themselves get identical input. Mirrors the
+   * PmsPipelineController fallback query verbatim.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findLatestRawByOrgAndAgent(
+    organizationId: number,
+    agentType: string,
+    locationId: number | null | undefined,
+    trx?: QueryContext
+  ): Promise<any> {
+    const query = this.table(trx)
+      .where({
+        organization_id: organizationId,
+        agent_type: agentType,
+      })
+      .orderBy("created_at", "desc");
+    if (locationId !== null && locationId !== undefined) {
+      query.where({ location_id: locationId });
+    }
+    return query.first();
+  }
+
+  /** COUNT(*) of results for an org + agent type (admin reset preview). */
+  static async countByOrganizationAndAgentType(
+    organizationId: number,
+    agentType: string,
+    trx?: QueryContext
+  ): Promise<{ count: string } | undefined> {
+    return this.table(trx)
+      .where({ organization_id: organizationId, agent_type: agentType })
+      .count<{ count: string }[]>("* as count")
+      .first();
+  }
+
+  /**
+   * Hard-delete all results for an org + agent type (admin reset). Returns
+   * rows deleted. Recommendations must be deleted first (no FK cascade).
+   */
+  static async deleteByOrganizationAndAgentType(
+    organizationId: number,
+    agentType: string,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx)
+      .where({ organization_id: organizationId, agent_type: agentType })
+      .del();
+  }
+
   static async listAdmin(
     filters: AgentResultFilters,
     pagination: PaginationParams,
@@ -280,6 +331,143 @@ export class AgentResultModel extends BaseModel {
       .whereNotNull("agent_type")
       .orderBy("agent_type", "asc");
     return rows.map((row: { agent_type: string }) => row.agent_type);
+  }
+
+  /**
+   * Find an existing agent_results row matching an exact set of equality
+   * conditions and a status whitelist. Mirrors the inline duplicate-check
+   * pattern used before running daily/monthly/optimizer agents:
+   *   .where({ organization_id, agent_type, date_start, date_end })
+   *   .whereIn("status", [...]).first()
+   * Returns the raw row (untyped) to match the original `.first()` consumption.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findExistingByConditions(
+    conditions: Record<string, unknown>,
+    statuses: string[],
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx).where(conditions).whereIn("status", statuses).first();
+  }
+
+  /**
+   * Find an existing system-level guardian result (organization_id IS NULL)
+   * for a given date range and status whitelist. Mirrors the inline
+   * guardian/governance duplicate check in the governance validator.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findExistingSystemResult(
+    conditions: Record<string, unknown>,
+    statuses: string[],
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .where(conditions)
+      .whereNull("organization_id")
+      .whereIn("status", statuses)
+      .first();
+  }
+
+  /**
+   * Fetch all successful agent results within a created_at window, excluding
+   * a set of agent types, ordered by agent_type then created_at. Used by the
+   * governance validator to gather the month's results for guardian review.
+   * Returns raw rows (select *) to preserve the original consumption.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findSuccessfulInWindowExcludingTypes(
+    createdAtStart: Date,
+    createdAtEnd: Date,
+    excludeAgentTypes: string[],
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return this.table(trx)
+      .whereBetween("created_at", [createdAtStart, createdAtEnd])
+      .where("status", "success")
+      .whereNotIn("agent_type", excludeAgentTypes)
+      .orderBy("agent_type")
+      .orderBy("created_at")
+      .select("*");
+  }
+
+  /**
+   * Insert an agent_results row verbatim and return its id. The caller
+   * supplies the full payload (including created_at/updated_at and any
+   * optional run_id), matching the original inline
+   * db("agent_results").insert(...).returning("id") calls. Trx-aware so it
+   * can participate in a caller-owned transaction.
+   */
+  static async insertReturningId(
+    data: Record<string, unknown>,
+    trx?: QueryContext
+  ): Promise<number> {
+    const [row] = await this.table(trx).insert(data).returning("id");
+    return typeof row === "object" ? row.id : row;
+  }
+
+  /**
+   * Insert an agent_results row verbatim (no return value). Used for the
+   * error-result path which discards the inserted id.
+   */
+  static async insertRaw(
+    data: Record<string, unknown>,
+    trx?: QueryContext
+  ): Promise<void> {
+    await this.table(trx).insert(data);
+  }
+
+  /**
+   * Fetch the date_start/date_end for the first of a set of agent result ids.
+   * Mirrors the inline date-range lookup in pms-retry.cleanupMonthlyRunData
+   * (used to scope google_data_store cleanup). Returns the raw first row.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findDateRangeByIds(
+    ids: number[],
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .whereIn("id", ids)
+      .select("date_start", "date_end")
+      .first();
+  }
+
+  /**
+   * Fallback lookup for a monthly-agents run's results when no result ids were
+   * recorded in the job summary: matches org (+ optional location), the
+   * monthly agent_type whitelist, and a created_at window. Mirrors the inline
+   * fallback query in pms-retry.cleanupMonthlyRunData. Returns raw rows
+   * (id, date_start, date_end).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findForMonthlyCleanupFallback(
+    organizationId: number,
+    locationId: number | null | undefined,
+    agentTypes: string[],
+    createdAtStart: string,
+    createdAtEnd: string,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return this.table(trx)
+      .where({ organization_id: organizationId })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .where((qb: any) => {
+        if (locationId) qb.where({ location_id: locationId });
+      })
+      .whereIn("agent_type", agentTypes)
+      .whereBetween("created_at", [createdAtStart, createdAtEnd])
+      .select("id", "date_start", "date_end");
+  }
+
+  /**
+   * Delete agent results by id set. Mirrors the inline delete in
+   * pms-retry.cleanupMonthlyRunData's transaction. Trx-aware.
+   */
+  static async deleteByIds(
+    ids: number[],
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx).whereIn("id", ids).del();
   }
 
   /**

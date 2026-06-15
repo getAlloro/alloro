@@ -1,6 +1,7 @@
 import { Response } from "express";
 import { AuthRequest } from "../../../middleware/auth";
 import { PilotSessionService } from "./services/PilotSessionService";
+import logger from "../../../lib/logger";
 
 export class AdminAuthController {
   static async createPilotSession(
@@ -30,7 +31,7 @@ export class AdminAuthController {
         return res.status(400).json({ error: "Invalid user ID" });
       }
 
-      console.error("[ADMIN PILOT] Error creating pilot session:", error);
+      logger.error({ err: error }, "[ADMIN PILOT] Error creating pilot session:");
       return res
         .status(500)
         .json({ error: "Failed to create pilot session token" });

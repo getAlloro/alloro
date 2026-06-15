@@ -11,6 +11,7 @@
 import fs from "fs";
 import path from "path";
 import { LogLevel } from "./scraper.enums";
+import logger from "../../../lib/logger";
 
 const LOG_DIR = path.join(__dirname, "../../logs");
 const LOG_FILE = path.join(LOG_DIR, "scraping-tool.log");
@@ -43,10 +44,10 @@ export function log(
 
   try {
     fs.appendFileSync(LOG_FILE, logMessage);
-    console.log(`[SCRAPER] [${level}] ${message}`, data || "");
+    logger.info({ detail: data || "" }, `[SCRAPER] [${level}] ${message}`);
   } catch (error) {
-    console.error(`[SCRAPER] Failed to write to log file:`, error);
-    console.log(`[SCRAPER] [${level}] ${message}`, data || "");
+    logger.error({ err: error }, `[SCRAPER] Failed to write to log file:`);
+    logger.info({ detail: data || "" }, `[SCRAPER] [${level}] ${message}`);
   }
 }
 

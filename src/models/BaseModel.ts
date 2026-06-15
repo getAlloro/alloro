@@ -21,6 +21,30 @@ export abstract class BaseModel {
     return (trx || db)(this.tableName);
   }
 
+  /**
+   * Open a database transaction without exposing the raw connection to the
+   * caller. Controllers/services that compose several model writes atomically
+   * call this and thread the resulting `trx` into the model methods, keeping
+   * the transaction boundary in the orchestration layer while the DB handle
+   * stays owned by models/.
+   */
+  static transaction<T>(
+    callback: (trx: Knex.Transaction) => Promise<T>
+  ): Promise<T> {
+    return db.transaction(callback);
+  }
+
+  /**
+   * Open a transaction in imperative (non-callback) mode, returning the
+   * `trx` handle for callers that must `commit()`/`rollback()` explicitly
+   * (e.g. a Stripe webhook handler composing a model write + an external
+   * tier update with bespoke error handling). Keeps the raw `db` handle
+   * owned by models/ — callers thread the returned `trx` into model methods.
+   */
+  static beginTransaction(): Promise<Knex.Transaction> {
+    return db.transaction();
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static async findById(id: number | string, trx?: QueryContext): Promise<any> {
     const row = await this.table(trx).where({ id }).first();

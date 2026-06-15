@@ -26,6 +26,7 @@
 
 import express from "express";
 import * as controller from "../controllers/practice-ranking/PracticeRankingController";
+import * as competitorController from "../controllers/practice-ranking/LocationCompetitorController";
 import { authenticateToken } from "../middleware/auth";
 import {
   rbacMiddleware,
@@ -72,7 +73,7 @@ router.get(
   authenticateToken,
   rbacMiddleware,
   locationScopeMiddleware,
-  controller.getLocationCompetitors
+  competitorController.getLocationCompetitors
 );
 
 router.post(
@@ -81,7 +82,7 @@ router.post(
   rbacMiddleware,
   locationScopeMiddleware,
   requireRole("admin", "manager"),
-  controller.discoverLocationCompetitors
+  competitorController.discoverLocationCompetitors
 );
 
 router.post(
@@ -90,7 +91,7 @@ router.post(
   rbacMiddleware,
   locationScopeMiddleware,
   requireRole("admin", "manager"),
-  controller.previewLocationCompetitorDiscovery
+  competitorController.previewLocationCompetitorDiscovery
 );
 
 router.post(
@@ -99,7 +100,7 @@ router.post(
   rbacMiddleware,
   locationScopeMiddleware,
   requireRole("admin", "manager"),
-  controller.previewLocationCompetitorPlace
+  competitorController.previewLocationCompetitorPlace
 );
 
 router.post(
@@ -108,7 +109,7 @@ router.post(
   rbacMiddleware,
   locationScopeMiddleware,
   requireRole("admin", "manager"),
-  controller.addLocationCompetitor
+  competitorController.addLocationCompetitor
 );
 
 router.delete(
@@ -117,7 +118,7 @@ router.delete(
   rbacMiddleware,
   locationScopeMiddleware,
   requireRole("admin", "manager"),
-  controller.deleteLocationCompetitor
+  competitorController.deleteLocationCompetitor
 );
 
 router.post(
@@ -126,7 +127,7 @@ router.post(
   rbacMiddleware,
   locationScopeMiddleware,
   requireRole("admin", "manager"),
-  controller.finalizeLocationAndRun
+  competitorController.finalizeLocationAndRun
 );
 
 router.post(
@@ -135,7 +136,7 @@ router.post(
   rbacMiddleware,
   locationScopeMiddleware,
   requireRole("admin", "manager"),
-  controller.reselectLocationCompetitorsAndRun
+  competitorController.reselectLocationCompetitorsAndRun
 );
 
 // Authed photo proxy for Place Photo media. Behind login + rate limit because
@@ -145,7 +146,7 @@ router.get(
   "/photo",
   authenticateToken,
   placesPhotoLimiter,
-  controller.getCompetitorPhoto
+  competitorController.getCompetitorPhoto
 );
 
 export default router;

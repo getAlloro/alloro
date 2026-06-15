@@ -9,6 +9,7 @@ import { extractKnowledgeFromTranscript } from "./service.minds-extraction";
 import { compareContent } from "./service.minds-comparison";
 import { applyProposals } from "./service.minds-compiler";
 import { generateGreeting, generateSessionTitle, generatePreviewMessages } from "./service.skill-upgrade-chat";
+import logger from "../../../lib/logger";
 
 const SKILL_UPGRADE_COMPARE_SYSTEM_PROMPT = `You are a skill neuron curator. An admin just taught a skill something new. Compare what was taught against the skill's current neuron (specialized system prompt) and produce proposals for updating it. The admin's input is authoritative.
 
@@ -103,7 +104,7 @@ export async function triggerReadingStream(
     // Fail-safe: clean up any orphaned active runs for this mind before creating a new one
     const orphanedRun = await MindSyncRunModel.findActiveByMind(mindId);
     if (orphanedRun) {
-      console.log(`[MINDS] Cleaning up orphaned sync run ${orphanedRun.id} (status: ${orphanedRun.status}) for mind ${mindId}`);
+      logger.info(`[MINDS] Cleaning up orphaned sync run ${orphanedRun.id} (status: ${orphanedRun.status}) for mind ${mindId}`);
       await MindSyncRunModel.markFailed(orphanedRun.id, "Cleaned up: orphaned by previous failed reading");
     }
 
@@ -205,7 +206,7 @@ export async function triggerReadingStream(
 
     onEvent({ type: "complete", proposalCount: proposals.length, runId: run.id });
   } catch (err: any) {
-    console.error(`[MINDS] Skill upgrade reading failed for session ${sessionId}, rolling back to chatting:`, err.message);
+    logger.error({ err: err.message }, `[MINDS] Skill upgrade reading failed for session ${sessionId}, rolling back to chatting:`);
 
     // Roll back session to chatting so user can retry
     await SkillUpgradeSessionModel.updateStatus(sessionId, "chatting").catch(() => {});
@@ -290,7 +291,7 @@ export async function startCompile(
     approved
   );
 
-  console.log(
+  logger.info(
     `[MINDS] Skill upgrade compile: ${appliedCount} applied, ${warnings.length} warnings for skill ${skillId}`
   );
 

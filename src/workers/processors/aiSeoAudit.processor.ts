@@ -11,6 +11,7 @@
 
 import { Job } from "bullmq";
 import { executeAuditRun } from "../../services/ai-seo-audit/aiSeoAuditService";
+import logger from "../../lib/logger";
 
 interface AiSeoAuditJobData {
   runId: string;
@@ -22,15 +23,12 @@ export async function processAiSeoAudit(job: Job<AiSeoAuditJobData>): Promise<vo
     throw new Error("AI/SEO audit job is missing runId");
   }
 
-  console.log(`[AI-SEO-AUDIT] Processing run ${runId} (job ${job.id})`);
+  logger.info(`[AI-SEO-AUDIT] Processing run ${runId} (job ${job.id})`);
   try {
     await executeAuditRun(runId);
-    console.log(`[AI-SEO-AUDIT] Run ${runId} completed`);
+    logger.info(`[AI-SEO-AUDIT] Run ${runId} completed`);
   } catch (error) {
-    console.error(
-      `[AI-SEO-AUDIT] Run ${runId} failed:`,
-      error instanceof Error ? error.message : error,
-    );
+    logger.error({ err: error instanceof Error ? error.message : error }, `[AI-SEO-AUDIT] Run ${runId} failed:`);
     // Re-throw so BullMQ records the failure; the run row is already marked failed.
     throw error;
   }

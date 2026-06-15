@@ -10,7 +10,9 @@
  * // personalization, and CS expander criteria
  */
 
-import { db } from "../database/connection";
+import { BehavioralEventModel } from "../models/BehavioralEventModel";
+import { OrganizationModel } from "../models/OrganizationModel";
+import logger from "../lib/logger";
 
 // ─── Event Weights ───
 
@@ -58,21 +60,17 @@ function shouldDebounce(orgId: number): boolean {
 export async function getEngagementScore(orgId: number): Promise<number> {
   if (shouldDebounce(orgId)) {
     // Return cached value
-    const org = await db("organizations")
-      .where({ id: orgId })
-      .select("engagement_score")
-      .first();
+    const org = await OrganizationModel.findEngagementScore(orgId);
     return org?.engagement_score ?? 0;
   }
 
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  const events = await db("behavioral_events")
-    .where({ org_id: orgId })
-    .where("created_at", ">=", thirtyDaysAgo)
-    .select("event_type")
-    .orderBy("created_at", "desc");
+  const events = await BehavioralEventModel.findEventTypesByOrgSince(
+    orgId,
+    thirtyDaysAgo
+  );
 
   let rawScore = 0;
   const eventCounts: Record<string, number> = {};
@@ -97,12 +95,7 @@ export async function getEngagementScore(orgId: number): Promise<number> {
   const normalized = Math.min(100, Math.round((rawScore / MAX_RAW_SCORE) * 100));
 
   // Persist
-  await db("organizations")
-    .where({ id: orgId })
-    .update({
-      engagement_score: normalized,
-      engagement_score_updated_at: new Date(),
-    });
+  await OrganizationModel.updateEngagementScore(orgId, normalized);
 
   lastComputeTime.set(orgId, Date.now());
 
@@ -120,11 +113,10 @@ export async function getMostSignificantEvent(orgId: number): Promise<string | n
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-  const events = await db("behavioral_events")
-    .where({ org_id: orgId })
-    .where("created_at", ">=", sevenDaysAgo)
-    .select("event_type")
-    .orderBy("created_at", "desc");
+  const events = await BehavioralEventModel.findEventTypesByOrgSince(
+    orgId,
+    sevenDaysAgo
+  );
 
   if (events.length === 0) return null;
 
@@ -146,7 +138,7 @@ export async function getMostSignificantEvent(orgId: number): Promise<string | n
 export function updateEngagementScoreAsync(orgId: number | null): void {
   if (!orgId) return;
   getEngagementScore(orgId).catch((err) => {
-    console.error(`[BehavioralIntel] Score update failed for org ${orgId}:`, err.message);
+    logger.error({ err: err.message }, `[BehavioralIntel] Score update failed for org ${orgId}:`);
   });
 }
 
@@ -173,9 +165,7 @@ export interface AgentFinding {
  * Downstream consumers: Monday email, morning briefing, one-action card.
  */
 export async function recordAgentFinding(finding: AgentFinding): Promise<void> {
-  await db("behavioral_events").insert({
-    id: db.raw("gen_random_uuid()"),
-    event_type: "agent.finding",
+  await BehavioralEventModel.insertAgentFinding({
     org_id: finding.orgId,
     properties: JSON.stringify({
       agent_name: finding.agentName,
@@ -188,7 +178,6 @@ export async function recordAgentFinding(finding: AgentFinding): Promise<void> {
       competitor_name: finding.competitorName ?? null,
       action_url: finding.actionUrl ?? null,
     }),
-    created_at: new Date(),
   });
 }
 
@@ -202,12 +191,10 @@ export async function getTopAgentFinding(
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - daysBack);
 
-  const rows = await db("behavioral_events")
-    .where({ event_type: "agent.finding", org_id: orgId })
-    .where("created_at", ">=", cutoff)
-    .orderBy("created_at", "desc")
-    .limit(20)
-    .select("properties");
+  const rows = await BehavioralEventModel.findRecentAgentFindingsByOrg(
+    orgId,
+    cutoff
+  );
 
   if (rows.length === 0) return null;
 
@@ -247,12 +234,10 @@ export async function getMostShareableFinding(
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - daysBack);
 
-  const rows = await db("behavioral_events")
-    .where({ event_type: "agent.finding", org_id: orgId })
-    .where("created_at", ">=", cutoff)
-    .orderBy("created_at", "desc")
-    .limit(20)
-    .select("properties");
+  const rows = await BehavioralEventModel.findRecentAgentFindingsByOrg(
+    orgId,
+    cutoff
+  );
 
   if (rows.length === 0) return null;
 
@@ -292,15 +277,10 @@ export async function getAgentFindings(
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - daysBack);
 
-  const query = db("behavioral_events")
-    .where({ event_type: "agent.finding" })
-    .where("created_at", ">=", cutoff)
-    .orderBy("created_at", "desc")
-    .limit(50);
-
-  if (orgId) query.andWhere({ org_id: orgId });
-
-  const rows = await query.select("properties", "org_id");
+  const rows = await BehavioralEventModel.findRecentAgentFindings(
+    orgId,
+    cutoff
+  );
 
   return rows
     .map((row: any) => {

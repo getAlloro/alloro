@@ -6,6 +6,7 @@
  */
 
 import type { Browser, Page } from "playwright";
+import logger from "../../lib/logger";
 
 let browserInstance: Browser | null = null;
 
@@ -17,10 +18,10 @@ async function getBrowser(): Promise<Browser> {
   try {
     const { chromium } = await import("playwright");
     browserInstance = await chromium.launch({ headless: true });
-    console.log("[Screenshot] Browser launched");
+    logger.info("[Screenshot] Browser launched");
     return browserInstance;
   } catch (err) {
-    console.error("[Screenshot] Failed to launch browser:", err);
+    logger.error({ err: err }, "[Screenshot] Failed to launch browser:");
     throw new Error("Playwright browser unavailable");
   }
 }
@@ -100,9 +101,9 @@ export async function screenshotPage(
         url,
       });
 
-      console.log(`[Screenshot] ✓ ${vp.label} (${vp.width}x${vp.height}): ${url}`);
+      logger.info(`[Screenshot] ✓ ${vp.label} (${vp.width}x${vp.height}): ${url}`);
     } catch (err) {
-      console.error(`[Screenshot] Failed ${vp.label} for ${url}:`, (err as Error).message);
+      logger.error({ err: (err as Error).message }, `[Screenshot] Failed ${vp.label} for ${url}:`);
     } finally {
       if (page) await page.close().catch(() => {});
     }
@@ -118,6 +119,6 @@ export async function closeBrowser(): Promise<void> {
   if (browserInstance) {
     await browserInstance.close().catch(() => {});
     browserInstance = null;
-    console.log("[Screenshot] Browser closed");
+    logger.info("[Screenshot] Browser closed");
   }
 }

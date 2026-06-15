@@ -9,13 +9,14 @@
  */
 
 import axios from "axios";
+import logger from "../../../lib/logger";
 
 const APIFY_API_BASE = "https://api.apify.com/v2";
 const APIFY_TOKEN = process.env.APIFY_TOKEN;
 const GOOGLE_MAPS_ACTOR = "compass~crawler-google-places";
 
 function log(msg: string, data?: Record<string, unknown>): void {
-  console.log(`[GBP-Scraper] ${msg}`, data ? JSON.stringify(data) : "");
+  logger.info({ detail: data ? JSON.stringify(data) : "" }, `[GBP-Scraper] ${msg}`);
 }
 
 function checkCancel(signal?: AbortSignal): void {

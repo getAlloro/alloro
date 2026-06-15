@@ -3,6 +3,7 @@ import * as upgradeService from "./feature-services/service.skill-upgrade";
 import * as upgradeChat from "./feature-services/service.skill-upgrade-chat";
 import { MindSyncProposalModel } from "../../models/MindSyncProposalModel";
 import { SkillUpgradeSessionModel } from "../../models/SkillUpgradeSessionModel";
+import logger from "../../lib/logger";
 
 export async function createSession(req: Request, res: Response): Promise<any> {
   try {
@@ -16,7 +17,7 @@ export async function createSession(req: Request, res: Response): Promise<any> {
       data: { session, greeting },
     });
   } catch (error: any) {
-    console.error("[MINDS] Error creating skill upgrade session:", error);
+    logger.error({ err: error }, "[MINDS] Error creating skill upgrade session:");
     return res.status(500).json({ error: "Failed to create skill upgrade session" });
   }
 }
@@ -27,7 +28,7 @@ export async function listSessions(req: Request, res: Response): Promise<any> {
     const sessions = await upgradeService.listSessions(skillId);
     return res.json({ success: true, data: sessions });
   } catch (error: any) {
-    console.error("[MINDS] Error listing skill upgrade sessions:", error);
+    logger.error({ err: error }, "[MINDS] Error listing skill upgrade sessions:");
     return res.status(500).json({ error: "Failed to list skill upgrade sessions" });
   }
 }
@@ -38,7 +39,7 @@ export async function getSession(req: Request, res: Response): Promise<any> {
     const details = await upgradeService.getSessionDetails(sessionId);
     return res.json({ success: true, data: details });
   } catch (error: any) {
-    console.error("[MINDS] Error getting skill upgrade session:", error);
+    logger.error({ err: error }, "[MINDS] Error getting skill upgrade session:");
     if (error.message?.includes("not found")) {
       return res.status(404).json({ error: "Session not found" });
     }
@@ -78,7 +79,7 @@ export async function chatStream(req: Request, res: Response): Promise<any> {
     res.write("data: [DONE]\n\n");
     res.end();
   } catch (error: any) {
-    console.error("[MINDS] Error in skill upgrade chat stream:", error);
+    logger.error({ err: error }, "[MINDS] Error in skill upgrade chat stream:");
     if (!res.headersSent) {
       return res.status(500).json({ error: error.message || "Chat failed" });
     }
@@ -108,7 +109,7 @@ export async function triggerReadingStream(req: Request, res: Response): Promise
     res.write("data: [DONE]\n\n");
     res.end();
   } catch (error: any) {
-    console.error("[MINDS] Error in skill upgrade reading stream:", error);
+    logger.error({ err: error }, "[MINDS] Error in skill upgrade reading stream:");
     if (!res.headersSent) {
       return res.status(500).json({ error: error.message || "Reading failed" });
     }
@@ -128,7 +129,7 @@ export async function getProposals(req: Request, res: Response): Promise<any> {
     const proposals = await MindSyncProposalModel.listByRun(session.sync_run_id);
     return res.json({ success: true, data: proposals });
   } catch (error: any) {
-    console.error("[MINDS] Error getting skill upgrade proposals:", error);
+    logger.error({ err: error }, "[MINDS] Error getting skill upgrade proposals:");
     return res.status(500).json({ error: "Failed to get proposals" });
   }
 }
@@ -145,7 +146,7 @@ export async function updateProposal(req: Request, res: Response): Promise<any> 
     await MindSyncProposalModel.updateStatus(proposalId, status);
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[MINDS] Error updating skill upgrade proposal:", error);
+    logger.error({ err: error }, "[MINDS] Error updating skill upgrade proposal:");
     return res.status(500).json({ error: "Failed to update proposal" });
   }
 }
@@ -156,7 +157,7 @@ export async function startCompile(req: Request, res: Response): Promise<any> {
     const result = await upgradeService.startCompile(mindId, skillId, sessionId);
     return res.json({ success: true, data: result });
   } catch (error: any) {
-    console.error("[MINDS] Error starting skill upgrade compile:", error);
+    logger.error({ err: error }, "[MINDS] Error starting skill upgrade compile:");
     return res.status(500).json({ error: error.message || "Failed to start compile" });
   }
 }
@@ -168,7 +169,7 @@ export async function getCompileStatus(req: Request, res: Response): Promise<any
     if (!session) return res.status(404).json({ error: "Session not found" });
     return res.json({ success: true, data: { status: session.status, result: session.result } });
   } catch (error: any) {
-    console.error("[MINDS] Error getting skill upgrade compile status:", error);
+    logger.error({ err: error }, "[MINDS] Error getting skill upgrade compile status:");
     return res.status(500).json({ error: "Failed to get compile status" });
   }
 }
@@ -182,7 +183,7 @@ export async function deleteSession(req: Request, res: Response): Promise<any> {
     await SkillUpgradeSessionModel.deleteById(sessionId);
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[MINDS] Error deleting skill upgrade session:", error);
+    logger.error({ err: error }, "[MINDS] Error deleting skill upgrade session:");
     return res.status(500).json({ error: "Failed to delete session" });
   }
 }
@@ -193,7 +194,7 @@ export async function abandonSession(req: Request, res: Response): Promise<any> 
     await upgradeService.abandonSession(sessionId);
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[MINDS] Error abandoning skill upgrade session:", error);
+    logger.error({ err: error }, "[MINDS] Error abandoning skill upgrade session:");
     return res.status(500).json({ error: "Failed to abandon session" });
   }
 }
@@ -214,7 +215,7 @@ export async function updateSession(req: Request, res: Response): Promise<any> {
     await SkillUpgradeSessionModel.updateTitle(sessionId, title.trim());
     return res.json({ success: true });
   } catch (error: any) {
-    console.error("[MINDS] Error updating skill upgrade session:", error);
+    logger.error({ err: error }, "[MINDS] Error updating skill upgrade session:");
     return res.status(500).json({ error: "Failed to update session" });
   }
 }

@@ -11,9 +11,8 @@
  * at that path (dedupe), then prune old snapshots beyond the retention cap.
  */
 
-import { db } from "../../database/connection";
-
-const PAGES_TABLE = "website_builder.pages";
+import { PageModel } from "../../models/website-builder/PageModel";
+import logger from "../../lib/logger";
 
 /** Inactive rows kept per project+path beyond draft/published rows. */
 const MAX_INACTIVE_SNAPSHOTS_PER_PATH = 20;
@@ -73,12 +72,11 @@ export async function snapshotPageStateIfChanged(
   page: SnapshotSourcePage
 ): Promise<void> {
   try {
-    const newestHistory = await db(PAGES_TABLE)
-      .where({ project_id: page.project_id, path: page.path })
-      .whereNot("id", page.id)
-      .whereIn("status", ["inactive", "published"])
-      .orderBy("version", "desc")
-      .first();
+    const newestHistory = await PageModel.findNewestHistoryAtPath(
+      page.project_id,
+      page.path,
+      page.id
+    );
 
     const isUnchanged =
       newestHistory &&
@@ -86,14 +84,14 @@ export async function snapshotPageStateIfChanged(
         sectionsComparisonKey(page.sections);
 
     if (!isUnchanged) {
-      const latestPage = await db(PAGES_TABLE)
-        .where({ project_id: page.project_id, path: page.path })
-        .orderBy("version", "desc")
-        .first();
+      const latestPage = await PageModel.findLatestAtPath(
+        page.project_id,
+        page.path
+      );
 
       const nextVersion = latestPage ? latestPage.version + 1 : 1;
 
-      await db(PAGES_TABLE).insert({
+      await PageModel.insertSnapshotRow({
         project_id: page.project_id,
         path: page.path,
         version: nextVersion,
@@ -110,17 +108,14 @@ export async function snapshotPageStateIfChanged(
         revision_note: page.revision_note || null,
       });
 
-      console.log(
+      logger.info(
         `[Page Snapshots] ✓ Snapshot v${nextVersion} for page ${page.id} (${page.path})`
       );
     }
 
     await pruneInactiveSnapshots(page.project_id, page.path);
   } catch (error) {
-    console.error(
-      `[Page Snapshots] Failed to snapshot page ${page.id} (${page.path}) — save continues without history entry:`,
-      error
-    );
+    logger.error({ err: error }, `[Page Snapshots] Failed to snapshot page ${page.id} (${page.path}) — save continues without history entry:`);
   }
 }
 
@@ -132,22 +127,17 @@ export async function pruneInactiveSnapshots(
   projectId: string,
   path: string
 ): Promise<void> {
-  const staleRows = await db(PAGES_TABLE)
-    .where({ project_id: projectId, path, status: "inactive" })
-    .orderBy("version", "desc")
-    .offset(MAX_INACTIVE_SNAPSHOTS_PER_PATH)
-    .select("id");
+  const staleRows = await PageModel.findStaleInactiveSnapshotIds(
+    projectId,
+    path,
+    MAX_INACTIVE_SNAPSHOTS_PER_PATH
+  );
 
   if (staleRows.length === 0) return;
 
-  await db(PAGES_TABLE)
-    .whereIn(
-      "id",
-      staleRows.map((row) => row.id)
-    )
-    .delete();
+  await PageModel.deleteByIds(staleRows.map((row) => row.id));
 
-  console.log(
+  logger.info(
     `[Page Snapshots] Pruned ${staleRows.length} old snapshot(s) at ${path}`
   );
 }

@@ -4,14 +4,7 @@ import {
   getRefreshedSessionToken,
   SESSION_REFRESH_HEADER,
 } from "../controllers/auth-otp/feature-services/service.jwt-management";
-
-/**
- * Read JWT_SECRET lazily at call time so dotenv.config() has already run.
- * Top-level const would capture the value before dotenv loads .env (ESM hoisting).
- */
-function getJwtSecret(): string {
-  return process.env.JWT_SECRET || "dev-secret-key-change-in-prod";
-}
+import { getJwtSecret } from "../config/jwt";
 
 export interface AuthRequest extends Request {
   user?: {

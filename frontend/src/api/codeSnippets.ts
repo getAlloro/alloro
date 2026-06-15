@@ -2,6 +2,19 @@
  * Code Snippets API - Header Footer Code Manager (HFCM)
  */
 
+import { getCommonHeaders } from "./index";
+
+// Attach the Bearer token (via getCommonHeaders) to every admin call. These
+// /api/admin/websites/* routes are protected by the app-level auth guard;
+// bare fetch would 401.
+const adminFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
+  const headers = new Headers(init.headers);
+  Object.entries(getCommonHeaders()).forEach(([key, value]) => {
+    if (!headers.has(key)) headers.set(key, value);
+  });
+  return fetch(input, { ...init, headers });
+};
+
 export type CodeSnippetLocation = 'head_start' | 'head_end' | 'body_start' | 'body_end';
 
 export interface CodeSnippet {
@@ -51,7 +64,7 @@ interface ApiResponse<T> {
 export const fetchTemplateCodeSnippets = async (
   templateId: string
 ): Promise<ApiResponse<CodeSnippet[]>> => {
-  const response = await fetch(`/api/admin/websites/templates/${templateId}/code-snippets`);
+  const response = await adminFetch(`/api/admin/websites/templates/${templateId}/code-snippets`);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch template code snippets: ${response.statusText}`);
@@ -67,7 +80,7 @@ export const createTemplateCodeSnippet = async (
   templateId: string,
   data: CreateCodeSnippetRequest
 ): Promise<ApiResponse<CodeSnippet>> => {
-  const response = await fetch(`/api/admin/websites/templates/${templateId}/code-snippets`, {
+  const response = await adminFetch(`/api/admin/websites/templates/${templateId}/code-snippets`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -89,7 +102,7 @@ export const updateTemplateCodeSnippet = async (
   snippetId: string,
   data: UpdateCodeSnippetRequest
 ): Promise<ApiResponse<CodeSnippet>> => {
-  const response = await fetch(`/api/admin/websites/templates/${templateId}/code-snippets/${snippetId}`, {
+  const response = await adminFetch(`/api/admin/websites/templates/${templateId}/code-snippets/${snippetId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -110,7 +123,7 @@ export const deleteTemplateCodeSnippet = async (
   templateId: string,
   snippetId: string
 ): Promise<ApiResponse<void>> => {
-  const response = await fetch(`/api/admin/websites/templates/${templateId}/code-snippets/${snippetId}`, {
+  const response = await adminFetch(`/api/admin/websites/templates/${templateId}/code-snippets/${snippetId}`, {
     method: "DELETE",
   });
 
@@ -129,7 +142,7 @@ export const toggleTemplateCodeSnippet = async (
   templateId: string,
   snippetId: string
 ): Promise<ApiResponse<{ is_enabled: boolean }>> => {
-  const response = await fetch(`/api/admin/websites/templates/${templateId}/code-snippets/${snippetId}/toggle`, {
+  const response = await adminFetch(`/api/admin/websites/templates/${templateId}/code-snippets/${snippetId}/toggle`, {
     method: "PATCH",
   });
 
@@ -148,7 +161,7 @@ export const reorderTemplateCodeSnippets = async (
   templateId: string,
   snippetIds: string[]
 ): Promise<ApiResponse<void>> => {
-  const response = await fetch(`/api/admin/websites/templates/${templateId}/code-snippets/reorder`, {
+  const response = await adminFetch(`/api/admin/websites/templates/${templateId}/code-snippets/reorder`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ snippetIds }),
@@ -172,7 +185,7 @@ export const reorderTemplateCodeSnippets = async (
 export const fetchProjectCodeSnippets = async (
   projectId: string
 ): Promise<ApiResponse<CodeSnippet[]>> => {
-  const response = await fetch(`/api/admin/websites/${projectId}/code-snippets`);
+  const response = await adminFetch(`/api/admin/websites/${projectId}/code-snippets`);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch project code snippets: ${response.statusText}`);
@@ -188,7 +201,7 @@ export const createProjectCodeSnippet = async (
   projectId: string,
   data: CreateCodeSnippetRequest
 ): Promise<ApiResponse<CodeSnippet>> => {
-  const response = await fetch(`/api/admin/websites/${projectId}/code-snippets`, {
+  const response = await adminFetch(`/api/admin/websites/${projectId}/code-snippets`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -210,7 +223,7 @@ export const updateProjectCodeSnippet = async (
   snippetId: string,
   data: UpdateCodeSnippetRequest
 ): Promise<ApiResponse<CodeSnippet>> => {
-  const response = await fetch(`/api/admin/websites/${projectId}/code-snippets/${snippetId}`, {
+  const response = await adminFetch(`/api/admin/websites/${projectId}/code-snippets/${snippetId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -231,7 +244,7 @@ export const deleteProjectCodeSnippet = async (
   projectId: string,
   snippetId: string
 ): Promise<ApiResponse<void>> => {
-  const response = await fetch(`/api/admin/websites/${projectId}/code-snippets/${snippetId}`, {
+  const response = await adminFetch(`/api/admin/websites/${projectId}/code-snippets/${snippetId}`, {
     method: "DELETE",
   });
 
@@ -250,7 +263,7 @@ export const toggleProjectCodeSnippet = async (
   projectId: string,
   snippetId: string
 ): Promise<ApiResponse<{ is_enabled: boolean }>> => {
-  const response = await fetch(`/api/admin/websites/${projectId}/code-snippets/${snippetId}/toggle`, {
+  const response = await adminFetch(`/api/admin/websites/${projectId}/code-snippets/${snippetId}/toggle`, {
     method: "PATCH",
   });
 
@@ -269,7 +282,7 @@ export const reorderProjectCodeSnippets = async (
   projectId: string,
   snippetIds: string[]
 ): Promise<ApiResponse<void>> => {
-  const response = await fetch(`/api/admin/websites/${projectId}/code-snippets/reorder`, {
+  const response = await adminFetch(`/api/admin/websites/${projectId}/code-snippets/reorder`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ snippetIds }),

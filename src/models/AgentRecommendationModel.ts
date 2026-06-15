@@ -74,6 +74,49 @@ export class AgentRecommendationModel extends BaseModel {
     await this.table(trx).insert(serialized);
   }
 
+  /**
+   * Bulk-insert pre-built recommendation rows verbatim. The recommendation
+   * parser constructs each row with its own created_at/updated_at/observed_at
+   * timestamps and an already-stringified evidence_links field, so this insert
+   * is a passthrough (no timestamp injection, no JSON re-serialization) to
+   * preserve the original inline db("agent_recommendations").insert(rows) call.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async bulkInsertRaw(
+    recommendations: Record<string, unknown>[],
+    trx?: QueryContext
+  ): Promise<void> {
+    await this.table(trx).insert(recommendations);
+  }
+
+  /**
+   * Fetch historical recommendations for an agent filtered by status,
+   * projecting the context columns the guardian/governance payload builder
+   * needs, ordered newest-first and capped. Mirrors the inline historical
+   * PASS/REJECT context queries in the governance validator.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async findHistoricalByAgentAndStatus(
+    agentUnderTest: string,
+    status: string,
+    limit: number,
+    trx?: QueryContext
+  ): Promise<any[]> {
+    return this.table(trx)
+      .where("agent_under_test", agentUnderTest)
+      .where("status", status)
+      .select(
+        "id",
+        "title",
+        "explanation",
+        "verdict",
+        "confidence",
+        "created_at"
+      )
+      .orderBy("created_at", "desc")
+      .limit(limit);
+  }
+
   static async findByAgentResultId(
     agentResultId: number,
     trx?: QueryContext
@@ -107,6 +150,28 @@ export class AgentRecommendationModel extends BaseModel {
     return this.table(trx)
       .where({ agent_result_id: agentResultId })
       .del();
+  }
+
+  /**
+   * Delete every recommendation whose parent agent_result belongs to an org
+   * with the given agent type. Raw subquery preserved verbatim from the admin
+   * reset service (no FK cascade — recommendations go before results). Returns
+   * the raw driver result so the caller reads `.rowCount` exactly as before.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async deleteByOrganizationAndAgentType(
+    organizationId: number,
+    agentType: string,
+    trx?: QueryContext
+  ): Promise<any> {
+    return (trx || db).raw(
+      `DELETE FROM agent_recommendations
+         WHERE agent_result_id IN (
+           SELECT id FROM agent_results
+           WHERE organization_id = ? AND agent_type = ?
+         )`,
+      [organizationId, agentType]
+    );
   }
 
   static async getSummaryByAgent(

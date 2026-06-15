@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>auth, core &amp; shared — Conventions Audit</title>
+<style>
+:root{color-scheme:light;--paper:#fff;--ink:#080808;--muted:#5f5f5f;--line:#d8d8d8;--soft:#f5f5f5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
+.shell{width:min(1000px,calc(100% - 32px));margin:0 auto;padding:40px 0}
+.hero,.card{border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.hero{border-color:var(--ink);padding:28px;margin-bottom:18px}
+.topline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.card{padding:24px;margin-top:16px}
+.eyebrow,dt{color:var(--muted);font-size:.74rem;font-weight:700;text-transform:uppercase}
+.eyebrow{margin:0}
+.pill{display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border:1px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper);font-size:.74rem;font-weight:800;text-transform:uppercase}
+h1,h2,h3,p{margin-top:0}
+h1{margin-bottom:18px;font-size:clamp(1.7rem,4.6vw,2.8rem);line-height:.98}
+h2{font-size:1.2rem}h3{font-size:.95rem;margin-bottom:6px}
+code{padding:.1rem .3rem;border:1px solid var(--line);border-radius:4px;background:var(--soft);font-size:.86em}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:0}
+.meta div{border:1px solid var(--line);border-radius:8px;padding:14px}
+dd{margin:4px 0 0;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:8px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);text-transform:uppercase;font-size:.7rem}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.over{font-weight:800}
+.checklist{list-style:none;padding:0;margin:0}
+.checklist li{display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line);font-size:.88rem}
+.note{border-left:3px solid var(--ink);padding:10px 14px;background:var(--soft);margin:0;font-size:.9rem}
+ul.flags{margin:0;padding-left:18px}ul.flags li{margin-bottom:7px}
+a{color:var(--ink)}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="hero">
+  <div class="topline"><p class="eyebrow">Backend Conventions Audit · Check 17 / 17 · <a href="../spec.html">index</a></p><span class="pill">Audited</span></div>
+  <h1>auth, core &amp; shared</h1>
+  <dl class="meta">
+    <div><dt>Scope</dt><dd><code>auth · agents · config · types · validation · lib · scripts · index.ts</code></dd></div>
+    <div><dt>Files</dt><dd>11</dd></div>
+    <div><dt>Lines</dt><dd>1,933</dd></div>
+    <div><dt>Over 300</dt><dd>1</dd></div>
+    <div><dt>Priority</dt><dd>P2 (security / core)</dd></div>
+  </dl>
+</header>
+
+<section class="card">
+  <h2>Scope</h2>
+  <p>The small top-level layers: auth helpers, the top-level LLM runner, config, shared types, validation schemas, lib, bootstrap scripts, and the entry point.</p>
+  <table>
+    <thead><tr><th>File</th><th class="n">Lines</th></tr></thead>
+    <tbody>
+      <tr><td><code>agents/service.llm-runner.ts</code></td><td class="n over">697 ▲</td></tr>
+      <tr><td><code>index.ts</code></td><td class="n">273</td></tr>
+      <tr><td><code>auth/oauth2Helper.ts</code></td><td class="n">242</td></tr>
+      <tr><td><code>types/pmsMapping.ts</code></td><td class="n">180</td></tr>
+      <tr><td><code>config/stripe.ts</code></td><td class="n">69</td></tr>
+      <tr><td><code>agents/service.prompt-loader.ts</code></td><td class="n">61</td></tr>
+      <tr><td><code>lib/userAgent.ts</code></td><td class="n">55</td></tr>
+      <tr><td><code>types/adminReset.ts</code></td><td class="n">38</td></tr>
+      <tr><td><code>validation/minds.schemas.ts</code></td><td class="n">25</td></tr>
+      <tr><td><code>scripts/</code> (2 files)</td><td class="n">293</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:.78rem;color:var(--muted);margin:8px 0 0">▲ = over the 300-line cap.</p>
+</section>
+
+<section class="card">
+  <h2>Priority Signals (start here)</h2>
+  <ul class="flags">
+    <li><strong>SYSTEMIC GAP — the headline finding of the whole audit.</strong> <code>validation/</code> holds exactly one schema file (<code>minds.schemas.ts</code>, 25 lines) for the entire app. The contract says input validation happens at the route level via <code>validation/</code> schemas. One schema ⇒ validation is almost certainly scattered / inline across controllers, or absent — a repo-wide breach of dimension 12. <strong>Confirm and quantify; this likely reframes the remediation priorities for every other unit.</strong></li>
+    <li><code>agents/service.llm-runner.ts</code> 697 (the only offender) — external LLM calls; audit failure modes, timeouts, retries, and that no prompt/keys are logged.</li>
+    <li><code>auth/oauth2Helper.ts</code> 242 — OAuth token handling; secure storage, no secrets logged.</li>
+    <li><code>config/stripe.ts</code> 69 — confirm secrets come from env only, no keys inline.</li>
+    <li><code>index.ts</code> 273 — bootstrap; confirm it's wiring/registration, not business logic.</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Audit Dimensions</h2>
+  <p>Run every file in scope against the 16-point contract (full detail in <a href="../spec.html#dimensions">spec.html</a>). Dimension 12 (validation coverage) is the primary, repo-wide concern surfaced here.</p>
+  <ul class="checklist">
+    <li><input type="checkbox" disabled> File &le; 300 lines</li>
+    <li><input type="checkbox" disabled> Functions &le; 50 lines</li>
+    <li><input type="checkbox" disabled> Nesting &le; 4 levels</li>
+    <li><input type="checkbox" disabled> Correct folder placement</li>
+    <li><input type="checkbox" disabled> Data flow respected</li>
+    <li><input type="checkbox" disabled> No business logic in <code>index.ts</code> / config</li>
+    <li><input type="checkbox" disabled> No DB queries outside <code>models/</code></li>
+    <li><input type="checkbox" disabled> Error handling on every async call (LLM/OAuth)</li>
+    <li><input type="checkbox" disabled> Consistent result shape</li>
+    <li><input type="checkbox" disabled> No <code>console.log</code> (Pino only)</li>
+    <li><input type="checkbox" disabled> No hardcoded secrets (Stripe/OAuth via env)</li>
+    <li><input type="checkbox" disabled> Validation schemas exist + applied at routes (repo-wide)</li>
+    <li><input type="checkbox" disabled> Auth / token handling secure, nothing logged</li>
+    <li><input type="checkbox" disabled> Naming conventions</li>
+    <li><input type="checkbox" disabled> No commented-out code</li>
+    <li><input type="checkbox" disabled> Transactions for multi-table writes</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Findings</h2>
+  <h3>Summary</h3>
+  <p>This unit is the security/core spine, and the headline of the whole audit lives here. The in-scope files are individually well-engineered (env-only secrets, try/catch on every external call, no credentials logged), but two <strong>repo-wide breaches</strong> surface from this scope: (1) input validation via <code>validation/</code> schemas is effectively non-existent, and (2) the mandated Pino logger is not installed or used anywhere — <code>console.*</code> is the de-facto standard. Severity counts for this unit: <strong>2 must-fix</strong> (both repo-wide), <strong>5 concerns</strong>, <strong>4 nitpicks</strong>. No inline secrets found anywhere in scope; no DB access in <code>config/</code>, <code>index.ts</code>, scripts (correctly via models), or types.</p>
+
+  <h3>Validation coverage (dim 12, repo-wide)</h3>
+  <p><strong>The contract is violated repo-wide.</strong> <code>src/validation/</code> contains exactly <strong>one</strong> file, <code>minds.schemas.ts</code> (25 lines), and it does <em>not</em> validate HTTP input — it validates <em>LLM output</em> (a zod <code>ProposalsSchema</code> consumed by <code>service.minds-comparison.ts</code> via <code>safeParse</code>). There is <strong>no validation middleware</strong> in <code>src/middleware/</code> (only auth/rbac/cors/rate-limit/billing). Across all <strong>39 route files, exactly 0</strong> apply a validation schema (the single <code>validation/</code> import in routes+controllers is the LLM-output one). All 9 zod importers in <code>src/</code> use it for parsing AI/LLM responses, never request bodies. No <code>joi</code>/<code>express-validator</code>/<code>celebrate</code>/<code>yup</code> is present at all. <strong>How validation actually happens:</strong> ad-hoc inline guards inside controllers (~8 controllers reference a <code>VALIDATION_ERROR</code>-style code; ~77 touch <code>req.body/query/params</code> with hand-rolled <code>if (!x) return 400</code> checks of inconsistent shape). <strong>Coverage estimate: 1 schema file (LLM-output only); 0 of 39 route files apply request validation; request validation is inline, ad-hoc, and inconsistent where present.</strong> This reframes dim-12 remediation for every other unit: there is no shared schema layer to extend — one must be created from scratch (recommend a single <code>validate(schema)</code> middleware + per-domain schema files under <code>validation/</code>), and the work is repo-wide, not per-controller cleanup.</p>
+
+  <h3>Must-fix</h3>
+  <ul>
+    <li><code>src/validation/ (whole layer)</code> — [dim 12] No request-input validation layer exists. 0/39 route files validate input via schemas; the lone schema file validates LLM output. Client data reaches controllers untrusted, guarded only by scattered inline <code>if</code> checks. <em>Fix:</em> add a generic <code>validateBody/validateQuery(schema)</code> middleware (zod is already a dependency) and per-domain schema files under <code>validation/</code>; apply at the route level starting with auth/billing/public endpoints. Track as a dedicated repo-wide remediation plan.</li>
+    <li><code>(repo-wide logging)</code> — [dim 10] Pino is <strong>not installed</strong> (absent from <code>package.json</code>, zero imports in <code>src/</code>) despite the contract mandating it. <strong>277 of 922</strong> <code>.ts</code> files use <code>console.*</code>; in-scope alone: llm-runner 15, index 5, oauth2Helper 3, stripe 1, plus the two scripts. <em>Fix:</em> either adopt Pino for real (install, wire <code>pino-http</code>, replace request-path <code>console.*</code>) or formally amend the contract to bless <code>console.*</code>. Until decided, treat dim-10 as a known repo-wide deviation, not a per-file defect — flag the decision to the owner.</li>
+  </ul>
+
+  <h3>Concerns</h3>
+  <ul>
+    <li><code>src/auth/oauth2Helper.ts:50,96,149,197</code> — [dim 7] Direct <code>db("google_connections")</code> queries (select + update) live in <code>auth/</code>, not <code>models/</code>. DB access outside <code>models/</code> violates the data-flow contract. <em>Fix:</em> extract a <code>GoogleConnectionModel</code> (find-by-id, find-by-org, update-tokens) and call it from the helper.</li>
+    <li><code>src/agents/service.llm-runner.ts:1-697</code> — [dim 1] 697 lines, the only size offender in scope (cap 300). Cohesive but oversized. <em>Fix:</em> split into <code>runAgent.ts</code>, <code>runWithTools.ts</code>, and a shared <code>extractJson.ts</code> / system-block builder.</li>
+    <li><code>src/agents/service.llm-runner.ts:109,486</code> — [dim 2] <code>runAgent</code> (~296 lines) and <code>runWithTools</code> (~131 lines) far exceed the 50-line function cap. <em>Fix:</em> extract the zod-retry block, the cost-logging block, and the system-param builder into named helpers.</li>
+    <li><code>src/agents/service.llm-runner.ts:190,301,544</code> — [dim 8/failure-modes] Anthropic calls have try/catch + error context, but <strong>no explicit timeout or abort</strong>; they rely on SDK defaults, so a hung upstream can block a worker turn indefinitely. <em>Fix:</em> pass an explicit request timeout / <code>AbortSignal</code> (and a retry/backoff policy) on the <code>messages.create</code> calls.</li>
+    <li><code>src/index.ts:83-139</code> — [dim 6/4] A ~57-line inline CORS middleware with a hardcoded allowed-origins list lives in the entry point. That is real logic, and a <code>corsCustomDomains.ts</code> middleware already exists alongside it. <em>Fix:</em> move the CORS handler into <code>middleware/</code> and the origin list into <code>config/</code>; <code>index.ts</code> should only register it.</li>
+  </ul>
+
+  <h3>Nitpicks</h3>
+  <ul>
+    <li><code>src/auth/oauth2Helper.ts:124,147</code> — [dim 11] Magic numbers <code>5 * 60 * 1000</code> (refresh window) and <code>3600000</code> (1h fallback expiry). <em>Fix:</em> name them in <code>config/</code> (e.g. <code>OAUTH_REFRESH_BUFFER_MS</code>).</li>
+    <li><code>src/auth/oauth2Helper.ts:210-243</code> — [dim 14/15] Several <code>@deprecated</code> backward-compat alias exports (<code>createOAuth2ClientForAccount</code>, <code>getValidOAuth2Client</code>, <code>createCustomAuth</code>) annotated "migrated in Plan 04 Step 7". <em>Fix:</em> confirm consumers are migrated, then delete the aliases.</li>
+    <li><code>src/scripts/worker-watchdog.ts:28</code> — [dim 11] Personal email <code>dave@getalloro.com</code> as the hardcoded fallback recipient. It is env-overridable (<code>WORKER_ALERT_EMAIL</code>), so low risk. <em>Fix:</em> default to a team alias.</li>
+    <li><code>src/config/stripe.ts:14,53</code> — [dim 14] <code>STRIPE_DEFAULT_PRICE_ID</code> reads from <code>STRIPE_HEALTH_PRICE_ID</code> and the doc-comment says "$2,000/location" while the var is generically named — minor name/intent drift. <em>Fix:</em> align the constant name and comment, or document why the indirection exists.</li>
+  </ul>
+
+  <h3>Coverage</h3>
+  <p>Deep-read: 11 (all in scope — <code>service.llm-runner.ts</code>, <code>service.prompt-loader.ts</code>, <code>oauth2Helper.ts</code>, <code>config/stripe.ts</code>, <code>index.ts</code>, both <code>scripts/</code>, <code>lib/userAgent.ts</code>, <code>types/pmsMapping.ts</code>, <code>types/adminReset.ts</code>, <code>validation/minds.schemas.ts</code>). Grep-sampled: repo-wide validation-coverage probes (39 route files, 0 validated; 9 zod importers, all LLM-output), repo-wide <code>console.*</code> footprint (277/922 files), Pino presence (none), and an inline-secret scan across the full scope (clean). <code>prompt-loader.ts</code>, <code>lib/userAgent.ts</code>, and both <code>types/</code> files are clean against all 16 dimensions.</p>
+</section>
+</main>
+</body>
+</html>

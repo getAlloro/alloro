@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pm — Conventions Audit</title>
+<style>
+:root{color-scheme:light;--paper:#fff;--ink:#080808;--muted:#5f5f5f;--line:#d8d8d8;--soft:#f5f5f5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
+.shell{width:min(1000px,calc(100% - 32px));margin:0 auto;padding:40px 0}
+.hero,.card{border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.hero{border-color:var(--ink);padding:28px;margin-bottom:18px}
+.topline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.card{padding:24px;margin-top:16px}
+.eyebrow,dt{color:var(--muted);font-size:.74rem;font-weight:700;text-transform:uppercase}
+.eyebrow{margin:0}
+.pill{display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border:1px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper);font-size:.74rem;font-weight:800;text-transform:uppercase}
+h1,h2,h3,p{margin-top:0}
+h1{margin-bottom:18px;font-size:clamp(1.8rem,5vw,3rem);line-height:.98}
+h2{font-size:1.2rem}h3{font-size:.95rem}
+code{padding:.1rem .3rem;border:1px solid var(--line);border-radius:4px;background:var(--soft);font-size:.86em}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:0}
+.meta div{border:1px solid var(--line);border-radius:8px;padding:14px}
+dd{margin:4px 0 0;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:8px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);text-transform:uppercase;font-size:.7rem}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.over{font-weight:800}
+.checklist{list-style:none;padding:0;margin:0}
+.checklist li{display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line);font-size:.88rem}
+.note{border-left:3px solid var(--ink);padding:10px 14px;background:var(--soft);margin:0;font-size:.9rem}
+ul.flags{margin:0;padding-left:18px}ul.flags li{margin-bottom:7px}
+a{color:var(--ink)}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="hero">
+  <div class="topline"><p class="eyebrow">Backend Conventions Audit · Check 08 / 17 · <a href="../spec.html">index</a></p><span class="pill">Audited</span></div>
+  <h1>pm</h1>
+  <dl class="meta">
+    <div><dt>Scope</dt><dd><code>src/controllers/pm</code></dd></div>
+    <div><dt>Files</dt><dd>13</dd></div>
+    <div><dt>Lines</dt><dd>2,760</dd></div>
+    <div><dt>Over 300</dt><dd>4</dd></div>
+    <div><dt>Priority</dt><dd>P3</dd></div>
+  </dl>
+</header>
+
+<section class="card">
+  <h2>Scope</h2>
+  <p>Project-management module: tasks, comments, AI synthesis, attachments, projects, stats, activity, notifications, task views.</p>
+  <table>
+    <thead><tr><th>File (rel. to scope)</th><th class="n">Lines</th></tr></thead>
+    <tbody>
+      <tr><td><code>PmTasksController.ts</code></td><td class="n over">616 ▲</td></tr>
+      <tr><td><code>PmCommentsController.ts</code></td><td class="n over">431 ▲</td></tr>
+      <tr><td><code>PmAiSynthController.ts</code></td><td class="n over">374 ▲</td></tr>
+      <tr><td><code>PmAttachmentsController.ts</code></td><td class="n over">354 ▲</td></tr>
+      <tr><td colspan="2"><em>+ 9 more files ≤ 300 lines</em></td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:.78rem;color:var(--muted);margin:8px 0 0">▲ = over the 300-line cap.</p>
+</section>
+
+<section class="card">
+  <h2>Priority Signals (start here)</h2>
+  <ul class="flags">
+    <li>Reasonably structured — consistent PascalCase <code>XxxController.ts</code> naming. Lowest-risk controller domain.</li>
+    <li>Largest: <code>PmTasksController</code> 616, <code>PmCommentsController</code> 431 — split candidates.</li>
+    <li>Attachment handling (<code>PmAttachmentsController</code>, <code>pm-attachments-utils/</code> incl. <code>s3-key.ts</code>) — audit file-upload validation + S3 key handling (path traversal / key injection).</li>
+    <li><code>pmActivityLogger.ts</code> — confirm it uses the Pino logger, not <code>console</code>.</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Audit Dimensions</h2>
+  <p>Run every file in scope against the 16-point contract (full detail in <a href="../spec.html#dimensions">spec.html</a>).</p>
+  <ul class="checklist">
+    <li><input type="checkbox" disabled> File &le; 300 lines</li>
+    <li><input type="checkbox" disabled> Functions &le; 50 lines</li>
+    <li><input type="checkbox" disabled> Nesting &le; 4 levels</li>
+    <li><input type="checkbox" disabled> Correct folder placement</li>
+    <li><input type="checkbox" disabled> Data flow: Routes &rarr; Controllers &rarr; Services &rarr; Models</li>
+    <li><input type="checkbox" disabled> No business logic in routes</li>
+    <li><input type="checkbox" disabled> No DB queries outside <code>models/</code></li>
+    <li><input type="checkbox" disabled> Error handling on every async call</li>
+    <li><input type="checkbox" disabled> <code>{ success, data, error }</code> response shape</li>
+    <li><input type="checkbox" disabled> No <code>console.log</code> (Pino only)</li>
+    <li><input type="checkbox" disabled> No hardcoded secrets / magic values</li>
+    <li><input type="checkbox" disabled> Input validated at route/middleware</li>
+    <li><input type="checkbox" disabled> Auth middleware on protected routes</li>
+    <li><input type="checkbox" disabled> Naming conventions</li>
+    <li><input type="checkbox" disabled> No commented-out code</li>
+    <li><input type="checkbox" disabled> Transactions for multi-table writes</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Findings</h2>
+
+  <h3>Summary</h3>
+  <p>Verdict: <strong>structurally sound, needs cleanup</strong>. Consistent PascalCase <code>XxxController.ts</code> naming confirmed — lowest-risk controller domain as flagged. Every handler is wrapped in try/catch with a per-file <code>handleError</code>, transactions are used correctly for multi-table writes, and the attachment security surface is genuinely well-built (MIME whitelist + hard blocklist + size cap + presigned-only downloads + a server-side text proxy that never hands the browser an executable URL). The real debt is the unit's heavy participation in two systemic problems (direct <code>db()</code> outside <code>models/</code>, console logging) plus a handful of unit-specific issues: dead placeholder code in <code>PmController.ts</code>, a dead no-op block in <code>PmAiSynthController.ts</code>, several functions well over the 50-line cap, 4 files over 300 lines, and an N+1 in <code>listProjects</code>. No SQL-injection or path-traversal exploit found — both raw-SQL and the unsanitized S3 <code>taskId</code> are mitigated (whitelisted branches / prior int-keyed <code>findById</code> 404). Severity counts: <strong>Must-fix 2 · Concerns 8 · Nitpicks 5</strong> (systemic items folded into concerns, counted once).</p>
+
+  <h3>Must-fix</h3>
+  <ul>
+    <li><code>PmController.ts:12-25,41</code> — [dim 15] Dead placeholder exports: <code>extractTasks</code>, <code>batchCreateTasks</code>, <code>getLatestBrief</code>, <code>getBriefHistory</code>, <code>getGlobalActivity</code>, <code>getProjectActivity</code>, <code>getStats</code> all return empty stubs and shadow real implementations that live in <code>PmAiSynthController</code> / <code>PmActivityController</code> / <code>PmStatsController</code>. Only <code>listUsers</code> is actually consumed (via <code>routes/pm/users.ts</code>); the routed activity/stats handlers correctly import the real controllers, so these stubs are pure dead code that invites a future mis-import returning silently-empty data. <em>Fix:</em> delete the seven placeholder exports and the two <code>placeholder*</code> helpers; keep only <code>listUsers</code> + its <code>PmUserRow</code>/<code>displayNameForUser</code> support.</li>
+    <li><code>PmAiSynthController.ts:134-137</code> — [dim 15] Dead no-op block: <code>if (error?.batchId || (error as any)?.batch_id) { /* batch variable may not be in scope */ }</code> has an empty body and an inert comment — it does nothing. <em>Fix:</em> delete the block; the real cleanup (mark orphaned "synthesizing" batches failed) already follows at lines 140-145.</li>
+  </ul>
+
+  <h3>Concerns</h3>
+  <ul>
+    <li><code>(scope-wide)</code> — [systemic][dim 7] Direct <code>db("table")</code> / <code>db.raw</code> outside <code>models/</code>: ~50 call sites in 9 of 13 files. Counts: <code>PmAiSynthController</code> 19, <code>PmActivityController</code> 7, <code>PmTasksController</code> 6, <code>PmProjectsController</code> 5 (+5 raw), <code>PmStatsController</code> 3 (+3 raw), <code>PmNotificationsController</code> 3, <code>PmCommentsController</code> 3, <code>PmAttachmentsController</code> 3, <code>PmController</code> 1. Controllers query <code>pm_*</code> + <code>users</code> tables and even hand-roll raw aggregate subqueries directly. <em>Fix (systemic):</em> push queries behind the existing <code>Pm*Model</code> classes (notifications, activity, batch-task, stats aggregates have no model coverage yet) — out of scope for a one-file fix; flag for the architecture track.</li>
+    <li><code>(scope-wide)</code> — [systemic][dim 9] Response shape is flat <code>{ success:false, error: "message-string" }</code> in all ~64 error returns; the contract's nested <code>error:{ code, message, details }</code> object is never used, and success payloads vary between bare arrays, <code>{ items }</code>-style objects, and top-level <code>total</code> siblings. <em>Fix (systemic):</em> adopt the <code>{ success, data, error }</code> envelope with machine-readable <code>error.code</code> via a shared responder; track repo-wide.</li>
+    <li><code>(scope-wide)</code> — [systemic][dim 12] No route-level input validation: none of the PM routes apply a <code>validation/</code> schema; every check (<code>title</code> required, <code>task_ids</code> array, numeric <code>userId</code>) is hand-done inside controllers, and several IDs flow straight from <code>req.params</code>/<code>req.body</code> into queries untyped. <em>Fix (systemic):</em> add validation middleware per route; track repo-wide.</li>
+    <li><code>PmTasksController.ts:199-317</code> (<code>moveTask</code> ~118 lines), <code>:429-559</code> (<code>bulkMoveTasksToProject</code> ~130 lines) — [dim 2] Functions far over the 50-line cap; both bury column-shift, completion-tracking, backlog-priority, notification fan-out, and position-compaction logic inline. <em>Fix:</em> extract helpers (<code>shiftColumnPositions</code>, <code>applyCompletionTransition</code>, <code>compactColumns</code>, <code>notifyAssigneeCompleted</code>) into a domain service alongside the controller.</li>
+    <li><code>PmAiSynthController.ts:23-148</code> (<code>extractBatch</code> ~125 lines) — [dim 2] Single function does input parsing, file extraction, prompt assembly, LLM call, response-format salvage, per-task validation/insert, and batch-counter updates. <em>Fix:</em> split into <code>buildSynthPrompt</code>, <code>parseProposedTasks</code>, and <code>persistBatchTasks</code> helpers.</li>
+    <li><code>PmCommentsController.ts:107-228</code> (<code>createComment</code> ~121 lines) — [dim 2] Comment insert + 3-tier recipient dedup + metadata build + batch notification insert + activity log in one body. <em>Fix:</em> extract <code>buildCommentRecipients(task, mentions, authorId)</code> and <code>insertCommentNotifications</code>.</li>
+    <li><code>PmProjectsController.ts:41-83</code> — [dim 2 / perf] N+1 in <code>listProjects</code>: <code>Promise.all(projects.map(...))</code> fires 2 extra queries (<code>statusCounts</code> + <code>dailyActivity</code>) <em>per project</em> on top of 3 correlated subqueries already in the base select. Project-count growth multiplies round-trips. <em>Fix:</em> fold the per-project breakdowns into grouped joins or a single windowed query in a <code>PmProjectModel</code> method.</li>
+    <li><code>PmAttachmentsController.ts:87-97</code> + <code>constants.ts:45</code> — [dim 12 / security] MIME type is taken from client-supplied <code>file.mimetype</code> with no magic-byte sniffing, and <code>application/octet-stream</code> sits on the allow-list as an escape hatch — so a renamed executable declaring <code>octet-stream</code> passes the gate (it is stored, never executed server-side, and downloads are presigned, so impact is bounded). <em>Fix:</em> sniff real content type (e.g. <code>file-type</code> on the buffer) and drop the <code>octet-stream</code> allowance, or store-but-force-download untrusted types.</li>
+  </ul>
+
+  <h3>Nitpicks</h3>
+  <ul>
+    <li><code>(scope-wide)</code> — [systemic][dim 10] <code>console.error</code> in every file's <code>handleError</code> (13 sites). Pino is not installed repo-wide. <code>pmActivityLogger.ts</code> is clean — it does no logging, just delegates to <code>PmActivityLogModel.create</code> (the Pino-vs-console question for it resolves to "neither / N/A"). <em>Fix:</em> swap to the Pino instance once adopted.</li>
+    <li><code>s3-key.ts:14-17</code> — [dim 11 / security, defense-in-depth] <code>taskId</code> is interpolated into the S3 key (<code>pm-attachments/${taskId}/...</code>) without the same sanitization applied to the filename. Currently safe because every caller passes <code>req.params.id</code> only after <code>PmTaskModel.findById(taskId)</code> matched a real integer-keyed row (a traversal string would 404 first), but the util itself makes no guarantee. <em>Fix:</em> sanitize/coerce <code>taskId</code> to digits inside <code>buildAttachmentS3Key</code> so the helper is safe regardless of caller.</li>
+    <li><code>PmTasksController.ts</code>, <code>PmCommentsController.ts</code>, <code>PmProjectsController.ts</code> et al. — [dim 14, minor] Pervasive <code>any</code> on query rows (<code>tasks: any[]</code>, <code>row: any</code>, <code>.map((r: any) =>)</code>) erases type safety on DB shapes. <em>Fix:</em> type rows via model row interfaces.</li>
+    <li><code>PmAttachmentsController.ts:38-42</code> (and each file's <code>handleError</code>) — [dim 8, minor] On 500s the raw <code>error.message</code> is returned to the client (<code>error: message</code>), which can leak internal detail; <code>PmAiSynthController</code> already does the right thing by returning a generic string. <em>Fix:</em> return a generic message externally, keep <code>error.message</code> in the log only.</li>
+    <li><code>PmStatsController.ts:101,117,133</code> — [dim 11, minor] Timezone <code>'America/Los_Angeles'</code> hardcoded in the velocity raw SQL. Not user-input (injection-safe) but a magic value. <em>Fix:</em> lift to a named config constant.</li>
+  </ul>
+
+  <h3>Coverage</h3>
+  <p>Deep-read 9 (all 4 over-300 offenders + <code>PmController</code>, <code>PmStatsController</code>, <code>PmActivityController</code>, <code>PmNotificationsController</code>, <code>PmTaskViewsController</code>, plus <code>pmActivityLogger.ts</code>, <code>pm-attachments-utils/s3-key.ts</code> &amp; <code>constants.ts</code> and the <code>routes/pm/attachments.ts</code> + <code>activity.ts</code> wiring for security/data-flow context). Grep-sampled 13/13 for <code>console.*</code>, <code>db(</code>/<code>knex</code>/<code>.raw</code>, commented-out code, TODO/FIXME, response-shape, and nesting depth; cross-checked route imports to confirm the dead-placeholder finding. Not examined 0 — full file coverage for this scope. Models referenced for behavior (<code>BaseModel.findById</code>, <code>PmTaskModel</code>) but out of scope.</p>
+</section>
+</main>
+</body>
+</html>

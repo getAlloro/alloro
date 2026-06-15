@@ -1,6 +1,7 @@
 import { google } from "googleapis";
-import { db } from "../database/connection";
+import { GoogleConnectionModel } from "../models/GoogleConnectionModel";
 import { OrganizationLifecycleService } from "../services/OrganizationLifecycleService";
+import logger from "../lib/logger";
 
 // OAuth2 configuration interface
 interface OAuth2Config {
@@ -47,9 +48,7 @@ const getOAuth2Config = (): OAuth2Config => {
 export const createOAuth2ClientForConnection = async (connectionId: number) => {
   const config = getOAuth2Config();
 
-  const connection = await db("google_connections")
-    .where({ id: connectionId })
-    .first();
+  const connection = await GoogleConnectionModel.findRawById(connectionId);
 
   if (!connection) {
     throw new Error(`Google connection not found: ${connectionId}`);
@@ -93,9 +92,7 @@ export const getValidOAuth2ClientByConnection = async (
 ) => {
   const config = getOAuth2Config();
 
-  const connection = await db("google_connections")
-    .where({ id: connectionId })
-    .first();
+  const connection = await GoogleConnectionModel.findRawById(connectionId);
 
   if (!connection) {
     throw new Error(`Google connection not found: ${connectionId}`);
@@ -125,7 +122,7 @@ export const getValidOAuth2ClientByConnection = async (
   const shouldRefresh = options.forceRefresh || isExpiringSoon;
 
   if (shouldRefresh) {
-    console.log(
+    logger.info(
       options.forceRefresh
         ? `[OAuth Helper] Force refreshing token for connection ${connectionId}`
         : `[OAuth Helper] Token expiring soon, refreshing for connection ${connectionId}`
@@ -146,13 +143,14 @@ export const getValidOAuth2ClientByConnection = async (
         ? new Date(credentials.expiry_date)
         : new Date(Date.now() + 3600000);
 
-      await db("google_connections").where({ id: connectionId }).update({
+      // updateById injects updated_at: new Date() automatically, preserving the
+      // original 3-column update (access_token, expiry_date, updated_at).
+      await GoogleConnectionModel.updateById(connectionId, {
         access_token: credentials.access_token,
         expiry_date: newExpiry,
-        updated_at: new Date(),
       });
 
-      console.log(
+      logger.info(
         `[OAuth Helper] Token refreshed for connection ${connectionId}`
       );
 
@@ -164,10 +162,7 @@ export const getValidOAuth2ClientByConnection = async (
         token_type: credentials.token_type,
       });
     } catch (error: any) {
-      console.error(
-        `[OAuth Helper] Failed to refresh token for connection ${connectionId}:`,
-        error.message
-      );
+      logger.error({ err: error.message }, `[OAuth Helper] Failed to refresh token for connection ${connectionId}:`);
       throw error;
     }
   } else {
@@ -194,9 +189,8 @@ export const getValidOAuth2ClientByOrg = async (
   organizationId: number,
   options: GoogleOAuthClientOptions = {}
 ) => {
-  const connection = await db("google_connections")
-    .where({ organization_id: organizationId })
-    .first();
+  const connection =
+    await GoogleConnectionModel.findRawByOrganization(organizationId);
 
   if (!connection) {
     throw new Error(

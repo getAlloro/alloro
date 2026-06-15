@@ -9,9 +9,9 @@
  * manually after a domain is verified to avoid the 5-minute delay.
  */
 
-import { db } from "../database/connection";
+import { ProjectModel } from "../models/website-builder/ProjectModel";
+import logger from "../lib/logger";
 
-const PROJECTS_TABLE = "website_builder.projects";
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 let allowedDomains = new Set<string>();
@@ -22,21 +22,7 @@ let refreshTimer: ReturnType<typeof setInterval> | null = null;
  */
 export async function refreshCustomDomainCache(): Promise<void> {
   try {
-    const rows = await db(PROJECTS_TABLE)
-      .leftJoin(
-        "organizations",
-        `${PROJECTS_TABLE}.organization_id`,
-        "organizations.id"
-      )
-      .select(`${PROJECTS_TABLE}.custom_domain`, `${PROJECTS_TABLE}.custom_domain_alt`)
-      .whereNotNull(`${PROJECTS_TABLE}.domain_verified_at`)
-      .whereNotNull(`${PROJECTS_TABLE}.custom_domain`)
-      .whereNull(`${PROJECTS_TABLE}.archived_at`)
-      .where(function () {
-        this.whereNull(`${PROJECTS_TABLE}.organization_id`).orWhereNull(
-          "organizations.archived_at"
-        );
-      });
+    const rows = await ProjectModel.findAllVerifiedDomains();
 
     const domains = new Set<string>();
     for (const row of rows) {
@@ -45,9 +31,9 @@ export async function refreshCustomDomainCache(): Promise<void> {
     }
 
     allowedDomains = domains;
-    console.log(`[CORS] Custom domain cache refreshed: ${domains.size} domains`);
+    logger.info(`[CORS] Custom domain cache refreshed: ${domains.size} domains`);
   } catch (err) {
-    console.error("[CORS] Failed to refresh custom domain cache:", err);
+    logger.error({ err: err }, "[CORS] Failed to refresh custom domain cache:");
   }
 }
 

@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>admin-websites — Conventions Audit</title>
+<style>
+:root{color-scheme:light;--paper:#fff;--ink:#080808;--muted:#5f5f5f;--line:#d8d8d8;--soft:#f5f5f5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
+.shell{width:min(1000px,calc(100% - 32px));margin:0 auto;padding:40px 0}
+.hero,.card{border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.hero{border-color:var(--ink);padding:28px;margin-bottom:18px}
+.topline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.card{padding:24px;margin-top:16px}
+.eyebrow,dt{color:var(--muted);font-size:.74rem;font-weight:700;text-transform:uppercase}
+.eyebrow{margin:0}
+.pill{display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border:1px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper);font-size:.74rem;font-weight:800;text-transform:uppercase}
+h1,h2,h3,p{margin-top:0}
+h1{margin-bottom:18px;font-size:clamp(1.8rem,5vw,3rem);line-height:.98}
+h2{font-size:1.2rem}h3{font-size:.95rem}
+code{padding:.1rem .3rem;border:1px solid var(--line);border-radius:4px;background:var(--soft);font-size:.86em}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:0}
+.meta div{border:1px solid var(--line);border-radius:8px;padding:14px}
+dd{margin:4px 0 0;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:8px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);text-transform:uppercase;font-size:.7rem}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.over{font-weight:800}
+.checklist{list-style:none;padding:0;margin:0}
+.checklist li{display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line);font-size:.88rem}
+.note{border-left:3px solid var(--ink);padding:10px 14px;background:var(--soft);margin:0;font-size:.9rem}
+ul.flags{margin:0;padding-left:18px}ul.flags li{margin-bottom:7px}
+a{color:var(--ink)}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="hero">
+  <div class="topline"><p class="eyebrow">Backend Conventions Audit · Check 01 / 17 · <a href="../spec.html">index</a></p><span class="pill">Audited</span></div>
+  <h1>admin-websites</h1>
+  <dl class="meta">
+    <div><dt>Scope</dt><dd><code>src/controllers/admin-websites</code></dd></div>
+    <div><dt>Files</dt><dd>50</dd></div>
+    <div><dt>Lines</dt><dd>25,727</dd></div>
+    <div><dt>Over 300</dt><dd>27</dd></div>
+    <div><dt>Priority</dt><dd>P1</dd></div>
+  </dl>
+</header>
+
+<section class="card">
+  <h2>Scope</h2>
+  <p>Website builder + admin domain: generation pipeline, SEO, integrations (GSC / Clarity / Rybbit), page editor, post import/management, backups. The single largest backend domain — ~27% of all backend lines.</p>
+  <table>
+    <thead><tr><th>File (rel. to scope)</th><th class="n">Lines</th></tr></thead>
+    <tbody>
+      <tr><td><code>AdminWebsitesController.ts</code></td><td class="n over">5,567 ▲</td></tr>
+      <tr><td><code>feature-services/service.ai-command.ts</code></td><td class="n over">2,184 ▲</td></tr>
+      <tr><td><code>feature-services/service.identity-warmup.ts</code></td><td class="n over">1,484 ▲</td></tr>
+      <tr><td><code>WebsiteIntegrationsController.ts</code></td><td class="n over">956 ▲</td></tr>
+      <tr><td><code>feature-services/service.generation-pipeline.ts</code></td><td class="n over">890 ▲</td></tr>
+      <tr><td><code>feature-services/service.post-importer.ts</code></td><td class="n over">874 ▲</td></tr>
+      <tr><td><code>feature-services/service.page-editor.ts</code></td><td class="n over">841 ▲</td></tr>
+      <tr><td><code>feature-utils/util.identity-context.ts</code></td><td class="n over">826 ▲</td></tr>
+      <tr><td><code>feature-services/service.project-manager.ts</code></td><td class="n over">721 ▲</td></tr>
+      <tr><td><code>feature-services/service.seo-generation.ts</code></td><td class="n over">680 ▲</td></tr>
+      <tr><td><code>feature-services/service.url-scrape-strategies.ts</code></td><td class="n over">612 ▲</td></tr>
+      <tr><td><code>feature-services/service.gsc-integration.ts</code></td><td class="n over">582 ▲</td></tr>
+      <tr><td><code>feature-services/service.clarity-integration.ts</code></td><td class="n over">567 ▲</td></tr>
+      <tr><td><code>feature-services/service.hfcm-manager.ts</code></td><td class="n over">520 ▲</td></tr>
+      <tr><td><code>feature-services/service.layouts-pipeline.ts</code></td><td class="n over">490 ▲</td></tr>
+      <tr><td><code>feature-services/service.menu-manager.ts</code></td><td class="n over">473 ▲</td></tr>
+      <tr><td><code>feature-utils/util.url-block-detector.ts</code></td><td class="n over">451 ▲</td></tr>
+      <tr><td><code>feature-services/service.post-manager.ts</code></td><td class="n over">413 ▲</td></tr>
+      <tr><td><code>feature-services/service.template-manager.ts</code></td><td class="n over">407 ▲</td></tr>
+      <tr><td><code>feature-utils/util.html-normalizer.ts</code></td><td class="n over">372 ▲</td></tr>
+      <tr><td><code>feature-services/service.rybbit-performance.ts</code></td><td class="n over">332 ▲</td></tr>
+      <tr><td><code>feature-services/service.artifact-upload.ts</code></td><td class="n over">330 ▲</td></tr>
+      <tr><td><code>feature-services/service.rybbit-integration.ts</code></td><td class="n over">328 ▲</td></tr>
+      <tr><td><code>feature-services/service.post-taxonomy-manager.ts</code></td><td class="n over">316 ▲</td></tr>
+      <tr><td><code>feature-services/service.form-detection.ts</code></td><td class="n over">311 ▲</td></tr>
+      <tr><td><code>feature-services/service.post-type-manager.ts</code></td><td class="n over">308 ▲</td></tr>
+      <tr><td><code>BackupController.ts</code></td><td class="n over">302 ▲</td></tr>
+      <tr><td colspan="2"><em>+ 23 more files ≤ 300 lines</em></td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:.78rem;color:var(--muted);margin:8px 0 0">▲ = over the 300-line cap.</p>
+</section>
+
+<section class="card">
+  <h2>Priority Signals (start here)</h2>
+  <ul class="flags">
+    <li><strong>AdminWebsitesController.ts = 5,567 lines (18× the cap).</strong> Near-certain god-controller mixing orchestration + business logic + likely inline DB access. The top single remediation target in the entire backend.</li>
+    <li>27 of 50 files over cap; eight services sit in the 800–2,184 range. Decomposition + data-flow audit, not just trimming.</li>
+    <li>This domain <em>defines</em> the <code>feature-services/</code> + <code>feature-utils/</code> nesting pattern. Rule on accepted-vs-drift here — the verdict propagates to T02/T04 and beyond.</li>
+    <li>Verify business logic and DB access have not leaked out of <code>models/</code> into the controller and feature-services (dimensions 5–7).</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Audit Dimensions</h2>
+  <p>Run every file in scope against the 16-point contract (full detail in <a href="../spec.html#dimensions">spec.html</a>).</p>
+  <ul class="checklist">
+    <li><input type="checkbox" disabled> File &le; 300 lines</li>
+    <li><input type="checkbox" disabled> Functions &le; 50 lines</li>
+    <li><input type="checkbox" disabled> Nesting &le; 4 levels</li>
+    <li><input type="checkbox" disabled> Correct folder placement</li>
+    <li><input type="checkbox" disabled> Data flow: Routes &rarr; Controllers &rarr; Services &rarr; Models</li>
+    <li><input type="checkbox" disabled> No business logic in routes</li>
+    <li><input type="checkbox" disabled> No DB queries outside <code>models/</code></li>
+    <li><input type="checkbox" disabled> Error handling on every async call</li>
+    <li><input type="checkbox" disabled> <code>{ success, data, error }</code> response shape</li>
+    <li><input type="checkbox" disabled> No <code>console.log</code> (Pino only)</li>
+    <li><input type="checkbox" disabled> No hardcoded secrets / magic values</li>
+    <li><input type="checkbox" disabled> Input validated at route/middleware</li>
+    <li><input type="checkbox" disabled> Auth middleware on protected routes</li>
+    <li><input type="checkbox" disabled> Naming conventions</li>
+    <li><input type="checkbox" disabled> No commented-out code</li>
+    <li><input type="checkbox" disabled> Transactions for multi-table writes</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Findings</h2>
+
+  <h3>Summary</h3>
+  <p>This is the backend's rot epicenter and the verdict matches. <code>AdminWebsitesController.ts</code> is a genuine god-controller: 5,567 lines, 166 exported handlers, ~10 distinct domains, with business logic, domain models, and 28 raw <code>db("website_builder.…")</code> queries (including 4 multi-table <code>db.transaction</code> blocks) inlined directly in the controller. The <code>feature-services/</code> + <code>feature-utils/</code> split is sound and worth keeping — but it is undermined by ubiquitous direct DB access (805+ query-builder call-sites across 26 files, bypassing 33 existing models) and a handful of 200–450-line orchestrator functions. The most serious finding is orthogonal to size: <strong>176 of 210 route registrations carry no auth middleware</strong>, and the router is mounted bare with no app-level guard, leaving most admin website endpoints (including destructive writes) publicly reachable. Severity counts: <strong>5 must-fix · 6 concerns · 4 nitpicks</strong>.</p>
+
+  <h3>feature-services nesting verdict</h3>
+  <p><strong>Accepted evolution — keep it, with one carve-out.</strong> Co-locating domain-specific services and utils beside the controller is explicitly blessed by the contract (Folder Structure: "Controllers can contain domain-nested <code>services/</code> and <code>utils/</code>"). The <code>service.*.ts</code> / <code>util.*.ts</code> filename prefixes are a clear, self-documenting local convention and the <em>internal</em> decomposition of these files (named helpers, single-responsibility headers) is genuinely good. The pattern is fine to apply repo-wide. The carve-out: the convention is being used as a <em>dumping ground that excuses skipping <code>models/</code></em>. Domain-nested services are allowed; domain-nested services running raw Knex are not. Adopt the folder pattern, but pair it with a hard rule that every <code>db(…)</code> call moves into <code>models/website-builder/*</code> (which already exists with 33 models). Nesting = accepted; DB-in-services = drift.</p>
+
+  <h3>Must-fix</h3>
+  <ul>
+    <li><code>routes/admin/websites.ts</code> (mounted bare at <code>index.ts:183</code>) — [dim 13] 176 of 210 route registrations have NO auth middleware; only ~34 (GSC/integrations + a few recent routes) spread <code>...adminWebsiteAuth</code>/<code>...adminGscAuth</code>. Unguarded routes include <code>POST /</code> (createProject), <code>POST /start-pipeline</code>, <code>DELETE /…/post-types/:postTypeId</code>, <code>DELETE /…/review-blocks/:id</code>, <code>PATCH /pages/:pageId/generation-status</code>, etc. No app-level guard exists on <code>/api/admin/websites</code>. This is an unauthenticated admin write surface (Level 4 blast radius). <em>Fix:</em> apply auth at the router level — <code>router.use(authenticateToken, superAdminMiddleware)</code> at the top of the file — then remove the now-redundant per-route arrays, keeping the stricter <code>adminGscAuth</code> (adds <code>rbacMiddleware</code>) where it differs. Verify nothing relies on a route being public.</li>
+    <li><code>AdminWebsitesController.ts</code> (whole file) — [dim 1] 5,567 lines, 18.5× the 300-line cap; [dim 6] business logic in the controller. <em>Fix:</em> decompose by the 10 domains already named in its own header doc-comment (Projects, Templates, Pages, HFCM, Posts, Menus, SEO, Reviews, AI-Command, Locations) into per-domain controller files; push all orchestration/business logic into the existing feature-services.</li>
+    <li><code>AdminWebsitesController.ts</code> — [dim 7] 28 raw <code>db("website_builder.…")</code> queries inline in the controller (e.g. lines 327, 585, 597, 727, 1069, 5014, 5147, 5257, 5337). [dim 16] Four of these are multi-table <code>db.transaction</code> blocks (<code>addProjectLocation</code> 5105, <code>setPrimaryLocation</code> 5212, <code>removeProjectLocation</code> 5296, plus L597) writing <code>ProjectIdentityModel</code> + raw <code>projects</code> — transaction handling is correct but lives at the wrong layer. <em>Fix:</em> move every query into <code>models/website-builder/*</code> (ProjectModel/PageModel/etc. already exist); expose model methods that own the transaction, call them from a service.</li>
+    <li><code>feature-services/service.ai-command.ts</code> — [dim 2] <code>analyzeBatch</code> (lines 87–540, ≈453 lines) and [dim 1] the file at 2,184 lines (7.3×). Also <code>executeCreatePage</code> (≈200), <code>analyzeSpecializedBatch</code> (≈200), <code>executeCreatePost</code> (≈160), <code>executeUpdateMenu</code> (≈130). [dim 7] 106 <code>db(…)</code> call-sites here. <em>Fix:</em> split the analyze pipeline and each execute-handler into their own modules; route DB access through Post/Page/Menu/Redirect models.</li>
+    <li><code>feature-services/service.identity-warmup.ts</code> — [dim 2] <code>runIdentityWarmup</code> (lines 167–551, ≈384 lines, 7.7× the function cap) and [dim 1] file at 1,484 lines. <em>Fix:</em> the 8 pipeline stages are already documented in the header; extract each stage (GBP scrape, multi-URL scrape, image analysis, logo host, archetype, distillation, assembly) into its own named function/module ≤50 lines and have <code>runIdentityWarmup</code> be a thin sequencer.</li>
+  </ul>
+
+  <h3>Concerns</h3>
+  <ul>
+    <li>[dim 1] 27 of 50 files exceed 300 lines; 8 services sit in the 407–2,184 range (generation-pipeline 890, post-importer 874, page-editor 841, project-manager 721, seo-generation 680, url-scrape-strategies 612, gsc-integration 582, clarity-integration 567). <em>Fix:</em> systematic extraction; not all urgent, but all over cap.</li>
+    <li>[dim 7] DB access outside <code>models/</code> is domain-wide, not just the controller: 26 files import <code>db</code> from <code>database/connection</code> and total 805+ query-builder call-sites, while 33 purpose-built models already exist and are bypassed. <code>WebsiteIntegrationsController.ts</code> (0 direct <code>db()</code>, delegates fully to <code>WebsiteIntegrationModel</code>) proves the correct pattern is achievable in this domain. <em>Fix:</em> treat models/ as the only DB layer; migrate services file-by-file.</li>
+    <li>[dim 9] Response error shape is non-contract everywhere: every error uses flat <code>{ success:false, error:"CODE", message:"…" }</code> (42 sites) instead of the contract's nested <code>{ success:false, data:null, error:{ code, message, details } }</code> — <strong>zero</strong> files use the nested shape. Also <code>pagination</code> is a sibling of <code>data</code> (3 sites) rather than nested in <code>data</code>. Internally consistent but uniformly wrong vs the contract. <em>Fix:</em> introduce a shared response helper and migrate; coordinate with frontend consumers (Level 3 blast radius — clients parse the flat shape today).</li>
+    <li>[dim 12] No input validation via <code>validation/</code> schemas/middleware. Controllers hand-roll checks (e.g. <code>req.body?.place_id … .toString().trim()</code>, manual <code>if (!placeId) return 400</code>). The contract requires schema validation at the route/middleware level. <em>Fix:</em> add Zod schemas in <code>validation/</code> applied as middleware (<code>z</code> is already imported in the controller).</li>
+    <li>[dim 5] Domain types/models are defined inside the controller: <code>interface LocationsIdentityLocation</code> (L4930), <code>buildLocationEntryFromGbpLocal</code> (L4952), <code>buildBusinessFromGbpLocal</code> (L4979), plus a mid-file <code>import</code> at L4928. Modeling logic belongs in a service/model, not the controller. <em>Fix:</em> relocate to the locations service/model.</li>
+    <li>[DRY/dim 14] <code>parseIdentityJson</code> is duplicated verbatim in <code>AdminWebsitesController.ts:1326</code> and <code>service.post-importer.ts:121</code> (and overlaps <code>util.project-identity.parseProjectIdentity</code>). <em>Fix:</em> consolidate into the existing <code>feature-utils/util.project-identity.ts</code> and import.</li>
+  </ul>
+
+  <h3>Nitpicks</h3>
+  <ul>
+    <li>[dim 10] <code>console.*</code> is endemic: 410 occurrences across the scope (180 in the controller alone) instead of Pino. Three services (<code>identity-warmup</code>, <code>generation-pipeline</code>, <code>post-importer</code>) wrap it in a private <code>function log(){ console.log(...) }</code>, so the grep under-counts the real channel. <em>Fix:</em> swap to the Pino logger with request/entity context.</li>
+    <li>[dim 11] Magic values: the "20 locations per project" cap is a bare literal repeated in the controller (L5046); <code>MAX_SOURCE_CHARS = 100_000</code> and similar live as in-file constants rather than in <code>config/</code>. <em>Fix:</em> move domain limits to <code>config/</code>; in-file <code>const</code>s are a minor offense.</li>
+    <li>[dim 14] <code>feature-services/</code> filenames use a <code>service.kebab-case.ts</code> prefix and export bare functions rather than the contract's <code>PascalCaseService.ts</code> with a Service class/object. Consistent within the domain and self-documenting, so low-priority, but it diverges from the stated naming rule — worth a one-line ruling when the nesting verdict propagates.</li>
+    <li>[dim 15] Commented-out code is effectively absent (grep heuristic returned only 2 hits, both genuine explanatory comments). Clean on this dimension.</li>
+  </ul>
+
+  <h3>Coverage</h3>
+  <p>Deep-read: 8 files — <code>AdminWebsitesController.ts</code> (structure mapped end-to-end: all 166 exports enumerated, function spans computed, location cluster L4998–5567 read line-by-line, helpers/imports inspected), <code>service.ai-command.ts</code>, <code>service.identity-warmup.ts</code> (full function maps + sampled bodies), <code>WebsiteIntegrationsController.ts</code>, <code>BackupController.ts</code>, <code>routes/admin/websites.ts</code> + <code>index.ts</code> mount (auth audited by AWK over every route block), and <code>service.generation-pipeline.ts</code> / <code>service.post-importer.ts</code> / <code>service.page-editor.ts</code> / <code>service.project-manager.ts</code> / <code>service.seo-generation.ts</code> (headers + function maps). Grep-sampled: ~38 — all <code>feature-services/*</code> + <code>feature-utils/*</code> for <code>db</code> imports, <code>db(</code> call-sites, <code>console.*</code>, response-shape, commented-code, and magic-value scans across the full scope. Not examined line-by-line: K≈8 small files ≤300 lines with no grep hits (<code>util.hostname-generator</code>, <code>util.rybbit-snippet</code>, <code>util.clarity-snippet</code>, <code>util.section-normalizer</code>, <code>service.rybbit</code>, <code>service.harvest-log-inspector</code>, <code>service.website-scraper</code>, <code>WebsiteFormsController</code>) — clean on the automated checks, low risk given size. No source files were modified.</p>
+</section>
+</main>
+</body>
+</html>

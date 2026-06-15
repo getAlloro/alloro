@@ -5,10 +5,9 @@
  * Post types define the content schema for posts in projects using that template.
  */
 
-import { db } from "../../../database/connection";
-
-const POST_TYPES_TABLE = "website_builder.post_types";
-const TEMPLATES_TABLE = "website_builder.templates";
+import { PostTypeModel } from "../../../models/website-builder/PostTypeModel";
+import { TemplateModel } from "../../../models/website-builder/TemplateModel";
+import logger from "../../../lib/logger";
 
 function slugify(text: string): string {
   return text
@@ -107,7 +106,7 @@ export async function listPostTypes(templateId: string): Promise<{
   postTypes: any[];
   error?: { status: number; code: string; message: string };
 }> {
-  const template = await db(TEMPLATES_TABLE).where("id", templateId).first();
+  const template = await TemplateModel.findRawById(templateId);
   if (!template) {
     return {
       postTypes: [],
@@ -115,9 +114,7 @@ export async function listPostTypes(templateId: string): Promise<{
     };
   }
 
-  const postTypes = await db(POST_TYPES_TABLE)
-    .where("template_id", templateId)
-    .orderBy("created_at", "asc");
+  const postTypes = await PostTypeModel.findByTemplateIdOrdered(templateId);
 
   return { postTypes };
 }
@@ -155,7 +152,7 @@ export async function createPostType(
     validatedSchema = result.fields;
   }
 
-  const template = await db(TEMPLATES_TABLE).where("id", templateId).first();
+  const template = await TemplateModel.findRawById(templateId);
   if (!template) {
     return {
       postType: null,
@@ -166,9 +163,7 @@ export async function createPostType(
   const slug = slugify(name);
 
   // Check slug uniqueness within template
-  const existing = await db(POST_TYPES_TABLE)
-    .where({ template_id: templateId, slug })
-    .first();
+  const existing = await PostTypeModel.findByTemplateAndSlugRaw(templateId, slug);
   if (existing) {
     return {
       postType: null,
@@ -180,20 +175,18 @@ export async function createPostType(
     };
   }
 
-  console.log(`[Admin Websites] Creating post type "${name}" for template ${templateId}`);
+  logger.info(`[Admin Websites] Creating post type "${name}" for template ${templateId}`);
 
-  const [postType] = await db(POST_TYPES_TABLE)
-    .insert({
-      template_id: templateId,
-      name,
-      slug,
-      description: description || null,
-      schema: JSON.stringify(validatedSchema),
-      single_template: JSON.stringify(single_template || []),
-    })
-    .returning("*");
+  const postType = await PostTypeModel.insertReturning({
+    template_id: templateId,
+    name,
+    slug,
+    description: description || null,
+    schema: JSON.stringify(validatedSchema),
+    single_template: JSON.stringify(single_template || []),
+  });
 
-  console.log(`[Admin Websites] ✓ Created post type ID: ${postType.id}`);
+  logger.info(`[Admin Websites] ✓ Created post type ID: ${postType.id}`);
 
   return { postType };
 }
@@ -206,9 +199,7 @@ export async function getPostType(
   templateId: string,
   postTypeId: string
 ): Promise<any> {
-  return db(POST_TYPES_TABLE)
-    .where({ id: postTypeId, template_id: templateId })
-    .first();
+  return PostTypeModel.findByIdAndTemplate(postTypeId, templateId);
 }
 
 // ---------------------------------------------------------------------------
@@ -223,9 +214,7 @@ export async function updatePostType(
   postType: any;
   error?: { status: number; code: string; message: string };
 }> {
-  const existing = await db(POST_TYPES_TABLE)
-    .where({ id: postTypeId, template_id: templateId })
-    .first();
+  const existing = await PostTypeModel.findByIdAndTemplate(postTypeId, templateId);
   if (!existing) {
     return {
       postType: null,
@@ -240,10 +229,11 @@ export async function updatePostType(
   // Re-generate slug if name changed
   if (updates.name && updates.name !== existing.name) {
     updates.slug = slugify(updates.name);
-    const conflict = await db(POST_TYPES_TABLE)
-      .where({ template_id: templateId, slug: updates.slug })
-      .whereNot("id", postTypeId)
-      .first();
+    const conflict = await PostTypeModel.findSlugConflictExcludingId(
+      templateId,
+      updates.slug,
+      postTypeId
+    );
     if (conflict) {
       return {
         postType: null,
@@ -271,12 +261,13 @@ export async function updatePostType(
     updates.single_template = JSON.stringify(updates.single_template);
   }
 
-  const [postType] = await db(POST_TYPES_TABLE)
-    .where({ id: postTypeId, template_id: templateId })
-    .update({ ...updates, updated_at: db.fn.now() })
-    .returning("*");
+  const postType = await PostTypeModel.updateByIdAndTemplateReturning(
+    postTypeId,
+    templateId,
+    updates
+  );
 
-  console.log(`[Admin Websites] ✓ Updated post type ID: ${postTypeId}`);
+  logger.info(`[Admin Websites] ✓ Updated post type ID: ${postTypeId}`);
 
   return { postType };
 }
@@ -289,20 +280,16 @@ export async function deletePostType(
   templateId: string,
   postTypeId: string
 ): Promise<{ error?: { status: number; code: string; message: string } }> {
-  const existing = await db(POST_TYPES_TABLE)
-    .where({ id: postTypeId, template_id: templateId })
-    .first();
+  const existing = await PostTypeModel.findByIdAndTemplate(postTypeId, templateId);
   if (!existing) {
     return {
       error: { status: 404, code: "NOT_FOUND", message: "Post type not found" },
     };
   }
 
-  await db(POST_TYPES_TABLE)
-    .where({ id: postTypeId, template_id: templateId })
-    .del();
+  await PostTypeModel.deleteByIdAndTemplate(postTypeId, templateId);
 
-  console.log(`[Admin Websites] ✓ Deleted post type ID: ${postTypeId}`);
+  logger.info(`[Admin Websites] ✓ Deleted post type ID: ${postTypeId}`);
 
   return {};
 }

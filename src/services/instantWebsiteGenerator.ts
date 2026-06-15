@@ -10,10 +10,9 @@
  */
 
 import { v4 as uuid } from "uuid";
-import { db } from "../database/connection";
-
-const PROJECTS_TABLE = "website_builder.projects";
-const PAGES_TABLE = "website_builder.pages";
+import { NotificationModel } from "../models/NotificationModel";
+import { ProjectModel } from "../models/website-builder/ProjectModel";
+import logger from "../lib/logger";
 
 // -----------------------------------------------------------------------
 // Types
@@ -488,15 +487,15 @@ export async function generateInstantWebsite(input: CheckupWebsiteInput): Promis
   const { orgId, orgName, placeId, checkupData, category } = input;
 
   // Check if a project already exists for this org
-  const existing = await db(PROJECTS_TABLE)
-    .where({ organization_id: orgId })
-    .first();
+  const existing = await ProjectModel.findByOrganizationId(orgId);
 
   if (existing) {
-    console.log(`[InstantWebsite] Project already exists for org ${orgId}, skipping`);
+    logger.info(`[InstantWebsite] Project already exists for org ${orgId}, skipping`);
     return {
       projectId: existing.id,
-      hostname: existing.generated_hostname,
+      // The pre-refactor inline read returned an untyped row; preserve the exact
+      // runtime value (no coercion) while satisfying the typed return shape.
+      hostname: existing.generated_hostname as string,
       previewUrl: `https://${existing.generated_hostname}.sites.getalloro.com`,
     };
   }
@@ -505,66 +504,66 @@ export async function generateInstantWebsite(input: CheckupWebsiteInput): Promis
   const hostname = generateHostnameFromName(orgName);
   const wrapper = buildWrapper(orgName);
   const sections = buildHomepageSections(orgName, checkupData || {}, category);
-
-  // Create project
-  await db(PROJECTS_TABLE).insert({
-    id: projectId,
-    organization_id: orgId,
-    generated_hostname: hostname,
-    display_name: orgName,
-    selected_place_id: placeId || null,
-    status: "LIVE",
-    primary_color: "#D56753",
-    accent_color: "#212D40",
-    wrapper,
-    created_at: new Date(),
-    updated_at: new Date(),
-  });
-
-  // Create homepage
   const pageId = uuid();
-  await db(PAGES_TABLE).insert({
-    id: pageId,
-    project_id: projectId,
-    path: "/",
-    version: 1,
-    status: "published",
-    generation_status: "ready",
-    sections: JSON.stringify(sections),
-    display_name: "Home",
-    sort_order: 0,
-    created_at: new Date(),
-    updated_at: new Date(),
-  });
-
   const previewUrl = `https://${hostname}.sites.getalloro.com`;
-
-  // Update org with website status + photo quality for dashboard photo brief
   const photoAssessment = assessPhotoQuality(checkupData || {});
-  await db("organizations").where({ id: orgId }).update({
-    patientpath_status: "preview_ready",
-    patientpath_preview_url: previewUrl,
-    // Store photo assessment so the dashboard can show the photo brief
-    ...(photoAssessment.brief ? { photo_brief: JSON.stringify(photoAssessment) } : {}),
+
+  // Atomic: project + homepage + org status must land together. A crash after
+  // the project insert would otherwise leave an orphan project with no homepage
+  // — and the dedup check at the top of this function would then treat that
+  // broken project as "already generated" on every retry. The model owns the
+  // transaction boundary; payloads are passed verbatim.
+  await ProjectModel.createInstantWebsiteWithHomepage({
+    projectRow: {
+      id: projectId,
+      organization_id: orgId,
+      generated_hostname: hostname,
+      display_name: orgName,
+      selected_place_id: placeId || null,
+      status: "LIVE",
+      primary_color: "#D56753",
+      accent_color: "#212D40",
+      wrapper,
+      created_at: new Date(),
+      updated_at: new Date(),
+    },
+    pageRow: {
+      id: pageId,
+      project_id: projectId,
+      path: "/",
+      version: 1,
+      status: "published",
+      generation_status: "ready",
+      sections: JSON.stringify(sections),
+      display_name: "Home",
+      sort_order: 0,
+      created_at: new Date(),
+      updated_at: new Date(),
+    },
+    organizationId: orgId,
+    organizationUpdate: {
+      patientpath_status: "preview_ready",
+      patientpath_preview_url: previewUrl,
+      // Store photo assessment so the dashboard can show the photo brief
+      ...(photoAssessment.brief ? { photo_brief: JSON.stringify(photoAssessment) } : {}),
+    },
   });
 
-  // Write notification
-  await db("notifications").insert({
+  // Write notification (best-effort, kept outside the transaction so a
+  // notification failure never rolls back the committed website)
+  await NotificationModel.create({
     organization_id: orgId,
     title: "Your website preview is ready",
     message: `We built a custom website for ${orgName} using your real data and reviews. Take a look.`,
     type: "system",
-    read: false,
-    metadata: JSON.stringify({
+    metadata: {
       source: "instant_website_generator",
       preview_url: previewUrl,
       project_id: projectId,
-    }),
-    created_at: new Date(),
-    updated_at: new Date(),
+    },
   }).catch(() => {});
 
-  console.log(`[InstantWebsite] Created project ${projectId} for org ${orgId} -> ${previewUrl}`);
+  logger.info(`[InstantWebsite] Created project ${projectId} for org ${orgId} -> ${previewUrl}`);
 
   return { projectId, hostname, previewUrl };
 }

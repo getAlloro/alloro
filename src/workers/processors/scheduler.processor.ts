@@ -13,6 +13,7 @@ import { Job } from "bullmq";
 import { ScheduleModel, ScheduleRunModel } from "../../models/ScheduleModel";
 import { getMindsQueue } from "../queues";
 import { recordSchedulerTick } from "../workerHealth";
+import logger from "../../lib/logger";
 
 export async function processSchedulerTick(_job: Job): Promise<void> {
   // Processing heartbeat — must run BEFORE the early-return below so it fires
@@ -23,7 +24,7 @@ export async function processSchedulerTick(_job: Job): Promise<void> {
 
   if (dueSchedules.length === 0) return;
 
-  console.log(`[SCHEDULER] ${dueSchedules.length} schedule(s) due — dispatching`);
+  logger.info(`[SCHEDULER] ${dueSchedules.length} schedule(s) due — dispatching`);
 
   const execQueue = getMindsQueue("schedule-exec");
 
@@ -31,7 +32,7 @@ export async function processSchedulerTick(_job: Job): Promise<void> {
     // Skip if a run is already active — prevents piling up while a long agent runs.
     const isRunning = await ScheduleRunModel.hasActiveRun(schedule.id);
     if (isRunning) {
-      console.log(`[SCHEDULER] Skipping "${schedule.agent_key}" — already running`);
+      logger.info(`[SCHEDULER] Skipping "${schedule.agent_key}" — already running`);
       continue;
     }
 
@@ -52,6 +53,6 @@ export async function processSchedulerTick(_job: Job): Promise<void> {
       }
     );
 
-    console.log(`[SCHEDULER] Dispatched "${schedule.agent_key}" (schedule ${schedule.id})`);
+    logger.info(`[SCHEDULER] Dispatched "${schedule.agent_key}" (schedule ${schedule.id})`);
   }
 }

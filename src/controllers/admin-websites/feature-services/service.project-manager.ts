@@ -5,11 +5,13 @@
  * status polling, and status enumeration.
  */
 
-import { db } from "../../../database/connection";
 import { generateHostname } from "../feature-utils/util.hostname-generator";
-
-const PROJECTS_TABLE = "website_builder.projects";
-const PAGES_TABLE = "website_builder.pages";
+import { ProjectModel } from "../../../models/website-builder/ProjectModel";
+import { OrganizationModel } from "../../../models/OrganizationModel";
+import { PageModel } from "../../../models/website-builder/PageModel";
+import { TemplatePageModel } from "../../../models/website-builder/TemplatePageModel";
+import { WebsiteIntegrationModel } from "../../../models/website-builder/WebsiteIntegrationModel";
+import logger from "../../../lib/logger";
 
 type ProjectListViewFilter = "active" | "inactive" | "archive";
 
@@ -45,84 +47,23 @@ export async function listProjects(filters: {
   const { status, projectListView, page, limit } = filters;
   const offset = (page - 1) * limit;
 
-  console.log("[Admin Websites] Fetching projects with filters:", filters);
+  logger.info({ detail: filters }, "[Admin Websites] Fetching projects with filters:");
 
   // Count query
-  let countQuery = db(PROJECTS_TABLE);
-  if (status) {
-    countQuery = countQuery.where("status", status);
-  }
-  if (projectListView === "active") {
-    countQuery = countQuery.whereNotNull("organization_id");
-  }
-  if (projectListView === "inactive") {
-    countQuery = countQuery.whereNull("organization_id");
-  }
-  if (projectListView === "active" || projectListView === "inactive") {
-    countQuery = countQuery.whereNull("archived_at");
-  }
-  if (projectListView === "archive") {
-    countQuery = countQuery.whereNotNull("archived_at");
-  }
-  const [{ count }] = await countQuery.count("* as count");
-  const total = parseInt(count as string, 10);
+  const total = await ProjectModel.countAdminList({ status, projectListView });
   const totalPages = Math.ceil(total / limit);
 
   // Data query with organization LEFT JOIN
-  let dataQuery = db(PROJECTS_TABLE)
-    .leftJoin(
-      "organizations",
-      `${PROJECTS_TABLE}.organization_id`,
-      "organizations.id",
-    )
-    .select(
-      `${PROJECTS_TABLE}.id`,
-      `${PROJECTS_TABLE}.user_id`,
-      `${PROJECTS_TABLE}.generated_hostname`,
-      `${PROJECTS_TABLE}.status`,
-      `${PROJECTS_TABLE}.selected_place_id`,
-      `${PROJECTS_TABLE}.selected_website_url`,
-      `${PROJECTS_TABLE}.template_id`,
-      `${PROJECTS_TABLE}.step_gbp_scrape`,
-      `${PROJECTS_TABLE}.display_name`,
-      `${PROJECTS_TABLE}.custom_domain`,
-      `${PROJECTS_TABLE}.primary_color`,
-      `${PROJECTS_TABLE}.accent_color`,
-      `${PROJECTS_TABLE}.archived_at`,
-      `${PROJECTS_TABLE}.created_at`,
-      `${PROJECTS_TABLE}.updated_at`,
-      db.raw(
-        "json_build_object('id', organizations.id, 'name', organizations.name, 'subscription_tier', organizations.subscription_tier) as organization",
-      ),
-    );
-
-  if (status) {
-    dataQuery = dataQuery.where(`${PROJECTS_TABLE}.status`, status);
-  }
-  if (projectListView === "active") {
-    dataQuery = dataQuery.whereNotNull(`${PROJECTS_TABLE}.organization_id`);
-  }
-  if (projectListView === "inactive") {
-    dataQuery = dataQuery.whereNull(`${PROJECTS_TABLE}.organization_id`);
-  }
-  if (projectListView === "active" || projectListView === "inactive") {
-    dataQuery = dataQuery.whereNull(`${PROJECTS_TABLE}.archived_at`);
-  }
-  if (projectListView === "archive") {
-    dataQuery = dataQuery.whereNotNull(`${PROJECTS_TABLE}.archived_at`);
-  }
-
-  const projects = await dataQuery
-    .orderBy(`${PROJECTS_TABLE}.created_at`, "desc")
-    .limit(limit)
-    .offset(offset);
+  const projects = await ProjectModel.listAdminWithOrganization({
+    status,
+    projectListView,
+    limit,
+    offset,
+  });
 
   const projectIds = projects.map((project: any) => project.id);
   const activeIntegrations = projectIds.length > 0
-    ? await db("website_builder.website_integrations")
-        .select("project_id", "platform", "status")
-        .whereIn("project_id", projectIds)
-        .where("status", "active")
+    ? await WebsiteIntegrationModel.findActiveByProjectIds(projectIds)
     : [];
   const integrationsByProject = activeIntegrations.reduce(
     (map: Map<string, Array<{ platform: string; status: string }>>, integration: any) => {
@@ -146,7 +87,7 @@ export async function listProjects(filters: {
     active_integrations: integrationsByProject.get(p.id) ?? [],
   }));
 
-  console.log(
+  logger.info(
     `[Admin Websites] Found ${projectsWithOrg.length} of ${total} projects (page ${page})`,
   );
 
@@ -167,20 +108,18 @@ export async function createProject(data: {
   const generatedHostname = data.hostname || generateHostname();
   const userId = data.user_id || "admin-portal";
 
-  console.log(
+  logger.info(
     `[Admin Websites] Creating project with hostname: ${generatedHostname}`,
   );
 
-  const [project] = await db(PROJECTS_TABLE)
-    .insert({
-      user_id: userId,
-      generated_hostname: generatedHostname,
-      display_name: generatedHostname,
-      status: "CREATED",
-    })
-    .returning("*");
+  const project = await ProjectModel.insertReturning({
+    user_id: userId,
+    generated_hostname: generatedHostname,
+    display_name: generatedHostname,
+    status: "CREATED",
+  });
 
-  console.log(`[Admin Websites] \u2713 Created project ID: ${project.id}`);
+  logger.info(`[Admin Websites] \u2713 Created project ID: ${project.id}`);
 
   return project;
 }
@@ -193,9 +132,7 @@ export async function updateProjectDisplayName(
   projectId: string,
   displayName: string
 ): Promise<void> {
-  await db(PROJECTS_TABLE)
-    .where({ id: projectId })
-    .update({ display_name: displayName.trim() });
+  await ProjectModel.updateDisplayNameById(projectId, displayName.trim());
 }
 
 // ---------------------------------------------------------------------------
@@ -203,16 +140,11 @@ export async function updateProjectDisplayName(
 // ---------------------------------------------------------------------------
 
 export async function getProjectStatuses(): Promise<string[]> {
-  console.log("[Admin Websites] Fetching unique statuses");
+  logger.info("[Admin Websites] Fetching unique statuses");
 
-  const statuses = await db(PROJECTS_TABLE)
-    .distinct("status")
-    .whereNotNull("status")
-    .orderBy("status", "asc");
+  const statusList = await ProjectModel.findDistinctStatuses();
 
-  const statusList = statuses.map((s: any) => s.status);
-
-  console.log(`[Admin Websites] Found ${statusList.length} unique statuses`);
+  logger.info(`[Admin Websites] Found ${statusList.length} unique statuses`);
 
   return statusList;
 }
@@ -222,21 +154,7 @@ export async function getProjectStatuses(): Promise<string[]> {
 // ---------------------------------------------------------------------------
 
 export async function getProjectStatus(id: string): Promise<any> {
-  const project = await db(PROJECTS_TABLE)
-    .select(
-      "id",
-      "status",
-      "selected_place_id",
-      "selected_website_url",
-      "step_gbp_scrape",
-      "step_website_scrape",
-      "step_image_analysis",
-      "updated_at",
-    )
-    .where("id", id)
-    .first();
-
-  return project || null;
+  return ProjectModel.findStatusById(id);
 }
 
 // ---------------------------------------------------------------------------
@@ -250,12 +168,12 @@ export async function linkOrganization(
   project: any;
   error?: { status: number; code: string; message: string };
 }> {
-  console.log(
+  logger.info(
     `[Admin Websites] Linking/unlinking project ${projectId} to organization ${organizationId}`,
   );
 
   // Validate project exists
-  const project = await db(PROJECTS_TABLE).where("id", projectId).first();
+  const project = await ProjectModel.findRawById(projectId);
   if (!project) {
     return {
       project: null,
@@ -265,16 +183,13 @@ export async function linkOrganization(
 
   // If unlinking (organizationId is null)
   if (organizationId === null) {
-    console.log(`[Admin Websites] Unlinking project ${projectId}`);
-    await db(PROJECTS_TABLE)
-      .where("id", projectId)
-      .update({ organization_id: null, updated_at: db.fn.now() });
+    logger.info(`[Admin Websites] Unlinking project ${projectId}`);
+    const updatedProject = await ProjectModel.setOrganizationIdReturning(
+      projectId,
+      null,
+    );
 
-    const [updatedProject] = await db(PROJECTS_TABLE)
-      .where("id", projectId)
-      .returning("*");
-
-    console.log(`[Admin Websites] \u2713 Unlinked project ${projectId}`);
+    logger.info(`[Admin Websites] \u2713 Unlinked project ${projectId}`);
     return { project: updatedProject };
   }
 
@@ -291,9 +206,7 @@ export async function linkOrganization(
   }
 
   // Validate organization exists
-  const organization = await db("organizations")
-    .where("id", organizationId)
-    .first();
+  const organization = await OrganizationModel.findById(organizationId);
   if (!organization) {
     return {
       project: null,
@@ -306,10 +219,10 @@ export async function linkOrganization(
   }
 
   // Check if organization is already linked to another website
-  const existingLink = await db(PROJECTS_TABLE)
-    .where("organization_id", organizationId)
-    .whereNot("id", projectId)
-    .first();
+  const existingLink = await ProjectModel.findLinkedToOrganizationExcept(
+    organizationId,
+    projectId,
+  );
 
   if (existingLink) {
     return {
@@ -323,18 +236,15 @@ export async function linkOrganization(
   }
 
   // Link the website to the organization
-  console.log(
+  logger.info(
     `[Admin Websites] Linking project ${projectId} to organization ${organizationId}`,
   );
-  await db(PROJECTS_TABLE)
-    .where("id", projectId)
-    .update({ organization_id: organizationId, updated_at: db.fn.now() });
+  const updatedProject = await ProjectModel.setOrganizationIdReturning(
+    projectId,
+    organizationId,
+  );
 
-  const [updatedProject] = await db(PROJECTS_TABLE)
-    .where("id", projectId)
-    .returning("*");
-
-  console.log(
+  logger.info(
     `[Admin Websites] \u2713 Linked project ${projectId} to organization ${organizationId}`,
   );
   return { project: updatedProject };
@@ -345,22 +255,9 @@ export async function linkOrganization(
 // ---------------------------------------------------------------------------
 
 export async function getProjectById(id: string): Promise<any> {
-  console.log(`[Admin Websites] Fetching project ID: ${id}`);
+  logger.info(`[Admin Websites] Fetching project ID: ${id}`);
 
-  const project = await db(PROJECTS_TABLE)
-    .leftJoin(
-      "organizations",
-      `${PROJECTS_TABLE}.organization_id`,
-      "organizations.id",
-    )
-    .select(
-      `${PROJECTS_TABLE}.*`,
-      db.raw(
-        "json_build_object('id', organizations.id, 'name', organizations.name, 'subscription_tier', organizations.subscription_tier) as organization",
-      ),
-    )
-    .where(`${PROJECTS_TABLE}.id`, id)
-    .first();
+  const project = await ProjectModel.findByIdWithOrganization(id);
 
   if (!project) return null;
 
@@ -371,12 +268,9 @@ export async function getProjectById(id: string): Promise<any> {
       : null;
 
   // Get pages for this project
-  const pages = await db(PAGES_TABLE)
-    .where("project_id", id)
-    .orderBy("path", "asc")
-    .orderBy("version", "desc");
+  const pages = await PageModel.findByProjectOrderedPathVersion(id);
 
-  console.log(`[Admin Websites] Found project with ${pages.length} pages`);
+  logger.info(`[Admin Websites] Found project with ${pages.length} pages`);
 
   return {
     ...project,
@@ -396,10 +290,10 @@ export async function updateProject(
   project: any;
   error?: { status: number; code: string; message: string };
 }> {
-  console.log(`[Admin Websites] Updating project ID: ${id}`, updates);
+  logger.info({ detail: updates }, `[Admin Websites] Updating project ID: ${id}`);
   const sanitizedUpdates = { ...updates };
 
-  const existing = await db(PROJECTS_TABLE).where("id", id).first();
+  const existing = await ProjectModel.findRawById(id);
   if (!existing) {
     return {
       project: null,
@@ -439,15 +333,12 @@ export async function updateProject(
     };
   }
 
-  const [project] = await db(PROJECTS_TABLE)
-    .where("id", id)
-    .update({
-      ...sanitizedUpdates,
-      updated_at: db.fn.now(),
-    })
-    .returning("*");
+  const project = await ProjectModel.updateFieldsByIdReturning(
+    id,
+    sanitizedUpdates,
+  );
 
-  console.log(`[Admin Websites] \u2713 Updated project ID: ${id}`);
+  logger.info(`[Admin Websites] \u2713 Updated project ID: ${id}`);
 
   return { project };
 }
@@ -467,14 +358,13 @@ export async function updatePageGenerationStatus(
     footer?: string;
   },
 ): Promise<{ error?: { status: number; code: string; message: string } }> {
-  const page = await db(PAGES_TABLE).where("id", pageId).first();
+  const page = await PageModel.findRawById(pageId);
   if (!page) {
     return { error: { status: 404, code: "NOT_FOUND", message: "Page not found" } };
   }
 
   const pageUpdates: Record<string, unknown> = {
     generation_status: data.generation_status,
-    updated_at: db.fn.now(),
   };
 
   if (data.generation_status === "ready") {
@@ -483,11 +373,11 @@ export async function updatePageGenerationStatus(
     if (data.sections !== undefined) pageUpdates.sections = JSON.stringify(data.sections);
   }
 
-  await db(PAGES_TABLE).where("id", pageId).update(pageUpdates);
+  await PageModel.updateFieldsById(pageId, pageUpdates);
 
   // If ready, propagate layout updates to the project and advance status to LIVE
   if (data.generation_status === "ready") {
-    const projectUpdates: Record<string, unknown> = { updated_at: db.fn.now() };
+    const projectUpdates: Record<string, unknown> = {};
     if (data.wrapper !== undefined) projectUpdates.wrapper = data.wrapper;
     if (data.header !== undefined) projectUpdates.header = data.header;
     if (data.footer !== undefined) projectUpdates.footer = data.footer;
@@ -495,8 +385,8 @@ export async function updatePageGenerationStatus(
     // Advance to LIVE — a page is now ready
     projectUpdates.status = "LIVE";
 
-    await db(PROJECTS_TABLE).where("id", page.project_id).update(projectUpdates);
-    console.log(`[Admin Websites] Page ${pageId} ready — project ${page.project_id} set to LIVE`);
+    await ProjectModel.updateFieldsById(page.project_id, projectUpdates);
+    logger.info(`[Admin Websites] Page ${pageId} ready — project ${page.project_id} set to LIVE`);
   }
 
   return {};
@@ -507,26 +397,7 @@ export async function updatePageGenerationStatus(
 // ---------------------------------------------------------------------------
 
 export async function getPagesGenerationStatus(projectId: string): Promise<any[]> {
-  const pages = await db(PAGES_TABLE)
-    .leftJoin(
-      "website_builder.template_pages",
-      `${PAGES_TABLE}.template_page_id`,
-      "website_builder.template_pages.id",
-    )
-    .select(
-      `${PAGES_TABLE}.id`,
-      `${PAGES_TABLE}.path`,
-      `${PAGES_TABLE}.status`,
-      `${PAGES_TABLE}.generation_status`,
-      `${PAGES_TABLE}.generation_progress`,
-      `${PAGES_TABLE}.updated_at`,
-      db.raw(`website_builder.template_pages.name as template_page_name`),
-    )
-    .where(`${PAGES_TABLE}.project_id`, projectId)
-    .whereNotNull(`${PAGES_TABLE}.generation_status`)
-    .orderBy(`${PAGES_TABLE}.path`, "asc");
-
-  return pages;
+  return PageModel.findGenerationStatusWithTemplateName(projectId);
 }
 
 /**
@@ -549,29 +420,16 @@ export async function getPageProgressiveState(
   header: string | null;
   footer: string | null;
 }> {
-  const page = await db(PAGES_TABLE)
-    .where({ id: pageId, project_id: projectId })
-    .select(
-      "id",
-      "path",
-      "generation_status",
-      "generation_progress",
-      "sections",
-      "template_page_id",
-    )
-    .first();
+  const page = await PageModel.findProgressiveStateByIdAndProject(
+    pageId,
+    projectId,
+  );
   if (!page) throw new Error("PAGE_NOT_FOUND");
 
-  const project = await db(PROJECTS_TABLE)
-    .where("id", projectId)
-    .select("wrapper", "header", "footer")
-    .first();
+  const project = await ProjectModel.findLayoutFieldsById(projectId);
 
   const templatePage = page.template_page_id
-    ? await db("website_builder.template_pages")
-        .where("id", page.template_page_id)
-        .select("name", "sections")
-        .first()
+    ? await TemplatePageModel.findNameSectionsById(page.template_page_id)
     : null;
 
   const parse = (v: unknown): any => {
@@ -657,7 +515,7 @@ export async function createAllFromTemplate(
   pages?: Array<{ id: string; path: string; templatePageId: string; generation_status: string }>;
   error?: { status: number; code: string; message: string };
 }> {
-  const project = await db(PROJECTS_TABLE).where("id", projectId).first();
+  const project = await ProjectModel.findRawById(projectId);
   if (!project) {
     return { error: { status: 404, code: "NOT_FOUND", message: "Project not found" } };
   }
@@ -667,25 +525,22 @@ export async function createAllFromTemplate(
   }
 
   // Create all page rows as queued
-  const insertedPages = await db(PAGES_TABLE)
-    .insert(
-      data.pages.map((p) => ({
-        project_id: projectId,
-        path: p.path,
-        version: 1,
-        status: "draft",
-        generation_status: "queued",
-        template_page_id: p.templatePageId,
-      })),
-    )
-    .returning(["id", "path", "template_page_id", "generation_status"]);
+  const insertedPages = await PageModel.insertManyReturning(
+    data.pages.map((p) => ({
+      project_id: projectId,
+      path: p.path,
+      version: 1,
+      status: "draft",
+      generation_status: "queued",
+      template_page_id: p.templatePageId,
+    })),
+    ["id", "path", "template_page_id", "generation_status"],
+  );
 
   // Advance project to IN_PROGRESS
-  await db(PROJECTS_TABLE)
-    .where("id", projectId)
-    .update({ status: "IN_PROGRESS", updated_at: db.fn.now() });
+  await ProjectModel.setStatusInProgressById(projectId);
 
-  console.log(`[Admin Websites] Created ${insertedPages.length} queued pages for project ${projectId}`);
+  logger.info(`[Admin Websites] Created ${insertedPages.length} queued pages for project ${projectId}`);
 
   return {
     pages: insertedPages.map((p: any) => ({
@@ -704,18 +559,18 @@ export async function createAllFromTemplate(
 export async function deleteProject(
   id: string,
 ): Promise<{ error?: { status: number; code: string; message: string } }> {
-  console.log(`[Admin Websites] Deleting project ID: ${id}`);
+  logger.info(`[Admin Websites] Deleting project ID: ${id}`);
 
-  const existing = await db(PROJECTS_TABLE).where("id", id).first();
+  const existing = await ProjectModel.findRawById(id);
   if (!existing) {
     return {
       error: { status: 404, code: "NOT_FOUND", message: "Project not found" },
     };
   }
 
-  await db(PROJECTS_TABLE).where("id", id).del();
+  await ProjectModel.deleteById(id);
 
-  console.log(`[Admin Websites] \u2713 Deleted project ID: ${id}`);
+  logger.info(`[Admin Websites] \u2713 Deleted project ID: ${id}`);
 
   return {};
 }

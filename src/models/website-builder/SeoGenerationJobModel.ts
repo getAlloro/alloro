@@ -1,4 +1,5 @@
 import { db } from "../../database/connection";
+import logger from "../../lib/logger";
 
 const TABLE = "website_builder.seo_generation_jobs";
 
@@ -69,7 +70,7 @@ export class SeoGenerationJobModel {
     const updatedAt = new Date(row.updated_at).getTime();
     const staleThreshold = 10 * 60 * 1000; // 10 minutes
     if (Date.now() - updatedAt > staleThreshold) {
-      console.log(`[SEO-JOB] Auto-expiring stale job ${row.id} (last update: ${row.updated_at})`);
+      logger.info(`[SEO-JOB] Auto-expiring stale job ${row.id} (last update: ${row.updated_at})`);
       await db(TABLE).where({ id: row.id }).update({ status: "failed", updated_at: new Date() });
       return null;
     }

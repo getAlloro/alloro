@@ -1,10 +1,10 @@
-import { db } from "../../../database/connection";
 import { GoogleConnectionModel } from "../../../models/GoogleConnectionModel";
 import { OrganizationModel } from "../../../models/OrganizationModel";
 import { OrganizationUserModel } from "../../../models/OrganizationUserModel";
 import { UserModel } from "../../../models/UserModel";
 import { ProfileData } from "../feature-utils/onboardingValidation";
 import { bootstrapOrganization } from "./OrganizationBootstrapService";
+import logger from "../../../lib/logger";
 
 export interface ProfileCompletionResult {
   profile: ProfileData;
@@ -30,7 +30,7 @@ export async function completeOnboardingWithProfile(
   googleAccountId: number,
   profileData: ProfileData
 ): Promise<ProfileCompletionResult> {
-  await db.transaction(async (trx) => {
+  await OrganizationModel.transaction(async (trx) => {
     const googleAccount = await GoogleConnectionModel.findById(
       googleAccountId,
       trx
@@ -118,7 +118,7 @@ export async function completeOnboardingWithProfile(
     }
   });
 
-  console.log(
+  logger.info(
     `[Onboarding] Completed onboarding for account ${googleAccountId}`
   );
 
@@ -148,7 +148,7 @@ export async function completeOnboardingForPasswordUser(
 ): Promise<ProfileCompletionResult & { organizationId: number }> {
   let orgId: number;
 
-  await db.transaction(async (trx) => {
+  await OrganizationModel.transaction(async (trx) => {
     const result = await bootstrapOrganization(
       userId,
       profileData.practiceName,
@@ -183,7 +183,7 @@ export async function completeOnboardingForPasswordUser(
     );
   });
 
-  console.log(
+  logger.info(
     `[Onboarding] Completed onboarding for password user ${userId}, org ${orgId!}`
   );
 
@@ -216,7 +216,7 @@ export async function saveProfileAndBootstrapOrg(
 ): Promise<SaveProfileResult> {
   let orgId: number;
 
-  await db.transaction(async (trx) => {
+  await OrganizationModel.transaction(async (trx) => {
     if (organizationId) {
       // Org already exists — update it
       orgId = organizationId;
@@ -263,7 +263,7 @@ export async function saveProfileAndBootstrapOrg(
     );
   });
 
-  console.log(
+  logger.info(
     `[Onboarding] Saved profile for user ${userId}, org ${orgId!}`
   );
 
@@ -290,7 +290,7 @@ export async function markOnboardingComplete(
   organizationId: number
 ): Promise<void> {
   await OrganizationModel.completeOnboarding(organizationId);
-  console.log(
+  logger.info(
     `[Onboarding] Marked onboarding complete for org ${organizationId}`
   );
 }

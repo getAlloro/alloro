@@ -13,12 +13,43 @@
 
 import rateLimit from "express-rate-limit";
 import type { Request, Response, NextFunction } from "express";
-import { db } from "../database/connection";
+import { BehavioralEventModel } from "../models/BehavioralEventModel";
+import logger from "../lib/logger";
 
 const RATE_LIMIT_MESSAGE = {
   success: false,
   error: "Too many requests. Please wait before trying again.",
 };
+
+// ─── Auth limiter (login / OTP / password reset) ────────────────────
+// Strict limit on the authentication attack surface to blunt credential
+// stuffing and brute-forcing the 6-digit OTP/verification code space.
+//
+// Keyed per-IP + per-email so a single account from one IP is capped (stops
+// code brute-force) without one shared-IP clinic locking out every user at
+// once. `max` is conservative; a normal human login/verify/reset is 1–3 hits.
+//
+// CAVEAT: express-rate-limit's default store is in-memory and PER-PROCESS. Under
+// PM2 cluster mode the counts do NOT aggregate across workers, so the effective
+// limit is `max × workerCount`. Acceptable for v1; move to a shared Redis store
+// to make the cap global.
+const AUTH_RATE_LIMIT_MESSAGE = {
+  success: false,
+  error: "Too many attempts. Please wait a few minutes and try again.",
+};
+
+export const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: AUTH_RATE_LIMIT_MESSAGE,
+  keyGenerator: (req): string => {
+    const ip = req.ip || req.socket.remoteAddress || "unknown";
+    const rawEmail = (req.body?.email ?? "").toString().trim().toLowerCase();
+    return rawEmail ? `${ip}:${rawEmail}` : ip;
+  },
+});
 
 // ─── Standard limiters ──────────────────────────────────────────────
 
@@ -144,19 +175,17 @@ export function scraperDetection(req: Request, _res: Response, next: NextFunctio
 
   if (entry.count === 5) {
     // Log scraper detection — fire and forget
-    db("behavioral_events")
-      .insert({
-        event_type: "security.rate_limit_hit",
-        properties: JSON.stringify({
-          ip,
-          place_id: placeId,
-          count: entry.count,
-          window_seconds: Math.round((now - entry.firstSeen) / 1000),
-        }),
-      })
-      .catch(() => {});
+    BehavioralEventModel.insertRateLimitHit({
+      eventType: "security.rate_limit_hit",
+      properties: JSON.stringify({
+        ip,
+        place_id: placeId,
+        count: entry.count,
+        window_seconds: Math.round((now - entry.firstSeen) / 1000),
+      }),
+    }).catch(() => {});
 
-    console.warn(`[RateLimit] Scraper detected: IP ${ip} queried place ${placeId} ${entry.count}x in ${Math.round((now - entry.firstSeen) / 1000)}s`);
+    logger.warn(`[RateLimit] Scraper detected: IP ${ip} queried place ${placeId} ${entry.count}x in ${Math.round((now - entry.firstSeen) / 1000)}s`);
   }
 
   next();

@@ -32,6 +32,16 @@ export class PmColumnModel extends BaseModel {
     return result;
   }
 
+  // The backlog column for a project (each project has exactly one).
+  static async findBacklogForProject(
+    projectId: string,
+    trx?: QueryContext
+  ): Promise<any> {
+    return this.table(trx)
+      .where({ project_id: projectId, is_backlog: true })
+      .first();
+  }
+
   static async getActiveProjectColumnMaps(): Promise<Map<string, PmProjectColumnIds>> {
     const rows = (await db("pm_columns")
       .join("pm_projects", "pm_columns.project_id", "pm_projects.id")

@@ -17,18 +17,18 @@
  * the flow. Belt-and-suspenders, not a silver bullet.
  */
 
-import { db } from "../../../database/connection";
 import {
   FinalStage,
-  ILeadgenSession,
+  LeadgenSessionModel,
+  SessionLite,
 } from "../../../models/LeadgenSessionModel";
+import { LeadgenEventModel } from "../../../models/LeadgenEventModel";
 import { isLaterStage } from "../feature-utils/util.event-ordering";
+import logger from "../../../lib/logger";
 
 function log(message: string): void {
-  console.log(`[LEADGEN-MILESTONE] ${message}`);
+  logger.info(`[LEADGEN-MILESTONE] ${message}`);
 }
-
-type SessionLite = Pick<ILeadgenSession, "id" | "final_stage" | "completed">;
 
 /**
  * Record a pipeline-stage milestone for every leadgen session linked to the
@@ -51,9 +51,8 @@ export async function recordAuditMilestone(
   milestone: FinalStage,
 ): Promise<void> {
   try {
-    const sessions: SessionLite[] = await db("leadgen_sessions")
-      .select("id", "final_stage", "completed")
-      .where({ audit_id: auditId });
+    const sessions: SessionLite[] =
+      await LeadgenSessionModel.findLiteByAuditId(auditId);
 
     if (sessions.length === 0) {
       // No session linked yet — the JS `audit_started` event hasn't
@@ -62,13 +61,13 @@ export async function recordAuditMilestone(
     }
 
     for (const session of sessions) {
-      const existing = await db("leadgen_events")
-        .select("id")
-        .where({ session_id: session.id, event_name: milestone })
-        .first();
-      if (existing) continue;
+      const exists = await LeadgenEventModel.existsForSessionEvent(
+        session.id,
+        milestone
+      );
+      if (exists) continue;
 
-      await db("leadgen_events").insert({
+      await LeadgenEventModel.insertRow({
         session_id: session.id,
         event_name: milestone,
         event_data: { source: "audit-worker" },
@@ -86,7 +85,7 @@ export async function recordAuditMilestone(
         patch.abandoned = false;
       }
       if (Object.keys(patch).length > 0) {
-        await db("leadgen_sessions").where({ id: session.id }).update(patch);
+        await LeadgenSessionModel.patchById(session.id, patch);
       }
     }
 

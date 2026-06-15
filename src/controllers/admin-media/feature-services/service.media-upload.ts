@@ -25,6 +25,7 @@ import {
 import { validateMimeType } from "../feature-utils/util.validation";
 import { buildMediaS3Key, buildS3Url } from "../feature-utils/util.s3-helpers";
 import * as mediaQuotaService from "./service.media-quota";
+import logger from "../../../lib/logger";
 
 export interface UploadResult {
   succeeded: IMedia[];
@@ -62,7 +63,7 @@ export async function uploadBulk(
     throw error;
   }
 
-  console.log(
+  logger.info(
     `[Media] Uploading ${files.length} files for project ${projectId}`
   );
 
@@ -204,14 +205,11 @@ async function processFile(
       compressed,
     });
 
-    console.log(`[Media] Uploaded ${originalFilename} -> ${s3Key}`);
+    logger.info(`[Media] Uploaded ${originalFilename} -> ${s3Key}`);
 
     return record;
   } catch (error) {
-    console.error(
-      `[Media] Error processing file ${file.originalname}:`,
-      error
-    );
+    logger.error({ err: error }, `[Media] Error processing file ${file.originalname}:`);
     return {
       error: true,
       filename: file.originalname,

@@ -2,6 +2,19 @@
  * Templates API - Admin portal for managing website-builder templates
  */
 
+import { getCommonHeaders } from "./index";
+
+// Attach the Bearer token (via getCommonHeaders) to every admin call. These
+// /api/admin/websites/* routes are protected by the app-level auth guard;
+// bare fetch would 401.
+const adminFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
+  const headers = new Headers(init.headers);
+  Object.entries(getCommonHeaders()).forEach(([key, value]) => {
+    if (!headers.has(key)) headers.set(key, value);
+  });
+  return fetch(input, { ...init, headers });
+};
+
 export type TemplateStatus = "draft" | "published";
 
 export interface Section {
@@ -40,7 +53,7 @@ export const fetchTemplates = async (): Promise<{
   success: boolean;
   data: Template[];
 }> => {
-  const response = await fetch(API_BASE);
+  const response = await adminFetch(API_BASE);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch templates: ${response.statusText}`);
@@ -55,7 +68,7 @@ export const fetchTemplates = async (): Promise<{
 export const fetchTemplate = async (
   id: string
 ): Promise<{ success: boolean; data: Template }> => {
-  const response = await fetch(`${API_BASE}/${id}`);
+  const response = await adminFetch(`${API_BASE}/${id}`);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch template: ${response.statusText}`);
@@ -74,7 +87,7 @@ export const createTemplate = async (data: {
   footer?: string;
   is_active?: boolean;
 }): Promise<{ success: boolean; data: Template }> => {
-  const response = await fetch(API_BASE, {
+  const response = await adminFetch(API_BASE, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -95,7 +108,7 @@ export const updateTemplate = async (
   id: string,
   data: Partial<Pick<Template, "name" | "wrapper" | "header" | "footer" | "status" | "is_active">>
 ): Promise<{ success: boolean; data: Template }> => {
-  const response = await fetch(`${API_BASE}/${id}`, {
+  const response = await adminFetch(`${API_BASE}/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -115,7 +128,7 @@ export const updateTemplate = async (
 export const deleteTemplate = async (
   id: string
 ): Promise<{ success: boolean; message: string }> => {
-  const response = await fetch(`${API_BASE}/${id}`, {
+  const response = await adminFetch(`${API_BASE}/${id}`, {
     method: "DELETE",
   });
 
@@ -133,7 +146,7 @@ export const deleteTemplate = async (
 export const activateTemplate = async (
   id: string
 ): Promise<{ success: boolean; data: Template }> => {
-  const response = await fetch(`${API_BASE}/${id}/activate`, {
+  const response = await adminFetch(`${API_BASE}/${id}/activate`, {
     method: "POST",
   });
 
@@ -155,7 +168,7 @@ export const activateTemplate = async (
 export const fetchTemplatePages = async (
   templateId: string
 ): Promise<{ success: boolean; data: TemplatePage[] }> => {
-  const response = await fetch(`${API_BASE}/${templateId}/pages`);
+  const response = await adminFetch(`${API_BASE}/${templateId}/pages`);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch template pages: ${response.statusText}`);
@@ -171,7 +184,7 @@ export const createTemplatePage = async (
   templateId: string,
   data: { name: string; sections?: Section[] }
 ): Promise<{ success: boolean; data: TemplatePage }> => {
-  const response = await fetch(`${API_BASE}/${templateId}/pages`, {
+  const response = await adminFetch(`${API_BASE}/${templateId}/pages`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -192,7 +205,7 @@ export const fetchTemplatePage = async (
   templateId: string,
   pageId: string
 ): Promise<{ success: boolean; data: TemplatePage }> => {
-  const response = await fetch(`${API_BASE}/${templateId}/pages/${pageId}`);
+  const response = await adminFetch(`${API_BASE}/${templateId}/pages/${pageId}`);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch template page: ${response.statusText}`);
@@ -209,7 +222,7 @@ export const updateTemplatePage = async (
   pageId: string,
   data: Partial<Pick<TemplatePage, "name" | "sections">>
 ): Promise<{ success: boolean; data: TemplatePage }> => {
-  const response = await fetch(`${API_BASE}/${templateId}/pages/${pageId}`, {
+  const response = await adminFetch(`${API_BASE}/${templateId}/pages/${pageId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -230,7 +243,7 @@ export const deleteTemplatePage = async (
   templateId: string,
   pageId: string
 ): Promise<{ success: boolean; message: string }> => {
-  const response = await fetch(`${API_BASE}/${templateId}/pages/${pageId}`, {
+  const response = await adminFetch(`${API_BASE}/${templateId}/pages/${pageId}`, {
     method: "DELETE",
   });
 

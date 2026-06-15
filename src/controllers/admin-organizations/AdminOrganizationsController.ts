@@ -2,78 +2,43 @@
  * Admin Organizations Controller
  *
  * Handles HTTP request/response for admin organization endpoints.
- * Delegates business logic to services and data access to models.
+ * Thin orchestration: parse input → call feature-service → shape response.
+ * Business logic lives in feature-services/; pure helpers live in feature-utils/;
+ * all DB access lives in models/.
  */
 
 import { Response } from "express";
 import { AuthRequest } from "../../middleware/auth";
-import { db } from "../../database/connection";
-import bcrypt from "bcrypt";
-import {
-  OrganizationListView,
-  OrganizationModel,
-} from "../../models/OrganizationModel";
-import { OrganizationUserModel } from "../../models/OrganizationUserModel";
-import { UserModel } from "../../models/UserModel";
-import { GoogleConnectionModel } from "../../models/GoogleConnectionModel";
-import { LocationModel } from "../../models/LocationModel";
-import { GooglePropertyModel } from "../../models/GooglePropertyModel";
-import { ProjectModel } from "../../models/website-builder/ProjectModel";
+import { OrganizationModel } from "../../models/OrganizationModel";
 import * as OrganizationEnrichmentService from "./feature-services/OrganizationEnrichmentService";
-import * as ConnectionDetectionService from "./feature-services/ConnectionDetectionService";
 import * as BusinessDataService from "../locations/BusinessDataService";
 import { getValidOAuth2ClientByOrg } from "../../auth/oauth2Helper";
 import * as TierManagementService from "./feature-services/TierManagementService";
 import * as AdminOrgCreationService from "./feature-services/AdminOrgCreationService";
-import * as hostnameGenerator from "./feature-utils/hostnameGenerator";
+import * as OrganizationLifecycleAdminService from "./feature-services/OrganizationLifecycleAdminService";
+import * as OrganizationDetailsService from "./feature-services/OrganizationDetailsService";
+import * as AdminUserPasswordService from "./feature-services/AdminUserPasswordService";
 import { deleteOrganization } from "../settings/feature-services/service.delete-organization";
 import {
   previewResetCounts,
   resetOrgData as resetOrgDataService,
+  validateResetRequest,
 } from "./feature-services/service.reset-org-data";
 import {
   archiveOrganization as archiveOrganizationService,
   unarchiveOrganization as unarchiveOrganizationService,
 } from "./feature-services/OrganizationArchiveService";
-import {
-  getOrganizationLifecycleErrorStatus,
-} from "../../services/OrganizationLifecycleService";
-import {
-  RESET_GROUP_KEYS,
-  ResetGroupKey,
-} from "../../types/adminReset";
-import { sendEmail } from "../../emails/emailService";
-import { getStripe, isStripeConfigured } from "../../config/stripe";
-import { v4 as uuid } from "uuid";
+import { getOrganizationLifecycleErrorStatus } from "../../services/OrganizationLifecycleService";
 import {
   assertRecipientChannel,
   getOrganizationRecipientSettings,
   updateRecipientSetting,
 } from "../../services/recipientSettingsService";
-
-const BCRYPT_SALT_ROUNDS = 12;
-
-// =====================================================================
-// Error handler (preserves original handleError response shape)
-// =====================================================================
-
-function handleError(res: Response, error: any, operation: string): Response {
-  console.error(`[Admin/Orgs] ${operation} Error:`, error?.message || error);
-  return res.status(500).json({
-    success: false,
-    error: `Failed to ${operation.toLowerCase()}`,
-    message: error?.message || "Unknown error occurred",
-    timestamp: new Date().toISOString(),
-  });
-}
-
-function parseOrganizationListView(value: unknown): OrganizationListView | null {
-  if (value === undefined || value === null || value === "") return "active";
-  if (value === "active" || value === "archived" || value === "all") {
-    return value;
-  }
-  return null;
-}
+import { isAdminOrgError } from "./feature-utils/AdminOrgError";
+import {
+  handleError,
+  parseOrganizationListView,
+} from "./feature-utils/controllerResponses";
 
 // =====================================================================
 // Handlers
@@ -200,38 +165,8 @@ export async function getById(
       return res.status(400).json({ error: "Invalid organization ID" });
     }
 
-    const organization = await OrganizationModel.findById(orgId);
-
-    if (!organization) {
-      return res.status(404).json({ error: "Organization not found" });
-    }
-
-    // Fetch users - map to original response shape
-    const rawUsers = await OrganizationUserModel.listByOrgWithUsers(orgId);
-    const users = rawUsers.map((u) => ({
-      id: u.user_id,
-      name: u.name,
-      email: u.email,
-      role: u.role,
-      joined_at: u.created_at,
-      has_password: !!u.password_hash,
-    }));
-
-    // Fetch connection details
-    const linkedAccounts = await GoogleConnectionModel.findByOrganization(orgId);
-    const connections =
-      ConnectionDetectionService.formatConnectionDetails(linkedAccounts);
-
-    // Fetch linked website - project only the original fields
-    const rawWebsite = await ProjectModel.findByOrganizationId(orgId);
-    const website = rawWebsite
-      ? {
-          id: rawWebsite.id,
-          generated_hostname: (rawWebsite as any).generated_hostname,
-          status: rawWebsite.status,
-          created_at: rawWebsite.created_at,
-        }
-      : null;
+    const { organization, users, connections, website } =
+      await OrganizationDetailsService.getOrganizationDetail(orgId);
 
     return res.json({
       success: true,
@@ -241,6 +176,9 @@ export async function getById(
       website,
     });
   } catch (error) {
+    if (isAdminOrgError(error)) {
+      return res.status(error.statusCode).json(error.body);
+    }
     return handleError(res, error, "Fetch organization details");
   }
 }
@@ -369,7 +307,8 @@ export async function deleteOrg(
       return res.status(400).json({ error: "Invalid organization ID" });
     }
 
-    const confirmDelete = req.body?.confirmDelete === true || req.query?.confirmDelete === "true";
+    const confirmDelete =
+      req.body?.confirmDelete === true || req.query?.confirmDelete === "true";
     if (!confirmDelete) {
       return res.status(400).json({
         success: false,
@@ -437,54 +376,11 @@ export async function resetOrgData(
       return res.status(400).json({ error: "Invalid organization ID" });
     }
 
-    const organization = await OrganizationModel.findById(orgId);
-    if (!organization) {
-      return res.status(404).json({ error: "Organization not found" });
-    }
-
-    const { groups, confirmName } = (req.body ?? {}) as {
-      groups?: unknown;
-      confirmName?: unknown;
-    };
-
-    if (typeof confirmName !== "string" || confirmName !== organization.name) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "Confirmation failed. `confirmName` must match the organization name exactly.",
-      });
-    }
-
-    if (!Array.isArray(groups) || groups.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: "`groups` must be a non-empty array of reset group keys.",
-      });
-    }
-
-    const allowed = new Set<string>(RESET_GROUP_KEYS);
-    const invalid = groups.filter(
-      (g): g is unknown => typeof g !== "string" || !allowed.has(g),
+    const { uniqueGroups, adminEmail } = await validateResetRequest(
+      orgId,
+      req.body ?? {},
+      req.user?.email,
     );
-    if (invalid.length > 0) {
-      return res.status(400).json({
-        success: false,
-        error: `Invalid reset group key(s): ${invalid
-          .map((g) => JSON.stringify(g))
-          .join(", ")}. Allowed: ${RESET_GROUP_KEYS.join(", ")}.`,
-      });
-    }
-
-    const adminEmail = req.user?.email;
-    if (!adminEmail) {
-      return res.status(401).json({
-        success: false,
-        error: "Authenticated admin email not found on request.",
-      });
-    }
-
-    // De-dupe while preserving order — guards against `["pms_ingestion","pms_ingestion"]`.
-    const uniqueGroups = Array.from(new Set(groups as ResetGroupKey[]));
 
     const data = await resetOrgDataService(orgId, uniqueGroups, adminEmail);
 
@@ -493,6 +389,9 @@ export async function resetOrgData(
       data,
     });
   } catch (error) {
+    if (isAdminOrgError(error)) {
+      return res.status(error.statusCode).json(error.body);
+    }
     return handleError(res, error, "Reset organization data");
   }
 }
@@ -505,7 +404,7 @@ export async function updateTier(
   req: AuthRequest,
   res: Response
 ): Promise<Response> {
-  const trx = await db.transaction();
+  const trx = await OrganizationModel.beginTransaction();
 
   try {
     const orgId = parseInt(req.params.id);
@@ -518,9 +417,7 @@ export async function updateTier(
 
     if (!tier || !["DWY", "DFY"].includes(tier)) {
       await trx.rollback();
-      return res
-        .status(400)
-        .json({ error: "Tier must be either DWY or DFY" });
+      return res.status(400).json({ error: "Tier must be either DWY or DFY" });
     }
 
     const result = await TierManagementService.updateTier(orgId, tier, trx);
@@ -565,30 +462,15 @@ export async function updateOrganizationType(
         .json({ error: "Type must be either 'health' or 'saas'" });
     }
 
-    const organization = await OrganizationModel.findById(orgId);
-    if (!organization) {
-      return res.status(404).json({ error: "Organization not found" });
-    }
-
-    // Immutable once set
-    if (organization.organization_type) {
-      return res.status(409).json({
-        success: false,
-        error: `Organization type is already set to "${organization.organization_type}" and cannot be changed.`,
-      });
-    }
-
-    await OrganizationModel.updateById(orgId, {
-      organization_type: type,
-      updated_at: new Date(),
-    } as any);
-
-    return res.json({
-      success: true,
-      type,
-      message: `Organization type set to "${type}".`,
-    });
+    const result = await OrganizationLifecycleAdminService.setOrganizationType(
+      orgId,
+      type
+    );
+    return res.status(result.status).json(result.body);
   } catch (error) {
+    if (isAdminOrgError(error)) {
+      return res.status(error.statusCode).json(error.body);
+    }
     return handleError(res, error, "Update organization type");
   }
 }
@@ -607,31 +489,18 @@ export async function getOrgLocations(
       return res.status(400).json({ error: "Invalid organization ID" });
     }
 
-    const organization = await OrganizationModel.findById(orgId);
-    if (!organization) {
-      return res.status(404).json({ error: "Organization not found" });
-    }
-
-    // Fetch all locations for this organization
-    const locations = await LocationModel.findByOrganizationId(orgId);
-
-    // Fetch google properties for each location in parallel
-    const locationsWithProperties = await Promise.all(
-      locations.map(async (location) => {
-        const properties = await GooglePropertyModel.findByLocationId(location.id);
-        return {
-          ...location,
-          googleProperties: properties,
-        };
-      })
-    );
+    const { locations, total } =
+      await OrganizationDetailsService.getOrganizationLocations(orgId);
 
     return res.json({
       success: true,
-      locations: locationsWithProperties,
-      total: locationsWithProperties.length,
+      locations,
+      total,
     });
   } catch (error) {
+    if (isAdminOrgError(error)) {
+      return res.status(error.statusCode).json(error.body);
+    }
     return handleError(res, error, "Fetch organization locations");
   }
 }
@@ -656,12 +525,11 @@ export async function createOrganization(
       });
     }
 
-    const result =
-      await AdminOrgCreationService.createOrganizationWithUser({
-        organization,
-        user,
-        location,
-      });
+    const result = await AdminOrgCreationService.createOrganizationWithUser({
+      organization,
+      user,
+      location,
+    });
 
     return res.status(201).json(result);
   } catch (error: any) {
@@ -690,30 +558,13 @@ export async function lockoutOrganization(
       return res.status(400).json({ error: "Invalid organization ID" });
     }
 
-    const organization = await OrganizationModel.findById(orgId);
-    if (!organization) {
-      return res.status(404).json({ error: "Organization not found" });
-    }
-
-    // Cannot lock out paying customers
-    if (organization.stripe_customer_id) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "Cannot lock out an organization with an active Stripe subscription. Cancel their subscription first.",
-      });
-    }
-
-    await OrganizationModel.updateById(orgId, {
-      subscription_status: "inactive",
-      updated_at: new Date(),
-    } as any);
-
-    return res.json({
-      success: true,
-      message: `Organization "${organization.name}" has been locked out.`,
-    });
+    const result =
+      await OrganizationLifecycleAdminService.lockoutOrganization(orgId);
+    return res.status(result.status).json(result.body);
   } catch (error) {
+    if (isAdminOrgError(error)) {
+      return res.status(error.statusCode).json(error.body);
+    }
     return handleError(res, error, "Lockout organization");
   }
 }
@@ -732,21 +583,13 @@ export async function unlockOrganization(
       return res.status(400).json({ error: "Invalid organization ID" });
     }
 
-    const organization = await OrganizationModel.findById(orgId);
-    if (!organization) {
-      return res.status(404).json({ error: "Organization not found" });
-    }
-
-    await OrganizationModel.updateById(orgId, {
-      subscription_status: "active",
-      updated_at: new Date(),
-    } as any);
-
-    return res.json({
-      success: true,
-      message: `Organization "${organization.name}" has been unlocked.`,
-    });
+    const result =
+      await OrganizationLifecycleAdminService.unlockOrganization(orgId);
+    return res.status(result.status).json(result.body);
   } catch (error) {
+    if (isAdminOrgError(error)) {
+      return res.status(error.statusCode).json(error.body);
+    }
     return handleError(res, error, "Unlock organization");
   }
 }
@@ -767,54 +610,13 @@ export async function removePaymentMethod(
       return res.status(400).json({ error: "Invalid organization ID" });
     }
 
-    const organization = await OrganizationModel.findById(orgId);
-    if (!organization) {
-      return res.status(404).json({ error: "Organization not found" });
-    }
-
-    // If no Stripe info, nothing to remove
-    if (!organization.stripe_customer_id && !organization.stripe_subscription_id) {
-      return res.status(400).json({
-        success: false,
-        error: "This organization has no payment method to remove.",
-      });
-    }
-
-    // Cancel the Stripe subscription if it exists
-    if (organization.stripe_subscription_id && isStripeConfigured()) {
-      try {
-        const stripe = getStripe();
-        await stripe.subscriptions.cancel(organization.stripe_subscription_id);
-        console.log(
-          `[Admin] Cancelled Stripe subscription ${organization.stripe_subscription_id} for org ${orgId}`
-        );
-      } catch (stripeErr: any) {
-        // Best-effort — if it fails (already cancelled, etc.), log and continue
-        console.warn(
-          `[Admin] Failed to cancel Stripe subscription for org ${orgId}:`,
-          stripeErr?.message || stripeErr
-        );
-      }
-    }
-
-    // Clear Stripe fields and revert to admin-granted state
-    await OrganizationModel.updateById(orgId, {
-      stripe_customer_id: null,
-      stripe_subscription_id: null,
-      subscription_status: "active",
-      subscription_updated_at: new Date(),
-      updated_at: new Date(),
-    } as any);
-
-    console.log(
-      `[Admin] Payment method removed for org ${orgId} (${organization.name}). Reverted to admin-granted state.`
-    );
-
-    return res.json({
-      success: true,
-      message: `Payment method removed for "${organization.name}". Organization reverted to admin-granted state.`,
-    });
+    const result =
+      await OrganizationLifecycleAdminService.removePaymentMethod(orgId);
+    return res.status(result.status).json(result.body);
   } catch (error) {
+    if (isAdminOrgError(error)) {
+      return res.status(error.statusCode).json(error.body);
+    }
     return handleError(res, error, "Remove payment method");
   }
 }
@@ -835,91 +637,19 @@ export async function createProject(
       return res.status(400).json({ error: "Invalid organization ID" });
     }
 
-    const organization = await OrganizationModel.findById(orgId);
-    if (!organization) {
-      return res.status(404).json({ error: "Organization not found" });
-    }
-
-    if (organization.archived_at) {
-      return res.status(423).json({
-        success: false,
-        error: "ORGANIZATION_ARCHIVED",
-        message: "Archived organizations cannot create new website projects.",
-      });
-    }
-
-    // Check if project already exists
-    const existingProject = await ProjectModel.findByOrganizationId(orgId);
-    if (existingProject) {
-      return res.status(409).json({
-        success: false,
-        error: "This organization already has a website project.",
-        project: {
-          id: existingProject.id,
-          generated_hostname: (existingProject as any).generated_hostname,
-          status: existingProject.status,
-        },
-      });
-    }
-
-    // Generate hostname and create project (same logic as TierManagementService.handleDfyUpgrade)
-    const hostname = hostnameGenerator.generate(organization.name);
-
-    await ProjectModel.create({
-      id: uuid(),
-      organization_id: orgId,
-      generated_hostname: hostname,
-      status: "CREATED",
-      created_at: new Date(),
-      updated_at: new Date(),
-    } as any);
-
-    console.log(
-      `[Admin] Website project created for org ${orgId} (${organization.name}) — hostname: ${hostname}`
-    );
-
-    return res.status(201).json({
-      success: true,
-      message: `Website project created for "${organization.name}".`,
-      project: {
-        generated_hostname: hostname,
-        status: "CREATED",
-      },
-    });
+    const result =
+      await OrganizationLifecycleAdminService.createProject(orgId);
+    return res.status(result.status).json(result.body);
   } catch (error) {
+    if (isAdminOrgError(error)) {
+      return res.status(error.statusCode).json(error.body);
+    }
     return handleError(res, error, "Create project for organization");
   }
 }
 
-// =====================================================================
-// Admin Set Password
-// =====================================================================
-
-function generateTempPassword(): string {
-  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-  const lower = "abcdefghjkmnpqrstuvwxyz";
-  const digits = "23456789";
-  const all = upper + lower + digits;
-
-  // Ensure at least 1 uppercase, 1 lowercase, 1 digit
-  let password = "";
-  password += upper[Math.floor(Math.random() * upper.length)];
-  password += lower[Math.floor(Math.random() * lower.length)];
-  password += digits[Math.floor(Math.random() * digits.length)];
-
-  for (let i = 3; i < 12; i++) {
-    password += all[Math.floor(Math.random() * all.length)];
-  }
-
-  // Shuffle
-  return password
-    .split("")
-    .sort(() => Math.random() - 0.5)
-    .join("");
-}
-
 /**
- * POST /api/admin/users/:userId/set-password
+ * POST /api/admin/organizations/users/:userId/set-password
  * Admin sets a temporary password for a user
  */
 export async function setUserPassword(
@@ -934,65 +664,17 @@ export async function setUserPassword(
 
     const { notifyUser } = req.body;
 
-    const user = await UserModel.findById(userId);
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
+    const result = await AdminUserPasswordService.setTemporaryPassword(
+      userId,
+      Boolean(notifyUser),
+      req.user?.email
+    );
 
-    const tempPassword = generateTempPassword();
-    const passwordHash = await bcrypt.hash(tempPassword, BCRYPT_SALT_ROUNDS);
-
-    await UserModel.updatePasswordHash(userId, passwordHash);
-
-    // Ensure email is verified so user can log in
-    if (!user.email_verified) {
-      await UserModel.setEmailVerified(userId);
-    }
-
-    if (notifyUser) {
-      const appUrl = process.env.NODE_ENV === "production"
-        ? "https://app.getalloro.com"
-        : "http://localhost:5173";
-
-      const emailResult = await sendEmail({
-        subject: "Your Alloro password has been set",
-        body: `
-          <div style="font-family: sans-serif; padding: 20px; max-width: 600px;">
-            <h2 style="color: #1a1a1a;">Hello${user.name ? `, ${user.name}` : ""}!</h2>
-            <p style="color: #4a5568; font-size: 16px;">
-              Alloro has set a temporary password for your account. You can now sign in using your email and the password below.
-            </p>
-            <div style="background: #f7f7f7; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;">
-              <p style="color: #718096; font-size: 12px; margin: 0 0 4px 0; text-transform: uppercase; letter-spacing: 1px;">Your temporary password</p>
-              <p style="font-size: 20px; font-weight: bold; letter-spacing: 2px; margin: 0; color: #1a1a1a; font-family: monospace;">${tempPassword}</p>
-            </div>
-            <p style="color: #4a5568; font-size: 16px;">
-              We recommend changing your password as soon as possible. You can do this from your
-              <a href="${appUrl}/settings" style="color: #F97316; text-decoration: underline;">Account Settings</a>.
-            </p>
-            <p style="color: #718096; font-size: 14px; margin-top: 24px;">
-              If you have any questions, please contact our team.
-            </p>
-          </div>
-        `,
-        recipients: [user.email],
-      });
-
-      if (!emailResult.success) {
-        console.error(`[Admin] Failed to send password notification to ${user.email}:`, emailResult.error);
-      }
-    }
-
-    console.log(`[Admin] Temporary password set for user ${userId} (${user.email}) by admin ${req.user?.email}`);
-
-    return res.json({
-      success: true,
-      temporaryPassword: tempPassword,
-      message: notifyUser
-        ? `Password set and notification sent to ${user.email}`
-        : `Password set for ${user.email}`,
-    });
+    return res.json(result);
   } catch (error) {
+    if (isAdminOrgError(error)) {
+      return res.status(error.statusCode).json(error.body);
+    }
     return handleError(res, error, "Set user password");
   }
 }
@@ -1031,7 +713,9 @@ export async function refreshBusinessData(
     const orgId = parseInt(req.params.id);
     const locationId = parseInt(req.params.locationId);
     if (isNaN(orgId) || isNaN(locationId)) {
-      return res.status(400).json({ error: "Invalid organization or location ID" });
+      return res
+        .status(400)
+        .json({ error: "Invalid organization or location ID" });
     }
 
     const oauth2Client = await getValidOAuth2ClientByOrg(orgId);
@@ -1070,22 +754,14 @@ export async function syncOrgBusinessData(
       return res.status(400).json({ error: "Invalid organization ID" });
     }
 
-    const locations = await LocationModel.findByOrganizationId(orgId);
-    const primary = locations.find((l) => l.is_primary) || locations[0];
-
-    if (!primary?.business_data) {
-      return res.status(400).json({
-        error: "Primary location has no business data. Refresh the location first.",
-      });
-    }
-
-    const synced = await BusinessDataService.updateOrgBusinessData(
-      orgId,
-      primary.business_data as Record<string, unknown>,
-    );
+    const synced =
+      await OrganizationDetailsService.syncOrgBusinessDataFromPrimary(orgId);
 
     return res.json({ success: true, business_data: synced });
   } catch (error) {
+    if (isAdminOrgError(error)) {
+      return res.status(error.statusCode).json(error.body);
+    }
     return handleError(res, error, "Sync org business data");
   }
 }

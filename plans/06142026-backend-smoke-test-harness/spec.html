@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Backend Smoke-Test Harness Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.86rem; margin-top: 8px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0; }
+    td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+    .p1 { font-weight: 800; }
+    .badge { display: inline-block; padding: 1px 8px; border: 1px solid var(--ink); border-radius: 999px; font-size: 0.7rem; font-weight: 800; }
+    a { color: var(--ink); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>Backend Smoke-Test Harness</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06142026-backend-smoke-test-harness</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="phase">
+      <h2>Phase 0 — The Enabler</h2>
+      <p>This is the <strong>first</strong> plan in the backend-cleanup arc, and nothing else in that arc should start until it lands. The conventions audit (<a href="../06142026-backend-conventions-audit/spec.html">06142026-backend-conventions-audit</a>) produced a ranked backlog whose two heaviest items — <strong>DB access out of <code>models/</code></strong> (~125 files / ~507 call sites) and <strong>god-file decomposition</strong> (128 files over the 300-line cap, incl. <code>checkup.ts</code> 2,140 ln and <code>admin-websites</code> 5,567 ln) — are large, behavior-preserving refactors across the hottest endpoints in the app.</p>
+      <p>There is <strong>no safety net</strong>. Verified during recon: <strong>0</strong> <code>*.test.ts</code> / <code>*.spec.ts</code> files in <code>src/</code>; no <code>jest</code>, <code>vitest</code>, <code>mocha</code>, or <code>supertest</code> in <code>package.json</code>; no test runner config on disk; no <code>test</code> npm script. The only verification gate today is <code>tsc</code>, which proves the code compiles, not that an endpoint still returns the right thing. Refactoring 500+ DB call sites with nothing but a type-checker is how silent regressions ship.</p>
+      <p><strong>This plan introduces the test net the rest of the cleanup needs.</strong> It is deliberately a <em>smoke net</em>, not exhaustive coverage: enough HTTP-level assertions over the highest-value endpoints to catch a refactor that breaks a route's status code or response shape. Coverage breadth is explicitly a later concern.</p>
+    </section>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The backend is ~743 files / ~142K lines with zero automated tests. The cleanup backlog requires moving DB queries into <code>models/</code> and breaking apart god-files — both touch live, paid, auth-bearing endpoints. Without a regression net, every refactor is a blind edit verified only by "it compiles" and manual clicking. We need a fast, cheap smoke suite that fails loudly when a refactor changes observable endpoint behavior, so the big refactors can proceed safely.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>A runnable backend test harness:</p>
+      <ul>
+        <li><strong>Vitest + Supertest</strong> added as <code>devDependencies</code> (pinned), with a <code>vitest.config.ts</code> and a <code>test</code> + <code>test:watch</code> npm script.</li>
+        <li>A small set of <strong>smoke / integration tests</strong> over the highest-value endpoints — auth login, OTP verify, a couple of admin reads, the PMS file/job list, a practice-ranking read, and a GBP read — each asserting <strong>HTTP status + response shape</strong> (not deep business correctness).</li>
+        <li>A documented, agreed <strong>data strategy</strong> (model-layer mocking first; disposable test DB deferred — see Pushback).</li>
+      </ul>
+      <p><strong>Done (this plan):</strong> <code>npm test</code> runs green locally; the listed endpoints each have at least one passing smoke assertion; the suite runs without a live Postgres or external network. <strong>Out (later):</strong> per-route coverage, integration-depth DB tests, CI wiring.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Current state (recon 2026-06-14)</h3>
+      <ul>
+        <li><code>package.json</code> scripts: <code>dev</code> = <code>tsx watch src/index.ts</code>, <code>dev:worker</code> = <code>tsx watch src/workers/worker.ts</code>, <code>build</code> = <code>tsc &amp;&amp; rsync ... src/agents/ dist/agents/</code>, <code>start</code> = <code>node dist/index.js</code>, plus <code>db:migrate</code> / <code>db:rollback</code> / <code>db:seed</code> (all <code>knex</code>). <strong>No <code>test</code> script.</strong></li>
+        <li>Runtime/dev toolchain is <strong>tsx</strong> (ESM-aware TS executor) + <strong>tsc</strong> for build. <code>typescript ^5.9.2</code>, <code>tsx ^4.20.6</code>. Test runner must be ESM/TS-native to match — Vitest fits cleanly; Jest would need extra ESM/ts transform config.</li>
+        <li><code>zod ^4.3.6</code> is already a dependency (used today for LLM-output parsing). Available for free as the response-shape assertion tool in tests — no new schema lib needed.</li>
+        <li><strong>Zero existing tests:</strong> <code>find src -name '*.test.ts' -o -name '*.spec.ts'</code> → 0; no <code>vitest.config.*</code> / <code>jest.config.*</code> on disk. Confirmed independently by the audit worksheet <a href="../06142026-backend-conventions-audit/checks/17-auth-core-shared.html">checks/17-auth-core-shared.html</a>.</li>
+      </ul>
+      <h3>The blocker: app is not importable without binding a port</h3>
+      <ul>
+        <li><code>src/index.ts</code> (273 ln) constructs the Express <code>app</code> inline, wires every router, and calls <code>app.listen(port, ...)</code> at <strong><code>index.ts:244</code></strong> inside a <code>startServer()</code> that runs on import. It has <strong>no export</strong> of the <code>app</code> object. Supertest needs the <code>app</code> handler <em>without</em> a live socket. <strong>This requires a small app/server split before any test can mount the app</strong> — see T2. (Flagged as a dependency/risk; not assumed trivial.)</li>
+      </ul>
+      <h3>Endpoint targets (real paths, mounted in <code>src/index.ts</code>)</h3>
+      <ul>
+        <li><code>POST /api/auth/login</code> — <code>routes/auth-password.ts</code> → <code>authPasswordController.login</code></li>
+        <li><code>POST /api/auth/otp/verify</code> (and <code>/validate</code>) — <code>routes/auth-otp.ts</code> → <code>controllers/auth-otp/AuthOtpController</code></li>
+        <li><code>GET /api/pms/file-manager</code> (job/file list) — <code>routes/pms.ts</code>, guarded by <code>protectedPms</code></li>
+        <li><code>GET /api/practice-ranking/...</code> — <code>routes/practiceRanking.ts</code> (client-facing <code>/latest</code>; mounted at both <code>/api/practice-ranking</code> and <code>/api/admin/practice-ranking</code> in <code>index.ts:194-195</code>)</li>
+        <li><code>GET /api/gbp/...</code> — <code>routes/gbp.ts</code></li>
+        <li>An admin read or two, e.g. under <code>/api/admin/app-logs</code> or <code>/api/admin/agent-insights</code> (both bare-mounted, useful as auth-boundary smoke cases).</li>
+      </ul>
+      <h3>The mock seam</h3>
+      <ul>
+        <li><code>src/models/</code> — 77 model files; per audit dim-7 the <em>intended</em> contract is that all DB access flows through this layer. That makes <code>models/</code> the clean seam to mock: stub the model functions a controller calls, and the endpoint runs end-to-end through routing + middleware + controller with no Postgres. (Caveat: the same audit found ~125 files bypass <code>models/</code> with raw <code>db("table")</code> — endpoints whose controllers query <code>db</code> directly cannot be mocked at the model seam and either need a DB or get deferred. This is itself a signal of what to refactor first.)</li>
+        <li>Auth middleware (<code>authenticateToken</code>, <code>rbacMiddleware</code>, <code>protectedPms</code>) lives in <code>src/middleware/</code>; the audit rates the guards themselves as sound. Tests mint a valid JWT (the signing helper already exists — <code>generateToken</code> in <code>controllers/auth-otp/feature-services/service.jwt-management</code>) rather than mocking auth out, so the guard stays in the tested path.</li>
+      </ul>
+      <h3>Patterns to follow</h3>
+      <ul>
+        <li>No existing test convention to match — this plan <em>establishes</em> it. Pick one layout and document it so the cleanup PRs extend it instead of inventing parallel ones: <code>src/__tests__/&lt;domain&gt;.smoke.test.ts</code>, a single <code>src/__tests__/helpers/app.ts</code> (builds the app), and <code>src/__tests__/helpers/auth.ts</code> (mints a test JWT).</li>
+        <li><strong>Reference file:</strong> <code>src/index.ts</code> — the app it builds is exactly what the test app-factory must reproduce minus <code>listen()</code>; the router/middleware wiring there is the source of truth for what to mount.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li><strong>Pin every new dependency</strong> to an exact version (no <code>^</code>/<code>~</code>) — the net must be reproducible across machines and CI.</li>
+            <li>Keep it a <strong>smoke net</strong>: assert HTTP status + response shape only. No deep business-logic assertions, no snapshotting whole payloads.</li>
+            <li>Tests run with <strong>no live Postgres and no outbound network</strong> (model-layer mocks; external SDKs — Anthropic, Google, Stripe, S3 — never hit in test).</li>
+            <li>Establish exactly one test layout + helper set and document it for the cleanup PRs to extend.</li>
+            <li>Mint a real JWT for protected-route tests so the auth guard stays in the tested path.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Change any application behavior. The app/server split (T2) is the <em>only</em> source edit and must be behavior-preserving — <code>npm run dev</code> / <code>npm start</code> still boot and listen identically.</li>
+            <li>Add runtime <code>dependencies</code> — test tooling is <code>devDependencies</code> only.</li>
+            <li>Introduce a parallel assertion/validation lib — reuse the already-present <code>zod</code> for shape checks.</li>
+            <li>Stand up a real/throwaway test database in this phase (deferred — see Pushback).</li>
+            <li>Drive-by refactor controllers while writing their tests. Tests observe; they don't fix.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Exhaustive per-route coverage, error-path matrices, and edge-case fuzzing.</li>
+        <li>A disposable/migrated integration test DB (Strategy A) — revisited once the model-layer leaks are closed.</li>
+        <li>CI pipeline wiring, coverage thresholds/gates, mutation testing.</li>
+        <li>Worker (<code>bullmq</code>) and renderer-app tests — different harness, separate plan.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 (Concern). The change is <strong>additive</strong> — new dev tooling plus a behavior-preserving app/server split. The two flagged risks are the new dependencies (justified below) and that the split touches the entry point.</p>
+
+      <h3>New dependencies — justification (required by the conventions contract)</h3>
+      <p>The contract discourages <em>unjustified</em> dependencies. These are justified and are the explicit point of the plan:</p>
+      <ul>
+        <li><strong>Vitest</strong> — the test runner. Chosen over Jest because the repo is ESM + TS executed via <code>tsx</code>; Vitest is ESM/TS-native and needs near-zero transform config, whereas Jest requires <code>ts-jest</code>/babel ESM plumbing that fights this toolchain. <code>devDependency</code> only.</li>
+        <li><strong>Supertest</strong> — drives HTTP assertions against the in-process Express <code>app</code> with no bound port. It is the standard Express integration-test tool and is what makes the smoke net possible. <code>devDependency</code> only (with <code>@types/supertest</code>).</li>
+      </ul>
+      <p>Both exist <em>to be</em> the refactor safety net. No runtime surface changes. Net new runtime deps: <strong>0</strong>.</p>
+
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>App/server split touches the entry point.</strong> <code>index.ts</code> currently builds + listens in one file with no export; tests need the <code>app</code> without <code>listen()</code>. <strong>Mitigation:</strong> extract the app construction into <code>src/app.ts</code> that <em>exports</em> the configured <code>app</code>; reduce <code>index.ts</code> to <code>import app from './app'</code> + the existing <code>startServer()</code>/<code>listen()</code>/signal-handler block. Behavior-preserving; verify <code>npm run dev</code> and <code>npm start</code> still boot. Mounting order in <code>app.ts</code> must match <code>index.ts</code> exactly.</li>
+        <li><strong>The model-mock seam leaks.</strong> ~125 files query <code>db()</code> directly (audit dim-7), so some target endpoints won't be fully isolatable by mocking <code>models/</code>. <strong>Mitigation:</strong> pick first-pass targets whose controllers already route through <code>models/</code>; for the rest, assert only the auth-boundary / validation response (e.g. 401/400 without a token/body), which needs no DB. Document which endpoints are "mock-blocked" — that list seeds the db-into-models plan's priority order.</li>
+        <li><strong>OTP/login paths have crypto + side effects</strong> (email send, token mint). <strong>Mitigation:</strong> mock the model + email seams; assert the <em>shape</em> of success/failure, not real code delivery. Never call the live email sender.</li>
+        <li><strong>Flaky env coupling</strong> — code reads <code>process.env</code> (JWT secret, etc.). <strong>Mitigation:</strong> a <code>setupFiles</code> entry sets deterministic test env (incl. an explicit <code>JWT_SECRET</code>) so signing/verifying is stable and the <code>auth.ts</code> fail-open fallback is never exercised in tests.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> source — only <code>src/index.ts</code> (reduced) and new <code>src/app.ts</code>. Consumers of <code>index.ts</code>: the <code>dev</code> and <code>start</code> scripts and PM2 (<code>signals-backend</code>) — all invoke it as an entry point, none import from it, so the split is contained. New test files import from <code>src/app.ts</code> and existing models/middleware; they ship no runtime exports.</p>
+
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>Data strategy: A vs B.</strong> <strong>(A) disposable test DB</strong> — run <code>knex</code> migrations against a throwaway schema/database, hit real SQL. Highest fidelity; catches query-level regressions (exactly what db-into-models risks). Cost: Postgres in the test env + CI, migration run per suite, slower, more setup. <strong>(B) mock the <code>models/</code> layer</strong> — stub model functions per test; no DB. Fast, hermetic, trivial to run anywhere. Cost: doesn't exercise real SQL, and is undermined wherever controllers bypass <code>models/</code>.
+          <br><strong>Recommendation: B for this first pass</strong> — a fast, zero-infra net unblocks the refactors now and forces us to lean on the <code>models/</code> seam (which is the very boundary the cleanup is trying to restore). Adopt <strong>A later</strong>, once db-into-models has pushed real query coverage behind <code>models/</code>, to add integration depth where it actually pays off. A real test DB now adds setup cost the refactor doesn't need yet — if B proves too thin for a given endpoint, fall back to A for that slice only.</li>
+        <li><strong>Why not skip the harness and just refactor carefully?</strong> 500+ DB call-site edits and multi-thousand-line file splits across paid/auth endpoints is precisely where "careful" silently fails. A smoke net is the cheapest insurance; <code>tsc</code> alone proves nothing about runtime behavior.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <p>T1 → T2 are sequential and gate everything (tooling, then the importable app). T3–T4 set up shared helpers. T5–T7 (the endpoint smoke tests) are mutually independent and parallelizable once T1–T4 land. T8 documents + verifies.</p>
+
+      <article class="task-card">
+        <h3>T1: Add pinned test tooling + scripts</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>devDependencies</code>, pinned to exact versions (no <code>^</code>): <code>vitest</code>, <code>supertest</code>, <code>@types/supertest</code>. Add npm scripts <code>"test": "vitest run"</code> and <code>"test:watch": "vitest"</code>. Add a minimal <code>vitest.config.ts</code> (node environment, <code>include</code> the test glob, register <code>setupFiles</code>). Do not add any runtime <code>dependencies</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>package.json</code>, <code>vitest.config.ts</code> (new)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npm install</code> succeeds; <code>npx vitest run</code> exits 0 (no tests yet = "no test files" is acceptable at this step); lockfile records exact pins.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: App/server split — make Express app importable</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Extract the Express app construction from <code>src/index.ts</code> into a new <code>src/app.ts</code> that builds and <strong>exports</strong> the configured <code>app</code> (all middleware + router mounts, in the exact current order, lines ~<code>index.ts:11-241</code>). Reduce <code>index.ts</code> to: <code>import app from './app'</code>, the DB-connection bootstrap, <code>app.listen(...)</code> (<code>index.ts:244</code>), and the existing SIGINT/SIGTERM handlers. Behavior-preserving — no route, middleware, or ordering changes.</dd></div>
+          <div><dt>Files</dt><dd><code>src/app.ts</code> (new), <code>src/index.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none (independent of T1, but the harness can't run until this lands)</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> clean (real gate is <code>tsc -p tsconfig.json</code>); <code>npm run dev</code> boots and serves; <code>npm run build &amp;&amp; npm start</code> boots and listens on the same port; a one-off <code>import app from './app'</code> does not open a socket.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Test app factory + env setup</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>src/__tests__/helpers/app.ts</code> exporting the importable app from <code>src/app.ts</code> for Supertest (<code>request(app)</code>). Add the Vitest <code>setupFiles</code> module that sets deterministic test env before app import — explicit <code>JWT_SECRET</code>, <code>NODE_ENV=production</code> (matches this repo's uniform-NODE_ENV rule), and any vars the app reads at boot — so signing is stable and no fail-open fallback is hit.</dd></div>
+          <div><dt>Files</dt><dd><code>src/__tests__/helpers/app.ts</code> (new), <code>src/__tests__/setup.ts</code> (new), <code>vitest.config.ts</code> (wire <code>setupFiles</code>)</dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2</dd></div>
+          <div><dt>Verify</dt><dd>A trivial <code>GET</code> against a known unauthenticated route (e.g. a health/root) returns through Supertest with no bound port and no DB connection error.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Auth + model-mock helpers</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>src/__tests__/helpers/auth.ts</code> that mints a valid test JWT via the existing signer (<code>generateToken</code>, <code>controllers/auth-otp/feature-services/service.jwt-management</code>) and returns an <code>Authorization: Bearer</code> header for protected-route tests. Establish the model-mock convention (Vitest <code>vi.mock</code> on the relevant <code>src/models/*Model</code> module) and document the pattern in a short header comment so endpoint tests copy it.</dd></div>
+          <div><dt>Files</dt><dd><code>src/__tests__/helpers/auth.ts</code> (new)</dd></div>
+          <div><dt>Depends on</dt><dd>T3</dd></div>
+          <div><dt>Verify</dt><dd>Helper returns a token that <code>authenticateToken</code> accepts (assert via a protected route returning non-401 in T5–T6); a sample <code>vi.mock</code> of one model returns the stub instead of touching <code>db()</code>.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Auth smoke tests (login + OTP verify)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Tests for <code>POST /api/auth/login</code> and <code>POST /api/auth/otp/verify</code> (+ <code>/validate</code>). Mock the user/OTP model seam and the email seam. Assert: happy path → expected success status + token-bearing shape; bad credentials / bad code → expected 4xx + error shape; missing body → 400. No live email, no DB.</dd></div>
+          <div><dt>Files</dt><dd><code>src/__tests__/auth.smoke.test.ts</code> (new)</dd></div>
+          <div><dt>Depends on</dt><dd>T4</dd></div>
+          <div><dt>Verify</dt><dd><code>npm test</code> green for this file; assertions cover status + shape for one success and one failure path each.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Protected-read smoke tests (PMS list, practice-ranking, admin read)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Tests for <code>GET /api/pms/file-manager</code> (job/file list, guard <code>protectedPms</code>), a <code>GET /api/practice-ranking</code> read (client-facing <code>/latest</code>), and one admin read (e.g. <code>/api/admin/app-logs</code> or <code>/api/admin/agent-insights</code>). With a valid token (T4) + mocked models → assert 200 + the list/object shape. Without a token → assert 401 (this case needs no DB and works even for mock-blocked endpoints). If an endpoint's controller queries <code>db()</code> directly and can't be model-mocked, keep only the no-token 401 assertion and record it in the mock-blocked list.</dd></div>
+          <div><dt>Files</dt><dd><code>src/__tests__/pms.smoke.test.ts</code>, <code>src/__tests__/practice-ranking.smoke.test.ts</code>, <code>src/__tests__/admin-reads.smoke.test.ts</code> (new)</dd></div>
+          <div><dt>Depends on</dt><dd>T4</dd></div>
+          <div><dt>Verify</dt><dd><code>npm test</code> green; each endpoint has an authed-200-shape assertion or a documented mock-blocked + 401 assertion.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: GBP read smoke test</h3>
+        <dl>
+          <div><dt>Do</dt><dd>One smoke test for a <code>GET /api/gbp/...</code> read. Mock the relevant model(s) and ensure no Google SDK call escapes. Assert authed → 200 + shape, and no-token → 401.</dd></div>
+          <div><dt>Files</dt><dd><code>src/__tests__/gbp.smoke.test.ts</code> (new)</dd></div>
+          <div><dt>Depends on</dt><dd>T4</dd></div>
+          <div><dt>Verify</dt><dd><code>npm test</code> green; no outbound network during the run.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T8: Document the harness + final gate</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a short README block (or a comment header in <code>vitest.config.ts</code>) describing: how to run (<code>npm test</code> / <code>test:watch</code>), the layout (<code>src/__tests__/*.smoke.test.ts</code> + <code>helpers/</code>), the model-mock + JWT pattern, the chosen data strategy (B now, A later), and the mock-blocked endpoint list for the db-into-models plan. Run the full pipeline.</dd></div>
+          <div><dt>Files</dt><dd>doc target (README section or config header) + repo-root <code>CHANGELOG.md</code> at <code>--done</code></dd></div>
+          <div><dt>Depends on</dt><dd>T5, T6, T7</dd></div>
+          <div><dt>Verify</dt><dd><code>npm test</code> all green; <code>tsc -p tsconfig.json</code> clean; mock-blocked list recorded.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npm test</code> runs green locally and exits 0</li>
+        <li><input type="checkbox" disabled> <code>vitest</code>, <code>supertest</code>, <code>@types/supertest</code> in <code>devDependencies</code>, pinned to exact versions; lockfile updated; <strong>0</strong> new runtime <code>dependencies</code></li>
+        <li><input type="checkbox" disabled> <code>test</code> and <code>test:watch</code> scripts present in <code>package.json</code></li>
+        <li><input type="checkbox" disabled> <code>src/app.ts</code> exports the importable Express app; <code>index.ts</code> only bootstraps + <code>listen()</code>s; <code>npm run dev</code> and <code>npm run build &amp;&amp; npm start</code> both still boot and listen</li>
+        <li><input type="checkbox" disabled> Smoke tests exist and pass for: <code>POST /api/auth/login</code>, <code>POST /api/auth/otp/verify</code>, <code>GET /api/pms/file-manager</code>, <code>GET /api/practice-ranking</code>, one admin read, <code>GET /api/gbp/...</code> — each asserting HTTP status + response shape</li>
+        <li><input type="checkbox" disabled> Suite runs with no live Postgres and no outbound network (models + external SDKs + email mocked)</li>
+        <li><input type="checkbox" disabled> Data strategy decision (B now / A later) recorded; mock-blocked endpoints listed for the db-into-models plan</li>
+        <li><input type="checkbox" disabled> <code>tsc -p tsconfig.json</code> — zero new errors</li>
+        <li><input type="checkbox" disabled> Harness layout + run instructions documented for the cleanup PRs to extend</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

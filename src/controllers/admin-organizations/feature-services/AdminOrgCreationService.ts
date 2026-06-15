@@ -8,12 +8,11 @@
  */
 
 import bcrypt from "bcrypt";
-import { Knex } from "knex";
-import { db } from "../../../database/connection";
 import { OrganizationModel } from "../../../models/OrganizationModel";
 import { UserModel } from "../../../models/UserModel";
 import { OrganizationUserModel } from "../../../models/OrganizationUserModel";
 import { LocationModel } from "../../../models/LocationModel";
+import logger from "../../../lib/logger";
 
 const BCRYPT_SALT_ROUNDS = 12;
 
@@ -110,7 +109,7 @@ export async function createOrganizationWithUser(
   }
 
   // ── Execute in transaction ──
-  const trx = await db.transaction();
+  const trx = await OrganizationModel.beginTransaction();
 
   try {
     // 1. Create organization
@@ -187,7 +186,7 @@ export async function createOrganizationWithUser(
 
     await trx.commit();
 
-    console.log(
+    logger.info(
       `[Admin] Organization created: ${org.id} (${org.name}) with user ${createdUser.id} (${createdUser.email})`
     );
 

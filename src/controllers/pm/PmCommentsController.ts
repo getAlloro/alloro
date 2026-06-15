@@ -29,10 +29,13 @@
 
 import { Response } from "express";
 import { AuthRequest } from "../../middleware/auth";
-import { db } from "../../database/connection";
 import { PmTaskCommentModel } from "../../models/PmTaskCommentModel";
 import { PmTaskModel } from "../../models/PmTaskModel";
+import { PmProjectModel } from "../../models/PmProjectModel";
+import { PmNotificationModel } from "../../models/PmNotificationModel";
+import { UserModel } from "../../models/UserModel";
 import { logPmActivity } from "./pmActivityLogger";
+import logger from "../../lib/logger";
 
 type CommentNotificationType = "mention_in_comment" | "task_commented";
 
@@ -41,7 +44,7 @@ function handleError(
   error: unknown,
   operation: string
 ): Response {
-  console.error(`[PM-COMMENTS] ${operation} failed:`, error);
+  logger.error({ err: error }, `[PM-COMMENTS] ${operation} failed:`);
   const message = error instanceof Error ? error.message : String(error);
   return res.status(500).json({ success: false, error: message });
 }
@@ -58,9 +61,7 @@ async function resolveMentionNames(
     (id) => typeof id === "number" && !Number.isNaN(id)
   );
   if (unique.length === 0) return {};
-  const rows: Array<{ id: number; email: string | null }> = await db("users")
-    .whereIn("id", unique)
-    .select("id", "email");
+  const rows = await UserModel.findIdEmailByIds(unique);
   const map: Record<number, string> = {};
   for (const r of rows) {
     map[r.id] = r.email ? r.email.split("@")[0] : `user ${r.id}`;
@@ -81,10 +82,7 @@ function normalizeMentions(raw: unknown): number[] {
 
 async function enrichCommentRow(row: any, callerId?: number): Promise<any> {
   if (!row) return row;
-  const author: { email: string | null } | undefined = await db("users")
-    .where({ id: row.author_id })
-    .select("email")
-    .first();
+  const author = await UserModel.findEmailById(row.author_id);
   const mentionIds: number[] = Array.isArray(row.mentions) ? row.mentions : [];
   const mention_names = await resolveMentionNames(mentionIds);
   return {
@@ -130,7 +128,7 @@ export async function createComment(
         .json({ success: false, error: "Task not found" });
     }
 
-    const created = await db.transaction(async (trx) => {
+    const created = await PmTaskCommentModel.transaction(async (trx) => {
       // 1. Insert the comment row.
       const inserted = await PmTaskCommentModel.create(
         {
@@ -168,11 +166,8 @@ export async function createComment(
 
       // 3. Compose metadata for the client-side notification card.
       const [project, actorUser] = await Promise.all([
-        trx("pm_projects")
-          .where("id", task.project_id)
-          .select("name")
-          .first(),
-        trx("users").where("id", authorId).select("email").first(),
+        PmProjectModel.findNameById(task.project_id, trx),
+        UserModel.findEmailById(authorId, trx),
       ]);
       const actor_name = actorUser?.email
         ? actorUser.email.split("@")[0]
@@ -199,7 +194,7 @@ export async function createComment(
           actor_user_id: authorId,
           metadata,
         }));
-        await trx("pm_notifications").insert(rows);
+        await PmNotificationModel.insertMany(rows, trx);
       }
 
       // 5. Activity log.
@@ -242,20 +237,7 @@ export async function listComments(
         .json({ success: false, error: "Task not found" });
     }
 
-    const rows = await db("pm_task_comments as c")
-      .leftJoin("users as u", "c.author_id", "u.id")
-      .where("c.task_id", taskId)
-      .orderBy("c.created_at", "asc")
-      .select(
-        "c.id",
-        "c.task_id",
-        "c.author_id",
-        "c.body",
-        "c.mentions",
-        "c.edited_at",
-        "c.created_at",
-        "u.email as author_email"
-      );
+    const rows = await PmTaskCommentModel.listByTaskWithAuthor(taskId);
 
     // Resolve mention_names in bulk across all comments for the task.
     const allMentionIds: number[] = [];
@@ -342,15 +324,8 @@ export async function updateComment(
         .json({ success: false, error: "Task not found" });
     }
 
-    await db.transaction(async (trx) => {
-      await trx("pm_task_comments")
-        .where({ id: commentId })
-        .update({
-          body,
-          mentions,
-          edited_at: new Date(),
-          updated_at: new Date(),
-        });
+    await PmTaskCommentModel.transaction(async (trx) => {
+      await PmTaskCommentModel.updateBody(commentId, { body, mentions }, trx);
 
       await logPmActivity(
         {
@@ -409,8 +384,8 @@ export async function deleteComment(
         .json({ success: false, error: "Task not found" });
     }
 
-    await db.transaction(async (trx) => {
-      await trx("pm_task_comments").where({ id: commentId }).del();
+    await PmTaskCommentModel.transaction(async (trx) => {
+      await PmTaskCommentModel.deleteByIdRaw(commentId, trx);
 
       await logPmActivity(
         {

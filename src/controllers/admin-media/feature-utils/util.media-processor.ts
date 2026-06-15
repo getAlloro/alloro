@@ -11,6 +11,7 @@
  */
 
 import sharp from "sharp";
+import logger from "../../../lib/logger";
 
 export interface ProcessedMedia {
   buffer: Buffer;
@@ -56,7 +57,7 @@ export async function processImage(
       compressed: true,
     };
   } catch (error) {
-    console.error("[MediaProcessor] Error processing image:", error);
+    logger.error({ err: error }, "[MediaProcessor] Error processing image:");
     throw new Error(`Image processing failed: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }

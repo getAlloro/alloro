@@ -1,759 +1,59 @@
 /**
- * Ranking Service
+ * Ranking Pipeline (orchestrator)
  *
  * Shared logic for Practice Ranking Analysis.
  * Used by:
  * - src/routes/practiceRanking.ts (Admin Trigger)
  * - src/routes/agentsV2.ts (Automated API Run)
+ *
+ * processLocationRanking sets up per-run context (account, OAuth, dates) then
+ * runs the pipeline stages in order, threading state between them:
+ *   Step 0/0.5  service.ranking-stage-search-position
+ *   Step 1-3    service.ranking-stage-gbp-competitors
+ *   Step 4      service.ranking-stage-audit
+ *   Step 5      service.ranking-stage-scoring
+ *   Step 6      service.ranking-stage-llm
+ *
+ * This file is a thin orchestrator: the stages own their logic verbatim, the DB
+ * lives in models, and the public import surface (processLocationRanking,
+ * MAX_RETRIES, RETRY_DELAY_MS, PrefetchedClientGbpData, updateStatus,
+ * StatusDetail) stays importable from this path via re-exports below.
  */
 
-import { db } from "../../../database/connection";
+// Aliased to avoid shadowing the optional `logger` PARAM used below.
+import appLogger from "../../../lib/logger";
 import { getValidOAuth2Client } from "../../../auth/oauth2Helper";
-import { fetchGBPDataForRange } from "../../../utils/dataAggregation/dataAggregator";
-import {
-  getCompetitorDetails,
-  enrichCompetitorReviewCounts,
-  getSpecialtyKeywords,
-} from "./service.apify";
-import { getSearchPositionViaSerpApiMaps } from "./service.serpapi-maps";
-import { auditWebsite } from "./service.website-audit";
-import {
-  discoverCompetitorsViaPlaces,
-  filterBySpecialty,
-  getClientPhotosViaPlaces,
-} from "./service.places-competitor-discovery";
-import {
-  getCachedCompetitors,
-  setCachedCompetitors,
-} from "./service.competitor-cache";
-import { resolveCompetitorsForRanking } from "./service.competitor-source-resolver";
-import {
-  calculateRankingScore,
-  rankPractices,
-  calculateBenchmarks,
-  PracticeData,
-  FACTOR_WEIGHTS,
-} from "./service.ranking-algorithm";
-import { createNotification } from "../../../utils/core/notificationHelper";
-import { listLocalPostsInRange } from "../../../routes/gbp";
-import { runRankingAnalysis, RankingLlmPayload } from "./service.ranking-llm";
-import { GbpLocalPostModel } from "../../../models/GbpLocalPostModel";
-import { ReviewModel } from "../../../models/website-builder/ReviewModel";
+import { GoogleConnectionModel } from "../../../models/GoogleConnectionModel";
+import { PracticeRankingModel } from "../../../models/PracticeRankingModel";
 import { DEFAULT_COMPETITOR_DISCOVERY_RADIUS_METERS } from "../feature-utils/util.competitor-validator";
-import { parseJsonField } from "../feature-utils/util.json-parser";
-import {
-  isRetryableExternalError,
-  runWithRetry,
-  summarizeRetryAttempts,
-} from "./service.ranking-resilience";
 import { OrganizationLifecycleService } from "../../../services/OrganizationLifecycleService";
+import { PipelineTimingRecord } from "../feature-utils/util.ranking-pipeline-timing";
+import {
+  LocationParams,
+  LocationRankingResult,
+  ProcessLocationRankingOptions,
+} from "../feature-utils/util.ranking-pipeline-helpers";
+import { StatusDetail } from "./service.ranking-status";
+import { runSearchPositionStage } from "./service.ranking-stage-search-position";
+import { runGbpCompetitorsStage } from "./service.ranking-stage-gbp-competitors";
+import { runWebsiteAuditStage } from "./service.ranking-stage-audit";
+import { runScoringStage } from "./service.ranking-stage-scoring";
+import { runLlmStage } from "./service.ranking-stage-llm";
 
 // Batch processing configuration
 export const MAX_RETRIES = 3;
 export const RETRY_DELAY_MS = 5000;
 
-export interface StatusDetail {
-  currentStep: string;
-  message: string;
-  progress: number;
-  stepsCompleted: string[];
-  timestamps: Record<string, string>;
-}
-
-export interface LocationRankingResult {
-  rankingId: number;
-  gbpLocationId: string;
-  gbpLocationName: string;
-  rankScore: number;
-  rankPosition: number;
-}
-
-// Location parameters for competitor discovery (from Identifier Agent)
-export interface LocationParams {
-  county?: string | null;
-  state?: string | null;
-  postalCode?: string | null;
-  city?: string | null;
-}
-
-export interface PrefetchedClientGbpData {
-  accountId: string;
-  locationId: string;
-  displayName: string;
-  startDate: string;
-  endDate: string;
-  data: any;
-}
-
-export interface ProcessLocationRankingOptions {
-  prefetchedClientGbpData?: PrefetchedClientGbpData;
-}
-
-type PipelineTimingOutcome = "success" | "failed" | "skipped";
-
-export interface PipelineTimingRecord {
-  step: string;
-  startedAt: string;
-  endedAt: string;
-  durationMs: number;
-  outcome: PipelineTimingOutcome;
-  detail?: string;
-}
-
-interface ActivePipelineTiming {
-  step: string;
-  startedAt: Date;
-  startedAtMs: number;
-}
-
-interface SearchResultPayloadEntry {
-  placeId: string;
-  name: string;
-  position: number;
-  rating: number;
-  reviewCount: number;
-  primaryType: string;
-  types: string[];
-  isClient: boolean;
-}
-
-type SelectedCompetitorMapsStatus =
-  | "measured"
-  | "not_in_top_20"
-  | "not_measured";
-
-interface SelectedCompetitorMapsContext {
-  selected_order: number;
-  place_id: string;
-  name: string;
-  maps_position: number | null;
-  maps_status: SelectedCompetitorMapsStatus;
-  rating: number | null;
-  review_count: number | null;
-  primary_type: string | null;
-}
-
-type ReviewVelocitySource = "apify" | "cache" | "not_measured";
-
-interface ReviewVelocityMeasurement {
-  reviewsLast30d: number;
-  reviewsLast90d: number | null;
-  source: ReviewVelocitySource;
-  measuredAt: string;
-}
-
-const SELECTED_COMPETITOR_VELOCITY_CACHE_MS = 7 * 24 * 60 * 60 * 1000;
-const POST_FRESHNESS_WINDOW_DAYS = 15;
-
-function daysSinceDate(value: Date | string | null | undefined): number | null {
-  if (!value) return null;
-  const timestamp = value instanceof Date ? value.getTime() : new Date(value).getTime();
-  if (!Number.isFinite(timestamp)) return null;
-  return Math.max(0, Math.floor((Date.now() - timestamp) / 86_400_000));
-}
-
-async function buildRankingEngagementSummary(params: {
-  organizationId: number | null;
-  locationId: number | null;
-  photosCount: number;
-  log: (msg: string) => void;
-}): Promise<RankingLlmPayload["additional_data"]["engagement_summary"] | null> {
-  const { organizationId, locationId, photosCount, log } = params;
-  if (!organizationId || !locationId) return null;
-
-  try {
-    const [counts, posts] = await Promise.all([
-      ReviewModel.getReplyabilityCounts(locationId),
-      GbpLocalPostModel.listForLocation({
-        organizationId,
-        locationId,
-        page: 1,
-        limit: 1,
-      }),
-    ]);
-    const latestPost = posts.data[0] ?? null;
-    const latestPostAt = latestPost?.create_time || latestPost?.update_time || null;
-    const latestPostAgeDays = daysSinceDate(latestPostAt);
-
-    return {
-      unanswered_reviews_total: counts.replyable_oauth,
-      unanswered_reviews_last_30d: counts.replyable_oauth_last_30d,
-      all_reviews_replied: counts.replyable_oauth === 0,
-      published_posts_total: posts.total,
-      latest_post_age_days: latestPostAgeDays,
-      latest_post_at: latestPostAt ? new Date(latestPostAt).toISOString() : null,
-      has_recent_post_15d:
-        latestPostAgeDays !== null
-          ? latestPostAgeDays <= POST_FRESHNESS_WINDOW_DAYS
-          : false,
-      post_freshness_window_days: POST_FRESHNESS_WINDOW_DAYS,
-      photos_count: photosCount,
-    };
-  } catch (error: any) {
-    log(
-      `[RANKING] Failed to build engagement summary for LLM: ${error.message}`,
-    );
-    return null;
-  }
-}
-
-function beginPipelineTiming(step: string): ActivePipelineTiming {
-  return {
-    step,
-    startedAt: new Date(),
-    startedAtMs: Date.now(),
-  };
-}
-
-function finishPipelineTiming(
-  timings: PipelineTimingRecord[],
-  active: ActivePipelineTiming,
-  outcome: PipelineTimingOutcome = "success",
-  detail?: string,
-): void {
-  timings.push({
-    step: active.step,
-    startedAt: active.startedAt.toISOString(),
-    endedAt: new Date().toISOString(),
-    durationMs: Date.now() - active.startedAtMs,
-    outcome,
-    ...(detail ? { detail } : {}),
-  });
-}
-
-function isMatchingPrefetchedClientGbpData(
-  prefetched: PrefetchedClientGbpData | undefined,
-  targetLocation: { accountId: string; locationId: string },
-  startDate: string,
-  endDate: string,
-): prefetched is PrefetchedClientGbpData {
-  return (
-    !!prefetched?.data &&
-    prefetched.accountId === targetLocation.accountId &&
-    prefetched.locationId === targetLocation.locationId &&
-    prefetched.startDate === startDate &&
-    prefetched.endDate === endDate
-  );
-}
-
-function buildClientGbpDataFromPrefetch(
-  prefetched: PrefetchedClientGbpData,
-): any {
-  return {
-    locations: [
-      {
-        accountId: prefetched.accountId,
-        locationId: prefetched.locationId,
-        displayName: prefetched.displayName,
-        data: prefetched.data,
-      },
-    ],
-    totalLocations: 1,
-  };
-}
-
-function normalizeAuditWebsiteUrl(
-  candidate: string | null | undefined,
-): string | null {
-  if (!candidate || typeof candidate !== "string") return null;
-  const trimmed = candidate.trim();
-  if (!trimmed) return null;
-  const withProtocol = /^https?:\/\//i.test(trimmed)
-    ? trimmed
-    : `https://${trimmed}`;
-
-  try {
-    const parsed = new URL(withProtocol);
-    if (!parsed.hostname) return null;
-    return parsed.toString();
-  } catch {
-    return null;
-  }
-}
-
-function resolveAuditWebsite(
-  gbpWebsiteUri: string | null | undefined,
-  domain: string,
-): string {
-  return (
-    normalizeAuditWebsiteUrl(gbpWebsiteUri) ||
-    normalizeAuditWebsiteUrl(domain) ||
-    `https://${domain}`
-  );
-}
-
-function hasFreshCuratedCompetitorMetadata(competitor: any): boolean {
-  const checkedAt =
-    competitor.discoveryCheckedAt instanceof Date
-      ? competitor.discoveryCheckedAt
-      : competitor.discoveryCheckedAt
-        ? new Date(competitor.discoveryCheckedAt)
-        : null;
-  const maxAgeMs = 24 * 60 * 60 * 1000;
-  const isFresh =
-    checkedAt !== null &&
-    !Number.isNaN(checkedAt.getTime()) &&
-    Date.now() - checkedAt.getTime() <= maxAgeMs;
-
-  return (
-    isFresh &&
-    !!competitor.placeId &&
-    !!competitor.name &&
-    !!competitor.address &&
-    !!(competitor.primaryType || competitor.category) &&
-    typeof competitor.totalScore === "number" &&
-    Number.isFinite(competitor.totalScore) &&
-    typeof competitor.reviewsCount === "number" &&
-    Number.isFinite(competitor.reviewsCount)
-  );
-}
-
-function buildCompetitorDetailFromDiscovery(
-  competitor: any,
-  specialtyKeywords: string[],
-): any {
-  const primaryCategory =
-    competitor.category || competitor.primaryType || "Unknown";
-  const hasKeywordInName = specialtyKeywords.some((keyword) =>
-    (competitor.name || "").toLowerCase().includes(keyword.toLowerCase()),
-  );
-
-  return {
-    placeId: competitor.placeId,
-    name: competitor.name,
-    address: competitor.address || "",
-    categories:
-      Array.isArray(competitor.types) && competitor.types.length > 0
-        ? competitor.types
-        : [primaryCategory],
-    primaryCategory,
-    totalReviews: competitor.reviewsCount ?? 0,
-    averageRating: competitor.totalScore ?? 0,
-    reviewsLast30d: null,
-    reviewsLast90d: null,
-    reviewVelocitySource: "not_measured" as ReviewVelocitySource,
-    reviewVelocityMeasuredAt: null,
-    photosCount: competitor.photosCount ?? 0,
-    postsLast90d: 0,
-    hasWebsite: !!competitor.website,
-    hasPhone: !!competitor.phone,
-    hasHours: !!competitor.hasHours,
-    hoursComplete: !!competitor.hoursComplete,
-    descriptionLength: 0,
-    hasKeywordInName,
-    website: competitor.website,
-    phone: competitor.phone,
-  };
-}
-
-function finiteNumber(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function markVelocityMeasured(
-  detail: any,
-  source: ReviewVelocitySource,
-  measuredAt: string,
-): any {
-  return {
-    ...detail,
-    reviewsLast30d: finiteNumber(detail?.reviewsLast30d) ?? 0,
-    reviewsLast90d: finiteNumber(detail?.reviewsLast90d),
-    reviewVelocitySource: source,
-    reviewVelocityMeasuredAt: measuredAt,
-  };
-}
-
-function markVelocityNotMeasured(detail: any): any {
-  return {
-    ...detail,
-    reviewsLast30d: null,
-    reviewsLast90d: null,
-    reviewVelocitySource: "not_measured" as ReviewVelocitySource,
-    reviewVelocityMeasuredAt: null,
-  };
-}
-
-function hasMeasuredReviewVelocity(detail: any): boolean {
-  const source = detail?.reviewVelocitySource;
-  return (
-    (source === "apify" || source === "cache") &&
-    finiteNumber(detail?.reviewsLast30d) !== null
-  );
-}
-
-function parseVelocityMeasuredAt(
-  value: unknown,
-  fallback: Date,
-): Date | null {
-  const measuredAt =
-    typeof value === "string" && value.trim() ? new Date(value) : fallback;
-  return Number.isNaN(measuredAt.getTime()) ? null : measuredAt;
-}
-
-async function loadCachedSelectedCompetitorVelocity(
-  rankingId: number,
-  locationId: number,
-  placeIds: string[],
-): Promise<Map<string, ReviewVelocityMeasurement>> {
-  const remaining = new Set(placeIds);
-  const measurements = new Map<string, ReviewVelocityMeasurement>();
-  if (remaining.size === 0) return measurements;
-
-  const minObservedAt = new Date(
-    Date.now() - SELECTED_COMPETITOR_VELOCITY_CACHE_MS,
-  );
-  const rows = await db("practice_rankings")
-    .where("location_id", locationId)
-    .whereNot("id", rankingId)
-    .where("observed_at", ">=", minObservedAt)
-    .orderBy("observed_at", "desc")
-    .select("observed_at", "raw_data")
-    .limit(20);
-
-  for (const row of rows) {
-    const rawData = parseJsonField(row.raw_data);
-    const competitors = Array.isArray(rawData?.competitors)
-      ? rawData.competitors
-      : [];
-    const observedAt =
-      row.observed_at instanceof Date
-        ? row.observed_at
-        : new Date(row.observed_at);
-
-    for (const competitor of competitors) {
-      const placeId =
-        typeof competitor?.placeId === "string" ? competitor.placeId : null;
-      if (!placeId || !remaining.has(placeId)) continue;
-
-      const reviewsLast30d = finiteNumber(competitor.reviewsLast30d);
-      if (reviewsLast30d === null) continue;
-
-      const source = competitor.reviewVelocitySource;
-      const hasExplicitMeasuredSource =
-        source === "apify" || source === "cache";
-      if (!hasExplicitMeasuredSource && reviewsLast30d <= 0) continue;
-
-      const measuredAt = parseVelocityMeasuredAt(
-        competitor.reviewVelocityMeasuredAt,
-        observedAt,
-      );
-      if (
-        !measuredAt ||
-        Date.now() - measuredAt.getTime() >
-          SELECTED_COMPETITOR_VELOCITY_CACHE_MS
-      ) {
-        continue;
-      }
-
-      measurements.set(placeId, {
-        reviewsLast30d,
-        reviewsLast90d: finiteNumber(competitor.reviewsLast90d),
-        source: "cache",
-        measuredAt: measuredAt.toISOString(),
-      });
-      remaining.delete(placeId);
-    }
-
-    if (remaining.size === 0) break;
-  }
-
-  return measurements;
-}
-
-async function enrichSelectedCompetitorReviewVelocity({
-  rankingId,
-  locationId,
-  competitorDetails,
-  specialtyKeywords,
-  pipelineTimings,
-  log,
-}: {
-  rankingId: number;
-  locationId: number | null;
-  competitorDetails: any[];
-  specialtyKeywords: string[];
-  pipelineTimings: PipelineTimingRecord[];
-  log: (message: string) => void;
-}): Promise<any[]> {
-  const velocityTiming = beginPipelineTiming("selected_competitor_velocity");
-  if (!locationId || competitorDetails.length === 0) {
-    finishPipelineTiming(
-      pipelineTimings,
-      velocityTiming,
-      "skipped",
-      "no_selected_competitors",
-    );
-    return competitorDetails;
-  }
-
-  try {
-    const placeIds = competitorDetails
-      .map((detail) => detail?.placeId)
-      .filter((placeId): placeId is string => typeof placeId === "string");
-    const alreadyMeasured = competitorDetails.filter(
-      hasMeasuredReviewVelocity,
-    ).length;
-    const cache = await loadCachedSelectedCompetitorVelocity(
-      rankingId,
-      locationId,
-      placeIds,
-    );
-    let cachedCount = 0;
-
-    let enriched = competitorDetails.map((detail) => {
-      if (hasMeasuredReviewVelocity(detail)) return detail;
-      const cached = cache.get(detail?.placeId);
-      if (!cached) return markVelocityNotMeasured(detail);
-      cachedCount++;
-      return {
-        ...detail,
-        reviewsLast30d: cached.reviewsLast30d,
-        reviewsLast90d: cached.reviewsLast90d,
-        reviewVelocitySource: cached.source,
-        reviewVelocityMeasuredAt: cached.measuredAt,
-      };
-    });
-
-    const missingPlaceIds = enriched
-      .filter((detail) => !hasMeasuredReviewVelocity(detail))
-      .map((detail) => detail?.placeId)
-      .filter((placeId): placeId is string => typeof placeId === "string");
-    let scrapedCount = 0;
-    let scrapeError: string | null = null;
-
-    if (missingPlaceIds.length > 0) {
-      const measuredAt = new Date().toISOString();
-      try {
-        const scrapedDetails = await getCompetitorDetails(
-          missingPlaceIds,
-          specialtyKeywords,
-        );
-        scrapedCount = scrapedDetails.length;
-        const scrapedByPlaceId = new Map(
-          scrapedDetails.map((detail) => [detail.placeId, detail]),
-        );
-
-        enriched = enriched.map((detail) => {
-          const scraped = scrapedByPlaceId.get(detail?.placeId);
-          if (!scraped) return detail;
-          return {
-            ...detail,
-            reviewsLast30d: finiteNumber(scraped.reviewsLast30d) ?? 0,
-            reviewsLast90d: finiteNumber(scraped.reviewsLast90d),
-            reviewVelocitySource: "apify" as ReviewVelocitySource,
-            reviewVelocityMeasuredAt: measuredAt,
-          };
-        });
-      } catch (error: any) {
-        scrapeError = error.message;
-        log(
-          `[RANKING] [${rankingId}] Selected competitor velocity scrape failed: ${error.message}`,
-        );
-      }
-    }
-
-    const unknownCount = enriched.filter(
-      (detail) => !hasMeasuredReviewVelocity(detail),
-    ).length;
-    finishPipelineTiming(
-      pipelineTimings,
-      velocityTiming,
-      scrapeError
-        ? "failed"
-        : cachedCount > 0 || scrapedCount > 0
-          ? "success"
-          : "skipped",
-      `already_measured=${alreadyMeasured};cached=${cachedCount};scraped=${scrapedCount};unknown=${unknownCount}${
-        scrapeError ? `;scrape_error=${scrapeError}` : ""
-      }`,
-    );
-    log(
-      `[RANKING] [${rankingId}] Selected competitor velocity: already_measured=${alreadyMeasured}, cached=${cachedCount}, scraped=${scrapedCount}, unknown=${unknownCount}`,
-    );
-    return enriched;
-  } catch (error: any) {
-    finishPipelineTiming(
-      pipelineTimings,
-      velocityTiming,
-      "failed",
-      error.message,
-    );
-    log(
-      `[RANKING] [${rankingId}] Selected competitor velocity unavailable: ${error.message}`,
-    );
-    return competitorDetails.map((detail) =>
-      hasMeasuredReviewVelocity(detail) ? detail : markVelocityNotMeasured(detail),
-    );
-  }
-}
-
-function buildSelectedCompetitorMapsContext(
-  competitors: any[],
-  searchResults: SearchResultPayloadEntry[],
-  searchStatus: "ok" | "not_in_top_20" | "bias_unavailable" | "api_error",
-): SelectedCompetitorMapsContext[] {
-  const searchByPlaceId = new Map(
-    searchResults
-      .filter((entry) => entry.placeId)
-      .map((entry) => [entry.placeId, entry]),
-  );
-
-  return competitors.map((competitor, index) => {
-    const match = searchByPlaceId.get(competitor.placeId);
-    const mapsStatus: SelectedCompetitorMapsStatus = match
-      ? "measured"
-      : searchStatus === "api_error" || searchStatus === "bias_unavailable"
-        ? "not_measured"
-        : "not_in_top_20";
-    return {
-      selected_order: index + 1,
-      place_id: competitor.placeId,
-      name: competitor.name,
-      maps_position: match?.position ?? null,
-      maps_status: mapsStatus,
-      rating: match?.rating ?? competitor.totalScore ?? null,
-      review_count: match?.reviewCount ?? competitor.reviewsCount ?? null,
-      primary_type: match?.primaryType ?? competitor.primaryType ?? null,
-    };
-  });
-}
-
-/**
- * Sum values from GBP performance time series data
- */
-function sumPerformanceMetric(
-  performanceSeries: any[],
-  metricName: string,
-): number {
-  if (!performanceSeries || !Array.isArray(performanceSeries)) return 0;
-
-  for (const multiSeries of performanceSeries) {
-    const dailyMetricList = multiSeries?.dailyMetricTimeSeries || [];
-    for (const series of dailyMetricList) {
-      if (series.dailyMetric === metricName) {
-        const datedValues = series?.timeSeries?.datedValues || [];
-        return datedValues.reduce((sum: number, dv: any) => {
-          const value = dv?.value !== undefined ? parseInt(dv.value, 10) : 0;
-          return sum + (isNaN(value) ? 0 : value);
-        }, 0);
-      }
-    }
-  }
-  return 0;
-}
-
-/**
- * Extract performance metrics from GBP data
- */
-function extractPerformanceMetrics(gbpData: any): {
-  calls: number;
-  directions: number;
-  clicks: number;
-} {
-  const performanceSeries = gbpData?.performance?.series || [];
-  return {
-    calls: sumPerformanceMetric(performanceSeries, "CALL_CLICKS"),
-    directions: sumPerformanceMetric(
-      performanceSeries,
-      "BUSINESS_DIRECTION_REQUESTS",
-    ),
-    clicks: sumPerformanceMetric(performanceSeries, "WEBSITE_CLICKS"),
-  };
-}
-
-/**
- * Update ranking status in database
- */
-export async function updateStatus(
-  rankingId: number,
-  status: string,
-  step: string,
-  message: string,
-  progress: number,
-  existingDetail?: StatusDetail,
-  logger?: (msg: string) => void,
-): Promise<void> {
-  const detail: StatusDetail = existingDetail || {
-    currentStep: step,
-    message: message,
-    progress: progress,
-    stepsCompleted: [],
-    timestamps: { started_at: new Date().toISOString() },
-  };
-
-  detail.currentStep = step;
-  detail.message = message;
-  detail.progress = progress;
-  detail.timestamps[`${step}_at`] = new Date().toISOString();
-
-  if (progress > 0 && !detail.stepsCompleted.includes(step)) {
-    const steps = [
-      "queued",
-      "fetching_search_position",
-      "fetching_client_gbp",
-      "discovering_competitors",
-      "scraping_competitors",
-      "auditing_website",
-      "calculating_scores",
-      "awaiting_llm",
-      "done",
-    ];
-    const currentIndex = steps.indexOf(step);
-    if (currentIndex > 0) {
-      detail.stepsCompleted = steps.slice(0, currentIndex);
-    }
-  }
-
-  await db("practice_rankings")
-    .where({ id: rankingId })
-    .update({
-      status: status,
-      status_detail: JSON.stringify(detail),
-      updated_at: new Date(),
-    });
-
-  if (logger) {
-    logger(
-      `[RANKING] [${rankingId}] Status: ${status} - ${step} (${progress}%): ${message}`,
-    );
-  }
-}
-
-async function markRankingFailed(
-  rankingId: number,
-  step: string,
-  message: string,
-  error: unknown,
-  existingDetail?: StatusDetail,
-  logger?: (msg: string) => void,
-): Promise<void> {
-  const detail: StatusDetail = existingDetail || {
-    currentStep: step,
-    message,
-    progress: 0,
-    stepsCompleted: [],
-    timestamps: { started_at: new Date().toISOString() },
-  };
-  const errorMessage = error instanceof Error ? error.message : String(error);
-
-  detail.currentStep = step;
-  detail.message = message;
-  detail.timestamps[`${step}_failed_at`] = new Date().toISOString();
-
-  await db("practice_rankings")
-    .where({ id: rankingId })
-    .update({
-      status: "failed",
-      status_detail: JSON.stringify(detail),
-      error_message: errorMessage,
-      updated_at: new Date(),
-    });
-
-  if (logger) {
-    logger(`[RANKING] [${rankingId}] Failed at ${step}: ${errorMessage}`);
-  }
-}
+// Re-exported to preserve the historical import surface from this module path.
+export { updateStatus } from "./service.ranking-status";
+export type { StatusDetail } from "./service.ranking-status";
+export type {
+  PrefetchedClientGbpData,
+  ProcessLocationRankingOptions,
+  LocationParams,
+  LocationRankingResult,
+} from "../feature-utils/util.ranking-pipeline-helpers";
+export type { PipelineTimingRecord } from "../feature-utils/util.ranking-pipeline-timing";
 
 /**
  * Process ranking analysis for a single location
@@ -787,14 +87,14 @@ export async function processLocationRanking(
   options: ProcessLocationRankingOptions = {},
 ): Promise<LocationRankingResult> {
   const startTime = Date.now();
-  const log = logger || console.log;
+  const log = logger || ((msg: string) => appLogger.info(msg));
   const pipelineTimings: PipelineTimingRecord[] = [];
 
   log(
     `[RANKING] [${rankingId}] START: ${gbpLocationName} (${specialty} in ${marketLocation})`,
   );
 
-  let statusDetail: StatusDetail = {
+  const statusDetail: StatusDetail = {
     currentStep: "queued",
     message: "Analysis queued",
     progress: 0,
@@ -803,31 +103,22 @@ export async function processLocationRanking(
   };
 
   // Get account details
-  const account = await db("google_connections")
-    .where({ id: googleAccountId })
-    .first();
+  const account = await GoogleConnectionModel.findById(googleAccountId);
 
   if (!account) {
     throw new Error(`Account ${googleAccountId} not found`);
   }
 
-  const rankingRunContext = await db("practice_rankings as pr")
-    .leftJoin("locations as l", "l.id", "pr.location_id")
-    .where("pr.id", rankingId)
-    .select(
-      "pr.location_id",
-      "pr.competitor_discovery_radius_meters as ranking_discovery_radius",
-      "l.organization_id",
-      "l.competitor_discovery_radius_meters as location_discovery_radius",
-    )
-    .first();
+  const rankingRunContext =
+    await PracticeRankingModel.findRankingRunContext(rankingId);
   const competitorDiscoveryRadiusMeters = Number(
     rankingRunContext?.ranking_discovery_radius ??
       rankingRunContext?.location_discovery_radius ??
       DEFAULT_COMPETITOR_DISCOVERY_RADIUS_METERS,
   );
 
-  const organizationId = rankingRunContext?.organization_id ?? account.organization_id;
+  const organizationId =
+    rankingRunContext?.organization_id ?? account.organization_id;
   if (organizationId) {
     await OrganizationLifecycleService.assertActive(Number(organizationId));
   }
@@ -847,1073 +138,109 @@ export async function processLocationRanking(
   const startDateStr = startDate.toISOString().split("T")[0];
   const endDateStr = endDate.toISOString().split("T")[0];
 
-  // ========== STEP 0: Search Position (live Google data) ==========
-  // Fetch the client's position in Google Places for "{specialty} in {marketLocation}",
-  // using the practice's own coordinates as the location bias. The same competitor
-  // set drives Practice Health scoring (Option A — see spec).
-  // Spec: plans/04122026-no-ticket-practice-health-search-position-split/spec.md
-  const searchPositionTiming = beginPipelineTiming("search_position");
-  await updateStatus(
+  // ========== STEP 0 + 0.5: Search Position + Competitor Resolution ==========
+  const searchStage = await runSearchPositionStage({
     rankingId,
-    "processing",
-    "fetching_search_position",
-    `Looking up ${gbpLocationName} on Google...`,
-    5,
-    statusDetail,
-    log,
-  );
-
-  const searchQuery = `${specialty} in ${marketLocation}`;
-
-  let clientVantage: { lat: number; lng: number } | null = null;
-  let clientPlaceId: string | null = null;
-  let clientPhotosCountFromStep0 = 0;
-  let searchStatus: "ok" | "not_in_top_20" | "bias_unavailable" | "api_error" = "ok";
-  let searchPosition: number | null = null;
-  let discoveredCompetitors: any[] = [];
-
-  // Sub-step 1: Resolve client vantage point via Places lookup
-  try {
-    const clientLookup = await getClientPhotosViaPlaces(
-      gbpLocationName,
-      marketLocation,
-    );
-    if (
-      clientLookup.placeId &&
-      clientLookup.lat !== null &&
-      clientLookup.lng !== null
-    ) {
-      clientVantage = { lat: clientLookup.lat, lng: clientLookup.lng };
-      clientPlaceId = clientLookup.placeId;
-      clientPhotosCountFromStep0 = clientLookup.photosCount;
-      log(
-        `[RANKING] [${rankingId}] Step 0: client vantage = ${clientVantage.lat.toFixed(4)},${clientVantage.lng.toFixed(4)} (placeId=${clientPlaceId})`,
-      );
-    } else {
-      log(
-        `[RANKING] [${rankingId}] Step 0: client lookup did not return coordinates — proceeding without location bias`,
-      );
-      searchStatus = "bias_unavailable";
-    }
-  } catch (err: any) {
-    log(
-      `[RANKING] [${rankingId}] Step 0: client lookup failed: ${err.message}`,
-    );
-    searchStatus = "bias_unavailable";
-  }
-
-  // Sub-step 2: Location-biased competitor search via Places API
-  try {
-    discoveredCompetitors = await discoverCompetitorsViaPlaces(
-      specialty,
-      marketLocation,
-      20,
-      clientVantage
-        ? {
-            lat: clientVantage.lat,
-            lng: clientVantage.lng,
-            radiusMeters: competitorDiscoveryRadiusMeters,
-          }
-        : undefined,
-    );
-    log(
-      `[RANKING] [${rankingId}] Step 0: ${discoveredCompetitors.length} competitors from Places searchText`,
-    );
-  } catch (err: any) {
-    log(
-      `[RANKING] [${rankingId}] Step 0: Places searchText failed: ${err.message}. Falling back to unbiased discovery so Practice Health still has data.`,
-    );
-    searchStatus = "api_error";
-    try {
-      discoveredCompetitors = await discoverCompetitorsViaPlaces(
-        specialty,
-        marketLocation,
-        20,
-      );
-    } catch (fallbackErr: any) {
-      log(
-        `[RANKING] [${rankingId}] Step 0: fallback discovery also failed: ${fallbackErr.message}`,
-      );
-      discoveredCompetitors = [];
-    }
-  }
-
-  // Sub-step 2.5: Photos-count freshening — independent of position source.
-  // The searchText field mask returns a photos count we may want to prefer over
-  // the Step 0 lookup. Keep this even after the Apify swap so Practice Health
-  // scoring continues to see the freshest photos count.
-  if (clientPlaceId) {
-    const clientFromDiscovery = discoveredCompetitors.find(
-      (c: any) => c.placeId === clientPlaceId,
-    );
-    if (
-      clientFromDiscovery &&
-      (clientFromDiscovery.photosCount ?? 0) > clientPhotosCountFromStep0
-    ) {
-      clientPhotosCountFromStep0 = clientFromDiscovery.photosCount;
-    }
-  }
-
-  // Sub-step 3: Live Google Maps position lookup via SerpApi.
-  // The Maps panel ordering for "{specialty} in {marketLocation}" — what a real
-  // searcher in the area sees — is what users perceive as "Live Google Rank".
-  // This is a different surface from the Places API `searchText` ranking used
-  // above for competitor discovery; the two coexist intentionally.
-  // Spec: plans/05142026-no-ticket-serpapi-maps-rank-source/spec.md (T2)
-  let searchPositionSource: "serpapi_maps" | "apify_maps" | "places_text" | null = null;
-  let serpApiMapsRetrySummary = "serpapi_attempts=0";
-  let mapsOrderedResults: Array<{
-    placeId: string;
-    name: string;
-    position: number;
-    rating: number;
-    reviewCount: number;
-    primaryType: string;
-    isClient: boolean;
-  }> | null = null;
-
-  if (clientPlaceId && clientVantage) {
-    const serpApiResult = await getSearchPositionViaSerpApiMaps(
-      searchQuery,
-      clientPlaceId,
-      clientVantage,
-    );
-    serpApiMapsRetrySummary = summarizeRetryAttempts(
-      serpApiResult.retryAttempts || [],
-    ).replace(/^attempts=/, "serpapi_attempts=");
-
-    if (serpApiResult.status === "ok") {
-      searchPosition = serpApiResult.position;
-      searchStatus = "ok";
-      searchPositionSource = "serpapi_maps";
-      mapsOrderedResults = serpApiResult.orderedResults;
-      log(
-        `[RANKING] [${rankingId}] Step 0: SerpApi Maps position = ${searchPosition} of ${serpApiResult.resultCount}`,
-      );
-    } else if (serpApiResult.status === "not_in_top_20") {
-      searchPosition = null;
-      searchStatus = "not_in_top_20";
-      searchPositionSource = "serpapi_maps";
-      mapsOrderedResults = serpApiResult.orderedResults;
-      log(
-        `[RANKING] [${rankingId}] Step 0: SerpApi Maps returned ${serpApiResult.resultCount} results, client not in top set`,
-      );
-    } else {
-      // SerpApi failed — leave searchStatus as it was set by Sub-step 1/2
-      // where possible. If Sub-step 2 still succeeded with a placeId match in
-      // the Places API result set, fall back to that for continuity. Do not
-      // silently fall back to Apify for this headline estimate.
-      log(
-        `[RANKING] [${rankingId}] Step 0: SerpApi Maps failed — falling back to Places API position if available`,
-      );
-      const clientIndex = discoveredCompetitors.findIndex(
-        (c: any) => c.placeId === clientPlaceId,
-      );
-      if (clientIndex >= 0) {
-        searchPosition = clientIndex + 1;
-        searchStatus = "ok";
-        searchPositionSource = "places_text";
-        log(
-          `[RANKING] [${rankingId}] Step 0: Places API fallback position = ${searchPosition}`,
-        );
-      } else {
-        searchStatus = "api_error";
-        searchPositionSource = null;
-      }
-    }
-  } else if (clientPlaceId) {
-    log(
-      `[RANKING] [${rankingId}] Step 0: skipping SerpApi Maps lookup (no client coordinates)`,
-    );
-    const clientIndex = discoveredCompetitors.findIndex(
-      (c: any) => c.placeId === clientPlaceId,
-    );
-    if (clientIndex >= 0) {
-      searchPosition = clientIndex + 1;
-      searchStatus = "ok";
-      searchPositionSource = "places_text";
-      log(
-        `[RANKING] [${rankingId}] Step 0: Places API fallback position = ${searchPosition}`,
-      );
-    }
-  } else {
-    log(
-      `[RANKING] [${rankingId}] Step 0: skipping SerpApi Maps lookup (no clientPlaceId)`,
-    );
-  }
-
-  // Sub-step 4: Build search_results jsonb. Prefer the SerpApi ordered list so
-  // the rankings UI table reflects the Maps panel that the Live Google Rank
-  // number measures. Fall back to Places API discoveries when SerpApi did not
-  // produce results, so the table still has *something* to render.
-  const searchResultsPayload: SearchResultPayloadEntry[] =
-    mapsOrderedResults !== null && mapsOrderedResults.length > 0
-      ? mapsOrderedResults.map((r) => ({
-          placeId: r.placeId,
-          name: r.name,
-          position: r.position,
-          rating: r.rating,
-          reviewCount: r.reviewCount,
-          primaryType: r.primaryType,
-          types: [] as string[],
-          isClient: r.isClient,
-        }))
-      : discoveredCompetitors.map((c: any, idx: number) => ({
-          placeId: c.placeId,
-          name: c.name,
-          position: idx + 1,
-          rating: c.totalScore ?? 0,
-          reviewCount: c.reviewsCount ?? 0,
-          primaryType: c.primaryType ?? "",
-          types: c.types ?? [],
-          isClient: clientPlaceId !== null && c.placeId === clientPlaceId,
-        }));
-
-  // Sub-step 5: Persist Step 0 fields immediately so they survive later-step failures
-  await db("practice_rankings")
-    .where({ id: rankingId })
-    .update({
-      search_position: searchPosition,
-      search_query: searchQuery,
-      search_lat: clientVantage?.lat ?? null,
-      search_lng: clientVantage?.lng ?? null,
-      search_radius_meters: clientVantage ? competitorDiscoveryRadiusMeters : null,
-      search_results: JSON.stringify(searchResultsPayload),
-      competitor_discovery_radius_meters: competitorDiscoveryRadiusMeters,
-      search_checked_at: new Date(),
-      search_status: searchStatus,
-      search_position_source: searchPositionSource,
-      updated_at: new Date(),
-    });
-
-  log(
-    `[RANKING] [${rankingId}] Step 0 complete: status=${searchStatus}, position=${
-      searchPosition ?? "n/a"
-    }, source=${searchPositionSource ?? "n/a"}, places_api_competitors=${discoveredCompetitors.length}`,
-  );
-  finishPipelineTiming(
-    pipelineTimings,
-    searchPositionTiming,
-    "success",
-    `status=${searchStatus};position=${searchPosition ?? "n/a"};source=${searchPositionSource ?? "n/a"};${serpApiMapsRetrySummary}`,
-  );
-
-  // ========== STEP 0.5: Competitor Source Resolution (v2) ==========
-  // For finalized locations (user has curated their competitor list), swap
-  // discoveredCompetitors with the curated set so Practice Health scoring runs
-  // against the user's chosen comparison group. Search Position above is
-  // unaffected — it always uses raw Google top-N.
-  // Spec: plans/04282026-no-ticket-practice-ranking-v2-user-curated-competitors/spec.md
-  const competitorResolutionTiming = beginPipelineTiming(
-    "competitor_resolution",
-  );
-  const resolved = await resolveCompetitorsForRanking(
-    rankingId,
-    discoveredCompetitors,
-    log,
-  );
-  discoveredCompetitors = resolved.competitors;
-  await db("practice_rankings")
-    .where({ id: rankingId })
-    .update({
-      competitor_source: resolved.source,
-      updated_at: new Date(),
-    });
-  log(
-    `[RANKING] [${rankingId}] Competitor source resolved: ${resolved.source}, ${discoveredCompetitors.length} competitors used for Practice Health`,
-  );
-  finishPipelineTiming(
-    pipelineTimings,
-    competitorResolutionTiming,
-    "success",
-    `source=${resolved.source};competitors=${discoveredCompetitors.length}`,
-  );
-  const selectedCompetitorMapsContext = buildSelectedCompetitorMapsContext(
-    discoveredCompetitors,
-    searchResultsPayload,
-    searchStatus,
-  );
-
-  // ========== STEP 1: Fetch GBP Data ==========
-  const clientGbpTiming = beginPipelineTiming("client_gbp");
-  await updateStatus(
-    rankingId,
-    "processing",
-    "fetching_client_gbp",
-    `Fetching GBP data for ${gbpLocationName}...`,
-    10,
-    statusDetail,
-    log,
-  );
-
-  const targetLocation = propertyIds?.gbp?.find(
-    (loc: any) =>
-      loc.locationId === gbpLocationId && loc.accountId === gbpAccountId,
-  );
-
-  if (!targetLocation) {
-    throw new Error(
-      `GBP location ${gbpLocationId} not found in account ${googleAccountId}`,
-    );
-  }
-
-  let clientGbpData: any;
-  let clientGbpSource: "prefetch" | "fetched" = "fetched";
-  let clientGbpRetrySummary = "attempts=0";
-  try {
-    if (
-      isMatchingPrefetchedClientGbpData(
-        options.prefetchedClientGbpData,
-        targetLocation,
-        startDateStr,
-        endDateStr,
-      )
-    ) {
-      clientGbpData = buildClientGbpDataFromPrefetch(
-        options.prefetchedClientGbpData,
-      );
-      clientGbpSource = "prefetch";
-      log(
-        `[RANKING] [${rankingId}] Step 1: reused pre-fetched GBP payload for ${gbpAccountId}/${gbpLocationId}`,
-      );
-    } else {
-      const gbpFetchResult = await runWithRetry(
-        () =>
-          fetchGBPDataForRange(
-            oauth2Client,
-            [targetLocation],
-            startDateStr,
-            endDateStr,
-            {
-              refreshOAuth2Client: async () => {
-                oauth2Client = await getValidOAuth2Client(googleAccountId, {
-                  forceRefresh: true,
-                });
-                return oauth2Client;
-              },
-              throwOnLocationError: true,
-            },
-          ),
-        {
-          label: `GBP data fetch ${gbpAccountId}/${gbpLocationId}`,
-          maxAttempts: 3,
-          logger: log,
-          shouldRetry: isRetryableExternalError,
-        },
-      );
-      clientGbpData = gbpFetchResult.value;
-      clientGbpRetrySummary = summarizeRetryAttempts(gbpFetchResult.attempts);
-      log(
-        `[RANKING] [${rankingId}] Step 1: GBP fetch ${clientGbpRetrySummary}`,
-      );
-      clientGbpSource = "fetched";
-    }
-  } catch (error: any) {
-    finishPipelineTiming(
-      pipelineTimings,
-      clientGbpTiming,
-      "failed",
-      `${error.message};${summarizeRetryAttempts(error.retryAttempts || [])}`,
-    );
-    const message =
-      "Google Business Profile data could not be loaded. Reconnect Google or retry the ranking after token refresh.";
-    await markRankingFailed(
-      rankingId,
-      "fetching_client_gbp",
-      message,
-      error,
-      statusDetail,
-      log,
-    );
-    throw error;
-  }
-
-  if (!clientGbpData?.locations?.[0]?.data) {
-    const error = new Error(
-      `GBP data missing for ${gbpLocationName} (${gbpLocationId})`,
-    );
-    finishPipelineTiming(
-      pipelineTimings,
-      clientGbpTiming,
-      "failed",
-      error.message,
-    );
-    await markRankingFailed(
-      rankingId,
-      "fetching_client_gbp",
-      "Google Business Profile data is missing, so Practice Health cannot be calculated safely.",
-      error,
-      statusDetail,
-      log,
-    );
-    throw error;
-  }
-  finishPipelineTiming(
-    pipelineTimings,
-    clientGbpTiming,
-    "success",
-    `source=${clientGbpSource};${clientGbpRetrySummary}`,
-  );
-
-  // ========== STEP 2: Discover Competitors ==========
-  // The competitor list was already fetched in Step 0 via location-biased Places
-  // searchText. We trust Google's ordering verbatim — no filterBySpecialty
-  // post-filter (per spec: Option A, "trust Google, no post-filter"). The same
-  // unfiltered set drives both the Search Position display and Practice Health
-  // scoring downstream.
-  //
-  // The legacy competitor_cache module is intentionally bypassed on this path —
-  // its (specialty + marketLocation) key is incompatible with per-practice
-  // location bias. The cache module stays in place for any other callers.
-  await updateStatus(
-    rankingId,
-    "processing",
-    "discovering_competitors",
-    `Using ${discoveredCompetitors.length} competitors from Google Places`,
-    30,
-    statusDetail,
-    log,
-  );
-
-  const usedCache = false;
-
-  // ========== STEP 3: Deep Scrape Competitors ==========
-  await updateStatus(
-    rankingId,
-    "processing",
-    "scraping_competitors",
-    `Scraping ${discoveredCompetitors.length} competitors...`,
-    50,
-    statusDetail,
-    log,
-  );
-
-  // Use custom keywords from Identifier Agent if provided, otherwise fallback to hardcoded
-  const specialtyKeywords =
-    keywords && keywords.length > 0
-      ? keywords
-      : getSpecialtyKeywords(specialty);
-  log(
-    `[RANKING] [${rankingId}] Using ${specialtyKeywords.length} keywords (source: ${keywords && keywords.length > 0 ? "Identifier Agent" : "hardcoded"})`,
-  );
-  let competitorDetails: any[] = [];
-  const competitorDetailsTiming = beginPipelineTiming("competitor_details");
-
-  try {
-    if (resolved.source === "curated") {
-      const reusableDetails = new Map<string, any>();
-      const staleCompetitors: any[] = [];
-
-      for (const competitor of discoveredCompetitors) {
-        if (hasFreshCuratedCompetitorMetadata(competitor)) {
-          reusableDetails.set(
-            competitor.placeId,
-            buildCompetitorDetailFromDiscovery(competitor, specialtyKeywords),
-          );
-        } else {
-          staleCompetitors.push(competitor);
-        }
-      }
-
-      const scrapedVelocityMeasuredAt = new Date().toISOString();
-      const scrapedDetails =
-        staleCompetitors.length > 0
-          ? await getCompetitorDetails(
-              staleCompetitors.map((c) => c.placeId),
-              specialtyKeywords,
-            )
-          : [];
-      const scrapedByPlaceId = new Map(
-        scrapedDetails.map((detail) => [
-          detail.placeId,
-          markVelocityMeasured(detail, "apify", scrapedVelocityMeasuredAt),
-        ]),
-      );
-
-      competitorDetails = discoveredCompetitors
-        .map((competitor) => {
-          return (
-            reusableDetails.get(competitor.placeId) ||
-            scrapedByPlaceId.get(competitor.placeId)
-          );
-        })
-        .filter(Boolean);
-
-      log(
-        `[RANKING] [${rankingId}] Curated competitor details: reused ${reusableDetails.size}, scraped ${scrapedDetails.length}`,
-      );
-      finishPipelineTiming(
-        pipelineTimings,
-        competitorDetailsTiming,
-        staleCompetitors.length > 0 ? "success" : "skipped",
-        `reused=${reusableDetails.size};scraped=${scrapedDetails.length};${summarizeRetryAttempts(
-          (scrapedDetails as any).retryAttempts || [],
-        )}`,
-      );
-    } else {
-      const competitorPlaceIds = discoveredCompetitors.map((c) => c.placeId);
-      const scrapedVelocityMeasuredAt = new Date().toISOString();
-      competitorDetails = (await getCompetitorDetails(
-        competitorPlaceIds,
-        specialtyKeywords,
-      )).map((detail) =>
-        markVelocityMeasured(detail, "apify", scrapedVelocityMeasuredAt),
-      );
-      finishPipelineTiming(
-        pipelineTimings,
-        competitorDetailsTiming,
-        "success",
-        `scraped=${competitorDetails.length};${summarizeRetryAttempts(
-          (competitorDetails as any).retryAttempts || [],
-        )}`,
-      );
-    }
-
-    const withReviews = competitorDetails.filter((c) => c.totalReviews > 0).length;
-    const withRatings = competitorDetails.filter((c) => c.averageRating > 0).length;
-    log(
-      `[RANKING] [${rankingId}] Competitor details: ${competitorDetails.length} competitors, ${withReviews} with review data, ${withRatings} with ratings`,
-    );
-  } catch (error: any) {
-    finishPipelineTiming(
-      pipelineTimings,
-      competitorDetailsTiming,
-      "failed",
-      `${error.message};${summarizeRetryAttempts(error.retryAttempts || [])}`,
-    );
-    log(
-      `[RANKING] [${rankingId}] Detailed scrape failed, using discovery fallback: ${error.message}`,
-    );
-    competitorDetails = discoveredCompetitors.map((comp) => {
-      const hasKeywordInName = specialtyKeywords.some((keyword) =>
-        comp.name.toLowerCase().includes(keyword.toLowerCase()),
-      );
-      return {
-        placeId: comp.placeId,
-        name: comp.name,
-        address: comp.address,
-        categories: [comp.category],
-        primaryCategory: comp.category,
-        totalReviews: comp.reviewsCount,
-        averageRating: comp.totalScore,
-        reviewsLast30d: null,
-        reviewsLast90d: null,
-        reviewVelocitySource: "not_measured",
-        reviewVelocityMeasuredAt: null,
-        photosCount: 0,
-        postsLast90d: 0,
-        hasWebsite: !!comp.website,
-        hasPhone: !!comp.phone,
-        hasHours: true,
-        hoursComplete: true,
-        descriptionLength: 0,
-        hasKeywordInName,
-        website: comp.website,
-        phone: comp.phone,
-      };
-    });
-  }
-
-  // Enrich competitors with accurate review counts from Google Places API
-  // (Apify actor regression: reviewsCount returns null, reviews array capped at maxReviews=10)
-  try {
-    competitorDetails = await enrichCompetitorReviewCounts(competitorDetails);
-  } catch (error: any) {
-    log(
-      `[RANKING] [${rankingId}] Review count enrichment failed, continuing with Apify data: ${error.message}`,
-    );
-  }
-
-  // Filter client out of competitors by exact placeId (when available from Step 0).
-  // Falls back to fuzzy name match only if Step 0 couldn't resolve the client's placeId
-  // (bias_unavailable / api_error states).
-  if (clientPlaceId) {
-    competitorDetails = competitorDetails.filter(
-      (comp) => comp.placeId !== clientPlaceId,
-    );
-  } else {
-    const clientNameLower = gbpLocationName.toLowerCase().trim();
-    competitorDetails = competitorDetails.filter((comp) => {
-      const compNameLower = (comp.name || "").toLowerCase().trim();
-      if (compNameLower === clientNameLower) return false;
-      if (
-        compNameLower.includes(clientNameLower) ||
-        clientNameLower.includes(compNameLower)
-      ) {
-        const shorterLength = Math.min(
-          compNameLower.length,
-          clientNameLower.length,
-        );
-        const longerLength = Math.max(
-          compNameLower.length,
-          clientNameLower.length,
-        );
-        if (shorterLength / longerLength > 0.5) return false;
-      }
-      return true;
-    });
-  }
-
-  const clientLocation = clientGbpData?.locations?.[0];
-  const gbpData = clientLocation?.data;
-  const profileData = gbpData?.profile;
-
-  // ========== STEP 4: Website Audit ==========
-  const websiteAuditTiming = beginPipelineTiming("website_audit");
-  await updateStatus(
-    rankingId,
-    "processing",
-    "auditing_website",
-    "Auditing client website...",
-    60,
-    statusDetail,
-    log,
-  );
-
-  let websiteAudit = null;
-  const clientWebsite = resolveAuditWebsite(profileData?.websiteUri, domain);
-  try {
-    websiteAudit = await auditWebsite(clientWebsite, {
-      phone:
-        profileData?.phoneNumbers?.primaryPhone ||
-        profileData?.primaryPhone ||
-        null,
-      addressLines: [
-        ...(profileData?.storefrontAddress?.addressLines || []),
-        profileData?.storefrontAddress?.locality,
-        profileData?.storefrontAddress?.administrativeArea,
-      ].filter(Boolean),
-    });
-    finishPipelineTiming(
-      pipelineTimings,
-      websiteAuditTiming,
-      websiteAudit.status === "failed" ? "failed" : "success",
-      `url=${clientWebsite};status=${websiteAudit.status};${summarizeRetryAttempts(
-        websiteAudit.retryAttempts || [],
-      )}`,
-    );
-  } catch (error: any) {
-    finishPipelineTiming(
-      pipelineTimings,
-      websiteAuditTiming,
-      "failed",
-      error.message,
-    );
-    log(`[RANKING] [${rankingId}] Website audit failed: ${error.message}`);
-  }
-
-  // ========== STEP 5: Calculate Scores ==========
-  await updateStatus(
-    rankingId,
-    "processing",
-    "calculating_scores",
-    "Calculating ranking scores...",
-    80,
-    statusDetail,
-    log,
-  );
-
-  // Fetch local posts for last 30 days via GBP API
-  const postsTiming = beginPipelineTiming("posts");
-  let postsLast30d = 0;
-  try {
-    const postsEndDate = new Date();
-    const postsStartDate = new Date();
-    postsStartDate.setDate(postsStartDate.getDate() - 30);
-    const postsStart = postsStartDate.toISOString().split("T")[0];
-    const postsEnd = postsEndDate.toISOString().split("T")[0];
-
-    log(
-      `[RANKING] [${rankingId}] Fetching posts for ${gbpAccountId}/${gbpLocationId} from ${postsStart} to ${postsEnd}`,
-    );
-
-    const localPosts = await listLocalPostsInRange(
-      oauth2Client,
-      gbpAccountId,
-      gbpLocationId,
-      postsStart,
-      postsEnd,
-      50,
-    );
-    postsLast30d = localPosts.length;
-    log(
-      `[RANKING] [${rankingId}] ✓ Fetched ${postsLast30d} posts from last 30 days`,
-    );
-    finishPipelineTiming(
-      pipelineTimings,
-      postsTiming,
-      "success",
-      `posts=${postsLast30d}`,
-    );
-  } catch (error: any) {
-    finishPipelineTiming(
-      pipelineTimings,
-      postsTiming,
-      "failed",
-      error.message,
-    );
-    log(`[RANKING] [${rankingId}] ✗ Failed to fetch posts: ${error.message}`);
-    // Continue with postsLast30d = 0 if fetch fails
-  }
-
-  // Reuse the client photos count captured in Step 0 — no extra Places API call needed.
-  // Step 0 already looked the client up via Places, and the searchText field mask
-  // includes places.photos. Falls back to a fresh lookup only if Step 0 didn't resolve
-  // the client (clientPlaceId is null).
-  let clientPhotosCount = clientPhotosCountFromStep0;
-  if (!clientPlaceId) {
-    try {
-      log(
-        `[RANKING] [${rankingId}] Step 0 had no client placeId — fetching client photos directly: "${gbpLocationName}" in "${marketLocation}"`,
-      );
-      const clientPhotosResult = await getClientPhotosViaPlaces(
-        gbpLocationName,
-        marketLocation,
-      );
-      clientPhotosCount = clientPhotosResult.photosCount;
-      if (clientPhotosResult.placeId) {
-        log(
-          `[RANKING] [${rankingId}] ✓ Client photos: ${clientPhotosCount} (Place ID: ${clientPhotosResult.placeId})`,
-        );
-      } else {
-        log(
-          `[RANKING] [${rankingId}] ✗ Could not match client in Places API results`,
-        );
-      }
-    } catch (error: any) {
-      log(
-        `[RANKING] [${rankingId}] ✗ Failed to fetch client photos: ${error.message}`,
-      );
-      // Continue with clientPhotosCount = 0 if fetch fails
-    }
-  }
-
-  const scoreCalculationTiming = beginPipelineTiming("score_calculation");
-  const clientPracticeData: PracticeData = {
-    name: gbpLocationName || profileData?.title || domain,
-    primaryCategory: profileData?.primaryCategory || "Dentist",
-    secondaryCategories: profileData?.additionalCategories || [],
-    totalReviews: gbpData?.reviews?.allTime?.totalReviewCount || 0,
-    averageRating: gbpData?.reviews?.allTime?.averageRating || 0,
-    reviewsLast30d: gbpData?.reviews?.window?.newReviews || 0,
-    postsLast30d: postsLast30d,
-    hasWebsite: !!profileData?.websiteUri,
-    hasPhone: !!profileData?.phoneNumber,
-    hasHours: !!profileData?.hasHours,
-    hoursComplete: profileData?.hasHours || false,
-    descriptionLength: profileData?.description?.length || 0,
-    photosCount: clientPhotosCount,
-  };
-
-  // Pass keywords to ranking algorithm for the "keyword in name" scoring factor
-  const clientRanking = calculateRankingScore(
-    clientPracticeData,
+    gbpLocationName,
+    marketLocation,
     specialty,
-    specialtyKeywords,
-  );
-
-  const competitorsForRanking = competitorDetails.map((comp) => ({
-    id: comp.placeId,
-    data: {
-      name: comp.name,
-      primaryCategory: comp.primaryCategory,
-      secondaryCategories: comp.categories,
-      totalReviews: comp.totalReviews,
-      averageRating: comp.averageRating,
-      reviewsLast30d: comp.reviewsLast30d || 0,
-      postsLast30d: comp.postsLast90d || 0,
-      hasWebsite: comp.hasWebsite,
-      hasPhone: comp.hasPhone,
-      hasHours: comp.hasHours,
-      hoursComplete: comp.hoursComplete,
-      descriptionLength: comp.descriptionLength,
-      photosCount: comp.photosCount,
-    } as PracticeData,
-  }));
-
-  const allPractices = [
-    { id: "client", data: clientPracticeData },
-    ...competitorsForRanking,
-  ];
-
-  // Rank by 6-factor competitive score (excludes velocity + activity which are client-only)
-  const rankedPractices = rankPractices(
-    allPractices,
-    specialty,
-    specialtyKeywords,
-    "competitive",
-  );
-  const clientRankResult = rankedPractices.find((p) => p.id === "client");
-
-  if (resolved.source === "curated") {
-    competitorDetails = await enrichSelectedCompetitorReviewVelocity({
-      rankingId,
-      locationId: rankingRunContext?.location_id ?? null,
-      competitorDetails,
-      specialtyKeywords,
-      pipelineTimings,
-      log,
-    });
-  }
-
-  const benchmarks = calculateBenchmarks(
-    competitorDetails.map((c) => ({
-      totalReviews: c.totalReviews,
-      averageRating: c.averageRating,
-      reviewsLast30d: c.reviewsLast30d,
-    })),
-  );
-
-  const performanceMetrics = extractPerformanceMetrics(gbpData);
-
-  const rawData = {
-    client_gbp: {
-      totalReviewCount: clientPracticeData.totalReviews,
-      averageRating: clientPracticeData.averageRating,
-      primaryCategory: clientPracticeData.primaryCategory,
-      reviewsLast30d: clientPracticeData.reviewsLast30d,
-      postsLast30d: clientPracticeData.postsLast30d,
-      photosCount: clientPracticeData.photosCount || 0,
-      hasWebsite: clientPracticeData.hasWebsite,
-      hasPhone: clientPracticeData.hasPhone,
-      hasHours: clientPracticeData.hasHours,
-      performance: performanceMetrics,
-      gbpLocationId,
-      gbpAccountId,
-      gbpLocationName,
-      _raw: clientGbpData,
-    },
-    competitors: rankedPractices
-      .filter((p) => p.id !== "client")
-      .slice(0, 20)
-      .map((p) => {
-        const details = competitorDetails.find((c) => c.placeId === p.id);
-        const reviewsLast30d = finiteNumber(details?.reviewsLast30d);
-        const reviewsLast90d = finiteNumber(details?.reviewsLast90d);
-        return {
-          name: details?.name || "Unknown",
-          placeId: p.id,
-          address: details?.address || null,
-          rankScore: p.competitiveScore,
-          rankPosition: p.rankPosition,
-          totalReviews: details?.totalReviews || 0,
-          averageRating: details?.averageRating || 0,
-          reviewsLast30d,
-          reviewsLast90d,
-          reviewVelocitySource:
-            details?.reviewVelocitySource || "not_measured",
-          reviewVelocityMeasuredAt:
-            details?.reviewVelocityMeasuredAt || null,
-          primaryCategory: details?.primaryCategory || "Unknown",
-          hasKeywordInName: details?.hasKeywordInName || false,
-          photosCount: details?.photosCount || 0,
-          postsLast90d: details?.postsLast90d || 0,
-        };
-      }),
-    competitors_discovered: competitorDetails.length,
-    competitors_from_cache: usedCache,
-    competitor_discovery_radius_meters: competitorDiscoveryRadiusMeters,
-    website_audit: websiteAudit,
-    pipeline_timings: pipelineTimings,
-  };
-
-  const rankingFactors = {
-    category_match: {
-      score:
-        clientRanking.factors.categoryMatch.score /
-        clientRanking.factors.categoryMatch.max,
-      weighted: clientRanking.factors.categoryMatch.score,
-      weight: FACTOR_WEIGHTS.categoryMatch,
-      details: clientRanking.factors.categoryMatch.details,
-    },
-    review_count: {
-      score:
-        clientRanking.factors.reviewCount.score /
-        clientRanking.factors.reviewCount.max,
-      weighted: clientRanking.factors.reviewCount.score,
-      weight: FACTOR_WEIGHTS.reviewCount,
-      value: clientPracticeData.totalReviews,
-      details: clientRanking.factors.reviewCount.details,
-    },
-    star_rating: {
-      score:
-        clientRanking.factors.starRating.score /
-        clientRanking.factors.starRating.max,
-      weighted: clientRanking.factors.starRating.score,
-      weight: FACTOR_WEIGHTS.starRating,
-      value: clientPracticeData.averageRating,
-      details: clientRanking.factors.starRating.details,
-    },
-    keyword_name: {
-      score:
-        clientRanking.factors.keywordName.score /
-        clientRanking.factors.keywordName.max,
-      weighted: clientRanking.factors.keywordName.score,
-      weight: FACTOR_WEIGHTS.keywordName,
-      details: clientRanking.factors.keywordName.details,
-    },
-    review_velocity: {
-      score:
-        clientRanking.factors.reviewVelocity.score /
-        clientRanking.factors.reviewVelocity.max,
-      weighted: clientRanking.factors.reviewVelocity.score,
-      weight: FACTOR_WEIGHTS.reviewVelocity,
-      value: clientPracticeData.reviewsLast30d,
-      details: clientRanking.factors.reviewVelocity.details,
-    },
-    nap_consistency: {
-      score:
-        clientRanking.factors.napConsistency.score /
-        clientRanking.factors.napConsistency.max,
-      weighted: clientRanking.factors.napConsistency.score,
-      weight: FACTOR_WEIGHTS.napConsistency,
-      details: clientRanking.factors.napConsistency.details,
-    },
-    gbp_activity: {
-      score:
-        clientRanking.factors.gbpActivity.score /
-        clientRanking.factors.gbpActivity.max,
-      weighted: clientRanking.factors.gbpActivity.score,
-      weight: FACTOR_WEIGHTS.gbpActivity,
-      value: clientPracticeData.postsLast30d,
-      details: clientRanking.factors.gbpActivity.details,
-    },
-    sentiment: {
-      score:
-        clientRanking.factors.sentiment.score /
-        clientRanking.factors.sentiment.max,
-      weighted: clientRanking.factors.sentiment.score,
-      weight: FACTOR_WEIGHTS.sentiment,
-      details: clientRanking.factors.sentiment.details,
-    },
-  };
-  finishPipelineTiming(
-    pipelineTimings,
-    scoreCalculationTiming,
-    "success",
-    `score=${clientRanking.totalScore};rank=${clientRankResult?.rankPosition || 1}`,
-  );
-
-  await db("practice_rankings")
-    .where({ id: rankingId })
-    .update({
-      rank_score:
-        clientRankResult?.competitiveScore || clientRanking.totalScore,
-      rank_position: clientRankResult?.rankPosition || 1,
-      total_competitors: competitorDetails.length + 1,
-      ranking_factors: JSON.stringify(rankingFactors),
-      raw_data: JSON.stringify(rawData),
-      updated_at: new Date(),
-    });
-
-  // ========== STEP 6: Send to LLM ==========
-  await updateStatus(
-    rankingId,
-    "processing",
-    "awaiting_llm",
-    "Sending to AI for gap analysis...",
-    90,
+    competitorDiscoveryRadiusMeters,
     statusDetail,
     log,
-  );
-
-  // Get the ranking record for task creation context
-  const ranking = await db("practice_rankings")
-    .where({ id: rankingId })
-    .first();
-
-  // Build Search Position context for the LLM (Practice Health + Search Position split).
-  // Includes the live Google query, the client's position, and the top 5 with isClient flags.
-  const top5SearchResults = searchResultsPayload.slice(0, 5).map((entry) => ({
-    rank: entry.position,
-    name: entry.name,
-    review_count: entry.reviewCount,
-    rating: entry.rating,
-    is_client: entry.isClient,
-  }));
-  const ownerVisibleScore = Math.round(clientRanking.totalScore);
-  const rawOrganizationIdForEngagement = Number(
-    rankingRunContext?.organization_id ?? account.organization_id ?? 0,
-  );
-  const organizationIdForEngagement =
-    Number.isFinite(rawOrganizationIdForEngagement) &&
-    rawOrganizationIdForEngagement > 0
-      ? rawOrganizationIdForEngagement
-      : null;
-  const engagementSummary = await buildRankingEngagementSummary({
-    organizationId: organizationIdForEngagement,
-    locationId: rankingRunContext?.location_id ?? null,
-    photosCount: clientPracticeData.photosCount || 0,
-    log,
+    pipelineTimings,
   });
 
-  const llmPayload: RankingLlmPayload = {
-    additional_data: {
-      practice_ranking_id: rankingId,
-      batch_id: batchId,
-      client: {
-        domain,
-        practice_name: gbpLocationName,
-        specialty,
-        location: marketLocation,
-        gbp_location_id: gbpLocationId,
-        gbp_account_id: gbpAccountId,
-        rank_score: ownerVisibleScore,
-        visible_local_search_score: ownerVisibleScore,
-        rank_position: clientRankResult?.rankPosition || 1,
-        total_competitors: competitorDetails.length,
-        factors: rankingFactors,
-        gbp_data: {
-          business_name: clientPracticeData.name,
-          total_reviews: clientPracticeData.totalReviews,
-          average_rating: clientPracticeData.averageRating,
-          reviews_last_30d: clientPracticeData.reviewsLast30d,
-          primary_category: clientPracticeData.primaryCategory,
-        },
-        website_audit: websiteAudit,
-      },
-      competitors: rawData.competitors.slice(0, 5),
-      benchmarks,
-      engagement_summary: engagementSummary ?? undefined,
-      search_position: {
-        query: searchQuery,
-        position: searchPosition,
-        status: searchStatus,
-        not_in_top_20: searchStatus === "not_in_top_20",
-        top_5: top5SearchResults,
-        selected_competitors: selectedCompetitorMapsContext,
-        discovery_radius_meters: competitorDiscoveryRadiusMeters,
-      },
-    },
-  };
-
-  const llmTiming = beginPipelineTiming("llm");
-  const llmResult = await runRankingAnalysis(
+  // ========== STEP 1-3: Client GBP + Competitor Scrape ==========
+  const competitorStage = await runGbpCompetitorsStage({
     rankingId,
-    llmPayload,
-    ranking,
+    googleAccountId,
+    gbpAccountId,
+    gbpLocationId,
+    gbpLocationName,
+    propertyIds,
+    oauth2Client,
+    startDateStr,
+    endDateStr,
+    options,
+    specialty,
+    keywords,
+    resolvedSource: searchStage.resolvedSource,
+    clientPlaceId: searchStage.clientPlaceId,
+    discoveredCompetitors: searchStage.discoveredCompetitors,
     statusDetail,
     log,
-  );
-  finishPipelineTiming(
     pipelineTimings,
-    llmTiming,
-    llmResult.success ? "success" : "failed",
-    llmResult.success
-      ? `tokens=${llmResult.inputTokens ?? "n/a"}/${llmResult.outputTokens ?? "n/a"};${summarizeRetryAttempts(
-          llmResult.retryAttempts || [],
-        )}`
-      : `${llmResult.error};${summarizeRetryAttempts(
-          llmResult.retryAttempts || [],
-        )}`,
-  );
-  rawData.pipeline_timings = pipelineTimings;
-  await db("practice_rankings")
-    .where({ id: rankingId })
-    .update({
-      raw_data: JSON.stringify(rawData),
-      updated_at: new Date(),
-    });
+  });
+  // The GBP fetch may have force-refreshed the OAuth client; reuse it downstream.
+  oauth2Client = competitorStage.oauth2Client;
+
+  // ========== STEP 4: Website Audit ==========
+  const websiteAudit = await runWebsiteAuditStage({
+    rankingId,
+    domain,
+    profileData: competitorStage.profileData,
+    statusDetail,
+    log,
+    pipelineTimings,
+  });
+
+  // ========== STEP 5: Calculate Scores ==========
+  const scoringStage = await runScoringStage({
+    rankingId,
+    gbpAccountId,
+    gbpLocationId,
+    gbpLocationName,
+    domain,
+    specialty,
+    marketLocation,
+    oauth2Client,
+    clientPlaceId: searchStage.clientPlaceId,
+    clientPhotosCountFromStep0: searchStage.clientPhotosCountFromStep0,
+    competitorDiscoveryRadiusMeters,
+    specialtyKeywords: competitorStage.specialtyKeywords,
+    competitorDetails: competitorStage.competitorDetails,
+    gbpData: competitorStage.gbpData,
+    profileData: competitorStage.profileData,
+    clientGbpData: competitorStage.clientGbpData,
+    websiteAudit,
+    usedCache: competitorStage.usedCache,
+    resolvedSource: searchStage.resolvedSource,
+    rankingRunContext,
+    statusDetail,
+    log,
+    pipelineTimings,
+  });
+
+  // ========== STEP 6: Send to LLM ==========
+  await runLlmStage({
+    rankingId,
+    batchId,
+    domain,
+    gbpLocationName,
+    specialty,
+    marketLocation,
+    gbpLocationId,
+    gbpAccountId,
+    competitorDiscoveryRadiusMeters,
+    searchQuery: searchStage.searchQuery,
+    searchPosition: searchStage.searchPosition,
+    searchStatus: searchStage.searchStatus,
+    searchResultsPayload: searchStage.searchResultsPayload,
+    selectedCompetitorMapsContext: searchStage.selectedCompetitorMapsContext,
+    clientPracticeData: scoringStage.clientPracticeData,
+    clientRanking: scoringStage.clientRanking,
+    clientRankResult: scoringStage.clientRankResult,
+    competitorDetails: scoringStage.competitorDetails,
+    rankingFactors: scoringStage.rankingFactors,
+    benchmarks: scoringStage.benchmarks,
+    rawData: scoringStage.rawData,
+    websiteAudit,
+    account,
+    rankingRunContext,
+    statusDetail,
+    log,
+    pipelineTimings,
+  });
 
   log(
     `[RANKING] [${rankingId}] COMPLETE in ${(
@@ -1927,7 +254,8 @@ export async function processLocationRanking(
     gbpLocationId,
     gbpLocationName,
     rankScore:
-      clientRankResult?.competitiveScore || clientRanking.totalScore,
-    rankPosition: clientRankResult?.rankPosition || 1,
+      scoringStage.clientRankResult?.competitiveScore ||
+      scoringStage.clientRanking.totalScore,
+    rankPosition: scoringStage.clientRankResult?.rankPosition || 1,
   };
 }

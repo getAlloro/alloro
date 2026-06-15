@@ -4,6 +4,7 @@
  */
 
 import { interceptEmailPayload } from "../../../emails/emailInterceptor";
+import logger from "../../../lib/logger";
 
 export interface EmailWebhookPayload {
   cc: string[];
@@ -19,7 +20,7 @@ export async function sendEmailWebhook(payload: EmailWebhookPayload): Promise<vo
   const webhookUrl = process.env.ALLORO_CUSTOM_WEBSITE_EMAIL_WEBHOOK || "";
 
   if (!webhookUrl) {
-    console.error("[Website Contact] ALLORO_CUSTOM_WEBSITE_EMAIL_WEBHOOK not configured");
+    logger.error("[Website Contact] ALLORO_CUSTOM_WEBSITE_EMAIL_WEBHOOK not configured");
     throw new Error("Email service not configured");
   }
 
@@ -32,10 +33,7 @@ export async function sendEmailWebhook(payload: EmailWebhookPayload): Promise<vo
   } = await interceptEmailPayload(payload);
 
   if (intercepted) {
-    console.log(
-      "[Website Contact] Email intercepted (non-production sender). Original recipients:",
-      originalRecipients
-    );
+    logger.info({ detail: originalRecipients }, "[Website Contact] Email intercepted (non-production sender). Original recipients:");
   }
 
   const webhookRes = await fetch(webhookUrl, {
@@ -45,11 +43,7 @@ export async function sendEmailWebhook(payload: EmailWebhookPayload): Promise<vo
   });
 
   if (!webhookRes.ok) {
-    console.error(
-      "[Website Contact] Webhook failed:",
-      webhookRes.status,
-      await webhookRes.text()
-    );
+    logger.error({ details: [webhookRes.status, await webhookRes.text()] }, "[Website Contact] Webhook failed:");
     throw new WebhookError("Failed to send email");
   }
 }

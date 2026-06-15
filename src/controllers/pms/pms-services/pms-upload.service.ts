@@ -13,8 +13,9 @@ import { uploadToS3, deleteFromS3 } from "../../../utils/core/s3";
 import { buildPmsFileS3Key } from "../pms-utils/pms-file-storage.util";
 import { PmsJobEventModel } from "../../../models/PmsJobEventModel";
 import { assertNoActivePmsAutomation } from "./pms-mutation-guard.service";
-import { db } from "../../../database/connection";
+import { BaseModel } from "../../../models/BaseModel";
 import { diffMonthFields } from "../pms-utils/pms-response-log-diff.util";
+import logger from "../../../lib/logger";
 
 /**
  * Process a manual PMS data entry.
@@ -35,7 +36,7 @@ export async function processManualEntry(
     organizationId = org?.id ?? null;
   }
 
-  console.log(
+  logger.info(
     `[PMS] Manual entry received for domain: ${domain}, orgId: ${organizationId}, months: ${parsedManualData.length}`
   );
 
@@ -52,7 +53,7 @@ export async function processManualEntry(
     entry_type: "manual",
   };
 
-  const job = await db.transaction(async (trx) => {
+  const job = await BaseModel.transaction(async (trx) => {
     const created = await PmsJobModel.create(
       {
         time_elapsed: 0,
@@ -249,7 +250,7 @@ export async function processFileUpload(
 
   let job;
   try {
-    job = await db.transaction(async (trx) => {
+    job = await BaseModel.transaction(async (trx) => {
       const created = await PmsJobModel.create(
         {
           time_elapsed: 0,

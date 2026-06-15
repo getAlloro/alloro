@@ -8,6 +8,9 @@
 import { db } from "../../../database/connection";
 import { getValidOAuth2Client } from "../../../auth/oauth2Helper";
 import { LocationModel } from "../../../models/LocationModel";
+import { GoogleConnectionModel } from "../../../models/GoogleConnectionModel";
+import { GoogleDataStoreModel } from "../../../models/GoogleDataStoreModel";
+import { AgentResultModel } from "../../../models/AgentResultModel";
 import { resolveLocationId } from "../../../utils/locationResolver";
 import { log, logError } from "../feature-utils/agentLogger";
 import { getDailyDates } from "../feature-utils/dateHelpers";
@@ -43,11 +46,7 @@ export async function executeProoflineAgent(referenceDate?: string): Promise<Pro
 
   // Fetch all onboarded Google accounts
   log("\n[SETUP] Fetching all onboarded Google accounts...");
-  const accounts = await db("google_connections as gc")
-    .join("organizations as o", "gc.organization_id", "o.id")
-    .where("o.onboarding_completed", true)
-    .whereNull("o.archived_at")
-    .select("gc.*", "o.domain as domain_name", "o.name as practice_name");
+  const accounts = await GoogleConnectionModel.findOnboardedActiveConnectionsWithOrganization();
 
   if (!accounts || accounts.length === 0) {
     log("[SETUP] No onboarded accounts found");
@@ -107,24 +106,31 @@ export async function executeProoflineAgent(referenceDate?: string): Promise<Pro
             continue;
           }
 
-          await db("google_data_store").insert(dailyResult.rawData);
+          // Atomic: the raw GBP data and its agent_results row must land
+          // together. The external agent call (processDailyAgent) already ran
+          // above, so the transaction wraps only these two local writes.
+          const result = await db.transaction(async (trx) => {
+            await GoogleDataStoreModel.insertRaw(dailyResult.rawData, trx);
 
-          const [result] = await db("agent_results")
-            .insert({
-              organization_id: account.organization_id,
-              location_id: locationId,
-              agent_type: "proofline",
-              date_start: dailyDates.dayBeforeYesterday,
-              date_end: dailyDates.yesterday,
-              agent_input: JSON.stringify(dailyResult.payload),
-              agent_output: JSON.stringify(dailyResult.output),
-              status: "success",
-              created_at: new Date(),
-              updated_at: new Date(),
-            })
-            .returning("id");
+            const insertedId = await AgentResultModel.insertReturningId(
+              {
+                organization_id: account.organization_id,
+                location_id: locationId,
+                agent_type: "proofline",
+                date_start: dailyDates.dayBeforeYesterday,
+                date_end: dailyDates.yesterday,
+                agent_input: JSON.stringify(dailyResult.payload),
+                agent_output: JSON.stringify(dailyResult.output),
+                status: "success",
+                created_at: new Date(),
+                updated_at: new Date(),
+              },
+              trx
+            );
+            return insertedId;
+          });
 
-          log(`  [LOCATION] \u2713 Proofline result saved for "${locationName}" (ID: ${result.id})`);
+          log(`  [LOCATION] \u2713 Proofline result saved for "${locationName}" (ID: ${result})`);
           totalLocationsProcessed++;
 
           results.push({ googleAccountId, domain, locationId, locationName, success: true });

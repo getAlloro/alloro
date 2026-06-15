@@ -14,14 +14,18 @@
  * Admin-triggered, not automatic. Brand colors (primary/accent/gradient) are
  * mirrored to legacy project columns for backward compatibility with ~14
  * downstream consumers.
+ *
+ * Cohesive sub-logic lives in sibling modules (behavior-preserving split):
+ *   - feature-utils/util.identity-warmup-text       text cleaning + cap
+ *   - feature-utils/util.identity-warmup-concurrency bounded async limiter
+ *   - feature-utils/util.identity-warmup-discovery   dental sub-page discovery
+ *   - feature-services/service.identity-locations    multi-location assembly
+ *   - feature-services/service.identity-distillation archetype + distillation
  */
 
 import axios from "axios";
-import * as cheerio from "cheerio";
-import { db } from "../../../database/connection";
 import { ProjectIdentityModel } from "../../../models/website-builder/ProjectIdentityModel";
-import { runAgent, type CostContext } from "../../../agents/service.llm-runner";
-import { loadPrompt } from "../../../agents/service.prompt-loader";
+import { ProjectModel } from "../../../models/website-builder/ProjectModel";
 import { uploadToS3 } from "../../../utils/core/s3";
 import {
   buildMediaS3Key,
@@ -29,7 +33,6 @@ import {
 } from "../../admin-media/feature-utils/util.s3-helpers";
 import {
   scrapeUrlWithEscalation,
-  normalizeScrapeUrl,
   type ScrapeStrategy,
 } from "./service.url-scrape-strategies";
 import { scrapeGbp } from "../feature-utils/util.gbp-scraper";
@@ -38,16 +41,29 @@ import {
   collectImageUrls,
   type ImageAnalysisResult,
 } from "../feature-utils/util.image-processor";
+import {
+  capString,
+  cleanForClaude,
+} from "../feature-utils/util.identity-warmup-text";
+import { runWithConcurrency } from "../feature-utils/util.identity-warmup-concurrency";
+import { collectDiscoveredSubPages } from "../feature-utils/util.identity-warmup-discovery";
+import {
+  buildLocationsArray,
+  buildManualLocations,
+  type IdentityLocation,
+  type ManualLocationInput,
+} from "./service.identity-locations";
+import {
+  classifyArchetype,
+  extractDoctorsAndServices,
+  distillContent,
+} from "./service.identity-distillation";
+import logger from "../../../lib/logger";
 
-const PROJECTS_TABLE = "website_builder.projects";
-
-// Cap applied to cleaned text (post-HTML-strip), not raw HTML. At 100k of
-// readable content we have plenty of signal without bloating the JSONB.
-const MAX_SOURCE_CHARS = 100_000;
 const LOG_PREFIX = "[IdentityWarmup]";
 
 function log(msg: string, data?: Record<string, unknown>): void {
-  console.log(`${LOG_PREFIX} ${msg}`, data ? JSON.stringify(data) : "");
+  logger.info({ detail: data ? JSON.stringify(data) : "" }, `${LOG_PREFIX} ${msg}`);
 }
 
 function checkCancel(signal?: AbortSignal): void {
@@ -103,19 +119,6 @@ export interface ManualBusinessInput {
   websiteUrl?: string;
 }
 
-export interface ManualLocationInput {
-  id?: string;
-  name?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  zip?: string;
-  phone?: string;
-  websiteUrl?: string;
-  hours?: Record<string, string>;
-  isPrimary?: boolean;
-}
-
 export type GradientPreset =
   | "smooth"
   | "lean-primary"
@@ -160,6 +163,12 @@ interface BusinessFallback {
   websiteUrl: string | null;
 }
 
+// Re-export extracted public surface so existing importers keep working from
+// this path (controller calls `extractDoctorsAndServices`; `IdentityLocation`
+// and `ManualLocationInput` remain importable here as they were before).
+export { extractDoctorsAndServices };
+export type { IdentityLocation, ManualLocationInput };
+
 // ---------------------------------------------------------------------------
 // PUBLIC: runIdentityWarmup
 // ---------------------------------------------------------------------------
@@ -179,10 +188,10 @@ export async function runIdentityWarmup(
   try {
     checkCancel(signal);
 
-    const project = await db(PROJECTS_TABLE)
-      .where("id", projectId)
-      .select("display_name", "selected_website_url")
-      .first();
+    const project = await ProjectModel.findLocationSelectionById(projectId, [
+      "display_name",
+      "selected_website_url",
+    ]);
     if (!project) {
       throw new Error(`Project ${projectId} not found`);
     }
@@ -548,27 +557,6 @@ export async function runIdentityWarmup(
 // HELPERS
 // ---------------------------------------------------------------------------
 
-function capString(s: string, max: number = MAX_SOURCE_CHARS): string {
-  if (!s) return "";
-  return s.length > max ? s.slice(0, max) : s;
-}
-
-/**
- * Token-conservative cleaner for scraped HTML. Strips scripts, styles, tags,
- * special characters, and URLs before the content is fed to Claude.
- */
-function cleanForClaude(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&[a-zA-Z0-9#]+;/g, " ")
-    .replace(/https?:\/\/\S+/g, " ")
-    .replace(/[^a-zA-Z0-9.,!?'\-\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function buildBusinessFromGbp(
   gbpData: any,
   fallbackPlaceId: string | undefined,
@@ -638,462 +626,6 @@ function firstNonEmptyString(
   return null;
 }
 
-function normalizeText(value: unknown): string | null {
-  return typeof value === "string" && value.trim().length > 0
-    ? value.trim()
-    : null;
-}
-
-function isCompleteManualLocationInput(
-  location: ManualLocationInput,
-): boolean {
-  if (!location || typeof location !== "object") return false;
-  return (
-    !!normalizeText(location.name) &&
-    !!normalizeText(location.address) &&
-    !!normalizeText(location.city) &&
-    !!normalizeText(location.state) &&
-    !!normalizeText(location.zip) &&
-    !!normalizeText(location.phone) &&
-    hasManualHours(location.hours)
-  );
-}
-
-function hasManualHours(hours: ManualLocationInput["hours"]): boolean {
-  return (
-    !!hours &&
-    typeof hours === "object" &&
-    Object.values(hours).some((value) => normalizeText(value) !== null)
-  );
-}
-
-function normalizeManualHours(
-  hours: ManualLocationInput["hours"],
-): Record<string, string> | null {
-  if (!hours || typeof hours !== "object") return null;
-  const normalized: Record<string, string> = {};
-  for (const [day, value] of Object.entries(hours)) {
-    const text = normalizeText(value);
-    if (text) normalized[day] = text;
-  }
-  return Object.keys(normalized).length > 0 ? normalized : null;
-}
-
-function getManualLocationId(
-  location: ManualLocationInput,
-  index: number,
-): string {
-  const existing = normalizeText(location.id);
-  if (existing) return existing;
-  const basis = [
-    location.name,
-    location.address,
-    location.city,
-    location.state,
-    location.zip,
-  ]
-    .map((value) => normalizeText(value))
-    .filter((value): value is string => !!value)
-    .join(" ");
-  const slug = basis
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 80);
-  return `manual-${slug || `location-${index + 1}`}`;
-}
-
-// ---------------------------------------------------------------------------
-// MULTI-LOCATION
-// ---------------------------------------------------------------------------
-
-export interface IdentityLocation {
-  id?: string;
-  source?: "gbp" | "manual";
-  place_id: string | null;
-  name: string;
-  address: string | null;
-  city?: string | null;
-  state?: string | null;
-  zip?: string | null;
-  phone: string | null;
-  rating: number | null;
-  review_count: number | null;
-  category: string | null;
-  website_url: string | null;
-  hours: unknown;
-  last_synced_at: string;
-  is_primary: boolean;
-  warmup_status: "ready" | "failed" | "pending";
-  warmup_error?: string;
-  stale?: boolean;
-}
-
-function buildLocationEntryFromGbp(
-  placeId: string,
-  gbpData: any,
-  isPrimary: boolean,
-): IdentityLocation {
-  const g = gbpData || {};
-  return {
-    id: placeId,
-    source: "gbp",
-    place_id: placeId,
-    name: g.title || g.name || "",
-    address: g.address || null,
-    city: g.city || null,
-    state: g.state || null,
-    zip: g.postalCode || null,
-    phone: g.phone || null,
-    rating: (g.totalScore ?? g.rating ?? null) as number | null,
-    review_count: (g.reviewsCount ?? g.reviewCount ?? null) as number | null,
-    category: g.categoryName || g.category || null,
-    website_url: g.website || null,
-    hours: g.openingHours || null,
-    last_synced_at: new Date().toISOString(),
-    is_primary: isPrimary,
-    warmup_status: "ready",
-  };
-}
-
-function buildManualLocations(
-  manualLocations: ManualLocationInput[] | undefined,
-  shouldMarkFirstPrimary: boolean,
-): IdentityLocation[] {
-  if (!Array.isArray(manualLocations)) return [];
-
-  const validLocations = manualLocations.filter(isCompleteManualLocationInput);
-  const explicitPrimaryIndex = validLocations.findIndex((location) => location.isPrimary);
-
-  return validLocations.map((location, index) => {
-    const isPrimary = explicitPrimaryIndex >= 0
-      ? index === explicitPrimaryIndex
-      : shouldMarkFirstPrimary && index === 0;
-    const id = getManualLocationId(location, index);
-
-    return {
-      id,
-      source: "manual",
-      place_id: null,
-      name: normalizeText(location.name) || "",
-      address: normalizeText(location.address),
-      city: normalizeText(location.city),
-      state: normalizeText(location.state),
-      zip: normalizeText(location.zip),
-      phone: normalizeText(location.phone),
-      rating: null,
-      review_count: null,
-      category: null,
-      website_url: normalizeText(location.websiteUrl),
-      hours: normalizeManualHours(location.hours),
-      last_synced_at: new Date().toISOString(),
-      is_primary: isPrimary,
-      warmup_status: "ready",
-    };
-  });
-}
-
-/**
- * Assemble `identity.locations[]` for the project.
- *
- * The primary entry reuses the already-scraped `gbpData` (no extra Apify
- * call). Non-primary entries are scraped in parallel with a concurrency
- * limit of 3. On per-location Apify errors the entry is still written with
- * warmup_status = "failed" + stale=true so the UI can surface a retry path.
- */
-async function buildLocationsArray(
-  projectId: string,
-  primaryPlaceIdFromInputs: string | undefined,
-  primaryGbpData: any,
-  practiceSearchString: string | undefined,
-  signal: AbortSignal | undefined,
-): Promise<{ locations: IdentityLocation[]; secondaryImageUrls: string[] }> {
-  const project = await db(PROJECTS_TABLE)
-    .where("id", projectId)
-    .select("selected_place_ids", "primary_place_id", "selected_place_id")
-    .first();
-
-  const rawIds = Array.isArray(project?.selected_place_ids)
-    ? (project.selected_place_ids as string[])
-    : [];
-  const fallbackPrimary =
-    project?.primary_place_id ||
-    primaryPlaceIdFromInputs ||
-    project?.selected_place_id ||
-    null;
-
-  // Normalize: if selected_place_ids is empty, fall back to [primary].
-  let allIds: string[] = rawIds.filter((id): id is string => typeof id === "string" && id.length > 0);
-  if (allIds.length === 0 && fallbackPrimary) {
-    allIds = [fallbackPrimary];
-  }
-  if (allIds.length === 0) {
-    // No place_ids anywhere — return empty locations array.
-    return { locations: [], secondaryImageUrls: [] };
-  }
-
-  // De-dupe while preserving order.
-  const seen = new Set<string>();
-  allIds = allIds.filter((id) => {
-    if (seen.has(id)) return false;
-    seen.add(id);
-    return true;
-  });
-
-  const primaryId = fallbackPrimary && allIds.includes(fallbackPrimary)
-    ? fallbackPrimary
-    : allIds[0];
-
-  const results: Array<IdentityLocation | null> = new Array(allIds.length).fill(null);
-
-  // Primary slot: reuse the already-scraped GBP data we got during step 1 if
-  // it's for the primary place. If no GBP scrape happened (no placeId passed
-  // to warmup inputs, or it failed), we still emit a pending-ish entry so the
-  // array isn't empty.
-  for (let i = 0; i < allIds.length; i++) {
-    const id = allIds[i];
-    if (id !== primaryId) continue;
-    if (primaryGbpData) {
-      results[i] = buildLocationEntryFromGbp(id, primaryGbpData, true);
-    } else {
-      // We couldn't scrape the primary (warmup ran without a placeId, or the
-      // scrape failed). Mark the entry pending so the UI shows it needs a
-      // retry; do not throw — warmup overall still succeeded on other signals.
-      results[i] = {
-        id,
-        source: "gbp",
-        place_id: id,
-        name: "",
-        address: null,
-        city: null,
-        state: null,
-        zip: null,
-        phone: null,
-        rating: null,
-        review_count: null,
-        category: null,
-        website_url: null,
-        hours: null,
-        last_synced_at: new Date().toISOString(),
-        is_primary: true,
-        warmup_status: "failed",
-        warmup_error: "Primary GBP scrape did not return data",
-        stale: true,
-      };
-    }
-  }
-
-  // Non-primary slots: scrape in parallel, concurrency 3.
-  const secondaryIndices = allIds
-    .map((id, i) => ({ id, i }))
-    .filter(({ id }) => id !== primaryId);
-
-  // Accumulate GBP image URLs from every secondary scrape so the caller
-  // can feed them into the unified image pipeline.
-  const secondaryImageUrls: string[] = [];
-
-  await runWithConcurrency(secondaryIndices, 3, async ({ id, i }) => {
-    try {
-      const scraped = await scrapeGbp(id, practiceSearchString, signal);
-      if (!scraped) {
-        results[i] = {
-          id,
-          source: "gbp",
-          place_id: id,
-          name: "",
-          address: null,
-          city: null,
-          state: null,
-          zip: null,
-          phone: null,
-          rating: null,
-          review_count: null,
-          category: null,
-          website_url: null,
-          hours: null,
-          last_synced_at: new Date().toISOString(),
-          is_primary: false,
-          warmup_status: "failed",
-          warmup_error: "No GBP data returned for place_id",
-          stale: true,
-        };
-        return;
-      }
-      results[i] = buildLocationEntryFromGbp(id, scraped, false);
-      if (Array.isArray(scraped?.imageUrls)) {
-        for (const u of scraped.imageUrls) {
-          if (typeof u === "string" && u.length > 0) secondaryImageUrls.push(u);
-        }
-      }
-    } catch (err: any) {
-      log("Location scrape failed", { placeId: id, error: err?.message });
-      results[i] = {
-        id,
-        source: "gbp",
-        place_id: id,
-        name: "",
-        address: null,
-        city: null,
-        state: null,
-        zip: null,
-        phone: null,
-        rating: null,
-        review_count: null,
-        category: null,
-        website_url: null,
-        hours: null,
-        last_synced_at: new Date().toISOString(),
-        is_primary: false,
-        warmup_status: "failed",
-        warmup_error: err?.message || "Unknown Apify error",
-        stale: true,
-      };
-    }
-  });
-
-  return {
-    locations: results.filter((r): r is IdentityLocation => r !== null),
-    secondaryImageUrls,
-  };
-}
-
-/**
- * Simple concurrency limiter. Runs `worker` over `items` with at most
- * `limit` promises in flight at any time. Preserves error-swallowing
- * responsibility to the worker — this helper never throws.
- */
-async function runWithConcurrency<T>(
-  items: T[],
-  limit: number,
-  worker: (item: T) => Promise<void>,
-): Promise<void> {
-  if (items.length === 0) return;
-  const queue = [...items];
-  const runners: Promise<void>[] = [];
-  for (let i = 0; i < Math.min(limit, queue.length); i++) {
-    runners.push(
-      (async () => {
-        while (queue.length > 0) {
-          const next = queue.shift();
-          if (next === undefined) return;
-          await worker(next);
-        }
-      })(),
-    );
-  }
-  await Promise.all(runners);
-}
-
-// ---------------------------------------------------------------------------
-// AUTO-DISCOVERY (dental sub-pages)
-// ---------------------------------------------------------------------------
-
-/**
- * Whitelist of pathname patterns that map to dental-practice sub-pages we
- * want to feed into identity distillation. Case-insensitive. Narrow by
- * design — `/blog`, `/news`, `/post`, and per-treatment pages are excluded
- * (too much content volume, low signal per the plan).
- */
-const SUB_PAGE_WHITELIST: RegExp[] = [
-  /^\/meet-dr-/i,
-  /^\/dr-/i,
-  /^\/doctor/i,
-  /^\/our-team/i,
-  /^\/our-doctors/i,
-  /^\/team/i,
-  /^\/services/i,
-  /^\/treatments/i,
-  /^\/procedures/i,
-  /^\/about/i,
-  /^\/our-practice/i,
-  /^\/our-story/i,
-];
-
-const DROPPED_FILE_EXT = /\.(pdf|docx?|jpe?g|png|gif|mp4|zip|svg|ico)$/i;
-const MAX_DISCOVERED_URL_LENGTH = 200;
-
-/**
- * Parse every scraped homepage's raw HTML, extract `<a href>` values,
- * normalize, filter (same-origin + whitelist + file-extension reject +
- * length cap), dedupe against already-scraped URLs, and return the list.
- *
- * Result URLs are `normalizeScrapeUrl().primary` values — the scrape layer
- * will still attempt the fallback once before escalating if they block.
- */
-function collectDiscoveredSubPages(
-  rawHtmlByUrl: Map<string, string>,
-  scrapedPagesRaw: Record<string, string>,
-): string[] {
-  const alreadyScheduled = new Set<string>();
-  for (const key of Object.keys(scrapedPagesRaw)) {
-    // keys are `${url}#${pageKey}` — strip the anchor to compare URLs only.
-    const hashIdx = key.lastIndexOf("#");
-    const urlPart = hashIdx >= 0 ? key.slice(0, hashIdx) : key;
-    alreadyScheduled.add(urlPart);
-  }
-
-  const seen = new Set<string>(alreadyScheduled);
-  const ordered: string[] = [];
-
-  for (const [pageUrl, html] of rawHtmlByUrl.entries()) {
-    let pageUrlParsed: URL;
-    try {
-      pageUrlParsed = new URL(pageUrl);
-    } catch {
-      continue;
-    }
-
-    let $: cheerio.CheerioAPI;
-    try {
-      $ = cheerio.load(html);
-    } catch {
-      continue;
-    }
-
-    $("a[href]").each((_, el) => {
-      const href = $(el).attr("href");
-      if (!href || typeof href !== "string") return;
-
-      // Resolve relative URLs against the source page.
-      let resolved: URL;
-      try {
-        resolved = new URL(href, pageUrl);
-      } catch {
-        return;
-      }
-
-      // Same-origin only (hostname match — different ports would already be
-      // oddities on dental sites; hostname equality is sufficient).
-      if (resolved.hostname !== pageUrlParsed.hostname) return;
-
-      // Strip fragment — we care about the path, not in-page anchors.
-      resolved.hash = "";
-
-      // File-extension rejects.
-      if (DROPPED_FILE_EXT.test(resolved.pathname)) return;
-
-      // `?download=*` rejects.
-      if (resolved.searchParams.has("download")) return;
-
-      // Length cap.
-      if (resolved.href.length > MAX_DISCOVERED_URL_LENGTH) return;
-
-      // Whitelist pathname match.
-      const path = resolved.pathname;
-      if (!SUB_PAGE_WHITELIST.some((rx) => rx.test(path))) return;
-
-      // Normalize (http→https, www) — produces the actual URL we'd scrape.
-      const { primary } = normalizeScrapeUrl(resolved.href);
-
-      if (seen.has(primary)) return;
-      seen.add(primary);
-      ordered.push(primary);
-    });
-  }
-
-  return ordered;
-}
-
 function buildBrand(
   inputs: WarmupInputs,
   businessName: string | null,
@@ -1147,338 +679,4 @@ async function downloadAndHostLogo(
 
   await uploadToS3(s3Key, buffer, contentType);
   return buildS3Url(s3Key);
-}
-
-// ---------------------------------------------------------------------------
-// ARCHETYPE CLASSIFICATION
-// ---------------------------------------------------------------------------
-
-async function classifyArchetype(
-  gbpData: any,
-  scrapedPagesRaw: Record<string, string>,
-  costContext?: CostContext,
-): Promise<{
-  archetype: string;
-  tone_descriptor: string;
-  voice_samples: string[];
-}> {
-  const prompt = loadPrompt("websiteAgents/builder/ArchetypeClassifier");
-
-  // Build a compact input — GBP category + top reviews + a bit of website content
-  const parts: string[] = [];
-
-  if (gbpData?.categoryName) {
-    parts.push(`## GBP Category\n${gbpData.categoryName}`);
-  }
-
-  const reviews = Array.isArray(gbpData?.reviews)
-    ? gbpData.reviews.slice(0, 5)
-    : Array.isArray(gbpData?.recentReviews)
-      ? gbpData.recentReviews.slice(0, 5)
-      : [];
-  if (reviews.length > 0) {
-    parts.push(
-      `## Top Reviews\n${reviews
-        .map(
-          (r: any) =>
-            `- (${r.stars || r.rating}⭐) ${(r.text || "").slice(0, 300)}`,
-        )
-        .join("\n")}`,
-    );
-  }
-
-  if (gbpData?.description) {
-    parts.push(`## Business Description\n${String(gbpData.description).slice(0, 500)}`);
-  }
-
-  // A small amount of website content (first 2000 chars of first scraped page)
-  const firstPage = Object.values(scrapedPagesRaw)[0];
-  if (firstPage) {
-    parts.push(
-      `## Website Excerpt\n${cleanForClaude(firstPage).slice(0, 2000)}`,
-    );
-  }
-
-  if (parts.length === 0) {
-    return {
-      archetype: "family-friendly",
-      tone_descriptor: "warm, professional, approachable",
-      voice_samples: [],
-    };
-  }
-
-  try {
-    const result = await runAgent({
-      systemPrompt: prompt,
-      userMessage: parts.join("\n\n"),
-      maxTokens: 1024,
-      costContext,
-    });
-
-    if (result.parsed) {
-      return {
-        archetype: result.parsed.archetype || "family-friendly",
-        tone_descriptor: result.parsed.tone_descriptor || "warm, professional",
-        voice_samples: Array.isArray(result.parsed.voice_samples)
-          ? result.parsed.voice_samples
-          : [],
-      };
-    }
-  } catch (err: any) {
-    log("Archetype classification failed — using default", { error: err.message });
-  }
-
-  return {
-    archetype: "family-friendly",
-    tone_descriptor: "warm, professional, approachable",
-    voice_samples: [],
-  };
-}
-
-// ---------------------------------------------------------------------------
-// CONTENT DISTILLATION
-// ---------------------------------------------------------------------------
-
-interface DoctorOrServiceEntry {
-  name: string;
-  source_url: string | null;
-  short_blurb: string | null;
-  credentials?: string[];
-  location_place_ids?: string[];
-  last_synced_at: string;
-  stale?: boolean;
-}
-
-interface DistilledContent {
-  unique_value_proposition?: string | null;
-  founding_story?: string | null;
-  core_values?: string[];
-  certifications?: string[];
-  service_areas?: string[];
-  social_links?: Record<string, string | null>;
-  review_themes?: string[];
-  featured_testimonials?: Array<{ author: string | null; rating: number | null; text: string | null }>;
-  doctors?: DoctorOrServiceEntry[];
-  services?: DoctorOrServiceEntry[];
-}
-
-async function distillContent(
-  scrapedPagesRaw: Record<string, string>,
-  userTexts: Array<{ label?: string; text: string }>,
-  gbpData: any,
-  locations: IdentityLocation[],
-  discoveredPageUrls: string[],
-  costContext?: CostContext,
-): Promise<DistilledContent> {
-  const prompt = loadPrompt("websiteAgents/builder/IdentityDistiller");
-
-  const parts: string[] = [];
-
-  if (discoveredPageUrls.length > 0) {
-    parts.push(
-      `## DISCOVERED PAGES (use ONLY these exact URLs for doctors[].source_url and services[].source_url)\n\n${discoveredPageUrls.map((u) => `- ${u}`).join("\n")}`,
-    );
-  }
-
-  if (locations.length > 0) {
-    const locLines = locations
-      .map((l) => {
-        const name = l.name || "(unnamed)";
-        const addr = l.address || "(no address)";
-        const id = l.place_id || l.id || "manual-location";
-        return `- ${id} — ${name} — ${addr}`;
-      })
-      .join("\n");
-    parts.push(
-      `## LOCATIONS (use these location ids for doctors[].location_place_ids when the doctor is explicitly tied to an office)\n\n${locLines}`,
-    );
-  }
-
-  if (Object.keys(scrapedPagesRaw).length > 0) {
-    const pagesText = Object.entries(scrapedPagesRaw)
-      .map(([key, content]) => {
-        // Content is already cleaned + capped in warmup step 2. cleanForClaude
-        // is a defensive no-op (idempotent on already-clean text) in case a
-        // future caller forgets to clean upstream.
-        const text = cleanForClaude(content).slice(0, 15000);
-        return `### ${key}\n${text}`;
-      })
-      .join("\n\n");
-    parts.push(`## Website Content\n\n${pagesText}`);
-  }
-
-  if (userTexts.length > 0) {
-    parts.push(
-      `## Admin-Provided Notes\n\n${userTexts
-        .map((t) => `### ${t.label}\n${t.text}`)
-        .join("\n\n")}`,
-    );
-  }
-
-  if (gbpData) {
-    const reviews = Array.isArray(gbpData.reviews)
-      ? gbpData.reviews.slice(0, 10)
-      : Array.isArray(gbpData.recentReviews)
-        ? gbpData.recentReviews.slice(0, 10)
-        : [];
-    if (reviews.length > 0) {
-      parts.push(
-        `## GBP Reviews (for themes + testimonials)\n\n${reviews
-          .map(
-            (r: any) =>
-              `- ${r.name || "Anonymous"} (${r.stars || r.rating}⭐): ${(r.text || "").slice(0, 500)}`,
-          )
-          .join("\n")}`,
-      );
-    }
-  }
-
-  if (parts.length === 0) {
-    return {};
-  }
-
-  try {
-    const result = await runAgent({
-      systemPrompt: prompt,
-      userMessage: parts.join("\n\n"),
-      maxTokens: 4096,
-      costContext,
-    });
-
-    if (result.parsed) {
-      return normalizeDistilled(result.parsed, discoveredPageUrls);
-    }
-  } catch (err: any) {
-    log("Content distillation failed — using empty", { error: err.message });
-  }
-
-  return {};
-}
-
-const MAX_DOCTORS_SERVICES = 100;
-const MAX_BLURB_CHARS = 400;
-
-/**
- * Clamp list shapes + enforce source_url discipline. The LLM is instructed to
- * only emit discovered-pages URLs, but we defend at the boundary.
- */
-function normalizeDistilled(
-  raw: any,
-  discoveredPageUrls: string[],
-): DistilledContent {
-  const allowedUrls = new Set(discoveredPageUrls);
-  const now = new Date().toISOString();
-
-  const doctors = Array.isArray(raw?.doctors)
-    ? raw.doctors
-        .slice(0, MAX_DOCTORS_SERVICES)
-        .map((d: any) => normalizeDoctorEntry(d, allowedUrls, now))
-        .filter((d: DoctorOrServiceEntry | null): d is DoctorOrServiceEntry => d !== null)
-    : [];
-
-  const services = Array.isArray(raw?.services)
-    ? raw.services
-        .slice(0, MAX_DOCTORS_SERVICES)
-        .map((s: any) => normalizeListEntry(s, allowedUrls, now))
-        .filter((s: DoctorOrServiceEntry | null): s is DoctorOrServiceEntry => s !== null)
-    : [];
-
-  return {
-    unique_value_proposition: raw?.unique_value_proposition ?? null,
-    founding_story: raw?.founding_story ?? null,
-    core_values: Array.isArray(raw?.core_values) ? raw.core_values : [],
-    certifications: Array.isArray(raw?.certifications) ? raw.certifications : [],
-    service_areas: Array.isArray(raw?.service_areas) ? raw.service_areas : [],
-    social_links: raw?.social_links && typeof raw.social_links === "object" ? raw.social_links : {},
-    review_themes: Array.isArray(raw?.review_themes) ? raw.review_themes : [],
-    featured_testimonials: Array.isArray(raw?.featured_testimonials)
-      ? raw.featured_testimonials
-      : [],
-    doctors,
-    services,
-  };
-}
-
-function normalizeListEntry(
-  entry: any,
-  allowedUrls: Set<string>,
-  isoNow: string,
-): DoctorOrServiceEntry | null {
-  if (!entry || typeof entry !== "object") return null;
-  const name = typeof entry.name === "string" ? entry.name.trim() : "";
-  if (!name) return null;
-
-  const rawUrl = typeof entry.source_url === "string" ? entry.source_url.trim() : null;
-  // Null if LLM hallucinated a URL not in the discovered set.
-  const source_url = rawUrl && allowedUrls.has(rawUrl) ? rawUrl : null;
-
-  const rawBlurb = typeof entry.short_blurb === "string" ? entry.short_blurb.trim() : null;
-  const short_blurb = rawBlurb ? rawBlurb.slice(0, MAX_BLURB_CHARS) : null;
-
-  return {
-    name,
-    source_url,
-    short_blurb,
-    last_synced_at: isoNow,
-  };
-}
-
-/**
- * Doctor-specific normalizer. Preserves optional `credentials[]` and
- * `location_place_ids[]` emitted by the distiller (services entries don't
- * carry these fields).
- */
-function normalizeDoctorEntry(
-  entry: any,
-  allowedUrls: Set<string>,
-  isoNow: string,
-): DoctorOrServiceEntry | null {
-  const base = normalizeListEntry(entry, allowedUrls, isoNow);
-  if (!base) return null;
-
-  const credentials = Array.isArray(entry?.credentials)
-    ? entry.credentials
-        .filter((c: unknown): c is string => typeof c === "string" && c.trim().length > 0)
-        .map((c: string) => c.trim())
-    : [];
-
-  const location_place_ids = Array.isArray(entry?.location_place_ids)
-    ? entry.location_place_ids
-        .filter((p: unknown): p is string => typeof p === "string" && p.trim().length > 0)
-        .map((p: string) => p.trim())
-    : [];
-
-  return {
-    ...base,
-    credentials,
-    location_place_ids,
-  };
-}
-
-/**
- * T5/T6 shared entry point: runs the distillation against already-scraped
- * pages (from `identity.extracted_assets.discovered_pages` + a resurrected
- * scraped_pages_raw map). Used by the re-sync endpoint to re-extract
- * doctors/services WITHOUT re-scraping the site.
- */
-export async function extractDoctorsAndServices(
-  scrapedPagesRaw: Record<string, string>,
-  userTexts: Array<{ label?: string; text: string }>,
-  gbpData: any,
-  locations: IdentityLocation[],
-  discoveredPageUrls: string[],
-  costContext?: CostContext,
-): Promise<{ doctors: DoctorOrServiceEntry[]; services: DoctorOrServiceEntry[] }> {
-  const distilled = await distillContent(
-    scrapedPagesRaw,
-    userTexts,
-    gbpData,
-    locations,
-    discoveredPageUrls,
-    costContext,
-  );
-  return {
-    doctors: distilled.doctors || [],
-    services: distilled.services || [],
-  };
 }

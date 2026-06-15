@@ -6,6 +6,7 @@ import { MindMessageModel, IMindMessage } from "../../../models/MindMessageModel
 import { shouldCompact, compactConversation } from "./service.minds-compaction";
 import { shouldUseRag, retrieveForChat, buildRetrievedContext } from "./service.minds-retrieval";
 import { safeLogAiCostEvent } from "../../../services/ai-cost/service.ai-cost";
+import logger from "../../../lib/logger";
 
 const MODEL = process.env.MINDS_LLM_MODEL || "claude-sonnet-4-6";
 const MAX_HISTORY_MESSAGES = 30;
@@ -99,7 +100,7 @@ async function resolveBrainContext(
     const retrieval = await retrieveForChat(mindId, userMessage);
     return buildRetrievedContext(retrieval.chunks, retrieval.summary);
   } catch (err) {
-    console.error("[MINDS] RAG retrieval failed, falling back to full brain:", err);
+    logger.error({ err: err }, "[MINDS] RAG retrieval failed, falling back to full brain:");
     return brainMarkdown;
   }
 }
@@ -157,7 +158,7 @@ async function prepareChatContext(
       await compactConversation(convId, mind.name);
     }
   } catch (err) {
-    console.error("[MINDS] Compaction failed, skipping:", err);
+    logger.error({ err: err }, "[MINDS] Compaction failed, skipping:");
   }
 
   // Load recent history
@@ -169,7 +170,7 @@ async function prepareChatContext(
 
   const systemPrompt = buildSystemPrompt(mind.name, mind.personality_prompt, brainContext);
 
-  console.log(
+  logger.info(
     `[MINDS] Chat request for mind ${mind.name}, conversation ${convId}, ${apiMessages.length} messages, brain context: ${brainContext.length} chars (original: ${brainMarkdown.length} chars)`
   );
 

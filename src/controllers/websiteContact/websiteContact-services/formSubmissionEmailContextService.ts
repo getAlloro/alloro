@@ -3,6 +3,7 @@ import {
   ProjectModel,
   type IProject,
 } from "../../../models/website-builder/ProjectModel";
+import logger from "../../../lib/logger";
 
 const DEFAULT_FORM_SENDER_NAME = "Alloro Forms";
 const DEFAULT_FORM_HEADER_COLOR = "#0e8988";
@@ -27,10 +28,7 @@ export async function resolveFormSubmissionEmailContext(
   try {
     organizationName = await resolveOrganizationName(project?.organization_id);
   } catch (error) {
-    console.error(
-      "[Form Submission] Failed to resolve organization name for email context:",
-      error,
-    );
+    logger.error({ err: error }, "[Form Submission] Failed to resolve organization name for email context:");
   }
 
   return {
@@ -48,10 +46,7 @@ export async function resolveFormSubmissionEmailContextForProjectId(
     const project = await ProjectModel.findById(projectId);
     return resolveFormSubmissionEmailContext(project);
   } catch (error) {
-    console.error(
-      "[Form Submission] Failed to resolve project for email context:",
-      error,
-    );
+    logger.error({ err: error }, "[Form Submission] Failed to resolve project for email context:");
     return resolveFormSubmissionEmailContext(null);
   }
 }

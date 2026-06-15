@@ -9,11 +9,12 @@
  */
 
 import { v4 as uuidv4 } from "uuid";
-import { db } from "../../../database/connection";
 import { getValidOAuth2Client } from "../../../auth/oauth2Helper";
 import { fetchGBPDataForRange } from "../../../utils/dataAggregation/dataAggregator";
 import { LocationModel } from "../../../models/LocationModel";
 import { GooglePropertyModel } from "../../../models/GooglePropertyModel";
+import { GoogleConnectionModel } from "../../../models/GoogleConnectionModel";
+import { PracticeRankingModel } from "../../../models/PracticeRankingModel";
 import {
   processLocationRanking,
   MAX_RETRIES,
@@ -75,22 +76,9 @@ export interface RankingExecutionResult {
 // ── Setup ───────────────────────────────────────────────────────────
 
 export async function setupRankingBatches(connectionIdFilter?: number): Promise<RankingSetupResult> {
-  let query = db("organizations as o")
-    .join("google_connections as gc", "gc.organization_id", "o.id")
-    .where("o.onboarding_completed", true)
-    .whereNull("o.archived_at")
-    .select(
-      "o.id as organization_id",
-      "o.name as org_name",
-      "o.domain",
-      "gc.id as connection_id",
-    );
-
-  if (connectionIdFilter) {
-    query = query.where("gc.id", connectionIdFilter);
-  }
-
-  const accounts = await query;
+  const accounts = await GoogleConnectionModel.findOnboardedOrgConnectionsForRanking(
+    connectionIdFilter,
+  );
 
   const batches: BatchMeta[] = [];
   const workItems: WorkItem[] = [];
@@ -156,30 +144,28 @@ export async function setupRankingBatches(connectionIdFilter?: number): Promise<
 
     for (let i = 0; i < locationWork.length; i++) {
       const loc = locationWork[i];
-      const [record] = await db("practice_rankings")
-        .insert({
-          organization_id,
-          location_id: loc.locationId,
-          gbp_account_id: loc.gbpAccountId,
-          gbp_location_id: loc.gbpLocationId,
-          gbp_location_name: loc.gbpLocationName,
-          batch_id: batchId,
-          observed_at: new Date(),
-          status: "pending",
-          run_reason: "scheduled",
-          include_in_summary_recommendations: true,
-          status_detail: JSON.stringify({
-            currentStep: "queued",
-            message: `Waiting in queue (${i + 1}/${locationWork.length})...`,
-            progress: 0,
-            stepsCompleted: [],
-            timestamps: { created_at: new Date().toISOString() },
-          }),
-          created_at: new Date(),
-          updated_at: new Date(),
-        })
-        .returning("id");
-      rankingIds.push(record.id);
+      const recordId = await PracticeRankingModel.insertReturningId({
+        organization_id,
+        location_id: loc.locationId,
+        gbp_account_id: loc.gbpAccountId,
+        gbp_location_id: loc.gbpLocationId,
+        gbp_location_name: loc.gbpLocationName,
+        batch_id: batchId,
+        observed_at: new Date(),
+        status: "pending",
+        run_reason: "scheduled",
+        include_in_summary_recommendations: true,
+        status_detail: JSON.stringify({
+          currentStep: "queued",
+          message: `Waiting in queue (${i + 1}/${locationWork.length})...`,
+          progress: 0,
+          stepsCompleted: [],
+          timestamps: { created_at: new Date().toISOString() },
+        }),
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+      rankingIds.push(recordId);
     }
 
     log(`[SETUP] Batch ${batchId}: ${org_name} — ${locationWork.length} location(s), records created`);
@@ -279,9 +265,11 @@ export async function processRankingWork(workItems: WorkItem[]): Promise<void> {
         specialty = meta.specialty;
         marketLocation = meta.marketLocation;
 
-        await db("practice_rankings")
-          .where({ id: loc.rankingId })
-          .update({ specialty, location: marketLocation, updated_at: new Date() });
+        await PracticeRankingModel.updateByIdRaw(loc.rankingId, {
+          specialty,
+          location: marketLocation,
+          updated_at: new Date(),
+        });
 
         log(`  [LOCATION] Identified: ${specialty} in ${marketLocation}`);
       } catch (identErr: any) {
@@ -289,23 +277,23 @@ export async function processRankingWork(workItems: WorkItem[]): Promise<void> {
         const fallback = getFallbackMeta(identificationGbpData);
         specialty = fallback.specialty;
         marketLocation = fallback.marketLocation;
-        await db("practice_rankings")
-          .where({ id: loc.rankingId })
-          .update({ specialty, location: marketLocation, updated_at: new Date() });
+        await PracticeRankingModel.updateByIdRaw(loc.rankingId, {
+          specialty,
+          location: marketLocation,
+          updated_at: new Date(),
+        });
       }
 
-      await db("practice_rankings")
-        .where({ id: loc.rankingId })
-        .update({
-          status: "processing",
-          status_detail: JSON.stringify({
-            currentStep: "starting",
-            message: `Starting analysis ${i + 1}/${work.locations.length}...`,
-            progress: 5,
-            stepsCompleted: ["queued"],
-            timestamps: { started_at: new Date().toISOString() },
-          }),
-        });
+      await PracticeRankingModel.updateByIdRaw(loc.rankingId, {
+        status: "processing",
+        status_detail: JSON.stringify({
+          currentStep: "starting",
+          message: `Starting analysis ${i + 1}/${work.locations.length}...`,
+          progress: 5,
+          stepsCompleted: ["queued"],
+          timestamps: { started_at: new Date().toISOString() },
+        }),
+      });
 
       let success = false;
       for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -336,9 +324,10 @@ export async function processRankingWork(workItems: WorkItem[]): Promise<void> {
         } catch (err: any) {
           log(`    Attempt ${attempt} failed: ${err.message}`);
           if (attempt === MAX_RETRIES) {
-            await db("practice_rankings")
-              .where({ id: loc.rankingId })
-              .update({ status: "failed", error_message: err.message });
+            await PracticeRankingModel.updateByIdRaw(loc.rankingId, {
+              status: "failed",
+              error_message: err.message,
+            });
           }
         }
       }

@@ -3,6 +3,7 @@ import {
   computeDashboardMetrics,
   DashboardMetricsSchema,
 } from "../../utils/dashboard-metrics/service.dashboard-metrics";
+import logger from "../../lib/logger";
 
 /**
  * GET /api/dashboard/metrics
@@ -62,10 +63,7 @@ export async function getMetrics(req: Request, res: Response) {
 
     const parsed = DashboardMetricsSchema.safeParse(metrics);
     if (!parsed.success) {
-      console.error(
-        "[dashboard-metrics] Schema validation failed:",
-        JSON.stringify(parsed.error.flatten())
-      );
+      logger.error({ err: JSON.stringify(parsed.error.flatten()) }, "[dashboard-metrics] Schema validation failed:");
       return res.status(500).json({
         success: false,
         error: "Dashboard metrics failed schema validation",
@@ -77,10 +75,7 @@ export async function getMetrics(req: Request, res: Response) {
       data: parsed.data,
     });
   } catch (error: any) {
-    console.error(
-      "Error in /dashboard/metrics:",
-      error?.message || error
-    );
+    logger.error({ err: error?.message || error }, "Error in /dashboard/metrics:");
     return res.status(error?.statusCode || 500).json({
       success: false,
       error: `Failed to fetch dashboard metrics: ${error?.message || "Unknown error"}`,

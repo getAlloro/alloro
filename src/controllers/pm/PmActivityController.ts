@@ -1,9 +1,10 @@
 import { Response } from "express";
 import { AuthRequest } from "../../middleware/auth";
-import { db } from "../../database/connection";
+import { PmActivityLogModel } from "../../models/PmActivityLogModel";
+import logger from "../../lib/logger";
 
 function handleError(res: Response, error: unknown, operation: string): Response {
-  console.error(`[PM-ACTIVITY] ${operation} failed:`, error);
+  logger.error({ err: error }, `[PM-ACTIVITY] ${operation} failed:`);
   const message = error instanceof Error ? error.message : String(error);
   return res.status(500).json({ success: false, error: message });
 }
@@ -27,23 +28,9 @@ export async function getGlobalActivity(req: AuthRequest, res: Response): Promis
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const offset = parseInt(req.query.offset as string) || 0;
 
-    const [countResult] = await db("pm_activity_log").count("* as count");
-    const total = parseInt(countResult.count as string, 10) || 0;
+    const total = await PmActivityLogModel.countAll();
 
-    const entries = await db("pm_activity_log")
-      .select(
-        "pm_activity_log.*",
-        "pm_projects.name as project_name",
-        "pm_projects.color as project_color",
-        "pm_tasks.title as task_title",
-        "users.email as user_email"
-      )
-      .leftJoin("pm_projects", "pm_activity_log.project_id", "pm_projects.id")
-      .leftJoin("pm_tasks", "pm_activity_log.task_id", "pm_tasks.id")
-      .leftJoin("users", "pm_activity_log.user_id", "users.id")
-      .orderBy("pm_activity_log.created_at", "desc")
-      .limit(limit)
-      .offset(offset);
+    const entries = await PmActivityLogModel.listGlobal(limit, offset);
 
     return res.json({ success: true, data: enrichEntries(entries), total });
   } catch (error) {
@@ -58,23 +45,9 @@ export async function getProjectActivity(req: AuthRequest, res: Response): Promi
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const offset = parseInt(req.query.offset as string) || 0;
 
-    const [countResult] = await db("pm_activity_log")
-      .where({ project_id: projectId })
-      .count("* as count");
-    const total = parseInt(countResult.count as string, 10) || 0;
+    const total = await PmActivityLogModel.countAll({ project_id: projectId });
 
-    const entries = await db("pm_activity_log")
-      .select(
-        "pm_activity_log.*",
-        "pm_tasks.title as task_title",
-        "users.email as user_email"
-      )
-      .leftJoin("pm_tasks", "pm_activity_log.task_id", "pm_tasks.id")
-      .leftJoin("users", "pm_activity_log.user_id", "users.id")
-      .where("pm_activity_log.project_id", projectId)
-      .orderBy("pm_activity_log.created_at", "desc")
-      .limit(limit)
-      .offset(offset);
+    const entries = await PmActivityLogModel.listByProject(projectId, limit, offset);
 
     return res.json({ success: true, data: enrichEntries(entries), total });
   } catch (error) {
@@ -85,7 +58,7 @@ export async function getProjectActivity(req: AuthRequest, res: Response): Promi
 // DELETE /api/pm/activity — clear all activity
 export async function clearActivity(_req: AuthRequest, res: Response): Promise<any> {
   try {
-    const count = await db("pm_activity_log").del();
+    const count = await PmActivityLogModel.deleteAll();
     return res.json({ success: true, data: { deleted: count } });
   } catch (error) {
     return handleError(res, error, "clearActivity");
@@ -99,18 +72,9 @@ export async function getTaskActivity(req: AuthRequest, res: Response): Promise<
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const offset = parseInt(req.query.offset as string) || 0;
 
-    const [countResult] = await db("pm_activity_log")
-      .where({ task_id: taskId })
-      .count("* as count");
-    const total = parseInt(countResult.count as string, 10) || 0;
+    const total = await PmActivityLogModel.countAll({ task_id: taskId });
 
-    const entries = await db("pm_activity_log")
-      .select("pm_activity_log.*", "users.email as user_email")
-      .leftJoin("users", "pm_activity_log.user_id", "users.id")
-      .where("pm_activity_log.task_id", taskId)
-      .orderBy("pm_activity_log.created_at", "desc")
-      .limit(limit)
-      .offset(offset);
+    const entries = await PmActivityLogModel.listByTask(taskId, limit, offset);
 
     return res.json({ success: true, data: enrichEntries(entries), total });
   } catch (error) {

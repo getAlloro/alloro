@@ -7,6 +7,8 @@
  */
 
 import { db } from "../../../database/connection";
+import { AgentResultModel } from "../../../models/AgentResultModel";
+import { AgentRecommendationModel } from "../../../models/AgentRecommendationModel";
 import { log, logError, delay, isValidAgentOutput } from "../feature-utils/agentLogger";
 import { formatDate, getCurrentMonthRange } from "../feature-utils/dateHelpers";
 import {
@@ -75,20 +77,11 @@ export async function runGuardianGovernanceAgents(
   // Fetch all successful agent results from current month
   // Exclude guardian, governance_sentinel, and gbp_optimizer
   log("\n[GUARDIAN-GOV] Fetching agent results from current month...");
-  const results = await db("agent_results")
-    .whereBetween("created_at", [
-      new Date(monthRange.startDate),
-      new Date(monthRange.endDate + "T23:59:59"),
-    ])
-    .where("status", "success")
-    .whereNotIn("agent_type", [
-      "guardian",
-      "governance_sentinel",
-      "gbp_optimizer",
-    ])
-    .orderBy("agent_type")
-    .orderBy("created_at")
-    .select("*");
+  const results = await AgentResultModel.findSuccessfulInWindowExcludingTypes(
+    new Date(monthRange.startDate),
+    new Date(monthRange.endDate + "T23:59:59"),
+    ["guardian", "governance_sentinel", "gbp_optimizer"],
+  );
 
   if (!results || results.length === 0) {
     log("[GUARDIAN-GOV] No agent results found for current month");
@@ -136,15 +129,14 @@ export async function runGuardianGovernanceAgents(
   );
 
   // Check for duplicates (system-level results have organization_id = NULL)
-  const existingGuardian = await db("agent_results")
-    .where({
+  const existingGuardian = await AgentResultModel.findExistingSystemResult(
+    {
       agent_type: "guardian",
       date_start: monthRange.startDate,
       date_end: monthRange.endDate,
-    })
-    .whereNull("organization_id")
-    .whereIn("status", ["success", "pending"])
-    .first();
+    },
+    ["success", "pending"],
+  );
 
   if (existingGuardian) {
     log(
@@ -182,33 +174,17 @@ export async function runGuardianGovernanceAgents(
       `[GUARDIAN-GOV] Fetching historical recommendations for ${agentType}...`,
     );
 
-    const passedRecs = await db("agent_recommendations")
-      .where("agent_under_test", agentType)
-      .where("status", "PASS")
-      .select(
-        "id",
-        "title",
-        "explanation",
-        "verdict",
-        "confidence",
-        "created_at",
-      )
-      .orderBy("created_at", "desc")
-      .limit(50); // Limit to most recent 50
+    const passedRecs = await AgentRecommendationModel.findHistoricalByAgentAndStatus(
+      agentType,
+      "PASS",
+      50, // Limit to most recent 50
+    );
 
-    const rejectedRecs = await db("agent_recommendations")
-      .where("agent_under_test", agentType)
-      .where("status", "REJECT")
-      .select(
-        "id",
-        "title",
-        "explanation",
-        "verdict",
-        "confidence",
-        "created_at",
-      )
-      .orderBy("created_at", "desc")
-      .limit(50);
+    const rejectedRecs = await AgentRecommendationModel.findHistoricalByAgentAndStatus(
+      agentType,
+      "REJECT",
+      50,
+    );
 
     log(
       `[GUARDIAN-GOV] Found ${passedRecs.length} PASS, ${rejectedRecs.length} REJECT recommendations`,
@@ -354,52 +330,57 @@ export async function runGuardianGovernanceAgents(
     `[GUARDIAN-GOV] Governance results collected: ${governanceResults.length} groups`,
   );
 
-  // Save Guardian result (system-level: organization_id = null)
-  const [guardianRecord] = await db("agent_results")
-    .insert({
-      organization_id: null,
-      location_id: null,
-      agent_type: "guardian",
-      date_start: monthRange.startDate,
-      date_end: monthRange.endDate,
-      agent_input: JSON.stringify({
-        type: "SYSTEM",
-        aggregated_from: agentTypes,
-        total_results: results.length,
-        date_range: `${monthRange.startDate} to ${monthRange.endDate}`,
-      }),
-      agent_output: JSON.stringify(guardianResults),
-      status: "success",
-      created_at: new Date(),
-      updated_at: new Date(),
-    })
-    .returning("id");
+  // Save Guardian + Governance Sentinel results atomically (both system-level:
+  // organization_id = null). These two agent_results rows are a single logical
+  // unit \u2014 a failure after the guardian insert must not leave the governance
+  // row missing, so they share one transaction.
+  const { guardianId, governanceId } = await db.transaction(async (trx) => {
+    const guardianRecordId = await AgentResultModel.insertReturningId(
+      {
+        organization_id: null,
+        location_id: null,
+        agent_type: "guardian",
+        date_start: monthRange.startDate,
+        date_end: monthRange.endDate,
+        agent_input: JSON.stringify({
+          type: "SYSTEM",
+          aggregated_from: agentTypes,
+          total_results: results.length,
+          date_range: `${monthRange.startDate} to ${monthRange.endDate}`,
+        }),
+        agent_output: JSON.stringify(guardianResults),
+        status: "success",
+        created_at: new Date(),
+        updated_at: new Date(),
+      },
+      trx,
+    );
 
-  const guardianId = guardianRecord.id;
+    const governanceRecordId = await AgentResultModel.insertReturningId(
+      {
+        organization_id: null,
+        location_id: null,
+        agent_type: "governance_sentinel",
+        date_start: monthRange.startDate,
+        date_end: monthRange.endDate,
+        agent_input: JSON.stringify({
+          type: "SYSTEM",
+          aggregated_from: agentTypes,
+          total_results: results.length,
+          date_range: `${monthRange.startDate} to ${monthRange.endDate}`,
+        }),
+        agent_output: JSON.stringify(governanceResults),
+        status: "success",
+        created_at: new Date(),
+        updated_at: new Date(),
+      },
+      trx,
+    );
+
+    return { guardianId: guardianRecordId, governanceId: governanceRecordId };
+  });
+
   log(`[GUARDIAN-GOV] \u2713 Guardian result saved (ID: ${guardianId})`);
-
-  // Save Governance Sentinel result (system-level: organization_id = null)
-  const [governanceRecord] = await db("agent_results")
-    .insert({
-      organization_id: null,
-      location_id: null,
-      agent_type: "governance_sentinel",
-      date_start: monthRange.startDate,
-      date_end: monthRange.endDate,
-      agent_input: JSON.stringify({
-        type: "SYSTEM",
-        aggregated_from: agentTypes,
-        total_results: results.length,
-        date_range: `${monthRange.startDate} to ${monthRange.endDate}`,
-      }),
-      agent_output: JSON.stringify(governanceResults),
-      status: "success",
-      created_at: new Date(),
-      updated_at: new Date(),
-    })
-    .returning("id");
-
-  const governanceId = governanceRecord.id;
   log(`[GUARDIAN-GOV] \u2713 Governance result saved (ID: ${governanceId})`);
 
   // Parse and save recommendations to agent_recommendations table

@@ -1,4 +1,5 @@
 import { BaseModel, QueryContext } from "./BaseModel";
+import { db } from "../database/connection";
 
 /**
  * Single pillar inside a website or GBP analysis payload.
@@ -112,5 +113,117 @@ export class AuditProcessModel extends BaseModel {
     trx?: QueryContext
   ): Promise<number> {
     return super.updateById(id, data, trx);
+  }
+
+  /**
+   * Lite projection used by the leadgen email-notify queue: just the fields
+   * needed to decide whether the audit is done and to pick a business name.
+   */
+  static async findStatusAndGbpById(
+    id: string,
+    trx?: QueryContext
+  ): Promise<
+    Pick<IAuditProcess, "id" | "status" | "step_self_gbp"> | undefined
+  > {
+    return this.table(trx)
+      .select("id", "status", "step_self_gbp")
+      .where({ id })
+      .first();
+  }
+
+  /**
+   * Update audit fields while never downgrading `realtime_status` — parallel
+   * pipeline branches write it in arbitrary order, so GREATEST guards against
+   * a slow branch rewinding the UI stage. SQL preserved verbatim from
+   * auditUpdateService.updateAuditFields.
+   */
+  static async updateFieldsWithRealtimeFloor(
+    id: string,
+    rest: Record<string, unknown>,
+    realtimeStatus: unknown,
+    trx?: QueryContext
+  ): Promise<number> {
+    const conn = trx || db;
+    return conn("audit_processes")
+      .where({ id })
+      .update({
+        ...rest,
+        realtime_status: conn.raw("GREATEST(realtime_status, ?)", [
+          realtimeStatus,
+        ]),
+        updated_at: conn.fn.now(),
+      });
+  }
+
+  /**
+   * Atomic retry reset. Flips a `failed` row back to `pending` (and resets
+   * realtime_status/error_message) in a single conditional UPDATE so two
+   * concurrent retries can't both pass the cap — the DB enforces the
+   * invariant. `countsTowardLimit` increments retry_count; `skipLimit` (admin)
+   * drops the `retry_count < MAX` guard. Returns the `.returning(...)` rows.
+   * Query shape preserved verbatim from service.audit-retry.
+   */
+  static async resetFailedForRetry(
+    id: string,
+    opts: {
+      countsTowardLimit: boolean;
+      skipLimit: boolean;
+      maxRetries: number;
+    },
+    trx?: QueryContext
+  ): Promise<
+    Array<{
+      id: string;
+      domain: string | null;
+      practice_search_string: string | null;
+      retry_count: number;
+    }>
+  > {
+    const conn = trx || db;
+
+    const updatePatch: Record<string, unknown> = {
+      status: "pending",
+      realtime_status: 0,
+      error_message: null,
+      updated_at: new Date(),
+    };
+    if (opts.countsTowardLimit) {
+      updatePatch.retry_count = conn.raw("retry_count + 1");
+    }
+
+    const query = conn("audit_processes")
+      .where({ id, status: "failed" })
+      .update(updatePatch)
+      .returning(["id", "domain", "practice_search_string", "retry_count"]);
+
+    if (!opts.skipLimit) {
+      query.andWhere("retry_count", "<", opts.maxRetries);
+    }
+
+    return query;
+  }
+
+  /**
+   * Retry-disambiguation projection — the full row used to explain why the
+   * conditional retry UPDATE matched zero rows. Verbatim from
+   * service.audit-retry.disambiguateFailure.
+   */
+  static async findRetryStateById(
+    id: string,
+    trx?: QueryContext
+  ): Promise<
+    | {
+        id: string;
+        domain: string | null;
+        practice_search_string: string | null;
+        status: string;
+        retry_count: number;
+      }
+    | undefined
+  > {
+    return this.table(trx)
+      .select("id", "domain", "practice_search_string", "status", "retry_count")
+      .where({ id })
+      .first();
   }
 }

@@ -8,7 +8,6 @@
  */
 
 import { Knex } from "knex";
-import { db } from "../../../database/connection";
 import {
   OrganizationModel,
   IOrganization,

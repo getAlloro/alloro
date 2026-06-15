@@ -17,6 +17,7 @@
 
 import axios from "axios";
 import { interceptEmailPayload } from "../../../emails/emailInterceptor";
+import logger from "../../../lib/logger";
 
 const N8N_EMAIL_URL =
   process.env.N8N_EMAIL_URL ||
@@ -132,10 +133,7 @@ export async function sendAuditReportEmail(
     } = await interceptEmailPayload(builtPayload);
 
     if (intercepted) {
-      console.log(
-        "[Leadgen Email] Email intercepted (non-production sender). Original recipients:",
-        originalRecipients
-      );
+      logger.info({ detail: originalRecipients }, "[Leadgen Email] Email intercepted (non-production sender). Original recipients:");
     }
 
     const response = await axios.post(N8N_EMAIL_URL, payload, {

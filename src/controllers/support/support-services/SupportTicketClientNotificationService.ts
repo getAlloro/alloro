@@ -1,5 +1,6 @@
 import { NotificationModel } from "../../../models/NotificationModel";
 import type { SupportTicket } from "../../../models/SupportTicketModel";
+import logger from "../../../lib/logger";
 
 const SUPPORT_REPLY_MESSAGE_LIMIT = 180;
 
@@ -22,7 +23,7 @@ export async function notifyClientOfAdminReply(
       },
     });
   } catch (error) {
-    console.error("[SupportTicketClientNotificationService]", error);
+    logger.error({ err: error }, "[SupportTicketClientNotificationService]");
   }
 }
 

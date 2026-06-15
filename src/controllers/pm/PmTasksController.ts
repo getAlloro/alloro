@@ -2,10 +2,14 @@ import { Response } from "express";
 import { AuthRequest } from "../../middleware/auth";
 import { PmTaskModel } from "../../models/PmTaskModel";
 import { PmColumnModel } from "../../models/PmColumnModel";
-import { db } from "../../database/connection";
+import { PmProjectModel } from "../../models/PmProjectModel";
+import { PmTaskAttachmentModel } from "../../models/PmTaskAttachmentModel";
+import { PmNotificationModel } from "../../models/PmNotificationModel";
+import { UserModel } from "../../models/UserModel";
 import { logPmActivity } from "./pmActivityLogger";
 import { deleteFromS3 } from "../../utils/core/s3";
 import type { QueryContext } from "../../models/BaseModel";
+import logger from "../../lib/logger";
 
 /**
  * Fire-and-log S3 cleanup for the given attachment S3 keys.
@@ -17,19 +21,14 @@ import type { QueryContext } from "../../models/BaseModel";
  */
 async function cleanupAttachmentS3Objects(taskIds: string[]): Promise<void> {
   if (taskIds.length === 0) return;
-  const rows: Array<{ s3_key: string }> = await db("pm_task_attachments")
-    .whereIn("task_id", taskIds)
-    .select("s3_key");
+  const rows = await PmTaskAttachmentModel.listS3KeysForTasks(taskIds);
   if (rows.length === 0) return;
   const results = await Promise.allSettled(
     rows.map((r) => deleteFromS3(r.s3_key))
   );
   results.forEach((r, i) => {
     if (r.status === "rejected") {
-      console.error(
-        `[PM-TASKS] Failed to delete S3 object ${rows[i].s3_key}:`,
-        r.reason
-      );
+      logger.error({ err: r.reason }, `[PM-TASKS] Failed to delete S3 object ${rows[i].s3_key}:`);
     }
   });
 }
@@ -44,26 +43,17 @@ async function insertNotification(
     metadata: Record<string, unknown>;
   }
 ): Promise<void> {
-  await (ctx as any)("pm_notifications").insert(payload);
+  await PmNotificationModel.insertOne(payload, ctx);
 }
 
 function handleError(res: Response, error: unknown, operation: string): Response {
-  console.error(`[PM-TASKS] ${operation} failed:`, error);
+  logger.error({ err: error }, `[PM-TASKS] ${operation} failed:`);
   const message = error instanceof Error ? error.message : String(error);
   return res.status(500).json({ success: false, error: message });
 }
 
 async function enrichTask(task: any): Promise<any> {
-  const row = await db("pm_tasks")
-    .where("pm_tasks.id", task.id)
-    .leftJoin("users as creators", "pm_tasks.created_by", "creators.id")
-    .leftJoin("users as assignees", "pm_tasks.assigned_to", "assignees.id")
-    .select(
-      "pm_tasks.*",
-      "creators.email as creator_email",
-      "assignees.email as assignee_email"
-    )
-    .first();
+  const row = await PmTaskModel.findByIdWithUsers(task.id);
   if (!row) return task;
   return {
     ...row,
@@ -94,11 +84,9 @@ export async function createTask(req: AuthRequest, res: Response): Promise<any> 
       return res.status(400).json({ success: false, error: "Invalid column for this project" });
     }
 
-    const task = await db.transaction(async (trx) => {
+    const task = await PmTaskModel.transaction(async (trx) => {
       // Shift existing tasks down to make room at position 0
-      await trx("pm_tasks")
-        .where({ column_id })
-        .increment("position", 1);
+      await PmTaskModel.shiftColumnDownByOne(column_id, trx);
 
       // Backlog column auto-clears priority
       const effectivePriority = column.is_backlog ? null : (priority || "P4");
@@ -221,18 +209,12 @@ export async function moveTask(req: AuthRequest, res: Response): Promise<any> {
       PmColumnModel.findById(targetColumnId),
     ]);
 
-    await db.transaction(async (trx) => {
+    await PmTaskModel.transaction(async (trx) => {
       // Remove from source: shift tasks above the removed position down
-      await trx("pm_tasks")
-        .where({ column_id: sourceColumnId })
-        .where("position", ">", existing.position)
-        .decrement("position", 1);
+      await PmTaskModel.decrementPositionsAfter(sourceColumnId, existing.position, trx);
 
       // Insert into target: shift tasks at or above target position up
-      await trx("pm_tasks")
-        .where({ column_id: targetColumnId })
-        .where("position", ">=", targetPosition)
-        .increment("position", 1);
+      await PmTaskModel.incrementPositionsFrom(targetColumnId, targetPosition, trx);
 
       // Update the task itself
       const updates: Record<string, unknown> = {
@@ -290,8 +272,8 @@ export async function moveTask(req: AuthRequest, res: Response): Promise<any> {
           existing.created_by !== existing.assigned_to
         ) {
           const [project, actorUser] = await Promise.all([
-            trx("pm_projects").where("id", existing.project_id).select("name").first(),
-            trx("users").where("id", existing.assigned_to).select("email").first(),
+            PmProjectModel.findNameById(existing.project_id, trx),
+            UserModel.findEmailById(existing.assigned_to, trx),
           ]);
           const actorName = actorUser?.email ? actorUser.email.split("@")[0] : `user ${existing.assigned_to}`;
           await insertNotification(trx, {
@@ -330,7 +312,7 @@ export async function assignTask(req: AuthRequest, res: Response): Promise<any> 
 
     const oldAssignee: number | null = existing.assigned_to;
 
-    await db.transaction(async (trx) => {
+    await PmTaskModel.transaction(async (trx) => {
       await PmTaskModel.updateById(id, { assigned_to: newAssignee }, trx);
 
       await logPmActivity(
@@ -346,8 +328,8 @@ export async function assignTask(req: AuthRequest, res: Response): Promise<any> 
 
       // Fetch project name + actor name for notification metadata
       const [project, actorUser] = await Promise.all([
-        trx("pm_projects").where("id", existing.project_id).select("name").first(),
-        trx("users").where("id", req.user!.userId).select("email").first(),
+        PmProjectModel.findNameById(existing.project_id, trx),
+        UserModel.findEmailById(req.user!.userId, trx),
       ]);
       const actorName = actorUser?.email ? actorUser.email.split("@")[0] : `user ${req.user!.userId}`;
       const meta = { task_title: existing.title, project_name: project?.name ?? "", actor_name: actorName };
@@ -405,14 +387,11 @@ export async function deleteTask(req: AuthRequest, res: Response): Promise<any> 
     // before the task is deleted because the query joins on task_id.
     await cleanupAttachmentS3Objects([id]);
 
-    await db.transaction(async (trx) => {
+    await PmTaskModel.transaction(async (trx) => {
       await PmTaskModel.deleteById(id, trx);
 
       // Recompute positions in the source column
-      await trx("pm_tasks")
-        .where({ column_id: existing.column_id })
-        .where("position", ">", existing.position)
-        .decrement("position", 1);
+      await PmTaskModel.decrementPositionsAfter(existing.column_id, existing.position, trx);
     });
 
     return res.json({ success: true, data: { deleted: true } });
@@ -441,18 +420,7 @@ export async function bulkMoveTasksToProject(req: AuthRequest, res: Response): P
     }
 
     // Load all tasks + their source columns in one shot
-    const tasks: any[] = await db("pm_tasks")
-      .join("pm_columns", "pm_tasks.column_id", "pm_columns.id")
-      .whereIn("pm_tasks.id", task_ids as string[])
-      .select(
-        "pm_tasks.id",
-        "pm_tasks.project_id",
-        "pm_tasks.column_id",
-        "pm_tasks.position",
-        "pm_tasks.title",
-        "pm_columns.is_backlog as source_is_backlog",
-        "pm_columns.name as source_column_name"
-      );
+    const tasks: any[] = await PmTaskModel.findManyWithColumnFlags(task_ids as string[]);
 
     if (tasks.length !== (task_ids as string[]).length) {
       return res.status(404).json({ success: false, error: "One or more tasks not found" });
@@ -469,7 +437,7 @@ export async function bulkMoveTasksToProject(req: AuthRequest, res: Response): P
     }
 
     // Validate target project exists and is active
-    const targetProject = await db("pm_projects").where({ id: target_project_id }).first();
+    const targetProject = await PmProjectModel.findByIdRaw(target_project_id);
     if (!targetProject) {
       return res.status(404).json({ success: false, error: "Target project not found" });
     }
@@ -478,9 +446,7 @@ export async function bulkMoveTasksToProject(req: AuthRequest, res: Response): P
     }
 
     // Resolve target backlog column
-    const targetBacklog = await db("pm_columns")
-      .where({ project_id: target_project_id, is_backlog: true })
-      .first();
+    const targetBacklog = await PmColumnModel.findBacklogForProject(target_project_id);
     if (!targetBacklog) {
       return res.status(400).json({ success: false, error: "Target project has no backlog column" });
     }
@@ -495,12 +461,10 @@ export async function bulkMoveTasksToProject(req: AuthRequest, res: Response): P
 
     // Execute the move in a single transaction
     const movedIds: string[] = [];
-    await db.transaction(async (trx) => {
+    await PmTaskModel.transaction(async (trx) => {
       // Current max position in the target backlog (append to end)
-      const [maxRow] = await trx("pm_tasks")
-        .where({ column_id: targetBacklog.id })
-        .max<{ max: number | null }[]>("position as max");
-      let nextPosition = ((maxRow?.max ?? -1) as number) + 1;
+      const maxPosition = await PmTaskModel.getMaxPosition(targetBacklog.id, trx);
+      let nextPosition = ((maxPosition ?? -1) as number) + 1;
 
       // Group by source column so per-column compaction is efficient
       const bySourceCol = new Map<string, any[]>();
@@ -511,14 +475,13 @@ export async function bulkMoveTasksToProject(req: AuthRequest, res: Response): P
       }
 
       for (const t of tasks) {
-        await trx("pm_tasks")
-          .where({ id: t.id })
-          .update({
-            project_id: target_project_id,
-            column_id: targetBacklog.id,
-            position: nextPosition,
-            priority: null, // backlog = no priority
-          });
+        await PmTaskModel.moveToBacklog(
+          t.id,
+          target_project_id,
+          targetBacklog.id,
+          nextPosition,
+          trx
+        );
 
         await logPmActivity(
           {
@@ -542,13 +505,7 @@ export async function bulkMoveTasksToProject(req: AuthRequest, res: Response): P
 
       // Compact source columns: rewrite positions to be contiguous
       for (const [sourceColId] of bySourceCol) {
-        const remaining: any[] = await trx("pm_tasks")
-          .where({ column_id: sourceColId })
-          .orderBy("position", "asc")
-          .select("id");
-        for (let i = 0; i < remaining.length; i++) {
-          await trx("pm_tasks").where({ id: remaining[i].id }).update({ position: i });
-        }
+        await PmTaskModel.compactColumnPositions(sourceColId, trx);
       }
     });
 
@@ -567,9 +524,7 @@ export async function bulkDeleteTasks(req: AuthRequest, res: Response): Promise<
       return res.status(400).json({ success: false, error: "task_ids must be a non-empty array" });
     }
 
-    const tasks: any[] = await db("pm_tasks")
-      .whereIn("id", task_ids as string[])
-      .select("id", "project_id", "column_id", "position", "title");
+    const tasks: any[] = await PmTaskModel.findManyBasic(task_ids as string[]);
 
     if (tasks.length === 0) {
       return res.status(404).json({ success: false, error: "No tasks found" });
@@ -580,7 +535,7 @@ export async function bulkDeleteTasks(req: AuthRequest, res: Response): Promise<
     // Clean up S3 attachments before the DB cascade removes their rows.
     await cleanupAttachmentS3Objects(tasks.map((t) => t.id));
 
-    await db.transaction(async (trx) => {
+    await PmTaskModel.transaction(async (trx) => {
       // Log each deletion before removing the row
       for (const t of tasks) {
         await logPmActivity(
@@ -595,17 +550,11 @@ export async function bulkDeleteTasks(req: AuthRequest, res: Response): Promise<
         );
       }
 
-      await trx("pm_tasks").whereIn("id", tasks.map((t) => t.id)).delete();
+      await PmTaskModel.deleteManyByIds(tasks.map((t) => t.id), trx);
 
       // Compact affected columns
       for (const colId of affectedColumnIds) {
-        const remaining: any[] = await trx("pm_tasks")
-          .where({ column_id: colId })
-          .orderBy("position", "asc")
-          .select("id");
-        for (let i = 0; i < remaining.length; i++) {
-          await trx("pm_tasks").where({ id: remaining[i].id }).update({ position: i });
-        }
+        await PmTaskModel.compactColumnPositions(colId, trx);
       }
     });
 

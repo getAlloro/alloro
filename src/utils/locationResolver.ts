@@ -12,6 +12,7 @@
 
 import { LocationModel } from "../models/LocationModel";
 import { GooglePropertyModel } from "../models/GooglePropertyModel";
+import logger from "../lib/logger";
 
 export async function resolveLocationId(
   organizationId: number | null | undefined,
@@ -29,7 +30,7 @@ export async function resolveLocationId(
         return property.location_id;
       }
       // Property belongs to a different org — fall through to primary
-      console.warn(
+      logger.warn(
         `[locationResolver] Property ${gbpLocationId} resolved to location ${property.location_id} but it belongs to org ${location?.organization_id}, not ${organizationId}. Falling through to primary.`
       );
     }
@@ -45,13 +46,13 @@ export async function resolveLocationId(
   // No primary — use the first location for this org
   const allLocations = await LocationModel.findByOrganizationId(organizationId);
   if (allLocations.length > 0) {
-    console.warn(
+    logger.warn(
       `[locationResolver] No primary location for org ${organizationId}, using first location ${allLocations[0].id}`
     );
     return allLocations[0].id;
   }
 
-  console.warn(
+  logger.warn(
     `[locationResolver] No locations found for organization ${organizationId}`
   );
   return null;

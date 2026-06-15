@@ -1,4 +1,3 @@
-import db from "../../../database/connection";
 import { PmsJobModel } from "../../../models/PmsJobModel";
 import { PmsJobEventModel } from "../../../models/PmsJobEventModel";
 import { aggregatePmsData } from "../../../utils/pms/pmsAggregator";
@@ -9,6 +8,7 @@ import {
 import { coerceBoolean } from "../pms-utils/pms-validator.util";
 import { PAGE_SIZE, PmsStatus } from "../pms-utils/pms-constants";
 import { computeInsightsStale } from "../pms-utils/pms-insights-freshness.util";
+import logger from "../../../lib/logger";
 
 /**
  * Resolve whether displayed insights are stale relative to PMS data for a
@@ -148,43 +148,19 @@ export async function listJobsPaginated(
 ) {
   const { statuses, approvedFilter, organizationFilter, locationFilter } = filters;
 
-  // Build count query with filters
-  let countQuery = db("pms_jobs");
-  if (statuses.length > 0) {
-    countQuery = countQuery.whereIn("status", statuses);
-  }
-  if (approvedFilter !== undefined) {
-    countQuery = countQuery.where("is_approved", approvedFilter ? 1 : 0);
-  }
-  if (organizationFilter) {
-    countQuery = countQuery.where("organization_id", organizationFilter);
-  }
-  if (locationFilter) {
-    countQuery = countQuery.where("location_id", locationFilter);
-  }
-  const totalResult = await countQuery.count({ total: "*" });
-  const total = Number(totalResult?.[0]?.total ?? 0);
+  const listFilters = {
+    statuses,
+    approvedFilter,
+    organizationFilter,
+    locationFilter,
+  };
 
-  // Build data query with same filters
-  let dataQuery = db("pms_jobs")
-    .leftJoin("locations", "pms_jobs.location_id", "locations.id")
-    .select("pms_jobs.*", "locations.name as location_name");
-  if (statuses.length > 0) {
-    dataQuery = dataQuery.whereIn("pms_jobs.status", statuses);
-  }
-  if (approvedFilter !== undefined) {
-    dataQuery = dataQuery.where("pms_jobs.is_approved", approvedFilter ? 1 : 0);
-  }
-  if (organizationFilter) {
-    dataQuery = dataQuery.where("pms_jobs.organization_id", organizationFilter);
-  }
-  if (locationFilter) {
-    dataQuery = dataQuery.where("pms_jobs.location_id", locationFilter);
-  }
-  const jobsRaw = await dataQuery
-    .orderBy("pms_jobs.timestamp", "desc")
-    .limit(PAGE_SIZE)
-    .offset((page - 1) * PAGE_SIZE);
+  const total = await PmsJobModel.countJobsForList(listFilters);
+
+  const jobsRaw = await PmsJobModel.listJobsWithLocationName(listFilters, {
+    limit: PAGE_SIZE,
+    offset: (page - 1) * PAGE_SIZE,
+  });
 
   const jobs = jobsRaw.map((job: any) => {
     // Parse automation_status_detail if present
@@ -196,7 +172,7 @@ export async function listJobsPaginated(
             ? JSON.parse(job.automation_status_detail)
             : job.automation_status_detail;
       } catch (e) {
-        console.warn(
+        logger.warn(
           `Failed to parse automation_status_detail for job ${job.id}`
         );
       }
@@ -284,22 +260,9 @@ export async function updateJobResponse(
   const responseValue =
     normalizedResponse === null ? null : JSON.stringify(normalizedResponse);
 
-  await db("pms_jobs")
-    .where({ id: jobId })
-    .update({ response_log: responseValue });
+  await PmsJobModel.updateResponseLogRaw(jobId, responseValue);
 
-  const updatedJob = await db("pms_jobs")
-    .select(
-      "id",
-      "time_elapsed",
-      "status",
-      "response_log",
-      "timestamp",
-      "is_approved",
-      "is_client_approved"
-    )
-    .where({ id: jobId })
-    .first();
+  const updatedJob = await PmsJobModel.findResponseSummaryById(jobId);
 
   return {
     id: updatedJob?.id,

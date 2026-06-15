@@ -19,9 +19,10 @@ import {
   buildS3Url,
 } from "../../admin-media/feature-utils/util.s3-helpers";
 import { MediaModel } from "../../../models/website-builder/MediaModel";
+import logger from "../../../lib/logger";
 
 function log(msg: string, data?: Record<string, unknown>): void {
-  console.log(`[ImageProcessor] ${msg}`, data ? JSON.stringify(data) : "");
+  logger.info({ detail: data ? JSON.stringify(data) : "" }, `[ImageProcessor] ${msg}`);
 }
 
 function checkCancel(signal?: AbortSignal): void {

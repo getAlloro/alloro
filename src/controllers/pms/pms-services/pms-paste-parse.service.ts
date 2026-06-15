@@ -22,6 +22,7 @@ import {
   applyMapping,
   type MonthlyRollupForJob,
 } from "../../../utils/pms/applyColumnMapping";
+import logger from "../../../lib/logger";
 
 export interface ParsedRow {
   source: string;
@@ -236,7 +237,7 @@ function parseAlloroTemplate(
   const delimiter = detectDelimiter(lines[0]);
   const dataLines = lines.slice(1);
 
-  console.log(
+  logger.info(
     `[PMS-Paste] (tier1/template) Parsing ${dataLines.length} data rows ` +
       `(delimiter: ${delimiter === "\t" ? "TAB" : "COMMA"})`
   );
@@ -281,7 +282,7 @@ function parseAlloroTemplate(
     );
   }
 
-  console.log(
+  logger.info(
     `[PMS-Paste] (tier1/template) Parsed ${rows.length} rows across ${monthsSet.size} month(s)`
   );
 
@@ -364,7 +365,7 @@ export async function parsePastedData(
   // -----------------------------------------------------------------
   // Tier 2: dispatch through the mapping system.
   // -----------------------------------------------------------------
-  console.log(
+  logger.info(
     `[PMS-Paste] (tier2/mapping) signature=${signature} headers=${headers.length} rows=${rowRecords.length} orgId=${orgId ?? "none"}`
   );
 
@@ -401,7 +402,7 @@ export async function parsePastedData(
 
   const { rows: legacyRows, monthsDetected } = rollupToParsedRows(rollup);
 
-  console.log(
+  logger.info(
     `[PMS-Paste] (tier2/mapping) Produced ${legacyRows.length} parsed rows across ${monthsDetected} month(s) via ${resolved.source}`
   );
 

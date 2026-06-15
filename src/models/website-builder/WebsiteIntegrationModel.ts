@@ -231,4 +231,20 @@ export class WebsiteIntegrationModel extends BaseModel {
       .first();
     return !!row?.encrypted_credentials;
   }
+
+  /**
+   * Active integrations across a set of project ids, projecting
+   * (project_id, platform, status). Mirrors the inline rollup query in
+   * service.project-manager.listProjects verbatim (the caller groups by
+   * project). Caller guards the empty-id case.
+   */
+  static async findActiveByProjectIds(
+    projectIds: string[],
+    trx?: QueryContext,
+  ): Promise<Array<{ project_id: string; platform: string; status: string }>> {
+    return this.table(trx)
+      .select("project_id", "platform", "status")
+      .whereIn("project_id", projectIds)
+      .where("status", "active");
+  }
 }

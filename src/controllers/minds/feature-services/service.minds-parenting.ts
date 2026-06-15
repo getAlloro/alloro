@@ -9,6 +9,7 @@ import { extractKnowledgeFromTranscript } from "./service.minds-extraction";
 import { compareContent } from "./service.minds-comparison";
 import { generateGreeting, generateSessionTitle, generatePreviewMessages } from "./service.minds-parenting-chat";
 import { getMindsQueue } from "../../../workers/queues";
+import logger from "../../../lib/logger";
 
 const COMPILE_PUBLISH_STEPS = [
   "INIT",
@@ -197,7 +198,7 @@ export async function triggerReadingStream(
     // Fail-safe: clean up any orphaned active runs for this mind before creating a new one
     const orphanedRun = await MindSyncRunModel.findActiveByMind(mindId);
     if (orphanedRun) {
-      console.log(`[MINDS] Cleaning up orphaned sync run ${orphanedRun.id} (status: ${orphanedRun.status}) for mind ${mindId}`);
+      logger.info(`[MINDS] Cleaning up orphaned sync run ${orphanedRun.id} (status: ${orphanedRun.status}) for mind ${mindId}`);
       await MindSyncRunModel.markFailed(orphanedRun.id, "Cleaned up: orphaned by previous failed reading");
     }
 
@@ -299,7 +300,7 @@ export async function triggerReadingStream(
 
     onEvent({ type: "complete", proposalCount: proposals.length, runId: run.id });
   } catch (err: any) {
-    console.error(`[MINDS] Reading failed for session ${sessionId}, rolling back to chatting:`, err.message);
+    logger.error({ err: err.message }, `[MINDS] Reading failed for session ${sessionId}, rolling back to chatting:`);
 
     // Roll back session to chatting so user can retry
     await MindParentingSessionModel.updateStatus(sessionId, "chatting").catch(() => {});

@@ -7,66 +7,37 @@
  * public function accepts an optional `costContext` carrying the project id
  * and metadata; when omitted, no cost row is written.
  *
+ * Shared plumbing (client, model, cost logging, prompt loaders, parse
+ * helpers) lives in `./aiCommandShared`; this module keeps the public
+ * LLM call functions. Split for the file-size ceiling — behavior is
+ * unchanged.
+ *
  * TODO (deferred — not in this MVP pass):
  *   - Apify, Puppeteer, OpenAI embeddings, Google Places.
  *   - See `src/services/ai-cost/pricing.ts`.
  */
 
-import Anthropic from "@anthropic-ai/sdk";
-import { loadPrompt } from "../../agents/service.prompt-loader";
-import { safeLogAiCostEvent } from "../../services/ai-cost/service.ai-cost";
+import logger from "../../lib/logger";
+import {
+  MODEL,
+  AiCommandCostContext,
+  logAnthropicCost,
+  getAnalysisPrompt,
+  getStructuralPrompt,
+  getExecutionPrompt,
+  getSectionPlannerPrompt,
+  getSectionGeneratorPrompt,
+  getVisualAnalysisPrompt,
+  getPostContentPrompt,
+  getClient,
+  extractText,
+  tryParseJson,
+  cleanHtmlOutput,
+} from "./aiCommandShared";
 
-const MODEL = "claude-sonnet-4-6";
-
-/** Optional cost-accounting context passed by callers that have a project. */
-export interface AiCommandCostContext {
-  projectId: string;
-  eventType?: string;
-  metadata?: Record<string, unknown>;
-}
-
-/** Internal helper — logs one row per Anthropic response. Never throws. */
-async function logAnthropicCost(
-  ctx: AiCommandCostContext | undefined,
-  defaultEventType: string,
-  response: { model?: string; usage?: { input_tokens?: number; output_tokens?: number } },
-  extraMetadata?: Record<string, unknown>,
-): Promise<void> {
-  if (!ctx?.projectId) return;
-  await safeLogAiCostEvent({
-    projectId: ctx.projectId,
-    eventType: ctx.eventType || defaultEventType,
-    vendor: "anthropic",
-    model: response.model || MODEL,
-    usage: {
-      input_tokens: response.usage?.input_tokens ?? 0,
-      output_tokens: response.usage?.output_tokens ?? 0,
-    },
-    metadata: { ...(ctx.metadata || {}), ...(extraMetadata || {}) },
-  });
-}
-
-// Load prompts from .md files (cached after first read)
-const getAnalysisPrompt = () => loadPrompt("websiteAgents/aiCommand/Analysis");
-const getStructuralPrompt = () => loadPrompt("websiteAgents/aiCommand/Structural");
-const getExecutionPrompt = () => loadPrompt("websiteAgents/aiCommand/Execution");
-const getSectionPlannerPrompt = () => loadPrompt("websiteAgents/aiCommand/SectionPlanner");
-const getSectionGeneratorPrompt = () => loadPrompt("websiteAgents/aiCommand/SectionGenerator");
-const getVisualAnalysisPrompt = () => loadPrompt("websiteAgents/aiCommand/VisualAnalysis");
-const getPostContentPrompt = () => loadPrompt("websiteAgents/aiCommand/PostContent");
-
-let client: Anthropic | null = null;
-
-function getClient(): Anthropic {
-  if (!client) {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error("ANTHROPIC_API_KEY environment variable is not set");
-    }
-    client = new Anthropic({ apiKey });
-  }
-  return client;
-}
+// Re-export the cost-context type so existing callers can keep importing it
+// from this module path.
+export type { AiCommandCostContext } from "./aiCommandShared";
 
 // ---------------------------------------------------------------------------
 // Analysis — produce structured recommendations from content + prompt
@@ -109,7 +80,7 @@ ${currentHtml}`;
     { role: "user", content: userMessage },
   ];
 
-  console.log(
+  logger.info(
     `[AiCommand] Analyzing: ${targetLabel} (${currentHtml.length} chars)`
   );
 
@@ -129,7 +100,7 @@ ${currentHtml}`;
 
   // Retry once on parse failure
   if (!parsed) {
-    console.warn(
+    logger.warn(
       `[AiCommand] Parse failed for ${targetLabel}, retrying...`
     );
     messages.push({ role: "assistant", content: text });
@@ -155,10 +126,7 @@ ${currentHtml}`;
   }
 
   if (!parsed) {
-    console.error(
-      `[AiCommand] Failed to parse analysis for ${targetLabel}:`,
-      text.substring(0, 200)
-    );
+    logger.error({ err: text.substring(0, 200) }, `[AiCommand] Failed to parse analysis for ${targetLabel}:`);
     throw new Error(
       `LLM returned invalid JSON for analysis of ${targetLabel}`
     );
@@ -178,14 +146,14 @@ ${currentHtml}`;
     : [];
 
   if (recommendations.length === 0) {
-    console.log(
+    logger.info(
       `[AiCommand] ⚠ ${targetLabel}: 0 recommendations. Raw response: ${text.substring(0, 500)}`
     );
-    console.log(
+    logger.info(
       `[AiCommand] ⚠ Prompt length: ${prompt.length} chars, HTML length: ${currentHtml.length} chars`
     );
   } else {
-    console.log(
+    logger.info(
       `[AiCommand] ✓ ${targetLabel}: ${recommendations.length} recommendation(s). Tokens: ${response.usage.input_tokens}/${response.usage.output_tokens}`
     );
   }
@@ -240,7 +208,7 @@ export async function analyzeForStructuralChanges(params: {
 }): Promise<StructuralAnalysisResult> {
   const { prompt, existingPaths, existingRedirects, existingPostSlugs, postTypes, existingMenus, costContext } = params;
 
-  console.log(`[AiCommand] Analyzing structural changes (3 parallel focused calls)...`);
+  logger.info(`[AiCommand] Analyzing structural changes (3 parallel focused calls)...`);
 
   // Run three focused calls in parallel — each only outputs one type
   const [redirectsResult, contentResult, menusResult] = await Promise.allSettled([
@@ -292,11 +260,11 @@ export async function analyzeForStructuralChanges(params: {
   }
 
   // Log failures
-  if (redirectsResult.status === "rejected") console.error("[AiCommand] Redirects analysis failed:", redirectsResult.reason?.message);
-  if (contentResult.status === "rejected") console.error("[AiCommand] Content analysis failed:", contentResult.reason?.message);
-  if (menusResult.status === "rejected") console.error("[AiCommand] Menus analysis failed:", menusResult.reason?.message);
+  if (redirectsResult.status === "rejected") logger.error({ err: redirectsResult.reason?.message }, "[AiCommand] Redirects analysis failed:");
+  if (contentResult.status === "rejected") logger.error({ err: contentResult.reason?.message }, "[AiCommand] Content analysis failed:");
+  if (menusResult.status === "rejected") logger.error({ err: menusResult.reason?.message }, "[AiCommand] Menus analysis failed:");
 
-  console.log(
+  logger.info(
     `[AiCommand] ✓ Structural: ${result.redirects.length} redirects, ${result.deleteRedirects.length} delete-redirects, ${result.pages.length} pages, ${result.posts.length} posts, ${result.menuChanges.length} menu changes, ${result.newMenus.length} new menus`
   );
 
@@ -329,7 +297,7 @@ ${params.responseFormat}
 
 If nothing is needed, return the structure with empty arrays.`;
 
-  console.log(`[AiCommand] Structural/${focusArea}: starting...`);
+  logger.info(`[AiCommand] Structural/${focusArea}: starting...`);
 
   let response = await ai.messages.create({
     model: MODEL,
@@ -345,13 +313,13 @@ If nothing is needed, return the structure with empty arrays.`;
   let text = extractText(response);
 
   if (response.stop_reason === "max_tokens") {
-    console.warn(`[AiCommand] Structural/${focusArea}: truncated at ${text.length} chars`);
+    logger.warn(`[AiCommand] Structural/${focusArea}: truncated at ${text.length} chars`);
   }
 
   let parsed = tryParseJson(text);
 
   if (!parsed) {
-    console.warn(`[AiCommand] Structural/${focusArea}: parse failed, retrying...`);
+    logger.warn(`[AiCommand] Structural/${focusArea}: parse failed, retrying...`);
     response = await ai.messages.create({
       model: MODEL,
       max_tokens: 8192,
@@ -371,11 +339,11 @@ If nothing is needed, return the structure with empty arrays.`;
   }
 
   if (!parsed) {
-    console.error(`[AiCommand] Structural/${focusArea}: failed after retry. Raw: ${text.substring(0, 300)}`);
+    logger.error(`[AiCommand] Structural/${focusArea}: failed after retry. Raw: ${text.substring(0, 300)}`);
     return {};
   }
 
-  console.log(`[AiCommand] Structural/${focusArea}: ✓ done`);
+  logger.info(`[AiCommand] Structural/${focusArea}: ✓ done`);
   return parsed;
 }
 
@@ -413,7 +381,7 @@ ${currentHtml}`;
     { role: "user", content: userMessage },
   ];
 
-  console.log(
+  logger.info(
     `[AiCommand] Executing edit: ${targetLabel} (${currentHtml.length} chars)`
   );
 
@@ -433,7 +401,7 @@ ${currentHtml}`;
 
   // Retry if output looks like JSON or is empty
   if (!html || html.startsWith("{")) {
-    console.warn(
+    logger.warn(
       `[AiCommand] Invalid edit output for ${targetLabel}, retrying...`
     );
     messages.push({ role: "assistant", content: text });
@@ -461,7 +429,7 @@ ${currentHtml}`;
     throw new Error(`LLM returned empty HTML for ${targetLabel}`);
   }
 
-  console.log(
+  logger.info(
     `[AiCommand] ✓ Edit complete: ${targetLabel}. Tokens: ${response.usage.input_tokens}/${response.usage.output_tokens}`
   );
 
@@ -497,7 +465,7 @@ export async function generatePostContent(params: {
     params.customFieldsHint || "",
   ].filter(Boolean).join("\n");
 
-  console.log(`[AiCommand] Generating post content: ${params.title} (${params.postTypeName})`);
+  logger.info(`[AiCommand] Generating post content: ${params.title} (${params.postTypeName})`);
 
   const response = await ai.messages.create({
     model: MODEL,
@@ -516,7 +484,7 @@ export async function generatePostContent(params: {
     throw new Error(`Failed to generate post content for ${params.title}`);
   }
 
-  console.log(
+  logger.info(
     `[AiCommand] ✓ Post content: ${params.title}. ${html.length} chars. Tokens: ${response.usage.input_tokens}/${response.usage.output_tokens}`
   );
 
@@ -551,7 +519,7 @@ ${purpose}
 ## Existing Pages' Section Structures (for style reference)
 ${existingSections.map((s) => `- ${s.name}: ${s.summary}`).join("\n")}`;
 
-  console.log(`[AiCommand] Planning sections for: ${purpose.slice(0, 80)}`);
+  logger.info(`[AiCommand] Planning sections for: ${purpose.slice(0, 80)}`);
 
   const response = await ai.messages.create({
     model: MODEL,
@@ -567,7 +535,7 @@ ${existingSections.map((s) => `- ${s.name}: ${s.summary}`).join("\n")}`;
   const parsed = tryParseJson(text);
 
   if (!parsed || !Array.isArray(parsed.sections)) {
-    console.error("[AiCommand] Section plan parse failed:", text.substring(0, 300));
+    logger.error({ err: text.substring(0, 300) }, "[AiCommand] Section plan parse failed:");
     return {
       sections: [
         { name: "section-hero", purpose: "Hero banner with page title" },
@@ -577,58 +545,12 @@ ${existingSections.map((s) => `- ${s.name}: ${s.summary}`).join("\n")}`;
     };
   }
 
-  console.log(`[AiCommand] ✓ Planned ${parsed.sections.length} sections`);
+  logger.info(`[AiCommand] ✓ Planned ${parsed.sections.length} sections`);
   return { sections: parsed.sections };
 }
 
 // Section generator prompt loaded from websiteAgents/aiCommand/SectionGenerator.md
-// Visual analysis prompt loaded from websiteAgents/aiCommand/VisualAnalysis.md
-const __DEAD_SECTION_GEN = `DEAD
-- Root element: class="alloro-tpl-{ID}-{SECTION_NAME} ..." and data-alloro-section="{SECTION_NAME}"
-- Inner elements: class="alloro-tpl-{ID}-{SECTION_NAME}-component-{COMPONENT_NAME} ..."
-- Component names: title, subtitle, description, cta-button, image, card-1, card-2, list-item-1, etc.
-- {ID} is provided — use it exactly
-- Every heading, button, image, paragraph, and card must have its own alloro-tpl component class
-
-## LAYOUT STRUCTURE (CRITICAL — DO NOT SKIP)
-- Root element MUST be a full-width section: <section class="... py-16 md:py-24">
-- Content MUST be wrapped in a container: <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-- For card grids, use: <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-- For two-column layouts, use: <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12 items-center">
-- For text content, use: <div class="max-w-3xl mx-auto"> or <div class="max-w-2xl">
-- NEVER let text flow without width constraints — every text block needs max-w-* or grid containment
-- NEVER use single-word line breaks — if text wraps word-by-word, the container is too narrow
-
-## TAILWIND REQUIREMENTS
-- Use responsive prefixes: base (mobile) → sm → md → lg → xl
-- Text sizing: text-base for body, text-lg md:text-xl for lead text, text-3xl md:text-4xl lg:text-5xl for headings
-- Spacing: consistent py-16 md:py-24 for sections, gap-6 md:gap-8 for grids
-- Buttons: inline-flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors
-
-## COLORS (CRITICAL)
-- If brand colors are provided in the Site Style Reference, use them EXACTLY
-- Use the primary color for: dark backgrounds, headings, primary buttons, accents
-- Use the accent color for: CTAs, highlights, hover states, links
-- Match the color scheme of the existing pages — if existing pages use dark navy backgrounds with white text, your sections MUST too
-- Use inline Tailwind arbitrary values for custom hex colors: bg-[#11151C], text-[#D66853], etc.
-- Do NOT default to generic gray/white when the site uses a distinct color palette
-
-## BANNED — NEVER USE THESE:
-- position: absolute or position: fixed — use flexbox or grid instead
-- inline styles (style="...") — use Tailwind classes only
-- float: left/right — use flex or grid
-- !important — never
-- <br> tags for spacing — use margin/padding classes
-- Fixed pixel widths (width: 300px) — use Tailwind w-* classes
-
-## RULES
-- Return ONLY the section HTML — no page wrapper, no code fences, no commentary
-- Do NOT add <html>, <head>, <body>, <header>, <footer> tags
-- ALL layouts must use flexbox (flex) or CSS grid (grid) — never absolute positioning
-- ALL styling must be Tailwind utility classes — zero inline styles
-- Content must be relevant to the page purpose provided
-- Match the visual style of the existing site context provided
-- Every section must look complete and professional on its own`;
+// (legacy inline copy relocated to ./aiCommandLegacyPrompts)
 
 export interface GeneratedSection {
   html: string;
@@ -662,7 +584,7 @@ ${priorSections.map((s, i) => `--- Section ${i + 1} ---\n${s.substring(0, 800)}`
 ## Site Style Reference (existing page HTML for style matching)
 ${siteStyleContext.substring(0, 3000)}`;
 
-  console.log(`[AiCommand] Generating section: ${sectionName} (tplId: ${tplId})`);
+  logger.info(`[AiCommand] Generating section: ${sectionName} (tplId: ${tplId})`);
 
   let response = await ai.messages.create({
     model: MODEL,
@@ -681,7 +603,7 @@ ${siteStyleContext.substring(0, 3000)}`;
 
   // Validate alloro-tpl class is present
   if (!html.includes(`alloro-tpl-${tplId}`)) {
-    console.warn(`[AiCommand] Missing alloro-tpl class in generated section, retrying...`);
+    logger.warn(`[AiCommand] Missing alloro-tpl class in generated section, retrying...`);
     response = await ai.messages.create({
       model: MODEL,
       max_tokens: 4096,
@@ -704,7 +626,7 @@ ${siteStyleContext.substring(0, 3000)}`;
     throw new Error(`Failed to generate valid HTML for section ${sectionName}`);
   }
 
-  console.log(
+  logger.info(
     `[AiCommand] ✓ Generated ${sectionName}: ${html.length} chars. Tokens: ${response.usage.input_tokens}/${response.usage.output_tokens}`
   );
 
@@ -719,52 +641,8 @@ ${siteStyleContext.substring(0, 3000)}`;
 // Visual analysis via Sonnet vision
 // ---------------------------------------------------------------------------
 
-const VISUAL_ANALYSIS_PROMPT = `You are a UI/UX quality analyst reviewing a website screenshot. Identify EVERY visual issue you can see.
-
-You will receive BOTH a screenshot AND the HTML markup for the page sections. Use both to diagnose issues accurately.
-
-LOOK FOR:
-- Overlapping elements (text on text, cards colliding, sections bleeding into each other)
-- Broken grid layouts (columns not aligned, uneven spacing)
-- Text overflow (text spilling outside containers, truncated content)
-- Word-by-word wrapping (text breaking on every word — indicates missing container width)
-- Misaligned elements (inconsistent spacing, off-center content)
-- Broken or missing images (empty boxes, broken icons)
-- Unreadable text (too small, low contrast, obscured by other elements)
-- Responsive issues (content not adapting to viewport width)
-- Huge empty whitespace gaps
-- Elements that look out of place or unstyled
-
-ARCHITECTURE RULES (flag violations):
-- position: absolute/fixed — DISCOURAGED. Should use flexbox or grid instead. Flag any absolute/fixed positioning.
-- Inline styles (style="...") — BANNED. Must use Tailwind CSS classes only. Flag any inline styles.
-- Missing container constraints (no max-w-*) — Flag sections without width constraints.
-- Float-based layouts — OBSOLETE. Should use flex/grid. Flag any float usage.
-
-COLOR CONSISTENCY:
-- If brand colors are provided, check that the page uses them consistently
-- Flag sections that use different color schemes from the rest of the site (e.g., generic white/gray when the site uses dark navy)
-- Flag buttons, CTAs, or accents that don't match the brand accent color
-- If a section looks visually disconnected from the rest of the page (different color palette, different style), flag it as a consistency issue
-
-For each issue:
-1. WHERE — which section name and approximate position
-2. WHAT — specific visual problem AND the HTML causing it (reference specific classes or elements)
-3. HOW — specific Tailwind CSS fix (never suggest inline styles or position absolute)
-
-RESPONSE FORMAT — return ONLY valid JSON:
-{
-  "issues": [
-    {
-      "section": "Name or description of the affected section",
-      "severity": "critical" | "high" | "medium" | "low",
-      "description": "Clear description of the visual problem",
-      "suggested_fix": "Specific instruction to fix this in HTML/Tailwind"
-    }
-  ]
-}
-
-If the page looks good with no visual issues, return: { "issues": [] }`;
+// Visual analysis prompt loaded from websiteAgents/aiCommand/VisualAnalysis.md
+// (legacy inline copy relocated to ./aiCommandLegacyPrompts)
 
 export interface VisualIssue {
   section: string;
@@ -783,7 +661,7 @@ export async function analyzeScreenshot(params: {
   const { screenshot, viewport, pagePath, sectionHtml, costContext } = params;
   const ai = getClient();
 
-  console.log(`[AiCommand] Analyzing screenshot: ${pagePath} (${viewport})${sectionHtml ? ` with ${sectionHtml.length} chars HTML` : ""}`);
+  logger.info(`[AiCommand] Analyzing screenshot: ${pagePath} (${viewport})${sectionHtml ? ` with ${sectionHtml.length} chars HTML` : ""}`);
 
   const textContent = [
     `Page: ${pagePath}`,
@@ -828,7 +706,7 @@ export async function analyzeScreenshot(params: {
   const parsed = tryParseJson(text);
 
   if (!parsed || !Array.isArray(parsed.issues)) {
-    console.warn(`[AiCommand] Visual analysis parse failed for ${pagePath} (${viewport})`);
+    logger.warn(`[AiCommand] Visual analysis parse failed for ${pagePath} (${viewport})`);
     return [];
   }
 
@@ -836,49 +714,9 @@ export async function analyzeScreenshot(params: {
     (i: any) => i?.description && i?.suggested_fix
   ) as VisualIssue[];
 
-  console.log(
+  logger.info(
     `[AiCommand] ✓ Visual ${pagePath} (${viewport}): ${issues.length} issue(s). Tokens: ${response.usage.input_tokens}/${response.usage.output_tokens}`
   );
 
   return issues;
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function extractText(response: Anthropic.Message): string {
-  const block = response.content[0];
-  if (!block || block.type !== "text") {
-    throw new Error("No text response from Claude");
-  }
-  return block.text;
-}
-
-function tryParseJson(text: string): any | null {
-  try {
-    let cleaned = text.trim();
-
-    // Strip markdown fences
-    const fenceMatch = cleaned.match(/```\w*\n([\s\S]*?)```/);
-    if (fenceMatch) {
-      cleaned = fenceMatch[1].trim();
-    }
-
-    return JSON.parse(cleaned);
-  } catch {
-    return null;
-  }
-}
-
-function cleanHtmlOutput(text: string): string {
-  let cleaned = text.trim();
-
-  // Strip markdown fences
-  const fenceMatch = cleaned.match(/```\w*\n([\s\S]*?)```/);
-  if (fenceMatch) {
-    cleaned = fenceMatch[1].trim();
-  }
-
-  return cleaned;
 }
