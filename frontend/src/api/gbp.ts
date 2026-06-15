@@ -1,21 +1,26 @@
-import { apiPost, apiGet } from "./index";
-import { logger } from "../lib/logger";
+import { apiPost, apiGet, unwrap } from "./index";
+import type {
+  GBPData,
+  GBPAIReadyData,
+  GBPAccount,
+  GBPLocation,
+} from "../hooks/useGBP";
+
+// T4 error-contract: these return the unwrapped payload and throw an ApiError
+// on failure; GBPContext catches + surfaces the message.
 
 const baseurl = "/gbp";
 
-async function getKeyData(accountId: string, locationId: string) {
-  try {
-    return await apiPost({
+async function getKeyData(
+  accountId: string,
+  locationId: string,
+): Promise<Partial<GBPData>> {
+  return unwrap<Partial<GBPData>>(
+    await apiPost({
       path: baseurl + `/getKeyData`,
       passedData: { accountId, locationId },
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      successful: false,
-      errorMessage: "Technical error, contact developer",
-    };
-  }
+    }),
+  );
 }
 
 interface GBPAIReadyDataRequest {
@@ -29,55 +34,37 @@ async function getAIReadyData(
   accountId: string,
   locationId: string,
   startDate?: string,
-  endDate?: string
-) {
-  try {
-    const passedData: GBPAIReadyDataRequest = { accountId, locationId };
-    if (startDate) passedData.startDate = startDate;
-    if (endDate) passedData.endDate = endDate;
+  endDate?: string,
+): Promise<GBPAIReadyData> {
+  const passedData: GBPAIReadyDataRequest = { accountId, locationId };
+  if (startDate) passedData.startDate = startDate;
+  if (endDate) passedData.endDate = endDate;
 
-    return await apiPost({
+  return unwrap<GBPAIReadyData>(
+    await apiPost({
       path: baseurl + `/getAIReadyData`,
       passedData,
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      successful: false,
-      errorMessage: "Technical error, contact developer",
-    };
-  }
+    }),
+  );
 }
 
-async function getAccounts() {
-  try {
-    return await apiGet({
+async function getAccounts(): Promise<GBPAccount[]> {
+  return unwrap<GBPAccount[]>(
+    await apiGet({
       path: baseurl + `/diag/accounts`,
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      successful: false,
-      errorMessage: "Technical error, contact developer",
-    };
-  }
+    }),
+  );
 }
 
-async function getLocations(accountName?: string) {
-  try {
-    const queryParam = accountName
-      ? `?accountName=${encodeURIComponent(accountName)}`
-      : "";
-    return await apiGet({
+async function getLocations(accountName?: string): Promise<GBPLocation[]> {
+  const queryParam = accountName
+    ? `?accountName=${encodeURIComponent(accountName)}`
+    : "";
+  return unwrap<GBPLocation[]>(
+    await apiGet({
       path: baseurl + `/diag/locations${queryParam}`,
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      successful: false,
-      errorMessage: "Technical error, contact developer",
-    };
-  }
+    }),
+  );
 }
 
 const gbp = {
