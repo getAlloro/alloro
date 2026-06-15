@@ -1,11 +1,8 @@
 import { apiGet, apiPost, apiPatch, unwrap } from "./index";
 import type { AgentResponse } from "../types/agents";
-import { logger } from "../lib/logger";
 
-// NOTE (T4 error-contract): fetchAgentResults / approveAgentResult /
-// updateAgentResult below throw an ApiError on failure (via unwrap) and return
-// the unwrapped payload. getLatestAgentData / getLatestAgentResult are dead
-// (no consumers) and left on the legacy swallow contract pending removal.
+// T4 error-contract: every function throws an ApiError on failure (via unwrap)
+// and returns the unwrapped payload.
 
 const baseurl = "/agents";
 
@@ -20,29 +17,6 @@ export interface AgentResult {
   approved_at?: string;
 }
 
-// API response wrapper type
-interface ApiResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  message?: string;
-}
-
-async function getLatestAgentData(organizationId: number, locationId?: number | null) {
-  try {
-    const locationParam = locationId ? `?locationId=${locationId}` : "";
-    return await apiGet({
-      path: baseurl + `/latest/${organizationId}${locationParam}`,
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      successful: false,
-      errorMessage: "Technical error, contact developer",
-    };
-  }
-}
-
 async function fetchAgentResults(params?: {
   status?: string;
 }): Promise<AgentResult[]> {
@@ -50,22 +24,6 @@ async function fetchAgentResults(params?: {
   return unwrap<AgentResult[]>(
     await apiGet({ path: baseurl + `/results${queryParams}` }),
   );
-}
-
-async function getLatestAgentResult(
-  domain: string
-): Promise<ApiResponse<AgentResult>> {
-  try {
-    return await apiGet({
-      path: baseurl + `/latest?domain=${encodeURIComponent(domain)}`,
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      success: false,
-      error: "Technical error, contact developer",
-    };
-  }
 }
 
 async function approveAgentResult(params: {
@@ -98,21 +56,4 @@ async function updateAgentResult(params: {
   );
 }
 
-// Export individual functions as named exports
-export {
-  fetchAgentResults,
-  getLatestAgentResult,
-  approveAgentResult,
-  updateAgentResult,
-};
-
-// Default export with all functions
-const agents = {
-  getLatestAgentData,
-  fetchAgentResults,
-  getLatestAgentResult,
-  approveAgentResult,
-  updateAgentResult,
-};
-
-export default agents;
+export { fetchAgentResults, approveAgentResult, updateAgentResult };
