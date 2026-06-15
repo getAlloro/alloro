@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>minds — Conventions Audit</title>
+<style>
+:root{color-scheme:light;--paper:#fff;--ink:#080808;--muted:#5f5f5f;--line:#d8d8d8;--soft:#f5f5f5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
+.shell{width:min(1000px,calc(100% - 32px));margin:0 auto;padding:40px 0}
+.hero,.card{border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.hero{border-color:var(--ink);padding:28px;margin-bottom:18px}
+.topline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.card{padding:24px;margin-top:16px}
+.eyebrow,dt{color:var(--muted);font-size:.74rem;font-weight:700;text-transform:uppercase}
+.eyebrow{margin:0}
+.pill{display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border:1px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper);font-size:.74rem;font-weight:800;text-transform:uppercase}
+h1,h2,h3,p{margin-top:0}
+h1{margin-bottom:18px;font-size:clamp(1.8rem,5vw,3rem);line-height:.98}
+h2{font-size:1.2rem}h3{font-size:.95rem}
+code{padding:.1rem .3rem;border:1px solid var(--line);border-radius:4px;background:var(--soft);font-size:.86em}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:0}
+.meta div{border:1px solid var(--line);border-radius:8px;padding:14px}
+dd{margin:4px 0 0;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:8px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);text-transform:uppercase;font-size:.7rem}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.over{font-weight:800}
+.checklist{list-style:none;padding:0;margin:0}
+.checklist li{display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line);font-size:.88rem}
+.note{border-left:3px solid var(--ink);padding:10px 14px;background:var(--soft);margin:0;font-size:.9rem}
+ul.flags{margin:0;padding-left:18px}ul.flags li{margin-bottom:7px}
+a{color:var(--ink)}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="hero">
+  <div class="topline"><p class="eyebrow">Backend Conventions Audit · Check 03 / 17 · <a href="../spec.html">index</a></p><span class="pill">Audited</span></div>
+  <h1>minds</h1>
+  <dl class="meta">
+    <div><dt>Scope</dt><dd><code>src/controllers/minds</code></dd></div>
+    <div><dt>Files</dt><dd>34</dd></div>
+    <div><dt>Lines</dt><dd>6,629</dd></div>
+    <div><dt>Over 300</dt><dd>8</dd></div>
+    <div><dt>Priority</dt><dd>P2</dd></div>
+  </dl>
+</header>
+
+<section class="card">
+  <h2>Scope</h2>
+  <p>"Minds" AI agent subsystem: skills, parenting, embeddings, chat, discovery, sync, publishing channels, platform credentials.</p>
+  <table>
+    <thead><tr><th>File (rel. to scope)</th><th class="n">Lines</th></tr></thead>
+    <tbody>
+      <tr><td><code>feature-services/service.minds-skills.ts</code></td><td class="n over">647 ▲</td></tr>
+      <tr><td><code>feature-services/service.minds-parenting.ts</code></td><td class="n over">414 ▲</td></tr>
+      <tr><td><code>feature-services/service.minds-embedding.ts</code></td><td class="n over">356 ▲</td></tr>
+      <tr><td><code>MindsPortalController.ts</code></td><td class="n over">355 ▲</td></tr>
+      <tr><td><code>feature-services/service.minds-chat.ts</code></td><td class="n over">353 ▲</td></tr>
+      <tr><td><code>feature-services/service.skill-upgrade.ts</code></td><td class="n over">348 ▲</td></tr>
+      <tr><td><code>feature-services/service.minds-parenting-chat.ts</code></td><td class="n over">312 ▲</td></tr>
+      <tr><td><code>MindsSkillsController.ts</code></td><td class="n over">311 ▲</td></tr>
+      <tr><td colspan="2"><em>+ 26 more files ≤ 300 lines</em></td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:.78rem;color:var(--muted);margin:8px 0 0">▲ = over the 300-line cap.</p>
+</section>
+
+<section class="card">
+  <h2>Priority Signals (start here)</h2>
+  <ul class="flags">
+    <li>Healthiest of the big domains — worst file is only 647, violations spread thin (8 / 34). Audit by content, not size panic.</li>
+    <li>Many small controllers (MindsController, MindsSyncController, MindsInternalController…) — verify thin-controller discipline + data flow rather than size.</li>
+    <li><code>service.minds-embedding</code> / <code>service.minds-chat</code> — external LLM/embedding calls; check error handling, timeouts, retries.</li>
+    <li>Nesting inconsistency: this domain has both <code>feature-services/</code> and a bare <code>utils/</code> (<code>utils/portalKey.ts</code>). Note against the repo-wide nesting ruling.</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Audit Dimensions</h2>
+  <p>Run every file in scope against the 16-point contract (full detail in <a href="../spec.html#dimensions">spec.html</a>).</p>
+  <ul class="checklist">
+    <li><input type="checkbox" disabled> File &le; 300 lines</li>
+    <li><input type="checkbox" disabled> Functions &le; 50 lines</li>
+    <li><input type="checkbox" disabled> Nesting &le; 4 levels</li>
+    <li><input type="checkbox" disabled> Correct folder placement</li>
+    <li><input type="checkbox" disabled> Data flow: Routes &rarr; Controllers &rarr; Services &rarr; Models</li>
+    <li><input type="checkbox" disabled> No business logic in routes</li>
+    <li><input type="checkbox" disabled> No DB queries outside <code>models/</code></li>
+    <li><input type="checkbox" disabled> Error handling on every async call</li>
+    <li><input type="checkbox" disabled> <code>{ success, data, error }</code> response shape</li>
+    <li><input type="checkbox" disabled> No <code>console.log</code> (Pino only)</li>
+    <li><input type="checkbox" disabled> No hardcoded secrets / magic values</li>
+    <li><input type="checkbox" disabled> Input validated at route/middleware</li>
+    <li><input type="checkbox" disabled> Auth middleware on protected routes</li>
+    <li><input type="checkbox" disabled> Naming conventions</li>
+    <li><input type="checkbox" disabled> No commented-out code</li>
+    <li><input type="checkbox" disabled> Transactions for multi-table writes</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Findings</h2>
+
+  <h3>Summary</h3>
+  <p>Confirmed the healthiest big domain. Routes are exemplary (thin, blanket-authed); models own DB access; transactions are used correctly; magic values are all named env-backed constants; zero commented-out code. The real risk is concentrated and unit-specific: a <strong>fully unauthenticated public skill-neuron endpoint</strong> that leaks proprietary system prompts and triggers LLM cost with no rate limit, and <strong>inconsistent error-handling on external LLM/embedding calls</strong> — the slowest, most failure-prone dependency is the <em>least</em> guarded, while the web-scraper calls in the same domain are guarded correctly. Severity: <strong>3 must-fix · 5 concerns · 5 nitpicks</strong> (systemic items folded in, tagged).</p>
+
+  <h3>Must-fix</h3>
+  <ul class="flags">
+    <li><code>../../routes/mindsPublicApi.ts:15-17</code> + <code>MindsSkillApiController.ts:7-49</code> — [dim 13 / security] <code>GET/POST /api/minds/:agentSlug/:skillSlug</code> is explicitly <em>"no auth required"</em> and returns the skill's entire <code>neuron_markdown</code> (the proprietary generated system prompt) as plain text, plus logs a call. Any caller can exfiltrate every agent's skill IP and drive load. No portal-key, no rate limit. <em>Fix:</em> require <code>x-portal-key</code>/<code>x-internal-key</code> like the portal endpoints do (mind/skill portal already verify keys), or gate behind auth middleware; add rate limiting at mount (<code>index.ts:206-207</code>).</li>
+    <li><code>feature-services/service.minds-embedding.ts:28-62, 265-286</code> and the Anthropic SDK calls in <code>service.minds-chat.ts:200,257</code>, <code>service.minds-skills.ts:427,483,590</code>, <code>MindsPortalController.ts:86</code> — [dim 8] external OpenAI <code>axios.post</code> and Anthropic <code>messages.create/stream</code> have <strong>no timeout and no try/catch</strong>. A hung socket blocks the request indefinitely; an API error propagates raw. The same domain's scraper/discovery <em>do</em> set <code>FETCH_TIMEOUT</code> (<code>service.minds-scraper.ts:91</code>, <code>service.minds-discovery.ts:193</code>) — so the pattern exists and is simply not applied to the LLM/embedding path. <em>Fix:</em> add request timeouts (axios <code>timeout</code>; Anthropic client <code>timeout</code>/<code>AbortSignal</code>) and wrap each external call in try/catch with a typed error.</li>
+    <li><code>feature-services/service.minds-embedding.ts:292-356</code> (<code>regenerateEmbeddings</code>) — [dim 16] deletes all existing chunks (<code>MindBrainChunkModel.deleteByMind</code>, line 322) <em>then</em> generates embeddings + summary + <code>bulkInsert</code> (349) with <strong>no transaction</strong>. If embedding generation or the insert fails after the delete commits, the mind is left with zero RAG chunks (silent data loss); callers label this "non-blocking" and swallow the error (<code>service.minds-crud.ts:107</code>). <em>Fix:</em> wrap delete+insert in <code>db.transaction</code>, or generate embeddings first and only delete inside the same trx as the insert.</li>
+  </ul>
+
+  <h3>Concerns</h3>
+  <ul class="flags">
+    <li><code>MindsSkillsController.ts:7-33, 35-124, 147-160, 246-288</code> — [dim 5/6] controllers bypass the service layer and call models directly (<code>MindSkillModel</code>, <code>MindModel</code>, <code>MindSkillNeuronModel</code>), and embed business logic in the controller: <code>listSkills</code> computes stale-neuron enrichment inline, and <code>regenerateStaleNeurons</code> runs the whole stale-detection + regeneration loop in the controller. Contrast <code>MindsController.ts</code>, which is a clean thin controller delegating to <code>service.minds-crud</code>. <em>Fix:</em> move enrichment + stale-regeneration orchestration into <code>service.minds-skills</code>.</li>
+    <li><code>MindsPlatformCredentialsController.ts</code> (whole file) — [dim 5] controller calls <code>PlatformCredentialModel</code> directly with no service layer; CRUD orchestration lives in the controller. Lower stakes than skills (thin CRUD), but same layering drift. <em>Fix:</em> introduce a credentials service or accept as a documented thin-CRUD exception.</li>
+    <li>Response shape [systemic dim 9] — across all minds controllers, success returns <code>{success:true, data}</code> (missing <code>error:null</code>) and errors return bare <code>{error:"msg"}</code> (no <code>success:false</code>, no machine-readable <code>code</code>). Worse: <code>MindsPlatformCredentialsController.ts:15,51</code> return raw model objects (<code>res.json(credentials)</code> / <code>res.json(safe)</code>) with no envelope at all, and <code>MindsSkillApiController.ts:44</code> returns <code>text/plain</code>. <em>Fix:</em> standardize on the <code>{success,data,error}</code> contract (defer to repo-wide remediation).</li>
+    <li>Input validation [systemic dim 12] — 0 route-level validation schemas; every minds route validates ad-hoc in the controller (<code>if (!name)</code>, <code>if (!message?.trim())</code>, type guards in <code>createCredential</code>). Functional but inconsistent and unenforced. <em>Fix:</em> move to <code>validation/</code> middleware on the route (defer to repo-wide remediation).</li>
+    <li>Console logging [systemic dim 10] — 135 <code>console.*</code> calls across all 30 .ts files in scope (Pino not installed). Heaviest: <code>MindsSkillsController</code>, <code>MindsSkillUpgradeController</code>, <code>MindsParentingController</code> (12 each). <em>Fix:</em> swap to Pino logger when adopted repo-wide.</li>
+  </ul>
+
+  <h3>Nitpicks</h3>
+  <ul class="flags">
+    <li>[dim 2] Oversized functions (often inflated by large inline prompt literals, but still over the 50-line cap): <code>service.minds-skills.ts</code> <code>skillBuilderChatStream</code> (~117), <code>generateNeuron</code> (~95), <code>executeSkill</code> (~86); <code>service.minds-parenting.ts</code> <code>triggerReadingStream</code> (~150), <code>triggerReading</code> (~101); <code>service.skill-upgrade.ts</code> <code>triggerReadingStream</code> (~154). <em>Fix:</em> extract prompt builders / stream-parse helpers (the SSE JSON-field streamer in <code>skillBuilderChatStream</code> is a self-contained helper).</li>
+    <li>[dim 1] 8 files over 300 lines (worst 647). All are cohesive single-responsibility units; size is from prompt strings + LLM orchestration, not tangled concerns. Split only opportunistically (<code>service.minds-skills.ts</code> could shed the skill-builder chat into its own file).</li>
+    <li>[dim 14] Type-safety drift: 89 <code>Promise&lt;any&gt;</code> controller return types and ~99 <code>:any</code>/<code>as any</code> occurrences (e.g. <code>mind: any</code> in <code>service.minds-chat.ts:118</code>, <code>(event as any)</code> SSE casts at <code>service.minds-chat.ts:276-281</code>, <code>error: any</code> everywhere). Hides real shapes. <em>Fix:</em> type controller handlers as <code>Promise&lt;void&gt;</code> and narrow error/event types.</li>
+    <li><code>MindsSkillApiController.ts:30,39</code> — duration metric is <code>Date.now() - startTime</code> measured immediately after <code>startTime</code> (no work between), so it always logs ~0ms. [dim 11] meaningless value. <em>Fix:</em> capture <code>startTime</code> before the model lookups, or drop the field on this delivery-only path.</li>
+    <li><code>utils/portalKey.ts:24-27</code> — <code>verifyPortalKey</code> calls <code>crypto.timingSafeEqual</code> on the two hex strings without a length guard; throws if lengths differ. Safe in practice (both are 64-char sha256 hex), but a malformed stored hash would crash instead of returning false. <em>Fix:</em> length-check before compare. (File is otherwise the cleanest in scope — proper hashing, constant-time compare; <code>utils/</code> nesting is the accepted ruling.)</li>
+  </ul>
+
+  <h3>Coverage</h3>
+  <p>Deep-read 9 (<code>service.minds-embedding</code>, <code>service.minds-chat</code>, <code>service.minds-skills</code>, <code>service.minds-crud</code>, <code>service.minds-compiler</code>, <code>MindsController</code>, <code>MindsSkillsController</code>, <code>MindsPlatformCredentialsController</code>, <code>MindsPortalController</code> [partial], <code>MindsSkillApiController</code>, <code>utils/portalKey</code>) · plus 3 route files (<code>minds.ts</code>, <code>mindsPublicApi.ts</code>, <code>skillsPublicApi.ts</code>) and <code>PlatformCredentialModel</code> for the secret-strip check. Grep-sampled all 34 files for <code>console.*</code>, <code>db(</code>/knex/<code>.raw</code>, query-builder calls, external HTTP + timeouts, <code>process.env</code>, commented-out code, and <code>:any</code> counts; awk-scanned the 4 largest services for function length. Not deep-read: <code>service.minds-parenting</code>/<code>-parenting-chat</code>/<code>skill-upgrade</code>/<code>skill-upgrade-chat</code>/<code>-work-pipeline</code>/<code>-comparison</code>/<code>-discovery</code>/<code>-scraper</code>/<code>-retrieval</code>/<code>-extraction</code>/<code>-compaction</code>/<code>-gating</code>/<code>-sync</code> and the remaining 9 controllers (assessed via grep signals — try/await ratios, external-call/timeout greps, model-import counts — which were sufficient to confirm they follow the same patterns; the parenting/skill-upgrade streaming functions are flagged for length from the awk scan). No silent cap: the unguarded-LLM-call and public-auth findings generalize across the un-deep-read LLM services.</p>
+</section>
+</main>
+</body>
+</html>

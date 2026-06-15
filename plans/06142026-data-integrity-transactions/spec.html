@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Data-Integrity Transactions Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.86rem; margin-top: 8px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0; }
+    td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+    .p1 { font-weight: 800; }
+    .badge { display: inline-block; padding: 1px 8px; border: 1px solid var(--ink); border-radius: 999px; font-size: 0.7rem; font-weight: 800; }
+    a { color: var(--ink); }
+    .revision-entry { border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-top: 12px; }
+    .revision-entry h3 { margin-bottom: 8px; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">In Progress</span>
+      </div>
+      <h1>Data-Integrity Transactions</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>In Progress — code complete, pending manual run verification</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06142026-data-integrity-transactions</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The backend conventions audit confirmed <strong>dimension 16 (transactions for multi-table writes) is a systemic breach</strong>: <code>db.transaction</code> / <code>trx</code> appears <strong>nowhere</strong> in <code>src/workers</code>, and the top-level <code>src/services</code> tier writes across tables with no atomicity. These are not style nits — they are live data-corruption paths. <code>websiteRestore</code> destructively wipes ~13 tables plus all S3 media with zero transaction, and because the job re-throws, a BullMQ retry re-runs the wipe against already-wiped data: <strong>permanent, unrecoverable loss of a client's website</strong>. <code>compilePublish</code> swallows its top-level failure so BullMQ records a half-published run as <em>succeeded</em>. Referral reward and instant-website creation can each leave half-written state on a mid-flow throw.</p>
+      <p><strong>Now</strong>, because the audit verified the exact <code>file:line</code> targets, and because the repo already has a correct in-house pattern to copy (<code>gbp-automation</code> threads <code>trx</code> through 19 call sites). This is mechanical, bounded, and behavior-preserving — the right kind of cleanup to land before it bites a real client.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Wrap each <strong>verified</strong> multi-table, non-idempotent write path in <code>db.transaction(async (trx) =&gt; …)</code>, threading <code>trx</code> through every write in the set so a failure rolls back to the pre-write state instead of committing a partial. Two reliability companions ship with it: <code>compilePublish</code> must re-throw so BullMQ can retry/dead-letter, and the <code>websiteRestore</code> queue must be set to <code>attempts: 1</code> with S3 deletion deferred until after the DB commit so a non-idempotent destructive job never auto-retries against wiped data.</p>
+      <p><strong>Done:</strong> every target below either (a) writes atomically inside one transaction, or (b) is documented in this spec's Revision Log as verified-already-safe (idempotent upsert / single-table / intentional non-blocking) and intentionally left unwrapped. <code>npm run build</code> is green and each affected job/flow has been run manually with no behavior change on the success path.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Reference domain — copy this pattern</h3>
+      <ul>
+        <li><code>src/services/ai-seo-audit/auditTargetExecutionService.ts</code> — uses <code>db.transaction</code> correctly for multi-table writes; the worksheet names line ~114 as the model to mirror for <code>referralReward</code>.</li>
+        <li><code>src/controllers/gbp-automation/feature-services/</code> — the audit's <strong>reference domain</strong> (0 must-fix). Every multi-table draft/approve/reject write threads <code>trx</code> from <code>db.transaction</code> into <code>trx</code>-aware model methods across <strong>19 call sites</strong> (e.g. <code>GbpLocalPostDeploymentService.ts</code>, <code>GbpReviewReplyService.ts</code>, <code>GbpLocalPostDraftService.ts</code>). It also shows the correct treatment of an external call mid-flow: it does <em>not</em> hold a transaction open across the slow Google API call, and instead wraps only the post-API local bookkeeping (the same shape we need for any path that calls Stripe / an LLM / S3 mid-sequence).</li>
+      </ul>
+      <h3>Target files (verified on disk, line counts confirmed)</h3>
+      <ul>
+        <li><code>src/workers/processors/websiteRestore.processor.ts</code> (686 ln) — <code>wipeProjectData()</code> at <code>:147</code> runs before any re-insert / S3 re-upload; ~13 tables wiped, ~29 write ops, all S3 media deleted; no <code>db.transaction</code> anywhere in the file. Worker invoked at <code>src/workers/worker.ts:277</code> (<code>processWebsiteRestore(job)</code>); the enqueue/queue options that carry <code>attempts</code> must be located there or in the queue definition during execution.</li>
+        <li><code>src/workers/processors/compilePublish.processor.ts</code> (184 ln) — top-level <code>catch (err: any)</code> at <code>:180-183</code> calls <code>MindSyncRunModel.markFailed(runId, err.message)</code> then falls through with no <code>throw</code>; BullMQ records success. Steps CREATE_NEW_VERSION → PUBLISH_VERSION → FINALIZE_PROPOSALS → COMPLETE are a multi-table write with no transaction.</li>
+        <li><code>src/services/referralReward.ts</code> (274 ln) — <code>trackReferralSignup</code> + <code>applyReferralReward</code> hold 13 inline <code>db()</code> calls across <code>referrals</code> (status transitions <code>pending</code>→<code>converted</code> at <code>:101-103</code> → <code>rewarded</code> at <code>:108-110</code> / <code>:179-181</code>), <code>organizations</code> reads, and <code>notifications</code> inserts (<code>:51</code>, <code>:207</code>, <code>:220</code>) — no transaction. <code>$2000</code> reward is hardcoded as <code>-200000</code> cents (dim 11; out of scope, do not touch).</li>
+        <li><code>src/services/instantWebsiteGenerator.ts</code> (570 ln) — <code>:510-565</code> writes <code>website_builder.projects</code>, <code>website_builder.pages</code>, <code>organizations</code>, <code>notifications</code> in sequence with no transaction; a crash after the project insert yields a project with no homepage.</li>
+        <li><code>src/controllers/agents/feature-services/service.governance-validator.ts</code> (439 ln) — <code>:358-419</code> inserts <code>agent_results</code> (guardian) → <code>agent_results</code> (governance) → <code>agent_recommendations</code> back-to-back; no transaction.</li>
+        <li><code>src/controllers/agents/feature-services/service.proofline-executor.ts</code> (167 ln) — <code>:110-125</code> inserts <code>google_data_store</code> then <code>agent_results</code>; no transaction.</li>
+        <li><code>src/controllers/agents/feature-services/service.agent-orchestrator.ts</code> (1209 ln) — <code>processClient</code> writes <code>google_data_store</code> then <code>agent_results</code> back-to-back at <code>:1120/:1123</code> (daily) and <code>:1146/:1149</code> (monthly); failure-path insert at <code>:1170</code>; no transaction.</li>
+        <li><code>src/controllers/agents/feature-services/service.ranking-executor.ts</code> (387 ln) — <code>:159-183</code> writes <code>google_data_store</code> → <code>agent_results</code>; no transaction.</li>
+      </ul>
+      <h3>Patterns to follow</h3>
+      <ul>
+        <li>The repo's connection exports <code>db</code> from <code>src/database/connection</code> and supports <code>db.transaction(async (trx) =&gt; { … })</code> (the gbp-automation + ai-seo-audit consumers prove this). Thread the <code>trx</code> handle into each write in the set; do not open a transaction around a slow external call.</li>
+        <li>For paths that re-use existing inline <code>db("table")</code> queries, the minimal behavior-preserving change is to swap <code>db</code> → <code>trx</code> inside the wrapped block. Pushing those queries into <code>models/</code> (dim 7) is a <strong>separate</strong> remediation and is explicitly out of scope here.</li>
+      </ul>
+      <h3>Audit provenance</h3>
+      <ul>
+        <li><code>plans/06142026-backend-conventions-audit/spec.html</code> — systemic breach #5 (no transactions on multi-table writes).</li>
+        <li><code>plans/06142026-backend-conventions-audit/checks/14-workers.html</code> — websiteRestore + compilePublish must-fixes.</li>
+        <li><code>plans/06142026-backend-conventions-audit/checks/11-services.html</code> — referralReward + instantWebsiteGenerator must-fixes.</li>
+        <li><code>plans/06142026-backend-conventions-audit/checks/04-agents.html</code> — the four agent feature-service write-sets.</li>
+        <li><code>plans/06142026-backend-conventions-audit/checks/05-gbp-automation.html</code> — the reference (correct) transaction pattern.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Be <strong>behavior-preserving</strong> — the success path produces identical rows/side-effects; only the failure path changes (rolls back instead of committing partial).</li>
+            <li><strong>Verify each target is genuinely multi-table AND non-idempotent before wrapping.</strong> If a write is already idempotent-by-upsert (<code>onConflict().merge()</code>), single-table, or an intentional non-blocking fire-and-forget, do not wrap it — record the finding in the Revision Log and move on.</li>
+            <li>Commit before each unit, one concern per commit (one target / one transaction boundary per commit).</li>
+            <li>Mirror the in-house reference pattern (<code>gbp-automation</code> / <code>ai-seo-audit</code>): thread <code>trx</code>; never hold a transaction open across an external API call (Stripe, Anthropic/OpenAI, Google, S3) — wrap only the local writes.</li>
+            <li>For <code>websiteRestore</code>: reorder so S3 deletion happens <strong>after</strong> the DB commit (or upload-new-keys-first / delete-old-last) so media stays recoverable, and set the restore queue to <code>attempts: 1</code>.</li>
+            <li>Run <code>npm run build</code> and manually exercise each affected job/flow before declaring done.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No new dependencies, no new logging/response-shape patterns, no schema/migration changes — pure transaction wrapping + the two reliability fixes.</li>
+            <li>Do not refactor unrelated code: no model extraction (dim 7), no function splitting (dim 2), no naming renames (dim 14), no <code>console</code>→Pino, no magic-number hoisting (dim 11). Those are other plans.</li>
+            <li>Do not wrap a slow external call inside the transaction (lock-held-across-network = the trap <code>gbp-automation</code> deliberately avoids).</li>
+            <li>Do not change the shape of what each function returns or the events it emits.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Moving inline <code>db("table")</code> queries into <code>models/</code> (dim 7 systemic) — separate remediation.</li>
+        <li>The agentsV2 IDOR / unauthenticated-route fixes (dim 13) — that is the <strong>security-hotfix</strong> track; this plan sequences after it.</li>
+        <li>The <code>gbp-automation</code> dim-16 <em>concerns</em> (post-Google bookkeeping in <code>GbpLocalPostDeploymentService</code> / <code>GbpReviewReplyDeploymentService</code> / <code>GbpPublishedReplyService</code>) — already partially mitigated with partial-failure fallbacks; revisit only if cheap, otherwise defer.</li>
+        <li>The minds <code>regenerateEmbeddings</code> delete-then-insert (checks/03) — related class, but lives in the minds remediation track; not included here.</li>
+        <li>Function-size, file-size, validation, and logging items recorded in the audit.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 (Structural Risk). These are write paths. Introducing transactions changes locking and connection-pool behavior, can surface latent ordering bugs, and — done wrong — can hold locks across slow I/O and cause pool exhaustion or deadlocks under concurrency. The change is behavior-preserving by intent, but the blast radius is data-write correctness, so it does not auto-execute without the verify-before-wrap gate.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Some writes may already be idempotent / single-table</strong> and wrapping them adds risk for no benefit. <strong>Mitigation:</strong> the Must constraint — confirm multi-table + non-idempotent per target before wrapping; log a Revision-Log entry for any target found already safe and leave it untouched.</li>
+        <li><strong>Lock held across an external call</strong> (Stripe in referralReward, the LLM/webhook in the agent executors, S3 in websiteRestore) would convert a correctness fix into a perf/deadlock regression. <strong>Mitigation:</strong> wrap only the local DB writes; keep external calls outside the <code>trx</code> block, exactly as <code>gbp-automation</code> does. For websiteRestore specifically, S3 deletion moves to after the commit.</li>
+        <li><strong>websiteRestore retry semantics</strong> — even wrapped, a destructive restore must not auto-retry. <strong>Mitigation:</strong> set <code>attempts: 1</code> on that queue; rollback + no-retry together make a failed restore safe (project unchanged) rather than corrupting.</li>
+        <li><strong>compilePublish re-throw changes job outcome</strong> — failures that currently report "success" will start reporting "failed" and retry/dead-letter. <strong>Mitigation:</strong> this is the intended correction; verify the run still completes on the happy path and that a forced failure now surfaces as failed (manual run).</li>
+        <li><strong>No backend test suite</strong> to catch regressions. <strong>Mitigation:</strong> gate is <code>npm run build</code> + manual run of each affected job/flow; commit-per-unit so any one change is trivially revertible.</li>
+        <li><strong>trx + existing transaction nesting</strong> — if any target is already called within an outer transaction, nesting could double-wrap. <strong>Mitigation:</strong> grep each call site's callers for an enclosing <code>db.transaction</code> before wrapping; if found, accept the <code>trx</code> as a parameter instead of opening a new one.</li>
+      </ul>
+      <p><strong>Blast radius (known consumers of the touched paths):</strong></p>
+      <ul>
+        <li><code>websiteRestore.processor</code> ← <code>src/workers/worker.ts:277</code> (BullMQ restore worker) and its queue/enqueue site.</li>
+        <li><code>compilePublish.processor</code> ← the minds-worker compile/publish queue (BullMQ); changes which jobs are marked failed.</li>
+        <li><code>referralReward.ts</code> ← imported directly by <code>routes/checkup.ts</code> (per checks/11) and any referral-conversion / Stripe webhook flow that calls <code>applyReferralReward</code>.</li>
+        <li><code>instantWebsiteGenerator.ts</code> ← <code>routes/checkup.ts</code> (instant-website creation flow).</li>
+        <li>The four agent executors ← <code>AgentsController</code> run-triggers (proofline / monthly / ranking / process-all) and the scheduler.</li>
+      </ul>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>Verify before you wrap — do not wrap reflexively.</strong> The audit flagged these as transaction-less, but "transaction-less" ≠ "corruptible". A single-table write or an <code>onConflict().merge()</code> upsert is already atomic. <code>configStore.setConfig</code> (checks/11) is a read-then-insert TOCTOU that wants an <em>upsert</em>, not a transaction — that distinction matters. Confirm the failure mode is real (partial multi-table state on throw) for each target; if it isn't, skip and document.</li>
+        <li><strong>This is a Level-3 set; resist scope-bundling.</strong> The same files carry dim-7 (DB-in-service), dim-2 (fat functions), and dim-11 (magic numbers) findings. Pulling those in would balloon the blast radius and break behavior-preservation. One concern per commit, transactions only.</li>
+        <li><strong>Sequence after the security-hotfix.</strong> No hard dependency, but the agent executors overlap files/attention with the agentsV2 auth work; doing security first keeps each diff focused and reviewable.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <p>Each task is a self-contained transaction boundary (or reliability fix) and its own commit. T1–T2 (workers) and T3–T4 (services) are independent; T5 groups the four agent executors, which share a domain and the same write-pair shape. <strong>Every task begins with a verify-it's-genuinely-corruptible step</strong> per the Pushback rule.</p>
+
+      <article class="task-card">
+        <h3>T1: websiteRestore — atomic restore, S3-after-commit, attempts:1</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Confirm <code>wipeProjectData</code> (<code>:147</code>) + the ~13-table re-insert is one logical unit. Wrap the DB wipe+restore in <code>db.transaction(async (trx) =&gt; …)</code>, threading <code>trx</code> through every <code>db("website_builder.…")</code> write so a mid-restore failure rolls back to the pre-restore state. Move S3 media deletion to <strong>after</strong> the DB commit (upload-new-keys-first / delete-old-last) so media stays recoverable. Locate the restore queue/enqueue (from <code>worker.ts:277</code>) and set <code>attempts: 1</code>. Keep the existing re-throw so a failure is visible — but with rollback + no-retry it is now safe.</dd></div>
+          <div><dt>Files</dt><dd><code>src/workers/processors/websiteRestore.processor.ts</code>, the restore queue/enqueue site (locate via <code>src/workers/worker.ts:277</code>)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run build</code>; Manual: run a website backup→restore against a throwaway project, confirm a clean restore is byte-identical and the queue no longer auto-retries. Confirm no <code>db.transaction</code> wraps a slow S3 call.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: compilePublish — re-throw on failure (+ optional publish transaction)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>throw err;</code> as the last line of the top-level catch at <code>:180-183</code> (after <code>markFailed</code>) so BullMQ records the job as failed and retries/dead-letters. If cheap and behavior-preserving, wrap the PUBLISH_VERSION → FINALIZE_PROPOSALS steps in a transaction so a partial publish rolls back; if it would require holding a transaction across non-DB work, leave the steps as-is and note it.</dd></div>
+          <div><dt>Files</dt><dd><code>src/workers/processors/compilePublish.processor.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run build</code>; Manual: trigger a compile/publish run — happy path still marks COMPLETE; force a failure (e.g. bad input) and confirm the job is now marked <em>failed</em> (not succeeded) and retries per queue config.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: referralReward — atomic status transitions + notifications</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Confirm the <code>referrals</code> status transition(s) + <code>notifications</code> insert(s) in <code>applyReferralReward</code> (and the signup path in <code>trackReferralSignup</code>) are a genuine multi-table unit. Wrap the status-transition + notification writes in <code>db.transaction</code>, threading <code>trx</code> through the existing <code>db()</code> calls (<code>:101-110</code>, <code>:179-181</code>, <code>:207</code>, <code>:220</code>). Keep any Stripe call <strong>outside</strong> the transaction. Mirror <code>ai-seo-audit/auditTargetExecutionService.ts:~114</code>. Leave the inline-<code>db</code>/model-extraction and the <code>-200000</code> magic number alone.</dd></div>
+          <div><dt>Files</dt><dd><code>src/services/referralReward.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run build</code>; Manual: run a referral conversion end-to-end (via the checkup flow that imports it) — referral lands as <code>rewarded</code> with its notification; confirm a forced mid-flow throw leaves the referral in its prior state, not half-rewarded.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: instantWebsiteGenerator — atomic project+page+org+notification</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Confirm <code>:510-565</code> writes <code>projects</code>, <code>pages</code>, <code>organizations</code>, <code>notifications</code> as one unit. Wrap those four writes in <code>db.transaction</code>, threading <code>trx</code> so a crash after the project insert rolls back rather than leaving a homepage-less project. Keep any external generation/LLM call outside the transaction.</dd></div>
+          <div><dt>Files</dt><dd><code>src/services/instantWebsiteGenerator.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run build</code>; Manual: run instant-website creation (checkup flow) — a project is created with its homepage page row; confirm a forced failure between inserts leaves no orphan project.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: agent executors — wrap each google_data_store → agent_results write-set</h3>
+        <dl>
+          <div><dt>Do</dt><dd>For each of the four executors, first check the call site's callers for an enclosing <code>db.transaction</code> (avoid double-wrap). Then wrap each back-to-back multi-table write in <code>db.transaction</code>, threading <code>trx</code>: <code>governance-validator.ts:358-419</code> (<code>agent_results</code> guardian → <code>agent_results</code> governance → <code>agent_recommendations</code>); <code>proofline-executor.ts:110-125</code> (<code>google_data_store</code> → <code>agent_results</code>); <code>service.agent-orchestrator.ts</code> <code>processClient</code> at <code>:1120/:1123</code> and <code>:1146/:1149</code> (<code>google_data_store</code> → <code>agent_results</code>); <code>ranking-executor.ts:159-183</code> (<code>google_data_store</code> → <code>agent_results</code>). Keep the LLM/webhook call and the existing retry loop <strong>outside</strong> the transaction. Do not touch the dedup TOCTOU / idempotency-index concern (that is the security/idempotency track) or move queries into models.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/agents/feature-services/service.governance-validator.ts</code>, <code>service.proofline-executor.ts</code>, <code>service.agent-orchestrator.ts</code>, <code>service.ranking-executor.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none (sequence after security-hotfix for focus)</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run build</code>; Manual: trigger a proofline run and a ranking run for one test org; confirm <code>google_data_store</code> + <code>agent_results</code> rows appear together (or not at all on a forced failure), and the retry loop still functions outside the transaction.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> Each target verified genuinely multi-table + non-idempotent before wrapping; any already-safe target documented in the Revision Log and left untouched</li>
+        <li><input type="checkbox" disabled> T1 websiteRestore: DB restore wrapped in a transaction, S3 deletion moved after commit, restore queue set <code>attempts: 1</code></li>
+        <li><input type="checkbox" disabled> T2 compilePublish: <code>throw err;</code> added to the top-level catch (job now marked failed on error)</li>
+        <li><input type="checkbox" disabled> T3 referralReward, T4 instantWebsiteGenerator, T5 four agent executors: each multi-table write-set wrapped in <code>db.transaction</code>, external calls kept outside the transaction</li>
+        <li><input type="checkbox" disabled> No external API call (Stripe / LLM / Google / S3) is held inside any transaction</li>
+        <li><input type="checkbox" disabled> No double-wrapping: call sites checked for an enclosing transaction before opening a new one</li>
+        <li><input type="checkbox" disabled> Behavior-preserving: success-path rows/side-effects unchanged; no model extraction, function splitting, renames, or logging/response-shape changes crept in</li>
+        <li><input type="checkbox" disabled> <code>npm run build</code> (<code>tsc</code> via root <code>tsconfig.json</code>) — zero errors from these changes</li>
+        <li><input type="checkbox" disabled> ESLint: <strong>N/A for backend</strong> — no <code>lint</code> script in <code>package.json</code> and no backend eslint config (only <code>frontend/eslint.config.js</code>); build is the type gate</li>
+        <li><input type="checkbox" disabled> Manual run of each affected job/flow: website restore, compile/publish, referral conversion, instant-website creation, proofline + ranking agent runs</li>
+        <li><input type="checkbox" disabled> No regressions in adjacent BullMQ jobs, the checkup routes, or agent run-triggers</li>
+        <li><input type="checkbox" disabled> Committed one concern per commit (commit-before-each-unit), authored <code>LagDave &lt;laggy80@gmail.com&gt;</code></li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-06-14</h3>
+        <p><strong>Change:</strong> Executed T1, T2, T4, and the wrap-able part of T5. Recorded verify-before-wrap SKIP decisions and corrected two inaccurate target references from the audit.</p>
+        <p><strong>Reason:</strong> Execution deviation: verify-before-wrap gate (the spec's own Pushback rule).</p>
+
+        <h3 style="margin-top:16px;">Wrapped (genuine multi-table, non-idempotent durable write-sets)</h3>
+        <ul>
+          <li><strong>T1 <code>websiteRestore.processor.ts</code></strong> — DB wipe+restore now runs in one <code>db.transaction</code>; <code>wipeProjectData</code> takes <code>trx</code> and no longer touches S3; all media S3 uploads moved <em>before</em> the transaction (new project-scoped UUID keys, can't collide with old), old-media S3 deletion moved to <em>after</em> the commit. <code>BackupController.restoreBackup</code> enqueue set to <code>attempts: 1</code>. Outer re-throw kept. S3 is never held inside the transaction.</li>
+          <li><strong>T4 <code>instantWebsiteGenerator.ts</code></strong> — <code>projects</code> + <code>pages</code> + <code>organizations</code> wrapped in one <code>db.transaction</code> (prevents an orphan project that the top-of-function dedup would then treat as "already generated"). The best-effort <code>notifications</code> insert (<code>.catch(()=&gt;{})</code>) kept <em>outside</em> the commit to preserve its non-blocking semantics.</li>
+          <li><strong>T5 <code>service.governance-validator.ts</code></strong> — the two back-to-back <code>agent_results</code> inserts (guardian + governance) wrapped in one <code>db.transaction</code>, returning both ids. <code>saveRecommendationsFromAgents</code> (the <code>agent_recommendations</code> write) left outside — it is already in its own "log but don't fail" try/catch (best-effort) and lives in a separate service; pulling <code>trx</code> into it would be cross-service scope creep.</li>
+          <li><strong>T5 <code>service.proofline-executor.ts</code></strong> — <code>google_data_store</code> → <code>agent_results</code> pair wrapped; the external <code>processDailyAgent</code> call already ran before the pair, so only the two local writes are in the transaction.</li>
+          <li><strong>T5 <code>service.agent-orchestrator.ts</code> <code>processClient</code></strong> — the daily <code>google_data_store</code> → <code>agent_results</code> pair (the <code>!existingDaily</code> branch) wrapped.</li>
+        </ul>
+
+        <h3 style="margin-top:16px;">Skipped (verified NOT a corruptible multi-table write — left untouched)</h3>
+        <ul>
+          <li><strong>T3 <code>referralReward.ts</code> — SKIPPED entirely.</strong> No genuine multi-table, non-idempotent <em>durable</em> write-set exists. (a) In <code>trackReferralSignup</code> the only durable write is the single <code>referrals</code> insert; the referrer notification sits inside a <code>try/catch</code> that swallows failures (best-effort). (b) In <code>applyReferralReward</code> the Stripe-not-configured branch does two updates to the <em>same</em> <code>referrals</code> row (single-table, already atomic). (c) The Stripe-configured path's <code>converted</code> (<code>:101</code>) and <code>rewarded</code> (<code>:179</code>) transitions are split by the Stripe coupon/invoice calls, so they cannot be joined in one transaction without holding a lock across Stripe; the final <code>rewarded</code> update is a single-table write and both notifications are <code>.catch(()=&gt;{})</code> best-effort. Wrapping would either add no atomicity or risk rolling back the critical <code>rewarded</code> marker (the re-run guard against double-couponing) on a non-critical notification failure. This is exactly the reflexive-wrap the Pushback section warns against.</li>
+          <li><strong>T5 <code>service.ranking-executor.ts</code> — SKIPPED.</strong> Spec target reference is factually wrong: the file has <em>no</em> <code>google_data_store → agent_results</code> write-set. Lines <code>:159-183</code> are single-table <code>practice_rankings</code> inserts (one row per location, each atomic), and <code>processRankingWork</code> only does single-table <code>practice_rankings</code> updates interleaved with slow external GBP fetches + a retry loop (the heavy multi-table work is delegated to <code>processLocationRanking</code>, a pipeline service that is out of this plan's named scope). Nothing here is a corruptible multi-table durable write.</li>
+          <li><strong>T5 <code>service.agent-orchestrator.ts</code> monthly + error paths — SKIPPED.</strong> The monthly block (<code>:1146</code>) is a lone <code>google_data_store</code> insert (the <code>agent_results</code> rows are written by n8n out-of-process), and the failure-path insert (<code>:1170</code>) is a lone <code>agent_results</code> insert. Both single-table → already atomic.</li>
+          <li><strong>T2 <code>compilePublish.processor.ts</code> optional publish transaction — SKIPPED (re-throw done).</strong> <code>throw err;</code> added to the top-level catch (the load-bearing fix). The optional PUBLISH_VERSION → FINALIZE_PROPOSALS transaction was not added: <code>GENERATE_EMBEDDINGS</code> (an external embedding/LLM call) sits <em>between</em> those steps, and the step model methods (<code>MindModel.setPublishedVersion</code>, <code>MindSyncProposalModel.finalizeApproved</code>, <code>MindDiscoveryBatchModel</code>) are not <code>trx</code>-aware — wrapping would mean holding a transaction across an external call and/or changing model signatures, both out of scope.</li>
+        </ul>
+
+        <h3 style="margin-top:16px;">Pattern used</h3>
+        <p>Mirrors <code>ai-seo-audit/auditTargetExecutionService.ts</code> / <code>gbp-automation</code>: <code>await db.transaction(async (trx) =&gt; { … })</code> with <code>trx("table")</code> for every write in the set; external calls (S3, Stripe, Google, LLM) kept strictly outside the <code>trx</code> block. For id-returning inserts inside a transaction, the row is <code>await</code>ed into a local and returned (returning the bare <code>.returning()</code> builder from the async callback trips TS2488 — the callback infers <code>void</code>).</p>
+
+        <h3 style="margin-top:16px;">Verification</h3>
+        <p><code>npx tsc --noEmit -p tsconfig.json</code> → exit 0, zero errors. <code>npm test</code> (vitest) → 16/16 passing (5 files), unchanged from baseline. No double-wrap: grepped all call sites — no enclosing <code>db.transaction</code> exists for any wrapped path. Manual run verification of each affected job/flow still pending (owner to verify in their environment).</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

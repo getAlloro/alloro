@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>workers — Conventions Audit</title>
+<style>
+:root{color-scheme:light;--paper:#fff;--ink:#080808;--muted:#5f5f5f;--line:#d8d8d8;--soft:#f5f5f5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
+.shell{width:min(1000px,calc(100% - 32px));margin:0 auto;padding:40px 0}
+.hero,.card{border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.hero{border-color:var(--ink);padding:28px;margin-bottom:18px}
+.topline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.card{padding:24px;margin-top:16px}
+.eyebrow,dt{color:var(--muted);font-size:.74rem;font-weight:700;text-transform:uppercase}
+.eyebrow{margin:0}
+.pill{display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border:1px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper);font-size:.74rem;font-weight:800;text-transform:uppercase}
+h1,h2,h3,p{margin-top:0}
+h1{margin-bottom:18px;font-size:clamp(1.8rem,5vw,3rem);line-height:.98}
+h2{font-size:1.2rem}h3{font-size:.95rem}
+code{padding:.1rem .3rem;border:1px solid var(--line);border-radius:4px;background:var(--soft);font-size:.86em}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:0}
+.meta div{border:1px solid var(--line);border-radius:8px;padding:14px}
+dd{margin:4px 0 0;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:8px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);text-transform:uppercase;font-size:.7rem}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.over{font-weight:800}
+.checklist{list-style:none;padding:0;margin:0}
+.checklist li{display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line);font-size:.88rem}
+.note{border-left:3px solid var(--ink);padding:10px 14px;background:var(--soft);margin:0;font-size:.9rem}
+ul.flags{margin:0;padding-left:18px}ul.flags li{margin-bottom:7px}
+a{color:var(--ink)}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="hero">
+  <div class="topline"><p class="eyebrow">Backend Conventions Audit · Check 14 / 17 · <a href="../spec.html">index</a></p><span class="pill">Audited</span></div>
+  <h1>workers</h1>
+  <dl class="meta">
+    <div><dt>Scope</dt><dd><code>src/workers</code></dd></div>
+    <div><dt>Files</dt><dd>27</dd></div>
+    <div><dt>Lines</dt><dd>5,188</dd></div>
+    <div><dt>Over 300</dt><dd>3</dd></div>
+    <div><dt>Priority</dt><dd>P2</dd></div>
+  </dl>
+</header>
+
+<section class="card">
+  <h2>Scope</h2>
+  <p>BullMQ background jobs / processors. Long-running, retried, and failure-prone by nature — the failure-mode rules matter most here.</p>
+  <table>
+    <thead><tr><th>File (rel. to scope)</th><th class="n">Lines</th></tr></thead>
+    <tbody>
+      <tr><td><code>processors/websiteRestore.processor.ts</code></td><td class="n over">686 ▲</td></tr>
+      <tr><td><code>worker.ts</code></td><td class="n over">667 ▲</td></tr>
+      <tr><td><code>processors/auditLeadgen.processor.ts</code></td><td class="n over">619 ▲</td></tr>
+      <tr><td colspan="2"><em>+ 24 more files ≤ 300 lines</em></td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:.78rem;color:var(--muted);margin:8px 0 0">▲ = over the 300-line cap.</p>
+</section>
+
+<section class="card">
+  <h2>Priority Signals (start here)</h2>
+  <ul class="flags">
+    <li><strong>Failure-mode focus</strong> (skill's Failure Mode Thinking): jobs must handle partial failure, retries, idempotency, and external-service errors. A retried job that isn't idempotent corrupts data.</li>
+    <li><code>worker.ts</code> 667 is the entry/dispatcher — large-as-entry may be acceptable, but check single-responsibility (is it wiring, or business logic?).</li>
+    <li><code>websiteRestore.processor</code> 686 + <code>auditLeadgen.processor</code> 619 — confirm no inline DB (route through <code>models/</code>) and Pino logging, not <code>console</code>.</li>
+    <li>Workers run outside the request cycle — confirm no reliance on request-scoped context (auth, req IDs) that won't exist.</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Audit Dimensions</h2>
+  <p>Run every file in scope against the 16-point contract (full detail in <a href="../spec.html#dimensions">spec.html</a>). Dimension 8 (error handling) plus idempotency/retry semantics are primary.</p>
+  <ul class="checklist">
+    <li><input type="checkbox" disabled> File &le; 300 lines</li>
+    <li><input type="checkbox" disabled> Functions &le; 50 lines</li>
+    <li><input type="checkbox" disabled> Nesting &le; 4 levels</li>
+    <li><input type="checkbox" disabled> Correct folder placement</li>
+    <li><input type="checkbox" disabled> Data flow: job &rarr; Services &rarr; Models</li>
+    <li><input type="checkbox" disabled> No business logic in routes</li>
+    <li><input type="checkbox" disabled> No DB queries outside <code>models/</code></li>
+    <li><input type="checkbox" disabled> Error handling + retry/idempotency on every job</li>
+    <li><input type="checkbox" disabled> Consistent result/return shape</li>
+    <li><input type="checkbox" disabled> No <code>console.log</code> (Pino only)</li>
+    <li><input type="checkbox" disabled> No hardcoded secrets / magic values</li>
+    <li><input type="checkbox" disabled> Input (job payload) validated</li>
+    <li><input type="checkbox" disabled> No reliance on request-scoped context</li>
+    <li><input type="checkbox" disabled> Naming conventions</li>
+    <li><input type="checkbox" disabled> No commented-out code</li>
+    <li><input type="checkbox" disabled> Transactions for multi-table writes</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Findings</h2>
+
+  <h3>Summary</h3>
+  <p><strong>Verdict: needs changes.</strong> Failure-mode handling is the right lens for this unit, and it is uneven. Most processors are well-structured thin dispatchers with sane error propagation and genuinely thoughtful idempotency (scheduler, gbpAutomation, crmPush). But three concrete, data-integrity / reliability defects stand out beyond the systemic noise: (1) <code>websiteRestore</code> performs a destructive wipe-then-restore of ~13 tables + all S3 media with <em>zero</em> transaction wrapping — a mid-job failure or BullMQ retry irrecoverably destroys a project's website; (2) <code>compilePublish</code>'s top-level catch marks the run failed but never re-throws, so BullMQ records the job as <em>succeeded</em> and never retries / dead-letters; (3) <code>dataHarvestWorker</code> is omitted from the <code>shutdown()</code> close sequence, so it cannot drain on SIGTERM. <strong>Severity counts: 3 must-fix · 5 concerns · 4 nitpicks.</strong> Systemic items (console-over-Pino, no payload validation, <code>db()</code> outside <code>models/</code>, flat result shape) are present and tagged but not re-litigated.</p>
+
+  <h3>Must-fix</h3>
+  <ul>
+    <li><code>processors/websiteRestore.processor.ts:566-657</code> + <code>:163-546</code> — [dim 16 / dim 8] <strong>Destructive multi-table restore with no transaction.</strong> <code>wipeProjectData()</code> deletes rows across ~13 tables (posts, assignments, attachments, categories, tags, pages, media, menus, menu_items, header_footer_code, form_submissions, newsletter_signups) and all S3 media, then the body re-inserts across the same ~13 tables (29 write ops). None of it is wrapped in a transaction. Any failure after the wipe — a bad zip entry, an S3 timeout, an unparseable JSON file, or a BullMQ lock-renewal kill mid-run — leaves the project <em>permanently</em> in a wiped/partial state. Because the job re-throws, BullMQ will <em>retry</em> it, re-running the wipe against already-wiped data. <em>Fix:</em> wrap the entire DB restore in <code>db.transaction(async (trx) =&gt; …)</code> and route every <code>db("…")</code> write through <code>trx</code> so a failure rolls back to the pre-restore state. The S3 wipe cannot be transactional, so reorder to upload-new-keys-first / delete-old-S3-last (or defer S3 deletion until after DB commit) to keep media recoverable. Set <code>attempts: 1</code> for the restore worker (currently inherits default) — a non-idempotent destructive job must not auto-retry.</li>
+    <li><code>processors/compilePublish.processor.ts:180-183</code> — [dim 8] <strong>Catch swallows the failure without re-throwing.</strong> Every other processor re-throws after marking failed (see <code>websiteBackup:263</code>, <code>websiteRestore:558</code>, <code>seoBulkGenerate:154</code>, and even this file's own inner catch at <code>:45</code>). This top-level catch calls <code>MindSyncRunModel.markFailed(runId, …)</code> and returns normally, so BullMQ marks the job <strong>completed/succeeded</strong> — no retry, no <code>failed</code> event, no dead-letter. Compounded by the fact that CREATE_NEW_VERSION → PUBLISH_VERSION → FINALIZE_PROPOSALS is a multi-table write with no transaction (dim 16): a failure between publish and finalize leaves a published version with un-finalized proposals, and that partial state is now silently "successful". <em>Fix:</em> add <code>throw err;</code> as the last line of the catch; ideally wrap steps 5-8 in a transaction so a partial publish rolls back.</li>
+    <li><code>worker.ts:478-505</code> — [dim 8] <strong><code>dataHarvestWorker</code> missing from graceful-shutdown sequence.</strong> It is declared (<code>:432</code>) and wired into the event-handler loop (<code>:463</code>) but is the only worker absent from <code>shutdown()</code>'s explicit <code>.close()</code> list. On SIGINT/SIGTERM (PM2 restart / deploy) an in-flight daily harvest is killed mid-iteration rather than drained, risking a partial harvest write and a stale retry-count row. <em>Fix:</em> add <code>await dataHarvestWorker.close();</code> to <code>shutdown()</code>. Root cause is the 24-hand-maintained-<code>.close()</code>-calls pattern — consider iterating the same array used at <code>:463</code> for both event wiring and shutdown so the lists can't drift again.</li>
+  </ul>
+
+  <h3>Concerns</h3>
+  <ul>
+    <li><code>processors/websiteRestore.processor.ts:52-560</code> — [dim 2] <code>processWebsiteRestore</code> is ~508 lines in a single function; [dim 1] file is 686 lines. The wipe is already extracted; the per-entity restore blocks (media / pages / taxonomy / posts / assignments / menus / code / submissions) should each become a named <code>restoreX(trx, data, urlMap, …)</code> helper. This is also the natural seam for threading the transaction handle. [dim 1] [systemic-adjacent]</li>
+    <li><code>processors/auditLeadgen.processor.ts:102-619</code> — [dim 2] <code>processAuditLeadgen</code> is ~515 lines; [dim 1] file is 619. The Branch-A/B/C fan-out closures and the 5-pillar message-builder block (<code>:417-557</code>) are extractable into named helpers. Logic itself is sound (good staged try/catch, failed-state persistence, no <code>db()</code>). [dim 1]</li>
+    <li><code>processors/websiteRestore.processor.ts</code> &amp; <code>websiteBackup.processor.ts</code> &amp; <code>seoBulkGenerate.processor.ts</code> &amp; <code>websiteGeneration.processor.ts</code> &amp; <code>websiteLayouts.processor.ts</code> &amp; <code>reviewSync.processor.ts</code> — [dim 7] direct <code>db("website_builder.…")</code> access (32 / 8 / 7 / 4 / 1 / 1 occurrences) instead of routing through <code>models/</code>. <code>websiteBackup</code> even comments that it bypasses <code>PageModel</code>/<code>HeaderFooterCodeModel</code> because those models assume a <code>sort_order</code> column the tables lack (<code>:16,:20</code>) — a real model/schema mismatch worth fixing so the model layer is usable. [systemic]</li>
+    <li>All processors — [dim 12] job payloads (<code>job.data</code>) are consumed unvalidated; most do ad-hoc null guards (e.g. <code>gbpAutomation</code> checks <code>workItemId</code>) but there is no schema validation of inbound job data. A malformed enqueue surfaces as a deep runtime error. [systemic]</li>
+    <li>All processors — [dim 9] results are flat / <code>void</code> returns and DB rows, not the <code>{ success, data, error }</code> contract. Defensible for workers (no HTTP boundary), but flagged for consistency. [systemic]</li>
+  </ul>
+
+  <h3>Nitpicks</h3>
+  <ul>
+    <li><code>processors/compilePublish.processor.ts:12</code> — [dim 15] <code>import { db } from "../../database/connection"</code> is never used (dead import). Remove it.</li>
+    <li>Every file in scope — [dim 10] <code>console.log/error/warn</code> used throughout (123 calls; <code>worker.ts</code> alone has 30). No Pino logger exists in the repo. Per-job structured logging (jobId, queue, entity IDs) would replace the hand-rolled <code>[TAG] [id]</code> prefix helpers. [systemic]</li>
+    <li><code>processors/seoBulkGenerate.processor.ts:33-149</code> — [dim 15] the top-level <code>try {</code> body is indented at the outer level (not nested under the <code>try</code>), making the block boundary hard to read. Cosmetic, but re-indent.</li>
+    <li><code>worker.ts:500-501</code> — [nit] <code>closeWbQueues()</code> is awaited before <code>gbpAutomationWorker.close()</code>, so the gbp worker closes after the WB queues rather than alongside the other workers; harmless but inconsistent ordering. Fold all worker closes (via the array) before queue/connection teardown.</li>
+  </ul>
+
+  <h3>Coverage</h3>
+  <p>Deep-read 10 (<code>websiteRestore</code>, <code>worker</code>, <code>auditLeadgen</code>, <code>websiteBackup</code>, <code>seoBulkGenerate</code>, <code>compilePublish</code>, <code>scheduler</code>, <code>gbpAutomation</code>, <code>dataHarvest</code>, and the write/catch sections of <code>websiteGeneration</code>) · Grep-sampled 17 (try/catch presence, <code>db(</code>/<code>knex</code>/<code>.raw</code>, <code>db.transaction</code> absence, write-op distribution, idempotency markers, req-scope refs, secret literals, console counts, worker decl-vs-shutdown diff across all 27 files) · Not examined in depth K=0 — the remaining processors (<code>reviewSync</code>, <code>skillTrigger</code>, <code>scrapeCompare</code>, <code>identityWarmup</code>, <code>scheduleExec</code>, <code>crmPush</code>, <code>crmMappingValidation</code>, <code>discovery</code>, <code>worksDigest</code>, <code>postImporter</code>, <code>reviewApifyFetch</code>, <code>aiSeoAudit</code>, <code>websiteLayouts</code>, <code>backup-utils/url-rewriter</code>, <code>queues</code>, <code>wb-queues</code>, <code>workerHealth</code>) were grep-confirmed clean of the unit-specific risks (no multi-table-write-without-trx, error propagation present or intentionally a thin dispatcher, no secrets, no req-scope reliance). Confirmed repo-wide: <code>db.transaction</code>/<code>trx</code> appears <strong>nowhere</strong> in <code>src/workers</code>; no <code>knex.raw</code>; no request-scoped context (<code>req.*</code>) reliance — workers are correctly self-contained.</p>
+</section>
+</main>
+</body>
+</html>

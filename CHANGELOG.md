@@ -2,6 +2,26 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.125] - June 2026
+
+### Backend God-File Decomposition + Remediation QA
+
+The final wave of the backend remediation: every code file over the ~800-line hard ceiling was decomposed into focused modules, behavior-preserving (verbatim bodies, route bindings and import surfaces preserved via re-export/delegation — zero caller edits). `npm run check:conventions` now reports the only file over the ceiling as an immutable DB migration. The full remediation (security hotfix, transactions, validation, Pino logging, db-into-models, decomposition) was then QA'd live against a local One Endodontics build.
+
+**Key Changes:**
+
+- **`AdminWebsitesController` 5,504 → deleted**, split into 18 domain controllers + 18 resource sub-routers.
+- **Ranking pipeline** `service.ranking-pipeline` 1,910 → 261 (5 stage modules); `location-competitor-onboarding` 1,602 → 55 (barrel + 7 modules); `PracticeRankingController` 1,792 → 777; `places-competitor-discovery` 1,017 → 341 (5 modules).
+- **Agents** `service.agent-orchestrator` 1,212 → 255 (4 processors); `AgentsController` 1,383 → 544 (3 runner services).
+- **Client/website** `UserWebsiteController` 1,668 → 634; `shortcodeResolver.service` 955 → 109; `PmsController` 1,158 → 799; `aiCommandService` 882 → 722 + `dashboard-metrics` 831 → 205.
+- **Models** `PageModel` 1,204 → 658, `ProjectModel` 1,084 → 603, `PmsJobModel` 858 → 576 (query-helper delegation).
+- **QA verified live:** 14 admin + client surfaces render real data with zero console errors; write paths (set-password, org/redirect CRUD, lifecycle guards) pass; security (default-deny 401, super-admin gate, fixed no-token callers) confirmed; **email interception proven end-to-end** (non-prod sender reroutes all mail to dave@). Gate green: `tsc` 0, Vitest 31/31, `check:conventions` 0. Full matrix in `plans/06142026-backend-remediation-qa/test-plan.html`.
+
+**Commits:**
+
+- `df94db6f 3dc55bfe d7e3de41 cf981b26 cbb61817 49007d3e 28dd8851 278d1df6 7d111e4b 9b95134a 7b1a27ff d719e5b0 c310ec23` — decomposition refactors (13).
+- `plans/06142026-*` — audit + 7 remediation specs + QA test plan (planning/verification artifacts).
+
 ## [0.0.124] - June 2026
 
 ### Backend Conventions Checker (`code-constitution`)

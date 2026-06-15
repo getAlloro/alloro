@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pms — Conventions Audit</title>
+<style>
+:root{color-scheme:light;--paper:#fff;--ink:#080808;--muted:#5f5f5f;--line:#d8d8d8;--soft:#f5f5f5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
+.shell{width:min(1000px,calc(100% - 32px));margin:0 auto;padding:40px 0}
+.hero,.card{border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.hero{border-color:var(--ink);padding:28px;margin-bottom:18px}
+.topline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.card{padding:24px;margin-top:16px}
+.eyebrow,dt{color:var(--muted);font-size:.74rem;font-weight:700;text-transform:uppercase}
+.eyebrow{margin:0}
+.pill{display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border:1px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper);font-size:.74rem;font-weight:800;text-transform:uppercase}
+h1,h2,h3,p{margin-top:0}
+h1{margin-bottom:18px;font-size:clamp(1.8rem,5vw,3rem);line-height:.98}
+h2{font-size:1.2rem}h3{font-size:.95rem}
+code{padding:.1rem .3rem;border:1px solid var(--line);border-radius:4px;background:var(--soft);font-size:.86em}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:0}
+.meta div{border:1px solid var(--line);border-radius:8px;padding:14px}
+dd{margin:4px 0 0;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:8px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);text-transform:uppercase;font-size:.7rem}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.over{font-weight:800}
+.checklist{list-style:none;padding:0;margin:0}
+.checklist li{display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line);font-size:.88rem}
+.note{border-left:3px solid var(--ink);padding:10px 14px;background:var(--soft);margin:0;font-size:.9rem}
+ul.flags{margin:0;padding-left:18px}ul.flags li{margin-bottom:7px}
+a{color:var(--ink)}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="hero">
+  <div class="topline"><p class="eyebrow">Backend Conventions Audit · Check 06 / 17 · <a href="../spec.html">index</a></p><span class="pill">Audited</span></div>
+  <h1>pms</h1>
+  <dl class="meta">
+    <div><dt>Scope</dt><dd><code>src/controllers/pms</code></dd></div>
+    <div><dt>Files</dt><dd>22</dd></div>
+    <div><dt>Lines</dt><dd>4,851</dd></div>
+    <div><dt>Over 300</dt><dd>7</dd></div>
+    <div><dt>Priority</dt><dd>P2</dd></div>
+  </dl>
+</header>
+
+<section class="card">
+  <h2>Scope</h2>
+  <p>Practice Management System ingestion: paste analysis/parse, file upload, retry, data service, approval/finalize, automation, file manager.</p>
+  <table>
+    <thead><tr><th>File (rel. to scope)</th><th class="n">Lines</th></tr></thead>
+    <tbody>
+      <tr><td><code>PmsController.ts</code></td><td class="n over">1,193 ▲</td></tr>
+      <tr><td><code>pms-services/pms-paste-analysis.service.ts</code></td><td class="n over">492 ▲</td></tr>
+      <tr><td><code>pms-services/pms-retry.service.ts</code></td><td class="n over">490 ▲</td></tr>
+      <tr><td><code>pms-services/pms-paste-parse.service.ts</code></td><td class="n over">437 ▲</td></tr>
+      <tr><td><code>pms-services/pms-upload.service.ts</code></td><td class="n over">344 ▲</td></tr>
+      <tr><td><code>pms-services/pms-data.service.ts</code></td><td class="n over">330 ▲</td></tr>
+      <tr><td><code>pms-services/PmsFileManagerService.ts</code></td><td class="n over">328 ▲</td></tr>
+      <tr><td colspan="2"><em>+ 15 more files ≤ 300 lines</em></td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:.78rem;color:var(--muted);margin:8px 0 0">▲ = over the 300-line cap.</p>
+</section>
+
+<section class="card">
+  <h2>Priority Signals (start here)</h2>
+  <ul class="flags">
+    <li><code>PmsController</code> 1,193 — the god-controller for this domain.</li>
+    <li><strong>Third nesting variant:</strong> <code>pms-services/</code> + <code>pms-utils/</code> (vs <code>feature-services/</code> elsewhere). Feeds the repo-wide naming-pattern ruling.</li>
+    <li>Naming inconsistency inside one folder: lowercase-dotted <code>pms-paste-analysis.service.ts</code> next to PascalCase <code>PmsFileManagerService.ts</code>.</li>
+    <li><code>pms-retry.service</code> 490 — audit retry / partial-failure semantics.</li>
+    <li>File-upload path (<code>pms-upload.service</code>, <code>file-converter.util</code>, <code>file-upload.config</code>) — audit MIME / size / filename validation per the security rules.</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Audit Dimensions</h2>
+  <p>Run every file in scope against the 16-point contract (full detail in <a href="../spec.html#dimensions">spec.html</a>).</p>
+  <ul class="checklist">
+    <li><input type="checkbox" disabled> File &le; 300 lines</li>
+    <li><input type="checkbox" disabled> Functions &le; 50 lines</li>
+    <li><input type="checkbox" disabled> Nesting &le; 4 levels</li>
+    <li><input type="checkbox" disabled> Correct folder placement</li>
+    <li><input type="checkbox" disabled> Data flow: Routes &rarr; Controllers &rarr; Services &rarr; Models</li>
+    <li><input type="checkbox" disabled> No business logic in routes</li>
+    <li><input type="checkbox" disabled> No DB queries outside <code>models/</code></li>
+    <li><input type="checkbox" disabled> Error handling on every async call</li>
+    <li><input type="checkbox" disabled> <code>{ success, data, error }</code> response shape</li>
+    <li><input type="checkbox" disabled> No <code>console.log</code> (Pino only)</li>
+    <li><input type="checkbox" disabled> No hardcoded secrets / magic values</li>
+    <li><input type="checkbox" disabled> Input validated at route/middleware</li>
+    <li><input type="checkbox" disabled> Auth middleware on protected routes</li>
+    <li><input type="checkbox" disabled> Naming conventions</li>
+    <li><input type="checkbox" disabled> No commented-out code</li>
+    <li><input type="checkbox" disabled> Transactions for multi-table writes</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Findings</h2>
+  <h3>Summary</h3>
+  <p><strong>Verdict: needs changes.</strong> The domain is bifurcated. The <em>file-manager pair</em> (<code>PmsFileManagerController.ts</code> + <code>PmsFileManagerService.ts</code>) is the gold standard of the whole scope — genuinely thin controller, model-backed service, transactions wrapping multi-table writes, org/location scoping via <code>findScopedJob</code>. Everything else regressed from that bar: a 1,193-line god-controller, two ingestion paths with raw transactions in non-model layers, three services that each call the app over HTTP via hardcoded <code>localhost</code>, and — the headline — <strong>six fully unauthenticated admin routes including destructive delete/restart</strong>. The pure utils and the stateless paste/sanitize/json services are clean. <strong>Severity counts: 3 must-fix · 7 concerns · 6 nitpicks.</strong> Systemic-tagged items (console.*, no validation middleware, <code>db()</code> outside models, flat response shape) are noted briefly per wave-1 ruling and not re-litigated.</p>
+
+  <h3>Must-fix</h3>
+  <ul>
+    <li><code>../../routes/pms.ts:98-107</code> — [dim 13] <strong>Six PMS routes register with ZERO auth/RBAC middleware</strong>, self-described "ADMIN ENDPOINTS (No auth)": <code>GET /jobs</code> (lists every org's jobs, no scoping), <code>PATCH /jobs/:id/approval</code>, <code>PATCH /jobs/:id/response</code> (overwrites any job's data), <code>DELETE /jobs/:id</code> (permanent delete), <code>POST /jobs/:id/retry</code>, <code>POST /jobs/:id/restart</code> (deletes all agent_results/tasks/notifications then re-triggers). Any caller reaching the API can enumerate, mutate, and destroy PMS data across all organizations. The backing controllers (<code>deleteJob</code>, <code>approveJob</code>, <code>updateResponseLog</code>, <code>restartJob</code>) also perform no org-scoping — unlike the file-manager which scopes every call. The route file is outside this unit's scope but the controllers it exposes are in-scope, so flagging here. <em>Fix:</em> apply <code>authenticateToken + rbacMiddleware</code> (+ <code>requireRole("admin")</code>) to all six; add org/location scoping inside the controllers/services the same way <code>PmsFileManagerService.findScopedJob</code> does.</li>
+    <li><code>pms-retry.service.ts:457-483</code> (<code>restartMonthlyAgents</code>) / contrast <code>:343-381</code> (<code>retryMonthlyAgents</code>) — [dim 8] <strong>Inconsistent partial-failure semantics with data-loss risk.</strong> Both call <code>cleanupMonthlyRunData</code> (hard-deletes agent_results, tasks, google_data_store, notifications) <em>before</em> re-triggering. On trigger failure, <code>retryMonthlyAgents</code> throws (500), but <code>restartMonthlyAgents</code> swallows it (<code>restarted=false</code>) and returns HTTP 200. So a failed restart leaves the org with deleted insights, no running job, and a success response — silent data loss. <em>Fix:</em> pick one contract; for restart, either re-trigger before destructive cleanup, wrap cleanup+trigger so a trigger failure surfaces as an error (and ideally is recoverable), or at minimum return a non-2xx + an explicit "data cleared but re-trigger failed, retry required" state.</li>
+    <li><code>pms-retry.service.ts:168</code>, <code>pms-finalize.service.ts:136</code>, <code>pms-approval.service.ts:199-209</code> — [dim 5 / dim 11] <strong>Three services POST to the app itself over HTTP</strong> (<code>http://localhost:${process.env.PORT || 3000}/api/agents/monthly-agents-run</code>). An in-process call shipped through the network loopback: adds latency, a failure mode (the agents route being down/unreachable while the same process is up), bypasses the type system, and hardcodes <code>localhost</code> + a magic <code>3000</code> fallback in three places. Breaks Routes→Controllers→Services→Models. <em>Fix:</em> extract the monthly-agents trigger into a shared service function and call it directly; if an HTTP boundary is genuinely required, centralize the base URL in <code>config/</code> (no inline <code>localhost</code>/<code>3000</code>).</li>
+  </ul>
+
+  <h3>Concerns</h3>
+  <ul>
+    <li><code>PmsController.ts</code> — [dim 1] 1,193 lines, ~20 endpoint handlers in one file — the god-controller for this domain. <em>Fix:</em> split by responsibility (upload, approval, automation/retry, column-mapping, paste) into separate controller files behind the existing route groups; the file-manager controller is the template.</li>
+    <li><code>PmsController.ts:932-971</code> — [dim 5/16] Controller opens an inline <code>db.transaction</code> and orchestrates a two-table write (<code>PmsJobModel.create</code> + <code>PmsJobEventModel.create</code>) directly. This is the only <code>db(</code>/transaction in either controller, and it duplicates <code>pms-upload.service.processManualEntry:55-85</code> almost verbatim — business logic that leaked up into the controller. <em>Fix:</em> move into an upload/job-creation service method (reuse the upload service's pattern); keep the controller orchestration-only.</li>
+    <li><code>PmsController.ts:173-206</code> (<code>getPmsSummary</code>) — [dim 5] Live, auth-protected route (<code>POST /pms/summary</code>) that returns hardcoded all-zero placeholder data with a "Summary endpoint placeholder" message. Either dead-by-stub or a silent feature gap surfaced as real-looking data. <em>Fix:</em> implement, or remove the route + handler.</li>
+    <li><code>pms-upload.service.ts:132-344</code> (<code>processFileUpload</code> ~212 lines), <code>PmsController.ts:841-1004</code> (<code>uploadWithMapping</code> ~163), <code>pms-retry.service.ts:35-156</code> (<code>cleanupMonthlyRunData</code> ~121), <code>pms-paste-analysis.service.ts:338-492</code> (<code>sanitizeParsedData</code> ~155) — [dim 2] Functions far over the 50-line cap. <em>Fix:</em> extract named helpers (mapping-resolve, persist-job, build-event payload, etc.).</li>
+    <li><code>file-upload.config.ts:13-24</code> — [dim 12/security] Multer <code>fileFilter</code> accepts on <code>hasValidMimeType <strong>||</strong> hasValidExtension</code>. The OR means a file with a benign <code>.csv</code> name but arbitrary/spoofed MIME passes (and vice-versa) — MIME validation is effectively bypassable by renaming. Size limit (10MB) and S3-key filename sanitization (<code>pms-file-storage.util.ts:10</code>) are correctly in place. <em>Fix:</em> require MIME <strong>and</strong> extension to agree, or validate parsed content shape after conversion before trusting the file.</li>
+    <li><code>pms-retry.service.ts:76,96</code> — [dim 11] When <code>detail.startedAt</code> is missing, deletion windows fall back to <code>Date.now() - 86400_000</code> (a magic 24h window) and bound hard-deletes of tasks/notifications/agent_results by <code>created_at BETWEEN</code>. A too-wide fallback can delete unrelated rows created in that window. <em>Fix:</em> name the constant, and prefer deleting by explicit run/job linkage (IDs) rather than a time window where possible.</li>
+    <li>Whole scope — [dim 9, systemic] Response shape is non-contract everywhere: success is <code>{success,data}</code> (no <code>error:null</code>) and errors are <code>{success:false, error:"&lt;string&gt;"}</code> plus ad-hoc <code>message</code>/<code>code</code>/<code>data</code>/<code>toastMessage</code> fields (e.g. <code>PmsController.ts:34,160-165,375-377</code>). The nested <code>{code,message,details}</code> error object is never used. Note only — repo-wide ruling. <em>Fix (repo-level):</em> a shared response helper.</li>
+  </ul>
+
+  <h3>Nitpicks</h3>
+  <ul>
+    <li>[dim 14] Naming inconsistency inside <code>pms-services/</code>: lowercase-dotted <code>pms-*.service.ts</code> (10 files) next to PascalCase <code>PmsFileManagerService.ts</code>; same split in controllers (<code>PmsController.ts</code> vs the dotted services). Pick one convention for the folder. (Per wave-1, the <code>pms-services/</code>/<code>pms-utils/</code> folder layout itself is accepted.)</li>
+    <li>[dim 14, systemic-DB] <code>db</code> import style is itself inconsistent: default <code>import db</code> (retry/approval/data/automation) vs named <code>import { db }</code> (PmsController/upload/PmsFileManagerService) from the same <code>database/connection</code>.</li>
+    <li>[dim 7, systemic] <code>db("table")</code> used outside <code>models/</code> in <code>pms-data.service</code> (4), <code>pms-approval.service</code> (6), <code>pms-automation.service</code> (2), <code>pms-retry.service</code> (5 — across agent_results/tasks/google_data_store/notifications/pms_jobs). Sharper than generic systemic: <code>approval</code>/<code>data</code>/<code>automation</code> all <em>import <code>PmsJobModel</code> in the same file</em> yet hand-roll raw <code>db("pms_jobs")</code> queries instead of using it. <em>Fix:</em> route these through <code>PmsJobModel</code>; the file-manager service shows it's already possible.</li>
+    <li>[dim 11] <code>pms-paste-analysis.service.ts:17</code> — model id <code>"claude-haiku-4-5-20251001"</code> hardcoded inline; belongs in <code>config/</code>.</li>
+    <li>[dim 14] Duplicate <code>toNumber</code>: <code>pms-paste-parse.service.ts:427</code> re-defines the helper already in <code>pms-validator.util.ts:21</code>; the file's own comment admits it "is not the canonical home." Import the shared one.</li>
+    <li>[dim 10, systemic] 59 <code>console.*</code> calls across 10 files (heaviest: <code>PmsController</code> 20, <code>pms-paste-analysis</code> 9, <code>pms-retry</code> 7). Pino not installed repo-wide — note only.</li>
+  </ul>
+
+  <h3>Coverage</h3>
+  <p>Deep-read 22 / 22 files in scope (every <code>.ts</code> under <code>controllers/pms</code>, including all 7 over-300 offenders, both controllers, all 11 services, all 9 utils). Also read out-of-scope <code>routes/pms.ts</code> to assess dim-6/12/13 at the route boundary (required to judge the controllers). Grep-sampled the full scope for <code>console.*</code>, <code>db(</code>/<code>knex</code>/<code>.raw(</code>/<code>db.transaction</code>, commented-out code, secrets, magic values, and self-HTTP call sites. Not examined: the imported collaborators outside scope (<code>models/PmsJobModel</code>, <code>utils/pms/*</code> resolver/aggregator/applyMapping, <code>middleware/rbac</code>, <code>services/OrganizationLifecycleService</code>) — referenced for data-flow correctness but they belong to other units. No commented-out code and no <code>.raw()</code> found anywhere in scope.</p>
+</section>
+</main>
+</body>
+</html>

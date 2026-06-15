@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>utils — Conventions Audit</title>
+<style>
+:root{color-scheme:light;--paper:#fff;--ink:#080808;--muted:#5f5f5f;--line:#d8d8d8;--soft:#f5f5f5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
+.shell{width:min(1000px,calc(100% - 32px));margin:0 auto;padding:40px 0}
+.hero,.card{border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.hero{border-color:var(--ink);padding:28px;margin-bottom:18px}
+.topline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.card{padding:24px;margin-top:16px}
+.eyebrow,dt{color:var(--muted);font-size:.74rem;font-weight:700;text-transform:uppercase}
+.eyebrow{margin:0}
+.pill{display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border:1px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper);font-size:.74rem;font-weight:800;text-transform:uppercase}
+h1,h2,h3,p{margin-top:0}
+h1{margin-bottom:18px;font-size:clamp(1.8rem,5vw,3rem);line-height:.98}
+h2{font-size:1.2rem}h3{font-size:.95rem}
+code{padding:.1rem .3rem;border:1px solid var(--line);border-radius:4px;background:var(--soft);font-size:.86em}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:0}
+.meta div{border:1px solid var(--line);border-radius:8px;padding:14px}
+dd{margin:4px 0 0;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:8px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);text-transform:uppercase;font-size:.7rem}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.over{font-weight:800}
+.checklist{list-style:none;padding:0;margin:0}
+.checklist li{display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line);font-size:.88rem}
+.note{border-left:3px solid var(--ink);padding:10px 14px;background:var(--soft);margin:0;font-size:.9rem}
+ul.flags{margin:0;padding-left:18px}ul.flags li{margin-bottom:7px}
+a{color:var(--ink)}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="hero">
+  <div class="topline"><p class="eyebrow">Backend Conventions Audit · Check 12 / 17 · <a href="../spec.html">index</a></p><span class="pill">Audited</span></div>
+  <h1>utils</h1>
+  <dl class="meta">
+    <div><dt>Scope</dt><dd><code>src/utils</code></dd></div>
+    <div><dt>Files</dt><dd>37</dd></div>
+    <div><dt>Lines</dt><dd>8,114</dd></div>
+    <div><dt>Over 300</dt><dd>9</dd></div>
+    <div><dt>Priority</dt><dd>P2</dd></div>
+  </dl>
+</header>
+
+<section class="card">
+  <h2>Scope</h2>
+  <p>Reusable utilities — convention says these should be <strong>pure, stateless helpers</strong>. Several here are not.</p>
+  <table>
+    <thead><tr><th>File (rel. to scope)</th><th class="n">Lines</th></tr></thead>
+    <tbody>
+      <tr><td><code>website-utils/aiCommandService.ts</code></td><td class="n over">884 ▲</td></tr>
+      <tr><td><code>dashboard-metrics/service.dashboard-metrics.ts</code></td><td class="n over">876 ▲</td></tr>
+      <tr><td><code>pms/pmsAggregator.ts</code></td><td class="n over">615 ▲</td></tr>
+      <tr><td><code>pms/pmsAutomationStatus.ts</code></td><td class="n over">593 ▲</td></tr>
+      <tr><td><code>website-utils/htmlValidator.ts</code></td><td class="n over">479 ▲</td></tr>
+      <tr><td><code>website-utils/uiChecker.ts</code></td><td class="n over">399 ▲</td></tr>
+      <tr><td><code>website-utils/linkChecker.ts</code></td><td class="n over">377 ▲</td></tr>
+      <tr><td><code>website-utils/builtinAnalyzer.ts</code></td><td class="n over">351 ▲</td></tr>
+      <tr><td><code>core/notificationHelper.ts</code></td><td class="n over">322 ▲</td></tr>
+      <tr><td colspan="2"><em>+ 28 more files ≤ 300 lines</em></td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:.78rem;color:var(--muted);margin:8px 0 0">▲ = over the 300-line cap.</p>
+</section>
+
+<section class="card">
+  <h2>Priority Signals (start here)</h2>
+  <ul class="flags">
+    <li><strong>Misplaced services in utils/.</strong> <code>aiCommandService.ts</code> (884), <code>service.dashboard-metrics.ts</code> (876), <code>pmsAggregator.ts</code> (615), <code>pmsAutomationStatus.ts</code> (593) read like business services, not pure utils — the names even say "service". They likely belong in <code>services/</code> or a domain (dimension 4, folder placement).</li>
+    <li><strong>Double-violation risk:</strong> check these for DB access. Business logic + DB outside <code>models/</code> = two breaches in one file.</li>
+    <li><code>website-utils/</code> cluster (aiCommandService, htmlValidator, uiChecker, linkChecker, builtinAnalyzer) — heavy logic; confirm purity vs hidden state / I/O.</li>
+    <li>Largest: <code>aiCommandService</code> 884, <code>service.dashboard-metrics</code> 876.</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Audit Dimensions</h2>
+  <p>Run every file in scope against the 16-point contract (full detail in <a href="../spec.html#dimensions">spec.html</a>). Dimension 4 (correct placement — pure util vs misplaced service) is primary here.</p>
+  <ul class="checklist">
+    <li><input type="checkbox" disabled> File &le; 300 lines</li>
+    <li><input type="checkbox" disabled> Functions &le; 50 lines</li>
+    <li><input type="checkbox" disabled> Nesting &le; 4 levels</li>
+    <li><input type="checkbox" disabled> Correct folder placement (pure util, not a service)</li>
+    <li><input type="checkbox" disabled> Data flow: Routes &rarr; Controllers &rarr; Services &rarr; Models</li>
+    <li><input type="checkbox" disabled> No business logic in routes</li>
+    <li><input type="checkbox" disabled> No DB queries outside <code>models/</code></li>
+    <li><input type="checkbox" disabled> Error handling on every async call</li>
+    <li><input type="checkbox" disabled> <code>{ success, data, error }</code> response shape (callers)</li>
+    <li><input type="checkbox" disabled> No <code>console.log</code> (Pino only)</li>
+    <li><input type="checkbox" disabled> No hardcoded secrets / magic values</li>
+    <li><input type="checkbox" disabled> Input validated at route/middleware</li>
+    <li><input type="checkbox" disabled> Auth middleware on protected routes (callers)</li>
+    <li><input type="checkbox" disabled> Naming conventions</li>
+    <li><input type="checkbox" disabled> No commented-out code</li>
+    <li><input type="checkbox" disabled> Transactions for multi-table writes</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Findings</h2>
+
+  <h3>Summary</h3>
+  <p><strong>Verdict: needs changes.</strong> The headline is confirmed: four files named/shaped as business services live in <code>utils/</code> (dim 4), and three of them <em>also</em> hit the DB directly (dim 7) — double violations. Separately, the most severe single finding is unit-specific and NOT systemic: <code>core/domainMappings.ts</code> commits <strong>9 live Microsoft Clarity JWT API tokens</strong> in plaintext source (dim 11). The <code>website-utils/</code> analyzer cluster (htmlValidator, uiChecker, linkChecker, builtinAnalyzer) is the bright spot — genuinely pure (0 imports, 0 I/O, 0 DB), only guilty of the size cap. Severity counts: <strong>must-fix 4</strong> · <strong>concerns 7</strong> · <strong>nitpicks 4</strong> (systemic dims 7/10/12 counted once each, not re-litigated).</p>
+
+  <h3>Must-fix</h3>
+  <ul>
+    <li><code>core/domainMappings.ts:20,32,49,61,74,86,98,110</code> — [dim 11] <strong>9 hardcoded Clarity JWT API tokens</strong> (<code>clarity_apiToken</code>, scope <code>Data.Export</code>, exp 2125) committed in source. Live credentials in version control — anyone with repo access can export every client's Clarity analytics. <em>Fix:</em> pull every token out to env/secret store (or a DB <code>website_integrations</code> row, which the Clarity architecture already models — see memory), reference via <code>config/</code>; rotate all 9 tokens since they are already leaked into git history.</li>
+    <li><code>pms/pmsAutomationStatus.ts:227,325,406,487,508,549,566,586</code> — [dim 4 + dim 7] A status <em>service</em> (8 direct <code>db("pms_jobs")</code> read+write calls across 6 exported fns) living in <code>utils/</code>. Double violation: business logic + all DB access outside <code>models/</code>. <em>Fix:</em> move to <code>services/pms/</code> and route every <code>db()</code> call through a <code>PmsJobModel</code> method (e.g. <code>PmsJobModel.updateAutomationStatusDetail()</code>).</li>
+    <li><code>dashboard-metrics/service.dashboard-metrics.ts:334,460-483,540-556</code> — [dim 4 + dim 7] Self-described "service" (the filename literally says so) doing direct <code>db("practice_rankings")</code>, <code>db("website_builder.form_submissions")</code>, <code>db("pms_jobs")</code> — 8 inline queries. Double violation. <em>Fix:</em> relocate to <code>services/dashboard-metrics/</code>; push the 3 query blocks into <code>PracticeRankingModel</code> / <code>FormSubmissionModel</code> / <code>PmsJobModel</code>. (Also dim 2: <code>computeDashboardMetrics</code> ≈149 lines — extract the GBP-fetch + prior-rating blocks.)</li>
+    <li><code>website-utils/aiCommandService.ts:586-631, 722-767</code> — [dim 15] Two large dead blocks: <code>__DEAD_SECTION_GEN</code> (46-line unused template literal, even labeled "DEAD") and <code>VISUAL_ANALYSIS_PROMPT</code> (45-line const, superseded by <code>getVisualAnalysisPrompt()</code> which loads the prompt from a .md file). ~91 lines of confirmed-unused code, zero references. <em>Fix:</em> delete both. (Same file is also dim 4 — an Anthropic LLM service with module-level <code>client</code> state and network I/O, not a pure util; belongs in <code>services/</code> or <code>agents/</code>.)</li>
+  </ul>
+
+  <h3>Concerns</h3>
+  <ul>
+    <li><code>pms/pmsAggregator.ts:284-615</code> — [dim 2] <code>aggregatePmsData</code> is a single ~331-line function — longer than the entire 300-line <em>file</em> cap, ~6.6× the 50-line fn cap. It does extraction, dedup, capping, source aggregation, trend computation, and Levenshtein dedup-candidate detection in one body. <em>Fix:</em> extract <code>computeSourceTrends()</code>, <code>findDedupCandidates()</code>, <code>buildMonthMap()</code>. (dim 4: it's a business service, but at least it goes through models — no direct <code>db()</code>.)</li>
+    <li><code>website-utils/aiCommandService.ts</code>, <code>website-utils/pageEditorService.ts</code>, <code>rybbit/service.rybbit-data.ts</code>, <code>driveTimeMarket.ts</code>, <code>core/s3.ts</code>, <code>website-utils/screenshotService.ts</code> — [dim 4] Network/external-I/O modules misfiled as "utils": Anthropic SDK (×2), <code>axios</code> + Google Places, AWS S3 SDK, Playwright browser. A util is stateless and side-effect-free; these hold clients and make external calls. <em>Fix:</em> move to <code>services/</code> (or <code>lib/</code> for the thin S3/screenshot wrappers).</li>
+    <li><code>website-utils/pageSnapshots.ts:76-143</code>, <code>startup/zombieJobCleanup.ts:7-28</code>, <code>website-utils/agenticHtmlPipeline.ts:126</code>, <code>website-utils/pageEditorPrompt.ts:27</code>, <code>core/notificationHelper.ts:68-72</code>, <code>rybbit/service.rybbit-data.ts:38</code> — [dim 7][systemic] Six more files with direct <code>db()</code> outside <code>models/</code> (pageSnapshots even does <code>.insert()</code>; zombieJobCleanup uses <code>db.raw()</code>). Part of the repo-wide ~125-file pattern, but flagged here because "utils" should be the <em>last</em> place DB access hides. <em>Fix:</em> route through models.</li>
+    <li><code>dashboard-metrics/service.dashboard-metrics.ts:727-876</code> & <code>pms/pmsAutomationStatus.ts</code> — [dim 16] Multi-row writes without transactions. dashboard-metrics fires 5 parallel form-submission counts (read-only, fine) but the automation-status helpers do read-modify-write on <code>automation_status_detail</code> JSONB with no transaction/locking — concurrent agent steps can clobber each other's status. <em>Fix:</em> wrap RMW in a transaction with row lock, or use a JSONB-merge update.</li>
+    <li><code>website-utils/{htmlValidator,uiChecker,linkChecker,builtinAnalyzer}.ts</code> (479/399/377/351) & <code>core/notificationHelper.ts</code> (322) — [dim 1] Over the 300-line cap. The four analyzers are otherwise <em>exemplary</em> pure utils (0 imports, pure input→recommendations[]) — correctly placed, just split each into rule-group files. notificationHelper is a notification <em>service</em> (DB + email I/O), so its fix is relocation, not just splitting.</li>
+    <li><code>website-utils/aiCommandService.ts</code> — [dim 9][systemic] LLM helpers <code>throw</code> raw <code>Error</code>s on parse/empty failures rather than returning the <code>{success,data,error}</code> shape; callers must wrap. Acceptable for an internal helper, but the boundary controller must enforce the shape. Flag as systemic.</li>
+    <li><code>core/domainMappings.ts</code> — [dim 4/14] Beyond the token leak: a hardcoded array of client GBP account/location IDs as a "util" is config data, not a utility. <em>Fix:</em> this is reference/config — move to <code>config/</code> or a DB table; the per-org data already partly lives in <code>projects</code>/<code>website_integrations</code>.</li>
+  </ul>
+
+  <h3>Nitpicks</h3>
+  <ul>
+    <li><code>website-utils/aiCommandService.ts</code> — [dim 14] Filename <code>aiCommandService.ts</code> sits in <code>website-utils/</code> but lacks PascalCase service convention (<code>AiCommandService.ts</code>) — moot once it moves out of utils, but the "Service" suffix on a file in a utils folder is itself the smell.</li>
+    <li><code>dashboard-metrics/service.dashboard-metrics.ts</code> & <code>rybbit/service.rybbit-data.ts</code> — [dim 14] <code>service.kebab-name.ts</code> naming diverges from the documented PascalCase <code>XxxService.ts</code> convention; pick one repo-wide.</li>
+    <li><code>core/notificationHelper.ts:20-24</code> — [dim 11] No-op <code>NODE_ENV</code> ternary (both branches return the same prod URL). Per repo memory NODE_ENV is uniform everywhere, so the conditional is dead. <em>Fix:</em> collapse to the single constant.</li>
+    <li><code>core/*</code>, <code>website-utils/*</code>, <code>pms/*</code> — [dim 10][systemic] 110 <code>console.*</code> calls across 18 files (aiCommandService alone has 30). Matches the repo-wide Pino-not-installed finding; counted once.</li>
+  </ul>
+
+  <h3>Coverage</h3>
+  <p>Deep-read 6 (aiCommandService, service.dashboard-metrics, pmsAggregator, pmsAutomationStatus, domainMappings, encryption) + structural read of the 4-file website-utils analyzer cluster &amp; notificationHelper. Grep-sampled all 37 files for <code>db(</code>/<code>knex</code>/<code>.raw</code> (full map captured), <code>console.*</code> (full counts), secrets/<code>process.env</code>/network imports, dead-code &amp; commented-out code, <code>NODE_ENV</code>. Not deep-read: the smaller pms adapters/helpers (≤275 lines: procedureLogAdapter, templateAdapter, resolveColumnMapping, monthlyProduction, etc.) and the ≤200-line leaf utils (locationResolver, formName, referralCode, etc.) — these passed the grep sweep clean and the unit headline (misplaced services) was concentrated in the over-cap files already examined.</p>
+</section>
+</main>
+</body>
+</html>

@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Backend Request-Validation Layer Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.86rem; margin-top: 8px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0; }
+    td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+    .p1 { font-weight: 800; }
+    .badge { display: inline-block; padding: 1px 8px; border: 1px solid var(--ink); border-radius: 999px; font-size: 0.7rem; font-weight: 800; }
+    a { color: var(--ink); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">In Progress</span>
+      </div>
+      <h1>Backend Request-Validation Layer</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>In Progress — warn-only landed (T1–T5); enforce flip (T6/T7) pending soak</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06142026-backend-validation-layer</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The backend has <strong>no request-validation layer</strong>. This is the headline systemic breach of the conventions audit (<a href="../06142026-backend-conventions-audit/checks/17-auth-core-shared.html">check 17</a>): <strong>0 of 39 route files</strong> validate HTTP input, and the lone file in <code>src/validation/</code> — <code>minds.schemas.ts</code> (25 lines) — validates <em>LLM output</em>, not client input. There is <strong>no validation middleware</strong> in <code>src/middleware/</code>. Client data reaches controllers untrusted, guarded only by scattered, inconsistent inline <code>if (!x) return 400</code> checks (~77 controllers hand-roll body/query/param checks of varying shape; ~8 reference a <code>VALIDATION_ERROR</code>-style code).</p>
+      <p>This is a correctness and security exposure (audit dimension 12), and it compounds the security findings on the public and auth surfaces: the public <code>websiteContact</code> form, <code>auth</code>, <code>auth-otp</code>, <code>auth-password</code>, and <code>billing</code> all accept unvalidated input today. <code>zod</code> is <strong>already a dependency</strong> (<code>"zod": "^4.3.6"</code> in <code>package.json</code>; 9 files already import it for AI-response parsing), so the toolchain cost is zero — only the layer is missing.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>A reusable request-validation layer, rolled out <strong>route-by-route, security/public-first</strong> — not big-bang. Concretely:</p>
+      <ul>
+        <li>A generic <code>validate(schema)</code> Express middleware at <code>src/middleware/validate.ts</code> that validates <code>req.body</code> / <code>req.params</code> / <code>req.query</code> against a zod schema and, on failure, returns the standard contract shape <code>{ success: false, data: null, error: { code, message, details } }</code> (the exact shape already shipped by <code>gbp-automation</code> — see Context).</li>
+        <li>Per-domain zod schema files under <code>src/validation/</code> (e.g. <code>auth.schemas.ts</code>, <code>websiteContact.schemas.ts</code>, <code>billing.schemas.ts</code>), one per route group as it is onboarded.</li>
+        <li>A <strong>warn-only mode</strong> on the middleware: for the first pass on each route group it logs validation failures but lets the request through, so lenient/legacy clients are discovered before any request is rejected. Enforcement is flipped per route group only after a clean soak.</li>
+        <li>Incremental adoption in this priority order: <code>auth</code> → <code>auth-otp</code> → <code>auth-password</code> → <code>websiteContact</code> (public form) → <code>billing</code> → then high-traffic domains. Each route group is a self-contained, independently shippable unit.</li>
+      </ul>
+      <p><strong>Done (this unit overall):</strong> the middleware exists, the five security/public route groups validate input (warn-only first, then enforcing), and the pattern + schema location are established for every later domain to extend. Full repo-wide coverage of all 39 route files is explicitly a follow-on, not this plan's bar.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>The breach (verified)</h3>
+      <ul>
+        <li><code>src/validation/minds.schemas.ts</code> (25 lines) — the entire <code>validation/</code> dir. Validates an LLM <code>ProposalsSchema</code> via <code>safeParse</code>; not HTTP input. Do not repurpose it.</li>
+        <li><code>src/middleware/</code> — contains <code>auth.ts</code>, <code>billingGate.ts</code>, <code>corsCustomDomains.ts</code>, <code>publicRateLimiter.ts</code>, <code>rbac.ts</code>, <code>scraperAuth.ts</code>, <code>superAdmin.ts</code>, <code>tokenRefresh.ts</code> — and <strong>no validation middleware</strong>. <code>validate.ts</code> is a new file.</li>
+        <li>9 files import <code>zod</code>, all for AI/LLM response parsing — never request bodies. No <code>joi</code>/<code>express-validator</code>/<code>celebrate</code>/<code>yup</code> is present.</li>
+      </ul>
+
+      <h3>Reference — the in-repo good pattern (copy this)</h3>
+      <p><code>gbp-automation</code> is the audit's reference domain (0 must-fix) and already ships exactly the two pieces this plan generalizes. Match its structure, naming, and error shape:</p>
+      <ul>
+        <li><strong>Error/response shape:</strong> <code>src/controllers/gbp-automation/feature-utils/controllerResponses.ts</code> — its private <code>fail(res, status, code, message, details)</code> emits <code>{ success: false, data: null, error: { code, message, details } }</code>. This is the canonical failure shape <code>validate()</code> must return on a validation miss (use code <code>VALIDATION_ERROR</code>, status <code>400</code>, and the zod issue list as <code>details</code>).</li>
+        <li><strong>Input sanitizer:</strong> <code>src/controllers/gbp-automation/feature-utils/GbpInputSanitizer.ts</code> — typed length caps (<code>GBP_INPUT_LIMITS</code>), control-char stripping in <code>sanitizeGbpText</code>, and protocol-checked <code>sanitizeGbpUrl</code>. The new per-domain zod schemas should encode the same intent (max lengths, trimming, URL/email shape) declaratively rather than imperatively.</li>
+        <li><strong>Typed error class:</strong> <code>src/controllers/gbp-automation/feature-utils/GbpAutomationError.ts</code> — <code>(code, message, details)</code> constructor; the model for a typed error if one is needed.</li>
+      </ul>
+
+      <h3>Rollout targets (real files, all small today)</h3>
+      <ul>
+        <li><code>src/routes/auth.ts</code> (32 ln), <code>src/routes/auth-otp.ts</code> (19 ln), <code>src/routes/auth-password.ts</code> (34 ln), <code>src/routes/websiteContact.ts</code> (40 ln), <code>src/routes/billing.ts</code> (62 ln). All are thin routers, so adding a <code>validate(schema)</code> link per route is low-friction.</li>
+        <li>Auth handlers live under <code>src/controllers/auth-otp/</code>, <code>auth-password/</code>, <code>auth/</code>; the public form under <code>src/controllers/websiteContact/formSubmissionController.ts</code>; billing under <code>src/controllers/billing/</code>. The audit (<a href="../06142026-backend-conventions-audit/checks/09-smaller-controller-domains.html">check 09</a>) flags these as the weakest input surfaces — exactly why they go first.</li>
+      </ul>
+
+      <h3>Patterns to follow</h3>
+      <ul>
+        <li>Middleware shape: standard <code>(req, res, next)</code> signature, mirroring the existing guards in <code>src/middleware/auth.ts</code> (early-return on failure, <code>next()</code> on pass).</li>
+        <li>Schema location/naming: per-domain files under <code>src/validation/</code>, named <code>{domain}.schemas.ts</code>, mirroring the existing <code>minds.schemas.ts</code> naming.</li>
+        <li>Failure shape: the <code>controllerResponses.ts</code> <code>{ success, data, error:{code,message,details} }</code> contract — do not invent a new shape.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/controllers/gbp-automation/feature-utils/controllerResponses.ts</code> — closest existing analog for the failure-response shape <code>validate()</code> must emit.</p>
+
+      <h3>Dependencies (sequencing)</h3>
+      <ul>
+        <li><strong>Soft dependency on the security hotfix.</strong> Best executed <em>after or alongside</em> the security-hotfix track (auth-gap + rate-limit + JWT-fallback fixes from the audit). Validation on the public + auth routes is naturally part of that hardening, and the same route files are edited, so coordinate to avoid churn. Not a hard blocker — this unit can land independently.</li>
+        <li><strong>Foundational for later units.</strong> Every other domain's dim-12 remediation extends the <code>validate()</code> middleware + <code>validation/</code> schema pattern established here. There is no existing shared layer to extend — this plan creates it.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Reuse the existing <code>zod</code> dependency; add no new validation library.</li>
+            <li>Return the canonical <code>{ success:false, data:null, error:{code,message,details} }</code> shape on failure, matching <code>gbp-automation/feature-utils/controllerResponses.ts</code>.</li>
+            <li>Roll out route-by-route, security/public-first; commit per route group.</li>
+            <li>Ship each route group in <strong>warn-only mode first</strong> (log, do not reject), then flip to enforce only after a clean soak.</li>
+            <li>Place schemas under <code>src/validation/</code> as <code>{domain}.schemas.ts</code>.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Big-bang all 39 route files in one pass.</li>
+            <li>Add a new dependency (<code>joi</code>/<code>express-validator</code>/<code>yup</code>/<code>celebrate</code>).</li>
+            <li>Repurpose <code>minds.schemas.ts</code> — it validates LLM output, not input.</li>
+            <li>Refactor controller bodies, response shapes, or auth wiring while adding validation (no drive-by cleanup — those are separate audit items).</li>
+            <li>Flip a route group to enforce-mode in the same commit that introduces its warn-only pass.</li>
+            <li>Loosen or remove the existing inline guards before the schema covers the same fields.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>The other 4 systemic breaches (Pino, DB-outside-models, response-shape normalization, transactions).</li>
+        <li>The auth-gap, rate-limit, and JWT-fallback security fixes (separate security-hotfix track) — except where this plan adds validation to the same route files.</li>
+        <li>Validating the remaining ~34 route files beyond the five security/public groups + first high-traffic batch (follow-on plans extend the same pattern).</li>
+        <li>Removing the now-redundant inline controller checks (a later cleanup, once schemas demonstrably cover them).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 (Structural Risk) — validation that <em>rejects</em> input is behavior-changing. A strict schema can reject input that controllers previously accepted (extra fields, loose types, coercible strings), breaking lenient or legacy clients. The middleware is also cross-cutting: a bug in <code>validate()</code> affects every route it is mounted on.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Rejecting previously-accepted malformed input.</strong> The current inline checks are loose and inconsistent; a tight zod schema may be stricter than reality. <strong>Mitigation:</strong> warn-only mode first on every route group — log every would-be rejection (with route + offending fields, never secret values) and soak before enforcing. Author schemas <em>permissively</em> first (e.g. <code>.passthrough()</code> / optional fields), then tighten once logs show real traffic shapes.</li>
+        <li><strong>Cross-cutting middleware bug.</strong> A throw inside <code>validate()</code> would 500 every guarded route. <strong>Mitigation:</strong> the middleware must never throw — wrap <code>safeParse</code>, and on any internal error fall through (in warn-only) or return the standard 400 (in enforce), never an unhandled rejection. Verify with the manual endpoint checks below.</li>
+        <li><strong>Logging sensitive input.</strong> Auth/OTP/password/billing bodies contain secrets; warn-mode logging could leak them (the audit already found plaintext OTP codes logged). <strong>Mitigation:</strong> log only field <em>names</em> + zod issue codes, never field <em>values</em>; redact by construction.</li>
+        <li><strong>Schema/handler drift.</strong> A schema that omits a field the handler reads silently strips it (if using <code>.strip()</code>). <strong>Mitigation:</strong> derive each schema from the fields the controller actually reads; verify the happy-path request still succeeds end-to-end per route group before flipping to enforce.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> new file <code>src/middleware/validate.ts</code> (no existing consumers); new schema files under <code>src/validation/</code> (no consumers until wired); edited route files — initially only <code>src/routes/auth.ts</code>, <code>auth-otp.ts</code>, <code>auth-password.ts</code>, <code>websiteContact.ts</code>, <code>billing.ts</code>. Each added <code>validate()</code> link affects only that route's request path. Existing controllers are not modified.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>Do not enforce on day one.</strong> Flipping straight to reject-mode on the public form or auth routes risks locking out real clients during the exact window we are trying to harden. The recommended path is warn-only → soak → enforce, per route group, gated on clean logs. If the owner wants enforce-first for a specific internal-only route, that is acceptable case-by-case — but the public + auth + billing groups must soak.</li>
+        <li><strong>Permissive-first schemas.</strong> Resist the urge to write maximally strict schemas immediately; an over-tight schema authored without seeing real traffic is the most likely way to break a lenient client. Tighten from data, not from imagination.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <p>Rollout order is security/public-first and incremental. <code>T1</code> is foundational; every later task depends on it. Each route-group task is independently shippable and gets its own commit. <code>P1</code> = do first.</p>
+
+      <article class="task-card">
+        <h3>T1: Generic <code>validate(schema)</code> middleware <span class="badge">P1</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create <code>src/middleware/validate.ts</code> exporting <code>validate(schema, opts?)</code> where <code>schema</code> targets <code>body</code> (default) / <code>params</code> / <code>query</code> and <code>opts.mode</code> is <code>"warn"</code> (default) or <code>"enforce"</code>. Run <code>schema.safeParse</code>. On success: assign parsed value back and <code>next()</code>. On failure in enforce: return <code>{ success:false, data:null, error:{ code:"VALIDATION_ERROR", message, details } }</code> at status 400, mirroring <code>gbp-automation/feature-utils/controllerResponses.ts</code>. On failure in warn: log route + failing field names + zod issue codes (never values), then <code>next()</code>. Must never throw.</dd></div>
+          <div><dt>Files</dt><dd><code>src/middleware/validate.ts</code> (new)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run build</code> + eslint clean. Manual: temporarily mount on one throwaway route, POST valid + invalid bodies, confirm warn-mode passes both (logs the invalid) and enforce-mode 400s the invalid with the contract shape.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Auth route group schemas + warn-only wiring <span class="badge">P1</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>src/validation/auth.schemas.ts</code> (login/register/refresh bodies). Wire <code>validate(...)</code> in <strong>warn-only</strong> on <code>src/routes/auth.ts</code>. Schemas permissive-first. Redact: no body values logged.</dd></div>
+          <div><dt>Files</dt><dd><code>src/validation/auth.schemas.ts</code> (new), <code>src/routes/auth.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run build</code> + eslint. Manual: hit <code>/login</code> with a valid then a malformed body — both succeed, the malformed one logs a warn line with field names only.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Auth-OTP + Auth-Password schemas + warn-only wiring <span class="badge">P1</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>src/validation/authOtp.schemas.ts</code> (OTP request/verify) and <code>src/validation/authPassword.schemas.ts</code> (forgot/reset/resend). Wire <code>validate(...)</code> warn-only on <code>src/routes/auth-otp.ts</code> and <code>src/routes/auth-password.ts</code>. Hard redaction (codes/passwords never logged).</dd></div>
+          <div><dt>Files</dt><dd><code>src/validation/authOtp.schemas.ts</code> (new), <code>src/validation/authPassword.schemas.ts</code> (new), <code>src/routes/auth-otp.ts</code>, <code>src/routes/auth-password.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run build</code> + eslint. Manual: OTP verify + password reset with valid then malformed body — both pass in warn-mode; warn logs contain no code/password values.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Public <code>websiteContact</code> form schema + warn-only wiring <span class="badge">P1</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>src/validation/websiteContact.schemas.ts</code> for the public <code>/form-submission</code> body (names, email shape, message length caps mirroring <code>GbpInputSanitizer</code> limits; tolerate the multipart field set). Wire warn-only on <code>src/routes/websiteContact.ts</code>. Do not touch the (separately-tracked) commented-out anti-abuse stack.</dd></div>
+          <div><dt>Files</dt><dd><code>src/validation/websiteContact.schemas.ts</code> (new), <code>src/routes/websiteContact.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run build</code> + eslint. Manual: submit the public form with a realistic payload (multipart) — passes; submit a junk body — passes in warn-mode and logs field names only.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Billing route group schema + warn-only wiring <span class="badge">P1</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>src/validation/billing.schemas.ts</code> for the non-webhook billing bodies. Wire warn-only on <code>src/routes/billing.ts</code>. <strong>Exclude the Stripe webhook route</strong> (raw-body, signature-verified — must not be reshaped). No secret values logged.</dd></div>
+          <div><dt>Files</dt><dd><code>src/validation/billing.schemas.ts</code> (new), <code>src/routes/billing.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run build</code> + eslint. Manual: exercise a non-webhook billing endpoint valid + malformed — both pass in warn-mode; confirm the webhook route is untouched and still verifies signatures.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Soak review + flip security/public groups to enforce</h3>
+        <dl>
+          <div><dt>Do</dt><dd>After a soak window on the five groups above, review the warn logs. Where no legitimate-client rejections appear, tighten the permissive-first schemas to their real shape and flip those route groups to <code>mode:"enforce"</code>. Flip per group, not all at once. Any group still showing real-traffic misses stays in warn until its schema is corrected.</dd></div>
+          <div><dt>Files</dt><dd><code>src/routes/auth.ts</code>, <code>auth-otp.ts</code>, <code>auth-password.ts</code>, <code>websiteContact.ts</code>, <code>billing.ts</code>; the matching <code>src/validation/*.schemas.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3, T4, T5</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run build</code> + eslint. Manual per group: valid request → 200; malformed request → 400 with <code>{success:false,data:null,error:{code:"VALIDATION_ERROR",...}}</code>. Confirm warn logs are clean before each flip.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: First high-traffic batch (warn-only → enforce)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Extend the same pattern to the next, high-traffic non-security route groups (candidates: <code>locations</code>, <code>tasks</code>, <code>settings</code>, <code>support</code>) — one group per commit, warn-only first, soak, then enforce. Stop at diminishing returns; remaining domains are follow-on plans. This task establishes that the pattern scales beyond the security surface; it is not a mandate to cover all 39 files here.</dd></div>
+          <div><dt>Files</dt><dd>New <code>src/validation/{domain}.schemas.ts</code> per group + the matching <code>src/routes/*.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1 (and the T6 enforce mechanics as the proven recipe)</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run build</code> + eslint per group. Manual endpoint check per group: valid → 200, malformed → 400 contract shape (after that group's soak + flip).</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npm run build</code> (<code>tsc</code>) — zero errors from these changes</li>
+        <li><input type="checkbox" disabled> eslint clean on all new/changed files</li>
+        <li><input type="checkbox" disabled> <code>src/middleware/validate.ts</code> exists, supports body/params/query + warn/enforce, never throws, emits the canonical <code>{success:false,data:null,error:{code,message,details}}</code> on enforce-failure</li>
+        <li><input type="checkbox" disabled> Per-domain schemas exist under <code>src/validation/</code> for auth, auth-otp, auth-password, websiteContact, billing</li>
+        <li><input type="checkbox" disabled> Each of the five security/public route groups shipped warn-only first, then flipped to enforce only after a clean soak</li>
+        <li><input type="checkbox" disabled> Manual: valid request → 200; malformed → 400 contract shape, per enforced group (incl. public form + auth)</li>
+        <li><input type="checkbox" disabled> Manual: Stripe webhook route untouched and still signature-verifying</li>
+        <li><input type="checkbox" disabled> Warn-mode logs carry field names + zod issue codes only — no secret values (verified on auth/OTP/password/billing)</li>
+        <li><input type="checkbox" disabled> No new dependency added; no controller bodies / response shapes / auth wiring refactored as drive-by</li>
+        <li><input type="checkbox" disabled> Committed per route group (incremental), not as one big-bang change</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-06-14</h3>
+        <p><strong>Change:</strong> Executed T1–T5 in WARN-ONLY mode. Created <code>src/middleware/validate.ts</code> (<code>validate(schema, { target, mode })</code>; target ∈ body/params/query, mode ∈ warn/enforce, default mode env-driven via <code>VALIDATION_ENFORCE</code> → "warn" unless set; never throws; enforce emits the canonical <code>{success:false,data:null,error:{code:"VALIDATION_ERROR",message,details}}</code> shape). Added per-domain schemas: <code>auth.schemas.ts</code>, <code>authOtp.schemas.ts</code>, <code>authPassword.schemas.ts</code>, <code>websiteContact.schemas.ts</code>, <code>billing.schemas.ts</code>. Wired warn-only <code>validate(...)</code> onto <code>routes/auth.ts</code>, <code>auth-otp.ts</code>, <code>auth-password.ts</code>, <code>websiteContact.ts</code>, <code>billing.ts</code>. Added <code>src/__tests__/validate.middleware.test.ts</code> (11 cases). <code>tsc -p tsconfig.json</code> clean; <code>npm test</code> 27/27 green.</p>
+        <p><strong>Reason:</strong> Execution deviation: T2 anticipated "login/register/refresh bodies" on <code>routes/auth.ts</code>, but the CURRENT file is the Google OAuth flow — all GET, no request body. The email/password login+register bodies actually live on <code>routes/auth-password.ts</code> (covered by <code>authPassword.schemas.ts</code>) and the OTP bodies on <code>routes/auth-otp.ts</code> (<code>authOtp.schemas.ts</code>). So the only validatable input on <code>auth.ts</code> is the <code>:connectionId</code> param on <code>GET /google/validate/:connectionId</code> — schema scoped to that. All five route groups are covered; the body coverage simply lands on the two routers that actually own bodies.</p>
+        <p><strong>Reason (logging):</strong> Execution deviation: the conventions skill mandates Pino, but Pino is an explicitly out-of-scope systemic breach and no logger instance exists in-repo. Matched the dominant in-repo pattern (bracketed <code>console.warn</code>/<code>console.error</code>, e.g. <code>[VALIDATION]</code>) — redaction-safe (field names + zod issue codes only, never values).</p>
+        <p><strong>Reason (eslint):</strong> Environment: the Done checklist lists "eslint clean", but the backend has no <code>.eslintrc</code> and no <code>npm run lint</code> script. The effective gates (<code>tsc</code> + <code>npm test</code>) both pass.</p>
+        <p><strong>Out of scope this pass:</strong> T6 (soak review + flip to enforce) and T7 (high-traffic batch) remain the owner's later steps. No commit/stash performed (per execution constraints). Existing inline <code>if (!x) return 400</code> guards left in place — they run alongside warn-only and are a later enforce-phase cleanup.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

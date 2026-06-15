@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>models — Conventions Audit</title>
+<style>
+:root{color-scheme:light;--paper:#fff;--ink:#080808;--muted:#5f5f5f;--line:#d8d8d8;--soft:#f5f5f5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
+.shell{width:min(1000px,calc(100% - 32px));margin:0 auto;padding:40px 0}
+.hero,.card{border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.hero{border-color:var(--ink);padding:28px;margin-bottom:18px}
+.topline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.card{padding:24px;margin-top:16px}
+.eyebrow,dt{color:var(--muted);font-size:.74rem;font-weight:700;text-transform:uppercase}
+.eyebrow{margin:0}
+.pill{display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border:1px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper);font-size:.74rem;font-weight:800;text-transform:uppercase}
+h1,h2,h3,p{margin-top:0}
+h1{margin-bottom:18px;font-size:clamp(1.8rem,5vw,3rem);line-height:.98}
+h2{font-size:1.2rem}h3{font-size:.95rem}
+code{padding:.1rem .3rem;border:1px solid var(--line);border-radius:4px;background:var(--soft);font-size:.86em}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:0}
+.meta div{border:1px solid var(--line);border-radius:8px;padding:14px}
+dd{margin:4px 0 0;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:8px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);text-transform:uppercase;font-size:.7rem}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.over{font-weight:800}
+.checklist{list-style:none;padding:0;margin:0}
+.checklist li{display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line);font-size:.88rem}
+.note{border-left:3px solid var(--ink);padding:10px 14px;background:var(--soft);margin:0;font-size:.9rem}
+ul.flags{margin:0;padding-left:18px}ul.flags li{margin-bottom:7px}
+a{color:var(--ink)}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="hero">
+  <div class="topline"><p class="eyebrow">Backend Conventions Audit · Check 10 / 17 · <a href="../spec.html">index</a></p><span class="pill">Audited</span></div>
+  <h1>models</h1>
+  <dl class="meta">
+    <div><dt>Scope</dt><dd><code>src/models</code></dd></div>
+    <div><dt>Files</dt><dd>109</dd></div>
+    <div><dt>Lines</dt><dd>14,067</dd></div>
+    <div><dt>Over 300</dt><dd>11</dd></div>
+    <div><dt>Priority</dt><dd>P1 (structural)</dd></div>
+  </dl>
+</header>
+
+<section class="card">
+  <h2>Scope</h2>
+  <p>All Knex database access. The contract: <strong>every query lives here and nowhere else.</strong></p>
+  <table>
+    <thead><tr><th>File (rel. to scope)</th><th class="n">Lines</th></tr></thead>
+    <tbody>
+      <tr><td><code>website-builder/ReviewModel.ts</code></td><td class="n over">554 ▲</td></tr>
+      <tr><td><code>GbpWorkItemModel.ts</code></td><td class="n over">512 ▲</td></tr>
+      <tr><td><code>AppUsageEventModel.ts</code></td><td class="n over">424 ▲</td></tr>
+      <tr><td><code>PmsJobModel.ts</code></td><td class="n over">404 ▲</td></tr>
+      <tr><td><code>LocationCompetitorModel.ts</code></td><td class="n over">378 ▲</td></tr>
+      <tr><td><code>SupportTicketModel.ts</code></td><td class="n over">355 ▲</td></tr>
+      <tr><td><code>AgentRecommendationModel.ts</code></td><td class="n over">351 ▲</td></tr>
+      <tr><td><code>MissionControlModel.ts</code></td><td class="n over">348 ▲</td></tr>
+      <tr><td><code>website-builder/FormSubmissionModel.ts</code></td><td class="n over">319 ▲</td></tr>
+      <tr><td><code>PmTaskModel.ts</code></td><td class="n over">302 ▲</td></tr>
+      <tr><td><code>AgentResultModel.ts</code></td><td class="n over">302 ▲</td></tr>
+      <tr><td colspan="2"><em>+ 98 more files ≤ 300 lines</em></td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:.78rem;color:var(--muted);margin:8px 0 0">▲ = over the 300-line cap.</p>
+</section>
+
+<section class="card">
+  <h2>Priority Signals (start here)</h2>
+  <ul class="flags">
+    <li><strong>This is the INVERSE audit.</strong> The violation surface isn't mainly these 11 files — it's proving <em>no DB access exists outside <code>models/</code></em>. Pair this worksheet with a repo-wide grep for <code>knex(</code> / <code>db(</code> / <code>.raw(</code> in <code>controllers/</code>, <code>services/</code>, <code>utils/</code>, <code>routes/</code>. Every hit is a dimension-7 violation.</li>
+    <li><strong>Transactions:</strong> confirm multi-table writes use transactions (skill rule) — partial-write corruption risk otherwise.</li>
+    <li><strong>Parameterization:</strong> no string-concatenated SQL; <code>knex.raw()</code> minimal and parameterized.</li>
+    <li>Largest: <code>ReviewModel</code> 554, <code>GbpWorkItemModel</code> 512 — large models often signal query logic that should be split by concern.</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Audit Dimensions</h2>
+  <p>Run every file in scope against the 16-point contract (full detail in <a href="../spec.html#dimensions">spec.html</a>). For this layer, dimensions 7 (no DB outside models — checked inversely), 11 (parameterization), and 16 (transactions) are primary.</p>
+  <ul class="checklist">
+    <li><input type="checkbox" disabled> File &le; 300 lines</li>
+    <li><input type="checkbox" disabled> Functions &le; 50 lines</li>
+    <li><input type="checkbox" disabled> Nesting &le; 4 levels</li>
+    <li><input type="checkbox" disabled> Correct folder placement</li>
+    <li><input type="checkbox" disabled> Data flow: Routes &rarr; Controllers &rarr; Services &rarr; Models</li>
+    <li><input type="checkbox" disabled> No business logic in routes</li>
+    <li><input type="checkbox" disabled> No DB queries outside <code>models/</code> (inverse grep)</li>
+    <li><input type="checkbox" disabled> Error handling on every async call</li>
+    <li><input type="checkbox" disabled> <code>{ success, data, error }</code> response shape (callers)</li>
+    <li><input type="checkbox" disabled> No <code>console.log</code> (Pino only)</li>
+    <li><input type="checkbox" disabled> No hardcoded secrets / magic values</li>
+    <li><input type="checkbox" disabled> Parameterized queries — no string-concat SQL, minimal <code>raw()</code></li>
+    <li><input type="checkbox" disabled> Auth middleware on protected routes (callers)</li>
+    <li><input type="checkbox" disabled> Naming conventions (Model suffix, descriptive query fns)</li>
+    <li><input type="checkbox" disabled> No commented-out code</li>
+    <li><input type="checkbox" disabled> Transactions for multi-table writes</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Findings</h2>
+  <h3>Summary</h3>
+  <p><strong>Verdict: the models layer itself is exemplary; the architecture is breached from the outside.</strong> Internally, <code>models/</code> is one of the cleanest layers audited — 97 of 109 files thread a <code>QueryContext</code>/<code>trx</code> param, every <code>.raw()</code> is parameterized or a static constant, there is zero string-interpolated SQL, and the largest models (<code>ReviewModel</code>, <code>GbpWorkItemModel</code>) are model-of-good-practice. But dimension 7 — <em>all DB access lives in <code>models/</code> and nowhere else</em> — is violated at scale: <strong>125 non-model files</strong> import the raw <code>db</code> connection and run <strong>~507 direct query/raw call-sites outside <code>models/</code></strong>. This is the single largest contract breach in the audit. Severity: <strong>1 systemic must-fix (dim 7), ~3 concerns, ~3 nitpicks.</strong></p>
+  <p style="font-size:.82rem;color:var(--muted)"><strong>Note on the assigned grep:</strong> the prompt's <code>knex|\.raw(</code> grep matched only 22 files (and ~4 of those are type-only <code>import { Knex }</code> false positives). That grep <em>massively undercounts</em> the leak: the canonical handle is <code>db</code> from <code>database/connection</code>, and the dominant leak form is the query-builder call <code>db("table")…</code>, which contains neither the literal token <code>knex</code> nor <code>.raw(</code>. The true surface (125 files / 507 sites) was found by grepping the connection-import instead. Headline figures below use the accurate surface.</p>
+
+  <h3>DB-access leaks outside models/ (dim 7)</h3>
+  <p><strong>Total offending files: 125</strong> (controllers 96, services 12, workers 8, utils 8, routes 1) — collectively ~507 direct <code>db(…)</code> / <code>db.raw</code> / <code>db.transaction</code> call-sites. Worst 25 by call-site density:</p>
+  <ul>
+    <li><code>controllers/admin-websites/feature-services/service.ai-command.ts</code> — ~106 sites</li>
+    <li><code>controllers/admin-websites/AdminWebsitesController.ts</code> — ~40</li>
+    <li><code>controllers/practice-ranking/PracticeRankingController.ts</code> — ~33</li>
+    <li><code>controllers/admin-websites/feature-services/service.project-manager.ts</code> — ~33</li>
+    <li><code>workers/processors/websiteRestore.processor.ts</code> — ~32 <em>(worker layer; prompt grep reported 0 here)</em></li>
+    <li><code>controllers/admin-websites/feature-services/service.page-editor.ts</code> — ~31</li>
+    <li><code>controllers/admin-websites/feature-services/service.menu-manager.ts</code> — ~28</li>
+    <li><code>controllers/pm/PmTasksController.ts</code> — ~27</li>
+    <li><code>controllers/pm/PmAiSynthController.ts</code> — ~24</li>
+    <li><code>controllers/admin-websites/feature-services/service.post-manager.ts</code> — ~23</li>
+    <li><code>routes/checkup.ts</code> — ~22 <em>(DB <code>.insert()</code>/<code>.update()</code> directly in a ROUTE file — double violation of dims 6 + 7)</em></li>
+    <li><code>controllers/admin-websites/feature-services/service.template-manager.ts</code> — ~21</li>
+    <li><code>controllers/admin-websites/feature-services/service.post-taxonomy-manager.ts</code> — ~21</li>
+    <li><code>controllers/admin-websites/feature-services/service.hfcm-manager.ts</code> — ~20</li>
+    <li><code>controllers/admin-websites/feature-services/service.generation-pipeline.ts</code> — ~19</li>
+    <li><code>controllers/user-website/UserWebsiteController.ts</code> — ~17</li>
+    <li><code>services/referralReward.ts</code> — ~13</li>
+    <li><code>controllers/admin-websites/feature-services/service.post-block-manager.ts</code> — ~13</li>
+    <li><code>controllers/leadgen-tracking/LeadgenTrackingController.ts</code> — ~12</li>
+    <li><code>controllers/admin-websites/feature-services/service.post-importer.ts</code> — ~12</li>
+    <li><code>controllers/user-website/user-website-services/userWebsite.service.ts</code> — ~11</li>
+    <li><code>controllers/pm/PmProjectsController.ts</code> — ~11</li>
+    <li><code>controllers/pm/PmCommentsController.ts</code> — ~11</li>
+    <li><code>controllers/admin-websites/feature-services/service.review-block-manager.ts</code> — ~11</li>
+    <li><code>controllers/admin-websites/feature-services/service.post-type-manager.ts</code> — ~11</li>
+  </ul>
+  <p style="font-size:.82rem;color:var(--muted)">…plus ~100 more files with 1–10 sites each. Concentration is heaviest in the <code>admin-websites</code> website-builder feature-services cluster and the <code>pm/</code> and <code>agents/</code> domains. (Remediation belongs to the controllers/services/workers/routes units, not <code>models/</code> — flagged here because dim 7 is audited inversely from this worksheet.)</p>
+
+  <h3>Must-fix</h3>
+  <ul>
+    <li><strong>(dim 7, systemic) Pull all 507 inline queries behind models.</strong> 125 files reach the DB directly. This defeats the entire layering contract: query logic is unmemoizable, untestable in isolation, and duplicated across domains. Highest-leverage targets are the website-builder feature-services (one cluster, ~15 files, &gt;400 sites) and <code>routes/checkup.ts</code> (queries in a route file). Recommend an incremental model-extraction pass per domain, not a big-bang.</li>
+    <li><strong>(dim 6 + 7) <code>routes/checkup.ts</code> performs <code>db("organizations").update()</code> / <code>db("weekly_ranking_snapshots").insert()</code> inline.</strong> A route file doing writes is the worst single instance — move to a controller + model.</li>
+  </ul>
+
+  <h3>Concerns</h3>
+  <ul>
+    <li><strong>(dim 16, downstream of the leak) Multi-table writes outside models run without transactions.</strong> Because writes leaked out of <code>models/</code>, many are unguarded: e.g. <code>websiteRestore.processor.ts</code> (~32 DB ops, 0 transactions), <code>AgentsController.ts</code>, <code>service.competitor-cache.ts</code>, <code>behavioralIntelligence.ts</code>, several <code>pm/</code> and <code>agents/</code> services. Partial-write corruption risk. Fixing dim 7 (move writes into models that own a <code>db.transaction</code>) resolves most of this at once. <em>Inside</em> <code>models/</code>, transaction discipline is correct — see <code>ReviewModel.replaceApifyReviewsForPlace</code> (wraps del + upsert-loop in <code>db.transaction</code>).</li>
+    <li><strong>(dim 1) 11 models exceed the 300-line cap</strong> (<code>ReviewModel</code> 554, <code>GbpWorkItemModel</code> 512, <code>AppUsageEventModel</code> 424, <code>PmsJobModel</code> 404, + 7 more). All are cohesive single-entity models, so this is soft — but the two largest are split candidates if read-vs-write or metrics-vs-CRUD concerns can be separated.</li>
+    <li><strong>(dim 10) <code>console.log</code> in a model:</strong> <code>website-builder/SeoGenerationJobModel.ts:72</code> logs stale-job expiry via <code>console.log</code> instead of Pino.</li>
+  </ul>
+
+  <h3>Nitpicks</h3>
+  <ul>
+    <li><strong>(dim 11, magic value) Hardcoded timezone in raw SQL.</strong> <code>PmTaskModel.getAssignedVelocity</code> embeds <code>'America/Los_Angeles'</code> in its velocity queries (parameter-safe, but the TZ should be a named constant in <code>config/</code>, not inlined in 3 SQL branches).</li>
+    <li><strong>(dim 4 false-positive, for the record) Four files flagged by the leak grep are type-only imports, NOT leaks:</strong> <code>AdminOrgCreationService.ts</code>, <code>TierManagementService.ts</code>, <code>OrganizationBootstrapService.ts</code> import <code>Knex</code> purely to type an injected <code>trx</code> param (correct transaction-passing pattern); <code>routes/billing.ts</code> matched on <code>express.raw()</code> (Stripe middleware), not DB. These should not be counted as violations.</li>
+    <li><strong>(dim 11, advisory) Raw <code>.raw()</code> usage in models is fine but worth periodic review:</strong> 77 call-sites, all parameterized via <code>?</code> + bound arrays or static constants. No injection risk found; flagged only so the count is visible.</li>
+  </ul>
+
+  <h3>Coverage</h3>
+  <p>Deep-read: 5 models in full (<code>ReviewModel</code> 554, <code>GbpWorkItemModel</code> 512, <code>PmTaskModel</code> raw-query block, plus <code>AppUsageEventModel</code> &amp; <code>PmsJobModel</code> write paths). Grep-sampled: the remaining ~104 models for <code>.raw()</code> parameterization, interpolation, <code>console.*</code>, commented code, deep nesting, and trx adoption (full-layer sweeps, not a sample cap). The dim-7 inverse leak was enumerated exhaustively across all of <code>controllers/ services/ utils/ routes/ workers/</code> by both the assigned narrow grep and the corrected connection-import grep. Not examined line-by-line: the internal logic of the ~100 low-density leak files (their per-file dims 1–16 belong to the other audit units; this worksheet owns the dim-7 inventory only).</p>
+</section>
+</main>
+</body>
+</html>

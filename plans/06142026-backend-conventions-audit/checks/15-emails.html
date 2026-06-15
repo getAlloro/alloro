@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>emails — Conventions Audit</title>
+<style>
+:root{color-scheme:light;--paper:#fff;--ink:#080808;--muted:#5f5f5f;--line:#d8d8d8;--soft:#f5f5f5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
+.shell{width:min(1000px,calc(100% - 32px));margin:0 auto;padding:40px 0}
+.hero,.card{border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.hero{border-color:var(--ink);padding:28px;margin-bottom:18px}
+.topline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.card{padding:24px;margin-top:16px}
+.eyebrow,dt{color:var(--muted);font-size:.74rem;font-weight:700;text-transform:uppercase}
+.eyebrow{margin:0}
+.pill{display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border:1px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper);font-size:.74rem;font-weight:800;text-transform:uppercase}
+h1,h2,h3,p{margin-top:0}
+h1{margin-bottom:18px;font-size:clamp(1.8rem,5vw,3rem);line-height:.98}
+h2{font-size:1.2rem}h3{font-size:.95rem}
+code{padding:.1rem .3rem;border:1px solid var(--line);border-radius:4px;background:var(--soft);font-size:.86em}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:0}
+.meta div{border:1px solid var(--line);border-radius:8px;padding:14px}
+dd{margin:4px 0 0;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:8px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);text-transform:uppercase;font-size:.7rem}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.over{font-weight:800}
+.checklist{list-style:none;padding:0;margin:0}
+.checklist li{display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line);font-size:.88rem}
+.note{border-left:3px solid var(--ink);padding:10px 14px;background:var(--soft);margin:0;font-size:.9rem}
+ul.flags{margin:0;padding-left:18px}ul.flags li{margin-bottom:7px}
+a{color:var(--ink)}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="hero">
+  <div class="topline"><p class="eyebrow">Backend Conventions Audit · Check 15 / 17 · <a href="../spec.html">index</a></p><span class="pill">Audited</span></div>
+  <h1>emails</h1>
+  <dl class="meta">
+    <div><dt>Scope</dt><dd><code>src/emails</code></dd></div>
+    <div><dt>Files</dt><dd>11</dd></div>
+    <div><dt>Lines</dt><dd>2,159</dd></div>
+    <div><dt>Over 300</dt><dd>2</dd></div>
+    <div><dt>Priority</dt><dd>P3</dd></div>
+  </dl>
+</header>
+
+<section class="card">
+  <h2>Scope</h2>
+  <p>Email templates + sending (Mailgun). Templates are mostly markup; the sending path is logic.</p>
+  <table>
+    <thead><tr><th>File (rel. to scope)</th><th class="n">Lines</th></tr></thead>
+    <tbody>
+      <tr><td><code>templates/base.ts</code></td><td class="n over">333 ▲</td></tr>
+      <tr><td><code>emailService.ts</code></td><td class="n over">305 ▲</td></tr>
+      <tr><td colspan="2"><em>+ 9 more files ≤ 300 lines</em></td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:.78rem;color:var(--muted);margin:8px 0 0">▲ = over the 300-line cap.</p>
+</section>
+
+<section class="card">
+  <h2>Priority Signals (start here)</h2>
+  <ul class="flags">
+    <li><code>templates/base.ts</code> 333 is largely template markup — may be an acceptable over-cap exception (judge: markup vs logic).</li>
+    <li><code>emailService.ts</code> 305 is the sending path — audit error handling on send + retry/backoff; a failed send must not silently swallow.</li>
+    <li><strong>Secrets:</strong> Mailgun keys via <code>config/</code> only, never inline (dimension 11).</li>
+    <li><strong>PII:</strong> no logging of recipient PII or message bodies (logging rules). Cross-reference the email-interception guard noted in project memory.</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Audit Dimensions</h2>
+  <p>Run every file in scope against the 16-point contract (full detail in <a href="../spec.html#dimensions">spec.html</a>).</p>
+  <ul class="checklist">
+    <li><input type="checkbox" disabled> File &le; 300 lines</li>
+    <li><input type="checkbox" disabled> Functions &le; 50 lines</li>
+    <li><input type="checkbox" disabled> Nesting &le; 4 levels</li>
+    <li><input type="checkbox" disabled> Correct folder placement</li>
+    <li><input type="checkbox" disabled> Data flow: caller &rarr; Services &rarr; Models</li>
+    <li><input type="checkbox" disabled> No business logic in routes</li>
+    <li><input type="checkbox" disabled> No DB queries outside <code>models/</code></li>
+    <li><input type="checkbox" disabled> Error handling on send (no silent swallow)</li>
+    <li><input type="checkbox" disabled> Consistent result shape</li>
+    <li><input type="checkbox" disabled> No <code>console.log</code> (Pino only)</li>
+    <li><input type="checkbox" disabled> No hardcoded secrets (Mailgun keys via config)</li>
+    <li><input type="checkbox" disabled> Input validated</li>
+    <li><input type="checkbox" disabled> No PII / message bodies logged</li>
+    <li><input type="checkbox" disabled> Naming conventions</li>
+    <li><input type="checkbox" disabled> No commented-out code</li>
+    <li><input type="checkbox" disabled> Transactions for multi-table writes</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Findings</h2>
+  <h3>Summary</h3>
+  <p>Sound, well-documented unit with a genuinely <strong>correct send path</strong> (try/catch around the HTTP call, ERROR logged, failure result returned — no silent swallow, dim 8 passes). Two real unit-specific problems dominate: <strong>recipient PII (email addresses) is written to a disk log on every send</strong>, and the only credential (an authenticated webhook URL) is read straight from <code>process.env</code> instead of <code>config/</code>. Note: the sender is an <strong>n8n webhook, not Mailgun</strong> — the worksheet/memory Mailgun framing is stale; there are no Mailgun keys anywhere in scope, so the dim-11 secrets concern is reframed below, not dismissed. <strong>Verdict: needs changes.</strong> Severity: <strong>3 must-fix · 4 concerns · 3 nitpicks</strong>.</p>
+
+  <h3>Must-fix</h3>
+  <ul>
+    <li><code>emailService.ts:207</code> &amp; <code>:224</code> — [dim 13 / logging] success and failure logs include <code>recipients: payload.recipients</code> — full recipient email addresses (PII) persisted to <code>logs/email.log</code> on every send. <code>:182</code> additionally logs <code>originalRecipients</code> (the pre-interception to/cc/bcc set). <em>Fix:</em> log <code>recipientCount</code> / a redacted or hashed identifier only; never raw addresses. The "Sending" log at <code>:186</code> already does this correctly — match it.</li>
+    <li><code>emailService.ts:18</code> — [dim 11] <code>WEBHOOK_URL = process.env.ALLORO_EMAIL_SERVICE_WEBHOOK</code> read directly from env at module load, bypassing <code>config/</code>. This URL is the authenticated send endpoint — the unit's one secret. <code>ADMIN_EMAILS</code> (<code>:19</code>) and <code>base.ts:23</code> <code>APP_URL</code>/<code>NODE_ENV</code> do the same. <em>Fix:</em> source all of these through a typed <code>config/</code> accessor; this module should not call <code>process.env</code> or <code>dotenv.config()</code> directly.</li>
+    <li><code>emailService.ts:224-226</code> — [dim 13] error log embeds <code>responseData: error.response?.data</code> (raw upstream webhook response) alongside recipient PII. Upstream bodies can contain echoed payload/PII and internal detail. <em>Fix:</em> log <code>error.response?.status</code> + a bounded <code>errorMessage</code> only; drop raw <code>responseData</code> from the persisted entry.</li>
+  </ul>
+
+  <h3>Concerns</h3>
+  <ul>
+    <li><code>emailService.ts:40-45</code> (<code>EmailResult</code>) — [dim 9] introduces a <em>third</em> result shape (<code>{ success, messageId?, error?, timestamp }</code>) distinct from both the canonical <code>{ success, data, error }</code> and the flat-dominant [systemic] pattern. Internal-only (never serialized to an HTTP response), so lower stakes, but it is its own contract. <em>Fix:</em> acceptable to keep as an internal type; document it as deliberate so it isn't mistaken for an endpoint shape.</li>
+    <li><code>templates/WelcomeCheckupEmail.ts:32,100</code> — [dim 9/14] <code>sendWelcomeCheckupEmail</code> returns bare <code>Promise&lt;boolean&gt;</code> (<code>return result.success</code>), diverging from every sibling send-helper that returns <code>EmailResult</code>. Callers lose the error string / messageId. <em>Fix:</em> return <code>EmailResult</code> like the others for a uniform helper contract.</li>
+    <li><code>emailService.ts:42-75</code> (<code>logEmail</code>) — [dim 10 systemic-adjacent] hand-rolled file logger using <code>fs.appendFileSync</code> (synchronous I/O on the send path) plus dev-only <code>console</code>. Reimplements logging instead of Pino. <em>Fix:</em> migrate to the project logger when Pino lands; at minimum avoid sync FS on the hot path. <strong>[systemic]</strong> (Pino not installed repo-wide).</li>
+    <li><code>emailInterceptor.ts:30-36,55-70</code> — [dim 8] <code>fetchOwnPublicIp</code> / <code>isLiveSender</code> fail <em>closed</em> into interception on any DNS/HTTP error (correct, safety-first) but the failure is swallowed via bare <code>catch {}</code> with no log — a misconfigured prod box silently rerouting all mail to <code>dave@getalloro.com</code> would be invisible. <em>Fix:</em> log a WARN on identity-check failure so a stuck-in-intercept prod box is detectable.</li>
+  </ul>
+
+  <h3>Nitpicks</h3>
+  <ul>
+    <li><code>templates/{UserSendInquiry,UserSendNotification,AdminSendErrorMessage,CheckupResultEmail}.ts</code> — [dim 15/DRY] identical <code>escapeHtml</code> defined 4× verbatim. <em>Fix:</em> hoist one copy into <code>base.ts</code> (or <code>utils/</code>) and import.</li>
+    <li><code>base.ts:23-27</code> — [dim 11] the <code>APP_URL</code> ternary returns the same <code>https://app.getalloro.com</code> in both branches, making the <code>NODE_ENV</code> check dead code; the inline comment even says so. <em>Fix:</em> collapse to <code>process.env.APP_URL || "https://app.getalloro.com"</code> (sourced via <code>config/</code>).</li>
+    <li><code>templates/AdminSendErrorMessage.ts:73-88</code> — [dim 13] renders <code>data.stackTrace</code> into the admin email body (escaped). Internal admin-only recipient + interceptor guard make this low-risk, but stack traces can carry secrets/paths. <em>Fix:</em> note it's admin-only by design; reconsider if recipients ever broaden.</li>
+  </ul>
+
+  <h3>Coverage</h3>
+  <p>Deep-read 8 (<code>emailService.ts</code>, <code>emailInterceptor.ts</code>, <code>templates/base.ts</code>, <code>types.ts</code>, <code>index.ts</code>, <code>templates/UserSendInquiry.ts</code>, <code>templates/WelcomeCheckupEmail.ts</code> + <code>templates/CheckupResultEmail.ts</code> send paths) · Grep-sampled 3 (<code>templates/AdminSendNotification.ts</code>, <code>templates/AdminSendErrorMessage.ts</code>, <code>templates/UserSendNotification.ts</code> — confirmed send-helper shape, <code>escapeHtml</code> duplication, <code>stackTrace</code> render, no <code>console</code>/DB/PII-log in template bodies) · Not examined 0. Scope-wide greps: <code>console.*</code> = 5 (all in <code>emailService.ts</code>) <strong>[systemic]</strong>; <code>db(</code>/<code>knex</code>/<code>.raw</code> = none (correct for this layer); inline secrets = none.</p>
+</section>
+</main>
+</body>
+</html>

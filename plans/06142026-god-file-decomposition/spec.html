@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>God-File Decomposition Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.86rem; margin-top: 8px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0; }
+    td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+    .p1 { font-weight: 800; }
+    .badge { display: inline-block; padding: 1px 8px; border: 1px solid var(--ink); border-radius: 999px; font-size: 0.7rem; font-weight: 800; }
+    a { color: var(--ink); }
+    .task-card dl { margin: 0; }
+    .task-card dl > div { padding: 6px 0; border-top: 1px solid var(--line); }
+    .task-card dl > div:first-of-type { border-top: 0; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Pending Execution</span>
+      </div>
+      <h1>God-File Decomposition</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06142026-god-file-decomposition</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 4</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The backend conventions audit (<code>plans/06142026-backend-conventions-audit</code>) confirmed <strong>128 files over the 300-line cap</strong> — ~17% of <code>src/</code>. The damage concentrates in a handful of genuine god-files: <code>AdminWebsitesController.ts</code> at <strong>5,567 lines / 166 handlers / ~10 domains</strong>, <code>routes/checkup.ts</code> at <strong>2,140 lines</strong> holding a scoring engine inside route handlers, and the <code>practice-ranking</code> + <code>user-website</code> clusters. These files are unmaintainable, untestable, and the highest-friction surface in the codebase: every change risks a 5,000-line merge conflict and there is no unit small enough to reason about.</p>
+      <p>The audit already ruled the <code>feature-services/</code> + <code>feature-utils/</code> nesting <strong>ACCEPTED</strong> and named <code>gbp-automation</code> the reference shape to copy. This plan executes that ruling: break the god-files down into thin controllers + feature-services, <strong>behavior-preserving</strong>, one extracted unit at a time. Now — because the files only get harder to split the longer they grow.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Behavior-preserving decomposition of the over-cap backend files into the <code>gbp-automation</code> shape: thin <code>*Controller.ts</code> (validate &rarr; call service &rarr; respond) + domain <code>feature-services/PascalCase*Service.ts</code> + <code>feature-utils/</code>, with DB access living in <code>models/</code> (already started by the upstream <code>db-access-into-models</code> phase). No endpoint, response body, status code, log line, or side-effect changes. The HTTP surface and the wire contract are frozen.</p>
+      <p><strong>Done:</strong> the headliner god-files (<code>AdminWebsitesController</code>, <code>checkup.ts</code>, <code>practice-ranking</code> controller + ranking-pipeline, <code>user-website</code> trio) and the long tail of over-cap feature-services are decomposed; each extracted unit is committed individually behind a green checkpoint (smoke harness + <code>npm run build</code> + eslint); the wire contract is unchanged, verified per unit against the captured smoke baseline.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+
+      <h3>Reference shape — copy this exactly</h3>
+      <p><strong><code>src/controllers/gbp-automation/</code> is the target shape</strong> (audit Check 05: <em>reference domain, 0 must-fix</em>). Structure to mirror for every decomposed domain:</p>
+      <ul>
+        <li><code>gbp-automation/GbpAutomationController.ts</code>, <code>GbpReviewManagementController.ts</code>, <code>AdminGbpAutomationController.ts</code> — thin controllers, one per sub-domain, each delegating to services.</li>
+        <li><code>gbp-automation/feature-services/Gbp*Service.ts</code> — ~28 PascalCase single-responsibility services (<code>GbpReviewReplyService</code>, <code>GbpLocalPostDraftService</code>, <code>GbpDeployPreviewService</code>, <code>GbpReadinessService</code>, …). One service = one cohesive concern.</li>
+        <li><code>gbp-automation/feature-utils/</code> — <code>GbpInputSanitizer.ts</code> (input validation/sanitize), <code>GbpAutomationError.ts</code> (typed errors), <code>controllerResponses.ts</code> (the repo's only real <code>{success,data,error}</code> + sanitizer standard), <code>googleApiErrors.ts</code>.</li>
+      </ul>
+      <p>This is the shape — thin controller, PascalCase feature-services, shared response/sanitizer/error utils. Decomposed domains land their new files into <em>their own</em> existing <code>feature-services/</code> folders (already present in <code>admin-websites</code>, <code>practice-ranking</code>, <code>agents</code>), not into <code>gbp-automation</code>.</p>
+
+      <h3>The god-files (verified line counts, 2026-06-14)</h3>
+      <table>
+        <thead><tr><th>File</th><th class="n">Lines</th><th>Shape problem</th></tr></thead>
+        <tbody>
+          <tr><td><code>src/controllers/admin-websites/AdminWebsitesController.ts</code></td><td class="n p1">5,567</td><td>166 handlers, ~10 domains, 28 inline <code>db()</code>, 4 inline <code>db.transaction</code></td></tr>
+          <tr><td><code>src/routes/checkup.ts</code></td><td class="n p1">2,140</td><td>scoring engine + economics tables + ~25 <code>db()</code> + AI orchestration in route handlers; <strong>possibly unwired</strong></td></tr>
+          <tr><td><code>src/controllers/practice-ranking/PracticeRankingController.ts</code></td><td class="n">1,948</td><td>controller runs the background pipeline + 33 inline <code>db()</code></td></tr>
+          <tr><td><code>src/controllers/practice-ranking/feature-services/service.ranking-pipeline.ts</code></td><td class="n">1,933</td><td><code>processLocationRanking</code> is one ~1,159-line function</td></tr>
+          <tr><td><code>src/controllers/admin-websites/feature-services/service.ai-command.ts</code></td><td class="n">2,184</td><td><code>analyzeBatch</code> ~453 lines; 106 <code>db()</code> sites</td></tr>
+          <tr><td><code>src/controllers/admin-websites/feature-services/service.identity-warmup.ts</code></td><td class="n">1,484</td><td><code>runIdentityWarmup</code> ~384 lines; 8 documented pipeline stages</td></tr>
+          <tr><td><code>src/controllers/practice-ranking/feature-services/service.location-competitor-onboarding.ts</code></td><td class="n">1,612</td><td>cohesive but over cap (discovery + curation + finalize)</td></tr>
+          <tr><td><code>src/controllers/user-website/UserWebsiteController.ts</code></td><td class="n">1,690</td><td>worst density; ~8 independent route groups in one file</td></tr>
+          <tr><td><code>src/controllers/user-website/user-website-services/shortcodeResolver.service.ts</code></td><td class="n">1,003</td><td>post-block / review-block / menu / conditional-engine in one file</td></tr>
+          <tr><td><code>src/controllers/agents/AgentsController.ts</code></td><td class="n">1,405</td><td>3 monthly-agent handlers still hold orchestration</td></tr>
+          <tr><td><code>src/controllers/agents/feature-services/service.agent-orchestrator.ts</code></td><td class="n">1,209</td><td><code>processMonthlyAgents</code> ~417 lines</td></tr>
+          <tr><td><code>src/controllers/pms/PmsController.ts</code></td><td class="n">1,193</td><td>~20 handlers; file-manager pair is the in-domain template</td></tr>
+          <tr><td colspan="3"><em>+ the long tail: ~20 more over-cap feature-services across admin-websites, practice-ranking, agents, pms, user-website (full inventory in the audit checks).</em></td></tr>
+        </tbody>
+      </table>
+
+      <h3>Per-unit audit worksheets (the source of truth for what is in each file)</h3>
+      <ul>
+        <li><code>plans/06142026-backend-conventions-audit/checks/01-admin-websites.html</code> — the 10 named domains in <code>AdminWebsitesController</code>; nesting verdict.</li>
+        <li><code>plans/06142026-backend-conventions-audit/checks/13-routes.html</code> — <code>checkup.ts</code> handler map, table list, and the <strong>"no consumer in <code>src/</code> — appears currently unwired"</strong> note.</li>
+        <li><code>plans/06142026-backend-conventions-audit/checks/02-practice-ranking.html</code> — <code>processLocationRanking</code> (~1,159 lines, L774-1933) phase breakdown.</li>
+        <li><code>plans/06142026-backend-conventions-audit/checks/07-user-website.html</code> — the 8 route groups + resolver split map.</li>
+        <li><code>plans/06142026-backend-conventions-audit/checks/04-agents.html</code> — the monthly-agent handlers and orchestrator god-functions.</li>
+        <li><code>plans/06142026-backend-conventions-audit/checks/06-pms.html</code> — the file-manager pair as the in-domain template.</li>
+        <li><code>plans/06142026-backend-conventions-audit/spec.html</code> — audit master + the ACCEPTED nesting ruling and <code>gbp-automation</code> reference call.</li>
+      </ul>
+
+      <h3>Extraction targets that already exist</h3>
+      <ul>
+        <li><code>src/models/website-builder/*</code> — 33 purpose-built models the admin-websites god-controller bypasses. DB extraction lands here (driven by the upstream <code>db-access-into-models</code> phase).</li>
+        <li>Each domain's own <code>feature-services/</code> folder already holds correct PascalCase or <code>service.*</code> peers — new extracted services join them, matching the folder's established prefix.</li>
+      </ul>
+
+      <h3>Dependencies — this phase runs LAST</h3>
+      <ul>
+        <li><strong>AFTER <code>plans/06142026-db-access-into-models</code></strong> — moving <code>db()</code> calls into <code>models/</code> already shrinks these files materially (the controller's 28 + ai-command's 106 + pipeline's inline queries collapse to model calls), so much of the line-count reduction is a side effect of that phase. Decomposing first would mean re-touching every file twice.</li>
+        <li><strong>AFTER <code>plans/06142026-backend-smoke-test-harness</code></strong> — the smoke harness is the only safety net for behavior-preserving extraction. Without a captured baseline of every god-file's endpoints, "behavior-preserving" is unverifiable. <strong>Do not start this phase until the harness exists and a green baseline is captured.</strong></li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/controllers/gbp-automation/GbpReviewManagementController.ts</code> + its <code>feature-services/GbpReviewReplyService.ts</code> — the closest existing analog for the thin-controller / feature-service split every task targets.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li><strong>Behavior-preserving only.</strong> Same routes, same response bodies/shape, same status codes, same logs, same side-effects. This is a move, not a rewrite.</li>
+            <li>Target the <code>gbp-automation</code> shape: thin controller &rarr; feature-service &rarr; model; shared <code>feature-utils/</code> for response/sanitize/error.</li>
+            <li><strong>Commit per extracted unit</strong> — one domain or one god-function per commit, never a batch.</li>
+            <li>After <em>each</em> extracted unit: run the smoke harness, <code>npm run build</code> (<code>tsc</code>), and eslint. All green before the next unit.</li>
+            <li>Match each domain folder's <em>existing</em> filename prefix (<code>service.*.ts</code> in admin-websites/practice-ranking/agents; <code>*.service.ts</code> in user-website; <code>pms-*.service.ts</code>/<code>Pms*Service.ts</code> in pms) — do not introduce a new naming style mid-phase.</li>
+            <li>Preserve existing exports as re-exports where any out-of-domain consumer imports them, so the blast radius stays inside the domain.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li><strong>Never mix decomposition with behavior changes.</strong> No bug fixes, no auth additions, no response-shape normalization, no logging swap, no validation middleware — those are separate plans. If a bug is found mid-extraction, note it and keep moving.</li>
+            <li>Do not move <code>db()</code> calls in this phase if the <code>db-access-into-models</code> phase already owns them — consume its model methods; do not duplicate the migration.</li>
+            <li>Do not introduce new dependencies, new patterns, or a new response envelope.</li>
+            <li>Do not refactor or "clean up" code outside the file being decomposed.</li>
+            <li>Do not touch the frontend, migrations, or seeds.</li>
+            <li>Do not batch multiple god-files into one commit or one checkpoint.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>The security holes (unauthed admin routes, IDOR, JWT fallback) the audit found — separate security-hotfix track, ahead of this one.</li>
+        <li>The 5 systemic breaches (no validation, no Pino, response shape, DB-outside-models beyond what the upstream phase moves, missing transactions) — their own plans.</li>
+        <li>Files already at or under 300 lines, and the <code>gbp-automation</code> reference domain itself.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 4 (Major Impact) — the largest blast radius in the remediation programme. <code>AdminWebsitesController</code> alone backs ~210 route registrations; <code>practice-ranking</code> and <code>agents</code> back paid LLM/Apify pipelines and scheduled jobs. A silent behavior change here breaks the website builder, the ranking pipeline, or the monthly agent runs. <strong>Do not auto-execute. Run last, behind the test net, one unit at a time.</strong></p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Silent behavior drift during extraction.</strong> A moved function can change closure capture, import order, or error-propagation timing. <em>Mitigation:</em> smoke harness baseline captured before the phase; re-run after every unit; diff the response. No green diff &rarr; revert the unit.</li>
+        <li><strong>Hidden cross-file consumers.</strong> A handler or helper may be imported from outside its domain. <em>Mitigation:</em> grep every moved symbol for importers before moving; keep a re-export shim at the old path for the duration of the phase if any out-of-domain importer exists.</li>
+        <li><strong><code>checkup.ts</code> may be dead weight.</strong> The audit found its <code>default export checkupRoutes</code> has no consumer in <code>src/</code> (confirmed: the only grep hit for "checkup" is the file itself). Refactoring 2,140 lines of possibly-unwired code is wasted effort. <em>Mitigation:</em> <strong>T1 gates it</strong> — verify wired vs dead before any extraction; if dead, the decision is delete-or-archive (escalate to owner), not refactor.</li>
+        <li><strong>Double-touch with the upstream DB phase.</strong> If decomposition starts before <code>db-access-into-models</code> finishes, every file is edited twice and conflicts compound. <em>Mitigation:</em> hard dependency — this phase does not start until that phase is merged.</li>
+        <li><strong>Giant-function extraction (<code>processLocationRanking</code> ~1,159 lines, <code>processMonthlyAgents</code> ~417, <code>analyzeBatch</code> ~453) is the highest-risk move</strong> — shared mutable state across phases. <em>Mitigation:</em> extract phase-helpers in place first (same file, behavior identical), checkpoint, <em>then</em> relocate to modules in a second commit. Two small safe steps, not one big one.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>routes/admin/websites.ts</code> (~210 registrations) &rarr; <code>AdminWebsitesController</code>; <code>routes/practiceRanking.ts</code> + scheduled ranking jobs &rarr; practice-ranking; <code>routes/agentsV2.ts</code> + monthly scheduler &rarr; agents; <code>routes/user/website.ts</code> &rarr; user-website; <code>routes/pms.ts</code> &rarr; pms; <code>frontend/DFYWebsite.tsx</code> consumes the shortcode resolver output. Every one of these is a live consumer.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>This is the right work but the wrong thing to rush.</strong> Run it dead last in the remediation sequence, never interleaved with the security-hotfix or the systemic-breach plans, and only once the smoke harness gives a green baseline. The single highest-value, lowest-risk first move is T1 (settle whether <code>checkup.ts</code> is even live) — it may delete 2,140 lines outright instead of refactoring them.</li>
+        <li>Recommended alternative to a big-bang per-file rewrite: extract-helpers-in-place &rarr; checkpoint &rarr; relocate-to-modules &rarr; checkpoint. Two commits per giant function, each independently revertible, beats one 1,159-line move you cannot bisect.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <p>Ordered by dependency and risk: gate the dead-code question first (T1), then the highest-friction god-file (T2), then per-domain. Each task = one domain; each <em>extracted unit</em> within a task is its own commit + checkpoint. Sequential by default — these files share too much surface to parallelize safely, and the checkpoint cost is per-unit regardless.</p>
+
+      <article class="task-card">
+        <h3>T1: Gate <code>checkup.ts</code> — verify wired vs dead before any work</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Confirm whether <code>routes/checkup.ts</code> (<code>default export checkupRoutes</code>) is mounted anywhere. Grep <code>src/</code> for <code>checkup</code> / <code>checkupRoutes</code> imports and <code>app.use</code> mounts. <strong>If dead:</strong> stop — escalate to owner with a delete-or-archive recommendation (do NOT refactor 2,140 lines of unwired code); this becomes a one-line removal, not a decomposition. <strong>If wired:</strong> proceed to T2-style extraction — pull the Business-Clarity scoring engine into a <code>CheckupScoringService</code>, the hardcoded <code>specialtyEconomics</code> / <code>CATEGORY_TO_VERTICAL</code> tables (L179-214) into <code>config/</code>, the ~25 inline <code>db()</code> calls into models, AI orchestration into a service, leaving thin routes (method + path + limiter + controller call). The <code>/analyze</code> handler (~1,090 lines, L153-1245) is the core unit.</dd></div>
+          <div><dt>Files</dt><dd><code>src/routes/checkup.ts</code>; (if wired) new <code>src/controllers/checkup/CheckupController.ts</code>, <code>checkup/feature-services/CheckupScoringService.ts</code>, <code>checkup/feature-services/CheckupAccountService.ts</code>, <code>config/checkupEconomics.ts</code>, models per table touched (<code>organizations</code>, <code>users</code>, <code>vocabulary_configs</code>, <code>weekly_ranking_snapshots</code>, <code>vendors</code>, <code>checkup_shares</code>, <code>checkup_invitations</code>)</dd></div>
+          <div><dt>Depends on</dt><dd>db-access-into-models + backend-smoke-test-harness (upstream). Blocks nothing — independent file.</dd></div>
+          <div><dt>Verify</dt><dd>Grep proves wired/dead. If dead: build + harness green after removal. If wired: smoke baseline for every checkup endpoint matches pre-extraction; <code>npm run build</code> + eslint green per unit.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Decompose <code>AdminWebsitesController.ts</code> (5,567 &rarr; thin per-domain controllers)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Split by the <strong>10 domains named in the file's own header doc-comment</strong> (Projects, Templates, Pages, HFCM, Posts, Menus, SEO, Reviews, AI-Command, Locations) into per-domain controller files. Push orchestration/business logic into the existing <code>feature-services/</code>. Relocate in-controller domain types/builders (<code>LocationsIdentityLocation</code> L4930, <code>buildLocationEntryFromGbpLocal</code> L4952, <code>buildBusinessFromGbpLocal</code> L4979) to the locations service. Consolidate the duplicated <code>parseIdentityJson</code> (controller L1326 + <code>service.post-importer.ts</code> L121) into <code>feature-utils/util.project-identity.ts</code>. <strong>One domain per commit + checkpoint</strong> (10 units). DB calls consume the models the upstream phase produced.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/AdminWebsitesController.ts</code> &rarr; <code>AdminWebsiteProjectsController.ts</code>, <code>…TemplatesController.ts</code>, <code>…PagesController.ts</code>, <code>…HfcmController.ts</code>, <code>…PostsController.ts</code>, <code>…MenusController.ts</code>, <code>…SeoController.ts</code>, <code>…ReviewsController.ts</code>, <code>…AiCommandController.ts</code>, <code>…LocationsController.ts</code>; <code>routes/admin/websites.ts</code> (re-point imports only — no auth/behavior change); <code>feature-utils/util.project-identity.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1 done/parked; upstream DB phase merged. Blocks T3 (proves the per-domain split pattern for the rest).</dd></div>
+          <div><dt>Verify</dt><dd>Per domain: smoke baseline for that domain's routes unchanged; <code>routes/admin/websites.ts</code> still registers the same paths to the same (re-pointed) handlers; <code>npm run build</code> + eslint green. No new file over 300 lines without a follow-up split note.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Decompose admin-websites over-cap feature-services</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Two-step per giant: extract phase-helpers in place &rarr; checkpoint &rarr; relocate to modules &rarr; checkpoint. <code>service.ai-command.ts</code> (2,184): split <code>analyzeBatch</code> (~453) and each <code>execute*</code> handler into own modules. <code>service.identity-warmup.ts</code> (1,484): the 8 documented pipeline stages (GBP scrape, multi-URL scrape, image analysis, logo host, archetype, distillation, assembly) each become a ≤50-line named module; <code>runIdentityWarmup</code> becomes a thin sequencer. Then the 800-line tier (generation-pipeline 890, post-importer 874, page-editor 841, project-manager 721, seo-generation 680, url-scrape-strategies 612, gsc-integration 582, clarity-integration 567) — extract over-50-line functions; <strong>one service per commit</strong>.</dd></div>
+          <div><dt>Files</dt><dd>all <code>src/controllers/admin-websites/feature-services/service.*.ts</code> over 300 lines (per Check 01 table); new sibling modules in the same folder, same <code>service.*</code> prefix</dd></div>
+          <div><dt>Depends on</dt><dd>T2 (controllers must call the post-split service surface). Blocks nothing downstream.</dd></div>
+          <div><dt>Verify</dt><dd>Per service: harness green for every endpoint that reaches it; <code>npm run build</code> + eslint green. Behavior diff is empty.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Decompose <code>practice-ranking</code> controller + ranking-pipeline</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>PracticeRankingController.ts</code> (1,948): move retry/batch orchestration and the <code>setImmediate</code> background-job runner (L744-785) into a feature-service; controller validates &rarr; calls service &rarr; formats. <code>service.ranking-pipeline.ts</code> (1,933): <strong>the highest-risk unit in the phase</strong> — <code>processLocationRanking</code> is one ~1,159-line function (L774-1933). Extract phase helpers in place first (resolve-competitors, enrich-velocity, run-llm, persist-result — several already exist as private helpers above it), checkpoint, then relocate. Then <code>service.location-competitor-onboarding.ts</code> (1,612, splits into discovery + curation + finalize), <code>service.places-competitor-discovery.ts</code> (1,016), <code>service.ranking-algorithm.ts</code> (770), <code>service.apify.ts</code> (709), <code>util.ranking-formatter.ts</code> (555), <code>service.ranking-llm.ts</code> (482). One unit per commit.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/practice-ranking/PracticeRankingController.ts</code>, <code>practice-ranking/feature-services/service.ranking-pipeline.ts</code> + the over-cap services above; <code>routes/practiceRanking.ts</code> (re-point only)</dd></div>
+          <div><dt>Depends on</dt><dd>T2 (pattern). Independent of T3.</dd></div>
+          <div><dt>Verify</dt><dd>Smoke baseline for the trigger/list/retry/delete endpoints unchanged; a full ranking run produces an identical record vs baseline (paid pipeline — verify on a sandbox org, not live). <code>npm run build</code> + eslint green per unit.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Decompose <code>user-website</code> trio (3 files / 3,269 lines)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>UserWebsiteController.ts</code> (1,690): split by the 8 independent route groups (forms/submissions, posts, post-types+taxonomy, menus, domain, GSC, analytics, pages/versions) into per-group controllers. <code>shortcodeResolver.service.ts</code> (1,003): split into post-block / review-block / menu / conditional-engine modules. <code>userWebsite.service.ts</code> (576): split into media / page-edit / version-history services. Use the <code>*.service.ts</code> / PascalCase-controller convention already in <code>user-website-services/</code>. One module per commit. <strong>Behavior-preserving only</strong> — the stored-XSS concern and the DFY-tier-in-service layering issue are out of scope (separate plans).</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/user-website/UserWebsiteController.ts</code>, <code>user-website/user-website-services/shortcodeResolver.service.ts</code>, <code>user-website/user-website-services/userWebsite.service.ts</code>; <code>routes/user/website.ts</code> (re-point only)</dd></div>
+          <div><dt>Depends on</dt><dd>T2 (pattern). Independent of T3/T4.</dd></div>
+          <div><dt>Verify</dt><dd>Resolver output for a representative page byte-identical to baseline (it feeds <code>frontend/DFYWebsite.tsx</code> + the separate public renderer); every route group's smoke baseline unchanged; <code>npm run build</code> + eslint green per unit.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Decompose <code>agents</code> controller + orchestrator</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>AgentsController.ts</code> (1,405): push the three fat handlers (<code>runMonthlyAgents</code> ~284, <code>runMonthlyAgentsTest</code> ~300, the disabled <code>runGbpOptimizer</code> ~245) into <code>service.*-executor</code> modules, mirroring the already-correct proofline/ranking split; controller reduces to validate &rarr; call executor &rarr; shape. <code>service.agent-orchestrator.ts</code> (1,209): extract <code>processMonthlyAgents</code> (~417) and <code>processClient</code> (~206) into per-step helpers (run-one-agent-with-retry, persist-results, build-RE-input) — phase-helpers-in-place first, then relocate. Then <code>service.task-creator.ts</code> (580), <code>service.governance-validator.ts</code> (439), <code>service.agent-input-builder.ts</code> (419), <code>service.ranking-executor.ts</code> (387). Note: <code>types/agent-output-schemas.ts</code> (431) is <strong>acceptable</strong> (pure declarations) — leave it. One unit per commit.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/agents/AgentsController.ts</code>, <code>agents/feature-services/service.agent-orchestrator.ts</code> + the over-cap services above</dd></div>
+          <div><dt>Depends on</dt><dd>T2 (pattern). Independent of T3/T4/T5.</dd></div>
+          <div><dt>Verify</dt><dd>Monthly/proofline/ranking run-trigger endpoints produce identical job effects vs baseline (sandbox org). <code>npm run build</code> + eslint green per unit.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: Decompose <code>PmsController.ts</code> + over-cap pms-services</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>PmsController.ts</code> (1,193): split by responsibility (upload, approval, automation/retry, column-mapping, paste) into separate controllers behind the existing route groups — <strong>the <code>PmsFileManagerController</code> + <code>PmsFileManagerService</code> pair is the in-domain template</strong> (thin controller, model-backed service). Move the inline <code>db.transaction</code> in <code>PmsController.ts</code> (L932-971) into an upload/job-creation service method (it duplicates <code>pms-upload.service.processManualEntry</code> L55-85). Then the over-cap services: <code>pms-paste-analysis.service.ts</code> (492), <code>pms-retry.service.ts</code> (490), <code>pms-paste-parse.service.ts</code> (437), <code>pms-upload.service.ts</code> (344), <code>pms-data.service.ts</code> (330). One unit per commit. <strong>Behavior-preserving</strong> — the restart data-loss bug and the self-HTTP-call smell are out of scope.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/pms/PmsController.ts</code>, <code>pms/pms-services/*.service.ts</code> over cap; <code>routes/pms.ts</code> (re-point only)</dd></div>
+          <div><dt>Depends on</dt><dd>T2 (pattern). Independent of T3-T6.</dd></div>
+          <div><dt>Verify</dt><dd>Each pms route group's smoke baseline unchanged; the manual-entry/upload transaction still writes both tables identically. <code>npm run build</code> + eslint green per unit.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T8: Long-tail over-cap sweep + final reconciliation</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Re-run the over-300 scan across <code>src/</code> after T1-T7 (the upstream DB phase + these extractions will have cleared most). For any remaining over-cap file not yet addressed, decompose it to the same shape, one file per commit + checkpoint. Produce the final tally: files over 300 before vs after. Remove any re-export shims left for the phase once grep confirms no remaining importer needs them.</dd></div>
+          <div><dt>Files</dt><dd>any remaining <code>src/**/*.ts</code> over 300 lines surfaced by the rescan</dd></div>
+          <div><dt>Depends on</dt><dd>T2-T7.</dd></div>
+          <div><dt>Verify</dt><dd>Final over-cap count recorded; full smoke harness green; <code>npm run build</code> + eslint green; no dead re-export shims remain.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>checkup.ts</code> resolved — wired-and-decomposed, or confirmed-dead-and-removed (T1; owner sign-off if removed)</li>
+        <li><input type="checkbox" disabled> <code>AdminWebsitesController.ts</code> split into per-domain controllers; each domain committed individually behind a green checkpoint</li>
+        <li><input type="checkbox" disabled> <code>practice-ranking</code> controller + <code>processLocationRanking</code> decomposed; full ranking run identical to baseline on a sandbox org</li>
+        <li><input type="checkbox" disabled> <code>user-website</code> trio split; shortcode resolver output byte-identical to baseline</li>
+        <li><input type="checkbox" disabled> <code>agents</code> + <code>pms</code> god-controllers and over-cap services decomposed</li>
+        <li><input type="checkbox" disabled> Long-tail rescan: over-300 count recorded before vs after; re-export shims removed</li>
+        <li><input type="checkbox" disabled> <code>npm run build</code> (<code>tsc</code>) — zero errors, run after every extracted unit</li>
+        <li><input type="checkbox" disabled> eslint — clean, run after every extracted unit</li>
+        <li><input type="checkbox" disabled> Smoke harness green per unit; captured wire contract unchanged across the whole phase</li>
+        <li><input type="checkbox" disabled> No behavior change shipped — no auth, response-shape, logging, validation, or bug-fix edits mixed into any extraction commit</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

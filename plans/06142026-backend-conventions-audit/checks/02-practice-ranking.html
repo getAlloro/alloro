@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>practice-ranking — Conventions Audit</title>
+<style>
+:root{color-scheme:light;--paper:#fff;--ink:#080808;--muted:#5f5f5f;--line:#d8d8d8;--soft:#f5f5f5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
+.shell{width:min(1000px,calc(100% - 32px));margin:0 auto;padding:40px 0}
+.hero,.card{border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.hero{border-color:var(--ink);padding:28px;margin-bottom:18px}
+.topline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.card{padding:24px;margin-top:16px}
+.eyebrow,dt{color:var(--muted);font-size:.74rem;font-weight:700;text-transform:uppercase}
+.eyebrow{margin:0}
+.pill{display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border:1px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper);font-size:.74rem;font-weight:800;text-transform:uppercase}
+h1,h2,h3,p{margin-top:0}
+h1{margin-bottom:18px;font-size:clamp(1.8rem,5vw,3rem);line-height:.98}
+h2{font-size:1.2rem}h3{font-size:.95rem}
+code{padding:.1rem .3rem;border:1px solid var(--line);border-radius:4px;background:var(--soft);font-size:.86em}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:0}
+.meta div{border:1px solid var(--line);border-radius:8px;padding:14px}
+dd{margin:4px 0 0;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:8px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);text-transform:uppercase;font-size:.7rem}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.over{font-weight:800}
+.checklist{list-style:none;padding:0;margin:0}
+.checklist li{display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line);font-size:.88rem}
+.note{border-left:3px solid var(--ink);padding:10px 14px;background:var(--soft);margin:0;font-size:.9rem}
+ul.flags{margin:0;padding-left:18px}ul.flags li{margin-bottom:7px}
+a{color:var(--ink)}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="hero">
+  <div class="topline"><p class="eyebrow">Backend Conventions Audit · Check 02 / 17 · <a href="../spec.html">index</a></p><span class="pill">Audited</span></div>
+  <h1>practice-ranking</h1>
+  <dl class="meta">
+    <div><dt>Scope</dt><dd><code>src/controllers/practice-ranking</code></dd></div>
+    <div><dt>Files</dt><dd>26</dd></div>
+    <div><dt>Lines</dt><dd>11,768</dd></div>
+    <div><dt>Over 300</dt><dd>9</dd></div>
+    <div><dt>Priority</dt><dd>P1</dd></div>
+  </dl>
+</header>
+
+<section class="card">
+  <h2>Scope</h2>
+  <p>Local-rank pipeline: competitor discovery (Places / SerpAPI), Apify scraping, ranking algorithm + LLM scoring, location/competitor onboarding.</p>
+  <table>
+    <thead><tr><th>File (rel. to scope)</th><th class="n">Lines</th></tr></thead>
+    <tbody>
+      <tr><td><code>PracticeRankingController.ts</code></td><td class="n over">1,948 ▲</td></tr>
+      <tr><td><code>feature-services/service.ranking-pipeline.ts</code></td><td class="n over">1,933 ▲</td></tr>
+      <tr><td><code>feature-services/service.location-competitor-onboarding.ts</code></td><td class="n over">1,612 ▲</td></tr>
+      <tr><td><code>feature-services/service.places-competitor-discovery.ts</code></td><td class="n over">1,016 ▲</td></tr>
+      <tr><td><code>feature-services/service.ranking-algorithm.ts</code></td><td class="n over">770 ▲</td></tr>
+      <tr><td><code>feature-services/service.apify.ts</code></td><td class="n over">709 ▲</td></tr>
+      <tr><td><code>feature-utils/util.ranking-formatter.ts</code></td><td class="n over">555 ▲</td></tr>
+      <tr><td><code>feature-services/service.ranking-llm.ts</code></td><td class="n over">482 ▲</td></tr>
+      <tr><td><code>feature-services/service.ranking-computation.ts</code></td><td class="n over">371 ▲</td></tr>
+      <tr><td colspan="2"><em>+ 17 more files ≤ 300 lines</em></td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:.78rem;color:var(--muted);margin:8px 0 0">▲ = over the 300-line cap.</p>
+</section>
+
+<section class="card">
+  <h2>Priority Signals (start here)</h2>
+  <ul class="flags">
+    <li>Three giants: <code>PracticeRankingController</code> 1,948 + <code>service.ranking-pipeline</code> 1,933 + <code>service.location-competitor-onboarding</code> 1,612. Controller likely holds pipeline logic that belongs in services.</li>
+    <li><strong>Heavy external-service surface</strong> (Apify, SerpAPI, Google Places, LLM). Audit failure-mode handling hard: retries, timeouts, partial failure, malformed responses (skill's Failure Mode Thinking).</li>
+    <li>Ranking math — check for magic numbers / thresholds that should be named constants in <code>config/</code>.</li>
+    <li>Same <code>feature-services/</code> + <code>feature-utils/</code> nesting as admin-websites — apply the T01 ruling.</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Audit Dimensions</h2>
+  <p>Run every file in scope against the 16-point contract (full detail in <a href="../spec.html#dimensions">spec.html</a>).</p>
+  <ul class="checklist">
+    <li><input type="checkbox" disabled> File &le; 300 lines</li>
+    <li><input type="checkbox" disabled> Functions &le; 50 lines</li>
+    <li><input type="checkbox" disabled> Nesting &le; 4 levels</li>
+    <li><input type="checkbox" disabled> Correct folder placement</li>
+    <li><input type="checkbox" disabled> Data flow: Routes &rarr; Controllers &rarr; Services &rarr; Models</li>
+    <li><input type="checkbox" disabled> No business logic in routes</li>
+    <li><input type="checkbox" disabled> No DB queries outside <code>models/</code></li>
+    <li><input type="checkbox" disabled> Error handling on every async call</li>
+    <li><input type="checkbox" disabled> <code>{ success, data, error }</code> response shape</li>
+    <li><input type="checkbox" disabled> No <code>console.log</code> (Pino only)</li>
+    <li><input type="checkbox" disabled> No hardcoded secrets / magic values</li>
+    <li><input type="checkbox" disabled> Input validated at route/middleware</li>
+    <li><input type="checkbox" disabled> Auth middleware on protected routes</li>
+    <li><input type="checkbox" disabled> Naming conventions</li>
+    <li><input type="checkbox" disabled> No commented-out code</li>
+    <li><input type="checkbox" disabled> Transactions for multi-table writes</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Findings</h2>
+
+  <h3>Summary</h3>
+  <p><strong>Verdict: needs changes</strong> — structurally heavy but the external-service plumbing is genuinely well-built. The headline problems are size/placement, not failure-handling. Nine files breach the 300-line cap (≈8,400 of 11,768 lines sit in the 3 giants), one function (<code>processLocationRanking</code>) is ~1,159 lines, and the controller does raw multi-join DB work and runs the whole background pipeline itself — a clear Routes&rarr;Controllers&rarr;Services&rarr;Models violation. Credit where due: the retry/resilience layer (<code>service.ranking-resilience.ts</code>), Apify poll-timeout, and the onboarding transaction are exemplary; ranking weights are already named constants, so the "magic ranking math" worry from Priority Signals is mostly a non-issue. Counts: <strong>4 must-fix, 5 concerns, 4 nitpicks</strong> (systemic items folded in, tagged).</p>
+
+  <h3>Must-fix</h3>
+  <ul class="flags">
+    <li><code>../../routes/practiceRanking.ts:40-62</code> — <strong>[dim 13] missing auth on ~17 endpoints.</strong> Only the v2 <code>/locations/:locationId/competitors*</code> routes (and <code>/photo</code>) carry <code>authenticateToken</code> + <code>rbacMiddleware</code> + <code>locationScopeMiddleware</code>. Everything else — <code>POST /trigger</code> (starts paid Apify/SerpAPI/LLM runs), <code>GET /list</code>, <code>/accounts</code>, <code>/latest</code>, <code>/results/:id</code>, <code>/history</code>, <code>DELETE /:id</code>, <code>DELETE /batch/:batchId</code>, <code>POST /retry/:id</code>, <code>/retry-batch/:batchId</code> — is wide open: unauthenticated callers can trigger cost-incurring batch runs, enumerate/read every org's rankings, and delete records. <em>Fix:</em> mount <code>authenticateToken</code> (+ rbac/role/scope as appropriate) on the v1 block; confirm whether a parent router already wraps these before downgrading severity, but as written in this file there is no gate.</li>
+    <li><code>PracticeRankingController.ts</code> (33 <code>db(</code> calls) — <strong>[dim 5/6/7] controller owns data-access + pipeline orchestration.</strong> Raw multi-join queries live inline: <code>listAccounts</code> (<code>db("google_connections as gc").join("organizations as o"...)</code> L464), <code>getLatestRankings</code> (4+ separate <code>db("practice_rankings")</code> / <code>db("locations")</code> reads, L1063-1173), <code>triggerBatchAnalysis</code> (L106 join), <code>retryRanking</code>/<code>retryBatch</code> read+update+re-update <code>practice_rankings</code> directly. The controller also runs the background job (<code>setImmediate</code> + inline status updates, L744-785) instead of delegating to a service. <em>Fix:</em> push every query into <code>PracticeRankingModel</code> / <code>LocationModel</code> / existing models; move retry/batch orchestration into a feature-service; controller should validate &rarr; call service &rarr; format. [systemic dim-7: <code>db</code> from <code>database/connection</code> used as <code>db("table")</code> in 8 scope files — controller 33, pipeline 10, competitor-cache 8, specialty-identifier 5, ranking-computation 4, onboarding 3, llm-webhook 2, source-resolver 1.]</li>
+    <li><code>feature-services/service.ranking-pipeline.ts:774-1933</code> — <strong>[dim 2] <code>processLocationRanking</code> is one ~1,159-line function</strong> (runs to EOF), the single hardest-to-maintain unit in scope. It sequences OAuth, GBP fetch, competitor resolution, Apify enrichment, SerpAPI, website audit, scoring, LLM, and persistence in one body. <em>Fix:</em> extract phase helpers (resolve-competitors, enrich-velocity, run-llm, persist-result) — several already exist as private helpers above it; the orchestrator should read as ~10 named steps. This file also breaches dim 1 at 1,933 lines.</li>
+    <li><code>feature-services/service.ranking-computation.ts:320-338</code> — <strong>[dim 15] committed commented-out code</strong>: a ~19-line dead <code>createNotification(...)</code> try/catch block left inline. <em>Fix:</em> delete it (git has history). Minor on its own but it's the only literal commented-out logic block found and it's exactly the hygiene rule.</li>
+  </ul>
+
+  <h3>Concerns</h3>
+  <ul class="flags">
+    <li><strong>[dim 1] 9 files over 300 lines</strong>: PracticeRankingController 1,948 · ranking-pipeline 1,933 · location-competitor-onboarding 1,612 · places-competitor-discovery 1,016 · ranking-algorithm 770 · apify 709 · util.ranking-formatter 555 · ranking-llm 482 · ranking-computation 371. The 3 giants are the priority; onboarding (1,612) is dense but cohesive (discovery + curation + finalize) and is a reasonable 2-3 file split.</li>
+    <li><code>util.ranking-formatter.ts:555</code> — <strong>[dim 4/1] a "util" doing 11 response-shaping functions.</strong> It's the controller's whole presentation layer (<code>formatTriggerResponse</code> … <code>formatTasksList</code>). Not pure utilities; closer to a view/serializer module. Acceptable under the feature-utils ruling, but the size flag stands and the naming oversells it as generic.</li>
+    <li><strong>[systemic dim-9] response shape.</strong> Controller has <strong>0</strong> nested <code>error:{code,message,details}</code> objects and <strong>0</strong> <code>data:null</code> — 56 flat <code>error:"CODE", message:"..."</code> literals + 18 ad-hoc <code>success:true</code> payloads. The contract's <code>{success,data,error}</code> shape is entirely absent here; flat shape dominates. Repo-wide, not unique to this unit.</li>
+    <li><strong>[dim 8] partial-failure semantics.</strong> The retry/resilience layer is good, but <code>processLocationRanking</code> swallows several enrichment failures into "not measured" / empty defaults (e.g. velocity, photos) without surfacing a degraded-result flag to the caller — a run can "succeed" on thin data. Worth an explicit partial-success marker on the ranking record. (Not a swallowed-error-with-no-log case; failures are logged.)</li>
+    <li><code>service.apify.ts:99-142</code> — <strong>[dim 8] poll loop hard-codes 300000ms / 5000ms.</strong> Timeout + termination exist (good), but <code>maxWaitMs=300000</code> and <code>pollInterval=5000</code> are inline literals. <em>Fix:</em> name them (and ideally source from config) so the Apify SLA is tunable without code edits.</li>
+  </ul>
+
+  <h3>Nitpicks</h3>
+  <ul class="flags">
+    <li><strong>[systemic dim-10] no Pino.</strong> Logging routes through <code>util.ranking-logger.ts</code>, a hand-rolled level gate over <code>console.log/warn/error</code>; <code>CURRENT_LOG_LEVEL = DEBUG</code> (L16) ships verbose. Plus 8 stray direct <code>console.*</code> across services (places-discovery, serpapi, apify, pipeline, competitor-cache, identifier, source-resolver, + 5 in the logger itself). Pino not installed repo-wide; noted, not per-file must-fix.</li>
+    <li><strong>[dim 11] secrets read outside <code>config/</code>.</strong> <code>process.env.SERPAPI_API_KEY</code>, <code>APIFY_TOKEN</code>, <code>GOOGLE_PLACES_API</code>, <code>COMPETITOR_CACHE_TTL_HOURS</code>, <code>IDENTIFIER_AGENT_WEBHOOK</code> accessed inline in service files. Keys are not hardcoded (good) but bypass the contract's <code>config/</code> indirection. Also note env-name inconsistency: <code>APIFY_TOKEN</code> vs const <code>APIFY_API_TOKEN</code>, <code>GOOGLE_PLACES_API</code> (not <code>..._KEY</code>).</li>
+    <li><strong>[dim 11] benchmark thresholds in-file.</strong> <code>service.ranking-algorithm.ts</code> normalization bands (<code>avg:150, excellent:400, max:800</code>, reviews-per-month, posts, photos) are a named object — fine — but live beside the algorithm rather than in <code>config/</code>. Tuning knobs that belong with the weights in config.</li>
+    <li><strong>[systemic dim-12] no <code>validation/</code> schemas.</strong> Input checks are hand-rolled in <code>feature-utils/util.ranking-validator.ts</code> + <code>util.competitor-validator.ts</code> (and <code>parseInt</code>/<code>isNaN</code> guards in the controller) rather than schema middleware from <code>validation/</code>. Functional, but off-pattern; repo-wide gap.</li>
+  </ul>
+
+  <h3>Coverage</h3>
+  <p>Deep-read 7 (PracticeRankingController, routes/practiceRanking.ts, ranking-pipeline head + processLocationRanking bounds, ranking-resilience full, ranking-algorithm weights/thresholds, ranking-logger full, location-competitor-onboarding transaction blocks) · Grep-sampled 19 (per-file <code>db(</code>/<code>console.*</code>/<code>knex</code>/<code>.raw</code> counts across all 26 files; env access, transactions, commented-out code, response-shape tally, nesting-depth probe, function-boundary scans on the giants) · Not exhaustively line-read 6 small services (≤205 lines: serpapi-maps, competitor-source-resolver, specialty-identifier, identifier, batch-status-tracker, website-audit-parser) and the LLM/guardrails/website-audit bodies — verified by grep for the systemic patterns and found nothing beyond what's reported; their size is within cap so deep line-reads were lower priority.</p>
+</section>
+</main>
+</body>
+</html>

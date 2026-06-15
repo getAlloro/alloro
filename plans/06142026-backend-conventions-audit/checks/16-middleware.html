@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>middleware — Conventions Audit</title>
+<style>
+:root{color-scheme:light;--paper:#fff;--ink:#080808;--muted:#5f5f5f;--line:#d8d8d8;--soft:#f5f5f5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
+.shell{width:min(1000px,calc(100% - 32px));margin:0 auto;padding:40px 0}
+.hero,.card{border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.hero{border-color:var(--ink);padding:28px;margin-bottom:18px}
+.topline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.card{padding:24px;margin-top:16px}
+.eyebrow,dt{color:var(--muted);font-size:.74rem;font-weight:700;text-transform:uppercase}
+.eyebrow{margin:0}
+.pill{display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border:1px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper);font-size:.74rem;font-weight:800;text-transform:uppercase}
+h1,h2,h3,p{margin-top:0}
+h1{margin-bottom:18px;font-size:clamp(1.8rem,5vw,3rem);line-height:.98}
+h2{font-size:1.2rem}h3{font-size:.95rem}
+code{padding:.1rem .3rem;border:1px solid var(--line);border-radius:4px;background:var(--soft);font-size:.86em}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:0}
+.meta div{border:1px solid var(--line);border-radius:8px;padding:14px}
+dd{margin:4px 0 0;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:8px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);text-transform:uppercase;font-size:.7rem}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.over{font-weight:800}
+.checklist{list-style:none;padding:0;margin:0}
+.checklist li{display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line);font-size:.88rem}
+.note{border-left:3px solid var(--ink);padding:10px 14px;background:var(--soft);margin:0;font-size:.9rem}
+ul.flags{margin:0;padding-left:18px}ul.flags li{margin-bottom:7px}
+a{color:var(--ink)}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="hero">
+  <div class="topline"><p class="eyebrow">Backend Conventions Audit · Check 16 / 17 · <a href="../spec.html">index</a></p><span class="pill">Audited</span></div>
+  <h1>middleware</h1>
+  <dl class="meta">
+    <div><dt>Scope</dt><dd><code>src/middleware</code></dd></div>
+    <div><dt>Files</dt><dd>8</dd></div>
+    <div><dt>Lines</dt><dd>815</dd></div>
+    <div><dt>Over 300</dt><dd>0</dd></div>
+    <div><dt>Priority</dt><dd>P2 (security)</dd></div>
+  </dl>
+</header>
+
+<section class="card">
+  <h2>Scope</h2>
+  <p>Express middleware: auth, RBAC, rate limiting, billing gate, token refresh, CORS. <strong>Zero size offenders — the cleanest layer. Audit by content / security, not size.</strong></p>
+  <table>
+    <thead><tr><th>File (rel. to scope)</th><th class="n">Lines</th></tr></thead>
+    <tbody>
+      <tr><td><code>rbac.ts</code></td><td class="n">171</td></tr>
+      <tr><td><code>publicRateLimiter.ts</code></td><td class="n">163</td></tr>
+      <tr><td><code>tokenRefresh.ts</code></td><td class="n">162</td></tr>
+      <tr><td><code>billingGate.ts</code></td><td class="n">116</td></tr>
+      <tr><td><code>corsCustomDomains.ts</code></td><td class="n">78</td></tr>
+      <tr><td><code>auth.ts</code></td><td class="n">49</td></tr>
+      <tr><td><code>superAdmin.ts</code></td><td class="n">38</td></tr>
+      <tr><td><code>scraperAuth.ts</code></td><td class="n">38</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="card">
+  <h2>Priority Signals (start here)</h2>
+  <ul class="flags">
+    <li><code>auth.ts</code> + <code>rbac.ts</code> + <code>superAdmin.ts</code> — verify auth is enforced on protected routes and role boundaries are checked server-side (never trust the client). This is where dimension 13 lives.</li>
+    <li><code>publicRateLimiter.ts</code> — confirm rate limiting is actually applied to all public endpoints (login, signup, password reset, public API), not just defined.</li>
+    <li><code>tokenRefresh.ts</code> — token handling: httpOnly cookies, short expiry, no token values logged.</li>
+    <li><code>corsCustomDomains.ts</code> — no wildcard <code>*</code> in production; explicit allowlist.</li>
+    <li><code>scraperAuth.ts</code> — confirm the scraper auth path can't be used to bypass normal auth.</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Audit Dimensions</h2>
+  <p>Run every file in scope against the 16-point contract (full detail in <a href="../spec.html#dimensions">spec.html</a>). Dimensions 12 (validation/sanitization) and 13 (auth/role enforcement) are primary.</p>
+  <ul class="checklist">
+    <li><input type="checkbox" disabled> File &le; 300 lines</li>
+    <li><input type="checkbox" disabled> Functions &le; 50 lines</li>
+    <li><input type="checkbox" disabled> Nesting &le; 4 levels</li>
+    <li><input type="checkbox" disabled> Correct folder placement</li>
+    <li><input type="checkbox" disabled> Single responsibility per middleware</li>
+    <li><input type="checkbox" disabled> No business logic beyond gate concerns</li>
+    <li><input type="checkbox" disabled> No DB queries outside <code>models/</code></li>
+    <li><input type="checkbox" disabled> Error handling + correct status codes (401/403/429)</li>
+    <li><input type="checkbox" disabled> <code>{ success, data, error }</code> error shape on rejection</li>
+    <li><input type="checkbox" disabled> No <code>console.log</code> (Pino only)</li>
+    <li><input type="checkbox" disabled> No hardcoded secrets / magic values</li>
+    <li><input type="checkbox" disabled> Rate limiting on all public endpoints</li>
+    <li><input type="checkbox" disabled> Auth + role boundaries enforced server-side</li>
+    <li><input type="checkbox" disabled> No token / secret values logged</li>
+    <li><input type="checkbox" disabled> CORS explicit (no wildcard in prod)</li>
+    <li><input type="checkbox" disabled> No commented-out code</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Findings</h2>
+  <h3>Summary</h3>
+  <p><strong>Verdict: the auth guards are sound — the wave-1 route auth-hole fix is validly "apply them at the route level."</strong> Each guard authenticates / authorizes correctly server-side: <code>authenticateToken</code> verifies the JWT and rejects 401/403; <code>rbacMiddleware</code> reads the role from <code>organization_users</code> (DB, not client) and <code>requireRole</code> enforces an allowlist with 401/403; <code>superAdminMiddleware</code> checks an env email allowlist; <code>validateScraperKey</code> checks an env key on an isolated route namespace and cannot bypass normal auth; CORS is a strict allowlist with origin reflection (no wildcard). They are correctly exported and already consumed by many routes, so remediation is purely "mount the existing guards on the unprotected admin routes." <strong>Severity counts: 2 must-fix · 4 concerns · 4 nitpicks.</strong> The two must-fixes are genuine security gaps, not style: a hardcoded JWT-secret fallback that fails OPEN, and the absence of rate limiting on the actual auth attack surface (login / OTP / register / password reset) despite the package being wired elsewhere.</p>
+
+  <h3>Must-fix</h3>
+  <ul>
+    <li><code>auth.ts:13</code> &amp; <code>billingGate.ts:69</code> — [dim 11] hardcoded JWT-secret fallback (<code>process.env.JWT_SECRET || "dev-secret-key-change-in-prod"</code>, and <code>|| "secret"</code> in billingGate). If prod ever boots without <code>JWT_SECRET</code> set, <em>every forged token validates</em> — this is a fail-open auth bypass, not a dev convenience. Same literal repeated in 4 other files (<code>AuthController.ts:15</code>, <code>PilotSessionService.ts:12</code>, <code>security-utils.ts:4</code>, <code>service.jwt-management.ts:14</code>) so the values also drift (<code>billingGate</code> uses <code>"secret"</code> while everyone else uses <code>"dev-secret-key-change-in-prod"</code> — a token signed by one is rejected by the other). <em>Fix:</em> read the secret once from <code>config/</code>, throw at startup if unset (fail-closed), delete every inline fallback; align billingGate to the same source so the verify secret matches the sign secret.</li>
+    <li><code>publicRateLimiter.ts</code> (whole file) — [dim 12 / security] the limiters are <em>defined</em> but the real auth attack surface has <strong>zero</strong> rate limiting: <code>routes/auth-otp.ts</code> (login / OTP issue+verify), <code>routes/auth-password.ts</code> (password reset), and <code>routes/auth.ts</code> (register/login) apply no limiter at all. express-rate-limit is wired only to Places/checkup/leadgen/telemetry. This directly violates the SKILL security rule "Failed auth attempts are rate-limited" and "Rate limiting on all public-facing endpoints (login, signup, password reset)." <em>Fix:</em> add a strict auth limiter (e.g. per-IP, low <code>max</code>, with the standard <code>{ success:false, error }</code> body already used here) and mount it on the OTP-issue, OTP-verify, register, and password-reset routes.</li>
+  </ul>
+
+  <h3>Concerns</h3>
+  <ul>
+    <li><code>publicRateLimiter.ts:49,57,41</code> — [dim 15-adjacent / dead code] three exported limiters have <strong>zero consumers</strong>: <code>referralFormLimiter</code>, <code>gbpAuthLimiter</code>, <code>checkupCompareLimiter</code>. Either the referral form / GBP-OAuth / compare endpoints are silently unprotected (the file's own header claims it guards "Referral form abuse" and "GBP OAuth enumeration"), or these are dead exports. <em>Fix:</em> wire them to their intended routes, or delete them; resolve the gap the header advertises.</li>
+    <li><code>publicRateLimiter.ts:108-116</code> — [dim 5 / failure-mode] scraper detection uses a module-level in-memory <code>Map</code> + <code>setInterval</code>. Per-instance state: counts don't aggregate across PM2/cluster workers, so the "5 in 5 min" threshold is effectively N× looser under multiple instances, and the <code>setInterval</code> isn't cleared on shutdown. Also mixes a second responsibility (behavioral logging) into a rate-limit file. <em>Fix:</em> note as a known single-instance limitation; if multi-instance, back it with Redis (consistent with the shared-Redis note in repo memory).</li>
+    <li><code>rbac.ts:42-48</code> — [dim 13] users with no <code>organization_users</code> row fall through to <code>req.userRole = "viewer"</code> and <code>next()</code> rather than 403. Combined with admin routes that are missing <code>requireRole</code> (the wave-1 hole), an orgless authenticated user reaches handlers as a viewer. The guard itself is correct, but the <em>default-allow</em> posture means "apply the guards" must also include <code>requireRole(...)</code>, not just <code>rbacMiddleware</code>. <em>Fix:</em> confirm every protected admin route layers <code>requireRole</code>; consider 403 for orgless on org-scoped routes.</li>
+    <li><code>scraperAuth.ts:30</code> — [dim 13] API-key comparison uses plain <code>!==</code> (not constant-time). Low practical risk over the network but it is a secret comparison. <em>Fix:</em> use <code>crypto.timingSafeEqual</code> on equal-length buffers.</li>
+  </ul>
+
+  <h3>Nitpicks</h3>
+  <ul>
+    <li>[systemic] [dim 9] error responses across this layer are flat (<code>{ error }</code> / <code>{ error, message, timestamp }</code> / <code>{ success, error }</code> / <code>{ success, errorCode, message }</code>) — none use the contract <code>{ success, data, error:{ code, message, details } }</code>. Four different ad-hoc shapes within eight files (<code>auth.ts</code>, <code>rbac.ts</code>, <code>tokenRefresh.ts</code>, <code>billingGate.ts</code>, <code>scraperAuth.ts</code>). Tagged systemic; worth one consistent rejection shape.</li>
+    <li>[systemic] [dim 10] 12 <code>console.*</code> calls across 6 files (Pino not installed). <code>tokenRefresh.ts:77,97,109</code> log on every Google-API request (noisy info-level). Tagged systemic.</li>
+    <li>[systemic] [dim 7] DB access outside <code>models/</code>: raw <code>db()</code> in <code>rbac.ts:37</code>, <code>tokenRefresh.ts:50,91</code>, <code>billingGate.ts:82,92</code>, <code>corsCustomDomains.ts:25</code>, <code>publicRateLimiter.ts:147</code>. Middleware legitimately needs lookups, but these inline queries (org-role lookup, google_connections read/update) belong behind model functions. Tagged systemic.</li>
+    <li><code>billingGate.ts:101</code> &amp; <code>rbac.ts:37</code> — [dim 11] magic string literals <code>"inactive"</code> (subscription status) and the inline role-priority CASE belong in named constants in <code>config/</code>. <code>billingGate.ts:29-43</code> exempt-prefix list is also a maintenance-sensitive security allowlist that would read better as a named, documented constant.</li>
+  </ul>
+
+  <h3>Coverage</h3>
+  <p>Deep-read 8 (all files in scope, read fully) · Grep-sampled across <code>src/routes/</code>, <code>src/controllers/auth*/</code>, and <code>src/index.ts</code> to verify guard exports/consumers, rate-limiter wiring, JWT-secret fallbacks, and CORS allowlist (no wildcard confirmed at <code>index.ts:107-119</code>).</p>
+</section>
+</main>
+</body>
+</html>
