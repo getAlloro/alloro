@@ -14,6 +14,7 @@ import Editor from "@monaco-editor/react";
 import type { Section } from "../../api/templates";
 import { serializeSectionsJs, parseSectionsJs } from "../../utils/templateRenderer";
 import { beautifySections } from "../../utils/htmlBeautify";
+import { logger } from "../../lib/logger";
 
 interface SectionsEditorProps {
   sections: Section[];
@@ -180,7 +181,7 @@ export default function SectionsEditor({
         setRawContent(serializeSectionsJs(beautified));
       }
     } catch (err) {
-      console.error("Beautify failed:", err);
+      logger.error("Beautify failed:", err);
     } finally {
       setIsBeautifying(false);
     }

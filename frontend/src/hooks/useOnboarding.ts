@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import onboarding from "../api/onboarding";
 import { createCheckoutSession } from "../api/billing";
+import { logger } from "../lib/logger";
 
 interface GBPSelection {
   accountId: string;
@@ -56,7 +57,7 @@ export const useOnboarding = (initialStep: number = 1) => {
       throw new Error(saveResponse.errorMessage || "Failed to save GBP selection");
     }
 
-    console.log("[Onboarding] GBP selections saved:", locations.length, "locations");
+    logger.log("[Onboarding] GBP selections saved:", locations.length, "locations");
   }, []);
 
   /**
@@ -81,13 +82,13 @@ export const useOnboarding = (initialStep: number = 1) => {
       });
 
       if (response.success) {
-        console.log("[Onboarding] Profile saved, org:", response.organizationId);
+        logger.log("[Onboarding] Profile saved, org:", response.organizationId);
         return response.organizationId;
       } else {
         throw new Error(response.errorMessage || response.message || "Failed to save profile");
       }
     } catch (err: any) {
-      console.error("[Onboarding] Error saving profile:", err);
+      logger.error("[Onboarding] Error saving profile:", err);
       setError(err.message || "Failed to save profile");
       return null;
     } finally {
@@ -107,13 +108,13 @@ export const useOnboarding = (initialStep: number = 1) => {
       const response = await onboarding.completeOnboarding();
 
       if (response.success) {
-        console.log("[Onboarding] Successfully completed!");
+        logger.log("[Onboarding] Successfully completed!");
         return true;
       } else {
         throw new Error(response.message || "Failed to complete onboarding");
       }
     } catch (err: any) {
-      console.error("[Onboarding] Error completing onboarding:", err);
+      logger.error("[Onboarding] Error completing onboarding:", err);
       setError(err.message || "Failed to complete onboarding");
       return false;
     } finally {
@@ -134,7 +135,7 @@ export const useOnboarding = (initialStep: number = 1) => {
       const response = await createCheckoutSession("DFY", true);
 
       if (response.success && response.url) {
-        console.log("[Onboarding] Redirecting to Stripe Checkout");
+        logger.log("[Onboarding] Redirecting to Stripe Checkout");
         window.location.href = response.url;
       } else {
         throw new Error(
@@ -142,7 +143,7 @@ export const useOnboarding = (initialStep: number = 1) => {
         );
       }
     } catch (err: any) {
-      console.error("[Onboarding] Checkout error:", err);
+      logger.error("[Onboarding] Checkout error:", err);
       setError(err.message || "Failed to start checkout");
       setIsCheckoutProcessing(false);
     }
@@ -155,7 +156,7 @@ export const useOnboarding = (initialStep: number = 1) => {
   const nextStep = useCallback(() => {
     if (currentStep < totalSteps) {
       setCurrentStep((prev) => prev + 1);
-      console.log("[Onboarding] Moving to step", currentStep + 1);
+      logger.log("[Onboarding] Moving to step", currentStep + 1);
     }
   }, [currentStep, totalSteps]);
 
@@ -165,7 +166,7 @@ export const useOnboarding = (initialStep: number = 1) => {
   const previousStep = useCallback(() => {
     if (currentStep > 1) {
       setCurrentStep((prev) => prev - 1);
-      console.log("[Onboarding] Moving back to step", currentStep - 1);
+      logger.log("[Onboarding] Moving back to step", currentStep - 1);
     }
   }, [currentStep]);
 
@@ -180,7 +181,7 @@ export const useOnboarding = (initialStep: number = 1) => {
     setDomainName("");
     setSelectedGbpLocations([]);
     setError(null);
-    console.log("[Onboarding] Reset");
+    logger.log("[Onboarding] Reset");
   }, []);
 
   return {

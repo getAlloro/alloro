@@ -45,6 +45,7 @@ import type {
 } from "../../api/websites";
 import { toast } from "react-hot-toast";
 import { adminFetch } from "../../api";
+import { logger } from "../../lib/logger";
 
 interface AiCommandTabProps {
   projectId: string;
@@ -233,7 +234,7 @@ export default function AiCommandTab({ projectId, pages = [], onExecutionComplet
       refreshBatchList();
     } catch (err) {
       toast.error("Failed to start analysis");
-      console.error(err);
+      logger.error(err);
     } finally {
       setIsSubmitting(false);
     }
@@ -376,7 +377,7 @@ export default function AiCommandTab({ projectId, pages = [], onExecutionComplet
       refreshBatchList();
     } catch (err) {
       toast.error(`Failed to start ${pendingToolType === "ui_checker" ? "UI Check" : "Link Check"}`);
-      console.error(err);
+      logger.error(err);
     } finally {
       setIsSubmitting(false);
     }

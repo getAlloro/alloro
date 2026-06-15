@@ -1,5 +1,6 @@
 import axios, { type ResponseType } from "axios";
 import { getPriorityItem } from "../hooks/useLocalStorage";
+import { logger } from "../lib/logger";
 
 // Prefer environment-configured API base; default to relative "/api" so Vite dev proxy handles CORS in development.
 // Define VITE_API_URL in .env for deployments that need an absolute URL.
@@ -74,7 +75,7 @@ export async function apiGet({
     });
     return data;
   } catch (err: any) {
-    console.log(err);
+    logger.log(err);
     if (err?.response?.data) {
       return err.response.data;
     }
@@ -132,7 +133,7 @@ export async function apiPost({
     });
     return data;
   } catch (err: any) {
-    console.log(err);
+    logger.log(err);
     if (err?.response?.data) {
       return err.response.data;
     }
@@ -175,7 +176,7 @@ export async function apiPatch({
     });
     return data;
   } catch (err: any) {
-    console.log(err);
+    logger.log(err);
     if (err?.response?.data) {
       return err.response.data;
     }
@@ -218,7 +219,7 @@ export async function apiPut({
     });
     return data;
   } catch (err: any) {
-    console.log(err);
+    logger.log(err);
     if (err?.response?.data) {
       return err.response.data;
     }
@@ -237,7 +238,7 @@ export async function apiDelete({ path }: { path: string }) {
 
     return data;
   } catch (err: any) {
-    console.log(err);
+    logger.log(err);
     if (err?.response?.data) {
       return err.response.data;
     }

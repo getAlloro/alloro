@@ -17,6 +17,7 @@ import {
   type WizardStep,
   type WizardPage,
 } from "../components/onboarding-wizard/wizardConfig";
+import { logger } from "../lib/logger";
 
 interface OnboardingWizardContextType {
   /** Whether the wizard is currently active */
@@ -106,7 +107,7 @@ export function OnboardingWizardProvider({ children }: { children: ReactNode }) 
           }
         }
       } catch (error) {
-        console.error("Failed to check wizard status:", error);
+        logger.error("Failed to check wizard status:", error);
       } finally {
         setIsLoadingWizardStatus(false);
       }
@@ -165,7 +166,7 @@ export function OnboardingWizardProvider({ children }: { children: ReactNode }) 
       // Navigate to dashboard after skipping
       navigate("/dashboard");
     } catch (error) {
-      console.error("Failed to skip wizard:", error);
+      logger.error("Failed to skip wizard:", error);
     }
   }, [navigate]);
 
@@ -177,7 +178,7 @@ export function OnboardingWizardProvider({ children }: { children: ReactNode }) 
       // Navigate to dashboard after completing
       navigate("/dashboard");
     } catch (error) {
-      console.error("Failed to complete wizard:", error);
+      logger.error("Failed to complete wizard:", error);
     }
   }, [navigate]);
 
@@ -194,7 +195,7 @@ export function OnboardingWizardProvider({ children }: { children: ReactNode }) 
         navigate(getPageRoute(firstStep.page));
       }
     } catch (error) {
-      console.error("Failed to restart wizard:", error);
+      logger.error("Failed to restart wizard:", error);
     }
   }, [navigate]);
 
@@ -217,7 +218,7 @@ export function OnboardingWizardProvider({ children }: { children: ReactNode }) 
       const response = await onboarding.getWizardStatus();
 
       if (!response || response.error) {
-        console.error("[WizardContext] API error:", response?.error);
+        logger.error("[WizardContext] API error:", response?.error);
         return;
       }
 
@@ -234,7 +235,7 @@ export function OnboardingWizardProvider({ children }: { children: ReactNode }) 
         }
       }
     } catch (error) {
-      console.error("Failed to recheck wizard status:", error);
+      logger.error("Failed to recheck wizard status:", error);
     } finally {
       setIsLoadingWizardStatus(false);
     }

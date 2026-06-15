@@ -1,4 +1,5 @@
 import { apiGet, apiPost, apiPut } from "./index";
+import { logger } from "../lib/logger";
 
 const baseurl = "/onboarding";
 
@@ -11,7 +12,7 @@ async function getOnboardingStatus() {
       path: baseurl + `/status`,
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       successful: false,
       errorMessage: "Technical error, contact developer",
@@ -28,7 +29,7 @@ async function getAvailableProperties() {
       path: baseurl + `/available-properties`,
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       successful: false,
       errorMessage: "Technical error, contact developer",
@@ -56,7 +57,7 @@ async function saveProfile(data: {
       passedData: data,
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       success: false,
       errorMessage: "Technical error, contact developer",
@@ -74,7 +75,7 @@ async function completeOnboarding() {
       passedData: {},
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       success: false,
       errorMessage: "Technical error, contact developer",
@@ -101,7 +102,7 @@ async function saveProperties(data: {
       passedData: data,
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       successful: false,
       errorMessage: "Technical error, contact developer",
@@ -118,7 +119,7 @@ async function getWizardStatus() {
       path: baseurl + `/wizard/status`,
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       successful: false,
       errorMessage: "Technical error, contact developer",
@@ -136,7 +137,7 @@ async function completeWizard() {
       passedData: {},
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       successful: false,
       errorMessage: "Technical error, contact developer",
@@ -154,7 +155,7 @@ async function restartWizard() {
       passedData: {},
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       successful: false,
       errorMessage: "Technical error, contact developer",
@@ -171,7 +172,7 @@ async function getSetupProgress() {
       path: baseurl + `/setup-progress`,
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       success: false,
       errorMessage: "Technical error, contact developer",
@@ -194,7 +195,7 @@ async function updateSetupProgress(progress: {
       passedData: { progress },
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       success: false,
       errorMessage: "Technical error, contact developer",
@@ -211,7 +212,7 @@ async function getAvailableGBP() {
       path: baseurl + `/available-gbp`,
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       success: false,
       errorMessage: "Technical error, contact developer",
@@ -229,7 +230,7 @@ async function saveGBP(data: Array<{ accountId: string; locationId: string; disp
       passedData: { data },
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       success: false,
       errorMessage: "Technical error, contact developer",
@@ -247,7 +248,7 @@ async function getGBPWebsite(accountId: string, locationId: string) {
       passedData: { accountId, locationId },
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       success: false,
       errorMessage: "Technical error, contact developer",
@@ -265,7 +266,7 @@ async function checkDomain(domain: string) {
       passedData: { domain },
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       success: false,
       errorMessage: "Technical error, contact developer",

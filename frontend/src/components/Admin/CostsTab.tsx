@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { DollarSign, Loader2, ChevronDown, RefreshCw } from "lucide-react";
 import { fetchProjectCosts } from "../../api/websites";
 import type { AiCostEvent, ProjectCostsResponse } from "../../api/websites";
+import { logger } from "../../lib/logger";
 
 interface CostsTabProps {
   projectId: string;
@@ -147,7 +148,7 @@ export default function CostsTab({ projectId, isGenerating }: CostsTabProps) {
       setData(response.data);
       setError(null);
     } catch (err) {
-      console.error("[CostsTab] Failed to load:", err);
+      logger.error("[CostsTab] Failed to load:", err);
       setError(err instanceof Error ? err.message : "Failed to load costs");
     } finally {
       setLoading(false);

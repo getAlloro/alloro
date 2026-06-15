@@ -43,6 +43,7 @@ import {
   chevronVariants,
 } from "../../lib/animations";
 import { useConfirm } from "../../components/ui/ConfirmModal";
+import { logger } from "../../lib/logger";
 
 // GBP Location from the API
 interface GbpLocation {
@@ -723,7 +724,7 @@ export function PracticeRanking() {
         fetchJobs();
       }
     } catch (error) {
-      console.error("Failed to fetch job status:", error);
+      logger.error("Failed to fetch job status:", error);
     }
   };
 
@@ -750,7 +751,7 @@ export function PracticeRanking() {
         fetchJobs();
       }
     } catch (error) {
-      console.error("Failed to fetch batch status:", error);
+      logger.error("Failed to fetch batch status:", error);
     }
   };
 
@@ -783,14 +784,14 @@ export function PracticeRanking() {
       );
 
       if (!response.ok) {
-        console.error("Failed to fetch ranking tasks");
+        logger.error("Failed to fetch ranking tasks");
         return;
       }
 
       const data = await response.json();
       setRankingTasks((prev) => ({ ...prev, [practiceRankingId]: data.tasks }));
     } catch (error) {
-      console.error("Error fetching ranking tasks:", error);
+      logger.error("Error fetching ranking tasks:", error);
     }
   };
 

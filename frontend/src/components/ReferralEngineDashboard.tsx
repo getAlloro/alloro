@@ -24,6 +24,7 @@ import {
   useIsWizardActive,
   useWizardDemoData,
 } from "../contexts/OnboardingWizardContext";
+import { logger } from "../lib/logger";
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -264,7 +265,7 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
           setFetchedData(null);
         }
       } catch (err: unknown) {
-        console.error("Failed to fetch referral engine data:", err);
+        logger.error("Failed to fetch referral engine data:", err);
         setError(
           err instanceof Error
             ? err.message
@@ -343,7 +344,7 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
         throw new Error(result.error || "Upload failed");
       }
     } catch (err) {
-      console.error("PMS Upload error:", err);
+      logger.error("PMS Upload error:", err);
       setUploadStatus("error");
       setUploadMessage(
         err instanceof Error ? err.message : "Upload failed. Please try again."

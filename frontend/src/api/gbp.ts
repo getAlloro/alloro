@@ -1,4 +1,5 @@
 import { apiPost, apiGet } from "./index";
+import { logger } from "../lib/logger";
 
 const baseurl = "/gbp";
 
@@ -9,7 +10,7 @@ async function getKeyData(accountId: string, locationId: string) {
       passedData: { accountId, locationId },
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       successful: false,
       errorMessage: "Technical error, contact developer",
@@ -40,7 +41,7 @@ async function getAIReadyData(
       passedData,
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       successful: false,
       errorMessage: "Technical error, contact developer",
@@ -54,7 +55,7 @@ async function getAccounts() {
       path: baseurl + `/diag/accounts`,
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       successful: false,
       errorMessage: "Technical error, contact developer",
@@ -71,7 +72,7 @@ async function getLocations(accountName?: string) {
       path: baseurl + `/diag/locations${queryParam}`,
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       successful: false,
       errorMessage: "Technical error, contact developer",

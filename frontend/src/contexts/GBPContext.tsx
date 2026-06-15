@@ -9,6 +9,7 @@ import type {
 } from "../hooks/useGBP";
 import { GBPContext } from "./GBPContext";
 import { useLocationContext } from "./locationContext";
+import { logger } from "../lib/logger";
 
 interface GBPProviderProps {
   children: ReactNode;
@@ -60,13 +61,13 @@ export const GBPProvider: React.FC<GBPProviderProps> = ({ children }) => {
 
       if (result.successful !== false) {
         setAiData(result as GBPAIReadyData);
-        console.log("GBP AI Ready Data:", result);
+        logger.log("GBP AI Ready Data:", result);
       } else {
         setAiError(result.errorMessage || "Failed to fetch GBP AI-ready data");
       }
     } catch (error) {
       setAiError("Failed to fetch GBP AI-ready data");
-      console.error("GBP AI Ready Data fetch error:", error);
+      logger.error("GBP AI Ready Data fetch error:", error);
     } finally {
       setAiDataLoading(false);
     }
@@ -90,7 +91,7 @@ export const GBPProvider: React.FC<GBPProviderProps> = ({ children }) => {
       }
     } catch (error) {
       setError("Failed to fetch GBP data");
-      console.error("GBP Data fetch error:", error);
+      logger.error("GBP Data fetch error:", error);
     } finally {
       setIsLoading(false);
     }
@@ -109,7 +110,7 @@ export const GBPProvider: React.FC<GBPProviderProps> = ({ children }) => {
       }
     } catch (error) {
       setAccountsError("Failed to fetch GBP accounts");
-      console.error("GBP Accounts fetch error:", error);
+      logger.error("GBP Accounts fetch error:", error);
     } finally {
       setAccountsLoading(false);
     }
@@ -130,7 +131,7 @@ export const GBPProvider: React.FC<GBPProviderProps> = ({ children }) => {
       }
     } catch (error) {
       setLocationsError("Failed to fetch GBP locations");
-      console.error("GBP Locations fetch error:", error);
+      logger.error("GBP Locations fetch error:", error);
     } finally {
       setLocationsLoading(false);
     }

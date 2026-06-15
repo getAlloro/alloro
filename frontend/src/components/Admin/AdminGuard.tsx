@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AdminLogin } from "../../pages/admin/AdminLogin";
 import { getItem } from "../../hooks/useLocalStorage";
 import { apiGet } from "../../api";
+import { logger } from "../../lib/logger";
 
 interface AdminGuardProps {
   children: React.ReactNode;
@@ -36,7 +37,7 @@ export function AdminGuard({ children }: AdminGuardProps) {
           // So we just deny access here.
         }
       } catch (error) {
-        console.error("Admin validation failed", error);
+        logger.error("Admin validation failed", error);
         setIsAuthenticated(false);
       } finally {
         setChecking(false);

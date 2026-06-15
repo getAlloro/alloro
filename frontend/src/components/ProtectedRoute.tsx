@@ -1,5 +1,6 @@
 import { Navigate } from "react-router-dom";
 import { getPriorityItem } from "../hooks/useLocalStorage";
+import { logger } from "../lib/logger";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -17,7 +18,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const isAuthenticated = !!authToken || !!token;
 
   if (!isAuthenticated) {
-    console.log(
+    logger.log(
       "[ProtectedRoute] No JWT token found; redirecting to signin",
       { currentTime: new Date().toISOString() }
     );

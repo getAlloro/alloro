@@ -10,6 +10,7 @@ import {
 import onboarding from "../../api/onboarding";
 import { fireConfetti } from "../../lib/confetti";
 import { useAuth } from "../../hooks/useAuth";
+import { logger } from "../../lib/logger";
 
 interface SetupProgress {
   step1_api_connected: boolean; // All 3 scopes granted AND all 3 services connected
@@ -91,7 +92,7 @@ export function SetupProgressProvider({ children }: { children: ReactNode }) {
       try {
         await onboarding.updateSetupProgress(newProgress);
       } catch (err) {
-        console.error("Failed to save setup progress to API:", err);
+        logger.error("Failed to save setup progress to API:", err);
       }
     }, 500);
   }, []);
@@ -122,7 +123,7 @@ export function SetupProgressProvider({ children }: { children: ReactNode }) {
         setProgress(getStoredProgress());
       }
     } catch (err) {
-      console.error("Failed to fetch setup progress:", err);
+      logger.error("Failed to fetch setup progress:", err);
       setProgress(getStoredProgress());
     } finally {
       setIsLoading(false);

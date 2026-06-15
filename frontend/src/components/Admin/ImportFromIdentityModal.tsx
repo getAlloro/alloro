@@ -57,6 +57,7 @@ export interface ImportFromIdentityModalProps {
   /**
    * Set of `source_url` values already attached to existing posts of this
    * post type. Used to flip rows from "checkbox" to "overwrite toggle".
+import { logger } from "../../lib/logger";
    * For locations the `place_id` is the dedup key (it's stored in source_url).
    */
   existingSourceUrls: Set<string>;
@@ -342,7 +343,7 @@ export default function ImportFromIdentityModal({
           }
         } catch (err: any) {
           // A transient poll failure shouldn't kill the whole flow — log it.
-          console.error("[ImportFromIdentityModal] poll error", err);
+          logger.error("[ImportFromIdentityModal] poll error", err);
         }
       }, POLL_INTERVAL_MS);
     } catch (err: any) {

@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { logger } from "../../../../lib/logger";
 
 interface ClipboardEnvelope<T> {
   __alloro_clipboard: string;
@@ -22,7 +23,7 @@ export function useClipboardRow<T>(kind: string) {
         await navigator.clipboard.writeText(JSON.stringify(envelope));
         return true;
       } catch (err) {
-        console.warn("[useClipboardRow] copy failed:", err);
+        logger.warn("[useClipboardRow] copy failed:", err);
         return false;
       }
     },

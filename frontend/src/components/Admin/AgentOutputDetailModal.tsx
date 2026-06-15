@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { X, Loader2, Copy, Check } from "lucide-react";
 import type { AgentOutput } from "../../types/agentOutputs";
 import { fetchAgentOutputDetail } from "../../api/agentOutputs";
+import { logger } from "../../lib/logger";
 
 interface AgentOutputDetailModalProps {
   output: AgentOutput | null;
@@ -38,7 +39,7 @@ export function AgentOutputDetailModal({
       const response = await fetchAgentOutputDetail(output.id);
       setFullOutput(response.data);
     } catch (err) {
-      console.error("Failed to fetch output details:", err);
+      logger.error("Failed to fetch output details:", err);
       setError(
         err instanceof Error ? err.message : "Failed to load output details"
       );
@@ -82,7 +83,7 @@ export function AgentOutputDetailModal({
       setCopiedField(field);
       setTimeout(() => setCopiedField(null), 2000);
     } catch (err) {
-      console.error("Failed to copy:", err);
+      logger.error("Failed to copy:", err);
     }
   };
 

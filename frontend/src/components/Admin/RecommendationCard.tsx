@@ -16,6 +16,7 @@ import {
 import type { AgentRecommendation } from "../../types/agentInsights";
 import { AlertModal } from "@/components/ui/AlertModal";
 import { adminFetch } from "../../api";
+import { logger } from "../../lib/logger";
 
 interface Props {
   recommendation: AgentRecommendation;
@@ -157,7 +158,7 @@ export default function RecommendationCard({
         setAlertModal({ isOpen: true, title: "Status Update Failed", message: "Failed to update status: " + (data.message || "Unknown error"), type: "error" });
       }
     } catch (error) {
-      console.error("Failed to update recommendation status:", error);
+      logger.error("Failed to update recommendation status:", error);
       setAlertModal({ isOpen: true, title: "Status Update Failed", message: "Failed to update status. Please try again.", type: "error" });
     } finally {
       setIsUpdating(false);

@@ -26,6 +26,7 @@ import {
 import { PriorityTriangle } from "./PriorityTriangle";
 import { RichTextPreview } from "./RichTextEditor";
 import { usePmStore } from "../../stores/pmStore";
+import { logger } from "../../lib/logger";
 
 type View = "grid" | "detail" | "new";
 
@@ -122,7 +123,7 @@ export function CrossProjectAISynthModal({ isOpen, onClose }: CrossProjectAISynt
       try {
         await setBatchTaskTargetProject(activeBatch.id, t.id, setAllProjectId);
       } catch (err) {
-        console.error("[PM] set-all target failed", err);
+        logger.error("[PM] set-all target failed", err);
       }
     }
     await refreshActiveBatch();

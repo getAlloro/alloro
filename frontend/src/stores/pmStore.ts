@@ -8,6 +8,7 @@ import type {
   CreateTaskInput,
 } from "../types/pm";
 import * as pmApi from "../api/pm";
+import { logger } from "../lib/logger";
 
 interface PmState {
   projects: PmProject[];
@@ -68,7 +69,7 @@ export const usePmStore = create<PmState>((set, get) => ({
       const projects = await pmApi.fetchProjects(status);
       set({ projects, isLoading: false });
     } catch (err) {
-      console.error("[PM] fetchProjects failed:", err);
+      logger.error("[PM] fetchProjects failed:", err);
       set({ projects: [], isLoading: false });
     }
   },
@@ -86,7 +87,7 @@ export const usePmStore = create<PmState>((set, get) => ({
         ...(clearSelection ? { selectedTaskIds: new Set<string>() } : {}),
       });
     } catch (err) {
-      console.error("[PM] fetchProject failed:", err);
+      logger.error("[PM] fetchProject failed:", err);
       set({ isLoading: false });
     }
   },
@@ -313,7 +314,7 @@ export const usePmStore = create<PmState>((set, get) => ({
     try {
       await pmApi.bulkDeleteTasks(ids);
     } catch (err) {
-      console.error("[PM] bulkDeleteTasks failed:", err);
+      logger.error("[PM] bulkDeleteTasks failed:", err);
       set({ activeProject: snapshot, selectedTaskIds: new Set(ids) });
       throw err;
     }
@@ -342,7 +343,7 @@ export const usePmStore = create<PmState>((set, get) => ({
       await get().fetchProject(active.id);
       set({ selectedTaskIds: new Set<string>() });
     } catch (err) {
-      console.error("[PM] bulkMoveTasksToProject failed:", err);
+      logger.error("[PM] bulkMoveTasksToProject failed:", err);
       throw err;
     }
   },
@@ -370,7 +371,7 @@ export const usePmStore = create<PmState>((set, get) => ({
       await pmApi.bulkDeleteTasks(ids);
       set({ meSelectedTaskIds: new Set<string>() });
     } catch (err) {
-      console.error("[PM] bulkDeleteMeSelectedTasks failed:", err);
+      logger.error("[PM] bulkDeleteMeSelectedTasks failed:", err);
       throw err;
     }
   },

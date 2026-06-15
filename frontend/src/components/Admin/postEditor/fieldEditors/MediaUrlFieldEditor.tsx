@@ -5,6 +5,7 @@ import type { MediaItem } from "../../../PageEditor/MediaBrowser";
 import { createAdminWebsiteMediaApi } from "../../../../api/websiteMedia";
 import InlineEditRow from "../primitives/InlineEditRow";
 import type { FieldEditorProps } from "../types";
+import { logger } from "../../../../lib/logger";
 
 // Derive a short filename-ish label from a URL. Fallback to the raw URL.
 function deriveLabel(url: string): string {
@@ -49,7 +50,7 @@ export default function MediaUrlFieldEditor({
           onChange(data.data[0].s3_url);
         }
       } catch (err) {
-        console.error("Upload failed:", err);
+        logger.error("Upload failed:", err);
       } finally {
         setUploading(false);
       }

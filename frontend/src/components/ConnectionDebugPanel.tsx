@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Bug, CheckCircle, AlertTriangle, RefreshCw } from "lucide-react";
+import { logger } from "../lib/logger";
 
 // TODO: Create src/utils/connectionTester.ts with ConnectionTester class
 const ConnectionTester = {
@@ -56,7 +57,7 @@ export const ConnectionDebugPanel: React.FC<ConnectionDebugPanelProps> = ({
       const issues = await ConnectionTester.quickDiagnostic();
       setQuickIssues(issues);
     } catch (error) {
-      console.error("Quick diagnostic failed:", error);
+      logger.error("Quick diagnostic failed:", error);
     }
   };
 
@@ -67,7 +68,7 @@ export const ConnectionDebugPanel: React.FC<ConnectionDebugPanelProps> = ({
       const results = await tester.runAllTests();
       setTestResults(results);
     } catch (error) {
-      console.error("Full tests failed:", error);
+      logger.error("Full tests failed:", error);
     } finally {
       setIsRunning(false);
     }

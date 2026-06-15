@@ -34,6 +34,7 @@ import type { Post, PostType } from "../../api/posts";
 import AnimatedSelect from "../ui/AnimatedSelect";
 import { ActionButton } from "../ui/DesignSystem";
 import { useConfirm } from "../ui/ConfirmModal";
+import { logger } from "../../lib/logger";
 
 interface MenusTabProps {
   projectId: string;
@@ -238,7 +239,7 @@ export default function MenusTab({
       await loadActiveMenu(selectedMenuId);
       await loadMenus();
     } catch (err) {
-      console.error("Failed to save order:", err);
+      logger.error("Failed to save order:", err);
       setError(err instanceof Error ? err.message : "Failed to save order");
     } finally {
       setSavingOrder(false);
@@ -376,7 +377,7 @@ export default function MenusTab({
       setPosts(postsRes.data || []);
       setPostTypes(typesRes.data || []);
     } catch (err) {
-      console.error("Failed to load posts:", err);
+      logger.error("Failed to load posts:", err);
     } finally {
       setPostsLoading(false);
     }

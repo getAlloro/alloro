@@ -29,6 +29,7 @@ import { CommentComposer, CommentEditor } from "./CommentComposer";
 import { getCurrentUserId } from "../../utils/currentUser";
 import { PmContextMenu } from "./PmContextMenu";
 import { PmConfirmDialog } from "./PmConfirmDialog";
+import { logger } from "../../lib/logger";
 
 interface PmUser {
   id: number;
@@ -239,7 +240,7 @@ export function CommentsSection({ taskId, onCountChange }: CommentsSectionProps)
       const rows = await listComments(taskId);
       setComments(rows);
     } catch (err) {
-      console.error("[CommentsSection] list failed:", err);
+      logger.error("[CommentsSection] list failed:", err);
     }
   }, [taskId]);
 
@@ -317,7 +318,7 @@ export function CommentsSection({ taskId, onCountChange }: CommentsSectionProps)
         await deleteComment(taskId, commentId);
         setComments((prev) => prev.filter((c) => c.id !== commentId));
       } catch (err) {
-        console.error("[CommentsSection] delete failed:", err);
+        logger.error("[CommentsSection] delete failed:", err);
         await refresh();
       }
     },

@@ -11,6 +11,7 @@ import { Inbox, Trash2, Link2 } from "lucide-react";
 import type { FinalStage, LinkedVia, SubmissionSummary } from "../../types/leadgen";
 import { deleteSubmission } from "../../api/leadgenSubmissions";
 import { useConfirm } from "../ui/ConfirmModal";
+import { logger } from "../../lib/logger";
 
 interface Props {
   items: SubmissionSummary[];
@@ -226,7 +227,7 @@ export default function LeadgenSubmissionsTable({
       await deleteSubmission(id);
       onDeleted?.(id);
     } catch (err) {
-      console.error("Failed to delete leadgen submission:", err);
+      logger.error("Failed to delete leadgen submission:", err);
     } finally {
       setDeletingId(null);
     }

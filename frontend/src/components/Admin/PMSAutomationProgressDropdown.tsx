@@ -23,6 +23,7 @@ import {
   STEP_CONFIG,
   MONTHLY_AGENT_CONFIG,
 } from "../../api/pms";
+import { logger } from "../../lib/logger";
 
 interface PMSAutomationProgressDropdownProps {
   jobId: number;
@@ -187,7 +188,7 @@ export function PMSAutomationProgressDropdown({
         onStatusChange?.(response.data.automationStatus);
       }
     } catch (error) {
-      console.error("Failed to fetch automation status:", error);
+      logger.error("Failed to fetch automation status:", error);
     }
   }, [jobId, onStatusChange]);
 
@@ -242,7 +243,7 @@ export function PMSAutomationProgressDropdown({
         setRetryError(response.error || "Retry failed");
       }
     } catch (error) {
-      console.error("Retry error:", error);
+      logger.error("Retry error:", error);
       setRetryError("Failed to initiate retry");
     } finally {
       setIsRetrying(false);
@@ -268,7 +269,7 @@ export function PMSAutomationProgressDropdown({
         setRestartError(response.error || "Restart failed");
       }
     } catch (error) {
-      console.error("Restart error:", error);
+      logger.error("Restart error:", error);
       setRestartError("Failed to restart run");
     } finally {
       setIsRestarting(false);

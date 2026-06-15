@@ -27,6 +27,7 @@ import { SidebarProvider } from "../../components/Admin/SidebarContext";
 import EditorSidebar from "../../components/PageEditor/EditorSidebar";
 import InlineEditorPopover from "../../components/PageEditor/InlineEditorPopover";
 import type { ChatMessage } from "../../components/PageEditor/ChatPanel";
+import { logger } from "../../lib/logger";
 
 type LayoutField = "wrapper" | "header" | "footer";
 
@@ -149,7 +150,7 @@ function LayoutEditorInner() {
           setPreviewHtml(html);
         }
       } catch (err) {
-        console.error("Failed to load project:", err);
+        logger.error("Failed to load project:", err);
         setError(err instanceof Error ? err.message : "Failed to load project");
       } finally {
         setLoading(false);
@@ -166,7 +167,7 @@ function LayoutEditorInner() {
     if (!isVisualMode) return;
     fetchEditorSystemPrompt()
       .then(setSystemPrompt)
-      .catch((err) => console.error("Failed to load system prompt:", err));
+      .catch((err) => logger.error("Failed to load system prompt:", err));
   }, [isVisualMode]);
 
   // --- Handle iframe load ---
@@ -184,7 +185,7 @@ function LayoutEditorInner() {
       setIsDirty(false);
       setProject((prev) => (prev ? { ...prev, [field]: content } : prev));
     } catch (err) {
-      console.error("Save failed:", err);
+      logger.error("Save failed:", err);
       setEditError(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setIsSaving(false);
@@ -302,7 +303,7 @@ function LayoutEditorInner() {
           return next;
         });
       } catch (err) {
-        console.error("Edit failed:", err);
+        logger.error("Edit failed:", err);
         const errorMessage = err instanceof Error ? err.message : "Edit failed";
         setEditError(errorMessage);
 

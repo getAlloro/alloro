@@ -10,6 +10,7 @@ import {
 import { useConfirm } from "../../components/ui/ConfirmModal";
 import { fadeInUp } from "../../lib/animations";
 import { adminFetch } from "../../api";
+import { logger } from "../../lib/logger";
 
 interface LogsData {
   logs: string[];
@@ -87,7 +88,7 @@ export default function AppLogs() {
         setError(data.message || "Failed to fetch logs");
       }
     } catch (err) {
-      console.error("Failed to fetch logs:", err);
+      logger.error("Failed to fetch logs:", err);
       setError("Failed to load logs. Please try again.");
     } finally {
       setLoading(false);
@@ -116,7 +117,7 @@ export default function AppLogs() {
         setError(data.message || "Failed to clear logs");
       }
     } catch (err) {
-      console.error("Failed to clear logs:", err);
+      logger.error("Failed to clear logs:", err);
       setError("Failed to clear logs. Please try again.");
     } finally {
       setClearing(false);

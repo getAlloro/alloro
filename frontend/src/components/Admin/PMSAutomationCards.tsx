@@ -36,6 +36,7 @@ import {
   Badge,
 } from "../ui/DesignSystem";
 import { ConfirmModal } from "@/components/settings/ConfirmModal";
+import { logger } from "../../lib/logger";
 
 type StatusFilter =
   | "all"
@@ -430,7 +431,7 @@ export function PMSAutomationCards() {
           setError(fallbackError);
         }
       } catch (err) {
-        console.error("Failed to load PMS jobs", err);
+        logger.error("Failed to load PMS jobs", err);
         if (!options?.silent) {
           setJobs([]);
           setEditorStates({});
@@ -459,7 +460,7 @@ export function PMSAutomationCards() {
           setOrganizations(response.organizations);
         }
       } catch (err) {
-        console.error("Failed to load organizations for filter", err);
+        logger.error("Failed to load organizations for filter", err);
       }
     };
     loadOrganizations();
@@ -546,7 +547,7 @@ export function PMSAutomationCards() {
         setError(fallbackError);
       }
     } catch (err) {
-      console.error("Failed to toggle PMS job approval", err);
+      logger.error("Failed to toggle PMS job approval", err);
       setError("Failed to approve the job. Please try again.");
     } finally {
       setApprovingJobId(null);
@@ -621,7 +622,7 @@ export function PMSAutomationCards() {
         setError(fallbackError);
       }
     } catch (err) {
-      console.error("Failed to update PMS job response", err);
+      logger.error("Failed to update PMS job response", err);
       setError("Failed to save the response log. Please try again.");
     } finally {
       setSavingResponseJobId(null);
@@ -684,7 +685,7 @@ export function PMSAutomationCards() {
             setError(fallbackError);
           }
         } catch (err) {
-          console.error("Failed to delete PMS job", err);
+          logger.error("Failed to delete PMS job", err);
           setError("Failed to delete the PMS job. Please try again.");
         } finally {
           setDeletingJobId(null);

@@ -7,6 +7,7 @@ import {
   BarChart3,
   CheckCircle,
 } from "lucide-react";
+import { logger } from "../lib/logger";
 
 interface BaseIntegrationModalProps {
   isOpen: boolean;
@@ -42,7 +43,7 @@ export const ClarityIntegrationModal: React.FC<BaseIntegrationModalProps> = ({
   }, [isOpen]);
 
   const handleConnect = async () => {
-    console.log(
+    logger.log(
       "Clarity Modal: Starting demo connection with clientId:",
       clientId
     );
@@ -59,7 +60,7 @@ export const ClarityIntegrationModal: React.FC<BaseIntegrationModalProps> = ({
 
       // Demo: randomly succeed or fail
       if (Math.random() > 0.2) {
-        console.log("🔍 Clarity Modal: Demo connection successful");
+        logger.log("🔍 Clarity Modal: Demo connection successful");
         setStep("success");
         setTimeout(() => {
           onSuccess?.();
@@ -69,7 +70,7 @@ export const ClarityIntegrationModal: React.FC<BaseIntegrationModalProps> = ({
         throw new Error("Demo connection failed. Please try again.");
       }
     } catch (err) {
-      console.error("Clarity connection failed:", err);
+      logger.error("Clarity connection failed:", err);
       setError(err instanceof Error ? err.message : "Connection failed");
     } finally {
       setIsLoading(false);

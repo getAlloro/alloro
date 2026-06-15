@@ -45,6 +45,7 @@ import type {
   LeadgenEvent,
 } from "../../types/leadgen";
 import { STAGE_LABEL, STAGE_TONE, STAGE_CLASSES } from "./LeadgenSubmissionsTable";
+import { logger } from "../../lib/logger";
 
 interface Props {
   submissionId: string | null;
@@ -365,7 +366,7 @@ export default function LeadgenSubmissionDetail({
             setLoading(false);
             isFirst = false;
           } else {
-            console.warn("[LeadgenDetail] poll tick failed:", msg);
+            logger.warn("[LeadgenDetail] poll tick failed:", msg);
           }
         } finally {
           if (!cancelled) setFetching(false);

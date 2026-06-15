@@ -10,6 +10,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { uploadPMSData } from "../../api/pms";
+import { logger } from "../../lib/logger";
 
 interface DirectUploadModalProps {
   isOpen: boolean;
@@ -122,7 +123,7 @@ export const DirectUploadModal: React.FC<DirectUploadModalProps> = ({
             });
             window.dispatchEvent(event);
           } catch (storageError) {
-            console.warn(
+            logger.warn(
               "Unable to persist PMS processing flag:",
               storageError
             );
@@ -136,7 +137,7 @@ export const DirectUploadModal: React.FC<DirectUploadModalProps> = ({
         throw new Error(result.error || "Upload failed");
       }
     } catch (error) {
-      console.error("DirectUploadModal: Upload error:", error);
+      logger.error("DirectUploadModal: Upload error:", error);
       setUploadStatus("error");
       setMessage(error instanceof Error ? error.message : "Upload failed");
     } finally {

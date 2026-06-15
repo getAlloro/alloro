@@ -32,6 +32,7 @@ import type {
   SubmissionDetail,
   SubmissionSummary,
 } from "../../types/leadgen";
+import { logger } from "../../lib/logger";
 
 const PAGE_SIZE = 25;
 
@@ -118,7 +119,7 @@ export default function LeadgenSubmissions() {
         const msg = err instanceof Error ? err.message : "Failed to load";
         if (background) {
           // Silent poll failure — keep the current list on screen.
-          console.warn("[LeadgenSubmissions] background poll failed:", msg);
+          logger.warn("[LeadgenSubmissions] background poll failed:", msg);
         } else {
           setListError(msg);
           setItems([]);

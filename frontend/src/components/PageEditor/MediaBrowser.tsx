@@ -3,6 +3,7 @@ import { X, Loader2, Image, Upload } from "lucide-react";
 import type { MediaApi, MediaItem } from "../../api/websiteMedia";
 
 export type { MediaApi, MediaItem } from "../../api/websiteMedia";
+import { logger } from "../../lib/logger";
 
 interface MediaBrowserProps {
   mediaApi: MediaApi;
@@ -27,7 +28,7 @@ export default function MediaBrowser({ mediaApi, onSelect, onClose, compact }: M
           setMediaItems(data.data || []);
         }
       } catch (err) {
-        console.error("Failed to fetch media:", err);
+        logger.error("Failed to fetch media:", err);
       } finally {
         setLoading(false);
       }

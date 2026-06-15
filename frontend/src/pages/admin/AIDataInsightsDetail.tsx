@@ -35,6 +35,7 @@ import {
   useAdminInsightsRecommendations,
   useInvalidateAdminInsights,
 } from "../../hooks/queries/useAdminStandaloneQueries";
+import { logger } from "../../lib/logger";
 
 /**
  * AI Data Insights Detail Page
@@ -113,7 +114,7 @@ export default function AIDataInsightsDetail() {
             });
           }
         } catch (error) {
-          console.error("Failed to mark all as completed:", error);
+          logger.error("Failed to mark all as completed:", error);
           setAlertModal({
             isOpen: true,
             title: "Operation Failed",
@@ -164,7 +165,7 @@ export default function AIDataInsightsDetail() {
             });
           }
         } catch (error) {
-          console.error("Failed to bulk delete recommendations:", error);
+          logger.error("Failed to bulk delete recommendations:", error);
           setAlertModal({
             isOpen: true,
             title: "Delete Failed",

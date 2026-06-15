@@ -36,6 +36,7 @@ import { getCurrentUserId } from "../../utils/currentUser";
 import { PmContextMenu } from "./PmContextMenu";
 import { PmConfirmDialog } from "./PmConfirmDialog";
 import { Eye } from "lucide-react";
+import { logger } from "../../lib/logger";
 
 interface AttachmentsSectionProps {
   taskId: string;
@@ -197,7 +198,7 @@ export function AttachmentsSection({
       await deleteAttachment(taskId, att.id);
       setAttachments((prev) => prev.filter((a) => a.id !== att.id));
     } catch (err) {
-      console.error("[AttachmentsSection] delete failed:", err);
+      logger.error("[AttachmentsSection] delete failed:", err);
     }
   };
 
@@ -217,7 +218,7 @@ export function AttachmentsSection({
       a.click();
       document.body.removeChild(a);
     } catch (err) {
-      console.error("[AttachmentsSection] download failed:", err);
+      logger.error("[AttachmentsSection] download failed:", err);
     }
   };
 

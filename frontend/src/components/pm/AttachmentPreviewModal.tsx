@@ -19,6 +19,7 @@ import {
   getAttachmentTextContent,
 } from "../../api/pm";
 import type { PmTaskAttachment } from "../../types/pm";
+import { logger } from "../../lib/logger";
 
 interface AttachmentPreviewModalProps {
   taskId: string;
@@ -156,7 +157,7 @@ export function AttachmentPreviewModal({
         if (!cancelled) setUrl(presigned);
       } catch (err) {
         if (!cancelled) {
-          console.error("[AttachmentPreview] fetch failed:", err);
+          logger.error("[AttachmentPreview] fetch failed:", err);
           setError("Failed to load preview");
         }
       }

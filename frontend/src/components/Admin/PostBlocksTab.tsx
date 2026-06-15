@@ -30,6 +30,7 @@ import { ActionButton } from "../ui/DesignSystem";
 import { useConfirm } from "../ui/ConfirmModal";
 import { renderPage } from "../../utils/templateRenderer";
 import { prepareHtmlForPreview } from "../../hooks/useIframeSelector";
+import { logger } from "../../lib/logger";
 
 const FIELD_TYPES = [
   { value: "text", label: "Text" },
@@ -121,7 +122,7 @@ const PREVIEW_POSTS = [
 //
 // Empty = key absent in placeholder dict, value is empty string, or
 // value is an empty array.
-// Flat only — nesting aborts with console.warn and leaves HTML unchanged.
+// Flat only — nesting aborts with logger.warn and leaves HTML unchanged.
 //
 // PREVIEW LIMITATION: custom field tokens (`post.custom.X`) are almost
 // never in PLACEHOLDER_POST, so conditional blocks referencing them will
@@ -152,7 +153,7 @@ function processConditionals(
   // Nesting detection — abort loudly.
   for (const probe of html.matchAll(CONDITIONAL_BLOCK_RE)) {
     if (NESTED_PROBE_RE.test(probe[3])) {
-      console.warn(
+      logger.warn(
         `[PostBlocksTab] Nested conditional detected in post template (flat-only in v1). ` +
           `Field: post.${probe[2]}. Block: ${probe[0].slice(0, 200)}`
       );
@@ -282,7 +283,7 @@ export default function PostBlocksTab({
       setPostTypes(typesRes.data);
       setPostBlocks(blocksRes.data);
     } catch (err) {
-      console.error("Failed to load post blocks data:", err);
+      logger.error("Failed to load post blocks data:", err);
     } finally {
       setLoading(false);
     }
@@ -324,7 +325,7 @@ export default function PostBlocksTab({
       setNewTypeName("");
       await loadData();
     } catch (err) {
-      console.error("Failed to create post type:", err);
+      logger.error("Failed to create post type:", err);
     } finally {
       setCreatingType(false);
     }
@@ -410,7 +411,7 @@ export default function PostBlocksTab({
       setEditingSchemaId(null);
       await loadData();
     } catch (err) {
-      console.error("Failed to save schema:", err);
+      logger.error("Failed to save schema:", err);
     } finally {
       setSavingSchema(false);
     }
@@ -439,7 +440,7 @@ export default function PostBlocksTab({
       setEditingSingleTemplateId(null);
       await loadData();
     } catch (err) {
-      console.error("Failed to save single template:", err);
+      logger.error("Failed to save single template:", err);
     } finally {
       setSavingSingleTemplate(false);
     }
@@ -527,7 +528,7 @@ export default function PostBlocksTab({
       closeBlockEditor();
       await loadData();
     } catch (err) {
-      console.error("Failed to save post block:", err);
+      logger.error("Failed to save post block:", err);
     } finally {
       setSaving(false);
     }

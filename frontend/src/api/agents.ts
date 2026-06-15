@@ -1,5 +1,6 @@
 import { apiGet, apiPost, apiPatch } from "./index";
 import type { AgentResponse } from "../types/agents";
+import { logger } from "../lib/logger";
 
 const baseurl = "/agents";
 
@@ -29,7 +30,7 @@ async function getLatestAgentData(organizationId: number, locationId?: number | 
       path: baseurl + `/latest/${organizationId}${locationParam}`,
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       successful: false,
       errorMessage: "Technical error, contact developer",
@@ -46,7 +47,7 @@ async function fetchAgentResults(params?: {
       path: baseurl + `/results${queryParams}`,
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       success: false,
       error: "Technical error, contact developer",
@@ -62,7 +63,7 @@ async function getLatestAgentResult(
       path: baseurl + `/latest?domain=${encodeURIComponent(domain)}`,
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       success: false,
       error: "Technical error, contact developer",
@@ -84,7 +85,7 @@ async function approveAgentResult(params: {
       },
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       success: false,
       error: "Technical error, contact developer",
@@ -104,7 +105,7 @@ async function updateAgentResult(params: {
       },
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       success: false,
       error: "Technical error, contact developer",

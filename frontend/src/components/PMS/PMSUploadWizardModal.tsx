@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { uploadPMSData } from "../../api/pms";
 import { PMSManualEntryModal } from "./PMSManualEntryModal";
+import { logger } from "../../lib/logger";
 
 interface PMSUploadWizardModalProps {
   isOpen: boolean;
@@ -136,7 +137,7 @@ export const PMSUploadWizardModal: React.FC<PMSUploadWizardModalProps> = ({
             });
             window.dispatchEvent(event);
           } catch (storageError) {
-            console.warn(
+            logger.warn(
               "Unable to persist PMS processing flag:",
               storageError
             );
@@ -150,7 +151,7 @@ export const PMSUploadWizardModal: React.FC<PMSUploadWizardModalProps> = ({
         throw new Error(result.error || "Upload failed");
       }
     } catch (error) {
-      console.error("PMSUploadWizard: Upload error:", error);
+      logger.error("PMSUploadWizard: Upload error:", error);
       setUploadStatus("error");
       setMessage(error instanceof Error ? error.message : "Upload failed");
     } finally {

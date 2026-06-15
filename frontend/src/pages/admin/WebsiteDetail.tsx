@@ -89,6 +89,7 @@ import { fetchProjectCodeSnippets } from "../../api/codeSnippets";
 import type { CodeSnippet } from "../../api/codeSnippets";
 import { adminFetch } from "../../api";
 import { useConfirm } from "../../components/ui/ConfirmModal";
+import { logger } from "../../lib/logger";
 
 type OrganizationListItem = {
   id: number;
@@ -433,7 +434,7 @@ export default function WebsiteDetail({
       const response = await fetchProjectCodeSnippets(id);
       setCodeSnippets(response.data);
     } catch (err) {
-      console.error("Failed to fetch code snippets:", err);
+      logger.error("Failed to fetch code snippets:", err);
     } finally {
       setLoadingSnippets(false);
     }
@@ -452,7 +453,7 @@ export default function WebsiteDetail({
 
       setAvailableOrganizations(availableOrgs);
     } catch (err) {
-      console.error("Failed to load organizations:", err);
+      logger.error("Failed to load organizations:", err);
       toast.error("Failed to load organizations");
     } finally {
       setLoadingOrgs(false);
@@ -472,7 +473,7 @@ export default function WebsiteDetail({
       await loadAvailableOrganizations();
       setSelectedOrgId(null);
     } catch (err) {
-      console.error("Failed to link organization:", err);
+      logger.error("Failed to link organization:", err);
       toast.error(
         err instanceof Error ? err.message : "Failed to link organization",
       );
@@ -531,7 +532,7 @@ export default function WebsiteDetail({
         pollTimeoutRef.current = setTimeout(pollStatus, POLL_INTERVAL);
       } catch (err) {
         if (!isMountedRef.current) return;
-        console.error("Polling error:", err);
+        logger.error("Polling error:", err);
         pollTimeoutRef.current = setTimeout(pollStatus, POLL_INTERVAL);
       }
     };
@@ -570,7 +571,7 @@ export default function WebsiteDetail({
         }
       } catch (err) {
         if (!isMountedRef.current) return;
-        console.error("Page gen polling error:", err);
+        logger.error("Page gen polling error:", err);
         pageGenPollRef.current = setTimeout(pollPages, POLL_INTERVAL);
       }
     };
@@ -598,7 +599,7 @@ export default function WebsiteDetail({
         setLayoutSlots(prefillRes.data.slots || []);
         setLayoutSlotValues((prev) => ({ ...prefillRes.data.values, ...prev }));
       } catch (err) {
-        console.error("Failed to load layouts:", err);
+        logger.error("Failed to load layouts:", err);
       } finally {
         if (!cancelled) setLoadingLayoutSlots(false);
       }
@@ -650,7 +651,7 @@ export default function WebsiteDetail({
       const res = await fetchLayoutsStatus(id);
       setLayoutsStatus(res.data);
     } catch (err) {
-      console.error("Failed to start layouts:", err);
+      logger.error("Failed to start layouts:", err);
     } finally {
       setStartingLayouts(false);
     }
@@ -664,7 +665,7 @@ export default function WebsiteDetail({
       const res = await fetchLayoutsStatus(id);
       setLayoutsStatus(res.data);
     } catch (err) {
-      console.error("Failed to cancel layouts:", err);
+      logger.error("Failed to cancel layouts:", err);
     }
   };
 
@@ -691,7 +692,7 @@ export default function WebsiteDetail({
       await deleteWebsite(id);
       navigate("/admin/websites");
     } catch (err) {
-      console.error("Failed to delete website:", err);
+      logger.error("Failed to delete website:", err);
       alert(err instanceof Error ? err.message : "Failed to delete website");
       setIsDeleting(false);
     }
@@ -730,7 +731,7 @@ export default function WebsiteDetail({
       invalidateWebsite(id!);
       await loadWebsite();
     } catch (err) {
-      console.error("Failed to delete page version:", err);
+      logger.error("Failed to delete page version:", err);
       alert(
         err instanceof Error ? err.message : "Failed to delete page version",
       );
@@ -750,7 +751,7 @@ export default function WebsiteDetail({
       invalidateWebsite(id);
       await loadWebsite();
     } catch (err) {
-      console.error("Failed to delete page:", err);
+      logger.error("Failed to delete page:", err);
       alert(err instanceof Error ? err.message : "Failed to delete page");
     } finally {
       setDeletingPagePath(null);
@@ -786,7 +787,7 @@ export default function WebsiteDetail({
         }
       } catch (err) {
         if (!isMountedRef.current) return;
-        console.error("Page generation poll error:", err);
+        logger.error("Page generation poll error:", err);
         if (attempts < maxAttempts) {
           pageGenPollRef.current = setTimeout(poll, POLL_INTERVAL);
         } else {
@@ -857,7 +858,7 @@ export default function WebsiteDetail({
       const response = await fetchPagesGenerationStatus(id);
       setPageGenStatuses(response.data);
     } catch (err) {
-      console.error("Cancel generation error:", err);
+      logger.error("Cancel generation error:", err);
     }
   };
 
@@ -1953,7 +1954,7 @@ export default function WebsiteDetail({
                           published++;
                         } else {
                           const err = await res.json().catch(() => ({}));
-                          console.error(`Failed to publish ${path}:`, err);
+                          logger.error(`Failed to publish ${path}:`, err);
                           failed++;
                         }
                       } catch {

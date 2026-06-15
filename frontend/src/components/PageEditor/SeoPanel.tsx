@@ -13,6 +13,7 @@ import {
 import { type SeoData, updatePageSeo, updatePostSeo, generateSeo, generateAllSeo, analyzeSeo, fetchAllSeoMeta } from "../../api/websites";
 import { getBusinessData, type LocationBusinessData, type OrgBusinessData } from "../../api/locations";
 import { adminGetBusinessData } from "../../api/admin-organizations";
+import { logger } from "../../lib/logger";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -265,7 +266,7 @@ export default function SeoPanel({
       const anyData = locs.some((l) => l.business_data !== null) || data.organization.business_data !== null;
       setHasBusinessData(anyData);
     } catch {
-      console.error("Failed to load business data");
+      logger.error("Failed to load business data");
     }
   };
 
@@ -285,7 +286,7 @@ export default function SeoPanel({
       setAllTitles(titles);
       setAllDescriptions(descs);
     } catch {
-      console.error("Failed to load all SEO meta");
+      logger.error("Failed to load all SEO meta");
     }
   };
 
@@ -301,7 +302,7 @@ export default function SeoPanel({
           }
           onSeoDataChange(data);
         } catch (err) {
-          console.error("Failed to save SEO data:", err);
+          logger.error("Failed to save SEO data:", err);
         }
       }, 800);
     },
@@ -377,7 +378,7 @@ export default function SeoPanel({
       setSectionInsights(newInsights);
       triggerSave(accumulated);
     } catch (err) {
-      console.error("Failed to generate all SEO:", err);
+      logger.error("Failed to generate all SEO:", err);
     } finally {
       setGeneratingSection(null);
       setIsGenerating(false);
@@ -404,7 +405,7 @@ export default function SeoPanel({
       triggerSave(final);
       setCompletedSections((prev) => new Set([...prev, sectionKey]));
     } catch (err) {
-      console.error(`Failed to generate ${sectionKey}:`, err);
+      logger.error(`Failed to generate ${sectionKey}:`, err);
     } finally {
       setGeneratingSection(null);
     }
@@ -429,7 +430,7 @@ export default function SeoPanel({
           setSectionInsights({ ...newInsights });
         }
       } catch (err) {
-        console.error(`Failed to analyze ${section}:`, err);
+        logger.error(`Failed to analyze ${section}:`, err);
       }
     }
 
@@ -458,7 +459,7 @@ export default function SeoPanel({
       setSeo(updated);
       triggerSave(updated);
     } catch (err) {
-      console.error(`Failed to analyze ${sectionKey}:`, err);
+      logger.error(`Failed to analyze ${sectionKey}:`, err);
     } finally {
       setAnalyzingSection(null);
     }

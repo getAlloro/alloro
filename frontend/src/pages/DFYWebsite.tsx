@@ -63,6 +63,7 @@ import {
   useWizardDemoData,
   useOnboardingWizard,
 } from "../contexts/OnboardingWizardContext";
+import { logger } from "../lib/logger";
 
 interface Page {
   id: string;
@@ -862,7 +863,7 @@ export function DFYWebsite() {
           return next;
         });
       } catch (err) {
-        console.error("Edit failed:", err);
+        logger.error("Edit failed:", err);
         const errorMessage =
           err instanceof Error ? err.message : "Edit failed";
         setEditError(errorMessage);
@@ -1109,7 +1110,7 @@ export function DFYWebsite() {
         setupListeners();
         iframe.contentWindow.scrollTo(scrollX, scrollY);
       } catch (err) {
-        console.error("Failed to sync preview DOM:", err);
+        logger.error("Failed to sync preview DOM:", err);
         htmlStaleRef.current = false;
         setHtmlContent(buildFullHtml());
       }

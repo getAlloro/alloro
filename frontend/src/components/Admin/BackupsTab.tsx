@@ -21,6 +21,7 @@ import {
 } from "../../api/backups";
 import { ActionButton } from "../ui/DesignSystem";
 import { useConfirm } from "../ui/ConfirmModal";
+import { logger } from "../../lib/logger";
 
 interface BackupsTabProps {
   projectId: string;
@@ -98,7 +99,7 @@ export default function BackupsTab({ projectId, projectName }: BackupsTabProps) 
         setActiveJobId(null);
       }
     } catch (err) {
-      console.error("Failed to load backups:", err);
+      logger.error("Failed to load backups:", err);
     } finally {
       setLoading(false);
     }
@@ -157,7 +158,7 @@ export default function BackupsTab({ projectId, projectName }: BackupsTabProps) 
         loadBackups();
       }
     } catch (err: any) {
-      console.error("Failed to create backup:", err);
+      logger.error("Failed to create backup:", err);
       setCreating(false);
     }
   };
@@ -167,7 +168,7 @@ export default function BackupsTab({ projectId, projectName }: BackupsTabProps) 
       const { data } = await getBackupDownloadUrl(projectId, jobId);
       window.open(data.url, "_blank");
     } catch (err: any) {
-      console.error("Failed to get download URL:", err);
+      logger.error("Failed to get download URL:", err);
     }
   };
 
@@ -190,7 +191,7 @@ export default function BackupsTab({ projectId, projectName }: BackupsTabProps) 
       setRestoreConfirmText("");
       loadBackups();
     } catch (err: any) {
-      console.error("Restore failed:", err);
+      logger.error("Restore failed:", err);
       setRestoring(false);
     }
   };
@@ -208,7 +209,7 @@ export default function BackupsTab({ projectId, projectName }: BackupsTabProps) 
       await deleteBackupApi(projectId, jobId);
       loadBackups();
     } catch (err: any) {
-      console.error("Failed to delete backup:", err);
+      logger.error("Failed to delete backup:", err);
     }
   };
 

@@ -28,6 +28,7 @@ import {
 } from "../hooks/queries/useNotificationQueries";
 import { formatDistanceToNow } from "date-fns";
 import { ConfirmModal } from "../components/settings/ConfirmModal";
+import { logger } from "../lib/logger";
 
 export const Notifications: React.FC = () => {
   const navigate = useNavigate();
@@ -130,7 +131,7 @@ export const Notifications: React.FC = () => {
       }
       navigate(getNotificationPath(notification));
     } catch (error) {
-      console.error("Error handling notification click:", error);
+      logger.error("Error handling notification click:", error);
     }
   };
 
@@ -146,7 +147,7 @@ export const Notifications: React.FC = () => {
       await markNotificationRead(notificationId, organizationId);
       refetchNotifications();
     } catch (error) {
-      console.error("Error marking notification as read:", error);
+      logger.error("Error marking notification as read:", error);
     }
   };
 
@@ -161,7 +162,7 @@ export const Notifications: React.FC = () => {
       // Dispatch event to update sidebar notification badge
       window.dispatchEvent(new CustomEvent("notifications:updated"));
     } catch (error) {
-      console.error("Error marking all notifications as read:", error);
+      logger.error("Error marking all notifications as read:", error);
     } finally {
       setMarkingAll(false);
     }
@@ -179,7 +180,7 @@ export const Notifications: React.FC = () => {
       window.dispatchEvent(new CustomEvent("notifications:updated"));
       setShowDeleteConfirm(false);
     } catch (error) {
-      console.error("Error deleting all notifications:", error);
+      logger.error("Error deleting all notifications:", error);
     } finally {
       setDeletingAll(false);
     }

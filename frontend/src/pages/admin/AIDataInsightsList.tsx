@@ -30,6 +30,7 @@ import {
   useInvalidateAdminInsights,
 } from "../../hooks/queries/useAdminStandaloneQueries";
 import { adminFetch } from "../../api";
+import { logger } from "../../lib/logger";
 
 /**
  * AI Data Insights List Page
@@ -124,7 +125,7 @@ export default function AIDataInsightsList() {
         alert("Failed to run agents: " + (data.message || "Unknown error"));
       }
     } catch (err) {
-      console.error("Failed to run Guardian/Governance agents:", err);
+      logger.error("Failed to run Guardian/Governance agents:", err);
       alert("Failed to run agents. Please try again.");
     } finally {
       setIsRunning(false);
@@ -169,7 +170,7 @@ export default function AIDataInsightsList() {
         alert("Failed to clear data: " + (data.message || "Unknown error"));
       }
     } catch (err) {
-      console.error("Failed to clear Guardian/Governance data:", err);
+      logger.error("Failed to clear Guardian/Governance data:", err);
       alert("Failed to clear data. Please try again.");
     } finally {
       setIsClearing(false);
@@ -206,7 +207,7 @@ export default function AIDataInsightsList() {
             data.rejected.length > 0 ? data.rejected.join(", ") : "None"
           }\n\nTotal: ${totalCount} recommendations`;
           alert(message);
-          console.log("Governance IDs for", agentType, ":", data);
+          logger.log("Governance IDs for", agentType, ":", data);
         }
       } else {
         alert(
@@ -214,7 +215,7 @@ export default function AIDataInsightsList() {
         );
       }
     } catch (err) {
-      console.error("Failed to generate governance log ref:", err);
+      logger.error("Failed to generate governance log ref:", err);
       alert("Failed to generate governance log reference. Please try again.");
     }
   };

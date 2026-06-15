@@ -33,6 +33,7 @@ import {
 } from "../../components/ui/DesignSystem";
 import { ConfirmModal } from "../../components/settings/ConfirmModal";
 import { AlertModal } from "../../components/ui/AlertModal";
+import { logger } from "../../lib/logger";
 
 const TYPE_OPTIONS = [
   { value: "all", label: "All Types" },
@@ -138,7 +139,7 @@ export default function ImportsList() {
       });
       setImports(response.data);
     } catch (err) {
-      console.error("Failed to fetch imports:", err);
+      logger.error("Failed to fetch imports:", err);
       setError(err instanceof Error ? err.message : "Failed to load imports");
     } finally {
       setLoading(false);

@@ -16,6 +16,7 @@ import {
   updateLocationGBP,
   type Location,
 } from "../../api/locations";
+import { logger } from "../../lib/logger";
 
 type UserRole = "admin" | "manager" | "viewer";
 
@@ -59,7 +60,7 @@ export const PropertiesTab: React.FC = () => {
       const locs = await getLocations();
       setLocations(locs);
     } catch (err) {
-      console.error("Failed to fetch locations:", err);
+      logger.error("Failed to fetch locations:", err);
     } finally {
       setIsLoading(false);
       inFlightRef.current = false;
@@ -85,7 +86,7 @@ export const PropertiesTab: React.FC = () => {
         setAvailableGBP(data.properties);
       }
     } catch (err) {
-      console.error("Failed to fetch available GBP properties:", err);
+      logger.error("Failed to fetch available GBP properties:", err);
     } finally {
       setLoadingAvailable(false);
     }
@@ -112,7 +113,7 @@ export const PropertiesTab: React.FC = () => {
       await loadData();
       await refreshLocations();
     } catch (err) {
-      console.error("Failed to update GBP:", err);
+      logger.error("Failed to update GBP:", err);
     } finally {
       setIsSaving(false);
     }
@@ -147,7 +148,7 @@ export const PropertiesTab: React.FC = () => {
       await loadData();
       await refreshLocations();
     } catch (err) {
-      console.error("Failed to create location:", err);
+      logger.error("Failed to create location:", err);
     } finally {
       setIsSaving(false);
     }
@@ -169,7 +170,7 @@ export const PropertiesTab: React.FC = () => {
       await loadData();
       await refreshLocations();
     } catch (err) {
-      console.error("Failed to delete location:", err);
+      logger.error("Failed to delete location:", err);
     } finally {
       setIsDeleting(false);
     }
@@ -182,7 +183,7 @@ export const PropertiesTab: React.FC = () => {
       await loadData();
       await refreshLocations();
     } catch (err) {
-      console.error("Failed to set primary:", err);
+      logger.error("Failed to set primary:", err);
     }
   };
 
@@ -200,7 +201,7 @@ export const PropertiesTab: React.FC = () => {
       await loadData();
       await refreshLocations();
     } catch (err) {
-      console.error("Failed to update name:", err);
+      logger.error("Failed to update name:", err);
     }
   };
 

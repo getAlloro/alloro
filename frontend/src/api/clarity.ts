@@ -1,4 +1,5 @@
 import { apiPost } from "./index";
+import { logger } from "../lib/logger";
 
 const baseurl = "/clarity";
 
@@ -9,7 +10,7 @@ async function getKeyData(domain: string) {
       passedData: { clientId: domain },
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       successful: false,
       errorMessage: "Technical error, contact developer",
@@ -24,7 +25,7 @@ async function getAIReadyData(clientId: string) {
       passedData: { clientId },
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       successful: false,
       errorMessage: "Technical error, contact developer",

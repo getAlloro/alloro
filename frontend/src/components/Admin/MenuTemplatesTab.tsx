@@ -23,6 +23,7 @@ import { ActionButton } from "../ui/DesignSystem";
 import { useConfirm } from "../ui/ConfirmModal";
 import { renderPage } from "../../utils/templateRenderer";
 import { prepareHtmlForPreview } from "../../hooks/useIframeSelector";
+import { logger } from "../../lib/logger";
 
 const DEFAULT_MENU_TEMPLATE_HTML = `<style>
 .site-nav { font-family: inherit; }
@@ -235,7 +236,7 @@ export default function MenuTemplatesTab({
       const res = await fetchMenuTemplates(templateId);
       setMenuTemplates(res.data || []);
     } catch (err) {
-      console.error("Failed to load menu templates:", err);
+      logger.error("Failed to load menu templates:", err);
     } finally {
       setLoading(false);
     }
@@ -312,7 +313,7 @@ export default function MenuTemplatesTab({
       closeEditor();
       await loadData();
     } catch (err: any) {
-      console.error("Save failed:", err);
+      logger.error("Save failed:", err);
       alert(err.message || "Failed to save menu template");
     } finally {
       setSaving(false);
@@ -332,7 +333,7 @@ export default function MenuTemplatesTab({
       await deleteMenuTemplate(templateId, mt.id);
       await loadData();
     } catch (err) {
-      console.error("Delete failed:", err);
+      logger.error("Delete failed:", err);
     }
   }
 

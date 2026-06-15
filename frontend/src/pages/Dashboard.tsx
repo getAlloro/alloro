@@ -24,6 +24,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { OnboardingContainer } from "../components/onboarding/OnboardingContainer";
 import { useIsWizardActive, useIsWizardLoading, useRecheckWizardStatus } from "../contexts/OnboardingWizardContext";
 import { useLocationContext } from "../contexts/locationContext";
+import { logger } from "../lib/logger";
 
 export default function Dashboard() {
   // Domain selection and auth hooks - now includes centralized onboarding state
@@ -95,7 +96,7 @@ export default function Dashboard() {
 
   // Handler for when onboarding is completed
   const handleOnboardingComplete = async () => {
-    console.log("[Dashboard] Onboarding completed");
+    logger.log("[Dashboard] Onboarding completed");
 
     // Mark onboarding as complete immediately so the Dashboard renders
     // (not null — null would fall through to the onboarding fallback)
@@ -113,14 +114,14 @@ export default function Dashboard() {
     try {
       await Promise.all([
         refreshUserProperties().then(() =>
-          console.log("[Dashboard] User properties refreshed from database")
+          logger.log("[Dashboard] User properties refreshed from database")
         ),
         recheckWizardStatus().then(() =>
-          console.log("[Dashboard] Wizard status checked")
+          logger.log("[Dashboard] Wizard status checked")
         ),
       ]);
     } catch (error) {
-      console.error("Failed post-onboarding setup:", error);
+      logger.error("Failed post-onboarding setup:", error);
     } finally {
       setIsTransitioningToWizard(false);
     }
@@ -148,7 +149,7 @@ export default function Dashboard() {
     : onboardingCompleted === true
       ? (!hasProperties && !isWizardActive && !isTransitioningToWizard && !isWizardLoading ? "EMPTY_STATE" : "DASHBOARD")
     : "FALLBACK_ONBOARDING";
-  console.log("[Dashboard] render branch:", renderBranch, {
+  logger.log("[Dashboard] render branch:", renderBranch, {
     onboardingCompleted, hasProperties, isWizardActive, isWizardLoading, isTransitioningToWizard
   });
 
@@ -396,7 +397,7 @@ export default function Dashboard() {
               ready={ready}
               session={session}
               onSuccess={() => {
-                console.log("GBP integration successful!");
+                logger.log("GBP integration successful!");
               }}
             />
 
@@ -405,7 +406,7 @@ export default function Dashboard() {
               onClose={() => setShowClarityModal(false)}
               clientId={clientId}
               onSuccess={() => {
-                console.log("Clarity integration successful!");
+                logger.log("Clarity integration successful!");
               }}
             />
 

@@ -15,6 +15,7 @@ import {
 import { Badge, ActionButton } from "../ui/DesignSystem";
 import CodeSnippetModal from "./CodeSnippetModal";
 import type { WebsitePage } from "../../api/websites";
+import { logger } from "../../lib/logger";
 
 interface CodeManagerTabProps {
   templateId?: string;
@@ -92,7 +93,7 @@ export default function CodeManagerTab({
       }
       onSnippetsChange();
     } catch (error) {
-      console.error("Failed to reorder snippets:", error);
+      logger.error("Failed to reorder snippets:", error);
     }
   };
 
@@ -105,7 +106,7 @@ export default function CodeManagerTab({
       }
       onSnippetsChange();
     } catch (error) {
-      console.error("Failed to toggle snippet:", error);
+      logger.error("Failed to toggle snippet:", error);
     }
   };
 
@@ -124,7 +125,7 @@ export default function CodeManagerTab({
       setDeletingId(null);
       onSnippetsChange();
     } catch (error) {
-      console.error("Failed to delete snippet:", error);
+      logger.error("Failed to delete snippet:", error);
       setDeletingId(null);
     }
   };

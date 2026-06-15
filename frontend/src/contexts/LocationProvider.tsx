@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, type ReactNode } from "react"
 import { LocationContext, type TransitionOrigin } from "./locationContext";
 import { getLocations, type Location } from "../api/locations";
 import { useAuth } from "../hooks/useAuth";
+import { logger } from "../lib/logger";
 
 interface LocationProviderProps {
   children: ReactNode;
@@ -40,7 +41,7 @@ export function LocationProvider({ children }: LocationProviderProps) {
       const primary = locs.find((l) => l.is_primary);
       setSelectedLocationState(saved || primary || locs[0] || null);
     } catch (error) {
-      console.error("[LocationProvider] Failed to load locations:", error);
+      logger.error("[LocationProvider] Failed to load locations:", error);
       setLocations([]);
       setSelectedLocationState(null);
     } finally {

@@ -17,6 +17,7 @@ import { motion } from "framer-motion";
 import { Trash2, X, Loader2 } from "lucide-react";
 import { bulkDeleteSubmissions } from "../../api/leadgenSubmissions";
 import { useConfirm } from "../ui/ConfirmModal";
+import { logger } from "../../lib/logger";
 
 interface Props {
   selectedIds: Set<string>;
@@ -49,7 +50,7 @@ export default function LeadgenBulkActionBar({
       await bulkDeleteSubmissions(ids);
       onDeleted(ids);
     } catch (err) {
-      console.error("[LeadgenBulkActionBar] bulk delete failed:", err);
+      logger.error("[LeadgenBulkActionBar] bulk delete failed:", err);
     } finally {
       setDeleting(false);
     }

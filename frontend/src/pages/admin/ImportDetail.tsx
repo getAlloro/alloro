@@ -33,6 +33,7 @@ import {
 } from "../../components/ui/DesignSystem";
 import { ConfirmModal } from "../../components/settings/ConfirmModal";
 import { AlertModal } from "../../components/ui/AlertModal";
+import { logger } from "../../lib/logger";
 
 const TYPE_COLORS: Record<string, string> = {
   css: "bg-blue-100 text-blue-700",
@@ -144,7 +145,7 @@ export default function ImportDetail() {
       setActiveTab(isText ? "editor" : "preview");
       setHasChanges(false);
     } catch (err) {
-      console.error("Failed to fetch import:", err);
+      logger.error("Failed to fetch import:", err);
       setError(err instanceof Error ? err.message : "Failed to load import");
     } finally {
       setLoading(false);

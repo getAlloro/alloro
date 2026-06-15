@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import googleAuth from "../api/google-auth";
+import { logger } from "../lib/logger";
 
 // Popup dimensions and timeout
 const POPUP_WIDTH = 500;
@@ -126,7 +127,7 @@ export const GoogleConnectButton: React.FC<GoogleConnectButtonProps> = ({
         }
 
         if (event.data.type === "GOOGLE_OAUTH_SUCCESS") {
-          console.log("[GoogleConnect] OAuth success");
+          logger.log("[GoogleConnect] OAuth success");
           closePopup();
           setIsLoading(false);
           window.removeEventListener("message", handleMessage);
@@ -135,7 +136,7 @@ export const GoogleConnectButton: React.FC<GoogleConnectButtonProps> = ({
             onSuccess();
           }
         } else if (event.data.type === "GOOGLE_OAUTH_ERROR") {
-          console.error("[GoogleConnect] OAuth error:", event.data.error);
+          logger.error("[GoogleConnect] OAuth error:", event.data.error);
           closePopup();
           setIsLoading(false);
           setError("Google connection failed. Please try again.");

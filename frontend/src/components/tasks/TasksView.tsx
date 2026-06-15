@@ -25,6 +25,7 @@ import { parseHighlightTags } from "../../utils/textFormatting";
 import { useIsWizardActive, useWizardDemoData } from "../../contexts/OnboardingWizardContext";
 import { useLocationContext } from "../../contexts/locationContext";
 import { getPriorityItem } from "../../hooks/useLocalStorage";
+import { logger } from "../../lib/logger";
 
 // CSS for pulse animation
 const pulseAnimationStyle = `
@@ -473,7 +474,7 @@ export function TasksView({ organizationId, locationId }: TasksViewProps) {
       const response = await fetchClientTasks(organizationId, locationId);
       setTasks(response.tasks);
     } catch (err) {
-      console.error("Failed to fetch tasks:", err);
+      logger.error("Failed to fetch tasks:", err);
       setError(err instanceof Error ? err.message : "Failed to load tasks");
     } finally {
       setLoading(false);
@@ -516,7 +517,7 @@ export function TasksView({ organizationId, locationId }: TasksViewProps) {
       // Dispatch custom event to notify Sidebar of task changes
       window.dispatchEvent(new CustomEvent("tasks:updated"));
     } catch (err) {
-      console.error("Failed to toggle task:", err);
+      logger.error("Failed to toggle task:", err);
       alert(err instanceof Error ? err.message : "Failed to update task");
     } finally {
       setCompletingTaskId(null);

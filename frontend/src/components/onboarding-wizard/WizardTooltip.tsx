@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, X, Sparkles, PartyPopper } from "lucide-react";
 import type { WizardStep } from "./wizardConfig";
+import { logger } from "../../lib/logger";
 
 interface WizardTooltipProps {
   /** Current step configuration */
@@ -95,7 +96,7 @@ export function WizardTooltip({
         retryTimeoutRef.current = setTimeout(calculatePosition, 200);
       } else {
         // Give up after max retries, show tooltip in center as fallback
-        console.warn(`Wizard: Element not found after ${maxRetries} retries: ${step.targetSelector}`);
+        logger.warn(`Wizard: Element not found after ${maxRetries} retries: ${step.targetSelector}`);
         setPosition({
           top: Math.max(100, (viewportHeight - tooltipHeight) / 2),
           left: sidebarWidth + (viewportWidth - sidebarWidth) / 2,

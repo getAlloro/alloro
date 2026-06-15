@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { apiGet } from "../api";
 import { WebsiteLoadingSkeleton } from "./website/WebsiteLoadingSkeleton";
+import { logger } from "../lib/logger";
 
 interface DFYRouteProps {
   children: React.ReactNode;
@@ -33,7 +34,7 @@ export function DFYRoute({ children }: DFYRouteProps) {
         if (status === 403) {
           toast.error("Website project is not available yet");
         } else {
-          console.error("[DFYRoute] Tier check failed:", error);
+          logger.error("[DFYRoute] Tier check failed:", error);
         }
         navigate("/dashboard", { replace: true });
       } finally {

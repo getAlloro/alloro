@@ -6,6 +6,7 @@ import {
 } from "recharts";
 import type { PmVelocityData } from "../../types/pm";
 import { fetchVelocity } from "../../api/pm";
+import { logger } from "../../lib/logger";
 
 const RANGES = ["7d", "4w", "3m"] as const;
 type Range = typeof RANGES[number];
@@ -36,7 +37,7 @@ export function VelocityChart() {
   const [chartKey, setChartKey] = useState(0);
 
   useEffect(() => {
-    fetchVelocity(range).then(setData).catch(console.error);
+    fetchVelocity(range).then(setData).catch((err) => logger.error(err));
     setChartKey((k) => k + 1);
   }, [range]);
 

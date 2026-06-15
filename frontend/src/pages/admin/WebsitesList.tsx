@@ -41,6 +41,7 @@ import {
 } from "../../components/ui/DesignSystem";
 import { useConfirm } from "../../components/ui/ConfirmModal";
 import { ActiveIntegrationLogos } from "../../components/Admin/integrations/ActiveIntegrationLogos";
+import { logger } from "../../lib/logger";
 
 const INITIAL_PROJECT_LIST_VIEW: WebsiteProjectListView = "active";
 
@@ -292,7 +293,7 @@ export default function WebsitesList() {
       await updateWebsite(id, { display_name: trimmed } as Partial<WebsiteProject>);
       await refetchWebsites();
     } catch (err) {
-      console.error("Failed to update display name:", err);
+      logger.error("Failed to update display name:", err);
     } finally {
       setEditingNameId(null);
       setEditingNameValue("");

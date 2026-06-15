@@ -23,6 +23,7 @@ import { ProoflineAgentEditor } from "./ProoflineAgentEditor";
 import { SummaryAgentEditor } from "./SummaryAgentEditor";
 import { OpportunityAgentEditor } from "./OpportunityAgentEditor";
 import { ConfirmModal } from "@/components/settings/ConfirmModal";
+import { logger } from "../../lib/logger";
 
 type StatusFilter = "all" | "pending" | "approved" | "rejected";
 
@@ -134,7 +135,7 @@ export function AgentInsights() {
           setError(fallbackError);
         }
       } catch (err) {
-        console.error("Failed to load agent results", err);
+        logger.error("Failed to load agent results", err);
         if (!options?.silent) {
           setResults([]);
         }
@@ -211,7 +212,7 @@ export function AgentInsights() {
         setError(fallbackError);
       }
     } catch (err) {
-      console.error("Failed to approve agent result", err);
+      logger.error("Failed to approve agent result", err);
       setError("Failed to approve the insight. Please try again.");
     } finally {
       setProcessingResultId(null);
@@ -259,7 +260,7 @@ export function AgentInsights() {
             setError(fallbackError);
           }
         } catch (err) {
-          console.error("Failed to reject agent result", err);
+          logger.error("Failed to reject agent result", err);
           setError("Failed to reject the insight. Please try again.");
         } finally {
           setProcessingResultId(null);
@@ -317,7 +318,7 @@ export function AgentInsights() {
         setTimeout(() => setToast(null), 5000);
       }
     } catch (err) {
-      console.error("Failed to save agent data", err);
+      logger.error("Failed to save agent data", err);
       setToast({
         message: "Failed to save changes. Please try again.",
         type: "error",

@@ -7,6 +7,7 @@ import type {
 } from "../hooks/useClarity";
 import { ClarityContext } from "./ClarityContext";
 import { useLocationContext } from "./locationContext";
+import { logger } from "../lib/logger";
 
 interface ClarityProviderProps {
   children: ReactNode;
@@ -41,7 +42,7 @@ export const ClarityProvider: React.FC<ClarityProviderProps> = ({
 
       if (result.successful !== false) {
         setAiData(result as ClarityAIReadyData);
-        console.log("Clarity AI Ready Data:", result);
+        logger.log("Clarity AI Ready Data:", result);
       } else {
         setAiError(
           result.errorMessage || "Failed to fetch Clarity AI-ready data"
@@ -49,7 +50,7 @@ export const ClarityProvider: React.FC<ClarityProviderProps> = ({
       }
     } catch (error) {
       setAiError("Failed to fetch AI-ready data");
-      console.error("Clarity AI Ready Data fetch error:", error);
+      logger.error("Clarity AI Ready Data fetch error:", error);
     } finally {
       setAiDataLoading(false);
     }
@@ -75,7 +76,7 @@ export const ClarityProvider: React.FC<ClarityProviderProps> = ({
       }
     } catch (error) {
       setError("Failed to fetch Clarity data");
-      console.error("Clarity Data fetch error:", error);
+      logger.error("Clarity Data fetch error:", error);
     } finally {
       setIsLoading(false);
     }

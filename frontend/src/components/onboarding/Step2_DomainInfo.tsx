@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { ChevronLeft, Loader2, MapPin, Check, X } from "lucide-react";
 import { GoogleConnectButton } from "../GoogleConnectButton";
+import { logger } from "../../lib/logger";
 
 interface GBPSelection {
   accountId: string;
@@ -88,7 +89,7 @@ export const Step2DomainInfo: React.FC<Step2GbpConnectProps> = ({
       const locations = await fetchAvailableGBP();
       setGbpLocations(locations);
     } catch (err: any) {
-      console.error("[Onboarding] Failed to fetch GBP locations:", err);
+      logger.error("[Onboarding] Failed to fetch GBP locations:", err);
       setGbpError(err.message || "Failed to load GBP locations");
       setGbpLocations([]);
     } finally {
@@ -121,7 +122,7 @@ export const Step2DomainInfo: React.FC<Step2GbpConnectProps> = ({
       await onGbpSelect(selections);
       setGbpModalOpen(false);
     } catch (err: any) {
-      console.error("[Onboarding] Failed to save GBP selection:", err);
+      logger.error("[Onboarding] Failed to save GBP selection:", err);
       setGbpError(err.message || "Failed to save selection");
     } finally {
       setGbpSaving(false);

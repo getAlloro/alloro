@@ -43,6 +43,7 @@ import {
   sortComparisonRows,
   type ComparisonSortKey,
 } from "./rankings/competitorComparison";
+import { logger } from "../../lib/logger";
 
 // Redesign flag: the simplified RankingsHubSurface replaces PerformanceDashboard
 // on the Overview tab. Kept as a const (not deleted) so the legacy tree stays
@@ -405,7 +406,7 @@ export function RankingsDashboard({
         setRankings([data.ranking]);
       }
     } catch (err) {
-      console.error("Error fetching rankings:", err);
+      logger.error("Error fetching rankings:", err);
       setError(
         err instanceof Error ? err.message : "Failed to load ranking data",
       );

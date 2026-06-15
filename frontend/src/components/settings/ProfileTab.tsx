@@ -15,6 +15,7 @@ import {
   getPasswordStatus,
   changePassword,
 } from "../../api/profile";
+import { logger } from "../../lib/logger";
 
 const PASSWORD_RULES = [
   { label: "At least 8 characters", test: (p: string) => p.length >= 8 },
@@ -48,7 +49,7 @@ export const ProfileTab: React.FC = () => {
         setHasPassword(response.hasPassword);
       }
     } catch (err) {
-      console.error("Failed to fetch password status:", err);
+      logger.error("Failed to fetch password status:", err);
     } finally {
       setIsLoading(false);
     }

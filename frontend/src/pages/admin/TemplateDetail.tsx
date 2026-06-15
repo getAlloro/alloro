@@ -53,6 +53,7 @@ import {
   TabBar,
 } from "../../components/ui/DesignSystem";
 import { useConfirm } from "../../components/ui/ConfirmModal";
+import { logger } from "../../lib/logger";
 
 /**
  * Template Detail Page
@@ -135,7 +136,7 @@ export default function TemplateDetail() {
       setHeaderContent(response.data.header || "");
       setFooterContent(response.data.footer || "");
     } catch (err) {
-      console.error("Failed to fetch template:", err);
+      logger.error("Failed to fetch template:", err);
       setError(err instanceof Error ? err.message : "Failed to load template");
     } finally {
       setLoading(false);
@@ -152,7 +153,7 @@ export default function TemplateDetail() {
       const response = await fetchTemplateCodeSnippets(id);
       setCodeSnippets(response.data);
     } catch (err) {
-      console.error("Failed to fetch code snippets:", err);
+      logger.error("Failed to fetch code snippets:", err);
     } finally {
       setLoadingSnippets(false);
     }

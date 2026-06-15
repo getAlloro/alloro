@@ -58,6 +58,7 @@ import SectionsEditor from "../../components/Admin/SectionsEditor";
 import ProgressivePagePreview from "../../components/Admin/ProgressivePagePreview";
 import RegenerateComponentModal from "../../components/Admin/RegenerateComponentModal";
 import { showSuccessToast } from "../../lib/toast";
+import { logger } from "../../lib/logger";
 
 /**
  * Inject "Rebuilding section…" overlay + pulse/gray styling into the assembled
@@ -684,7 +685,7 @@ function PageEditorInner() {
           setChatMap(objectToChatMap(chatHistory));
         }
       } catch (err) {
-        console.error("Failed to load page:", err);
+        logger.error("Failed to load page:", err);
         setError(
           err instanceof Error ? err.message : "Failed to load page"
         );
@@ -861,7 +862,7 @@ function PageEditorInner() {
           livePreviewPollRef.current = setTimeout(pollLivePreview, 2000);
         }
       } catch (err) {
-        console.error("Live preview poll error:", err);
+        logger.error("Live preview poll error:", err);
         livePreviewPollRef.current = setTimeout(pollLivePreview, 2000);
       }
     };
@@ -877,7 +878,7 @@ function PageEditorInner() {
   useEffect(() => {
     fetchEditorSystemPrompt()
       .then(setSystemPrompt)
-      .catch((err) => console.error("Failed to load system prompt:", err));
+      .catch((err) => logger.error("Failed to load system prompt:", err));
   }, []);
 
   // --- Warn before closing/reloading with unsaved changes ---
@@ -1131,7 +1132,7 @@ function PageEditorInner() {
           return next;
         });
       } catch (err) {
-        console.error("Edit failed:", err);
+        logger.error("Edit failed:", err);
         const errorMessage =
           err instanceof Error ? err.message : "Edit failed";
         setEditError(errorMessage);
@@ -1371,7 +1372,7 @@ function PageEditorInner() {
           setShowConflictModal(true);
           return;
         }
-        console.error("Save failed:", err);
+        logger.error("Save failed:", err);
         setEditError(err instanceof Error ? err.message : "Failed to save");
       } finally {
         setIsSaving(false);
@@ -1480,7 +1481,7 @@ function PageEditorInner() {
       setSuccessMessage(`Page published successfully! You are now working on version ${newDraft.data.version}.`);
       setShowSuccessAlert(true);
     } catch (err) {
-      console.error("Publish failed:", err);
+      logger.error("Publish failed:", err);
       setEditError(
         err instanceof Error ? err.message : "Failed to publish"
       );
@@ -1689,7 +1690,7 @@ function PageEditorInner() {
         setIsDirty(false);
         clearSelection();
       } catch (err) {
-        console.error("Failed to reload page after find & replace:", err);
+        logger.error("Failed to reload page after find & replace:", err);
       }
     },
     [projectId, draftPageId, rebuildPreviewHtml, clearSelection]

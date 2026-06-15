@@ -26,6 +26,7 @@ import { ActionButton } from "../ui/DesignSystem";
 import { useConfirm } from "../ui/ConfirmModal";
 import { renderPage } from "../../utils/templateRenderer";
 import { prepareHtmlForPreview } from "../../hooks/useIframeSelector";
+import { logger } from "../../lib/logger";
 
 const DEFAULT_REVIEW_BLOCK_HTML = `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-4">
 {{start_review_loop}}
@@ -212,7 +213,7 @@ export default function ReviewBlocksTab({
       const res = await fetchReviewBlocks(templateId);
       setReviewBlocks(res.data || []);
     } catch (err) {
-      console.error("Failed to load review blocks:", err);
+      logger.error("Failed to load review blocks:", err);
     } finally {
       setLoading(false);
     }
@@ -286,7 +287,7 @@ export default function ReviewBlocksTab({
       closeEditor();
       await loadData();
     } catch (err: unknown) {
-      console.error("Save failed:", err);
+      logger.error("Save failed:", err);
       alert(getErrorMessage(err));
     } finally {
       setSaving(false);
@@ -305,7 +306,7 @@ export default function ReviewBlocksTab({
       await deleteReviewBlock(templateId, rb.id);
       await loadData();
     } catch (err) {
-      console.error("Delete failed:", err);
+      logger.error("Delete failed:", err);
     }
   }
 

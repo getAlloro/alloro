@@ -8,6 +8,7 @@ import {
   Search,
   Star,
 } from "lucide-react";
+import { logger } from "../lib/logger";
 
 interface BaseIntegrationModalProps {
   isOpen: boolean;
@@ -80,7 +81,7 @@ export const GBPIntegrationModal: React.FC<BaseIntegrationModalProps> = ({
   }, [isConnected, locations, step]);
 
   const handleConnect = async () => {
-    console.log("GBP Modal: Starting demo connection with clientId:", clientId);
+    logger.log("GBP Modal: Starting demo connection with clientId:", clientId);
     setIsLoading(true);
     setError(null);
 
@@ -91,12 +92,12 @@ export const GBPIntegrationModal: React.FC<BaseIntegrationModalProps> = ({
       // Demo: randomly succeed or fail
       if (Math.random() > 0.2) {
         setIsConnected(true);
-        console.log("🏢 GBP Modal: Demo connection successful");
+        logger.log("🏢 GBP Modal: Demo connection successful");
       } else {
         throw new Error("Demo connection failed. Please try again.");
       }
     } catch (err) {
-      console.error("🏢 GBP Modal: Connection failed", err);
+      logger.error("🏢 GBP Modal: Connection failed", err);
       setError(err instanceof Error ? err.message : "Connection failed");
     } finally {
       setIsLoading(false);
@@ -104,14 +105,14 @@ export const GBPIntegrationModal: React.FC<BaseIntegrationModalProps> = ({
   };
 
   const handleLocationSelect = () => {
-    console.log("🏢 GBP Modal: Location select clicked", { selectedLocations });
+    logger.log("🏢 GBP Modal: Location select clicked", { selectedLocations });
     if (selectedLocations.length > 0) {
       setStep("fetch-data");
     }
   };
 
   const handleFetchData = async () => {
-    console.log("🏢 GBP Modal: Fetch data clicked", { selectedLocations });
+    logger.log("🏢 GBP Modal: Fetch data clicked", { selectedLocations });
     if (selectedLocations.length === 0) return;
 
     setIsLoading(true);
@@ -119,14 +120,14 @@ export const GBPIntegrationModal: React.FC<BaseIntegrationModalProps> = ({
       // Simulate data fetching
       await new Promise((resolve) => setTimeout(resolve, 3000));
 
-      console.log("🏢 GBP Modal: Demo data fetch completed successfully");
+      logger.log("🏢 GBP Modal: Demo data fetch completed successfully");
       setStep("success");
       setTimeout(() => {
         onSuccess?.();
         onClose();
       }, 2000);
     } catch (err) {
-      console.error("🏢 GBP Modal: Data fetch failed", err);
+      logger.error("🏢 GBP Modal: Data fetch failed", err);
       setError("Failed to fetch data. Please try again.");
     } finally {
       setIsLoading(false);

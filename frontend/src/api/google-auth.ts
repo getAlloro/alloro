@@ -1,4 +1,5 @@
 import { apiGet, apiPost } from "./index";
+import { logger } from "../lib/logger";
 
 const baseurl = "/auth/google";
 
@@ -8,7 +9,7 @@ async function getOAuthUrl() {
       path: baseurl,
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       successful: false,
       errorMessage: "Technical error, contact developer",
@@ -22,7 +23,7 @@ async function validateToken(connectionId: number) {
       path: baseurl + `/validate/${connectionId}`,
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       successful: false,
       errorMessage: "Technical error, contact developer",
@@ -37,7 +38,7 @@ async function disconnectAccount() {
       passedData: {},
     });
   } catch (err) {
-    console.log(err);
+    logger.log(err);
     return {
       successful: false,
       errorMessage: "Technical error, contact developer",

@@ -47,6 +47,7 @@ import type { Post, PostType, PostCategory, PostTag } from "../../api/posts";
 import { ActionButton } from "../ui/DesignSystem";
 import { useConfirm } from "../ui/ConfirmModal";
 import { useBulkSeoProgress } from "../../hooks/useBulkSeoProgress";
+import { logger } from "../../lib/logger";
 
 /** Compute a quick SEO score from seo_data alone (no wrapper/uniqueness) */
 function quickPostSeoScore(seoData: SeoData | null): {
@@ -142,7 +143,7 @@ function MediaPickerField({
         onChange(data.data[0].s3_url);
       }
     } catch (err) {
-      console.error("Upload failed:", err);
+      logger.error("Upload failed:", err);
     } finally {
       setUploading(false);
     }
@@ -905,7 +906,7 @@ export default function PostsTab({
       try {
         await updatePostSeoFn(projectId, editingPost.id, data);
       } catch (err) {
-        console.error("Failed to save post SEO data:", err);
+        logger.error("Failed to save post SEO data:", err);
       }
     }
   };

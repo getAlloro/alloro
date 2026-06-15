@@ -107,7 +107,8 @@ if [ -d frontend/src ]; then
   [ "$fe_big_n" -gt 8 ] && printf '     …and %s more\n' "$((fe_big_n-8))"
   rule
 
-  fe_con=$(grep -rlE 'console\.(log|error|warn|info|debug)' frontend/src --include='*.ts' --include='*.tsx' 2>/dev/null | sort)
+  fe_con=$(grep -rlE 'console\.(log|error|warn|info|debug)' frontend/src --include='*.ts' --include='*.tsx' 2>/dev/null \
+        | grep -vE '^frontend/src/lib/logger\.ts$' | sort)
   fe_con_n=$(count_nonempty "$fe_con")
   printf '%sfrontend console.* files (strip before merge) [§17.1]: %s\n' "$(icon "$fe_con_n")" "$fe_con_n"
   show "$fe_con" 6
