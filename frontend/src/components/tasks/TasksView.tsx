@@ -19,7 +19,7 @@ import {
   Send,
 } from "lucide-react";
 import { fetchClientTasks, completeTask } from "../../api/tasks";
-import { getCommonHeaders } from "../../api";
+import { adminFetch } from "../../api";
 import type { GroupedActionItems, ActionItem } from "../../types/tasks";
 import { parseHighlightTags } from "../../utils/textFormatting";
 import { useIsWizardActive, useWizardDemoData } from "../../contexts/OnboardingWizardContext";
@@ -496,12 +496,9 @@ export function TasksView({ organizationId, locationId }: TasksViewProps) {
       // If task is complete, mark as pending (undo). Otherwise, mark as complete.
       if (currentStatus === "complete") {
         // Undo completion - use the update endpoint to set status to pending
-        const response = await fetch(`/api/tasks/${taskId}`, {
+        const response = await adminFetch(`/api/tasks/${taskId}`, {
           method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            ...getCommonHeaders(),
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: "pending" }),
         });
 

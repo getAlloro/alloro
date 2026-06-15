@@ -28,6 +28,7 @@ import {
   useAdminOrgRankings,
   useInvalidateAdminOrgRankings,
 } from "../../hooks/queries/useAdminOrgTabQueries";
+import { adminFetch } from "../../api";
 
 interface OrgRankingsTabProps {
   organizationId: number;
@@ -199,10 +200,8 @@ export function OrgRankingsTab({
   const fetchJobResults = async (jobId: number) => {
     setLoadingResults(jobId);
     try {
-      const token = localStorage.getItem("auth_token");
-      const response = await fetch(
+      const response = await adminFetch(
         `/api/admin/practice-ranking/results/${jobId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
       );
       if (!response.ok) throw new Error("Failed to fetch results");
       const data = await response.json();
@@ -221,10 +220,8 @@ export function OrgRankingsTab({
 
     setDeletingJob(jobId);
     try {
-      const token = localStorage.getItem("auth_token");
-      const response = await fetch(`/api/admin/practice-ranking/${jobId}`, {
+      const response = await adminFetch(`/api/admin/practice-ranking/${jobId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) throw new Error("Failed to delete");
       toast.success("Analysis deleted");

@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import type { AgentRecommendation } from "../../types/agentInsights";
 import { AlertModal } from "@/components/ui/AlertModal";
-import { getCommonHeaders } from "../../api";
+import { adminFetch } from "../../api";
 
 interface Props {
   recommendation: AgentRecommendation;
@@ -140,11 +140,11 @@ export default function RecommendationCard({
     setIsUpdating(true);
 
     try {
-      const response = await fetch(
+      const response = await adminFetch(
         `/api/admin/agent-insights/recommendations/${recommendation.id}`,
         {
           method: "PATCH",
-          headers: { "Content-Type": "application/json", ...getCommonHeaders() },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: newStatus }),
         }
       );

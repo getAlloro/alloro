@@ -29,7 +29,7 @@ import {
   useAdminInsightsSummary,
   useInvalidateAdminInsights,
 } from "../../hooks/queries/useAdminStandaloneQueries";
-import { getCommonHeaders } from "../../api";
+import { adminFetch } from "../../api";
 
 /**
  * AI Data Insights List Page
@@ -150,11 +150,11 @@ export default function AIDataInsightsList() {
 
     setIsClearing(true);
     try {
-      const response = await fetch(
+      const response = await adminFetch(
         `/api/admin/agent-insights/clear-month-data?month=${selectedMonth}`,
         {
           method: "DELETE",
-          headers: { "Content-Type": "application/json", ...getCommonHeaders() },
+          headers: { "Content-Type": "application/json" },
         }
       );
 
@@ -183,9 +183,8 @@ export default function AIDataInsightsList() {
     e.stopPropagation();
 
     try {
-      const response = await fetch(
+      const response = await adminFetch(
         `/api/admin/agent-insights/${agentType}/governance-ids`,
-        { headers: getCommonHeaders() }
       );
       const data = await response.json();
 

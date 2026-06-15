@@ -11,7 +11,7 @@ import {
   Sparkles,
   ArrowUpDown,
 } from "lucide-react";
-import { getPriorityItem } from "../../hooks/useLocalStorage";
+import { adminFetch } from "../../api";
 import {
   useIsWizardActive,
   useWizardDemoData,
@@ -382,14 +382,9 @@ export function RankingsDashboard({
   const fetchLatestRankings = async () => {
     try {
       setLoading(true);
-      const token = getPriorityItem("token");
-
       // Fetch the latest rankings for all locations of this google account
-      const response = await fetch(
+      const response = await adminFetch(
         `/api/practice-ranking/latest?googleAccountId=${organizationId}${locationId ? `&locationId=${locationId}` : ""}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
       );
 
       if (!response.ok) {

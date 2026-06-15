@@ -87,7 +87,7 @@ import IntegrationsTab from "../../components/Admin/IntegrationsTab";
 import FindReplaceModal from "../../components/Admin/FindReplaceModal";
 import { fetchProjectCodeSnippets } from "../../api/codeSnippets";
 import type { CodeSnippet } from "../../api/codeSnippets";
-import { getCommonHeaders } from "../../api";
+import { adminFetch } from "../../api";
 import { useConfirm } from "../../components/ui/ConfirmModal";
 
 type OrganizationListItem = {
@@ -442,10 +442,7 @@ export default function WebsiteDetail({
   const loadAvailableOrganizations = useCallback(async () => {
     try {
       setLoadingOrgs(true);
-      const token = localStorage.getItem("auth_token");
-      const response = await fetch("/api/admin/organizations", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await adminFetch("/api/admin/organizations");
       const data = (await response.json()) as OrganizationsResponse;
 
       // Filter to orgs without websites (or currently linked org)
@@ -720,7 +717,7 @@ export default function WebsiteDetail({
 
     try {
       setDeletingPageId(pageId);
-      const response = await fetch(
+      const response = await adminFetch(
         `/api/admin/websites/${id}/pages/${pageId}`,
         {
           method: "DELETE",
@@ -1818,9 +1815,9 @@ export default function WebsiteDetail({
                                           if (!ok) return;
                                           try {
                                             // Create a new page version with this version's sections
-                                            await fetch(`/api/admin/websites/${id}/pages`, {
+                                            await adminFetch(`/api/admin/websites/${id}/pages`, {
                                               method: "POST",
-                                              headers: { "Content-Type": "application/json", ...getCommonHeaders() },
+                                              headers: { "Content-Type": "application/json" },
                                               body: JSON.stringify({
                                                 path: page.path,
                                                 sections: page.sections,
@@ -1894,7 +1891,7 @@ export default function WebsiteDetail({
                                     });
                                     if (!ok) return;
                                     for (const v of toDelete) {
-                                      await fetch(`/api/admin/websites/${id}/pages/${v.id}`, { method: "DELETE", headers: getCommonHeaders() }).catch(() => {});
+                                      await adminFetch(`/api/admin/websites/${id}/pages/${v.id}`, { method: "DELETE" }).catch(() => {});
                                     }
                                     invalidateWebsite(id!);
                                     toast.success(`Cleaned up ${toDelete.length} old version(s)`);
@@ -1951,7 +1948,7 @@ export default function WebsiteDetail({
                     const target = group?.pages.find((p) => p.status === "draft") || group?.pages[0];
                     if (target && target.status !== "published") {
                       try {
-                        const res = await fetch(`/api/admin/websites/${id}/pages/${target.id}/publish`, { method: "POST", headers: getCommonHeaders() });
+                        const res = await adminFetch(`/api/admin/websites/${id}/pages/${target.id}/publish`, { method: "POST" });
                         if (res.ok) {
                           published++;
                         } else {

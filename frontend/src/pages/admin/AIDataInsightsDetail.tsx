@@ -28,7 +28,7 @@ import { staggerContainer, cardVariants, fadeInUp } from "../../lib/animations";
 import { ConfirmModal } from "../../components/settings/ConfirmModal";
 import { AlertModal } from "../../components/ui/AlertModal";
 import { getAgentIcon } from "../../lib/adminIcons";
-import { getCommonHeaders } from "../../api";
+import { adminFetch } from "../../api";
 // AgentRecommendation type used indirectly via TQ hook data
 
 import {
@@ -91,9 +91,9 @@ export default function AIDataInsightsDetail() {
       onConfirm: async () => {
         setConfirmModal((prev) => ({ ...prev, isOpen: false }));
         try {
-          const response = await fetch(
+          const response = await adminFetch(
             `/api/admin/agent-insights/${agentType}/recommendations/mark-all-completed`,
-            { method: "PATCH", headers: getCommonHeaders() }
+            { method: "PATCH" }
           );
           const data = await response.json();
           if (data.success) {
@@ -137,11 +137,11 @@ export default function AIDataInsightsDetail() {
         setConfirmModal((prev) => ({ ...prev, isOpen: false }));
         setBulkOperationLoading(true);
         try {
-          const response = await fetch(
+          const response = await adminFetch(
             "/api/admin/agent-insights/recommendations/bulk-delete",
             {
               method: "DELETE",
-              headers: { "Content-Type": "application/json", ...getCommonHeaders() },
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ ids: Array.from(selectedIds) }),
             }
           );

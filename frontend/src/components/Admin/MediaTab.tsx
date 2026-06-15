@@ -26,7 +26,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useConfirm } from "../ui/ConfirmModal";
-import { getCommonHeaders } from "../../api";
+import { adminFetch, getCommonHeaders } from "../../api";
 
 // =====================================================================
 // Types
@@ -151,9 +151,8 @@ export default function MediaTab({ projectId }: { projectId: string }) {
         limit: "50",
       });
 
-      const response = await fetch(
+      const response = await adminFetch(
         `/api/admin/websites/${projectId}/media?${params}`,
-        { headers: getCommonHeaders() }
       );
 
       if (!response.ok) throw new Error("Failed to fetch media");
@@ -250,14 +249,11 @@ export default function MediaTab({ projectId }: { projectId: string }) {
 
   const updateMedia = async (mediaId: string) => {
     try {
-      const response = await fetch(
+      const response = await adminFetch(
         `/api/admin/websites/${projectId}/media/${mediaId}`,
         {
           method: "PATCH",
-          headers: {
-            ...getCommonHeaders(),
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(editForm),
         }
       );
@@ -279,11 +275,10 @@ export default function MediaTab({ projectId }: { projectId: string }) {
     if (!ok) return;
 
     try {
-      const response = await fetch(
+      const response = await adminFetch(
         `/api/admin/websites/${projectId}/media/${mediaId}?force=true`,
         {
           method: "DELETE",
-          headers: getCommonHeaders(),
         }
       );
 

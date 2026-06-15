@@ -14,7 +14,7 @@ import {
   Save,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from "../api";
+import { adminFetch, apiGet, apiPost, apiPatch, apiPut, apiDelete } from "../api";
 import { userWebsiteMediaApi } from "../api/websiteMedia";
 import ConnectDomainModal from "../components/Admin/ConnectDomainModal";
 import FormSubmissionsTab from "../components/Admin/FormSubmissionsTab";
@@ -584,14 +584,8 @@ export function DFYWebsite() {
 
   const handleExportSubmissions = async () => {
     try {
-      const token =
-        window.sessionStorage.getItem("token") ||
-        localStorage.getItem("auth_token") ||
-        localStorage.getItem("token");
       const apiBase = (import.meta as any)?.env?.VITE_API_URL ?? "/api";
-      const response = await fetch(`${apiBase}/user/website/form-submissions/export`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const response = await adminFetch(`${apiBase}/user/website/form-submissions/export`);
       if (!response.ok) {
         toast.error("Failed to export submissions");
         return;

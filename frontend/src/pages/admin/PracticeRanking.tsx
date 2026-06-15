@@ -25,6 +25,7 @@ import {
   Building2,
   Target,
 } from "lucide-react";
+import { adminFetch } from "../../api";
 import { fetchOrganizations } from "../../api/agentOutputs";
 import { toast } from "react-hot-toast";
 import {
@@ -638,10 +639,7 @@ export function PracticeRanking() {
 
   const fetchAccounts = async () => {
     try {
-      const token = localStorage.getItem("auth_token");
-      const response = await fetch("/api/admin/practice-ranking/accounts", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await adminFetch("/api/admin/practice-ranking/accounts");
 
       if (!response.ok) throw new Error("Failed to fetch accounts");
 
@@ -654,15 +652,12 @@ export function PracticeRanking() {
 
   const fetchJobs = async () => {
     try {
-      const token = localStorage.getItem("auth_token");
       const params = new URLSearchParams();
       if (organizationFilter) {
         params.set("organization_id", organizationFilter);
       }
       const url = `/api/admin/practice-ranking/list${params.toString() ? `?${params.toString()}` : ""}`;
-      const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await adminFetch(url);
 
       if (!response.ok) throw new Error("Failed to fetch jobs");
 
@@ -696,12 +691,8 @@ export function PracticeRanking() {
 
   const fetchJobStatus = async (jobId: number) => {
     try {
-      const token = localStorage.getItem("auth_token");
-      const response = await fetch(
+      const response = await adminFetch(
         `/api/admin/practice-ranking/status/${jobId}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
       );
 
       if (!response.ok) return;
@@ -738,12 +729,8 @@ export function PracticeRanking() {
 
   const fetchBatchStatus = async (batchId: string) => {
     try {
-      const token = localStorage.getItem("auth_token");
-      const response = await fetch(
+      const response = await adminFetch(
         `/api/admin/practice-ranking/batch/${batchId}/status`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
       );
 
       if (!response.ok) return;
@@ -772,12 +759,8 @@ export function PracticeRanking() {
 
     setLoadingResults(jobId);
     try {
-      const token = localStorage.getItem("auth_token");
-      const response = await fetch(
+      const response = await adminFetch(
         `/api/admin/practice-ranking/results/${jobId}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
       );
 
       if (!response.ok) throw new Error("Failed to fetch results");
@@ -795,12 +778,8 @@ export function PracticeRanking() {
 
   const fetchRankingTasks = async (practiceRankingId: number) => {
     try {
-      const token = localStorage.getItem("auth_token");
-      const response = await fetch(
+      const response = await adminFetch(
         `/api/practice-ranking/tasks?practiceRankingId=${practiceRankingId}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
       );
 
       if (!response.ok) {
@@ -823,13 +802,9 @@ export function PracticeRanking() {
 
     setTriggering(true);
     try {
-      const token = localStorage.getItem("auth_token");
-      const response = await fetch("/api/admin/practice-ranking/trigger", {
+      const response = await adminFetch("/api/admin/practice-ranking/trigger", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           googleAccountId: selectedAccount,
           locations: locationForms.map((form) => ({
@@ -886,10 +861,8 @@ export function PracticeRanking() {
 
     setDeletingJob(jobId);
     try {
-      const token = localStorage.getItem("auth_token");
-      const response = await fetch(`/api/admin/practice-ranking/${jobId}`, {
+      const response = await adminFetch(`/api/admin/practice-ranking/${jobId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (!response.ok) {
@@ -934,12 +907,10 @@ export function PracticeRanking() {
 
     setDeletingBatch(batchId);
     try {
-      const token = localStorage.getItem("auth_token");
-      const response = await fetch(
+      const response = await adminFetch(
         `/api/admin/practice-ranking/batch/${batchId}`,
         {
           method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
         }
       );
 
@@ -974,12 +945,10 @@ export function PracticeRanking() {
     e.stopPropagation();
     setRetryingJob(rankingId);
     try {
-      const token = localStorage.getItem("auth_token");
-      const response = await fetch(
+      const response = await adminFetch(
         `/api/admin/practice-ranking/retry/${rankingId}`,
         {
           method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
         }
       );
       if (!response.ok) {
@@ -1000,12 +969,10 @@ export function PracticeRanking() {
     e.stopPropagation();
     setRetryingBatch(batchId);
     try {
-      const token = localStorage.getItem("auth_token");
-      const response = await fetch(
+      const response = await adminFetch(
         `/api/admin/practice-ranking/retry-batch/${batchId}`,
         {
           method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
         }
       );
       if (!response.ok) {
@@ -1026,15 +993,11 @@ export function PracticeRanking() {
   const refreshCompetitors = async (specialty: string, location: string) => {
     setRefreshingCompetitors(true);
     try {
-      const token = localStorage.getItem("auth_token");
-      const response = await fetch(
+      const response = await adminFetch(
         "/api/admin/practice-ranking/refresh-competitors",
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ specialty, location }),
         }
       );
