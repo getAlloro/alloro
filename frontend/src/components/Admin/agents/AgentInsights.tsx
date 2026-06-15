@@ -24,6 +24,7 @@ import { SummaryAgentEditor } from "./SummaryAgentEditor";
 import { OpportunityAgentEditor } from "./OpportunityAgentEditor";
 import { ConfirmModal } from "@/components/settings/ConfirmModal";
 import { logger } from "../../../lib/logger";
+import { getErrorMessage } from "../../../lib/errorMessage";
 
 type StatusFilter = "all" | "pending" | "approved" | "rejected";
 
@@ -114,32 +115,20 @@ export function AgentInsights() {
       }
 
       try {
-        const response = await fetchAgentResults({
+        const data = await fetchAgentResults({
           status: statusFilter === "all" ? undefined : statusFilter,
         });
-
-        if (response?.success && response.data) {
-          setResults(response.data);
-          setError(null);
-          setLastUpdated(new Date());
-        } else {
-          const fallbackError =
-            response?.error ||
-            response?.message ||
-            "Unable to fetch agent insights right now.";
-
-          if (!options?.silent) {
-            setResults([]);
-          }
-
-          setError(fallbackError);
-        }
+        setResults(data);
+        setError(null);
+        setLastUpdated(new Date());
       } catch (err) {
         logger.error("Failed to load agent results", err);
         if (!options?.silent) {
           setResults([]);
         }
-        setError("An unexpected error occurred while loading agent insights.");
+        setError(
+          getErrorMessage(err) || "Unable to fetch agent insights right now.",
+        );
       } finally {
         if (!options?.silent) {
           setIsLoading(false);
@@ -187,33 +176,25 @@ export function AgentInsights() {
     setProcessingResultId(result.id);
 
     try {
-      const response = await approveAgentResult({
+      const updated = await approveAgentResult({
         resultId: result.id,
         status: "approved",
         approvedBy: "admin", // TODO: Get from auth context
       });
 
-      if (response?.success && response.data) {
-        setResults((prev) =>
-          prev.map((item) => (item.id === result.id ? response.data! : item))
-        );
-        setError(null);
-        setLastUpdated(new Date());
-        setToast({
-          message: "Insight approved successfully!",
-          type: "success",
-        });
-        setTimeout(() => setToast(null), 3000);
-      } else {
-        const fallbackError =
-          response?.error ||
-          response?.message ||
-          "Unable to approve the insight.";
-        setError(fallbackError);
-      }
+      setResults((prev) =>
+        prev.map((item) => (item.id === result.id ? updated : item))
+      );
+      setError(null);
+      setLastUpdated(new Date());
+      setToast({
+        message: "Insight approved successfully!",
+        type: "success",
+      });
+      setTimeout(() => setToast(null), 3000);
     } catch (err) {
       logger.error("Failed to approve agent result", err);
-      setError("Failed to approve the insight. Please try again.");
+      setError(getErrorMessage(err) || "Failed to approve the insight. Please try again.");
     } finally {
       setProcessingResultId(null);
     }
@@ -235,33 +216,25 @@ export function AgentInsights() {
         setProcessingResultId(result.id);
 
         try {
-          const response = await approveAgentResult({
+          const updated = await approveAgentResult({
             resultId: result.id,
             status: "rejected",
             approvedBy: "admin", // TODO: Get from auth context
           });
 
-          if (response?.success && response.data) {
-            setResults((prev) =>
-              prev.map((item) => (item.id === result.id ? response.data! : item))
-            );
-            setError(null);
-            setLastUpdated(new Date());
-            setToast({
-              message: "Insight rejected successfully!",
-              type: "success",
-            });
-            setTimeout(() => setToast(null), 3000);
-          } else {
-            const fallbackError =
-              response?.error ||
-              response?.message ||
-              "Unable to reject the insight.";
-            setError(fallbackError);
-          }
+          setResults((prev) =>
+            prev.map((item) => (item.id === result.id ? updated : item))
+          );
+          setError(null);
+          setLastUpdated(new Date());
+          setToast({
+            message: "Insight rejected successfully!",
+            type: "success",
+          });
+          setTimeout(() => setToast(null), 3000);
         } catch (err) {
           logger.error("Failed to reject agent result", err);
-          setError("Failed to reject the insight. Please try again.");
+          setError(getErrorMessage(err) || "Failed to reject the insight. Please try again.");
         } finally {
           setProcessingResultId(null);
         }
@@ -294,33 +267,23 @@ export function AgentInsights() {
       };
 
       // Call the API to update
-      const response = await updateAgentResult({
+      const updated = await updateAgentResult({
         resultId: result.id,
         agentResponse: updatedResponse,
       });
 
-      if (response?.success && response.data) {
-        setResults((prev) =>
-          prev.map((item) => (item.id === result.id ? response.data! : item))
-        );
-        setToast({
-          message: "Agent data updated successfully!",
-          type: "success",
-        });
-        setTimeout(() => setToast(null), 3000);
-      } else {
-        const errorMsg =
-          response?.error || response?.message || "Failed to update agent data";
-        setToast({
-          message: errorMsg,
-          type: "error",
-        });
-        setTimeout(() => setToast(null), 5000);
-      }
+      setResults((prev) =>
+        prev.map((item) => (item.id === result.id ? updated : item))
+      );
+      setToast({
+        message: "Agent data updated successfully!",
+        type: "success",
+      });
+      setTimeout(() => setToast(null), 3000);
     } catch (err) {
       logger.error("Failed to save agent data", err);
       setToast({
-        message: "Failed to save changes. Please try again.",
+        message: getErrorMessage(err) || "Failed to save changes. Please try again.",
         type: "error",
       });
       setTimeout(() => setToast(null), 5000);

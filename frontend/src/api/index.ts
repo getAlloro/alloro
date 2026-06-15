@@ -2,6 +2,53 @@ import axios, { isAxiosError, type ResponseType } from "axios";
 import { getPriorityItem } from "../hooks/useLocalStorage";
 import { logger } from "../lib/logger";
 
+/**
+ * ApiError — carries a backend error `code` and HTTP `status` alongside the
+ * message. Thrown by {@link unwrap} so callers (React Query, try/catch) can
+ * surface real failures instead of inspecting a `{ success:false }` envelope.
+ * Part of the T4 error-contract unification (code-constitution §17.x).
+ */
+export class ApiError extends Error {
+  readonly code?: string;
+  readonly status?: number;
+  constructor(message: string, opts?: { code?: string; status?: number }) {
+    super(message);
+    this.name = "ApiError";
+    this.code = opts?.code;
+    this.status = opts?.status;
+  }
+}
+
+interface ApiEnvelope {
+  success?: boolean;
+  successful?: boolean;
+  error?: string;
+  errorMessage?: string;
+  errorCode?: string;
+  message?: string;
+  data?: unknown;
+}
+
+/**
+ * unwrap — opt-in error-contract helper for the per-domain T4 migration.
+ * Pass the result of an `api*` helper: throws an {@link ApiError} when the
+ * envelope signals failure (`success:false` / `successful:false`), otherwise
+ * returns the payload (the `data` field when present, else the raw body).
+ *
+ * This lets a single domain adopt throw-on-error WITHOUT changing the shared
+ * `api*` primitives, which keep their swallow behavior for un-migrated domains.
+ */
+export function unwrap<T>(res: unknown): T {
+  const env = (res ?? {}) as ApiEnvelope;
+  if (env.success === false || env.successful === false) {
+    throw new ApiError(
+      env.error || env.errorMessage || env.message || "Request failed",
+      { code: env.errorCode },
+    );
+  }
+  return (env.data !== undefined ? env.data : res) as T;
+}
+
 // Prefer environment-configured API base; default to relative "/api" so Vite dev proxy handles CORS in development.
 // Define VITE_API_URL in .env for deployments that need an absolute URL.
 const api = import.meta.env.VITE_API_URL ?? "/api";

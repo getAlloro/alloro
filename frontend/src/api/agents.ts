@@ -1,6 +1,11 @@
-import { apiGet, apiPost, apiPatch } from "./index";
+import { apiGet, apiPost, apiPatch, unwrap } from "./index";
 import type { AgentResponse } from "../types/agents";
 import { logger } from "../lib/logger";
+
+// NOTE (T4 error-contract): fetchAgentResults / approveAgentResult /
+// updateAgentResult below throw an ApiError on failure (via unwrap) and return
+// the unwrapped payload. getLatestAgentData / getLatestAgentResult are dead
+// (no consumers) and left on the legacy swallow contract pending removal.
 
 const baseurl = "/agents";
 
@@ -40,19 +45,11 @@ async function getLatestAgentData(organizationId: number, locationId?: number | 
 
 async function fetchAgentResults(params?: {
   status?: string;
-}): Promise<ApiResponse<AgentResult[]>> {
-  try {
-    const queryParams = params?.status ? `?status=${params.status}` : "";
-    return await apiGet({
-      path: baseurl + `/results${queryParams}`,
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      success: false,
-      error: "Technical error, contact developer",
-    };
-  }
+}): Promise<AgentResult[]> {
+  const queryParams = params?.status ? `?status=${params.status}` : "";
+  return unwrap<AgentResult[]>(
+    await apiGet({ path: baseurl + `/results${queryParams}` }),
+  );
 }
 
 async function getLatestAgentResult(
@@ -75,42 +72,30 @@ async function approveAgentResult(params: {
   resultId: number;
   status: "approved" | "rejected";
   approvedBy: string;
-}): Promise<ApiResponse<AgentResult>> {
-  try {
-    return await apiPost({
+}): Promise<AgentResult> {
+  return unwrap<AgentResult>(
+    await apiPost({
       path: baseurl + `/results/${params.resultId}/approve`,
       passedData: {
         status: params.status,
         approved_by: params.approvedBy,
       },
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      success: false,
-      error: "Technical error, contact developer",
-    };
-  }
+    }),
+  );
 }
 
 async function updateAgentResult(params: {
   resultId: number;
   agentResponse: AgentResponse;
-}): Promise<ApiResponse<AgentResult>> {
-  try {
-    return await apiPatch({
+}): Promise<AgentResult> {
+  return unwrap<AgentResult>(
+    await apiPatch({
       path: baseurl + `/results/${params.resultId}`,
       passedData: {
         agent_response: params.agentResponse,
       },
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      success: false,
-      error: "Technical error, contact developer",
-    };
-  }
+    }),
+  );
 }
 
 // Export individual functions as named exports
