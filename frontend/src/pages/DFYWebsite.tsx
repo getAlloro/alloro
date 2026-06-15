@@ -2,19 +2,11 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  AlertCircle,
-  Sparkles,
-  Link as LinkIcon,
-  ExternalLink,
-  ArrowLeft,
-  Monitor,
-  Smartphone,
   RotateCcw,
   Loader2,
-  Save,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { adminFetch, apiGet, apiPost, apiPatch, apiPut, apiDelete } from "../api";
+import { apiGet, apiPost, apiPatch, apiDelete } from "../api";
 import { userWebsiteMediaApi } from "../api/websiteMedia";
 import ConnectDomainModal from "../components/Admin/website-tabs/ConnectDomainModal";
 import FormSubmissionsTab from "../components/Admin/leadgen/FormSubmissionsTab";
@@ -25,10 +17,6 @@ import { WebsiteOverview } from "../components/website/overview/WebsiteOverview"
 import { KeywordsTab } from "../components/website/KeywordsTab";
 import { WebsitePagesTab } from "../components/website/WebsitePagesTab";
 import { WebsiteLoadingSkeleton } from "../components/website/WebsiteLoadingSkeleton";
-import {
-  WebsiteDashboardTabs,
-  type WebsiteDashboardView,
-} from "../components/website/WebsiteDashboardTabs";
 import {
   renderPage as assemblePageHtml,
   normalizeSections,
@@ -64,56 +52,49 @@ import {
   useOnboardingWizard,
 } from "../contexts/OnboardingWizardContext";
 import { logger } from "../lib/logger";
-
-interface Page {
-  id: string;
-  path: string;
-  status: string;
-  sections: unknown;
-  updated_at: string;
-}
-
-interface Project {
-  id: string;
-  hostname: string;
-  display_name: string | null;
-  status: string;
-  is_read_only: boolean;
-  custom_domain: string | null;
-  domain_verified_at: string | null;
-  wrapper: string;
-  header: string;
-  footer: string;
-  template_id: string | null;
-  organization_id: number | null;
-  primary_color: string | null;
-  accent_color: string | null;
-}
-
-const DESKTOP_SCALE = 0.7;
-/** Window in which consecutive same-element text applies share one undo entry. */
-const TEXT_UNDO_COALESCE_MS = 2500;
-const WEBSITE_TABS = ["overview", "editor", "submissions", "posts", "menus", "pages", "keywords"] as const;
-type WebsiteTab = typeof WEBSITE_TABS[number];
-
-type SectionHistoryEntry = {
-  sections: Section[];
-  changedSectionNames?: string[];
-};
-
-function parseWebsiteTab(value: string | null): WebsiteTab | null {
-  return WEBSITE_TABS.includes(value as WebsiteTab)
-    ? (value as WebsiteTab)
-    : null;
-}
-
-function getWebsiteTabFromParams(searchParams: URLSearchParams): WebsiteTab {
-  return (
-    parseWebsiteTab(searchParams.get("tab")) ||
-    parseWebsiteTab(searchParams.get("view")) ||
-    "overview"
-  );
-}
+import type { Page, Project, SectionHistoryEntry } from "./dfyWebsite.types";
+import {
+  DESKTOP_SCALE,
+  TEXT_UNDO_COALESCE_MS,
+  type WebsiteTab,
+  getWebsiteTabFromParams,
+  parseWebsiteTab,
+  userFetchRecipients,
+  userUpdateRecipients,
+  userFetchSubmissions,
+  userToggleRead,
+  userDeleteSubmission,
+  userMarkAllRead,
+  userFetchFormCatalog,
+  userUpdateFormRecipientRule,
+  userUpdateFormPreferences,
+  userFetchPosts,
+  userCreatePost,
+  userUpdatePost,
+  userDeletePost,
+  userDuplicatePost,
+  userFetchPostTypes,
+  userFetchCategories,
+  userFetchTags,
+  userCreateCategory,
+  userCreateTag,
+  userUpdatePostSeo,
+  userFetchMenus,
+  userFetchMenu,
+  userCreateMenu,
+  userUpdateMenu,
+  userDeleteMenu,
+  userCreateMenuItem,
+  userUpdateMenuItem,
+  userDeleteMenuItem,
+  userReorderMenuItems,
+  handleExportSubmissions,
+} from "./dfyWebsite.utils";
+import { PreparingState } from "./DFYWebsite/PreparingState";
+import { ReadOnlyState } from "./DFYWebsite/ReadOnlyState";
+import { EmptyState } from "./DFYWebsite/EmptyState";
+import { EditorToolbar } from "./DFYWebsite/EditorToolbar";
+import { DashboardHeader } from "./DFYWebsite/DashboardHeader";
 
 export function DFYWebsite() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -427,184 +408,6 @@ export function DFYWebsite() {
     sectionsOnly: true,
     onDirty: () => setIsDirty(true),
   });
-
-  // User-facing API wrappers (routes don't need projectId — inferred from auth)
-  const userFetchRecipients = async (_projectId: string) =>
-    apiGet({ path: "/user/website/recipients" });
-
-  const userUpdateRecipients = async (
-    _projectId: string,
-    recipients: string[],
-  ) =>
-    apiPut({
-      path: "/user/website/recipients",
-      passedData: { recipients },
-    });
-
-  const userFetchSubmissions = async (
-    _projectId: string,
-    page: number,
-    limit: number,
-    filter?: string,
-    formName?: string,
-  ) => {
-    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
-    if (filter) params.set("filter", filter);
-    if (formName) params.set("formName", formName);
-    return apiGet({
-      path: `/user/website/form-submissions?${params}`,
-    });
-  };
-
-  const userToggleRead = async (
-    _projectId: string,
-    submissionId: string,
-    is_read: boolean,
-  ) =>
-    apiPatch({
-      path: `/user/website/form-submissions/${submissionId}/read`,
-      passedData: { is_read },
-    });
-
-  const userDeleteSubmission = async (
-    _projectId: string,
-    submissionId: string,
-  ) =>
-    apiDelete({
-      path: `/user/website/form-submissions/${submissionId}`,
-    });
-
-  const userMarkAllRead = async (_projectId: string, formName?: string) => {
-    void _projectId;
-    return apiPatch({
-      path: "/user/website/form-submissions/mark-all-read",
-      passedData: { formName },
-    });
-  };
-
-  const userFetchFormCatalog = async (_projectId: string) => {
-    void _projectId;
-    return apiGet({ path: "/user/website/forms/catalog" });
-  };
-
-  const userUpdateFormRecipientRule = async (
-    _projectId: string,
-    payload: {
-      formName: string;
-      recipients: string[];
-      isEnabled: boolean;
-    },
-  ) => {
-    void _projectId;
-    return apiPut({
-      path: "/user/website/forms/recipients",
-      passedData: payload,
-    });
-  };
-
-  const userUpdateFormPreferences = async (
-    _projectId: string,
-    payload: {
-      preferences: Array<{
-        formName: string;
-        displayLabel: string | null;
-        sortOrder: number;
-      }>;
-    },
-  ) => {
-    void _projectId;
-    return apiPut({
-      path: "/user/website/forms/preferences",
-      passedData: payload,
-    });
-  };
-
-  // User-facing API wrappers for Posts
-  const userFetchPosts = async (_projectId: string, filters?: { post_type_id?: string; status?: string }) => {
-    const params = new URLSearchParams();
-    if (filters?.post_type_id) params.set("post_type_id", filters.post_type_id);
-    if (filters?.status) params.set("status", filters.status);
-    const qs = params.toString() ? `?${params}` : "";
-    return apiGet({ path: `/user/website/posts${qs}` });
-  };
-
-  const userCreatePost = async (_projectId: string, data: object) =>
-    apiPost({ path: "/user/website/posts", passedData: data });
-
-  const userUpdatePost = async (_projectId: string, postId: string, data: object) =>
-    apiPatch({ path: `/user/website/posts/${postId}`, passedData: data });
-
-  const userDeletePost = async (_projectId: string, postId: string) =>
-    apiDelete({ path: `/user/website/posts/${postId}` });
-
-  const userDuplicatePost = async (_projectId: string, postId: string) =>
-    apiPost({ path: `/user/website/posts/${postId}/duplicate` });
-
-  const userFetchPostTypes = async (_templateId: string) =>
-    apiGet({ path: "/user/website/post-types" });
-
-  const userFetchCategories = async (postTypeId: string) =>
-    apiGet({ path: `/user/website/post-types/${postTypeId}/categories` });
-
-  const userFetchTags = async (postTypeId: string) =>
-    apiGet({ path: `/user/website/post-types/${postTypeId}/tags` });
-
-  const userCreateCategory = async (postTypeId: string, data: object) =>
-    apiPost({ path: `/user/website/post-types/${postTypeId}/categories`, passedData: data });
-
-  const userCreateTag = async (postTypeId: string, data: object) =>
-    apiPost({ path: `/user/website/post-types/${postTypeId}/tags`, passedData: data });
-
-  const userUpdatePostSeo = async (_projectId: string, postId: string, data: object) =>
-    apiPatch({ path: `/user/website/posts/${postId}/seo`, passedData: data });
-
-  // User-facing API wrappers for Menus
-  const userFetchMenus = async (_projectId: string) =>
-    apiGet({ path: "/user/website/menus" });
-
-  const userFetchMenu = async (_projectId: string, menuId: string) =>
-    apiGet({ path: `/user/website/menus/${menuId}` });
-
-  const userCreateMenu = async (_projectId: string, data: object) =>
-    apiPost({ path: "/user/website/menus", passedData: data });
-
-  const userUpdateMenu = async (_projectId: string, menuId: string, data: object) =>
-    apiPatch({ path: `/user/website/menus/${menuId}`, passedData: data });
-
-  const userDeleteMenu = async (_projectId: string, menuId: string) =>
-    apiDelete({ path: `/user/website/menus/${menuId}` });
-
-  const userCreateMenuItem = async (_projectId: string, menuId: string, data: object) =>
-    apiPost({ path: `/user/website/menus/${menuId}/items`, passedData: data });
-
-  const userUpdateMenuItem = async (_projectId: string, menuId: string, itemId: string, data: object) =>
-    apiPatch({ path: `/user/website/menus/${menuId}/items/${itemId}`, passedData: data });
-
-  const userDeleteMenuItem = async (_projectId: string, menuId: string, itemId: string) =>
-    apiDelete({ path: `/user/website/menus/${menuId}/items/${itemId}` });
-
-  const userReorderMenuItems = async (_projectId: string, menuId: string, items: object[]) =>
-    apiPatch({ path: `/user/website/menus/${menuId}/items/reorder`, passedData: { items } });
-
-  const handleExportSubmissions = async () => {
-    try {
-      const apiBase = import.meta.env.VITE_API_URL ?? "/api";
-      const response = await adminFetch(`${apiBase}/user/website/form-submissions/export`);
-      if (!response.ok) {
-        toast.error("Failed to export submissions");
-        return;
-      }
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "form-submissions.csv";
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      toast.error("Failed to export submissions");
-    }
-  };
 
   // --- Load website data (skip API when wizard is active) ---
   useEffect(() => {
@@ -1293,88 +1096,16 @@ export function DFYWebsite() {
   }
 
   if (status === "PREPARING") {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center max-w-md">
-          <div className="animate-spin w-12 h-12 border-4 border-alloro-orange border-t-transparent rounded-full mx-auto mb-4" />
-          <h2 className="font-display text-xl font-medium text-alloro-navy mb-2">
-            Your Website is Being Prepared
-          </h2>
-          <p className="text-gray-600">
-            We're setting up your website. You'll receive an email when it's
-            ready!
-          </p>
-        </div>
-      </div>
-    );
+    return <PreparingState />;
   }
 
   if (status === "READ_ONLY") {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center max-w-md">
-          <AlertCircle className="w-16 h-16 text-amber-500 mx-auto mb-4" />
-          <h2 className="font-display text-xl font-medium text-alloro-navy mb-2">
-            Website in Read-Only Mode
-          </h2>
-          <p className="text-gray-600 mb-4">
-            Your subscription has been downgraded. Your website is still live
-            but you cannot make edits.
-          </p>
-          <p className="text-sm text-gray-500">
-            Contact your administrator to upgrade your plan and regain editing
-            access.
-          </p>
-        </div>
-      </div>
-    );
+    return <ReadOnlyState />;
   }
 
   // Empty state — project exists but no pages yet
   if (status === "READY" && pages.length === 0) {
-    return (
-      <div className="min-h-screen bg-alloro-bg font-body flex items-center justify-center py-16 px-6">
-        <div className="max-w-xl w-full text-center">
-          {/* Animated building blocks */}
-          <div className="flex items-end justify-center gap-2 mb-8 h-20">
-            <div className="w-5 rounded-t-md bg-alloro-orange/60 animate-[grow1_1.5s_ease-in-out_infinite]" />
-            <div className="w-5 rounded-t-md bg-alloro-orange/80 animate-[grow2_1.5s_ease-in-out_infinite_0.2s]" />
-            <div className="w-5 rounded-t-md bg-alloro-orange animate-[grow3_1.5s_ease-in-out_infinite_0.4s]" />
-            <div className="w-5 rounded-t-md bg-alloro-orange/80 animate-[grow2_1.5s_ease-in-out_infinite_0.6s]" />
-            <div className="w-5 rounded-t-md bg-alloro-orange/60 animate-[grow1_1.5s_ease-in-out_infinite_0.8s]" />
-          </div>
-
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-alloro-orange/10 rounded-full mb-4">
-            <Sparkles className="w-4 h-4 text-alloro-orange" />
-            <span className="text-xs font-bold text-alloro-orange uppercase tracking-wider">
-              Almost There
-            </span>
-          </div>
-          <h1 className="font-display text-2xl md:text-3xl font-medium text-alloro-navy tracking-tight mb-3">
-            Your Website is Being Built
-          </h1>
-          <p className="text-base text-slate-500 font-medium max-w-md mx-auto">
-            Your project has been created and Alloro is setting up your pages.
-            You'll be able to edit them here once they're ready.
-          </p>
-        </div>
-
-        <style>{`
-          @keyframes grow1 {
-            0%, 100% { height: 24px; }
-            50% { height: 56px; }
-          }
-          @keyframes grow2 {
-            0%, 100% { height: 32px; }
-            50% { height: 72px; }
-          }
-          @keyframes grow3 {
-            0%, 100% { height: 40px; }
-            50% { height: 80px; }
-          }
-        `}</style>
-      </div>
-    );
+    return <EmptyState />;
   }
 
   const liveUrl =
@@ -1387,122 +1118,28 @@ export function DFYWebsite() {
   // Shared dashboard header (intro heading + pill tabs + site actions). Rendered
   // INSIDE each non-editor view's scroll area so it scrolls instead of sticking.
   const dashboardHeader = (
-    <div className="mx-auto w-full max-w-[960px] px-4 pt-8 sm:px-6 lg:px-8 lg:pt-10">
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-alloro-navy/45">
-            Web presence
-          </div>
-          <h1 className="font-display text-[28px] font-medium tracking-tight text-alloro-navy">
-            Website
-          </h1>
-          <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-alloro-navy/55">
-            Traffic, leads, posts, and pages — manage it all in one place.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowDomainModal(true)}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-              project?.custom_domain && project?.domain_verified_at
-                ? "bg-green-50 text-green-700 hover:bg-green-100"
-                : project?.custom_domain
-                  ? "bg-amber-50 text-amber-700 hover:bg-amber-100"
-                  : "bg-alloro-orange/10 text-alloro-orange hover:bg-alloro-orange/20"
-            }`}
-          >
-            <LinkIcon className="h-3.5 w-3.5" />
-            {project?.custom_domain || "Connect Domain"}
-          </button>
-          {liveUrl && (
-            <a
-              href={liveUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-line-soft bg-white px-3 py-1.5 text-xs font-semibold text-alloro-navy/70 transition-colors hover:text-alloro-orange"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              View Live
-            </a>
-          )}
-        </div>
-      </div>
-      <div className="mt-6">
-        {/*
-          Tab descriptions moved into the trailing (i) tooltip on the tab bar
-          itself (#20, Rev) — replaces the always-on page-vs-post blurb.
-        */}
-        <WebsiteDashboardTabs
-          activeView={activeView as WebsiteDashboardView}
-          hasPosts={!!project?.template_id}
-          onViewChange={(v) => setWebsiteTab(v)}
-        />
-      </div>
-    </div>
+    <DashboardHeader
+      project={project}
+      liveUrl={liveUrl}
+      activeView={activeView}
+      onConnectDomain={() => setShowDomainModal(true)}
+      setWebsiteTab={setWebsiteTab}
+    />
   );
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Editor toolbar — focused editing mode (reached from the Pages tab) */}
       {activeView === "editor" && (
-        <div className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-2">
-          <button
-            type="button"
-            onClick={() => setWebsiteTab("pages")}
-            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50 hover:text-alloro-navy"
-          >
-            <ArrowLeft size={15} />
-            Back to pages
-          </button>
-          {selectedPage && (
-            <div className="flex items-center gap-1.5 text-xs">
-              <span className="text-gray-400">Editing</span>
-              <span className="font-semibold text-gray-800">
-                {selectedPage.path === "/" ? "Home" : selectedPage.path}
-              </span>
-            </div>
-          )}
-          <div className="flex-1" />
-          <div className="flex items-center rounded-lg bg-gray-100 p-0.5">
-            <button
-              onClick={() => setViewportMode("desktop")}
-              className={`rounded-md p-1.5 transition-colors ${
-                viewportMode === "desktop"
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-400 hover:text-gray-600"
-              }`}
-              title="Desktop view"
-            >
-              <Monitor size={13} />
-            </button>
-            <button
-              onClick={() => setViewportMode("mobile")}
-              className={`rounded-md p-1.5 transition-colors ${
-                viewportMode === "mobile"
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-400 hover:text-gray-600"
-              }`}
-              title="Mobile view"
-            >
-              <Smartphone size={13} />
-            </button>
-          </div>
-          {isDirty && (
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="flex items-center gap-1.5 rounded-lg bg-alloro-orange px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-alloro-orange/20 transition-colors hover:bg-alloro-orange/90 disabled:opacity-60"
-            >
-              {isSaving ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Save className="h-3.5 w-3.5" />
-              )}
-              {isSaving ? "Saving..." : "Save & Publish"}
-            </button>
-          )}
-        </div>
+        <EditorToolbar
+          selectedPage={selectedPage}
+          viewportMode={viewportMode}
+          setViewportMode={setViewportMode}
+          isDirty={isDirty}
+          isSaving={isSaving}
+          onSave={handleSave}
+          setWebsiteTab={setWebsiteTab}
+        />
       )}
 
       {/* Error banner */}
