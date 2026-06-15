@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
-// Note: useEffect is still used by AnimatedDropdown for click-outside
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus,
@@ -8,15 +7,11 @@ import {
   Check,
   X,
   Loader2,
-  Eye,
   Archive,
   ArchiveRestore,
   ListTodo,
-  Calendar,
-  Building2,
   CheckCircle,
   Circle,
-  ChevronDown,
 } from "lucide-react";
 import {
   updateTask,
@@ -35,8 +30,6 @@ import type {
 } from "../../../types/tasks";
 import { CreateTaskModal } from "../pms-pipeline/CreateTaskModal";
 import { TaskDetailsModal } from "../../tasks/TaskDetailsModal";
-import { AgentTypePill } from "../../tasks/AgentTypePill";
-import { parseHighlightTags } from "../../../utils/textFormatting";
 import {
   AdminPageHeader,
   ActionButton,
@@ -51,330 +44,8 @@ import {
   useAdminActionItemOrgs,
   useInvalidateAdminActionItems,
 } from "../../../hooks/queries/useAdminStandaloneQueries";
-
-// Approval Switch Component
-interface ApprovalSwitchProps {
-  isApproved: boolean;
-  isLoading: boolean;
-  disabled: boolean;
-  onToggle: () => void;
-}
-
-const ApprovalSwitch: React.FC<ApprovalSwitchProps> = ({
-  isApproved,
-  isLoading,
-  disabled,
-  onToggle,
-}) => {
-  return (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        onToggle();
-      }}
-      disabled={disabled || isLoading}
-      className="flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-    >
-      <span
-        className={`text-xs font-medium w-16 text-right ${
-          isApproved ? "text-green-600" : "text-gray-500"
-        }`}
-      >
-        {isLoading ? "Updating..." : isApproved ? "Approved" : "Pending"}
-      </span>
-      <motion.div
-        className={`relative w-10 h-5 rounded-full transition-colors ${
-          isApproved ? "bg-green-500" : "bg-gray-300"
-        }`}
-        whileTap={{ scale: 0.95 }}
-      >
-        <motion.div
-          className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm flex items-center justify-center"
-          initial={false}
-          animate={{ x: isApproved ? 22 : 2 }}
-          transition={{ type: "spring", stiffness: 500, damping: 30 }}
-        >
-          {isLoading && (
-            <Loader2 className="w-2.5 h-2.5 text-gray-400 animate-spin" />
-          )}
-        </motion.div>
-      </motion.div>
-    </button>
-  );
-};
-
-// Animated Dropdown Component
-interface DropdownOption {
-  value: string;
-  label: string;
-  color?: string;
-}
-
-interface AnimatedDropdownProps {
-  value: string;
-  options: DropdownOption[];
-  onChange: (value: string) => void;
-  disabled?: boolean;
-  isLoading?: boolean;
-  variant?: "category" | "status";
-}
-
-const AnimatedDropdown: React.FC<AnimatedDropdownProps> = ({
-  value,
-  options,
-  onChange,
-  disabled = false,
-  isLoading = false,
-  variant = "status",
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const currentOption = options.find((opt) => opt.value === value);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsOpen(false);
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isOpen]);
-
-  const getOptionStyles = (option: DropdownOption, isSelected: boolean) => {
-    const baseStyles =
-      "w-full px-3 py-2 text-left text-xs font-semibold transition-colors";
-    if (isSelected) {
-      return `${baseStyles} ${option.color || "bg-gray-100 text-gray-900"}`;
-    }
-    return `${baseStyles} hover:bg-gray-50 text-gray-700`;
-  };
-
-  const getTriggerStyles = () => {
-    if (variant === "category") {
-      return value === "ALLORO"
-        ? "border-purple-200 bg-purple-50 text-purple-700"
-        : "border-blue-200 bg-blue-50 text-blue-700";
-    }
-    // Status variant
-    switch (value) {
-      case "pending":
-        return "border-yellow-200 bg-yellow-50 text-yellow-700";
-      case "in_progress":
-        return "border-blue-200 bg-blue-50 text-blue-700";
-      case "complete":
-        return "border-green-200 bg-green-50 text-green-700";
-      case "archived":
-        return "border-gray-200 bg-gray-100 text-gray-500";
-      default:
-        return "border-gray-200 bg-gray-100 text-gray-700";
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
-        <Loader2 className="h-3 w-3 animate-spin" />
-        Updating...
-      </span>
-    );
-  }
-
-  return (
-    <div
-      ref={dropdownRef}
-      className="relative"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <motion.button
-        onClick={() => !disabled && setIsOpen(!isOpen)}
-        disabled={disabled}
-        className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${getTriggerStyles()}`}
-        whileHover={{ scale: disabled ? 1 : 1.02 }}
-        whileTap={{ scale: disabled ? 1 : 0.98 }}
-      >
-        {currentOption?.label || value}
-        <motion.div
-          animate={{ rotate: isOpen ? 180 : 0 }}
-          transition={{ duration: 0.2 }}
-        >
-          <ChevronDown className="h-3 w-3" />
-        </motion.div>
-      </motion.button>
-
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -8, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.95 }}
-            transition={{ duration: 0.15 }}
-            className="absolute top-full left-0 mt-1 z-50 min-w-[120px] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
-          >
-            {options.map((option) => (
-              <motion.button
-                key={option.value}
-                onClick={() => {
-                  onChange(option.value);
-                  setIsOpen(false);
-                }}
-                className={getOptionStyles(option, option.value === value)}
-                whileHover={{ backgroundColor: "rgba(0,0,0,0.03)" }}
-              >
-                <div className="flex items-center gap-2">
-                  {option.value === value && (
-                    <Check className="h-3 w-3 text-alloro-orange" />
-                  )}
-                  <span className={option.value === value ? "ml-0" : "ml-5"}>
-                    {option.label}
-                  </span>
-                </div>
-              </motion.button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-};
-
-// Category and Status options
-const CATEGORY_OPTIONS: DropdownOption[] = [
-  { value: "ALLORO", label: "ALLORO" },
-  { value: "USER", label: "USER" },
-];
-
-const STATUS_OPTIONS: DropdownOption[] = [
-  { value: "pending", label: "Pending" },
-  { value: "in_progress", label: "In Progress" },
-  { value: "complete", label: "Complete" },
-  { value: "archived", label: "Archived" },
-];
-
-// Filter Dropdown Component (larger, for filter bar)
-interface FilterDropdownOption {
-  value: string;
-  label: string;
-}
-
-interface FilterDropdownProps {
-  value: string;
-  options: FilterDropdownOption[];
-  onChange: (value: string) => void;
-  disabled?: boolean;
-  placeholder?: string;
-  icon?: React.ReactNode;
-  label?: string;
-}
-
-const FilterDropdown: React.FC<FilterDropdownProps> = ({
-  value,
-  options,
-  onChange,
-  disabled = false,
-  placeholder = "Select...",
-  icon,
-  label,
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const currentOption = options.find((opt) => opt.value === value);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsOpen(false);
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isOpen]);
-
-  return (
-    <div className="flex flex-col gap-1">
-      {label && (
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 flex items-center gap-1">
-          {icon}
-          {label}
-        </span>
-      )}
-      <div ref={dropdownRef} className="relative">
-        <motion.button
-          onClick={() => !disabled && setIsOpen(!isOpen)}
-          disabled={disabled}
-          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-all hover:border-gray-300 focus:border-alloro-orange focus:outline-none focus:ring-2 focus:ring-alloro-orange/20 disabled:opacity-50 disabled:cursor-not-allowed min-w-[120px] justify-between"
-          whileHover={{ scale: disabled ? 1 : 1.01 }}
-          whileTap={{ scale: disabled ? 1 : 0.99 }}
-        >
-          <span className="truncate">{currentOption?.label || placeholder}</span>
-          <motion.div
-            animate={{ rotate: isOpen ? 180 : 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <ChevronDown className="h-4 w-4 text-gray-400" />
-          </motion.div>
-        </motion.button>
-
-        <AnimatePresence>
-          {isOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: -8, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.95 }}
-              transition={{ duration: 0.15 }}
-              className="absolute top-full left-0 mt-1 z-50 min-w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg max-h-60 overflow-y-auto"
-            >
-              {options.map((option) => (
-                <motion.button
-                  key={option.value}
-                  onClick={() => {
-                    onChange(option.value);
-                    setIsOpen(false);
-                  }}
-                  className={`w-full px-3 py-2 text-left text-sm font-medium transition-colors ${
-                    option.value === value
-                      ? "bg-alloro-orange/10 text-alloro-orange"
-                      : "text-gray-700 hover:bg-gray-50"
-                  }`}
-                  whileHover={{ backgroundColor: option.value === value ? undefined : "rgba(0,0,0,0.03)" }}
-                >
-                  <div className="flex items-center gap-2">
-                    {option.value === value && (
-                      <Check className="h-3.5 w-3.5 text-alloro-orange" />
-                    )}
-                    <span className={option.value === value ? "ml-0" : "ml-5"}>
-                      {option.label}
-                    </span>
-                  </div>
-                </motion.button>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </div>
-  );
-};
+import { FilterDropdown } from "./ActionItemsHub/FilterDropdown";
+import { TaskCard } from "./ActionItemsHub/TaskCard";
 
 export function ActionItemsHub() {
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -692,14 +363,6 @@ export function ActionItemsHub() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
-
   // Check if all selected items are archived (for showing correct bulk action button)
   const allSelectedAreArchived =
     selectedTaskIds.size > 0 &&
@@ -954,156 +617,24 @@ export function ActionItemsHub() {
       ) : (
         <div className="space-y-3">
           {tasks.map((task, index) => (
-            <motion.div
+            <TaskCard
               key={task.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05, duration: 0.3 }}
-              onClick={() => toggleSelectTask(task.id)}
-              className={`rounded-xl border bg-white shadow-sm transition-all hover:shadow-md cursor-pointer ${
-                selectedTaskIds.has(task.id)
-                  ? "border-blue-300 ring-2 ring-blue-100"
-                  : "border-gray-200"
-              } ${task.status === "archived" ? "opacity-60" : ""}`}
-            >
-              <div className="p-4">
-                <div className="flex items-start gap-4">
-                  {/* Selection checkbox */}
-                  <motion.div
-                    className="mt-1 flex-shrink-0"
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                  >
-                    {selectedTaskIds.has(task.id) ? (
-                      <CheckCircle className="h-5 w-5 text-blue-600" />
-                    ) : (
-                      <Circle className="h-5 w-5 text-gray-300" />
-                    )}
-                  </motion.div>
-
-                  {/* Main content */}
-                  <div className="flex-1 min-w-0">
-                    {/* Top row: Title and badges */}
-                    <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-base font-semibold text-gray-900 line-clamp-1">
-                          {parseHighlightTags(task.title, "underline")}
-                        </h3>
-                        {task.description && (
-                          <p className="text-sm text-gray-500 line-clamp-2 mt-1">
-                            {parseHighlightTags(task.description, "underline")}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {/* Approval Switch */}
-                        <ApprovalSwitch
-                          isApproved={task.is_approved}
-                          isLoading={updatingApprovalId === task.id}
-                          disabled={updatingApprovalId !== null}
-                          onToggle={() => handleApprove(task.id, task.is_approved)}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Metadata row */}
-                    <div className="flex flex-wrap items-center gap-3 text-sm">
-                      {/* Organization + Location */}
-                      <div className="flex items-center gap-1.5 text-gray-600">
-                        <Building2 className="h-3.5 w-3.5 text-gray-400" />
-                        <span className="font-medium">
-                          {task.organization_id
-                            ? organizations.find((o) => o.id === task.organization_id)?.name || `Org #${task.organization_id}`
-                            : "Unassigned"}
-                          {task.location_name ? ` · ${task.location_name}` : ""}
-                        </span>
-                      </div>
-
-                      {/* Date */}
-                      <div className="flex items-center gap-1.5 text-gray-500">
-                        <Calendar className="h-3.5 w-3.5 text-gray-400" />
-                        <span>{formatDate(task.created_at)}</span>
-                      </div>
-
-                      {/* Agent Type */}
-                      <AgentTypePill agentType={task.agent_type ?? null} />
-
-                      {/* Category */}
-                      <AnimatedDropdown
-                        value={task.category}
-                        options={CATEGORY_OPTIONS}
-                        onChange={(value) =>
-                          handleCategoryChange(task.id, value)
-                        }
-                        disabled={updatingCategoryId !== null}
-                        isLoading={updatingCategoryId === task.id}
-                        variant="category"
-                      />
-
-                      {/* Status */}
-                      <AnimatedDropdown
-                        value={task.status}
-                        options={STATUS_OPTIONS}
-                        onChange={(value) =>
-                          handleStatusChange(task.id, value)
-                        }
-                        disabled={updatingStatusId !== null}
-                        isLoading={updatingStatusId === task.id}
-                        variant="status"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                    <motion.button
-                      onClick={() => handleViewDetails(task)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:border-gray-300 hover:bg-gray-50"
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      <Eye className="h-3.5 w-3.5" />
-                      View
-                    </motion.button>
-                    {task.status === "archived" ? (
-                      deletingId === task.id ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700">
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          Restoring...
-                        </span>
-                      ) : (
-                        <motion.button
-                          onClick={() => handleUnarchive(task.id)}
-                          disabled={deletingId !== null}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-white px-3 py-1.5 text-xs font-semibold text-green-600 transition hover:border-green-300 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                        >
-                          <ArchiveRestore className="h-3.5 w-3.5" />
-                          Restore
-                        </motion.button>
-                      )
-                    ) : deletingId === task.id ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        Archiving...
-                      </span>
-                    ) : (
-                      <motion.button
-                        onClick={() => handleArchive(task.id)}
-                        disabled={deletingId !== null}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-white px-3 py-1.5 text-xs font-semibold text-orange-600 transition hover:border-orange-300 hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                      >
-                        <Archive className="h-3.5 w-3.5" />
-                        Archive
-                      </motion.button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </motion.div>
+              task={task}
+              index={index}
+              selectedTaskIds={selectedTaskIds}
+              updatingApprovalId={updatingApprovalId}
+              updatingCategoryId={updatingCategoryId}
+              updatingStatusId={updatingStatusId}
+              deletingId={deletingId}
+              organizations={organizations}
+              toggleSelectTask={toggleSelectTask}
+              handleApprove={handleApprove}
+              handleCategoryChange={handleCategoryChange}
+              handleStatusChange={handleStatusChange}
+              handleViewDetails={handleViewDetails}
+              handleUnarchive={handleUnarchive}
+              handleArchive={handleArchive}
+            />
           ))}
         </div>
       )}
