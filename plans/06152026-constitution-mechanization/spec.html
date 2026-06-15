@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Constitution Mechanization Spec</title>
+  <style>
+    :root{color-scheme:light;--paper:#fff;--ink:#080808;--muted:#5f5f5f;--line:#d8d8d8;--soft:#f5f5f5}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}
+    .spec-shell{width:min(1120px,calc(100% - 32px));margin:0 auto;padding:48px 0}
+    .spec-hero,.spec-card,.task-card{border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+    .spec-hero{border-color:var(--ink);padding:32px;margin-bottom:20px}
+    .hero-topline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+    .spec-card{padding:28px;margin-top:16px}
+    .task-card{padding:20px;background:var(--soft);margin-top:14px}
+    .eyebrow,dt{color:var(--muted);font-size:.78rem;font-weight:700;text-transform:uppercase}
+    .eyebrow{margin:0}
+    .status-pill{display:inline-flex;align-items:center;min-height:34px;padding:0 12px;border:1px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper);font-size:.78rem;font-weight:800;text-transform:uppercase}
+    .status-card{border-color:var(--ink)}
+    h1,h2,h3,p{margin-top:0}
+    h1{max-width:840px;margin-bottom:24px;font-size:clamp(2.25rem,6vw,5rem);line-height:.95}
+    h2{font-size:1.35rem}h3{font-size:1rem}
+    code{padding:.1rem .3rem;border:1px solid var(--line);border-radius:4px;background:var(--soft);font-size:.92em}
+    .meta-grid,.split-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+    .meta-grid{margin:0}
+    .meta-grid div,.split-grid>div{border:1px solid var(--line);border-radius:8px;padding:16px}
+    dd{margin:4px 0 0;font-weight:700}
+    table{width:100%;border-collapse:collapse;margin-top:12px;font-size:.9rem}
+    th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+    th{background:var(--soft);text-transform:uppercase;font-size:.72rem}
+    .checklist{list-style:none;padding-left:0}
+    .checklist li{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line)}
+    @media(max-width:640px){.spec-shell{width:min(100% - 20px,1120px);padding:24px 0}.spec-hero,.spec-card{padding:20px}}
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>Constitution Mechanization</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06152026-constitution-mechanization</dd></div>
+        <div><dt>Size</dt><dd>Medium–Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Only <strong>8 of 67 Constitution Articles</strong> are mechanically enforced, and all 8 are cheap <code>grep</code>/<code>wc</code> heuristics in <code>scripts/check-conventions.sh</code>. Worse: <strong>the backend has no ESLint at all</strong> (no config, no <code>lint</code> script, <code>eslint</code> not installed) — so a ~130-line bash script is single-handedly the entire backend mechanized gate. A large tier of Articles is mechanizable with the right tools and simply hasn't been wired up. Raising coverage stops violations from growing silently and narrows what the §-citing review agent must catch by hand to genuinely semantic Articles.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Two tiers of new enforcement, each rule annotated with the Constitution Article (<code>§N.M</code>) it enforces so tool output cites the document:</p>
+      <ul>
+        <li><strong>Tier A — quick greps</strong> into <code>check-conventions.sh</code>: §17.4 <code>dangerouslySetInnerHTML</code>, §17.5 scattered token reads, §10.2 <code>knex.raw</code>, §15.4 stray state libraries, §17.3 non-<code>VITE_</code> env in the bundle, §5.1 basic secret patterns.</li>
+        <li><strong>Tier B — a real linter layer</strong>: stand up <strong>ESLint on the backend</strong> (it has none), enable an Article-mapped ruleset on <strong>both</strong> stacks (§2.2 <code>max-lines-per-function</code>, §2.3 <code>max-depth</code>, §17.2 <code>no-explicit-any</code>, §4.1 no-commented-code, §4.2 <code>no-magic-numbers</code>, §1.x <code>naming-convention</code>), and add <strong><code>dependency-cruiser</code></strong> to enforce the layering Articles (§7.4, §7.3, §7.1, §14.2, §14.1) as hard import-boundary rules.</li>
+      </ul>
+      <p>Done = both tiers run, every rule cites its §, the suite is <strong>warn/baseline (CI stays green)</strong>, and the <code>code-constitution.html</code> viewer reflects the expanded mechanized set.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant files</h3>
+      <ul>
+        <li><code>scripts/check-conventions.sh</code> — the existing grep/wc detector (Tier A extends it).</li>
+        <li><code>frontend/eslint.config.js</code> — frontend ESLint flat config already exists (Tier B tunes + extends it).</li>
+        <li><strong>Backend: no ESLint config exists</strong> — Tier B creates <code>eslint.config.js</code> + a <code>lint</code> script at the repo root.</li>
+        <li><code>~/.claude/skills/code-constitution/SKILL.md</code> — the §IDs every rule must map to (§18 holds the check→Article map).</li>
+        <li><code>code-constitution.html</code> — the viewer; update its mechanized set + tier tags.</li>
+      </ul>
+      <h3>Reference analog</h3>
+      <p>The backend remediation's <strong>warn-only validation</strong> pattern (<code>plans/06142026-validation-layer</code>) is the model for introducing enforcement without breaking the build: report, don't block, until the debt is cleared. This plan is the <strong>guardrail</strong> for [[project-frontend-remediation-plan]] — it should land first or alongside so the remediation has a ratchet to hold the line.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Map every rule to a specific Article and annotate it with the <code>§N.M</code> in config + output.</li>
+            <li>Start warn-only / baseline-ratchet — fail only on NEW violations, never the existing flood.</li>
+            <li>Keep the bash detector zero-dependency; Tier B tools are dev-deps only.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Block CI on day one (the backend has never been linted — it will light up).</li>
+            <li>Dump <code>eslint:recommended</code>/<code>typescript-eslint:recommended</code> wholesale — enable only Article-mapped rules.</li>
+            <li>Auto-fix / mass-rewrite source as part of this plan — that is remediation, not mechanization.</li>
+            <li>Change any application logic or runtime behavior.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out of scope</h3>
+      <ul>
+        <li>Fixing the violations the new rules surface (backend is already clean; frontend debt is [[project-frontend-remediation-plan]]).</li>
+        <li>Tier C (semantic Articles) — those remain the review agent's job via the Enforcement Protocol.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 — touches tooling and CI across both stacks; blast radius is the dev/CI workflow and lint config, not runtime.</p>
+      <h3>Risks identified</h3>
+      <ul>
+        <li><strong>Never-linted backend floods on first run.</strong> <strong>Mitigation:</strong> warn-only + a committed baseline; CI fails only on new violations (ratchet), exactly like the validation warn-only rollout.</li>
+        <li><strong>Noisy rules</strong> (<code>no-magic-numbers</code> especially) drown the signal. <strong>Mitigation:</strong> tune allowlists (-1,0,1,2), or ship those advisory; start with high-signal rules (size, depth, any, layering).</li>
+        <li><strong>Generic ruleset dilutes the contract.</strong> <strong>Mitigation:</strong> enable only Article-mapped rules, each commented with its §; the lint output then literally cites the Constitution.</li>
+        <li><strong>dependency-cruiser false boundaries.</strong> <strong>Mitigation:</strong> encode the 3–5 clearest layering rules first (§7.4, §7.3, §14.2), advisory, validate against the certified-clean <code>gbp-automation</code> domain before tightening.</li>
+      </ul>
+      <h3>Pushback</h3>
+      <ul>
+        <li>The single highest-value piece is <strong>dependency-cruiser for layering</strong> — it enforces §7.x/§14.x structurally, which grep can only approximate. Prioritize it over the noisier ESLint rules.</li>
+        <li>This plan should precede or run alongside the frontend remediation so new code can't add to the pile while old code is being cleaned.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Tier-A greps into the detector</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add §-cited checks to <code>check-conventions.sh</code>: §17.4, §17.5, §10.2, §15.4, §17.3, §5.1 (advisory).</dd></div>
+          <div><dt>Files</dt><dd><code>scripts/check-conventions.sh</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run check:conventions</code> runs; new lines print their §id.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Backend ESLint bootstrap (warn-only)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Install <code>eslint</code> + <code>typescript-eslint</code>; create root <code>eslint.config.js</code> scoped to <code>src/</code>; add a <code>lint</code> script. Start with zero blocking rules (baseline).</dd></div>
+          <div><dt>Files</dt><dd><code>eslint.config.js</code>, <code>package.json</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run lint</code> runs on <code>src/</code> without erroring the process.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Article-mapped ESLint ruleset (both stacks)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Enable only Article-mapped rules, each commented with its §: §2.2 <code>max-lines-per-function</code>, §2.3 <code>max-depth</code>, §17.2 <code>@typescript-eslint/no-explicit-any</code>, §4.1 no-commented-code, §4.2 <code>no-magic-numbers</code> (tuned), §1.x <code>naming-convention</code>. Severity = warn; capture a baseline.</dd></div>
+          <div><dt>Files</dt><dd><code>eslint.config.js</code> (backend), <code>frontend/eslint.config.js</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>Each stack lints; warning counts captured per rule/§.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: dependency-cruiser layering rules</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>dependency-cruiser</code>; encode the layering Articles as forbidden-dependency rules: §7.4 (nothing outside <code>models/</code> imports knex), §7.3 (controllers don't import the db), §14.2 (components don't import axios/fetch wrappers), and the §7.1/§14.1 direction. Advisory first; validate against <code>gbp-automation</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>.dependency-cruiser.cjs</code>, <code>package.json</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>depcruise</code> runs; clean domains pass, known violators are flagged with their §.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: One orchestrated gate</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Wire the bash detector + ESLint + depcruise behind <code>check:conventions</code> (or a sibling script). <code>--strict</code> keeps gating only the already-clean backend rules; everything new is warn/baseline so CI stays green.</dd></div>
+          <div><dt>Files</dt><dd><code>scripts/check-conventions.sh</code> or a new runner, <code>package.json</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1–T4</dd></div>
+          <div><dt>Verify</dt><dd>One command runs all three; exit code respects the baseline.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Update the viewer</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>code-constitution.html</code>, flip the newly-mechanized Articles to enforced, refresh counts, and keep the tier tags (auto / Tier A / Tier B / judgment) accurate.</dd></div>
+          <div><dt>Files</dt><dd><code>code-constitution.html</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1–T4</dd></div>
+          <div><dt>Verify</dt><dd>Mechanized count reflects reality; <code>node --check</code> on embedded JS passes.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npm run check:conventions</code> includes the Tier-A checks, each §-cited</li>
+        <li><input type="checkbox" disabled> ESLint runs on <strong>both</strong> <code>src/</code> and <code>frontend/</code>, Article-mapped rules only, warn/baseline</li>
+        <li><input type="checkbox" disabled> <code>dependency-cruiser</code> encodes ≥3 layering Articles (§7.4, §7.3, §14.2), advisory</li>
+        <li><input type="checkbox" disabled> A single command runs all three; CI stays green (baseline/ratchet)</li>
+        <li><input type="checkbox" disabled> <code>code-constitution.html</code> reflects the expanded mechanized set</li>
+        <li><input type="checkbox" disabled> No application logic or runtime behavior changed</li>
+      </ul>
+    </section>
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 — 2026-06-15</h3>
+        <p><strong>Change:</strong> Executed T1–T6. Tier-A greps added to <code>check-conventions.sh</code>; backend ESLint bootstrapped (<code>eslint.config.mjs</code>) + article-mapped rules on both stacks (warn-only); dependency-cruiser layering rules (<code>.dependency-cruiser.cjs</code>); <code>check:all</code> orchestrator; <code>code-constitution.html</code> viewer flipped to live.</p>
+        <p><strong>Reason:</strong> Execution deviation: none — built per spec. Warn/baseline held; no <code>recommended</code> dump; depcruise advisory.</p>
+        <p><strong>Baseline captured:</strong> BE ESLint 2369 warnings (2153 any · 152 fn-length · 62 depth); dependency-cruiser 33 layering; FE detector 38/88/35/155; Tier-A FE 2/12, BE 3.</p>
+        <p><strong>Committed:</strong> dev/dave <code>552d2072</code> (LagDave), local — not pushed. <code>SKILL.md</code> (full-stack + numbered Articles) lives outside the repo.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

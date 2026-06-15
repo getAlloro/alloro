@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Frontend Remediation Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.92rem; }
+    th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { background: var(--soft); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .phase-tag { display: inline-block; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; border: 1px solid var(--ink); border-radius: 4px; padding: 1px 6px; margin-left: 6px; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Pending Execution</span>
+      </div>
+      <h1>Frontend Remediation</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06152026-frontend-remediation</dd></div>
+        <div><dt>Size</dt><dd>Large (multi-phase program)</dd></div>
+        <div><dt>Risk</dt><dd>Level 4</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The backend just completed a 7-spec remediation (security, transactions, test harness, validation, logging, db-into-models, god-file decomposition) and now passes a mechanized convention gate. The frontend (<code>frontend/</code>, ~164K LOC across 624 files) has never been held to any codified standard. Measured against the backend's own bars it carries the same debt the backend just cleared: <strong>38 files over the 800-line hard ceiling</strong> (worst: <code>IdentityModal.tsx</code> at 3,410), <strong>35 files bypassing the shared <code>api/index.ts</code> client</strong> with hand-rolled <code>fetch</code>/auth, an <strong>inconsistent error contract</strong> (swallow vs <code>{successful:false}</code> vs throw), <strong>155 <code>any</code> usages</strong> despite strict mode, and <strong>~301 <code>console.*</code> calls</strong>. The <code>code-constitution</code> skill now defines the target standard for the frontend; this plan executes the codebase to meet it.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>A phased, behavior-preserving refactor that brings <code>frontend/src</code> to the constitution's frontend standard, ordered by risk. Done = the mechanized frontend tally in <code>npm run check:conventions</code> is driven to zero (files&gt;800, console files, fetch-bypass, any), <code>tsc -b</code> and <code>eslint</code> are clean, a new frontend test harness is green, and every touched surface passes manual QA with no behavioral regression. This is a refactor, <strong>not</strong> a redesign — pixels and flows stay identical; only the code structure changes.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Reference analog</h3>
+      <p>This mirrors the completed backend remediation playbook: <code>plans/06142026-*</code> and the execution memory <code>project_backend_remediation_execution</code>. Same discipline — test harness first, mechanical/safe themes before stateful surgery, behavior-preserving extraction, commit-per-unit, gated by <code>tsc</code> + tests + the convention checker.</p>
+      <h3>Relevant files / surfaces</h3>
+      <ul>
+        <li><code>frontend/src/api/index.ts</code> — the shared HTTP client (<code>apiGet/apiPost/...</code>, <code>getCommonHeaders</code>). The consolidation target; the one place that reads the JWT.</li>
+        <li><code>frontend/src/api/*.ts</code> (43 files) — domain API modules; 16 still hand-roll <code>fetch</code>.</li>
+        <li><code>frontend/src/hooks/queries/</code> — React Query hooks (95 <code>useQuery</code> + 74 <code>useMutation</code> call sites). The server-state standard.</li>
+        <li><code>frontend/src/lib/toast</code> — the shared toast; the error-surfacing target.</li>
+        <li><code>frontend/src/components/Admin/</code> — flat dump of ~99 files; the folder-nesting target.</li>
+        <li>The 38 god-files (&gt;800), worst-first: <code>IdentityModal.tsx</code> 3410, <code>pages/admin/PracticeRanking.tsx</code> 2532, <code>api/websites.ts</code> 2481, <code>pages/admin/WebsiteDetail.tsx</code> 2444, <code>PMS/PMSManualEntryModal.tsx</code> 2208, <code>pages/admin/PageEditor.tsx</code> 2126, …</li>
+      </ul>
+      <h3>Patterns to follow</h3>
+      <ul>
+        <li><strong>Already-good, codify as-is:</strong> centralized axios client + <code>getCommonHeaders</code> auth; React Query for server state; Context for UI state (the <code>.ts</code>/<code>.tsx</code> split is intentional); <code>lib/toast</code>; strict TS + eslint flat config.</li>
+        <li><strong>Decompose like the backend:</strong> data-fetching → <code>use&lt;Feature&gt;()</code> hook; pure helpers → sibling <code>*.utils.ts</code>; sub-views → child components; keep import surfaces stable via re-export where consumers exist.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Be behavior-preserving — identical UI, identical flows.</li>
+            <li>Land the test harness (Phase 0) before any stateful god-file decomposition (Phase 3).</li>
+            <li>Commit per unit; gate each with <code>tsc -b</code> + <code>eslint</code> + harness + the frontend convention tally.</li>
+            <li>Do high-blast-radius work (F4 error-contract) per-domain, not all at once.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Mix visual redesign into this refactor (that is <code>alloro-frontend</code>/<code>impeccable</code> territory — separate plan).</li>
+            <li>Introduce a new state-management library or new runtime deps (test-only deps for Phase 0 excepted).</li>
+            <li>Change backend code or API shapes.</li>
+            <li>Big-bang all 38 god-files in one pass.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out of scope</h3>
+      <ul>
+        <li>Visual/design changes, new features, accessibility overhaul, performance tuning beyond what falls out of decomposition.</li>
+        <li>Backend changes.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 4 — cross-cutting, the entire frontend is the blast radius, and there is currently no behavioral safety net.</p>
+      <h3>Risks identified</h3>
+      <ul>
+        <li><strong>No test harness today.</strong> <code>tsc</code>/eslint catch type/lint errors, not behavioral regressions in stateful components. <strong>Mitigation:</strong> Phase 0 builds Vitest + React Testing Library smoke/interaction tests on the top god-files and critical flows before any decomposition.</li>
+        <li><strong>Error-contract inversion (F4) is the highest-blast-radius change.</strong> Every call site assumes today's swallow/return behavior; flipping helpers to throw can surface unhandled errors UI-wide. <strong>Mitigation:</strong> do it per-domain, with React Query error surfaces + <code>lib/toast</code> in place first; QA each domain.</li>
+        <li><strong>Stateful extraction bugs</strong> (stale closures, effect ordering, render loops) in the 38 god-files. <strong>Mitigation:</strong> worst-first, one unit per commit, harness + manual QA each; lean on F1/F3 to shrink files first.</li>
+        <li><strong>Import-surface breakage</strong> from folder moves (F5) and splits. <strong>Mitigation:</strong> re-export shims where consumers exist; rely on <code>tsc -b</code> to prove resolution.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> all admin pages, all client surfaces (Dashboard, Referrals Hub, Local Rankings, Reviews &amp; Posts, Website). Every theme touches code on a live screen.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>Sequencing is the whole game.</strong> Doing god-file decomposition before a harness is the wrong order — it maximizes regression risk with no net. Recommended: Phase 0 (harness) → Phase 1 (mechanical, tsc/lint-safe) → Phase 2 (medium) → Phase 3 (stateful surgery).</li>
+        <li><strong>Phase 1 first also shrinks the hard problem.</strong> Consolidating fetch (F1), eliminating <code>any</code> (F3), and stripping console (F2) pull volume out of the god-files before F6 starts.</li>
+        <li><strong>Recommend executing one phase at a time</strong> with a checkpoint between phases rather than approving the whole program up front — the god-file work especially should be re-scoped after Phase 1 lands.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T0: Frontend test harness <span class="phase-tag">Phase 0</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add Vitest + React Testing Library (+ jsdom). Smoke-render tests for the top ~10 god-files and interaction tests for critical flows (auth bootstrap, an admin CRUD, a client dashboard render). Add a <code>test</code> script to <code>frontend/package.json</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/package.json</code>, <code>frontend/vitest.config.ts</code>, <code>frontend/src/**/*.test.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npm --prefix frontend test</code> green; harness runs in CI</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T1: HTTP client consolidation <span class="phase-tag">Phase 1</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Route the 35 fetch/axios-bypass files through <code>api/index.ts</code>. Add client methods for the upload/stream/blob cases that justified raw fetch. Remove hand-rolled <code>Authorization</code> headers and per-call <code>localStorage</code> token reads.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/api/*.ts</code> (16), <code>frontend/src/components|pages/**</code> (14), <code>frontend/src/api/index.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T0 recommended</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc -b</code> + <code>eslint</code> clean; detector fetch-bypass → 0; harness green</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: console.* cleanup <span class="phase-tag">Phase 1</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Codemod the ~301 <code>console.*</code> calls across 88 files — remove dev noise, route the few that matter through a thin <code>lib/logger</code>. Mirrors the backend Pino codemod.</dd></div>
+          <div><dt>Files</dt><dd>88 files across <code>frontend/src</code>; new <code>frontend/src/lib/logger.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>detector frontend console files → 0; <code>tsc -b</code> + harness green</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: any-elimination <span class="phase-tag">Phase 1</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Type the API responses in <code>types/</code>, replace the 155 <code>: any</code>/<code>as any</code> — the <code>api/</code> layer first (kills the <code>err: any</code> / <code>import.meta as any</code> patterns), then components. Prefer <code>unknown</code> + narrow.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/api/index.ts</code> + domain api files, <code>frontend/src/types/**</code>, scattered components</dd></div>
+          <div><dt>Depends on</dt><dd>T1 (typed client)</dd></div>
+          <div><dt>Verify</dt><dd>detector any → 0; <code>tsc -b</code> clean</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: error-contract unification <span class="phase-tag">Phase 2</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Make <code>api/</code> helpers <strong>throw</strong> an Error carrying <code>error.code</code>/<code>message</code> on <code>success:false</code>; let React Query surface it; standardize toast via <code>lib/toast</code>. Remove the swallow-and-return-undefined and <code>{successful:false}</code> variants. Per-domain.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/api/index.ts</code>, all <code>api/*.ts</code>, <code>hooks/queries/**</code>, consumers</dd></div>
+          <div><dt>Depends on</dt><dd>T0, T1</dd></div>
+          <div><dt>Verify</dt><dd>per-domain manual QA (error states render, no unhandled crashes); harness green</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: folder nesting <span class="phase-tag">Phase 2</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Break the flat <code>components/Admin/</code> (~99 files) into feature folders (<code>identity/</code>, <code>posts/</code>, <code>pms/</code>, <code>minds/</code>, …) with re-export shims where needed. Mechanical moves + import updates.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/Admin/**</code> + importers</dd></div>
+          <div><dt>Depends on</dt><dd>none (do after T1–T3 to avoid churn)</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc -b</code> clean; harness green</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: god-file decomposition <span class="phase-tag">Phase 3</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Decompose the 38 files &gt;800, worst-first. Extract data-fetching/logic into <code>use&lt;Feature&gt;()</code> hooks, pure helpers into <code>*.utils.ts</code>, sub-views into child components. Behavior-preserving; one file per commit; manual QA each. (<code>api/websites.ts</code> and other non-stateful god-files can go earlier — lower risk.)</dd></div>
+          <div><dt>Files</dt><dd>the 38 &gt;800 files + extracted hooks/children/utils</dd></div>
+          <div><dt>Depends on</dt><dd>T0 (harness); benefits from T1, T3</dd></div>
+          <div><dt>Verify</dt><dd>each file under ceiling; <code>tsc -b</code> + harness green; manual QA per surface; detector files&gt;800 → 0</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npm --prefix frontend test</code> — harness green</li>
+        <li><input type="checkbox" disabled> <code>cd frontend && npx tsc -b</code> — zero errors</li>
+        <li><input type="checkbox" disabled> <code>npm --prefix frontend run lint</code> — clean</li>
+        <li><input type="checkbox" disabled> <code>npm run check:conventions</code> — frontend tally (files&gt;800 + console + fetch-bypass + any) → 0</li>
+        <li><input type="checkbox" disabled> Manual: every touched admin + client surface renders and behaves identically (no regression)</li>
+        <li><input type="checkbox" disabled> No visual/flow changes introduced (refactor only)</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
