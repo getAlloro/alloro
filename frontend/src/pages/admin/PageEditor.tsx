@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo, type DragEvent, type ChangeEvent, type CSSProperties } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo, type CSSProperties } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   fetchPage,
@@ -8,7 +8,6 @@ import {
   publishPage,
   editPageComponent,
   fetchEditorSystemPrompt,
-  replaceArtifactBuild,
   fetchPageVersions,
   fetchPageVersionContent,
   restorePageVersionIntoDraft,
@@ -20,22 +19,16 @@ import {
   injectDiffOutlines,
 } from "../../utils/sectionDiff";
 import { runPublishLint, type PublishLintWarning } from "../../utils/publishLint";
-import PublishConfirmModal from "../../components/PageEditor/PublishConfirmModal";
-import FindReplaceModal from "../../components/Admin/find-replace/FindReplaceModal";
 import { createAdminWebsiteMediaApi, type MediaItem } from "../../api/websiteMedia";
 import type {
   WebsitePage,
   WebsiteProjectWithPages,
-  EditChatHistory,
   EditDebugInfo,
   ApiError,
 } from "../../api/websites";
 import type { Section } from "../../api/templates";
 import { renderPage, normalizeSections } from "../../utils/templateRenderer";
-import {
-  useIframeSelector,
-  prepareHtmlForPreview,
-} from "../../hooks/useIframeSelector";
+import { useIframeSelector } from "../../hooks/useIframeSelector";
 import type { QuickActionPayload, QuickActionType } from "../../hooks/useIframeSelector";
 import { replaceComponentInDom, validateHtml, extractSectionsFromDom } from "../../utils/htmlReplacer";
 import {
@@ -43,346 +36,25 @@ import {
   type DirectEditorOperation,
 } from "../../utils/editorDirectOperations";
 import { AdminTopBar } from "../../components/Admin/shell/AdminTopBar";
-import { AdminSidebar } from "../../components/Admin/shell/AdminSidebar";
 import { LoadingIndicator } from "../../components/Admin/shell/LoadingIndicator";
 import { SidebarProvider, useSidebar } from "../../components/Admin/shell/SidebarContext";
 import EditorToolbar from "../../components/PageEditor/EditorToolbar";
-import EditorSidebar from "../../components/PageEditor/EditorSidebar";
-import InlineEditorPopover from "../../components/PageEditor/InlineEditorPopover";
-import SeoPanel from "../../components/PageEditor/SeoPanel";
-import type { SeoData } from "../../api/websites";
 import type { ChatMessage } from "../../components/PageEditor/ChatPanel";
-import { ConfirmModal } from "../../components/settings/ConfirmModal";
-import { AlertModal } from "../../components/ui/AlertModal";
-import SectionsEditor from "../../components/Admin/page-pipeline/SectionsEditor";
-import ProgressivePagePreview from "../../components/Admin/page-pipeline/ProgressivePagePreview";
-import RegenerateComponentModal from "../../components/Admin/page-pipeline/RegenerateComponentModal";
 import { showSuccessToast } from "../../lib/toast";
 import { logger } from "../../lib/logger";
-
-/**
- * Inject "Rebuilding section…" overlay + pulse/gray styling into the assembled
- * page HTML for every section whose name is in `regeneratingNames`. We mutate
- * the HTML string (not the iframe DOM) so the effect survives the srcDoc
- * re-render cycle triggered by live-preview polling.
- *
- * Sections are pre-tagged by `renderPage` with `data-alloro-section="{name}"`
- * on their root element (see utils/templateRenderer.ts). We locate each match
- * via a permissive regex, append the pulse classes to the existing class
- * attribute, wrap the body in a relatively-positioned container via CSS, and
- * prepend an absolutely-positioned overlay pill.
- *
- * Kept deliberately lightweight — no DOMParser, no cheerio, no iframe-side
- * mutation. Idempotent: passing the same name twice will add classes twice
- * but the pill is keyed by a marker attribute so only one is injected.
- */
-function injectRegenerateOverlays(html: string, regeneratingNames: Set<string>): string {
-  if (regeneratingNames.size === 0) return html;
-
-  let out = html;
-  for (const name of regeneratingNames) {
-    // Escape the name for use inside the double-quoted attribute and regex.
-    const escapedAttr = name.replace(/"/g, '\\"');
-    const escapedRegex = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-    // Match the opening tag carrying data-alloro-section="{name}".
-    // Captures: (1) tag prefix up to class attr or end-of-tag, (2) existing
-    // class value if any. We only need to handle the common case of a class
-    // attribute already being present — renderPage-tagged sections universally
-    // carry Tailwind classes.
-    const openTagRe = new RegExp(
-      `(<\\w+\\b[^>]*\\bdata-alloro-section="${escapedRegex}"[^>]*)>`,
-      "i",
-    );
-    const match = out.match(openTagRe);
-    if (!match) continue;
-
-    const fullOpenTag = match[0];
-    const openTagWithoutClose = match[1];
-
-    // Inject the pulse classes into the existing class attribute, or add one.
-    const pulseClasses = "alloro-regenerating opacity-50 animate-pulse pointer-events-none relative";
-    let newOpenTag: string;
-    if (/\bclass="([^"]*)"/i.test(openTagWithoutClose)) {
-      newOpenTag = openTagWithoutClose.replace(
-        /\bclass="([^"]*)"/i,
-        (_full, existing) => `class="${existing} ${pulseClasses}"`,
-      );
-    } else if (/\bclass='([^']*)'/i.test(openTagWithoutClose)) {
-      newOpenTag = openTagWithoutClose.replace(
-        /\bclass='([^']*)'/i,
-        (_full, existing) => `class='${existing} ${pulseClasses}'`,
-      );
-    } else {
-      newOpenTag = `${openTagWithoutClose} class="${pulseClasses}"`;
-    }
-
-    // Build the overlay pill — inline-styled so it doesn't rely on Tailwind
-    // classes that may or may not be bundled in the preview iframe.
-    const overlayHtml = `<div data-alloro-regen-overlay="${escapedAttr}" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:50;pointer-events:none;"><div style="display:inline-flex;align-items:center;gap:8px;background:#212D40;color:#fff;padding:10px 16px;border-radius:9999px;box-shadow:0 10px 25px rgba(0,0,0,0.25);font-size:14px;font-weight:600;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="animation:alloro-regen-spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Rebuilding section…</div></div>`;
-
-    const replacement = `${newOpenTag}>${overlayHtml}`;
-    out = out.replace(fullOpenTag, replacement);
-  }
-
-  // Inject the keyframes for the spinner exactly once. The preview iframe
-  // already carries Tailwind for animate-pulse, so we only need the spin.
-  if (out.includes("data-alloro-regen-overlay") && !out.includes("data-alloro-regen-keyframes")) {
-    const styleTag = `<style data-alloro-regen-keyframes>@keyframes alloro-regen-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>`;
-    if (/<\/head>/i.test(out)) {
-      out = out.replace(/<\/head>/i, `${styleTag}</head>`);
-    } else {
-      out = styleTag + out;
-    }
-  }
-
-  return out;
-}
-
-const MAX_CHAT_MESSAGES_PER_COMPONENT = 50;
-
-/**
- * Code-view (Monaco) edits fire onChange per keystroke; snapshots within this
- * window coalesce into a single undo entry so the stack stays usable.
- */
-const CODE_EDIT_UNDO_COALESCE_MS = 2500;
-
-// The desktop preview renders at a fixed true-desktop viewport width (so it
-// shows the real lg:/xl: sizes a visitor sees) and scales to fit the pane —
-// the editor pane is usually narrower than a real desktop.
-const DESKTOP_PREVIEW_WIDTH = 1280;
-
-function chatMapToObject(map: Map<string, ChatMessage[]>): EditChatHistory {
-  const obj: EditChatHistory = {};
-  for (const [key, messages] of map) {
-    obj[key] = messages.slice(-MAX_CHAT_MESSAGES_PER_COMPONENT);
-  }
-  return obj;
-}
-
-function objectToChatMap(obj: EditChatHistory | null): Map<string, ChatMessage[]> {
-  const map = new Map<string, ChatMessage[]>();
-  if (!obj) return map;
-  for (const [key, messages] of Object.entries(obj)) {
-    if (Array.isArray(messages)) {
-      map.set(key, messages);
-    }
-  }
-  return map;
-}
-
-function ArtifactEditorView({
-  projectId,
-  page,
-  onReplaced,
-}: {
-  projectId: string;
-  page: WebsitePage;
-  onReplaced: (page: WebsitePage) => void;
-}) {
-  const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleDragOver = useCallback((e: DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  }, []);
-
-  const handleDrop = useCallback((e: DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const f = e.dataTransfer.files[0];
-    if (f && (f.name.endsWith(".zip") || f.type === "application/zip")) {
-      setFile(f);
-      setError(null);
-      setSuccess(false);
-    } else {
-      setError("Please upload a .zip file");
-    }
-  }, []);
-
-  const handleFileSelect = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) {
-      setFile(f);
-      setError(null);
-      setSuccess(false);
-    }
-  }, []);
-
-  const handleUpload = async () => {
-    if (!file) return;
-    try {
-      setUploading(true);
-      setError(null);
-      const result = await replaceArtifactBuild(projectId, page.id, file);
-      onReplaced(result.data);
-      setSuccess(true);
-      setFile(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const formatFileSize = (bytes: number): string => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  };
-
-  return (
-    <div className="flex-1 overflow-y-auto bg-gray-50">
-      <div className="max-w-xl mx-auto py-12 px-6 space-y-6">
-        <div>
-          <h2 className="text-lg font-bold text-gray-900">Artifact Page</h2>
-          <p className="text-sm text-gray-500 mt-1">
-            This page serves an uploaded React app build. Replace the build by uploading a new zip.
-          </p>
-        </div>
-
-        {/* Page info */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Path</span>
-            <span className="text-sm font-mono text-gray-800">{page.path}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Status</span>
-            <span className="text-sm text-green-700 font-medium">{page.status}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Last Updated</span>
-            <span className="text-sm text-gray-600">{formatDate(page.updated_at)}</span>
-          </div>
-          {page.display_name && (
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Display Name</span>
-              <span className="text-sm text-gray-800">{page.display_name}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Upload zone */}
-        <div
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
-          className={`relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 cursor-pointer transition ${
-            isDragging
-              ? "border-alloro-orange bg-orange-50"
-              : file
-                ? "border-green-300 bg-green-50"
-                : "border-gray-200 bg-white hover:border-gray-300"
-          }`}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".zip"
-            onChange={handleFileSelect}
-            className="hidden"
-          />
-          {file ? (
-            <>
-              <svg className="w-8 h-8 text-green-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0l-3-3m3 3l3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
-              </svg>
-              <p className="text-sm font-medium text-gray-800">{file.name}</p>
-              <p className="text-xs text-gray-500 mt-0.5">{formatFileSize(file.size)}</p>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setFile(null);
-                }}
-                className="mt-2 text-xs text-red-500 hover:underline"
-              >
-                Remove
-              </button>
-            </>
-          ) : (
-            <>
-              <svg className="w-8 h-8 text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-              </svg>
-              <p className="text-sm font-medium text-gray-600">
-                Drop a new build zip here or click to browse
-              </p>
-              <p className="text-xs text-gray-400 mt-1">.zip files only</p>
-            </>
-          )}
-        </div>
-
-        {/* Build requirement note */}
-        <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3">
-          <p className="text-xs text-amber-800">
-            <strong>Reminder:</strong> Build with base path matching this page's slug:{" "}
-            <code className="bg-amber-100 px-1 py-0.5 rounded text-[11px]">
-              vite build --base={page.path}/
-            </code>
-          </p>
-        </div>
-
-        {/* Upload button */}
-        {file && (
-          <button
-            onClick={handleUpload}
-            disabled={uploading}
-            className="w-full py-3 rounded-xl font-medium text-sm text-white bg-alloro-orange hover:bg-alloro-orange/90 disabled:bg-alloro-orange/50 transition flex items-center justify-center gap-2"
-          >
-            {uploading ? (
-              <>
-                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                Uploading...
-              </>
-            ) : (
-              "Replace Build"
-            )}
-          </button>
-        )}
-
-        {/* Error */}
-        {error && (
-          <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3">
-            <p className="text-sm text-red-600">{error}</p>
-          </div>
-        )}
-
-        {/* Success */}
-        {success && (
-          <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3">
-            <p className="text-sm text-green-700">Build replaced successfully. The page is now serving the new version.</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+import {
+  injectRegenerateOverlays,
+  chatMapToObject,
+  objectToChatMap,
+  CODE_EDIT_UNDO_COALESCE_MS,
+  DESKTOP_PREVIEW_WIDTH,
+} from "./pageEditor.utils";
+import { EditorLoadingSkeleton } from "./PageEditor/EditorLoadingSkeleton";
+import { EditorErrorState } from "./PageEditor/EditorErrorState";
+import { PageEditorBody } from "./PageEditor/PageEditorBody";
+import { VersionPreviewBanner } from "./PageEditor/VersionPreviewBanner";
+import { EditorErrorBanner } from "./PageEditor/EditorErrorBanner";
+import { PageEditorModals } from "./PageEditor/PageEditorModals";
 
 function PageEditorInner() {
   const { id: projectId, pageId } = useParams<{
@@ -1721,65 +1393,13 @@ function PageEditorInner() {
 
   // --- Loading state ---
   if (loading) {
-    return (
-      <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
-        {/* Topbar loading indicator */}
-        <LoadingIndicator />
-        <AdminTopBar />
-        <AdminSidebar />
-
-        {/* Loading skeleton that matches editor layout */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* Left sidebar skeleton */}
-          <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
-            <div className="p-4 border-b border-gray-200">
-              <div className="h-8 bg-gray-200 rounded animate-pulse"></div>
-            </div>
-            <div className="flex-1 p-4 space-y-3">
-              <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
-              <div className="h-4 bg-gray-200 rounded animate-pulse w-1/2"></div>
-            </div>
-          </div>
-
-          {/* Center preview skeleton */}
-          <div className="flex-1 bg-gray-100 p-4 flex items-center justify-center">
-            <div className="w-full h-full max-w-6xl bg-white rounded-xl shadow-lg border border-gray-200 animate-pulse"></div>
-          </div>
-
-          {/* Right sidebar skeleton */}
-          <div className="w-96 bg-white border-l border-gray-200 flex flex-col">
-            <div className="p-4 border-b border-gray-200">
-              <div className="h-8 bg-gray-200 rounded animate-pulse"></div>
-            </div>
-            <div className="flex-1 p-4 space-y-3">
-              <div className="h-20 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-4 bg-gray-200 rounded animate-pulse w-2/3"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <EditorLoadingSkeleton />;
   }
 
   // --- Error state ---
   if (error || !page) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <AdminTopBar />
-        <div className="flex items-center justify-center" style={{ height: "calc(100vh - 4rem)" }}>
-          <div className="text-center">
-            <p className="text-sm text-red-500 mb-4">{error || "Page not found"}</p>
-            <button
-              onClick={() => navigate(`/admin/websites/${projectId}`)}
-              className="text-xs text-alloro-orange hover:text-alloro-orange/80 transition-colors"
-            >
-              Back to project
-            </button>
-          </div>
-        </div>
-      </div>
+      <EditorErrorState error={error} projectId={projectId} navigate={navigate} />
     );
   }
 
@@ -1835,285 +1455,101 @@ function PageEditorInner() {
 
       {/* Version preview banner */}
       {previewVersion && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-between">
-          <span className="text-xs text-amber-700 font-medium">
-            Previewing v{previewVersion.version} — editing is disabled
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleRestoreVersion(previewVersion.id)}
-              className="text-xs px-2.5 py-1 rounded-md bg-alloro-orange text-white hover:bg-alloro-orange/90 transition-colors"
-            >
-              Restore this version
-            </button>
-            <button
-              onClick={handleExitPreview}
-              className="text-xs px-2.5 py-1 rounded-md border border-amber-300 text-amber-700 hover:bg-amber-100 transition-colors"
-            >
-              Exit preview
-            </button>
-          </div>
-        </div>
+        <VersionPreviewBanner
+          previewVersion={previewVersion}
+          onRestoreVersion={handleRestoreVersion}
+          onExitPreview={handleExitPreview}
+        />
       )}
 
       {/* Error banner */}
       {editError && (
-        <div className="bg-red-50 border-b border-red-200 px-4 py-2 flex items-center justify-between">
-          <span className="text-xs text-red-600">{editError}</span>
-          <button
-            onClick={() => setEditError(null)}
-            className="text-xs text-red-400 hover:text-red-600"
-          >
-            Dismiss
-          </button>
-        </div>
+        <EditorErrorBanner
+          editError={editError}
+          onDismiss={() => setEditError(null)}
+        />
       )}
 
       {/* Main content: iframe + editor sidebar */}
-      <div className="flex-1 flex overflow-hidden relative ml-[72px]">
-        {/* Admin sidebar — fixed position, collapsed by default.
-            Offset below both AdminTopBar (4rem) and EditorToolbar (~41px).
-            ml-[72px] on parent reserves space for the collapsed sidebar. */}
-        <AdminSidebar topOffset="calc(4rem + 41px)" />
-
-        {/* Artifact page: show upload UI instead of editor */}
-        {page.page_type === "artifact" ? (
-          <ArtifactEditorView
-            projectId={projectId!}
-            page={page}
-            onReplaced={(updated) => setPage(updated)}
-          />
-        ) : activeView === "seo" ? (
-          <div className="flex-1 overflow-hidden">
-            <SeoPanel
-              projectId={projectId!}
-              entityId={draftPageId!}
-              entityType="page"
-              seoData={page.seo_data}
-              pagePath={page.path}
-              pageContent={sections.map((s) => s.content || "").join("\n")}
-              homepageContent=""
-              headerHtml={project?.header || ""}
-              footerHtml={project?.footer || ""}
-              wrapperHtml={project?.wrapper || ""}
-              onSeoDataChange={(data: SeoData) => {
-                setPage((prev) => prev ? { ...prev, seo_data: data } : prev);
-              }}
-              organizationId={project?.organization?.id}
-            />
-          </div>
-        ) : activeView === "code" ? (
-          <>
-            <div className="flex-1 overflow-hidden">
-              <SectionsEditor
-                sections={sections}
-                onChange={handleCodeSectionsChange}
-                onSave={handleSave}
-              />
-            </div>
-            <div ref={observePreviewArea} className="flex-1 bg-gray-100 p-4 overflow-hidden flex items-start justify-center">
-              <div
-                className="relative h-full rounded-xl overflow-hidden shadow-lg border border-gray-200 transition-all duration-300 mx-auto bg-white"
-                style={deviceFrameStyle}
-              >
-                <iframe
-                  srcDoc={prepareHtmlForPreview(previewHtml)}
-                  sandbox="allow-same-origin allow-scripts"
-                  className="border-0 bg-white"
-                  style={deviceIframeStyle}
-                />
-              </div>
-            </div>
-          </>
-        ) : (
-          <>
-            <div ref={observePreviewArea} className="flex-1 bg-gray-100 p-4 overflow-hidden flex items-start justify-center">
-              <div
-                className="relative h-full rounded-xl overflow-hidden shadow-lg border border-gray-200 transition-all duration-300 mx-auto bg-white"
-                style={deviceFrameStyle}
-              >
-                {isLivePreview && regeneratingSectionNames.size === 0 ? (
-                  <ProgressivePagePreview
-                    projectId={projectId || ""}
-                    pageId={pageId || ""}
-                  />
-                ) : (
-                  <iframe
-                    ref={iframeRef}
-                    srcDoc={prepareHtmlForPreview(
-                      previewVersion ? previewVersionHtml : previewHtml
-                    )}
-                    sandbox="allow-same-origin allow-scripts"
-                    onLoad={previewVersion ? undefined : handleIframeLoad}
-                    className="border-0 bg-white"
-                    style={deviceIframeStyle}
-                  />
-                )}
-                {!isLivePreview && !previewVersion && (
-                  <div className="absolute inset-0 pointer-events-none">
-                    <InlineEditorPopover
-                      selectedInfo={selectedInfo}
-                      mediaApi={mediaApi}
-                      isEditing={isEditing}
-                      isCanvasTextEditing={isCanvasTextEditing}
-                      onStartCanvasTextEdit={beginCanvasTextEditing}
-                      onApplyDirectEdit={handleApplyDirectEdit}
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* Editor sidebar — shown only in visual view, hidden during live preview */}
-        {activeView === "visual" && !isLivePreview && (
-          <EditorSidebar
-            selectedInfo={selectedInfo}
-            chatMessages={currentChatMessages}
-            onSendEdit={handleSendEdit}
-            onApplyDirectEdit={handleApplyDirectEdit}
-            onToggleHidden={handleToggleHidden}
-            isEditing={isEditing}
-            debugInfo={lastDebugInfo}
-            systemPrompt={systemPrompt}
-            mediaApi={mediaApi}
-            externalAction={pendingSidebarAction !== ("__deferred__" as QuickActionType) ? pendingSidebarAction : null}
-            onExternalActionHandled={() => setPendingSidebarAction(null)}
-            isCanvasTextEditing={isCanvasTextEditing}
-            onLiveTextPreview={handleLiveTextPreview}
-            onLiveTextRevert={handleLiveTextRevert}
-            primaryColor={project?.primary_color}
-            accentColor={project?.accent_color}
-            editViewport={device}
-            showHistory={true}
-            historyPageId={draftPageId}
-            fetchVersions={fetchAdminVersions}
-            allowRestorePublished={true}
-            onPreviewVersion={handlePreviewVersion}
-            onRestoreVersion={handleRestoreVersion}
-            previewDiff={previewDiff}
-            onRestoreSection={handleRestoreSection}
-            isPreviewingVersion={!!previewVersion}
-            previewVersionId={previewVersion?.id || null}
-            onExitPreview={handleExitPreview}
-          />
-        )}
-      </div>
-
-      {/* Leave-without-saving Confirmation Modal */}
-      <ConfirmModal
-        isOpen={showLeaveModal}
-        onClose={() => setShowLeaveModal(false)}
-        onConfirm={() => {
-          setShowLeaveModal(false);
-          navigate(`/admin/websites/${projectId}`);
-        }}
-        title="Leave Editor?"
-        message="You have unsaved changes. If you leave now they will be lost."
-        confirmText="Leave"
-        cancelText="Keep Editing"
-        type="warning"
+      <PageEditorBody
+        page={page}
+        project={project}
+        projectId={projectId}
+        pageId={pageId}
+        draftPageId={draftPageId}
+        sections={sections}
+        activeView={activeView}
+        device={device}
+        isLivePreview={isLivePreview}
+        regeneratingSectionNames={regeneratingSectionNames}
+        previewVersion={previewVersion}
+        previewVersionHtml={previewVersionHtml}
+        previewHtml={previewHtml}
+        deviceFrameStyle={deviceFrameStyle}
+        deviceIframeStyle={deviceIframeStyle}
+        observePreviewArea={observePreviewArea}
+        iframeRef={iframeRef}
+        mediaApi={mediaApi}
+        selectedInfo={selectedInfo}
+        isEditing={isEditing}
+        isCanvasTextEditing={isCanvasTextEditing}
+        currentChatMessages={currentChatMessages}
+        lastDebugInfo={lastDebugInfo}
+        systemPrompt={systemPrompt}
+        pendingSidebarAction={pendingSidebarAction}
+        previewDiff={previewDiff}
+        setPage={setPage}
+        handleCodeSectionsChange={handleCodeSectionsChange}
+        handleSave={handleSave}
+        handleIframeLoad={handleIframeLoad}
+        beginCanvasTextEditing={beginCanvasTextEditing}
+        handleApplyDirectEdit={handleApplyDirectEdit}
+        handleSendEdit={handleSendEdit}
+        handleToggleHidden={handleToggleHidden}
+        setPendingSidebarAction={setPendingSidebarAction}
+        handleLiveTextPreview={handleLiveTextPreview}
+        handleLiveTextRevert={handleLiveTextRevert}
+        fetchAdminVersions={fetchAdminVersions}
+        handlePreviewVersion={handlePreviewVersion}
+        handleRestoreVersion={handleRestoreVersion}
+        handleRestoreSection={handleRestoreSection}
+        handleExitPreview={handleExitPreview}
       />
 
-      {/* Publish Confirmation Modal (with advisory lint chips) */}
-      <PublishConfirmModal
-        isOpen={showPublishModal}
-        warnings={publishLintWarnings}
-        isLoading={isPublishing}
-        onClose={() => setShowPublishModal(false)}
-        onConfirm={handlePublishConfirmed}
+      <PageEditorModals
+        projectId={projectId}
+        draftPageId={draftPageId}
+        navigate={navigate}
+        sectionsRef={sectionsRef}
+        regenerateSnapshotsRef={regenerateSnapshotsRef}
+        sections={sections}
+        showLeaveModal={showLeaveModal}
+        setShowLeaveModal={setShowLeaveModal}
+        showPublishModal={showPublishModal}
+        setShowPublishModal={setShowPublishModal}
+        publishLintWarnings={publishLintWarnings}
+        isPublishing={isPublishing}
+        handlePublishConfirmed={handlePublishConfirmed}
+        showConflictModal={showConflictModal}
+        setShowConflictModal={setShowConflictModal}
+        handleForceSave={handleForceSave}
+        recoveryPrompt={recoveryPrompt}
+        setRecoveryPrompt={setRecoveryPrompt}
+        pushUndoSnapshot={pushUndoSnapshot}
+        setSections={setSections}
+        rebuildPreviewHtml={rebuildPreviewHtml}
+        setIsDirty={setIsDirty}
+        showSuccessAlert={showSuccessAlert}
+        setShowSuccessAlert={setShowSuccessAlert}
+        successMessage={successMessage}
+        showFindReplace={showFindReplace}
+        setShowFindReplace={setShowFindReplace}
+        handleFindReplaceApplied={handleFindReplaceApplied}
+        regenerateModalOpen={regenerateModalOpen}
+        setRegenerateModalOpen={setRegenerateModalOpen}
+        setRegeneratingSectionNames={setRegeneratingSectionNames}
+        setPage={setPage}
       />
-
-      {/* Save Conflict Modal (409 STALE_WRITE) */}
-      <ConfirmModal
-        isOpen={showConflictModal}
-        onClose={() => setShowConflictModal(false)}
-        onConfirm={handleForceSave}
-        title="Page Changed Elsewhere"
-        message="This page was saved by someone else after you loaded it. Saving anyway overwrites their version (it stays in History). Keep editing to review first — your work is also backed up locally."
-        confirmText="Save Anyway"
-        cancelText="Keep Editing"
-        type="warning"
-      />
-
-      {/* Crash Recovery Modal */}
-      <ConfirmModal
-        isOpen={recoveryPrompt !== null}
-        onClose={() => setRecoveryPrompt(null)}
-        onConfirm={() => {
-          if (recoveryPrompt) {
-            pushUndoSnapshot(structuredClone(sectionsRef.current));
-            setSections(recoveryPrompt);
-            rebuildPreviewHtml(recoveryPrompt);
-            setIsDirty(true);
-          }
-          setRecoveryPrompt(null);
-        }}
-        title="Recover Unsaved Changes?"
-        message="We found unsaved edits from a previous session that are newer than the saved page. Recover them into the editor?"
-        confirmText="Recover"
-        cancelText="Not Now"
-        type="info"
-      />
-
-      {/* Success Alert Modal */}
-      <AlertModal
-        isOpen={showSuccessAlert}
-        onClose={() => setShowSuccessAlert(false)}
-        title="Published Successfully"
-        message={successMessage}
-        type="success"
-        buttonText="Continue Editing"
-        autoDismiss={true}
-      />
-
-      {/* Site-wide Find & Replace Modal */}
-      {projectId && (
-        <FindReplaceModal
-          projectId={projectId}
-          isOpen={showFindReplace}
-          onClose={() => setShowFindReplace(false)}
-          onApplied={handleFindReplaceApplied}
-        />
-      )}
-
-      {/* Regenerate Component Modal */}
-      {regenerateModalOpen && projectId && draftPageId && (
-        <RegenerateComponentModal
-          projectId={projectId}
-          pageId={draftPageId}
-          sectionNames={sections.map((s) => s.name)}
-          onWillRegenerate={(sectionName) => {
-            // Snapshot + flag BEFORE the API fires so the poll loop can't
-            // observe gen=generating with an empty regeneratingSectionNames
-            // set (which would briefly mount ProgressivePagePreview and
-            // flash "Loading preview…").
-            const target = sectionsRef.current.find((s) => s.name === sectionName);
-            if (target) {
-              regenerateSnapshotsRef.current.set(sectionName, target.content || "");
-            }
-            setRegeneratingSectionNames((prev) => {
-              const next = new Set(prev);
-              next.add(sectionName);
-              return next;
-            });
-          }}
-          onRegenerated={async (sectionName) => {
-            setRegenerateModalOpen(false);
-            // Re-fetch page to trigger the live-preview effect
-            // (page.generation_status === "generating"). By now the "will"
-            // hook above has already set the flags, so the render path
-            // stays on the existing iframe + in-place pulse overlay.
-            const freshPage = await fetchPage(projectId, draftPageId);
-            setPage(freshPage.data);
-            // Suppress the next unused-var warning; sectionName is handled
-            // by onWillRegenerate but we keep the param for API stability.
-            void sectionName;
-          }}
-          onClose={() => setRegenerateModalOpen(false)}
-        />
-      )}
     </div>
   );
 }
