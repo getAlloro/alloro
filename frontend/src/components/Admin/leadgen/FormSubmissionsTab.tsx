@@ -1,25 +1,16 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import type { ReactNode } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   Inbox,
-  Mail,
-  MailOpen,
   Trash2,
   ChevronLeft,
   ChevronRight,
   Eye,
   EyeOff,
-  X,
   Download,
   ShieldAlert,
   CheckCircle2,
-  FileText,
-  Image,
-  Circle,
-  CheckCircle,
   Send,
-  Loader2,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import {
@@ -34,17 +25,9 @@ import {
   bulkToggleFormSubmissionsRead,
 } from "../../../api/websites";
 import type {
-  FileValue,
-  FormContents,
-  FormSection,
   FormSubmission,
-  FormSubmissionsResponse,
 } from "../../../api/websites";
 import {
-  type FetchFormRecipientCatalogFn,
-  type UpdateFormCatalogPreferencesFn,
-  type FetchWebsiteRecipientsFn,
-  type UpdateFormRecipientRuleFn,
   useAdminWebsiteRecipients,
   useUpdateWebsiteFormCatalogPreferences,
   useWebsiteFormRecipientCatalog,
@@ -57,78 +40,14 @@ import {
   type FormSubmissionsView,
 } from "./FormSubmissionsViewTabs";
 import { SelectedFormRoutingSettings } from "./SelectedFormRoutingSettings";
-
-function isFileValue(value: unknown): value is FileValue {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "s3Key" in value &&
-    "name" in value
-  );
-}
-
-function isSectionsFormat(contents: FormContents): contents is FormSection[] {
-  return Array.isArray(contents);
-}
-
-/** Extract preview text from either format */
-function previewFields(contents: FormContents): string {
-  if (isSectionsFormat(contents)) {
-    // Grab first 2 text fields from first section
-    const textFields: string[] = [];
-    for (const section of contents) {
-      for (const [k, v] of section.fields) {
-        if (typeof v === "string" && v.trim()) {
-          textFields.push(`${k}: ${v}`);
-          if (textFields.length >= 2) break;
-        }
-      }
-      if (textFields.length >= 2) break;
-    }
-    return textFields.join(" \u00b7 ");
-  }
-  // Legacy flat format
-  const textEntries = Object.entries(contents).filter(
-    ([, v]) => typeof v === "string",
-  ) as [string, string][];
-  return textEntries.slice(0, 2).map(([k, v]) => `${k}: ${v}`).join(" \u00b7 ");
-}
-
-interface Props {
-  projectId: string;
-  isAdmin?: boolean;
-  fetchSubmissionsFn?: FetchSubmissionsFn;
-  fetchFormCatalogFn?: FetchFormRecipientCatalogFn;
-  fetchRecipientsFn?: FetchWebsiteRecipientsFn;
-  updateFormRecipientRuleFn?: UpdateFormRecipientRuleFn;
-  updateFormPreferencesFn?: UpdateFormCatalogPreferencesFn;
-  markAllReadFn?: MarkAllReadFn;
-  formCatalogQueryScope?: "admin" | "client";
-  toggleReadFn?: typeof toggleFormSubmissionRead;
-  deleteSubmissionFn?: typeof deleteFormSubmission;
-  onExport?: () => void;
-  settingsContent?: ReactNode;
-}
-
-type FormSubmissionsResult = FormSubmissionsResponse & {
-  error?: string;
-  errorMessage?: string;
-};
-
-type FetchSubmissionsFn = (
-  projectId: string,
-  page: number,
-  limit: number,
-  filter?: string,
-  formName?: string,
-) => Promise<FormSubmissionsResult>;
-
-type MarkAllReadFn = (
-  projectId: string,
-  formName?: string,
-) => Promise<unknown>;
-
-type TabFilter = "all" | "verified" | "flagged";
+import { hasFiles } from "./formSubmissionsTab.utils";
+import type {
+  FetchSubmissionsFn,
+  Props,
+  TabFilter,
+} from "./formSubmissionsTab.types";
+import SubmissionRow from "./FormSubmissionsTab/SubmissionRow";
+import SubmissionDetailModal from "./FormSubmissionsTab/SubmissionDetailModal";
 
 export default function FormSubmissionsTab({
   projectId,
@@ -327,14 +246,6 @@ export default function FormSubmissionsTab({
     }
   };
 
-  /** Check if contents has any file values that need pre-signed URLs */
-  const hasFiles = (contents: FormContents): boolean => {
-    if (isSectionsFormat(contents)) {
-      return contents.some((s) => s.fields.some(([, v]) => isFileValue(v)));
-    }
-    return Object.values(contents).some(isFileValue);
-  };
-
   const handleSelect = async (sub: FormSubmission) => {
     if (selectedId === sub.id) {
       setSelectedId(null);
@@ -508,18 +419,6 @@ export default function FormSubmissionsTab({
     } finally {
       setBulkLoading(false);
     }
-  };
-
-  const relativeTime = (dateStr: string) => {
-    const diff = Date.now() - new Date(dateStr).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return "just now";
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    const days = Math.floor(hrs / 24);
-    if (days < 7) return `${days}d ago`;
-    return new Date(dateStr).toLocaleDateString();
   };
 
   const currentDetail = detailSubmission && detailSubmission.id === selectedId ? detailSubmission : null;
@@ -764,215 +663,35 @@ export default function FormSubmissionsTab({
                 const isMultiSelected = selectedIds.has(sub.id);
                 const isSending = sendingSubmissionIds.has(sub.id);
                 return (
-                  <div
+                  <SubmissionRow
                     key={sub.id}
-                    className={`flex cursor-pointer items-center gap-3 px-4 py-3 transition hover:bg-gray-50 ${
-                      isMultiSelected
-                        ? "bg-blue-50 border-l-2 border-blue-400"
-                        : !sub.is_read
-                          ? "bg-alloro-orange/5"
-                          : sub.is_flagged
-                            ? "bg-amber-50/50"
-                            : ""
-                    }`}
-                    onClick={() => handleSelect(sub)}
-                  >
-                    {canUseBulkActions && (
-                      <button
-                        onClick={(e) => toggleSelectItem(sub.id, e)}
-                        className="flex-shrink-0 text-gray-300 transition hover:text-blue-500"
-                        title={isMultiSelected ? "Deselect" : "Select"}
-                        aria-label={isMultiSelected ? "Deselect submission" : "Select submission"}
-                      >
-                        {isMultiSelected ? (
-                          <CheckCircle size={16} className="text-blue-500" />
-                        ) : (
-                          <Circle size={16} />
-                        )}
-                      </button>
-                    )}
-
-                    <div className="flex-shrink-0">
-                      {sub.is_flagged ? (
-                        <ShieldAlert size={16} className="text-amber-500" />
-                      ) : sub.is_read ? (
-                        <MailOpen size={16} className="text-gray-300" />
-                      ) : (
-                        <Mail size={16} className="text-alloro-orange" />
-                      )}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`text-sm ${!sub.is_read ? "font-semibold text-gray-900" : "font-medium text-gray-700"}`}>
-                          {sub.form_name}
-                        </span>
-                        <SubmissionStatusChip submission={sub} />
-                        {sub.recipients_sent_to.length > 0 ? (
-                          <span
-                            className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500"
-                            title={sub.recipients_sent_to.join(", ")}
-                          >
-                            {sub.recipients_sent_to.length} recipient{sub.recipients_sent_to.length === 1 ? "" : "s"}
-                          </span>
-                        ) : (
-                          <span
-                            className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-600"
-                            title="No recipients were resolved when this submission was saved"
-                          >
-                            no email
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-0.5 truncate text-[13px] text-gray-500">
-                        {previewFields(sub.contents)}
-                      </p>
-                    </div>
-
-                    <div className="hidden flex-shrink-0 text-xs text-gray-400 sm:block">
-                      {relativeTime(sub.submitted_at)}
-                    </div>
-
-                    <div className="flex-shrink-0 flex items-center gap-1">
-                      {canResendSubmission && (
-                        <button
-                          onClick={(e) => handleSendSingle(sub, e)}
-                          disabled={isSending}
-                          className={`p-1.5 rounded-lg transition disabled:cursor-not-allowed disabled:opacity-60 ${sub.is_flagged ? "hover:bg-amber-50 text-amber-400 hover:text-amber-600" : "hover:bg-gray-100 text-gray-400 hover:text-gray-600"}`}
-                          title={
-                            isSending
-                              ? "Resending to current configured recipients"
-                              : "Resend to current configured recipients"
-                          }
-                          aria-label={isSending ? "Resending submission" : "Resend submission"}
-                        >
-                          {isSending ? (
-                            <Loader2 size={14} className="animate-spin" />
-                          ) : (
-                            <Send size={14} />
-                          )}
-                        </button>
-                      )}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleToggleRead(sub); }}
-                        className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition"
-                        title={sub.is_read ? "Mark unread" : "Mark read"}
-                        aria-label={sub.is_read ? "Mark unread" : "Mark read"}
-                      >
-                        <Eye size={14} />
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDelete(sub.id); }}
-                        className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"
-                        title="Delete"
-                        aria-label="Delete submission"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
+                    sub={sub}
+                    isMultiSelected={isMultiSelected}
+                    isSending={isSending}
+                    canUseBulkActions={canUseBulkActions}
+                    canResendSubmission={canResendSubmission}
+                    toggleSelectItem={toggleSelectItem}
+                    handleSelect={handleSelect}
+                    handleSendSingle={handleSendSingle}
+                    handleToggleRead={handleToggleRead}
+                    handleDelete={handleDelete}
+                  />
                 );
               })}
             </div>
 
             {/* Detail modal */}
-            <AnimatePresence>
-              {currentDetail && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15 }}
-                  className="fixed inset-0 z-50 flex items-center justify-center p-4"
-                  onClick={() => { setSelectedId(null); setDetailSubmission(null); }}
-                >
-                  {/* Backdrop */}
-                  <div className="absolute inset-0 bg-alloro-navy/40 backdrop-blur-sm" />
-
-                  {/* Modal content */}
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                    className="relative flex max-h-[82vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {/* Modal header */}
-                    <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h4 className="truncate font-semibold text-gray-900">{currentDetail.form_name}</h4>
-                          <SubmissionStatusChip submission={currentDetail} />
-                        </div>
-                        <p className="mt-1 text-xs text-gray-400">
-                          {new Date(currentDetail.submitted_at).toLocaleString()}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {canResendSubmission && (
-                          <button
-                            onClick={(e) => handleSendSingle(currentDetail, e)}
-                            disabled={isCurrentDetailSending}
-                            title={
-                              isCurrentDetailSending
-                                ? "Resending to current configured recipients"
-                                : "Resend to current configured recipients"
-                            }
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition text-sm font-medium border disabled:cursor-not-allowed disabled:opacity-60 ${currentDetail.is_flagged ? "bg-amber-50 text-amber-600 hover:bg-amber-100 border-amber-200" : "bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200"}`}
-                          >
-                            {isCurrentDetailSending ? (
-                              <Loader2 size={13} className="animate-spin" />
-                            ) : (
-                              <Send size={13} />
-                            )}
-                            {isCurrentDetailSending ? "Sending..." : "Resend"}
-                          </button>
-                        )}
-                        <button
-                          onClick={() => { setSelectedId(null); setDetailSubmission(null); }}
-                          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition"
-                          aria-label="Close submission details"
-                        >
-                          <X size={16} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Modal body */}
-                    <div className="flex-1 overflow-y-auto px-5 py-4">
-                      {currentDetail.is_flagged && currentDetail.flag_reason && (
-                        <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-2.5 flex items-start gap-2">
-                          <ShieldAlert size={16} className="text-amber-500 mt-0.5 flex-shrink-0" />
-                          <div>
-                            <p className="text-sm font-medium text-amber-700">Flagged by AI</p>
-                            <p className="text-xs text-amber-600 mt-0.5">{currentDetail.flag_reason}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      <RecipientsSummary
-                        recipients={detailResendRecipients}
-                        title={
-                          isShowingCurrentRecipients
-                            ? "Current resend recipients"
-                            : "Original recipients"
-                        }
-                        emptyMessage="No recipients are configured for this form."
-                      />
-
-                      {detailLoading ? (
-                        <div className="text-sm text-gray-400 py-4">Loading file details...</div>
-                      ) : isSectionsFormat(currentDetail.contents) ? (
-                        <SectionsView sections={currentDetail.contents} />
-                      ) : (
-                        <FlatView contents={currentDetail.contents} />
-                      )}
-                    </div>
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <SubmissionDetailModal
+              currentDetail={currentDetail}
+              detailResendRecipients={detailResendRecipients}
+              isShowingCurrentRecipients={isShowingCurrentRecipients}
+              isCurrentDetailSending={isCurrentDetailSending}
+              canResendSubmission={canResendSubmission}
+              detailLoading={detailLoading}
+              setSelectedId={setSelectedId}
+              setDetailSubmission={setDetailSubmission}
+              handleSendSingle={handleSendSingle}
+            />
 
             {/* Pagination */}
             {totalPages > 1 && (
@@ -1022,155 +741,5 @@ export default function FormSubmissionsTab({
         />
       )}
     </>
-  );
-}
-
-function SubmissionStatusChip({ submission }: { submission: FormSubmission }) {
-  if (submission.is_flagged) {
-    return (
-      <span
-        className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700"
-        title={submission.flag_reason || "Flagged by AI; email was held"}
-      >
-        flagged
-      </span>
-    );
-  }
-
-  if (!submission.is_read) {
-    return (
-      <span
-        className="rounded-full bg-alloro-orange/10 px-2 py-0.5 text-[11px] font-medium text-alloro-orange"
-        title="Unread submission"
-      >
-        new
-      </span>
-    );
-  }
-
-  return (
-    <span
-      className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500"
-      title="Read submission"
-    >
-      read
-    </span>
-  );
-}
-
-function RecipientsSummary({
-  recipients,
-  title = "Saved recipients",
-  emptyMessage = "No recipients were saved.",
-}: {
-  recipients: string[];
-  title?: string;
-  emptyMessage?: string;
-}) {
-  return (
-    <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
-      <p className="text-xs font-medium text-gray-500">{title}</p>
-      {recipients.length > 0 ? (
-        <div className="mt-2 flex flex-wrap gap-2">
-          {recipients.map((email) => (
-            <span
-              key={email}
-              className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-gray-600 ring-1 ring-gray-200"
-            >
-              {email}
-            </span>
-          ))}
-        </div>
-      ) : (
-        <p className="mt-1 text-sm text-red-600">{emptyMessage}</p>
-      )}
-    </div>
-  );
-}
-
-/** Render sections-format contents with grouped headers */
-function SectionsView({ sections }: { sections: FormSection[] }) {
-  return (
-    <div className="space-y-5">
-      {sections.map((section, si) => (
-        <div key={si}>
-          <h5 className="text-sm font-semibold text-gray-700 border-b border-gray-100 pb-1.5 mb-2">
-            {section.title}
-          </h5>
-          <div className="space-y-1.5">
-            {section.fields.map(([key, value], fi) => (
-              <div key={fi} className="flex gap-3">
-                <span className="text-sm text-gray-400 w-44 flex-shrink-0">{key}</span>
-                {isFileValue(value) ? (
-                  <FileValueDisplay file={value} />
-                ) : (
-                  <span className="text-sm text-gray-900 font-medium">{value}</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** Render legacy flat key-value contents */
-function FlatView({ contents }: { contents: Record<string, string | FileValue> }) {
-  return (
-    <div className="space-y-2">
-      {Object.entries(contents).map(([key, value]) => (
-        <div key={key} className="flex gap-3">
-          <span className="text-sm text-gray-400 w-40 flex-shrink-0">{key}</span>
-          {isFileValue(value) ? (
-            <FileValueDisplay file={value} />
-          ) : (
-            <span className="text-sm text-gray-900 font-medium">{value}</span>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function FileValueDisplay({ file }: { file: FileValue }) {
-  const isImage = file.type.startsWith("image/");
-
-  if (isImage && file.url) {
-    return (
-      <div className="flex flex-col gap-2">
-        <img
-          src={file.url}
-          alt={file.name}
-          className="max-w-48 max-h-32 rounded-lg border border-gray-200 object-contain"
-        />
-        <a
-          href={file.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-sm text-alloro-orange hover:text-orange-700 font-medium transition"
-        >
-          <Download size={14} />
-          {file.name}
-        </a>
-      </div>
-    );
-  }
-
-  return (
-    <a
-      href={file.url || "#"}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={`inline-flex items-center gap-1.5 text-sm font-medium transition ${
-        file.url
-          ? "text-alloro-orange hover:text-orange-700"
-          : "text-gray-400 cursor-not-allowed"
-      }`}
-    >
-      {file.type === "application/pdf" ? <FileText size={14} /> : <Image size={14} />}
-      {file.name}
-      {file.url && <Download size={12} />}
-    </a>
   );
 }
