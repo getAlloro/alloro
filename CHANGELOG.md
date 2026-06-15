@@ -2,6 +2,27 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.127] - June 2026
+
+### Code Constitution — Full-Stack + Mechanized Enforcement
+
+The `/code-constitution` standard was expanded from backend-only to the full stack and turned into a citable, mechanically-enforced instrument. The skill doc (which lives outside the repo) was restructured into numbered Parts → Sections → Articles with stable `§N.M` identifiers plus an Enforcement Protocol, so any review/validation agent flags a violation as e.g. "§7.4 (Section 7, Article 4)" with the rule quoted verbatim. Repo-side, mechanized enforcement was extended across both trees and an interactive HTML viewer was added. All new enforcement is warn/baseline — it surfaces debt without failing CI.
+
+**Key Changes:**
+
+- `scripts/check-conventions.sh` now scans both `src/` and `frontend/src/`, prints the `§id` next to every finding, and adds an advisory Tier-A grep pass (§17.4 `dangerouslySetInnerHTML`, §17.5 token reads outside the api client, §17.3 `process.env` in the bundle, §15.4 stray state libraries, §10.2 `knex.raw`, §5.1 secret literals).
+- Backend ESLint bootstrapped for the first time (`eslint.config.mjs`) with article-mapped, warn-only rules (§2.2 `max-lines-per-function`, §2.3 `max-depth`, §9.1 `no-console`, §17.2 `no-explicit-any`, §1.4 naming) — deliberately not a generic `recommended` dump. Matching rules added to `frontend/eslint.config.js`.
+- `dependency-cruiser` (`.dependency-cruiser.cjs`) enforces the layering Articles structurally — §7.4 db-only-in-models, §7.3 controllers-no-db, §7.1 no-upward-imports, §7.2 routes-are-thin (33 advisory findings at baseline).
+- `code-constitution.html`: a self-contained, animated viewer — collapsible Parts/Sections/Articles, search, stack + mechanizability filters, click-to-copy `§` citations, and a live mechanization roadmap. Auto-enforced coverage rose from 8 to ~33 of 67 Articles.
+- New npm scripts: `lint`, `depcruise`, `check:all` (orchestrated advisory gate). `check:conventions --strict` still gates CI on backend size/console/db only.
+
+**Baseline (2026-06-15):** backend ESLint 2369 warnings (2153 `any`, 152 fn-length, 62 depth); dependency-cruiser 33 layering; frontend detector 38 oversized / 88 console / 35 fetch-bypass / 155 `any`. All advisory.
+
+**Commits:**
+
+- `3f8d985c` - full-stack detector + §-citations + Tier-A greps; backend & frontend ESLint configs; dependency-cruiser layering rules; `package.json` scripts + dev-deps (eslint, typescript-eslint, globals, dependency-cruiser); `code-constitution.html` viewer; constitution-mechanization (Completed) + frontend-remediation (Pending) plan specs.
+- Constitution skill doc (`~/.claude/skills/code-constitution/SKILL.md`, outside the repo) expanded to Backend + Frontend halves, numbered Articles, and the Enforcement Protocol.
+
 ## [0.0.126] - June 2026
 
 ### Codebase Orphan Cleanup
