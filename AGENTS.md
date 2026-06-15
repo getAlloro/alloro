@@ -27,6 +27,17 @@ Any change to an existing spec — added scope, an execution-time deviation, or 
 - Tasks added by a revision are tagged `(Rev N)` in their titles, and the Done checklist gains matching items in the same edit.
 - Update the hero status pill/status card in the same edit whenever the work state changes; never create a new plan folder for a revision of an existing spec.
 
+## Code Constitution
+
+All code work in this repo — backend (`src/`) and frontend (`frontend/`) — follows the **Code Constitution**, the numbered architecture contract. The full text is at `~/.claude/skills/code-constitution/SKILL.md`, with a browsable view in `code-constitution.html` at the repo root. It is organized as Parts → Sections → Articles with stable `§N.M` IDs, so any violation is cited precisely (e.g. `§7.4`).
+
+This is mandatory during planning (`-s`) and execution (`-x`, `-i`, `-q`):
+
+- **Claude Code:** invoke the `code-constitution` skill. **Codex / other agents:** read and apply `~/.claude/skills/code-constitution/SKILL.md`.
+- **Planning (`-s`):** the spec cites the specific `§N.M` Articles the work touches in its Context/Constraints sections, and names the reference analog — `§6.1` `src/controllers/gbp-automation/` for backend, `§12.1` the `frontend/src/api/` + React Query + feature-folder triad for frontend. Do not spec a task that violates an Article; redesign it.
+- **Execution:** code conforms to the cited Articles. Afterward, run `npm run check:all` (at minimum `npm run check:conventions --strict` for the backend) and cite the `§N.M` for every violation in the Enforcement Protocol format — never "this is messy." Fix must-fix violations (any 🔎-mechanized backend Article, or a security/correctness Article) before reporting done. Frontend mechanized Articles stay advisory until the frontend remediation lands (see `plans/06152026-frontend-remediation`).
+- **Review (`-r`):** cite `§N.M` for every finding.
+
 ## Deployment Path
 
 Standard promotion path:
