@@ -58,10 +58,11 @@
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
         <span class="status-pill">In Progress</span>
+        <!-- T0 T3 T5 done; T6 3 non-stateful god-files done; T4 foundation+agents done. Remaining T4 per-domain + T6 stateful = owner-QA-gated. -->
       </div>
       <h1>Frontend Remediation</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>In Progress (T0 done)</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>In Progress — T0/T3/T5 done; T4 + T6 partial (owner QA pending)</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/06152026-frontend-remediation</dd></div>
         <div><dt>Size</dt><dd>Large (multi-phase program)</dd></div>
         <div><dt>Risk</dt><dd>Level 4</dd></div>
@@ -239,6 +240,13 @@
         <p><strong>Reason:</strong> The safety net required before any stateful decomposition (T6).</p>
         <p><strong>Verify:</strong> <code>npm --prefix frontend test</code> = 6/6 green; <code>npm run build</code> = exit 0. Committed dev/dave <code>059444b6</code> (LagDave, local — not pushed).</p>
         <p><strong>Next:</strong> T1 (HTTP consolidation, ~35 files) → T2 console → T3 any → T4 error-contract → T5 folders → T6 god-files. T1–T3 are tsc/lint-gated; T4/T6 need per-surface visual QA by the owner.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 — 2026-06-15</h3>
+        <p><strong>Change:</strong> Continued execution. <strong>T3</strong> (any-elimination, commit <code>8b8d1428</code>) and <strong>T5</strong> (folder nesting — 87 flat <code>Admin/</code> files into 9 feature subdirs, commits <code>842f57bf</code> + <code>ce52f1a1</code>) landed. <strong>T6</strong> begun with the three non-stateful god-files (spec's "go earlier, lower risk" set): <code>api/websites.ts</code> 2473→42 (<code>a54e9f34</code>), <code>api/minds.ts</code> 1356→9 (<code>ed771508</code>), <code>ui/DesignSystem.tsx</code> 1096→16 (<code>26953d39</code>) — each split into submodules behind a thin re-export barrel, full public surface preserved. <strong>T4</strong> foundation laid: <code>ApiError</code> + opt-in <code>unwrap&lt;T&gt;()</code> in <code>api/index.ts</code> (throws on <code>success:false</code> without changing the shared <code>api*</code> primitives), with the <code>agents</code> domain migrated as the reference (<code>1e2865b3</code>).</p>
+        <p><strong>Reason:</strong> Execution deviation: T0 harness is thin (6 tests — infra sanity, not god-file render coverage), so stateful T6 decomposition and per-domain T4 flips stay owner-QA-gated. Banked only the fully <code>tsc -b</code>+eslint+harness-verifiable work this session; the error-PATH of the T4 agents flip (toast/banner on real API failure) still needs in-browser QA per the T4 verify criterion.</p>
+        <p><strong>Verify:</strong> all five commits pass <code>tsc -b</code> 0 + <code>eslint</code> 0 + harness 6/6; barrels preserve every export (websites 161, minds 119, DesignSystem 19); all consumers unchanged. dev/dave, local — not pushed.</p>
+        <p><strong>Remaining (owner-QA-gated):</strong> T4 per-domain flips in order — clarity → google-auth → gbp → agents-done → onboarding (highest blast, AuthContext-wired) — each its own commit + browser QA of the failure path. T6 stateful god-files worst-first (IdentityModal 3411, PracticeRanking 2498, WebsiteDetail 2442, PageEditor 2127, …) one file per commit + per-surface QA. Also: 9 residual generic-arg <code>any</code> (<code>Promise&lt;any&gt;</code>/<code>useState&lt;any[]&gt;</code>) the T3 sweep missed; <code>wizardConfig.ts</code> (969, config data) is another low-risk split. PMS-owned files (<code>api/pms.ts</code>, <code>PMSVisualPillars</code>, <code>PmsDashboardSurface</code>, <code>PmsHubSurface</code>) excluded — separate session.</p>
       </article>
     </section>
   </main>
