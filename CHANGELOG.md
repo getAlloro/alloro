@@ -2,6 +2,29 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.128] - June 2026
+
+### Referrals Hub — Month Comparison + AI Insights
+
+Added a Compare feature to the Referrals Hub (`/pmsStatistics`). A "Compare" button opens a modal where the owner picks two months via an animated month-calendar picker and sees a side-by-side dashboard: production and total/doctor/self referrals with directional change, plus a ranked per-source comparison (new / gone / up / down). An "Explain this comparison" action generates a concise, highlighted paragraph with Claude Haiku, summarizing the biggest production/referral shifts and naming any standout referral source. The "Spend time here" trend cue was removed from the hub.
+
+**Key Changes:**
+
+- New endpoint `POST /pms/comparison-insights` (controller + `pms-comparison-insights.service.ts`): re-derives both months server-side from the authoritative aggregation (never trusts client numbers), computes per-source movement A→B, and prompts Claude Haiku (`claude-haiku-4-5-20251001`) for a 2–3 sentence summary with `==highlight==` markers; cost logged via `safeLogAiCostEvent`.
+- Per-month referral `sources` were already returned by `/pms/keyData` but undeclared on the client — typed onto `PmsKeyDataMonth` and threaded through, so the comparison needed no new data endpoint or aggregator change.
+- New `CompareMonthsModal` (Framer Motion) with `MonthCalendarPicker` (animated year-nav + 12-month grid, data-only months selectable), `CompareMetricGrid` (left→right A→B change semantics), `CompareSourceList` (pairwise source diff), and an always-on "AI comparison" card that renders highlighted parchment/serif insight text via a React Query mutation (`usePmsComparisonInsights`).
+- Compare button added to `PmsHubSurface` (shown only with ≥2 months) via a new optional `onOpenCompare` prop; modal mounted from `PMSVisualPillars`.
+- Removed the `InsightCue` ("Spend time here.") line from the Referrals Hub.
+
+**Commits:**
+
+- `src/controllers/pms/pms-services/pms-comparison-insights.service.ts` (new), `src/controllers/pms/PmsController.ts`, `src/routes/pms.ts` — comparison-insights endpoint, Haiku service, per-source movement computation.
+- `frontend/src/api/pms.ts` — `PmsKeyDataMonth.sources`, comparison response types, `generateComparisonInsights`.
+- `frontend/src/hooks/queries/usePmsComparisonInsights.ts` (new) — generation mutation.
+- `frontend/src/components/PMS/dashboard/CompareMonthsModal.tsx`, `CompareMetricGrid.tsx`, `CompareSourceList.tsx`, `MonthCalendarPicker.tsx`, `compareMonths.utils.ts` (new) — comparison UI.
+- `frontend/src/components/PMS/dashboard/PmsHubSurface.tsx`, `PmsDashboardSurface.tsx`, `frontend/src/components/PMS/PMSVisualPillars.tsx` — Compare wiring + InsightCue removal.
+- `plans/06152026-referrals-month-comparison/spec.html` — plan/spec (Rev 1–10).
+
 ## [0.0.127] - June 2026
 
 ### Code Constitution — Full-Stack + Mechanized Enforcement

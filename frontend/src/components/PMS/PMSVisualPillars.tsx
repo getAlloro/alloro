@@ -41,6 +41,7 @@ import { useLocationContext } from "../../contexts/locationContext";
 import { apiGet } from "../../api";
 import { getPriorityItem } from "../../hooks/useLocalStorage";
 import { PmsHubSurface } from "./dashboard/PmsHubSurface";
+import { CompareMonthsModal } from "./dashboard/CompareMonthsModal";
 import { PmsFileManager } from "./file-manager/PmsFileManager";
 import { derivePmsFocusPeriod } from "../../utils/pmsFocusPeriod";
 import { DashboardAlertStack } from "../dashboard/alerts/DashboardAlertStack";
@@ -172,6 +173,7 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
   const [showDirectUpload, setShowDirectUpload] = useState(false);
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [showFileManager, setShowFileManager] = useState(false);
+  const [showCompare, setShowCompare] = useState(false);
   const [fileManagerInitialMonth, setFileManagerInitialMonth] = useState<
     string | null
   >(null);
@@ -1417,6 +1419,7 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
             setShowFileManager(true);
           }}
           onOpenSettings={() => navigate('/settings/integrations')}
+          onOpenCompare={() => setShowCompare(true)}
         />
       )}
       </main>
@@ -1481,6 +1484,14 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
         clientId={domain || ""}
         locationId={locationId}
         onSuccess={handleUploadWizardSuccess}
+      />
+
+      {/* Month Comparison Modal */}
+      <CompareMonthsModal
+        isOpen={showCompare}
+        onClose={() => setShowCompare(false)}
+        months={keyData?.months ?? []}
+        locationId={locationId ?? null}
       />
 
       {/* Manual Entry Modal */}

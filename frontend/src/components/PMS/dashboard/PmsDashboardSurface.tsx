@@ -23,6 +23,8 @@ export type PmsDashboardSurfaceProps = PmsDashboardData & {
   onOpenManualEntry: () => void;
   onOpenDataManager?: () => void;
   onSelectDataMonth?: (month: string) => void;
+  /** Opens the month-comparison modal (rendered by the Referrals Hub surface). */
+  onOpenCompare?: () => void;
   onOpenSettings: () => void;
 };
 

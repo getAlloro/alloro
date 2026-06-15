@@ -252,6 +252,17 @@ export interface PMSManualEntryRequest {
   locationId?: number | null;
 }
 
+/**
+ * Per-month referral source as emitted by the aggregator inside each month.
+ * Unranked and values may arrive as strings (raw monthly_rollup shape), so
+ * consumers normalize with Number() before use.
+ */
+export interface PmsKeyDataMonthSource {
+  name?: string;
+  referrals?: number | string;
+  production?: number | string;
+}
+
 export interface PmsKeyDataMonth {
   month: string;
   selfReferrals: number;
@@ -260,6 +271,10 @@ export interface PmsKeyDataMonth {
   productionTotal: number;
   actualProductionTotal?: number;
   attributedProductionTotal?: number;
+  /** Per-month referral sources (already returned by /pms/keyData). */
+  sources?: PmsKeyDataMonthSource[];
+  /** Upload job timestamp for the winning entry of this month. */
+  timestamp?: string;
 }
 
 export interface PmsKeyDataSource {
@@ -601,6 +616,52 @@ export async function fetchPmsKeyData(
   return apiGet({
     path: `/pms/keyData${query ? `?${query}` : ""}`,
   }) as Promise<PmsKeyDataResponse>;
+}
+
+// =====================================================================
+// REFERRAL MONTH COMPARISON
+// =====================================================================
+
+export interface ComparisonSourceLine {
+  name: string;
+  referrals: number;
+  production: number;
+}
+
+export interface ComparisonMonthSummary {
+  month: string;
+  totalReferrals: number;
+  doctorReferrals: number;
+  selfReferrals: number;
+  production: number;
+  topSources: ComparisonSourceLine[];
+}
+
+export interface ComparisonInsightsResponse {
+  success: boolean;
+  data?: {
+    insight: string;
+    monthA: ComparisonMonthSummary;
+    monthB: ComparisonMonthSummary;
+  };
+  error?: string;
+  message?: string;
+}
+
+/**
+ * Generate a Claude Haiku paragraph comparing two months of referral data.
+ * Organization is resolved server-side from the JWT; only the location and the
+ * two month keys are sent.
+ */
+export async function generateComparisonInsights(
+  locationId: number | null,
+  monthA: string,
+  monthB: string
+): Promise<ComparisonInsightsResponse> {
+  return apiPost({
+    path: "/pms/comparison-insights",
+    passedData: { locationId, monthA, monthB },
+  }) as Promise<ComparisonInsightsResponse>;
 }
 
 // =====================================================================

@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { ArrowUp, ChevronRight } from "lucide-react";
+import { ArrowUp, ChevronRight, ArrowLeftRight } from "lucide-react";
 import { ActionBanner } from "../../dashboard/ActionBanner";
 import { PeriodToggle } from "../../dashboard/PeriodToggle";
-import { InsightCue, type InsightTrend } from "../../dashboard/InsightCue";
 import { formatDataMonth, TO_DATE } from "../../../utils/timeframe";
 import { PmsEmptyDashboardState } from "./PmsEmptyDashboardState";
 import { PmsProcessingStatusCard } from "./PmsProcessingStatusCard";
@@ -135,6 +134,7 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
     isIngestionHighlighted,
     onOpenManualEntry,
     onOpenDataManager,
+    onOpenCompare,
     onOpenSettings,
   } = props;
 
@@ -170,18 +170,6 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
   // month; QTR/YTD use their full to-date wording.
   const periodLabel =
     period === "MONTH" ? namedMonth || "Latest month" : period === "QTR" ? TO_DATE.QTD.full : TO_DATE.YTD.full;
-
-  // One-line trend cue (#3.4): compare the last two production buckets of the
-  // ACTIVE series so the cue tracks the toggled view. up → "strong",
-  // down → "spend time here", flat → "holding" (also when < 2 buckets).
-  const trend: InsightTrend = (() => {
-    if (trendData.length < 2) return "flat";
-    const last = trendData[trendData.length - 1].production;
-    const prev = trendData[trendData.length - 2].production;
-    if (last > prev) return "up";
-    if (last < prev) return "down";
-    return "flat";
-  })();
 
   const trendFor = buildSourceTrendLookup(referralData);
   const detailFor = buildSourceDetailLookup(referralData);
@@ -247,12 +235,24 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
         <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-ink-muted">
           Referrals Hub
         </span>
-        <PeriodToggle
-          options={PERIOD_OPTIONS}
-          active={period}
-          onChange={handlePeriodChange}
-          ariaLabel="Referrals timeframe"
-        />
+        <div className="flex items-center gap-2">
+          {onOpenCompare && monthlyData.length >= 2 && (
+            <button
+              type="button"
+              onClick={onOpenCompare}
+              className="inline-flex items-center gap-1.5 rounded-full border border-line-soft bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-alloro-navy shadow-premium transition-all duration-200 hover:border-alloro-orange/50 hover:text-alloro-orange"
+            >
+              <ArrowLeftRight size={13} strokeWidth={2.5} />
+              Compare
+            </button>
+          )}
+          <PeriodToggle
+            options={PERIOD_OPTIONS}
+            active={period}
+            onChange={handlePeriodChange}
+            ariaLabel="Referrals timeframe"
+          />
+        </div>
       </div>
 
       {isProcessingInsights && <PmsProcessingStatusCard />}
@@ -274,9 +274,6 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
             periodLabel={periodChartLabel(period)}
             onHoverChange={setHovered}
           />
-
-          {/* One-line read on the trend (#3.4) — strong / spend-time-here. */}
-          {trendData.length >= 2 && <InsightCue trend={trend} />}
 
           <div data-wizard-target="pms-vitals" className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {tiles.map((t) => (
