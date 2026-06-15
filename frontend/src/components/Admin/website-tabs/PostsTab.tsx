@@ -4,6 +4,7 @@ import {
   Plus,
   Trash2,
   Pencil,
+  Copy,
   Tag,
   FolderTree,
   Loader2,
@@ -37,6 +38,7 @@ import {
   createPost as defaultCreatePost,
   updatePost as defaultUpdatePost,
   deletePost as defaultDeletePost,
+  duplicatePost as defaultDuplicatePost,
   fetchPostTypes as defaultFetchPostTypes,
   fetchCategories as defaultFetchCategories,
   fetchTags as defaultFetchTags,
@@ -292,6 +294,7 @@ interface PostsTabProps {
   createPostFn?: typeof defaultCreatePost;
   updatePostFn?: typeof defaultUpdatePost;
   deletePostFn?: typeof defaultDeletePost;
+  duplicatePostFn?: typeof defaultDuplicatePost;
   fetchPostTypesFn?: typeof defaultFetchPostTypes;
   fetchCategoriesFn?: typeof defaultFetchCategories;
   fetchTagsFn?: typeof defaultFetchTags;
@@ -311,6 +314,7 @@ export default function PostsTab({
   createPostFn = defaultCreatePost,
   updatePostFn = defaultUpdatePost,
   deletePostFn = defaultDeletePost,
+  duplicatePostFn = defaultDuplicatePost,
   fetchPostTypesFn = defaultFetchPostTypes,
   fetchCategoriesFn = defaultFetchCategories,
   fetchTagsFn = defaultFetchTags,
@@ -529,6 +533,16 @@ export default function PostsTab({
       setView("list");
     }
     await loadData();
+  };
+
+  const handleDuplicate = async (post: Post) => {
+    try {
+      await duplicatePostFn(projectId, post.id);
+      toast.success(`Duplicated "${post.title}"`);
+      await loadData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to duplicate post");
+    }
   };
 
   const handleAddCategory = async () => {
@@ -883,6 +897,13 @@ export default function PostsTab({
                       className="p-2 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50"
                     >
                       <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDuplicate(post)}
+                      className="p-2 text-gray-400 hover:text-alloro-orange rounded-lg hover:bg-orange-50"
+                      title="Duplicate"
+                    >
+                      <Copy className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDelete(post)}

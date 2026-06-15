@@ -420,3 +420,17 @@ export const deletePost = async (
   }
   return response.json();
 };
+
+export const duplicatePost = async (
+  projectId: string,
+  postId: string
+): Promise<{ success: boolean; data: Post }> => {
+  const response = await adminFetch(`${PROJECTS_BASE}/${projectId}/posts/${postId}/duplicate`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to duplicate post");
+  }
+  return response.json();
+};

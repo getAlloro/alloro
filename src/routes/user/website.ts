@@ -320,6 +320,11 @@ userWebsiteRoutes.delete(
   authenticateToken, rbacMiddleware, requireRole("admin", "manager"),
   controller.deleteUserPost
 );
+userWebsiteRoutes.post(
+  "/posts/:postId/duplicate",
+  authenticateToken, rbacMiddleware, requireRole("admin", "manager"),
+  controller.duplicateUserPost
+);
 userWebsiteRoutes.patch(
   "/posts/:postId/seo",
   authenticateToken, rbacMiddleware, requireRole("admin", "manager"),

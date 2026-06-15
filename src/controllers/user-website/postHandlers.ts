@@ -98,6 +98,21 @@ export async function deleteUserPost(req: RBACRequest, res: Response): Promise<R
   }
 }
 
+/** POST /api/user/website/posts/:postId/duplicate */
+export async function duplicateUserPost(req: RBACRequest, res: Response): Promise<Response> {
+  try {
+    const orgId = req.organizationId;
+    if (!orgId) return res.status(400).json({ error: "No organization found" });
+    const ids = await getProjectAndTemplate(orgId);
+    if (!ids) return res.status(404).json({ error: "No website found" });
+
+    const result = await postManager.duplicatePost(ids.projectId, req.params.postId);
+    return sendManagerResult(res, result, { successStatus: 201, data: result.post });
+  } catch (error) {
+    return handleError(res, error, "Duplicate post");
+  }
+}
+
 /** GET /api/user/website/post-types */
 export async function listPostTypes(req: RBACRequest, res: Response): Promise<Response> {
   try {

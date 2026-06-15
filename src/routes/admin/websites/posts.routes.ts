@@ -36,4 +36,7 @@ router.patch("/:id/posts/:postId", controller.updatePost);
 // DELETE /:id/posts/:postId — Delete a post
 router.delete("/:id/posts/:postId", controller.deletePost);
 
+// POST /:id/posts/:postId/duplicate — Duplicate a post into a new draft
+router.post("/:id/posts/:postId/duplicate", controller.duplicatePost);
+
 export default router;

@@ -537,6 +537,9 @@ export function DFYWebsite() {
   const userDeletePost = async (_projectId: string, postId: string) =>
     apiDelete({ path: `/user/website/posts/${postId}` });
 
+  const userDuplicatePost = async (_projectId: string, postId: string) =>
+    apiPost({ path: `/user/website/posts/${postId}/duplicate` });
+
   const userFetchPostTypes = async (_templateId: string) =>
     apiGet({ path: "/user/website/post-types" });
 
@@ -1590,6 +1593,7 @@ export function DFYWebsite() {
               createPostFn={userCreatePost}
               updatePostFn={userUpdatePost}
               deletePostFn={userDeletePost}
+              duplicatePostFn={userDuplicatePost}
               fetchPostTypesFn={userFetchPostTypes}
               fetchCategoriesFn={userFetchCategories}
               fetchTagsFn={userFetchTags}
