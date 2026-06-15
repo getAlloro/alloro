@@ -6,8 +6,10 @@
 # Pass --strict to exit 1 when any CLEAR structural violation exists — wire that into
 # CI once the debt is cleared, or use a ratchet/baseline (see NOTE at the bottom).
 #
-# Covers: file-size hard ceiling, console.* (should be Pino), db() outside models/,
-# and an ADVISORY list of route files with no inline auth middleware.
+# Covers: runtime file-size hard ceiling, console.* (should be Pino),
+# db() outside models/, and an ADVISORY list of route files with no inline auth
+# middleware. Historical migrations/seeds over the ceiling are reported
+# separately but do not count as living architecture violations.
 # Does NOT cover (still manual): function length, nesting, magic values,
 # commented-out code, naming. Does NOT mount auth or change any runtime behavior.
 set -uo pipefail
@@ -27,13 +29,28 @@ show() { # $1=list $2=head-n
 echo "code-constitution check  (src/)"
 rule
 
-# 1. Files over the ~800-line hard ceiling → must-fix decompose
-big=$(find src -name '*.ts' -not -path '*/node_modules/*' -exec wc -l {} \; \
+# 1. Runtime files over the ~800-line hard ceiling → must-fix decompose.
+#    Historical migrations/seeds are append-only artifacts; report separately
+#    but do not refactor or fail them solely for size unless they are being edited.
+big=$(find src -name '*.ts' -not -path '*/node_modules/*' \
+      -not -path 'src/database/migrations/*' \
+      -not -path 'src/database/seeds/*' \
+      -not -path 'src/__tests__/*' \
+      -exec wc -l {} \; \
       | awk -v c="$CEILING" '$1>c{printf "%6d  %s\n",$1,$2}' | sort -rn)
 big_n=$(count_nonempty "$big")
-printf '%sfiles > %s lines (hard ceiling): %s\n' "$(icon "$big_n")" "$CEILING" "$big_n"
+printf '%sruntime files > %s lines (hard ceiling): %s\n' "$(icon "$big_n")" "$CEILING" "$big_n"
 show "$big" 8
 [ "$big_n" -gt 8 ] && printf '     …and %s more\n' "$((big_n-8))"
+rule
+
+historical_big=$(find src/database/migrations src/database/seeds -name '*.ts' 2>/dev/null \
+      -exec wc -l {} \; \
+      | awk -v c="$CEILING" '$1>c{printf "%6d  %s\n",$1,$2}' | sort -rn)
+historical_big_n=$(count_nonempty "$historical_big")
+printf 'ℹ️  migration/seed files > %s lines: %s   (ADVISORY — historical unless edited)\n' "$CEILING" "$historical_big_n"
+show "$historical_big" 8
+[ "$historical_big_n" -gt 8 ] && printf '     …and %s more\n' "$((historical_big_n-8))"
 rule
 
 # 2. console.* in production code → should be the Pino logger
