@@ -385,16 +385,10 @@
             <code>src/controllers/scraper/feature-services/service.nap-extractor.ts</code>,
             <code>src/models/index.ts</code>,
             <code>src/models/GoogleAccountModel.ts</code>,
-            <code>src/models/PmNotificationModel.ts</code>,
-            <code>src/models/website-builder/PostCategoryModel.ts</code>,
-            <code>src/models/website-builder/PostTagModel.ts</code>,
-            <code>src/models/website-builder/PostTypeModel.ts</code>,
-            <code>src/models/website-builder/ReviewBlockModel.ts</code>,
-            <code>src/models/website-builder/TemplateModel.ts</code>,
             <code>src/utils/core/weekDates.ts</code>
           </dd></div>
           <div><dt>Depends on</dt><dd>T1</dd></div>
-          <div><dt>Verify</dt><dd><code>git grep -I -n -E 'service\\.deployment-pipeline|service\\.polling-orchestrator|audit\\.e2e-test|service\\.nap-extractor|from &quot;\\.\\/models&quot;|from &quot;\\.\\/models\\/index&quot;|GoogleAccountModel|PmNotificationModel|PostCategoryModel|PostTagModel|PostTypeModel|ReviewBlockModel|TemplateModel|weekDates' -- src frontend/src scripts</code> returns no active imports.</dd></div>
+          <div><dt>Verify</dt><dd><code>git grep -I -n -E 'service\\.deployment-pipeline|service\\.polling-orchestrator|audit\\.e2e-test|service\\.nap-extractor|from &quot;\\.\\/models&quot;|from &quot;\\.\\/models\\/index&quot;|GoogleAccountModel|weekDates' -- src frontend/src scripts</code> returns no active imports.</dd></div>
         </dl>
       </article>
 
@@ -498,7 +492,7 @@
         <dl>
           <div><dt>Do</dt><dd>Do not delete these files in this pass. Confirm they remain as parked/product-ambiguous dead islands unless the user revises the spec.</dd></div>
           <div><dt>Files</dt><dd>
-            <code>src/routes/checkup.ts</code> and import-only Checkup dependencies;
+            Checkup route files if present in the current tracked baseline;
             <code>src/routes/monday.ts</code> and <code>src/controllers/monday/*</code>;
             <code>src/routes/documentation.ts</code> and <code>src/controllers/documentation/*</code>;
             <code>frontend/src/components/dashboard/rankings-hub/rankingPeriod.ts</code>;
@@ -539,11 +533,11 @@
         <li><input type="checkbox" checked disabled> <code>prototype-v2.png</code> and listed unreferenced public assets are deleted.</li>
         <li><input type="checkbox" checked disabled> Listed backend zero-inbound orphan files are deleted with no active import errors.</li>
         <li><input type="checkbox" checked disabled> Listed frontend orphan islands are deleted with no active import errors.</li>
-        <li><input type="checkbox" checked disabled> Parked route islands for Checkup, Monday, and Documentation are not deleted in this pass.</li>
+        <li><input type="checkbox" checked disabled> Parked route islands for Monday and Documentation are not deleted in this pass; Checkup route files are absent from the current tracked baseline and not part of this cleanup diff.</li>
         <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> passes or only reports pre-existing errors unrelated to deletion.</li>
         <li><input type="checkbox" checked disabled> <code>npm run build</code> passes or only reports pre-existing errors unrelated to deletion.</li>
         <li><input type="checkbox" checked disabled> <code>cd frontend &amp;&amp; npm run build</code> passes or only reports pre-existing errors unrelated to deletion.</li>
-        <li><input type="checkbox" checked disabled> <code>git diff --name-status</code> shows only planned deletions and this plan file.</li>
+        <li><input type="checkbox" checked disabled> Cleanup-scoped <code>git diff --name-status</code> shows only planned deletions; unrelated working-tree changes remain excluded from this plan.</li>
         <li><input type="checkbox" checked disabled> Docs parity checked: no Alloro Docs update required because active UI behavior and visible copy are unchanged.</li>
       </ul>
     </section>
@@ -561,6 +555,18 @@
         <p><strong>Change:</strong> Executed the cleanup, deleted the 84 planned orphan files, preserved the parked Checkup, Monday, Documentation, and rankings-history files, and recorded passing type/build verification.</p>
         <p><strong>Reason:</strong> Execution completion: the final diff matches the approved deletion list and no active imports or runtime source references block the cleanup.</p>
         <p><strong>Updated Done criteria:</strong> all Done checks are met; frontend lint still has pre-existing failures unrelated to this deletion-only cleanup.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-06-15</h3>
+        <p><strong>Change:</strong> Reconciled finalization against the current checkout: retained six actively referenced model files and set the final cleanup scope to 78 planned deletions.</p>
+        <p><strong>Reason:</strong> <code>--done</code> parity check found active imports of <code>PmNotificationModel</code>, <code>PostCategoryModel</code>, <code>PostTagModel</code>, <code>PostTypeModel</code>, <code>ReviewBlockModel</code>, and <code>TemplateModel</code>; deleting them would break active admin website, user website, worker, and PM flows.</p>
+        <p><strong>Updated Done criteria:</strong> final cleanup verification is scoped to the 78 actual deletions; unrelated <code>scripts/check-conventions.sh</code> working-tree changes are not part of this cleanup.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 4 - 2026-06-15</h3>
+        <p><strong>Change:</strong> Reconciled the protected route check for Checkup: <code>src/routes/checkup.ts</code> is not tracked in the current baseline, so this cleanup neither deletes nor preserves it.</p>
+        <p><strong>Reason:</strong> <code>--done</code> protected-file verification found <code>src/routes/checkup.ts</code> missing with no current deletion diff; Git history shows it was removed before this finalization.</p>
+        <p><strong>Updated Done criteria:</strong> protected-route verification now covers Monday and Documentation in the current diff and treats Checkup as prior baseline state.</p>
       </article>
     </section>
   </main>

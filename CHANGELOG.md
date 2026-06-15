@@ -2,6 +2,27 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.126] - June 2026
+
+### Codebase Orphan Cleanup
+
+Removed confirmed orphaned source and asset files after a static reachability audit, exact-reference checks, and sibling-folder scan. The cleanup is intentionally conservative: parked product route islands and currently active model files were retained rather than deleted for the sake of a bigger number.
+
+**Key Changes:**
+
+- Deleted 78 tracked orphan files: unreferenced public/prototype assets, obsolete frontend component islands, backup artifacts, and backend zero-inbound helpers.
+- Confirmed no runtime dependency from `website-builder-rebuild`, `alloro-leadgen-tool`, `alloro-site`, or other Desktop `alloro*` / `orange*` folders before deleting candidates.
+- Preserved Monday, Documentation, and ranking-history parked files for explicit product follow-up instead of treating unmounted route code as disposable; Checkup route files were already absent from the current tracked baseline and are not part of this cleanup diff.
+- Retained active PM and website-builder model files after finalization found live imports from admin website services, user website services, workers, and PM controllers.
+- Verified cleanup with `npx tsc --noEmit`, `npm run build`, `cd frontend && npm run build`, and root Vitest (`31/31`). Frontend lint still has pre-existing failures unrelated to this deletion-only cleanup.
+
+**Commits:**
+
+- `prototype-v2.png`, `frontend/public/*` - removed unreferenced tracked assets.
+- `frontend/src/components/*`, `frontend/src/hooks/*`, `frontend/src/types/*` - removed orphaned frontend component, hook, and type islands.
+- `src/controllers/*`, `src/models/GoogleAccountModel.ts`, `src/models/index.ts`, `src/utils/core/weekDates.ts` - removed backend zero-inbound orphan files.
+- `plans/06142026-codebase-orphan-cleanup/spec.html` - completed cleanup spec with sibling audit evidence and finalization reconciliation.
+
 ## [0.0.125] - June 2026
 
 ### Backend God-File Decomposition + Remediation QA
