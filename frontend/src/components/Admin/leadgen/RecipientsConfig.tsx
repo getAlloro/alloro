@@ -1,13 +1,17 @@
 import { useState, useEffect } from "react";
 import { X, Plus, Mail, Users, Loader2 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { fetchRecipients, updateRecipients } from "../../../api/websites";
+import {
+  fetchRecipients,
+  updateRecipients,
+  type RecipientsResponse,
+} from "../../../api/websites";
 import { getErrorMessage } from "../../../lib/errorMessage";
 
 interface Props {
   projectId: string;
-  fetchRecipientsFn?: (projectId: string) => Promise<any>;
-  updateRecipientsFn?: (projectId: string, recipients: string[]) => Promise<any>;
+  fetchRecipientsFn?: (projectId: string) => Promise<RecipientsResponse>;
+  updateRecipientsFn?: (projectId: string, recipients: string[]) => Promise<unknown>;
 }
 
 export default function RecipientsConfig({ projectId, fetchRecipientsFn, updateRecipientsFn }: Props) {

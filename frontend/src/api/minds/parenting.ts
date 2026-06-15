@@ -146,14 +146,19 @@ export async function startParentingCompile(
   return res.success ? res.data : null;
 }
 
+export interface ParentingCompileStatus {
+  sessionStatus?: string;
+  run?: { status?: string } | null;
+}
+
 export async function getParentingCompileStatus(
   mindId: string,
   sessionId: string
-): Promise<any> {
+): Promise<ParentingCompileStatus | null> {
   const res = await apiGet({
     path: `/admin/minds/${mindId}/parenting/sessions/${sessionId}/compile-status`,
   });
-  return res.success ? res.data : null;
+  return res.success ? (res.data as ParentingCompileStatus) : null;
 }
 
 export async function deleteParentingSession(

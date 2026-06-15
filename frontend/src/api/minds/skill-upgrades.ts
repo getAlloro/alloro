@@ -142,15 +142,19 @@ export async function startSkillUpgradeCompile(
   return res.success ? res.data : null;
 }
 
+export interface SkillUpgradeCompileStatus {
+  status?: string;
+}
+
 export async function getSkillUpgradeCompileStatus(
   mindId: string,
   skillId: string,
   sessionId: string
-): Promise<any> {
+): Promise<SkillUpgradeCompileStatus | null> {
   const res = await apiGet({
     path: `/admin/minds/${mindId}/skills/${skillId}/upgrade/sessions/${sessionId}/compile-status`,
   });
-  return res.success ? res.data : null;
+  return res.success ? (res.data as SkillUpgradeCompileStatus) : null;
 }
 
 export async function deleteSkillUpgradeSession(

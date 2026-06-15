@@ -10,11 +10,19 @@ interface GBPSelection {
   displayName: string;
 }
 
+interface GbpLocation {
+  id: string;
+  name: string;
+  accountId: string;
+  locationId: string;
+  address?: string;
+}
+
 interface Step2GbpConnectProps {
   hasGoogleConnection: boolean;
   selectedGbpLocations: GBPSelection[];
   onGbpSelect: (locations: GBPSelection[]) => Promise<void>;
-  fetchAvailableGBP: () => Promise<any[]>;
+  fetchAvailableGBP: () => Promise<GbpLocation[]>;
   onGoogleConnected: () => void;
   autoOpenGbp?: boolean;
   onAutoOpenGbpHandled?: () => void;
@@ -37,7 +45,7 @@ export const Step2DomainInfo: React.FC<Step2GbpConnectProps> = ({
 }) => {
   // GBP modal state
   const [gbpModalOpen, setGbpModalOpen] = useState(false);
-  const [gbpLocations, setGbpLocations] = useState<any[]>([]);
+  const [gbpLocations, setGbpLocations] = useState<GbpLocation[]>([]);
   const [gbpLoading, setGbpLoading] = useState(false);
   const [gbpSaving, setGbpSaving] = useState(false);
   const [gbpError, setGbpError] = useState<string | null>(null);

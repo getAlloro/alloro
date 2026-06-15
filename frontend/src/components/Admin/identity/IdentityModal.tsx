@@ -2075,6 +2075,17 @@ const WEEKDAY_INDEX_TO_NAME: Record<number, DayName> = {
   6: "Saturday",
 };
 
+// GBP openingHours.periods[] shape — { open: {day,hour,minute}, close: {...} }
+interface GbpPeriodEndpoint {
+  day?: number;
+  hour?: number;
+  minute?: number;
+}
+interface GbpPeriod {
+  open?: GbpPeriodEndpoint;
+  close?: GbpPeriodEndpoint;
+}
+
 function normalizeHours(raw: unknown): Array<{ day: DayName; text: string }> {
   const empty: Array<{ day: DayName; text: string }> = [];
   if (!raw) return empty;
@@ -2107,7 +2118,7 @@ function normalizeHours(raw: unknown): Array<{ day: DayName; text: string }> {
     const periods = obj.periods;
     if (Array.isArray(periods)) {
       const byDay = new Map<DayName, string[]>();
-      for (const p of periods as Array<Record<string, any>>) {
+      for (const p of periods as GbpPeriod[]) {
         const open = p?.open;
         const close = p?.close;
         if (!open || typeof open !== "object") continue;

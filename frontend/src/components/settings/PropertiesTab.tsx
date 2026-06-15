@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiGet } from "../../api";
 import { MapPin, Plus, Star, Trash2, RefreshCw, Pencil } from "lucide-react";
-import { PropertySelectionModal } from "./PropertySelectionModal";
+import { PropertySelectionModal, type PropertyItem } from "./PropertySelectionModal";
 import { ConfirmModal } from "./ConfirmModal";
 import { GoogleConnectButton } from "../GoogleConnectButton";
 import { getPriorityItem } from "../../hooks/useLocalStorage";
@@ -29,7 +29,7 @@ export const PropertiesTab: React.FC = () => {
 
   // GBP selection modal
   const [gbpModalOpen, setGbpModalOpen] = useState(false);
-  const [availableGBP, setAvailableGBP] = useState<any[]>([]);
+  const [availableGBP, setAvailableGBP] = useState<PropertyItem[]>([]);
   const [loadingAvailable, setLoadingAvailable] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [gbpTargetLocationId, setGbpTargetLocationId] = useState<number | null>(null);
