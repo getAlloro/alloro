@@ -16,11 +16,11 @@ import { AnimatePresence } from "framer-motion";
 import { Inbox, Search, Download, Activity, RefreshCw } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { AdminPageHeader, TabBar } from "../../components/ui/DesignSystem";
-import LeadgenSubmissionsTable from "../../components/Admin/LeadgenSubmissionsTable";
-import LeadgenFunnelChart from "../../components/Admin/LeadgenFunnelChart";
-import LeadgenSubmissionDetail from "../../components/Admin/LeadgenSubmissionDetail";
-import LeadgenStatsStrip from "../../components/Admin/LeadgenStatsStrip";
-import LeadgenBulkActionBar from "../../components/Admin/LeadgenBulkActionBar";
+import LeadgenSubmissionsTable from "../../components/Admin/leadgen/LeadgenSubmissionsTable";
+import LeadgenFunnelChart from "../../components/Admin/leadgen/LeadgenFunnelChart";
+import LeadgenSubmissionDetail from "../../components/Admin/leadgen/LeadgenSubmissionDetail";
+import LeadgenStatsStrip from "../../components/Admin/leadgen/LeadgenStatsStrip";
+import LeadgenBulkActionBar from "../../components/Admin/leadgen/LeadgenBulkActionBar";
 import {
   exportSubmissionsCsv,
   getFunnel,

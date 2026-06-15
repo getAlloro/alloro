@@ -13,10 +13,10 @@ import {
   BookOpen,
   Bot,
 } from "lucide-react";
-import type { AgentRecommendation } from "../../types/agentInsights";
+import type { AgentRecommendation } from "../../../types/agentInsights";
 import { AlertModal } from "@/components/ui/AlertModal";
-import { adminFetch } from "../../api";
-import { logger } from "../../lib/logger";
+import { adminFetch } from "../../../api";
+import { logger } from "../../../lib/logger";
 
 interface Props {
   recommendation: AgentRecommendation;

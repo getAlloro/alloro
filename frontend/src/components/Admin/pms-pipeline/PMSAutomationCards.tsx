@@ -23,10 +23,10 @@ import {
   updatePmsJobResponse,
   type PmsJob,
   type AutomationStatusDetail,
-} from "../../api/pms";
-import { fetchOrganizations } from "../../api/agentOutputs";
+} from "../../../api/pms";
+import { fetchOrganizations } from "../../../api/agentOutputs";
 import { PMSAutomationProgressDropdown } from "./PMSAutomationProgressDropdown";
-import { PMSDataViewer } from "../PMS/PMSDataViewer";
+import { PMSDataViewer } from "../../PMS/PMSDataViewer";
 import { PMSPipelineModal } from "./PMSPipelineModal";
 import {
   AdminPageHeader,
@@ -34,10 +34,10 @@ import {
   EmptyState,
   ActionButton,
   Badge,
-} from "../ui/DesignSystem";
+} from "../../ui/DesignSystem";
 import { ConfirmModal } from "@/components/settings/ConfirmModal";
-import { logger } from "../../lib/logger";
-import { getErrorMessage } from "../../lib/errorMessage";
+import { logger } from "../../../lib/logger";
+import { getErrorMessage } from "../../../lib/errorMessage";
 
 type StatusFilter =
   | "all"

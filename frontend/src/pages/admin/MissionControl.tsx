@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { AlertCircle, Loader2, SatelliteDish } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "react-hot-toast";
-import { CreateOrganizationModal } from "../../components/Admin/CreateOrganizationModal";
+import { CreateOrganizationModal } from "../../components/Admin/org/CreateOrganizationModal";
 import { MissionControlHeader } from "../../components/Admin/mission-control/MissionControlHeader";
 import type { MissionControlFilter } from "../../components/Admin/mission-control/MissionControlHeader";
 import { MissionControlInsightPanel } from "../../components/Admin/mission-control/MissionControlInsightPanel";

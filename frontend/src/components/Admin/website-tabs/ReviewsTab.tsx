@@ -1,28 +1,28 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, RefreshCw } from "lucide-react";
-import type { ReviewItem } from "../../api/reviewBlocks";
-import type { ProjectIdentityLocation } from "../../api/websites";
+import type { ReviewItem } from "../../../api/reviewBlocks";
+import type { ProjectIdentityLocation } from "../../../api/websites";
 import {
   useAdminReviewJob,
   useAdminReviews,
   useAdminReviewStats,
   useReviewActions,
-} from "../../hooks/queries/useAdminReviewQueries";
-import { ActionButton } from "../ui/DesignSystem";
-import { useConfirm } from "../ui/ConfirmModal";
-import { ErrorBanner } from "./reviews/ErrorBanner";
-import { ReviewFetchLocationsModal } from "./reviews/ReviewFetchLocationsModal";
-import { ReviewFilters } from "./reviews/ReviewFilters";
-import { ReviewJobProgressBanner } from "./reviews/ReviewJobProgressBanner";
-import { ReviewList } from "./reviews/ReviewList";
-import { ReviewStatsCards } from "./reviews/ReviewStatsCards";
-import { ReviewsLoadingSkeleton } from "./reviews/ReviewsLoadingSkeleton";
+} from "../../../hooks/queries/useAdminReviewQueries";
+import { ActionButton } from "../../ui/DesignSystem";
+import { useConfirm } from "../../ui/ConfirmModal";
+import { ErrorBanner } from "../reviews/ErrorBanner";
+import { ReviewFetchLocationsModal } from "../reviews/ReviewFetchLocationsModal";
+import { ReviewFilters } from "../reviews/ReviewFilters";
+import { ReviewJobProgressBanner } from "../reviews/ReviewJobProgressBanner";
+import { ReviewList } from "../reviews/ReviewList";
+import { ReviewStatsCards } from "../reviews/ReviewStatsCards";
+import { ReviewsLoadingSkeleton } from "../reviews/ReviewsLoadingSkeleton";
 import {
   clearStoredReviewJob,
   getStoredReviewJob,
   storeReviewJob,
-} from "./reviews/reviewJobStorage";
-import type { ActiveReviewJob, JobState, ReviewLocation } from "./reviews/types";
+} from "../reviews/reviewJobStorage";
+import type { ActiveReviewJob, JobState, ReviewLocation } from "../reviews/types";
 
 type ReviewsTabProps = {
   projectId: string;

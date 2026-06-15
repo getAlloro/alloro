@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import SectionsEditor from "./SectionsEditor";
+import SectionsEditor from "../page-pipeline/SectionsEditor";
 import {
   Plus,
   Trash2,
@@ -19,14 +19,14 @@ import {
   createReviewBlock,
   updateReviewBlock,
   deleteReviewBlock,
-} from "../../api/reviewBlocks";
-import type { ReviewBlock } from "../../api/reviewBlocks";
-import type { Section } from "../../api/templates";
-import { ActionButton } from "../ui/DesignSystem";
-import { useConfirm } from "../ui/ConfirmModal";
-import { renderPage } from "../../utils/templateRenderer";
-import { prepareHtmlForPreview } from "../../hooks/useIframeSelector";
-import { logger } from "../../lib/logger";
+} from "../../../api/reviewBlocks";
+import type { ReviewBlock } from "../../../api/reviewBlocks";
+import type { Section } from "../../../api/templates";
+import { ActionButton } from "../../ui/DesignSystem";
+import { useConfirm } from "../../ui/ConfirmModal";
+import { renderPage } from "../../../utils/templateRenderer";
+import { prepareHtmlForPreview } from "../../../hooks/useIframeSelector";
+import { logger } from "../../../lib/logger";
 
 const DEFAULT_REVIEW_BLOCK_HTML = `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-4">
 {{start_review_loop}}

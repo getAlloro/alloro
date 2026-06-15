@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { X, Loader2, MapPin } from "lucide-react";
-import GbpSearchPicker, { type SelectedPlace } from "./GbpSearchPicker";
-import { addProjectLocation, type ProjectIdentityLocation } from "../../api/websites";
-import { showSuccessToast, showErrorToast } from "../../lib/toast";
-import { getErrorMessage } from "../../lib/errorMessage";
+import GbpSearchPicker, { type SelectedPlace } from "../GbpSearchPicker";
+import { addProjectLocation, type ProjectIdentityLocation } from "../../../api/websites";
+import { showSuccessToast, showErrorToast } from "../../../lib/toast";
+import { getErrorMessage } from "../../../lib/errorMessage";
 
 /**
  * AddLocationModal — small wrapper around GbpSearchPicker that calls

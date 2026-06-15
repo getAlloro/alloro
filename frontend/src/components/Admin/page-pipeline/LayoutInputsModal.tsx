@@ -1,6 +1,6 @@
 import { X, Sparkles, Check, Loader2, RefreshCw } from "lucide-react";
 import DynamicSlotInputs from "./DynamicSlotInputs";
-import type { DynamicSlotDef, LayoutsStatus } from "../../api/websites";
+import type { DynamicSlotDef, LayoutsStatus } from "../../../api/websites";
 
 interface LayoutInputsModalProps {
   open: boolean;

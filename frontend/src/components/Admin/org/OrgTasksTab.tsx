@@ -21,16 +21,16 @@ import {
   bulkArchiveTasks,
   bulkUnarchiveTasks,
   bulkApproveTasks,
-} from "../../api/tasks";
-import type { ActionItem } from "../../types/tasks";
-import { TaskDetailsModal } from "../tasks/TaskDetailsModal";
-import { AgentTypePill } from "../tasks/AgentTypePill";
-import { BulkActionBar, ActionButton } from "../ui/DesignSystem";
-import { useConfirm } from "../ui/ConfirmModal";
+} from "../../../api/tasks";
+import type { ActionItem } from "../../../types/tasks";
+import { TaskDetailsModal } from "../../tasks/TaskDetailsModal";
+import { AgentTypePill } from "../../tasks/AgentTypePill";
+import { BulkActionBar, ActionButton } from "../../ui/DesignSystem";
+import { useConfirm } from "../../ui/ConfirmModal";
 import {
   useAdminOrgTasks,
   useInvalidateAdminOrgTasks,
-} from "../../hooks/queries/useAdminOrgTabQueries";
+} from "../../../hooks/queries/useAdminOrgTabQueries";
 
 interface OrgTasksTabProps {
   organizationId: number;

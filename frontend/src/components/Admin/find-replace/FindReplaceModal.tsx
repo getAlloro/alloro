@@ -7,7 +7,7 @@ import {
   updatePageSections,
   type WebsitePage,
   type ApiError,
-} from "../../api/websites";
+} from "../../../api/websites";
 import {
   applyReplacements,
   countSectionMatches,
@@ -15,7 +15,7 @@ import {
   pickScanTargets,
   scanPageSections,
   type FindMatch,
-} from "./findReplaceEngine";
+} from "../findReplaceEngine";
 import FindReplaceMatchList from "./FindReplaceMatchList";
 import {
   FindReplaceSearchForm,

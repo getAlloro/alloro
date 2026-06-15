@@ -11,11 +11,11 @@ import {
   deleteProjectCodeSnippet,
   toggleProjectCodeSnippet,
   reorderProjectCodeSnippets,
-} from "../../api/codeSnippets";
-import { Badge, ActionButton } from "../ui/DesignSystem";
+} from "../../../api/codeSnippets";
+import { Badge, ActionButton } from "../../ui/DesignSystem";
 import CodeSnippetModal from "./CodeSnippetModal";
-import type { WebsitePage } from "../../api/websites";
-import { logger } from "../../lib/logger";
+import type { WebsitePage } from "../../../api/websites";
+import { logger } from "../../../lib/logger";
 
 interface CodeManagerTabProps {
   templateId?: string;

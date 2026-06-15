@@ -4,7 +4,7 @@ import { Menu, Bell, Lock, CreditCard, ArrowRight } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { MobileBottomNav } from "./MobileBottomNav";
 import { LocationTransitionOverlay } from "./LocationTransitionOverlay";
-import { SidebarProvider, useSidebar } from "./Admin/SidebarContext";
+import { SidebarProvider, useSidebar } from "./Admin/shell/SidebarContext";
 import { useAuth } from "../hooks/useAuth";
 import { useSession } from "../contexts/sessionContext";
 

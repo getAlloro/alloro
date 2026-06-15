@@ -22,8 +22,8 @@ import {
   type StepDetail,
   STEP_CONFIG,
   MONTHLY_AGENT_CONFIG,
-} from "../../api/pms";
-import { logger } from "../../lib/logger";
+} from "../../../api/pms";
+import { logger } from "../../../lib/logger";
 
 interface PMSAutomationProgressDropdownProps {
   jobId: number;

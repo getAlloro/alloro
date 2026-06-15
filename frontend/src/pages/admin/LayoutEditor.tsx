@@ -20,10 +20,10 @@ import {
   applyDirectEditorOperation,
   type DirectEditorOperation,
 } from "../../utils/editorDirectOperations";
-import { AdminTopBar } from "../../components/Admin/AdminTopBar";
-import { AdminSidebar } from "../../components/Admin/AdminSidebar";
-import { LoadingIndicator } from "../../components/Admin/LoadingIndicator";
-import { SidebarProvider } from "../../components/Admin/SidebarContext";
+import { AdminTopBar } from "../../components/Admin/shell/AdminTopBar";
+import { AdminSidebar } from "../../components/Admin/shell/AdminSidebar";
+import { LoadingIndicator } from "../../components/Admin/shell/LoadingIndicator";
+import { SidebarProvider } from "../../components/Admin/shell/SidebarContext";
 import EditorSidebar from "../../components/PageEditor/EditorSidebar";
 import InlineEditorPopover from "../../components/PageEditor/InlineEditorPopover";
 import type { ChatMessage } from "../../components/PageEditor/ChatPanel";

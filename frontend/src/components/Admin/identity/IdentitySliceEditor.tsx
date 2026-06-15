@@ -14,9 +14,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, AlertTriangle } from "lucide-react";
-import MonacoJsonEditor from "./MonacoJsonEditor";
-import { useConfirm } from "../ui/ConfirmModal";
-import { getErrorMessage } from "../../lib/errorMessage";
+import MonacoJsonEditor from "../MonacoJsonEditor";
+import { useConfirm } from "../../ui/ConfirmModal";
+import { getErrorMessage } from "../../../lib/errorMessage";
 
 interface IdentitySliceEditorProps {
   open: boolean;

@@ -4,8 +4,8 @@ import {
   PMSAutomationCards,
   AgentInsights,
 } from "../components/Admin";
-import { ActionItemsHub } from "@/components/Admin/ActionItemsHub";
-import { AdminGuard } from "@/components/Admin/AdminGuard";
+import { ActionItemsHub } from "@/components/Admin/org/ActionItemsHub";
+import { AdminGuard } from "@/components/Admin/shell/AdminGuard";
 import AIDataInsightsList from "./admin/AIDataInsightsList";
 import AIDataInsightsDetail from "./admin/AIDataInsightsDetail";
 import AppLogs from "./admin/AppLogs";

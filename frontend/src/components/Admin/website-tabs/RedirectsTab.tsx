@@ -17,10 +17,10 @@ import {
   listRedirects,
   createRedirect,
   deleteRedirect,
-} from "../../api/websites";
-import type { Redirect } from "../../api/websites";
+} from "../../../api/websites";
+import type { Redirect } from "../../../api/websites";
 import { toast } from "react-hot-toast";
-import { getErrorMessage } from "../../lib/errorMessage";
+import { getErrorMessage } from "../../../lib/errorMessage";
 
 interface RedirectsTabProps {
   projectId: string;

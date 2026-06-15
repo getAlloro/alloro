@@ -15,7 +15,7 @@ import {
   fetchPmsPipeline,
   type PipelineAgentNode,
   type PipelinePmsJob,
-} from "../../api/pms";
+} from "../../../api/pms";
 
 interface PMSPipelineModalProps {
   jobId: number | null;

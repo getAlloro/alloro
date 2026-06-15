@@ -35,17 +35,17 @@ import {
   listAiCommandBatches,
   deleteAiCommandBatch,
   renameAiCommandBatch,
-} from "../../api/websites";
+} from "../../../api/websites";
 import type {
   AiCommandBatch,
   AiCommandRecommendation,
   AiCommandTargets,
   AiCommandBatchStats,
   WebsitePage,
-} from "../../api/websites";
+} from "../../../api/websites";
 import { toast } from "react-hot-toast";
-import { adminFetch } from "../../api";
-import { logger } from "../../lib/logger";
+import { adminFetch } from "../../../api";
+import { logger } from "../../../lib/logger";
 
 interface AiCommandTabProps {
   projectId: string;

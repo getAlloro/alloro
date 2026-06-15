@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Save, Loader2 } from "lucide-react";
-import type { ProoflineAgentData, ProofType } from "../../types/agents";
-import { PROOF_TYPES } from "../../types/agents";
+import type { ProoflineAgentData, ProofType } from "../../../types/agents";
+import { PROOF_TYPES } from "../../../types/agents";
 
 interface ProoflineAgentEditorProps {
   data: ProoflineAgentData;

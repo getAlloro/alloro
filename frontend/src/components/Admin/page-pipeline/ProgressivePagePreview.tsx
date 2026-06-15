@@ -3,10 +3,10 @@ import { Loader2 } from "lucide-react";
 import {
   fetchPageProgressiveState,
   type PageProgressiveState,
-} from "../../api/websites";
-import { renderPage } from "../../utils/templateRenderer";
-import { prepareHtmlForPreview } from "../../hooks/useIframeSelector";
-import { getErrorMessage } from "../../lib/errorMessage";
+} from "../../../api/websites";
+import { renderPage } from "../../../utils/templateRenderer";
+import { prepareHtmlForPreview } from "../../../hooks/useIframeSelector";
+import { getErrorMessage } from "../../../lib/errorMessage";
 
 interface ProgressivePagePreviewProps {
   projectId: string;

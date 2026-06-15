@@ -9,9 +9,9 @@ import {
   updateTemplateCodeSnippet,
   createProjectCodeSnippet,
   updateProjectCodeSnippet,
-} from "../../api/codeSnippets";
-import type { WebsitePage } from "../../api/websites";
-import { getErrorMessage } from "../../lib/errorMessage";
+} from "../../../api/codeSnippets";
+import type { WebsitePage } from "../../../api/websites";
+import { getErrorMessage } from "../../../lib/errorMessage";
 
 interface CodeSnippetModalProps {
   templateId?: string;

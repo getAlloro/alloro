@@ -10,13 +10,13 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { isAxiosError } from "axios";
-import { getErrorMessage } from "../../lib/errorMessage";
+import { getErrorMessage } from "../../../lib/errorMessage";
 import {
   adminStartPilotSession,
   adminSetUserPassword,
   type AdminOrganizationDetail,
   type AdminUser,
-} from "../../api/admin-organizations";
+} from "../../../api/admin-organizations";
 
 interface OrgUsersSectionProps {
   org: AdminOrganizationDetail;

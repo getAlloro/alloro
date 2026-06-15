@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { Globe } from "lucide-react";
-import type { AdminOrganizationDetail } from "../../api/admin-organizations";
+import type { AdminOrganizationDetail } from "../../../api/admin-organizations";
 
 interface OrgConnectionsSectionProps {
   org: AdminOrganizationDetail;

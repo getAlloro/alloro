@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
-import type { GbpAutomationSettings } from "../../api/gbpAutomation";
+import type { GbpAutomationSettings } from "../../../api/gbpAutomation";
 import {
   useAdminGbpAutomation,
   useAdminGbpAutomationActions,
   useAdminGbpPublishedLocalPosts,
-} from "../../hooks/queries/useAdminGbpAutomationQueries";
+} from "../../../hooks/queries/useAdminGbpAutomationQueries";
 import {
   AdminGbpAutomationHeader,
   type AdminGbpView,
-} from "./gbp-automation/AdminGbpAutomationHeader";
-import { AdminGbpReviewsPanel } from "./gbp-automation/AdminGbpReviewsPanel";
-import { AdminGbpSettingsPanel } from "./gbp-automation/AdminGbpSettingsPanel";
-import { AdminGbpWorkItemsPanel } from "./gbp-automation/AdminGbpWorkItemsPanel";
+} from "../gbp-automation/AdminGbpAutomationHeader";
+import { AdminGbpReviewsPanel } from "../gbp-automation/AdminGbpReviewsPanel";
+import { AdminGbpSettingsPanel } from "../gbp-automation/AdminGbpSettingsPanel";
+import { AdminGbpWorkItemsPanel } from "../gbp-automation/AdminGbpWorkItemsPanel";
 
 export type OrgGbpAutomationTabProps = {
   organizationId: number;

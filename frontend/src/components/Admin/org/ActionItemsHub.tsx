@@ -27,30 +27,30 @@ import {
   bulkUnarchiveTasks,
   bulkApproveTasks,
   bulkUpdateStatus,
-} from "../../api/tasks";
+} from "../../../api/tasks";
 import type {
   ActionItem,
   FetchActionItemsRequest,
   AgentType,
-} from "../../types/tasks";
-import { CreateTaskModal } from "./CreateTaskModal";
-import { TaskDetailsModal } from "../tasks/TaskDetailsModal";
-import { AgentTypePill } from "../tasks/AgentTypePill";
-import { parseHighlightTags } from "../../utils/textFormatting";
+} from "../../../types/tasks";
+import { CreateTaskModal } from "../pms-pipeline/CreateTaskModal";
+import { TaskDetailsModal } from "../../tasks/TaskDetailsModal";
+import { AgentTypePill } from "../../tasks/AgentTypePill";
+import { parseHighlightTags } from "../../../utils/textFormatting";
 import {
   AdminPageHeader,
   ActionButton,
   BulkActionBar,
   FilterBar,
   EmptyState,
-} from "../ui/DesignSystem";
+} from "../../ui/DesignSystem";
 import { ConfirmModal } from "@/components/settings/ConfirmModal";
 import { AlertModal } from "@/components/ui/AlertModal";
 import {
   useAdminActionItems,
   useAdminActionItemOrgs,
   useInvalidateAdminActionItems,
-} from "../../hooks/queries/useAdminStandaloneQueries";
+} from "../../../hooks/queries/useAdminStandaloneQueries";
 
 // Approval Switch Component
 interface ApprovalSwitchProps {

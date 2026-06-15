@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { ImageIcon } from "lucide-react";
-import type { ProjectIdentity } from "../../api/websites";
+import type { ProjectIdentity } from "../../../api/websites";
 
 type IdentityImage = NonNullable<
   ProjectIdentity["extracted_assets"]

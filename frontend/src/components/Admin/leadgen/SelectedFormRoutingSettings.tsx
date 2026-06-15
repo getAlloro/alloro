@@ -1,12 +1,12 @@
 import { Loader2, SlidersHorizontal } from "lucide-react";
 import { toast } from "react-hot-toast";
-import type { WebsiteFormCatalogItem } from "../../api/websites";
+import type { WebsiteFormCatalogItem } from "../../../api/websites";
 import {
   type FetchWebsiteRecipientsFn,
   type UpdateFormRecipientRuleFn,
   useAdminWebsiteRecipients,
   useUpdateWebsiteFormRecipientRule,
-} from "../../hooks/queries/useWebsiteFormRecipientRouting";
+} from "../../../hooks/queries/useWebsiteFormRecipientRouting";
 import { FormRecipientRuleCard } from "./FormRecipientRuleCard";
 
 export type SelectedFormRoutingSettingsProps = {

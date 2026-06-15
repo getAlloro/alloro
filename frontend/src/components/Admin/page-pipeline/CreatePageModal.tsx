@@ -18,24 +18,24 @@ import {
   Check,
   Sparkles,
 } from "lucide-react";
-import { fetchTemplatePages } from "../../api/templates";
+import { fetchTemplatePages } from "../../../api/templates";
 import {
   startPipeline,
   createBlankPage,
   uploadArtifactPage,
   fetchSlotPrefill,
   generateSlotValues,
-} from "../../api/websites";
-import type { TemplatePage } from "../../api/templates";
-import type { DynamicSlotDef } from "../../api/websites";
-import { searchPlaces, getPlaceDetails } from "../../api/places";
-import type { PlaceSuggestion } from "../../api/places";
+} from "../../../api/websites";
+import type { TemplatePage } from "../../../api/templates";
+import type { DynamicSlotDef } from "../../../api/websites";
+import { searchPlaces, getPlaceDetails } from "../../../api/places";
+import type { PlaceSuggestion } from "../../../api/places";
 import ColorPicker from "./ColorPicker";
 import GradientPicker from "./GradientPicker";
 import type { GradientValue } from "./GradientPicker";
 import DynamicSlotInputs from "./DynamicSlotInputs";
 import TemplatePageSelect from "./TemplatePageSelect";
-import { getErrorMessage } from "../../lib/errorMessage";
+import { getErrorMessage } from "../../../lib/errorMessage";
 
 export interface CreatePageModalProps {
   projectId: string;

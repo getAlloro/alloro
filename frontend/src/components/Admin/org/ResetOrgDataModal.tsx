@@ -8,8 +8,8 @@ import {
   adminResetOrgData,
   type ResetGroupKey,
   type ResetPreviewData,
-} from "../../api/admin-organizations";
-import { QUERY_KEYS } from "../../lib/queryClient";
+} from "../../../api/admin-organizations";
+import { QUERY_KEYS } from "../../../lib/queryClient";
 
 interface ResetOrgDataModalProps {
   org: { id: number; name: string };

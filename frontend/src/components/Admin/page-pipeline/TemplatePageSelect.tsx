@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Search, FileText, ChevronDown, Check } from "lucide-react";
-import type { TemplatePage } from "../../api/templates";
+import type { TemplatePage } from "../../../api/templates";
 
 interface TemplatePageSelectProps {
   pages: TemplatePage[];

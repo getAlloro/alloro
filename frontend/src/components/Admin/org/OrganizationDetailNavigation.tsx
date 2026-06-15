@@ -16,7 +16,7 @@ import {
   type OrganizationDetailSectionKey,
   type OrganizationDetailSubmenuSectionKey,
   type OrganizationDetailWebsiteTabKey,
-} from "./organizationDetailNavigationConfig";
+} from "../organizationDetailNavigationConfig";
 import { OrganizationDetailSubmenuRow } from "./OrganizationDetailSubmenuRow";
 
 const SECTION_CONFIG: Record<

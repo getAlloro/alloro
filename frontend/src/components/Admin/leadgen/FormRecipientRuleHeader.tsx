@@ -1,4 +1,4 @@
-import type { WebsiteFormCatalogItem } from "../../api/websites";
+import type { WebsiteFormCatalogItem } from "../../../api/websites";
 import { FormRecipientSourcePills } from "./FormRecipientSourcePills";
 
 export type FormRecipientRuleHeaderProps = {

@@ -25,8 +25,8 @@ import {
   Check,
   AlertCircle,
 } from "lucide-react";
-import { useConfirm } from "../ui/ConfirmModal";
-import { adminFetch, getCommonHeaders } from "../../api";
+import { useConfirm } from "../../ui/ConfirmModal";
+import { adminFetch, getCommonHeaders } from "../../../api";
 
 // =====================================================================
 // Types

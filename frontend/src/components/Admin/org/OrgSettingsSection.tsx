@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
-import type { AdminOrganizationDetail } from "../../api/admin-organizations";
+import type { AdminOrganizationDetail } from "../../../api/admin-organizations";
 import {
   adminDeleteOrganization,
   adminArchiveOrganization,
@@ -24,7 +24,7 @@ import {
   adminRefreshBusinessData,
   adminSyncOrgBusinessData,
   adminUnarchiveOrganization,
-} from "../../api/admin-organizations";
+} from "../../../api/admin-organizations";
 import { OrgRecipientSettingsSection } from "./OrgRecipientSettingsSection";
 
 interface OrgSettingsSectionProps {

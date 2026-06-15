@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { X, Loader2, Copy, Check } from "lucide-react";
-import type { AgentOutput } from "../../types/agentOutputs";
-import { fetchAgentOutputDetail } from "../../api/agentOutputs";
-import { logger } from "../../lib/logger";
+import type { AgentOutput } from "../../../types/agentOutputs";
+import { fetchAgentOutputDetail } from "../../../api/agentOutputs";
+import { logger } from "../../../lib/logger";
 
 interface AgentOutputDetailModalProps {
   output: AgentOutput | null;

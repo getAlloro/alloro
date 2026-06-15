@@ -31,7 +31,7 @@ import {
   useAdminOrganizations,
   useInvalidateOrganizations,
 } from "../../hooks/queries/useAdminQueries";
-import { CreateOrganizationModal } from "../../components/Admin/CreateOrganizationModal";
+import { CreateOrganizationModal } from "../../components/Admin/org/CreateOrganizationModal";
 
 export function OrganizationManagement() {
   const [organizationListView, setOrganizationListView] =

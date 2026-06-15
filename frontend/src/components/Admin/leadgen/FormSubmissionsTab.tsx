@@ -32,14 +32,14 @@ import {
   bulkSendFormSubmissionsEmail,
   bulkDeleteFormSubmissions,
   bulkToggleFormSubmissionsRead,
-} from "../../api/websites";
+} from "../../../api/websites";
 import type {
   FileValue,
   FormContents,
   FormSection,
   FormSubmission,
   FormSubmissionsResponse,
-} from "../../api/websites";
+} from "../../../api/websites";
 import {
   type FetchFormRecipientCatalogFn,
   type UpdateFormCatalogPreferencesFn,
@@ -48,8 +48,8 @@ import {
   useAdminWebsiteRecipients,
   useUpdateWebsiteFormCatalogPreferences,
   useWebsiteFormRecipientCatalog,
-} from "../../hooks/queries/useWebsiteFormRecipientRouting";
-import { BulkActionBar } from "../ui/DesignSystem";
+} from "../../../hooks/queries/useWebsiteFormRecipientRouting";
+import { BulkActionBar } from "../../ui/DesignSystem";
 import { FormSubmissionsSettingsModal } from "./FormSubmissionsSettingsModal";
 import { FormSubmissionsSidebar } from "./FormSubmissionsSidebar";
 import {

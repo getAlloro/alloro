@@ -6,7 +6,7 @@ import { toast } from "react-hot-toast";
 import {
   adminCreateOrganization,
   type AdminCreateOrgInput,
-} from "../../api/admin-organizations";
+} from "../../../api/admin-organizations";
 
 export type CreateOrganizationModalProps = {
   open: boolean;

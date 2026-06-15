@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import Editor from "@monaco-editor/react";
-import SectionsEditor from "../../components/Admin/SectionsEditor";
+import SectionsEditor from "../../components/Admin/page-pipeline/SectionsEditor";
 import {
   AlertCircle,
   Loader2,
@@ -37,10 +37,10 @@ import {
 import type { Template, TemplatePage, Section } from "../../api/templates";
 import { fetchTemplateCodeSnippets } from "../../api/codeSnippets";
 import type { CodeSnippet } from "../../api/codeSnippets";
-import CodeManagerTab from "../../components/Admin/CodeManagerTab";
-import PostBlocksTab from "../../components/Admin/PostBlocksTab";
-import MenuTemplatesTab from "../../components/Admin/MenuTemplatesTab";
-import ReviewBlocksTab from "../../components/Admin/ReviewBlocksTab";
+import CodeManagerTab from "../../components/Admin/website-tabs/CodeManagerTab";
+import PostBlocksTab from "../../components/Admin/website-tabs/PostBlocksTab";
+import MenuTemplatesTab from "../../components/Admin/website-tabs/MenuTemplatesTab";
+import ReviewBlocksTab from "../../components/Admin/website-tabs/ReviewBlocksTab";
 import { renderPage, normalizeSections } from "../../utils/templateRenderer";
 import {
   useIframeSelector,

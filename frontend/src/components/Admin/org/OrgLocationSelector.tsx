@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, MapPin, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { AdminLocation } from "../../api/admin-organizations";
+import type { AdminLocation } from "../../../api/admin-organizations";
 
 interface OrgLocationSelectorProps {
   locations: AdminLocation[];

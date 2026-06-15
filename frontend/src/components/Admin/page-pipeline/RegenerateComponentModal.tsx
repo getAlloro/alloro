@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { X, Loader2, Sparkles } from "lucide-react";
-import { regenerateComponent } from "../../api/websites";
-import { getErrorMessage } from "../../lib/errorMessage";
+import { regenerateComponent } from "../../../api/websites";
+import { getErrorMessage } from "../../../lib/errorMessage";
 
 interface RegenerateComponentModalProps {
   projectId: string;

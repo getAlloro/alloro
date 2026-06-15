@@ -1,5 +1,5 @@
 import { FileText, Mail } from "lucide-react";
-import type { WebsiteFormCatalogItem } from "../../api/websites";
+import type { WebsiteFormCatalogItem } from "../../../api/websites";
 
 export type FormRecipientSourcePillsProps = {
   form: WebsiteFormCatalogItem;

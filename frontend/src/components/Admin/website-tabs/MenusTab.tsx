@@ -26,15 +26,15 @@ import {
   updateMenuItem as defaultUpdateMenuItem,
   deleteMenuItem as defaultDeleteMenuItem,
   reorderMenuItems as defaultReorderMenuItems,
-} from "../../api/menus";
-import type { Menu, MenuWithItems, MenuItem } from "../../api/menus";
-import { fetchPosts as defaultFetchPosts } from "../../api/posts";
-import { fetchPostTypes as defaultFetchPostTypes } from "../../api/posts";
-import type { Post, PostType } from "../../api/posts";
-import AnimatedSelect from "../ui/AnimatedSelect";
-import { ActionButton } from "../ui/DesignSystem";
-import { useConfirm } from "../ui/ConfirmModal";
-import { logger } from "../../lib/logger";
+} from "../../../api/menus";
+import type { Menu, MenuWithItems, MenuItem } from "../../../api/menus";
+import { fetchPosts as defaultFetchPosts } from "../../../api/posts";
+import { fetchPostTypes as defaultFetchPostTypes } from "../../../api/posts";
+import type { Post, PostType } from "../../../api/posts";
+import AnimatedSelect from "../../ui/AnimatedSelect";
+import { ActionButton } from "../../ui/DesignSystem";
+import { useConfirm } from "../../ui/ConfirmModal";
+import { logger } from "../../../lib/logger";
 
 interface MenusTabProps {
   projectId: string;

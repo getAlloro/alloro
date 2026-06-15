@@ -10,9 +10,9 @@
  */
 
 import { useEffect, useState } from "react";
-import { MetricCard } from "../ui/DesignSystem";
-import { getStats } from "../../api/leadgenSubmissions";
-import type { LeadgenStats, ListFilters } from "../../types/leadgen";
+import { MetricCard } from "../../ui/DesignSystem";
+import { getStats } from "../../../api/leadgenSubmissions";
+import type { LeadgenStats, ListFilters } from "../../../types/leadgen";
 
 interface Props {
   filters: Pick<ListFilters, "from" | "to">;

@@ -6,9 +6,9 @@ import {
   ExternalLink,
   AlertTriangle,
 } from "lucide-react";
-import type { DynamicSlotDef, BlockCheckResult } from "../../api/websites";
-import { testUrl } from "../../api/websites";
-import { getErrorMessage } from "../../lib/errorMessage";
+import type { DynamicSlotDef, BlockCheckResult } from "../../../api/websites";
+import { testUrl } from "../../../api/websites";
+import { getErrorMessage } from "../../../lib/errorMessage";
 
 // Special slot value markers the backend recognizes:
 //   "__generate__" → "AI, write this for me based on identity"

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { RefreshCw, TrendingUp } from "lucide-react";
-import { useAdminOrgPms } from "../../hooks/queries/useAdminOrgTabQueries";
+import { useAdminOrgPms } from "../../../hooks/queries/useAdminOrgTabQueries";
 
 interface OrgPmsTabProps {
   organizationId: number;

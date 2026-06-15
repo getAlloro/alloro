@@ -16,9 +16,9 @@ import {
   type RecipientChannel,
   type RecipientChannelState,
   type RecipientSource,
-} from "../../api/admin-organizations";
-import { useAdminOrganizationRecipientSettings } from "../../hooks/queries/useAdminQueries";
-import { QUERY_KEYS } from "../../lib/queryClient";
+} from "../../../api/admin-organizations";
+import { useAdminOrganizationRecipientSettings } from "../../../hooks/queries/useAdminQueries";
+import { QUERY_KEYS } from "../../../lib/queryClient";
 
 interface OrgRecipientSettingsSectionProps {
   orgId: number;

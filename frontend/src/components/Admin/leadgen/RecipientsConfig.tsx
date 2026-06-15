@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { X, Plus, Mail, Users, Loader2 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { fetchRecipients, updateRecipients } from "../../api/websites";
-import { getErrorMessage } from "../../lib/errorMessage";
+import { fetchRecipients, updateRecipients } from "../../../api/websites";
+import { getErrorMessage } from "../../../lib/errorMessage";
 
 interface Props {
   projectId: string;

@@ -7,7 +7,7 @@
  */
 
 import { Activity } from "lucide-react";
-import type { FinalStage, FunnelStage } from "../../types/leadgen";
+import type { FinalStage, FunnelStage } from "../../../types/leadgen";
 import { STAGE_LABEL } from "./LeadgenSubmissionsTable";
 
 interface Props {

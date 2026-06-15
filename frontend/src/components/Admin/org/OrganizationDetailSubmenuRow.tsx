@@ -32,7 +32,7 @@ import {
   type OrganizationDetailSectionKey,
   type OrganizationDetailSubmenuSectionKey,
   type OrganizationDetailWebsiteTabKey,
-} from "./organizationDetailNavigationConfig";
+} from "../organizationDetailNavigationConfig";
 
 const AGENT_TAB_CONFIG: Record<
   OrganizationDetailAgentTabKey,

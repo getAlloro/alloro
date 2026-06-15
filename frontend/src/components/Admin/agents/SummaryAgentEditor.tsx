@@ -4,7 +4,7 @@ import type {
   SummaryAgentData,
   SummaryAgentWin,
   SummaryAgentRisk,
-} from "../../types/agents";
+} from "../../../types/agents";
 
 interface SummaryAgentEditorProps {
   data: SummaryAgentData;

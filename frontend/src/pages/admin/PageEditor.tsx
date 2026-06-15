@@ -21,7 +21,7 @@ import {
 } from "../../utils/sectionDiff";
 import { runPublishLint, type PublishLintWarning } from "../../utils/publishLint";
 import PublishConfirmModal from "../../components/PageEditor/PublishConfirmModal";
-import FindReplaceModal from "../../components/Admin/FindReplaceModal";
+import FindReplaceModal from "../../components/Admin/find-replace/FindReplaceModal";
 import { createAdminWebsiteMediaApi, type MediaItem } from "../../api/websiteMedia";
 import type {
   WebsitePage,
@@ -42,10 +42,10 @@ import {
   applyDirectEditorOperation,
   type DirectEditorOperation,
 } from "../../utils/editorDirectOperations";
-import { AdminTopBar } from "../../components/Admin/AdminTopBar";
-import { AdminSidebar } from "../../components/Admin/AdminSidebar";
-import { LoadingIndicator } from "../../components/Admin/LoadingIndicator";
-import { SidebarProvider, useSidebar } from "../../components/Admin/SidebarContext";
+import { AdminTopBar } from "../../components/Admin/shell/AdminTopBar";
+import { AdminSidebar } from "../../components/Admin/shell/AdminSidebar";
+import { LoadingIndicator } from "../../components/Admin/shell/LoadingIndicator";
+import { SidebarProvider, useSidebar } from "../../components/Admin/shell/SidebarContext";
 import EditorToolbar from "../../components/PageEditor/EditorToolbar";
 import EditorSidebar from "../../components/PageEditor/EditorSidebar";
 import InlineEditorPopover from "../../components/PageEditor/InlineEditorPopover";
@@ -54,9 +54,9 @@ import type { SeoData } from "../../api/websites";
 import type { ChatMessage } from "../../components/PageEditor/ChatPanel";
 import { ConfirmModal } from "../../components/settings/ConfirmModal";
 import { AlertModal } from "../../components/ui/AlertModal";
-import SectionsEditor from "../../components/Admin/SectionsEditor";
-import ProgressivePagePreview from "../../components/Admin/ProgressivePagePreview";
-import RegenerateComponentModal from "../../components/Admin/RegenerateComponentModal";
+import SectionsEditor from "../../components/Admin/page-pipeline/SectionsEditor";
+import ProgressivePagePreview from "../../components/Admin/page-pipeline/ProgressivePagePreview";
+import RegenerateComponentModal from "../../components/Admin/page-pipeline/RegenerateComponentModal";
 import { showSuccessToast } from "../../lib/toast";
 import { logger } from "../../lib/logger";
 

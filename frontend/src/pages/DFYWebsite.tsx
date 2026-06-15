@@ -16,11 +16,11 @@ import {
 import { toast } from "react-hot-toast";
 import { adminFetch, apiGet, apiPost, apiPatch, apiPut, apiDelete } from "../api";
 import { userWebsiteMediaApi } from "../api/websiteMedia";
-import ConnectDomainModal from "../components/Admin/ConnectDomainModal";
-import FormSubmissionsTab from "../components/Admin/FormSubmissionsTab";
-import PostsTab from "../components/Admin/PostsTab";
-import MenusTab from "../components/Admin/MenusTab";
-import RecipientsConfig from "../components/Admin/RecipientsConfig";
+import ConnectDomainModal from "../components/Admin/website-tabs/ConnectDomainModal";
+import FormSubmissionsTab from "../components/Admin/leadgen/FormSubmissionsTab";
+import PostsTab from "../components/Admin/website-tabs/PostsTab";
+import MenusTab from "../components/Admin/website-tabs/MenusTab";
+import RecipientsConfig from "../components/Admin/leadgen/RecipientsConfig";
 import { WebsiteOverview } from "../components/website/overview/WebsiteOverview";
 import { KeywordsTab } from "../components/website/KeywordsTab";
 import { WebsitePagesTab } from "../components/website/WebsitePagesTab";
@@ -57,7 +57,7 @@ import { useLocalDraftBackup } from "../hooks/useLocalDraftBackup";
 import type { ChatMessage } from "../components/PageEditor/ChatPanel";
 import type { PageVersion } from "../components/PageEditor/VersionHistoryTab";
 import type { Section } from "../api/templates";
-import { useSidebar } from "../components/Admin/SidebarContext";
+import { useSidebar } from "../components/Admin/shell/SidebarContext";
 import {
   useIsWizardActive,
   useWizardDemoData,
@@ -536,9 +536,6 @@ export function DFYWebsite() {
 
   const userDeletePost = async (_projectId: string, postId: string) =>
     apiDelete({ path: `/user/website/posts/${postId}` });
-
-  const userDuplicatePost = async (_projectId: string, postId: string) =>
-    apiPost({ path: `/user/website/posts/${postId}/duplicate` });
 
   const userFetchPostTypes = async (_templateId: string) =>
     apiGet({ path: "/user/website/post-types" });
@@ -1593,7 +1590,6 @@ export function DFYWebsite() {
               createPostFn={userCreatePost}
               updatePostFn={userUpdatePost}
               deletePostFn={userDeletePost}
-              duplicatePostFn={userDuplicatePost}
               fetchPostTypesFn={userFetchPostTypes}
               fetchCategoriesFn={userFetchCategories}
               fetchTagsFn={userFetchTags}

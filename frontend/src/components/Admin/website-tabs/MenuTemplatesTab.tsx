@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import SectionsEditor from "./SectionsEditor";
+import SectionsEditor from "../page-pipeline/SectionsEditor";
 import {
   Plus,
   Trash2,
@@ -16,15 +16,15 @@ import {
   createMenuTemplate,
   updateMenuTemplate,
   deleteMenuTemplate,
-} from "../../api/menuTemplates";
-import type { MenuTemplate } from "../../api/menuTemplates";
-import type { Section } from "../../api/templates";
-import { ActionButton } from "../ui/DesignSystem";
-import { useConfirm } from "../ui/ConfirmModal";
-import { renderPage } from "../../utils/templateRenderer";
-import { prepareHtmlForPreview } from "../../hooks/useIframeSelector";
-import { logger } from "../../lib/logger";
-import { getErrorMessage } from "../../lib/errorMessage";
+} from "../../../api/menuTemplates";
+import type { MenuTemplate } from "../../../api/menuTemplates";
+import type { Section } from "../../../api/templates";
+import { ActionButton } from "../../ui/DesignSystem";
+import { useConfirm } from "../../ui/ConfirmModal";
+import { renderPage } from "../../../utils/templateRenderer";
+import { prepareHtmlForPreview } from "../../../hooks/useIframeSelector";
+import { logger } from "../../../lib/logger";
+import { getErrorMessage } from "../../../lib/errorMessage";
 
 const DEFAULT_MENU_TEMPLATE_HTML = `<style>
 .site-nav { font-family: inherit; }

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
-import { createTask } from "../../api/tasks";
-import type { ActionItemCategory } from "../../types/tasks";
+import { createTask } from "../../../api/tasks";
+import type { ActionItemCategory } from "../../../types/tasks";
 
 interface CreateTaskModalProps {
   isOpen: boolean;

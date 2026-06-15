@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
-import type { WebsiteFormCatalogItem } from "../../api/websites";
+import type { WebsiteFormCatalogItem } from "../../../api/websites";
 import { FormRecipientCustomEditor } from "./FormRecipientCustomEditor";
 import { FormRecipientDefaultPreview } from "./FormRecipientDefaultPreview";
 import { FormRecipientRuleHeader } from "./FormRecipientRuleHeader";

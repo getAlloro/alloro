@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { DollarSign, Loader2, ChevronDown, RefreshCw } from "lucide-react";
-import { fetchProjectCosts } from "../../api/websites";
-import type { AiCostEvent, ProjectCostsResponse } from "../../api/websites";
-import { logger } from "../../lib/logger";
+import { fetchProjectCosts } from "../../../api/websites";
+import type { AiCostEvent, ProjectCostsResponse } from "../../../api/websites";
+import { logger } from "../../../lib/logger";
 
 interface CostsTabProps {
   projectId: string;

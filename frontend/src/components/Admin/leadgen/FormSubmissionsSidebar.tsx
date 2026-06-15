@@ -23,7 +23,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { WebsiteFormCatalogItem } from "../../api/websites";
+import type { WebsiteFormCatalogItem } from "../../../api/websites";
 
 export type FormSubmissionsSidebarProps = {
   forms: WebsiteFormCatalogItem[];

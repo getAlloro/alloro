@@ -17,7 +17,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { useConfirm } from "../ui/ConfirmModal";
+import { useConfirm } from "../../ui/ConfirmModal";
 import {
   adminCreateProject,
   adminRemovePaymentMethod,
@@ -27,10 +27,10 @@ import {
   adminGetBillingDetails,
   type AdminOrganizationDetail,
   type AdminBillingDetails,
-} from "../../api/admin-organizations";
-import { fetchWebsites, linkWebsiteToOrganization } from "../../api/websites";
+} from "../../../api/admin-organizations";
+import { fetchWebsites, linkWebsiteToOrganization } from "../../../api/websites";
 import { isAxiosError } from "axios";
-import { getErrorMessage } from "../../lib/errorMessage";
+import { getErrorMessage } from "../../../lib/errorMessage";
 
 interface OrgSubscriptionSectionProps {
   org: AdminOrganizationDetail;

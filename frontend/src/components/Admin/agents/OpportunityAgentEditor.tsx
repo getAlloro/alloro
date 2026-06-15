@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Save, Loader2, Plus, Trash2 } from "lucide-react";
-import type { OpportunityAgentData } from "../../types/agents";
+import type { OpportunityAgentData } from "../../../types/agents";
 
 interface OpportunityAgentEditorProps {
   data: OpportunityAgentData;

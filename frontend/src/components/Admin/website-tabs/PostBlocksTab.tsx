@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import SectionsEditor from "./SectionsEditor";
+import SectionsEditor from "../page-pipeline/SectionsEditor";
 import {
   Plus,
   Trash2,
@@ -23,14 +23,14 @@ import {
   createPostType,
   updatePostType,
   deletePostType,
-} from "../../api/posts";
-import type { PostType, PostBlock } from "../../api/posts";
-import type { Section } from "../../api/templates";
-import { ActionButton } from "../ui/DesignSystem";
-import { useConfirm } from "../ui/ConfirmModal";
-import { renderPage } from "../../utils/templateRenderer";
-import { prepareHtmlForPreview } from "../../hooks/useIframeSelector";
-import { logger } from "../../lib/logger";
+} from "../../../api/posts";
+import type { PostType, PostBlock } from "../../../api/posts";
+import type { Section } from "../../../api/templates";
+import { ActionButton } from "../../ui/DesignSystem";
+import { useConfirm } from "../../ui/ConfirmModal";
+import { renderPage } from "../../../utils/templateRenderer";
+import { prepareHtmlForPreview } from "../../../hooks/useIframeSelector";
+import { logger } from "../../../lib/logger";
 
 const FIELD_TYPES = [
   { value: "text", label: "Text" },

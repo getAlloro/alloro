@@ -18,17 +18,17 @@ import { toast } from "react-hot-toast";
 import {
   Badge,
   HorizontalProgressBar,
-} from "../ui/DesignSystem";
+} from "../../ui/DesignSystem";
 import {
   expandCollapse,
   chevronVariants,
-} from "../../lib/animations";
-import { useConfirm } from "../ui/ConfirmModal";
+} from "../../../lib/animations";
+import { useConfirm } from "../../ui/ConfirmModal";
 import {
   useAdminOrgRankings,
   useInvalidateAdminOrgRankings,
-} from "../../hooks/queries/useAdminOrgTabQueries";
-import { adminFetch } from "../../api";
+} from "../../../hooks/queries/useAdminOrgTabQueries";
+import { adminFetch } from "../../../api";
 
 interface OrgRankingsTabProps {
   organizationId: number;

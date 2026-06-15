@@ -23,15 +23,15 @@ import {
   bulkUnarchiveAgentOutputs,
   deleteAgentOutput,
   bulkDeleteAgentOutputs,
-} from "../../api/agentOutputs";
-import type { AgentOutput, AgentOutputType } from "../../types/agentOutputs";
-import { AgentOutputDetailModal } from "./AgentOutputDetailModal";
-import { BulkActionBar, ActionButton } from "../ui/DesignSystem";
-import { useConfirm } from "../ui/ConfirmModal";
+} from "../../../api/agentOutputs";
+import type { AgentOutput, AgentOutputType } from "../../../types/agentOutputs";
+import { AgentOutputDetailModal } from "../agents/AgentOutputDetailModal";
+import { BulkActionBar, ActionButton } from "../../ui/DesignSystem";
+import { useConfirm } from "../../ui/ConfirmModal";
 import {
   useAdminOrgAgentOutputs,
   useInvalidateAdminOrgAgentOutputs,
-} from "../../hooks/queries/useAdminOrgTabQueries";
+} from "../../../hooks/queries/useAdminOrgTabQueries";
 
 interface OrgAgentOutputsTabProps {
   organizationId: number;

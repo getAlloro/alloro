@@ -33,7 +33,7 @@ import type {
   AgentOutputStatus,
   AgentOutputType,
 } from "../../types/agentOutputs";
-import { AgentOutputDetailModal } from "../../components/Admin/AgentOutputDetailModal";
+import { AgentOutputDetailModal } from "../../components/Admin/agents/AgentOutputDetailModal";
 import {
   AdminPageHeader,
   FilterBar,

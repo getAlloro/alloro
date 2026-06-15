@@ -12,18 +12,18 @@ import {
   approveAgentResult,
   updateAgentResult,
   type AgentResult,
-} from "../../api/agents";
+} from "../../../api/agents";
 import type {
   ProoflineAgentData,
   SummaryAgentData,
   OpportunityAgentData,
   WebhookResult,
-} from "../../types/agents";
+} from "../../../types/agents";
 import { ProoflineAgentEditor } from "./ProoflineAgentEditor";
 import { SummaryAgentEditor } from "./SummaryAgentEditor";
 import { OpportunityAgentEditor } from "./OpportunityAgentEditor";
 import { ConfirmModal } from "@/components/settings/ConfirmModal";
-import { logger } from "../../lib/logger";
+import { logger } from "../../../lib/logger";
 
 type StatusFilter = "all" | "pending" | "approved" | "rejected";
 

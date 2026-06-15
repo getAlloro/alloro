@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Link2 } from "lucide-react";
-import { matchKey, type FindMatch } from "./findReplaceEngine";
+import { matchKey, type FindMatch } from "../findReplaceEngine";
 
 export type FindReplaceMatchListProps = {
   matches: FindMatch[];

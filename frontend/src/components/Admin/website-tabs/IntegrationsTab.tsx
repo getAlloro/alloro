@@ -9,17 +9,17 @@ import {
   type Integration,
   type DetectedForm,
   type IntegrationFormMapping,
-} from "../../api/integrations";
-import { ActionButton } from "../ui/DesignSystem";
-import IntegrationProviderList from "./integrations/IntegrationProviderList";
-import HubSpotConnectModal from "./integrations/HubSpotConnectModal";
-import HubSpotConnectionPanel from "./integrations/HubSpotConnectionPanel";
-import DetectedFormsPanel from "./integrations/DetectedFormsPanel";
-import FieldMappingDropdown from "./integrations/FieldMappingDropdown";
-import RecentActivityPanel from "./integrations/RecentActivityPanel";
-import RybbitTab from "./integrations/RybbitTab";
-import ClarityTab from "./integrations/ClarityTab";
-import GscTab from "./integrations/GscTab";
+} from "../../../api/integrations";
+import { ActionButton } from "../../ui/DesignSystem";
+import IntegrationProviderList from "../integrations/IntegrationProviderList";
+import HubSpotConnectModal from "../integrations/HubSpotConnectModal";
+import HubSpotConnectionPanel from "../integrations/HubSpotConnectionPanel";
+import DetectedFormsPanel from "../integrations/DetectedFormsPanel";
+import FieldMappingDropdown from "../integrations/FieldMappingDropdown";
+import RecentActivityPanel from "../integrations/RecentActivityPanel";
+import RybbitTab from "../integrations/RybbitTab";
+import ClarityTab from "../integrations/ClarityTab";
+import GscTab from "../integrations/GscTab";
 
 interface Props {
   projectId: string;

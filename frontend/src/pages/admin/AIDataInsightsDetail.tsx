@@ -16,7 +16,7 @@ import {
   FileText,
   BarChart3,
 } from "lucide-react";
-import RecommendationCard from "../../components/Admin/RecommendationCard";
+import RecommendationCard from "../../components/Admin/agents/RecommendationCard";
 import {
   AdminPageHeader,
   ActionButton,

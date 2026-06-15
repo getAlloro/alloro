@@ -10,7 +10,7 @@ import {
   FolderKanban,
   LifeBuoy,
 } from "lucide-react";
-import { queryClient } from "../../lib/queryClient";
+import { queryClient } from "../../../lib/queryClient";
 import { toast } from "react-hot-toast";
 
 export function useIsPmRoute() {

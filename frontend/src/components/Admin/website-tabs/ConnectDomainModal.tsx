@@ -11,7 +11,7 @@ import {
   Unlink,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { getErrorMessage } from "../../lib/errorMessage";
+import { getErrorMessage } from "../../../lib/errorMessage";
 
 interface ConnectDomainModalProps {
   isOpen: boolean;

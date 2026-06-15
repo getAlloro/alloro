@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { AdminLogin } from "../../pages/admin/AdminLogin";
-import { getItem } from "../../hooks/useLocalStorage";
-import { apiGet } from "../../api";
-import { logger } from "../../lib/logger";
+import { AdminLogin } from "../../../pages/admin/AdminLogin";
+import { getItem } from "../../../hooks/useLocalStorage";
+import { apiGet } from "../../../api";
+import { logger } from "../../../lib/logger";
 
 interface AdminGuardProps {
   children: React.ReactNode;

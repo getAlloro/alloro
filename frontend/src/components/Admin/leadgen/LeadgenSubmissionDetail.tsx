@@ -36,16 +36,16 @@ import {
   deleteSubmission,
   getSubmission,
   rerunSubmission,
-} from "../../api/leadgenSubmissions";
-import { useConfirm } from "../ui/ConfirmModal";
+} from "../../../api/leadgenSubmissions";
+import { useConfirm } from "../../ui/ConfirmModal";
 import type {
   FinalStage,
   LeadgenEventName,
   SubmissionDetail,
   LeadgenEvent,
-} from "../../types/leadgen";
+} from "../../../types/leadgen";
 import { STAGE_LABEL, STAGE_TONE, STAGE_CLASSES } from "./LeadgenSubmissionsTable";
-import { logger } from "../../lib/logger";
+import { logger } from "../../../lib/logger";
 
 interface Props {
   submissionId: string | null;

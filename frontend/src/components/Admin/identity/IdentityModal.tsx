@@ -45,20 +45,20 @@ import {
   setPrimaryLocation,
   removeProjectLocation,
   resyncProjectLocation,
-} from "../../api/websites";
-import { searchPlaces, getPlaceDetails } from "../../api/places";
-import type { PlaceSuggestion } from "../../api/places";
-import ColorPicker from "./ColorPicker";
-import GradientPicker from "./GradientPicker";
-import type { GradientValue } from "./GradientPicker";
-import AddLocationModal from "./AddLocationModal";
+} from "../../../api/websites";
+import { searchPlaces, getPlaceDetails } from "../../../api/places";
+import type { PlaceSuggestion } from "../../../api/places";
+import ColorPicker from "../page-pipeline/ColorPicker";
+import GradientPicker from "../page-pipeline/GradientPicker";
+import type { GradientValue } from "../page-pipeline/GradientPicker";
+import AddLocationModal from "../org/AddLocationModal";
 import IdentityImagesTab from "./IdentityImagesTab";
 import IdentitySliceEditor from "./IdentitySliceEditor";
-import MonacoJsonEditor from "./MonacoJsonEditor";
+import MonacoJsonEditor from "../MonacoJsonEditor";
 import RerunWarmupDialog from "./RerunWarmupDialog";
-import { useConfirm } from "../ui/ConfirmModal";
-import { showSuccessToast, showErrorToast } from "../../lib/toast";
-import { getErrorMessage } from "../../lib/errorMessage";
+import { useConfirm } from "../../ui/ConfirmModal";
+import { showSuccessToast, showErrorToast } from "../../../lib/toast";
+import { getErrorMessage } from "../../../lib/errorMessage";
 
 type IdentityTab =
   | "summary"

@@ -10,11 +10,11 @@ import {
   MailOpen,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { createAdminNotification } from "../../api/notifications";
+import { createAdminNotification } from "../../../api/notifications";
 import {
   useAdminOrgNotifications,
   useInvalidateAdminOrgNotifications,
-} from "../../hooks/queries/useAdminOrgTabQueries";
+} from "../../../hooks/queries/useAdminOrgTabQueries";
 
 interface OrgNotificationsTabProps {
   organizationId: number;

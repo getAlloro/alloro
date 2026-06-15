@@ -18,10 +18,10 @@ import {
   restoreBackup,
   deleteBackupApi,
   type BackupJob,
-} from "../../api/backups";
-import { ActionButton } from "../ui/DesignSystem";
-import { useConfirm } from "../ui/ConfirmModal";
-import { logger } from "../../lib/logger";
+} from "../../../api/backups";
+import { ActionButton } from "../../ui/DesignSystem";
+import { useConfirm } from "../../ui/ConfirmModal";
+import { logger } from "../../../lib/logger";
 
 interface BackupsTabProps {
   projectId: string;

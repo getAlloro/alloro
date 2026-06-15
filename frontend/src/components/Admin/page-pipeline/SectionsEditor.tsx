@@ -11,10 +11,10 @@ import {
   Loader2,
 } from "lucide-react";
 import Editor from "@monaco-editor/react";
-import type { Section } from "../../api/templates";
-import { serializeSectionsJs, parseSectionsJs } from "../../utils/templateRenderer";
-import { beautifySections } from "../../utils/htmlBeautify";
-import { logger } from "../../lib/logger";
+import type { Section } from "../../../api/templates";
+import { serializeSectionsJs, parseSectionsJs } from "../../../utils/templateRenderer";
+import { beautifySections } from "../../../utils/htmlBeautify";
+import { logger } from "../../../lib/logger";
 
 interface SectionsEditorProps {
   sections: Section[];

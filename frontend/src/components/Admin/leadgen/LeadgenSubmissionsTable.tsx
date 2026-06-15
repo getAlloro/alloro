@@ -8,10 +8,10 @@
 
 import { useState } from "react";
 import { Inbox, Trash2, Link2 } from "lucide-react";
-import type { FinalStage, LinkedVia, SubmissionSummary } from "../../types/leadgen";
-import { deleteSubmission } from "../../api/leadgenSubmissions";
-import { useConfirm } from "../ui/ConfirmModal";
-import { logger } from "../../lib/logger";
+import type { FinalStage, LinkedVia, SubmissionSummary } from "../../../types/leadgen";
+import { deleteSubmission } from "../../../api/leadgenSubmissions";
+import { useConfirm } from "../../ui/ConfirmModal";
+import { logger } from "../../../lib/logger";
 
 interface Props {
   items: SubmissionSummary[];
