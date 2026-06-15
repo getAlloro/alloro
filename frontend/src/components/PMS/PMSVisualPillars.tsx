@@ -5,18 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import Lottie from "lottie-react";
-import cogitatingSpinner from "../../assets/cogitating-spinner.json";
-import { motion } from "framer-motion";
 import { showErrorToast, showSparkleToast } from "../../lib/toast";
-import {
-  AlertCircle,
-  CheckCircle2,
-  ChevronDown,
-  ChevronRight,
-  Lock,
-  Settings,
-} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -27,11 +16,6 @@ import {
   type PmsKeyDataResponse,
   type AutomationStatusDetail,
 } from "../../api/pms";
-import { PMSLatestJobEditor } from "./PMSLatestJobEditor";
-import { PMSUploadWizardModal } from "./PMSUploadWizardModal";
-import { TemplateUploadModal } from "./TemplateUploadModal";
-import { DirectUploadModal } from "./DirectUploadModal";
-import { PMSManualEntryModal } from "./PMSManualEntryModal";
 import type { ReferralEngineData } from "./ReferralMatrices";
 import {
   useIsWizardActive,
@@ -40,96 +24,21 @@ import {
 import { useLocationContext } from "../../contexts/locationContext";
 import { apiGet } from "../../api";
 import { getPriorityItem } from "../../hooks/useLocalStorage";
-import { PmsHubSurface } from "./dashboard/PmsHubSurface";
-import { CompareMonthsModal } from "./dashboard/CompareMonthsModal";
-import { PmsFileManager } from "./file-manager/PmsFileManager";
 import { derivePmsFocusPeriod } from "../../utils/pmsFocusPeriod";
-import { DashboardAlertStack } from "../dashboard/alerts/DashboardAlertStack";
 import { buildDashboardAlerts } from "../../utils/dashboardAlerts";
 import {
   useInvalidatePmsFileSurfaces,
   useRerunPmsInsights,
 } from "../../hooks/queries/usePmsFileManagerQueries";
-
-const COGITATING_PHRASES = [
-  "Reading the leaves", "Turning over new leaves", "Tending the garden",
-  "Pruning the branches", "Cultivating insights", "Planting seeds",
-  "Watching things grow", "Raking through data", "Leafing through results",
-  "Letting ideas bloom", "Branching out", "Nurturing the roots",
-  "Gathering the harvest", "Sprouting new insights", "Tracing the veins",
-  "Following the canopy", "Photosynthesizing", "Unfurling the fronds",
-  "Sowing the metrics", "Tilling the numbers", "Training the vines",
-  "Mapping the growth rings", "Distilling the nectar", "Shaking the branches",
-];
-
-function CogitatingText() {
-  const [targetPhrase, setTargetPhrase] = useState(() =>
-    COGITATING_PHRASES[Math.floor(Math.random() * COGITATING_PHRASES.length)]
-  );
-  const [displayed, setDisplayed] = useState("");
-  const [isTyping, setIsTyping] = useState(true);
-
-  useEffect(() => {
-    if (isTyping) {
-      if (displayed.length < targetPhrase.length) {
-        const t = setTimeout(
-          () => setDisplayed(targetPhrase.slice(0, displayed.length + 1)),
-          35
-        );
-        return () => clearTimeout(t);
-      }
-      const hold = setTimeout(() => setIsTyping(false), 1800);
-      return () => clearTimeout(hold);
-    }
-    setTargetPhrase((prev) => {
-      let next: string;
-      do {
-        next = COGITATING_PHRASES[Math.floor(Math.random() * COGITATING_PHRASES.length)];
-      } while (next === prev);
-      return next;
-    });
-    setDisplayed("");
-    setIsTyping(true);
-  }, [displayed, isTyping, targetPhrase]);
-
-  return (
-    <p className="font-semibold text-sm font-display">
-      <span className="cogitating-gradient">{displayed}</span>
-      <span className="inline-flex w-[1.5em] justify-start ml-[1px]">
-        <span className="cogitating-dot" style={{ animationDelay: "0s" }}>.</span>
-        <span className="cogitating-dot" style={{ animationDelay: "0.15s" }}>.</span>
-        <span className="cogitating-dot" style={{ animationDelay: "0.3s" }}>.</span>
-      </span>
-    </p>
-  );
-}
-
-interface PMSVisualPillarsProps {
-  domain?: string;
-  organizationId?: number | null;
-  locationId?: number | null;
-  locationName?: string | null;
-  hasProperties?: boolean;
-}
+import { formatMonthLabel } from "./pmsVisualPillars.utils";
+import type { PMSVisualPillarsProps } from "./pmsVisualPillars.types";
+import { PMSVisualPillarsLoadingState } from "./PMSVisualPillars/PMSVisualPillarsLoadingState";
+import { PMSVisualPillarsSetupRequired } from "./PMSVisualPillars/PMSVisualPillarsSetupRequired";
+import { PMSVisualPillarsContent } from "./PMSVisualPillars/PMSVisualPillarsContent";
+import { PMSVisualPillarsModals } from "./PMSVisualPillars/PMSVisualPillarsModals";
 
 // Removed DEFAULT_DOMAIN - domain should always be provided by parent component
 // to prevent race condition where wrong domain is used on initial render
-
-const formatMonthLabel = (value: string): string => {
-  if (!value) {
-    return "—";
-  }
-
-  const date = new Date(`${value}-01T00:00:00`);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    year: "numeric",
-  });
-};
 
 // Temporarily hidden - Practice Diagnosis section
 // const DiagnosisBlock = ({ title, desc }: { title: string; desc: string }) => (
@@ -1177,130 +1086,16 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
   }, [scrollToIngestionHub]);
 
   if (!initialLoadComplete) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-alloro-bg">
-        <div className="text-center">
-          <div className="relative flex items-center justify-center h-16 w-16 mx-auto mb-2">
-            <div
-              className="absolute inset-0 animate-spin rounded-full border-[3px] border-alloro-orange/15 border-t-alloro-orange"
-              style={{ animationDuration: "1.2s" }}
-            />
-            <Lottie animationData={cogitatingSpinner} loop className="relative z-10 w-9 h-9" />
-          </div>
-          <CogitatingText />
-        </div>
-      </div>
-    );
+    return <PMSVisualPillarsLoadingState />;
   }
 
   // Show setup required screen if not all services are connected
   if (!connectionStatus.isLoading && !allServicesConnected && !isWizardActive) {
-    const disconnectedServices = [];
-    if (!connectionStatus.gbpConnected) disconnectedServices.push("Business Profile");
-
     return (
-      <div className="min-h-screen bg-alloro-bg font-body text-alloro-navy flex flex-col items-center justify-center p-8">
-        <div className="max-w-2xl w-full">
-          {/* Welcome header */}
-          <div className="text-center mb-10">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-alloro-orange/10 rounded-full mb-4">
-              <span className="w-2 h-2 bg-alloro-orange rounded-full animate-pulse"></span>
-              <span className="text-xs font-bold text-alloro-orange uppercase tracking-wider">
-                Setup Required
-              </span>
-            </div>
-            <h1 className="font-display text-3xl font-medium text-alloro-navy tracking-tight mb-3">
-              Let's Set Up Your Dashboard
-            </h1>
-            <p className="text-lg text-slate-500 font-medium">
-              Complete these two steps to unlock your practice insights
-            </p>
-          </div>
-
-          {/* Steps */}
-          <div className="space-y-4">
-            {/* Step 1 - Connect Properties */}
-            <div
-              onClick={() => navigate("/settings/integrations")}
-              className="group relative bg-white rounded-3xl border-2 border-alloro-orange shadow-xl shadow-alloro-orange/10 p-8 cursor-pointer hover:shadow-2xl hover:shadow-alloro-orange/20 transition-all duration-300 hover:-translate-y-1"
-            >
-              <div className="flex items-start gap-6">
-                {/* Step number */}
-                <div className="shrink-0">
-                  <div className="w-14 h-14 bg-gradient-to-br from-alloro-orange to-orange-600 rounded-2xl flex items-center justify-center shadow-lg shadow-alloro-orange/30 group-hover:scale-110 transition-transform">
-                    <span className="text-2xl font-black text-white">1</span>
-                  </div>
-                </div>
-                {/* Content */}
-                <div className="flex-1 text-left">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="font-display text-xl font-medium text-alloro-navy tracking-tight">
-                      Connect Your Google Business Profile
-                    </h3>
-                    <span className="px-2 py-1 bg-alloro-orange/10 text-alloro-orange text-[10px] font-black uppercase tracking-wider rounded-lg">
-                      Required
-                    </span>
-                  </div>
-                  <p className="text-slate-500 font-medium leading-relaxed mb-3">
-                    Link your Google Business Profile to enable tracking and insights.
-                  </p>
-                  <p className="text-sm text-amber-600 font-semibold">
-                    Missing: {disconnectedServices.join(", ")}
-                  </p>
-                  <div className="flex items-center gap-2 text-alloro-orange font-bold text-sm group-hover:gap-3 transition-all mt-3">
-                    <Settings className="w-4 h-4" />
-                    <span>Go to Settings</span>
-                    <ChevronRight className="w-4 h-4" />
-                  </div>
-                </div>
-              </div>
-              {/* Decorative arrow */}
-              <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-8 h-8 bg-white border-2 border-slate-200 rounded-full flex items-center justify-center z-10">
-                <ChevronDown className="w-4 h-4 text-slate-300" />
-              </div>
-            </div>
-
-            {/* Step 2 - PMS Data (Locked) */}
-            <div className="relative bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200 p-8 opacity-60">
-              <div className="flex items-start gap-6">
-                {/* Step number */}
-                <div className="shrink-0">
-                  <div className="w-14 h-14 bg-slate-200 rounded-2xl flex items-center justify-center">
-                    <span className="text-2xl font-black text-slate-400">2</span>
-                  </div>
-                </div>
-                {/* Content */}
-                <div className="flex-1 text-left">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-xl font-black text-slate-400 tracking-tight">
-                      Upload Your PMS Data
-                    </h3>
-                    <span className="px-2 py-1 bg-slate-200 text-slate-400 text-[10px] font-black uppercase tracking-wider rounded-lg flex items-center gap-1">
-                      <Lock className="w-3 h-3" />
-                      Locked
-                    </span>
-                  </div>
-                  <p className="text-slate-400 font-medium leading-relaxed">
-                    Once properties are connected, upload your practice management
-                    data to see referral analytics and revenue attribution.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Help text */}
-          <p className="text-center text-sm text-slate-400 mt-8">
-            Need help?{" "}
-            <a
-              href="mailto:support@alloro.io"
-              className="text-alloro-orange font-semibold hover:underline"
-            >
-              Contact Support
-            </a>
-          </p>
-        </div>
-      </div>
+      <PMSVisualPillarsSetupRequired
+        gbpConnected={connectionStatus.gbpConnected}
+        onNavigateToIntegrations={() => navigate("/settings/integrations")}
+      />
     );
   }
 
@@ -1320,192 +1115,73 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
 
   return (
     <div className="pm-light min-h-screen bg-alloro-bg font-body text-alloro-navy">
-      <main className="mx-auto w-full max-w-[960px] space-y-6 px-4 pb-6 sm:px-6 lg:px-8">
-        {/* Cascaded dashboard alerts — stale-data alert (top) + upload nudge.
-            Shared 960px container width across Practice Hub / Referrals /
-            Rankings; the surface + alerts fill the same centered main. */}
-        {!isLoading && !error && keyData && dashboardAlerts.length > 0 && (
-          <div className="w-full">
-            <DashboardAlertStack alerts={dashboardAlerts} />
-          </div>
-        )}
-
-        {/* Client Approval Banner */}
-        {showClientApprovalBanner && (
-          <motion.div
-            id="client-approval-banner"
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col gap-4 rounded-2xl border border-alloro-orange/20 bg-alloro-orange/5 p-6 sm:flex-row sm:items-center sm:justify-between shadow-premium transition-all duration-300"
-          >
-            <div className="flex-1 space-y-1">
-              <div className="font-bold text-alloro-navy text-base">
-                Your PMS data is processed.
-              </div>
-              <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest">
-                Review the latest results and confirm once everything looks
-                good.
-              </div>
-              {bannerError && (
-                <div className="flex items-center gap-2 text-xs text-red-600 mt-2">
-                  <AlertCircle className="h-4 w-4" />
-                  {bannerError}
-                </div>
-              )}
-            </div>
-            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
-              <button
-                type="button"
-                onClick={() => setIsEditorOpen(true)}
-                disabled={latestJobId == null || !hasLatestJobRaw}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-alloro-orange bg-white px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-alloro-orange transition hover:bg-alloro-orange/5 disabled:cursor-not-allowed disabled:opacity-60 shadow-sm"
-              >
-                <CheckCircle2 className="h-4 w-4" />
-                Confirm and get insights
-              </button>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Error State */}
-        {!isLoading && error && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 p-5 text-sm shadow-premium"
-          >
-            <div className="p-2 bg-red-100 rounded-xl">
-              <AlertCircle className="h-5 w-5 text-red-600" />
-            </div>
-            <div>
-              <p className="font-bold text-red-800">
-                Unable to retrieve PMS data.
-              </p>
-              <p className="text-[10px] text-red-600 font-semibold uppercase tracking-widest mt-0.5">
-                {error}
-              </p>
-            </div>
-          </motion.div>
-        )}
-
-        {!error && (keyData || isWizardActive || showDashboardProcessingStatus) && (
-        <PmsHubSurface
-          monthlyData={monthlyData}
-          topSources={topSources}
-          totalProduction={totalProduction}
-          totalReferrals={totalReferrals}
-          doctorReferralCount={doctorReferralCount}
-          doctorPercentage={doctorPercentage}
-          referralData={effectiveReferralData}
-          isLoading={isLoading}
-          isProcessingInsights={showDashboardProcessingStatus}
-          isWizardActive={isWizardActive}
-          canUploadPMS={canUploadPMS}
-          hasProperties={hasProperties}
-          isIngestionHighlighted={isIngestionHighlighted}
-          canOpenDataManager={Boolean(organizationId && locationId)}
-          onOpenManualEntry={() => {
-            if (locationId) {
-              setManualEntryTargetMonth(null);
-              setShowManualEntry(true);
-            }
-          }}
-          onOpenDataManager={() => {
-            setFileManagerInitialMonth(null);
-            setShowFileManager(true);
-          }}
-          onSelectDataMonth={(month) => {
-            setFileManagerInitialMonth(month);
-            setShowFileManager(true);
-          }}
-          onOpenSettings={() => navigate('/settings/integrations')}
-          onOpenCompare={() => setShowCompare(true)}
-        />
-      )}
-      </main>
-
-      {organizationId && locationId && (
-        <PmsFileManager
-          organizationId={organizationId}
-          locationId={locationId}
-          locationName={locationName}
-          canManage={hasRolePermission}
-          isProcessing={showDashboardProcessingStatus || localProcessing || referralPending}
-          isOpen={showFileManager}
-          initialMonth={fileManagerInitialMonth}
-          onClose={() => {
-            setShowFileManager(false);
-            setFileManagerInitialMonth(null);
-          }}
-          onUploadClick={(targetMonth) => {
-            // Keep the file-manager panel open — the entry modal overlays it
-            // (z-[100] over the panel's z-[70]), matching the Edit flow.
-            setManualEntryTargetMonth(targetMonth ?? null);
-            setShowManualEntry(true);
-          }}
-          onDataChanged={handleDataEdited}
-        />
-      )}
-
-
-      {latestJobId && hasLatestJobRaw && (
-        <PMSLatestJobEditor
-          isOpen={isEditorOpen}
-          jobId={latestJobId}
-          initialData={latestJobRaw}
-          onClose={() => setIsEditorOpen(false)}
-          onSaved={handleEditorSaved}
-          onConfirmApproval={handleConfirmApproval}
-        />
-      )}
-
-      {/* Upload Wizard Modal - for "Not sure?" flow */}
-      <PMSUploadWizardModal
-        isOpen={showUploadWizard}
-        onClose={() => setShowUploadWizard(false)}
-        clientId={domain || ""}
+      <PMSVisualPillarsContent
+        isLoading={isLoading}
+        error={error}
+        keyData={keyData}
+        dashboardAlerts={dashboardAlerts}
+        showClientApprovalBanner={showClientApprovalBanner}
+        bannerError={bannerError}
+        setIsEditorOpen={setIsEditorOpen}
+        latestJobId={latestJobId}
+        hasLatestJobRaw={hasLatestJobRaw}
+        isWizardActive={isWizardActive}
+        showDashboardProcessingStatus={showDashboardProcessingStatus}
+        monthlyData={monthlyData}
+        topSources={topSources}
+        totalProduction={totalProduction}
+        totalReferrals={totalReferrals}
+        doctorReferralCount={doctorReferralCount}
+        doctorPercentage={doctorPercentage}
+        effectiveReferralData={effectiveReferralData}
+        canUploadPMS={canUploadPMS}
+        hasProperties={hasProperties}
+        isIngestionHighlighted={isIngestionHighlighted}
+        organizationId={organizationId}
         locationId={locationId}
-        onSuccess={handleUploadWizardSuccess}
+        setManualEntryTargetMonth={setManualEntryTargetMonth}
+        setShowManualEntry={setShowManualEntry}
+        setFileManagerInitialMonth={setFileManagerInitialMonth}
+        setShowFileManager={setShowFileManager}
+        setShowCompare={setShowCompare}
+        navigate={navigate}
       />
 
-      {/* Template Upload Modal */}
-      <TemplateUploadModal
-        isOpen={showTemplateUpload}
-        onClose={() => setShowTemplateUpload(false)}
-        clientId={domain || ""}
-        locationId={locationId}
-        onSuccess={handleUploadWizardSuccess}
-      />
-
-      {/* Direct Upload Modal */}
-      <DirectUploadModal
-        isOpen={showDirectUpload}
-        onClose={() => setShowDirectUpload(false)}
-        clientId={domain || ""}
-        locationId={locationId}
-        onSuccess={handleUploadWizardSuccess}
-      />
-
-      {/* Month Comparison Modal */}
-      <CompareMonthsModal
-        isOpen={showCompare}
-        onClose={() => setShowCompare(false)}
-        months={keyData?.months ?? []}
-        locationId={locationId ?? null}
-      />
-
-      {/* Manual Entry Modal */}
-      <PMSManualEntryModal
-        isOpen={showManualEntry}
-        onClose={() => {
-          setShowManualEntry(false);
-          setManualEntryTargetMonth(null);
-        }}
-        clientId={domain || ""}
+      <PMSVisualPillarsModals
+        organizationId={organizationId}
         locationId={locationId}
         locationName={locationName}
-        targetMonth={manualEntryTargetMonth}
-        onSuccess={handleUploadWizardSuccess}
+        domain={domain}
+        hasRolePermission={hasRolePermission}
+        showDashboardProcessingStatus={showDashboardProcessingStatus}
+        localProcessing={localProcessing}
+        referralPending={referralPending}
+        showFileManager={showFileManager}
+        fileManagerInitialMonth={fileManagerInitialMonth}
+        setShowFileManager={setShowFileManager}
+        setFileManagerInitialMonth={setFileManagerInitialMonth}
+        setManualEntryTargetMonth={setManualEntryTargetMonth}
+        setShowManualEntry={setShowManualEntry}
+        handleDataEdited={handleDataEdited}
+        latestJobId={latestJobId}
+        hasLatestJobRaw={hasLatestJobRaw}
+        isEditorOpen={isEditorOpen}
+        latestJobRaw={latestJobRaw}
+        setIsEditorOpen={setIsEditorOpen}
+        handleEditorSaved={handleEditorSaved}
+        handleConfirmApproval={handleConfirmApproval}
+        showUploadWizard={showUploadWizard}
+        setShowUploadWizard={setShowUploadWizard}
+        handleUploadWizardSuccess={handleUploadWizardSuccess}
+        showTemplateUpload={showTemplateUpload}
+        setShowTemplateUpload={setShowTemplateUpload}
+        showDirectUpload={showDirectUpload}
+        setShowDirectUpload={setShowDirectUpload}
+        showCompare={showCompare}
+        setShowCompare={setShowCompare}
+        months={keyData?.months ?? []}
+        showManualEntry={showManualEntry}
+        manualEntryTargetMonth={manualEntryTargetMonth}
       />
     </div>
   );
