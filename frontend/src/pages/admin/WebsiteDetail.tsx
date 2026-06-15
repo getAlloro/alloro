@@ -1,42 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  ArrowLeft,
-  Globe,
-  ExternalLink,
-  Clock,
-  CheckCircle,
-  Building2,
-  FileText,
-  Loader2,
-  AlertCircle,
-  Star,
-  X,
-  Code,
-  Trash2,
-  ChevronDown,
-  RefreshCw,
-  Layout,
-  Image,
-  Inbox,
-  Newspaper,
-  Menu,
-  ArrowRightLeft,
-  Archive,
-  Wrench,
-  Fingerprint,
-  DollarSign,
-  Plug,
-} from "lucide-react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { motion } from "framer-motion";
 import {
   fetchWebsiteDetail,
   deleteWebsite,
   deletePageByPath,
   linkWebsiteToOrganization,
-  connectDomain,
-  verifyDomainAdmin,
-  disconnectDomain,
   fetchPagesGenerationStatus,
   cancelGeneration,
   fetchSlotPrefill,
@@ -51,27 +20,6 @@ import {
   useAdminWebsiteDetail,
   useInvalidateAdminWebsiteDetail,
 } from "../../hooks/queries/useAdminQueries";
-import {
-  AdminPageHeader,
-  ActionButton,
-} from "../../components/ui/DesignSystem";
-import CreatePageModal from "../../components/Admin/page-pipeline/CreatePageModal";
-import IdentityModal from "../../components/Admin/identity/IdentityModal";
-import LayoutInputsModal from "../../components/Admin/page-pipeline/LayoutInputsModal";
-import MediaTab from "../../components/Admin/website-tabs/MediaTab";
-import CodeManagerTab from "../../components/Admin/website-tabs/CodeManagerTab";
-import ConnectDomainModal from "../../components/Admin/website-tabs/ConnectDomainModal";
-import RecipientsConfig from "../../components/Admin/leadgen/RecipientsConfig";
-import FormSubmissionsTab from "../../components/Admin/leadgen/FormSubmissionsTab";
-import PostsTab from "../../components/Admin/website-tabs/PostsTab";
-import MenusTab from "../../components/Admin/website-tabs/MenusTab";
-import BackupsTab from "../../components/Admin/website-tabs/BackupsTab";
-import AiCommandTab from "../../components/Admin/agents/AiCommandTab";
-import RedirectsTab from "../../components/Admin/website-tabs/RedirectsTab";
-import ReviewsTab from "../../components/Admin/website-tabs/ReviewsTab";
-import CostsTab from "../../components/Admin/website-tabs/CostsTab";
-import IntegrationsTab from "../../components/Admin/website-tabs/IntegrationsTab";
-import FindReplaceModal from "../../components/Admin/find-replace/FindReplaceModal";
 import { fetchProjectCodeSnippets } from "../../api/codeSnippets";
 import type { CodeSnippet } from "../../api/codeSnippets";
 import { adminFetch } from "../../api";
@@ -82,10 +30,6 @@ import {
   NON_POLLING_STATUSES,
   POLL_INTERVAL,
   groupPagesByPath,
-  formatDate,
-  getStatusStyles,
-  formatStatus,
-  isProcessingStatus,
   type WebsiteDetailTab,
   type OrganizationsResponse,
   type WebsiteProjectDomainFields,
@@ -93,8 +37,21 @@ import {
 import { useWebsiteDetailBulkSeo } from "./useWebsiteDetailBulkSeo";
 import { ThreeStepOnboarding } from "./WebsiteDetail/ThreeStepOnboarding";
 import { PageGenerationStatusList } from "./WebsiteDetail/PageGenerationStatusList";
-import { LayoutsTab } from "./WebsiteDetail/LayoutsTab";
-import { PagesTab } from "./WebsiteDetail/PagesTab";
+import {
+  WebsiteDetailLoading,
+  WebsiteDetailError,
+  WebsiteDetailNotFound,
+} from "./WebsiteDetail/WebsiteDetailStates";
+import {
+  HeaderActionPills,
+  HeaderActionIcons,
+} from "./WebsiteDetail/WebsiteDetailHeaderActions";
+import { WebsiteDetailTabContent } from "./WebsiteDetail/WebsiteDetailTabContent";
+import {
+  WebsiteDetailHeader,
+  WebsiteDetailTabBar,
+} from "./WebsiteDetail/WebsiteDetailHeader";
+import { WebsiteDetailModals } from "./WebsiteDetail/WebsiteDetailModals";
 
 export type WebsiteDetailProps = {
   projectId?: string;
@@ -632,98 +589,28 @@ export default function WebsiteDetail({
   };
 
   if (loading) {
-    // Show skeleton loading state with grey cards
-    return (
-      <div className="space-y-6">
-        {/* Back button skeleton */}
-        <div className="h-6 w-32 bg-gray-200 rounded animate-pulse"></div>
-
-        {/* Header skeleton */}
-        <div className="flex items-start justify-between">
-          <div className="space-y-2 flex-1">
-            <div className="h-8 w-64 bg-gray-200 rounded animate-pulse"></div>
-            <div className="h-4 w-48 bg-gray-200 rounded animate-pulse"></div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-32 bg-gray-200 rounded-lg animate-pulse"></div>
-            <div className="h-10 w-24 bg-gray-200 rounded-lg animate-pulse"></div>
-          </div>
-        </div>
-
-        {/* Tab bar skeleton */}
-        <div className="flex gap-2 border-b border-gray-200 pb-2">
-          <div className="h-8 w-20 bg-gray-200 rounded animate-pulse"></div>
-          <div className="h-8 w-24 bg-gray-200 rounded animate-pulse"></div>
-          <div className="h-8 w-20 bg-gray-200 rounded animate-pulse"></div>
-        </div>
-
-        {/* Main content card skeleton */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
-          <div className="h-6 w-40 bg-gray-200 rounded animate-pulse"></div>
-          <div className="space-y-3">
-            <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-            <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
-            <div className="h-4 bg-gray-200 rounded animate-pulse w-1/2"></div>
-          </div>
-        </div>
-
-        {/* Additional card skeleton */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
-          <div className="h-6 w-32 bg-gray-200 rounded animate-pulse"></div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="h-32 bg-gray-200 rounded-lg animate-pulse"></div>
-            <div className="h-32 bg-gray-200 rounded-lg animate-pulse"></div>
-          </div>
-        </div>
-      </div>
-    );
+    return <WebsiteDetailLoading />;
   }
 
   if (error) {
     return (
-      <div className="space-y-6">
-        {!embedded && (
-          <Link
-            to={backPath}
-            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            {backLabel}
-          </Link>
-        )}
-        <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
-          <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-red-900">
-              Error loading website
-            </p>
-            <p className="text-sm text-red-700 mt-1">{error}</p>
-          </div>
-          <ActionButton
-            label="Retry"
-            onClick={loadWebsite}
-            variant="danger"
-            size="sm"
-          />
-        </div>
-      </div>
+      <WebsiteDetailError
+        embedded={embedded}
+        backPath={backPath}
+        backLabel={backLabel}
+        error={error}
+        loadWebsite={loadWebsite}
+      />
     );
   }
 
   if (!website) {
     return (
-      <div className="space-y-6">
-        {!embedded && (
-          <Link
-            to={backPath}
-            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            {backLabel}
-          </Link>
-        )}
-        <div className="text-center py-16 text-gray-500">Website not found</div>
-      </div>
+      <WebsiteDetailNotFound
+        embedded={embedded}
+        backPath={backPath}
+        backLabel={backLabel}
+      />
     );
   }
 
@@ -755,240 +642,48 @@ export default function WebsiteDetail({
   })();
 
   const headerActionPills = (
-    <>
-      <button
-        onClick={() => setShowIdentityModal(true)}
-        className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
-        title="Project Identity — business data, brand, voice, and content context for the AI"
-      >
-        <Fingerprint className="h-4 w-4" />
-        Identity
-        {website?.project_identity?.meta?.warmup_status === "ready" && (
-          <span className="ml-1 h-1.5 w-1.5 rounded-full bg-green-500" />
-        )}
-        {(website?.project_identity?.meta?.warmup_status === "running" ||
-          website?.project_identity?.meta?.warmup_status === "queued") && (
-          <Loader2 className="h-3 w-3 animate-spin text-amber-500" />
-        )}
-      </button>
-
-      <div className="relative" ref={orgDropdownRef}>
-        <button
-          onClick={() => setShowOrgDropdown(!showOrgDropdown)}
-          className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
-        >
-          <Building2 className="h-4 w-4" />
-          {website?.organization ? website.organization.name : "No Organization"}
-          <ChevronDown
-            className={`h-3 w-3 transition-transform ${showOrgDropdown ? "rotate-180" : ""}`}
-          />
-        </button>
-
-        <AnimatePresence>
-          {showOrgDropdown && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="absolute left-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50"
-            >
-              {website?.organization ? (
-                <>
-                  <Link
-                    to="/admin/organization-management"
-                    className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                    onClick={() => setShowOrgDropdown(false)}
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    Open Organization
-                  </Link>
-                  <button
-                    onClick={() => {
-                      setShowOrgDropdown(false);
-                      handleUnlink();
-                    }}
-                    disabled={isLinking}
-                    className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full text-left disabled:opacity-50"
-                  >
-                    <X className="h-4 w-4" />
-                    {isLinking ? "Unlinking..." : "Unlink Organization"}
-                  </button>
-                </>
-              ) : (
-                <>
-                  {loadingOrgs ? (
-                    <div className="flex items-center gap-2 px-4 py-2 text-sm text-gray-500">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading...
-                    </div>
-                  ) : availableOrganizations.length === 0 ? (
-                    <div className="px-4 py-2 text-sm text-gray-500">
-                      No available organizations
-                    </div>
-                  ) : (
-                    <>
-                      <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase">
-                        Link to Organization
-                      </div>
-                      {availableOrganizations.map((org) => (
-                        <button
-                          key={org.id}
-                          onClick={async () => {
-                            setSelectedOrgId(org.id);
-                            setShowOrgDropdown(false);
-                            setIsLinking(true);
-                            try {
-                              await linkWebsiteToOrganization(id!, org.id);
-                              toast.success("Organization linked");
-                              await loadWebsite();
-                              await loadAvailableOrganizations();
-                            } catch (err) {
-                              toast.error(
-                                err instanceof Error
-                                  ? err.message
-                                  : "Failed to link",
-                              );
-                            } finally {
-                              setIsLinking(false);
-                              setSelectedOrgId(null);
-                            }
-                          }}
-                          disabled={isLinking}
-                          className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-purple-50 w-full text-left disabled:opacity-50"
-                        >
-                          <Building2 className="h-4 w-4" />
-                          {org.name}
-                        </button>
-                      ))}
-                    </>
-                  )}
-                </>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      <button
-        onClick={() => setShowDomainModal(true)}
-        className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
-          customDomain && domainVerifiedAt
-            ? "border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
-            : customDomain
-              ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
-              : "border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100"
-        }`}
-      >
-        <Globe className="h-4 w-4" />
-        {customDomain || "Custom Domain"}
-      </button>
-    </>
+    <HeaderActionPills
+      website={website}
+      id={id}
+      customDomain={customDomain}
+      domainVerifiedAt={domainVerifiedAt}
+      showOrgDropdown={showOrgDropdown}
+      isLinking={isLinking}
+      loadingOrgs={loadingOrgs}
+      availableOrganizations={availableOrganizations}
+      orgDropdownRef={orgDropdownRef}
+      setShowIdentityModal={setShowIdentityModal}
+      setShowOrgDropdown={setShowOrgDropdown}
+      setShowDomainModal={setShowDomainModal}
+      setSelectedOrgId={setSelectedOrgId}
+      setIsLinking={setIsLinking}
+      handleUnlink={handleUnlink}
+      loadWebsite={loadWebsite}
+      loadAvailableOrganizations={loadAvailableOrganizations}
+    />
   );
 
   const headerActionIcons = (
-    <>
-      <button
-        onClick={loadWebsite}
-        title="Refresh"
-        aria-label="Refresh website"
-        className="inline-flex items-center justify-center rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-      >
-        <RefreshCw className="h-4 w-4" />
-      </button>
-      {isLive && (
-        <a
-          href={`https://${liveDomain}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          title="View Live Site"
-          aria-label="View live site"
-          className="inline-flex items-center justify-center rounded-lg p-2 text-green-600 transition hover:bg-green-50 hover:text-green-700"
-        >
-          <ExternalLink className="h-4 w-4" />
-        </a>
-      )}
-      <button
-        onClick={handleDelete}
-        disabled={isDeleting}
-        title={isDeleting ? "Deleting..." : "Delete"}
-        aria-label={isDeleting ? "Deleting website" : "Delete website"}
-        className="inline-flex items-center justify-center rounded-lg p-2 text-red-500 transition hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
-      >
-        {isDeleting ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Trash2 className="h-4 w-4" />
-        )}
-      </button>
-    </>
+    <HeaderActionIcons
+      isLive={isLive}
+      isDeleting={isDeleting}
+      liveDomain={liveDomain}
+      loadWebsite={loadWebsite}
+      handleDelete={handleDelete}
+    />
   );
 
   return (
     <div className="space-y-6">
-      {/* Back link */}
-      {!embedded && (
-        <Link
-          to={backPath}
-          className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          {backLabel}
-        </Link>
-      )}
-
-      {embedded ? (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            {headerActionPills}
-          </div>
-          <div className="ml-auto flex shrink-0 items-center gap-2">
-            {headerActionIcons}
-          </div>
-        </div>
-      ) : (
-        <AdminPageHeader
-          icon={<Globe className="w-6 h-6" />}
-          title={
-            website.display_name ||
-            (gbpData?.name ? String(gbpData.name) : website.generated_hostname)
-          }
-          description={
-            <div className="flex flex-wrap items-center gap-2 mt-1">
-              <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 bg-gray-100 rounded-full px-2.5 py-1">
-                <Globe className="h-3 w-3" />
-                {website.generated_hostname}
-              </span>
-              <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 bg-gray-100 rounded-full px-2.5 py-1">
-                <Clock className="h-3 w-3" />
-                Created {formatDate(website.created_at)}
-              </span>
-              {website.updated_at !== website.created_at && (
-                <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 bg-gray-100 rounded-full px-2.5 py-1">
-                  <Clock className="h-3 w-3" />
-                  Updated {formatDate(website.updated_at)}
-                </span>
-              )}
-              <span
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${getStatusStyles(website.status)}`}
-              >
-                {website.status === "LIVE" && (
-                  <CheckCircle className="h-3 w-3" />
-                )}
-                {isProcessingStatus(website.status) && (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                )}
-                {formatStatus(website.status)}
-              </span>
-            </div>
-          }
-          actionButtons={
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              {headerActionPills}
-              {headerActionIcons}
-            </div>
-          }
-        />
-      )}
+      <WebsiteDetailHeader
+        embedded={embedded}
+        backPath={backPath}
+        backLabel={backLabel}
+        website={website}
+        gbpData={gbpData}
+        headerActionPills={headerActionPills}
+        headerActionIcons={headerActionIcons}
+      />
 
       {/* Status Card — hidden when LIVE */}
       {!isLive && (
@@ -1021,370 +716,84 @@ export default function WebsiteDetail({
         </motion.div>
       )}
 
-      {/* Tab bar: Pages | Layouts | Code Manager | Media | Form Submissions */}
-      {!hideTabBar && (
-        <div
-          className={
-            embedded
-              ? "mb-4 flex items-center gap-7 overflow-x-auto border-b border-gray-200 px-1"
-              : "flex items-stretch gap-1 p-1.5 bg-gray-100 rounded-xl mb-4"
-          }
-        >
-          {WEBSITE_DETAIL_TABS.map((tab) => {
-          const isActive = detailTab === tab;
-          const tabConfig: Record<string, { label: string; icon: React.ReactNode }> = {
-            "pages": { label: "Pages", icon: <FileText className="w-3.5 h-3.5" /> },
-            "layouts": { label: "Layouts", icon: <Layout className="w-3.5 h-3.5" /> },
-            "code-manager": { label: "Code Manager", icon: <Code className="w-3.5 h-3.5" /> },
-            "media": { label: "Media", icon: <Image className="w-3.5 h-3.5" /> },
-            "form-submissions": { label: "Forms", icon: <Inbox className="w-3.5 h-3.5" /> },
-            "posts": { label: "Posts", icon: <Newspaper className="w-3.5 h-3.5" /> },
-            "menus": { label: "Menus", icon: <Menu className="w-3.5 h-3.5" /> },
-            "reviews": { label: "Reviews", icon: <Star className="w-3.5 h-3.5" /> },
-            "redirects": { label: "Redirects", icon: <ArrowRightLeft className="w-3.5 h-3.5" /> },
-            "integrations": { label: "Integrations", icon: <Plug className="w-3.5 h-3.5" /> },
-            "backups": { label: "Backups", icon: <Archive className="w-3.5 h-3.5" /> },
-            "advanced-tools": { label: "Advanced Tools", icon: <Wrench className="w-3.5 h-3.5" /> },
-            "costs": { label: "Costs", icon: <DollarSign className="w-3.5 h-3.5" /> },
-          };
-          const config = tabConfig[tab] || { label: tab, icon: null };
-          return (
-            <motion.button
-              key={tab}
-              onClick={() => setDetailTab(tab)}
-              className={
-                embedded
-                  ? `group relative flex shrink-0 items-center gap-2 pb-3 pt-1 text-sm font-semibold transition-colors ${
-                      isActive
-                        ? "text-gray-900"
-                        : "text-gray-500 hover:text-gray-700"
-                    }`
-                  : `group relative flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                      isActive
-                        ? "text-gray-900"
-                        : "text-gray-500 hover:text-gray-700"
-                    }`
-              }
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              {isActive && !embedded && (
-                <motion.div
-                  className="absolute inset-0 bg-white rounded-lg shadow-sm"
-                  layoutId="websiteDetailTab"
-                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                />
-              )}
-              {isActive && embedded && (
-                <motion.span
-                  className="absolute inset-x-0 bottom-0 h-0.5 bg-alloro-orange"
-                  layoutId="websiteDetailEmbeddedTab"
-                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                />
-              )}
-              <span className="relative z-10 flex items-center gap-1.5">
-                {config.icon}
-                {config.label}
-              </span>
-            </motion.button>
-          );
-        })}
-        </div>
-      )}
+      <WebsiteDetailTabBar
+        embedded={embedded}
+        hideTabBar={hideTabBar}
+        detailTab={detailTab}
+        setDetailTab={setDetailTab}
+      />
 
-      {/* Pages Section — grouped by path, expandable versions */}
-      {detailTab === "pages" && (
-        <PagesTab
-          id={id}
-          website={website}
-          pageGroups={pageGroups}
-          allPageSeoMeta={allPageSeoMeta}
-          isGeneratingPage={isGeneratingPage}
-          isLive={isLive}
-          isInProgress={isInProgress}
-          isBulkSeoActive={isBulkSeoActive}
-          bulkSeoStatus={bulkSeoStatus}
-          expandedPaths={expandedPaths}
-          selectedPaths={selectedPaths}
-          editingName={editingName}
-          nameInput={nameInput}
-          savingName={savingName}
-          deletingPageId={deletingPageId}
-          deletingPagePath={deletingPagePath}
-          confirm={confirm}
-          invalidateWebsite={invalidateWebsite}
-          setWebsiteCache={setWebsiteCache}
-          setSelectedPaths={setSelectedPaths}
-          setEditingName={setEditingName}
-          setNameInput={setNameInput}
-          setSavingName={setSavingName}
-          setShowFindReplaceModal={setShowFindReplaceModal}
-          setShowCreatePageModal={setShowCreatePageModal}
-          togglePath={togglePath}
-          startBulkPageSeo={startBulkPageSeo}
-          handleCancelGeneration={handleCancelGeneration}
-          handleDeletePage={handleDeletePage}
-          handleDeletePageVersion={handleDeletePageVersion}
-        />
-      )}
+      <WebsiteDetailTabContent
+        detailTab={detailTab}
+        id={id}
+        website={website}
+        pageGroups={pageGroups}
+        allPageSeoMeta={allPageSeoMeta}
+        isGeneratingPage={isGeneratingPage}
+        isLive={isLive}
+        isInProgress={isInProgress}
+        isBulkSeoActive={isBulkSeoActive}
+        bulkSeoStatus={bulkSeoStatus}
+        expandedPaths={expandedPaths}
+        selectedPaths={selectedPaths}
+        editingName={editingName}
+        nameInput={nameInput}
+        savingName={savingName}
+        deletingPageId={deletingPageId}
+        deletingPagePath={deletingPagePath}
+        confirm={confirm}
+        invalidateWebsite={invalidateWebsite}
+        setWebsiteCache={setWebsiteCache}
+        setSelectedPaths={setSelectedPaths}
+        setEditingName={setEditingName}
+        setNameInput={setNameInput}
+        setSavingName={setSavingName}
+        setShowFindReplaceModal={setShowFindReplaceModal}
+        setShowCreatePageModal={setShowCreatePageModal}
+        togglePath={togglePath}
+        startBulkPageSeo={startBulkPageSeo}
+        handleCancelGeneration={handleCancelGeneration}
+        handleDeletePage={handleDeletePage}
+        handleDeletePageVersion={handleDeletePageVersion}
+        layoutsStatus={layoutsStatus}
+        setShowLayoutsModal={setShowLayoutsModal}
+        loadingSnippets={loadingSnippets}
+        codeSnippets={codeSnippets}
+        loadCodeSnippets={loadCodeSnippets}
+        pageGenStatuses={pageGenStatuses}
+      />
 
-      {/* Layouts Section */}
-      {detailTab === "layouts" && (
-        <motion.div
-          className="space-y-4"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <LayoutsTab
-            id={id}
-            layoutsStatus={layoutsStatus}
-            onOpenLayoutsModal={() => setShowLayoutsModal(true)}
-          />
-        </motion.div>
-      )}
-
-      {/* Code Manager Section */}
-      {detailTab === "code-manager" && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          {loadingSnippets ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
-            </div>
-          ) : (
-            <CodeManagerTab
-              projectId={id!}
-              codeSnippets={codeSnippets}
-              onSnippetsChange={loadCodeSnippets}
-              isProject={true}
-              pages={website.pages}
-            />
-          )}
-        </motion.div>
-      )}
-
-      {/* Media Section */}
-      {detailTab === "media" && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <MediaTab projectId={id!} />
-        </motion.div>
-      )}
-
-      {/* Form Submissions Section */}
-      {detailTab === "form-submissions" && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="space-y-6"
-        >
-          {/* Submissions table */}
-          <FormSubmissionsTab
-            projectId={id!}
-            isAdmin
-            settingsContent={
-              <div className="space-y-5">
-                <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                  <h3 className="mb-3 text-sm font-semibold text-gray-900">
-                    Default Recipients
-	                  </h3>
-	                  <RecipientsConfig projectId={id!} />
-	                </div>
-	              </div>
-	            }
-	          />
-        </motion.div>
-      )}
-
-      {/* Posts Section */}
-      {detailTab === "posts" && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <PostsTab projectId={id!} templateId={website.template_id} organizationId={website.organization?.id} />
-        </motion.div>
-      )}
-
-      {/* Menus Section */}
-      {detailTab === "menus" && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <MenusTab projectId={id!} templateId={website.template_id} />
-        </motion.div>
-      )}
-
-      {/* Reviews Section */}
-      {detailTab === "reviews" && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <ReviewsTab projectId={id!} organizationId={website.organization?.id} identity={website.project_identity} />
-        </motion.div>
-      )}
-
-      {/* Redirects Section */}
-      {detailTab === "redirects" && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <RedirectsTab projectId={id!} />
-        </motion.div>
-      )}
-
-      {/* Advanced Tools Section */}
-      {detailTab === "advanced-tools" && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <AiCommandTab projectId={id!} pages={website.pages} onExecutionComplete={() => invalidateWebsite(id!)} />
-        </motion.div>
-      )}
-
-      {/* Integrations Section — HubSpot only in v1 */}
-      {detailTab === "integrations" && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <IntegrationsTab projectId={id!} />
-        </motion.div>
-      )}
-
-      {/* Backups Section */}
-      {detailTab === "backups" && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <BackupsTab projectId={id!} projectName={website.display_name || ""} />
-        </motion.div>
-      )}
-
-      {/* Costs Section — refetches when generation transitions active → idle */}
-      {detailTab === "costs" && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <CostsTab
-            projectId={id!}
-            isGenerating={pageGenStatuses.some(
-              (p) =>
-                p.generation_status === "queued" ||
-                p.generation_status === "generating",
-            )}
-          />
-        </motion.div>
-      )}
-
-      {/* Identity Modal */}
-      {showIdentityModal && website && (
-        <IdentityModal
-          projectId={website.id}
-          onClose={() => setShowIdentityModal(false)}
-          onIdentityChanged={async () => {
-            const res = await fetchWebsiteDetail(website.id);
-            if (res.success) setWebsite(res.data);
-          }}
-        />
-      )}
-
-      {/* Layout Inputs Modal */}
-      <LayoutInputsModal
-        open={showLayoutsModal}
-        onClose={() => setShowLayoutsModal(false)}
-        status={layoutsStatus}
-        slots={layoutSlots}
-        values={layoutSlotValues}
-        onSlotChange={updateLayoutSlotValue}
-        loadingSlots={loadingLayoutSlots}
+      <WebsiteDetailModals
+        website={website}
+        id={id}
+        gbpData={gbpData}
+        showIdentityModal={showIdentityModal}
+        showLayoutsModal={showLayoutsModal}
+        showCreatePageModal={showCreatePageModal}
+        showFindReplaceModal={showFindReplaceModal}
+        showDomainModal={showDomainModal}
+        layoutsStatus={layoutsStatus}
+        layoutSlots={layoutSlots}
+        layoutSlotValues={layoutSlotValues}
+        loadingLayoutSlots={loadingLayoutSlots}
         startingLayouts={startingLayouts}
-        onGenerate={handleStartLayouts}
-        onCancel={handleCancelLayouts}
+        customDomain={customDomain}
+        domainVerifiedAt={domainVerifiedAt}
+        setShowIdentityModal={setShowIdentityModal}
+        setShowLayoutsModal={setShowLayoutsModal}
+        setShowCreatePageModal={setShowCreatePageModal}
+        setShowFindReplaceModal={setShowFindReplaceModal}
+        setShowDomainModal={setShowDomainModal}
+        setWebsite={setWebsite}
+        setIsGeneratingPage={setIsGeneratingPage}
+        expectedPageCountRef={expectedPageCountRef}
+        navigate={navigate}
+        invalidateWebsite={invalidateWebsite}
+        updateLayoutSlotValue={updateLayoutSlotValue}
+        handleStartLayouts={handleStartLayouts}
+        handleCancelLayouts={handleCancelLayouts}
+        startPageGenerationPoll={startPageGenerationPoll}
       />
-
-
-      {/* Create Page Modal */}
-      {showCreatePageModal && (
-        <CreatePageModal
-          projectId={website.id}
-          templateId={website.template_id || undefined}
-          gbpData={gbpData}
-          defaultPlaceId={website.selected_place_id || ""}
-          defaultWebsiteUrl={website.selected_website_url || ""}
-          defaultPrimaryColor={website.primary_color || "#1E40AF"}
-          defaultAccentColor={website.accent_color || "#F59E0B"}
-          onSuccess={() => {
-            setShowCreatePageModal(false);
-            setIsGeneratingPage(true);
-            expectedPageCountRef.current = website.pages.length;
-            startPageGenerationPoll();
-          }}
-          onBlankPageCreated={(pageId) => {
-            setShowCreatePageModal(false);
-            navigate(`/admin/websites/${website.id}/pages/${pageId}/edit`);
-          }}
-          onClose={() => setShowCreatePageModal(false)}
-        />
-      )}
-
-      {/* Site-wide Find & Replace Modal */}
-      <FindReplaceModal
-        projectId={website.id}
-        isOpen={showFindReplaceModal}
-        onClose={() => setShowFindReplaceModal(false)}
-        onApplied={() => {
-          if (id) invalidateWebsite(id);
-        }}
-      />
-
-      {/* Custom Domain Modal */}
-      {website && (
-        <ConnectDomainModal
-          isOpen={showDomainModal}
-          onClose={() => setShowDomainModal(false)}
-          projectId={website.id}
-          currentDomain={customDomain}
-          domainVerifiedAt={domainVerifiedAt}
-          onDomainChange={async () => {
-            const res = await fetchWebsiteDetail(website.id);
-            if (res.success) setWebsite(res.data);
-          }}
-          onConnect={async (domain) => {
-            const res = await connectDomain(website.id, domain);
-            return res.data;
-          }}
-          onVerify={async () => {
-            const res = await verifyDomainAdmin(website.id);
-            return res.data;
-          }}
-          onDisconnect={async () => {
-            await disconnectDomain(website.id);
-          }}
-        />
-      )}
     </div>
   );
 }
