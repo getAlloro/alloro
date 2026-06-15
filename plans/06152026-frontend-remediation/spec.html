@@ -58,11 +58,11 @@
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
         <span class="status-pill">In Progress</span>
-        <!-- T0 T3 T5 done; T6 3 non-stateful god-files done; T4 foundation+agents done. Remaining T4 per-domain + T6 stateful = owner-QA-gated. -->
+        <!-- T0/T1a/T2/T3/T5/T6 done (T6: all 33 god-files <800, detector=0). Remaining: T4 4 domains (behavioral) + QA guide. -->
       </div>
       <h1>Frontend Remediation</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>In Progress — T0/T3/T5 done; T4 + T6 partial (owner QA pending)</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>In Progress — T6 complete (0 files &gt;800); T4 (4 domains) + QA guide remain</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/06152026-frontend-remediation</dd></div>
         <div><dt>Size</dt><dd>Large (multi-phase program)</dd></div>
         <div><dt>Risk</dt><dd>Level 4</dd></div>
@@ -247,6 +247,13 @@
         <p><strong>Reason:</strong> Execution deviation: T0 harness is thin (6 tests — infra sanity, not god-file render coverage), so stateful T6 decomposition and per-domain T4 flips stay owner-QA-gated. Banked only the fully <code>tsc -b</code>+eslint+harness-verifiable work this session; the error-PATH of the T4 agents flip (toast/banner on real API failure) still needs in-browser QA per the T4 verify criterion.</p>
         <p><strong>Verify:</strong> all five commits pass <code>tsc -b</code> 0 + <code>eslint</code> 0 + harness 6/6; barrels preserve every export (websites 161, minds 119, DesignSystem 19); all consumers unchanged. dev/dave, local — not pushed.</p>
         <p><strong>Remaining (owner-QA-gated):</strong> T4 per-domain flips in order — clarity → google-auth → gbp → agents-done → onboarding (highest blast, AuthContext-wired) — each its own commit + browser QA of the failure path. T6 stateful god-files worst-first (IdentityModal 3411, PracticeRanking 2498, WebsiteDetail 2442, PageEditor 2127, …) one file per commit + per-surface QA. Also: 9 residual generic-arg <code>any</code> (<code>Promise&lt;any&gt;</code>/<code>useState&lt;any[]&gt;</code>) the T3 sweep missed; <code>wizardConfig.ts</code> (969, config data) is another low-risk split. PMS-owned files (<code>api/pms.ts</code>, <code>PMSVisualPillars</code>, <code>PmsDashboardSurface</code>, <code>PmsHubSurface</code>) excluded — separate session.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 3 — 2026-06-16</h3>
+        <p><strong>Change:</strong> <strong>T6 god-file decomposition COMPLETE — all 33 files &gt;800 are now &lt;800; detector <code>frontend files &gt;800 = 0</code>.</strong> Owner unblocked the PMS files and approved high-risk execution; worktree was clean. Decomposed every screen behavior-preservingly (MOVE code, never rewrite): pure helpers→<code>*.utils.ts</code>, presentational blocks→child components receiving the same values as props, and — for the entangled monsters — the ENTIRE reactive core lifted verbatim into <code>use&lt;Feature&gt;()</code> hook(s) with hook-call ORDER preserved. Notables: IdentityModal 3422→781, PracticeRanking 2498→649, WebsiteDetail 2442→799, PMSManualEntryModal 2208→482, PageEditor 2127→279, RankingsDashboard 1968→620, DFYWebsite 1869→535, plus ~26 more. Also finished low-risk tier: tracked an untracked-but-imported <code>lib/errorMessage.ts</code> (fresh-checkout build fix), removed dead <code>agents.ts</code> exports, split <code>wizardConfig.ts</code>, typed 8/9 residual generic-arg <code>any</code>, and split <code>api/pms.ts</code> 1304→9 (barrel).</p>
+        <p><strong>Reason:</strong> Owner directive: "big batch… keep grinding… don't stop until done." Ran in parallel batches (≤6 subagents, each extract+eslint+wc+self-diff, NO tsc to avoid <code>.tsbuildinfo</code> races) then ONE project-wide <code>tsc -b</code> + commit-per-file; the 5 hardest done sequentially with each agent self-running <code>tsc -b</code>. Two integration seams (a prop typed too narrow) fixed by 1-line type widen.</p>
+        <p><strong>Verify:</strong> 44 commits on dev/dave (local, NOT pushed), one screen per commit. Final: <code>tsc -b</code> 0, <code>npm run build</code> exit 0, harness 6/6, detector frontend files&gt;800 = 0. Behavior-preserving (per-file diffs = removed-blocks + added-imports + render/hook-call swaps; god-file JSX bodies byte-identical; hook order 1:1 with HEAD). NOT browser-verified — owner QA pending per the click-through guide (next deliverable).</p>
+        <p><strong>Remaining:</strong> T4 error-contract flips for the 4 domains clarity/google-auth/gbp/onboarding (behavioral, owner browser-QA of failure path); then the full acceptance/QA click-through guide. Working tree also carries owner's own uncommitted <code>code-constitution.html</code> + <code>package.json</code> + <code>scripts/check-conventions.sh</code> (NOT mine, never staged) + 2 throwaway <code>.py</code> in repo root.</p>
       </article>
     </section>
   </main>
