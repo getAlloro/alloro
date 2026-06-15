@@ -1,36 +1,27 @@
-import { apiPost } from "./index";
-import { logger } from "../lib/logger";
+import { apiPost, unwrap } from "./index";
+import type { ClarityData, ClarityAIReadyData } from "../hooks/useClarity";
+
+// T4 error-contract: these throw an ApiError on failure (via unwrap) and
+// return the unwrapped payload; ClarityContext catches + surfaces the message.
 
 const baseurl = "/clarity";
 
-async function getKeyData(domain: string) {
-  try {
-    return await apiPost({
+async function getKeyData(domain: string): Promise<Partial<ClarityData>> {
+  return unwrap<Partial<ClarityData>>(
+    await apiPost({
       path: baseurl + `/getKeyData`,
       passedData: { clientId: domain },
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      successful: false,
-      errorMessage: "Technical error, contact developer",
-    };
-  }
+    }),
+  );
 }
 
-async function getAIReadyData(clientId: string) {
-  try {
-    return await apiPost({
+async function getAIReadyData(clientId: string): Promise<ClarityAIReadyData> {
+  return unwrap<ClarityAIReadyData>(
+    await apiPost({
       path: baseurl + `/getAIReadyData`,
       passedData: { clientId },
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      successful: false,
-      errorMessage: "Technical error, contact developer",
-    };
-  }
+    }),
+  );
 }
 
 const clarity = {
