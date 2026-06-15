@@ -3,7 +3,7 @@
  */
 
 import type { Section } from "./templates";
-import { getCommonHeaders } from "./index";
+import { adminFetch } from "./index";
 
 // ---------------------------------------------------------------------------
 // Project Identity (new consolidated source of truth)
@@ -218,14 +218,6 @@ export interface StatusesResponse {
 }
 
 const API_BASE = "/api/admin/websites";
-
-const adminFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
-  const headers = new Headers(init.headers);
-  Object.entries(getCommonHeaders()).forEach(([key, value]) => {
-    if (!headers.has(key)) headers.set(key, value);
-  });
-  return fetch(input, { ...init, headers });
-};
 
 /**
  * Fetch all website projects with pagination
