@@ -2,6 +2,10 @@
 
 These are repo-local operating notes for `/Users/rustinedave/Desktop/alloro`. They intentionally include only Alloro-specific context. Broader workflow rules can live in `~/.codex/AGENTS.md`.
 
+## Communication Style
+
+Write plainly for the user. Keep the technical substance accurate, but say it in simple, common words and short sentences. Lead with the main point, then the detail. No wordplay, puns, jokes, or clever phrasing — say things directly. When something has to stay technical (a file name, a command, a term), add a one-line plain explanation next to it. The goal: the user understands the answer on the first read without having to decode it.
+
 ## Plan Specs
 
 All Alloro plan folders must use the global self-contained HTML spec artifact format:
