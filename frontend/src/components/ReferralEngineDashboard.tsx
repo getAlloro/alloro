@@ -10,7 +10,6 @@ import {
   ShieldCheck,
   Calendar,
   BarChart3,
-  ArrowUpRight,
   Lock,
   TrendingDown,
   Loader2,
@@ -25,178 +24,16 @@ import {
   useWizardDemoData,
 } from "../contexts/OnboardingWizardContext";
 import { logger } from "../lib/logger";
-
-// ============================================================================
-// TYPE DEFINITIONS
-// ============================================================================
-
-interface ReferralEngineData {
-  executive_summary?: string[];
-  growth_opportunity_summary?: {
-    top_three_fixes?: (TopFix | string)[];
-    estimated_additional_annual_revenue?: number;
-  };
-  doctor_referral_matrix?: DoctorReferral[];
-  non_doctor_referral_matrix?: NonDoctorReferral[];
-  alloro_automation_opportunities?: (ReferralAutomationOpportunity | string)[];
-  practice_action_plan?: (ReferralPracticeAction | string)[];
-  observed_period?: {
-    start_date: string;
-    end_date: string;
-  };
-  data_quality_flags?: string[];
-  confidence?: number;
-}
-
-interface TopFix {
-  title: string;
-  description: string;
-  impact?: string;
-}
-
-interface ReferralAutomationOpportunity {
-  title: string;
-  description: string;
-  priority?: string;
-  impact?: string;
-  effort?: string;
-  category?: string;
-  due_date?: string;
-}
-
-interface ReferralPracticeAction {
-  title: string;
-  description: string;
-  priority?: string;
-  impact?: string;
-  effort?: string;
-  category?: string;
-  owner?: string;
-  due_date?: string;
-}
-
-interface DoctorReferral {
-  referrer_name?: string;
-  referred?: number;
-  net_production?: number | null;
-  avg_production_per_referral?: number | null;
-  trend_label?: "increasing" | "decreasing" | "new" | "dormant" | "stable";
-  notes?: string;
-}
-
-interface NonDoctorReferral {
-  source_label?: string;
-  source_key?: string;
-  source_type?: "digital" | "patient" | "other";
-  referred?: number;
-  net_production?: number | null;
-  avg_production_per_referral?: number | null;
-  trend_label?: "increasing" | "decreasing" | "new" | "dormant" | "stable";
-  notes?: string;
-}
-
-interface ReferralEngineDashboardProps {
-  data?: ReferralEngineData;
-  organizationId?: number | null;
-  locationId?: number | null;
-  hideHeader?: boolean;
-}
-
-interface PMSTrendMonth {
-  month: string;
-  year: number;
-  selfReferrals: number;
-  doctorReferrals: number;
-  total: number;
-}
-
-// ============================================================================
-// UTILITY FUNCTIONS
-// ============================================================================
-
-const formatCurrency = (value: number | null | undefined): string => {
-  if (value === null || value === undefined) return "N/A";
-  return `$${value.toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })}`;
-};
-
-// ============================================================================
-// HELPER COMPONENTS - matches newdesign exactly
-// ============================================================================
-
-const MetricCard = ({
-  label,
-  value,
-  trend,
-  isHighlighted,
-}: {
-  label: string;
-  value: string;
-  trend?: string;
-  isHighlighted?: boolean;
-}) => {
-  const isUp = trend?.startsWith("+");
-  const isDown = trend?.startsWith("-");
-
-  return (
-    <div
-      className={`flex flex-col p-6 rounded-2xl border transition-all duration-500 ${
-        isHighlighted
-          ? "bg-white border-alloro-orange/20 shadow-premium"
-          : "bg-white border-black/5 hover:border-alloro-orange/20 hover:shadow-premium"
-      }`}
-    >
-      <span className="text-[10px] font-black text-alloro-textDark/40 uppercase tracking-[0.2em] mb-4 leading-none text-left">
-        {label}
-      </span>
-      <div className="flex items-center justify-between">
-        <span className="text-3xl font-black font-sans tracking-tighter leading-none text-alloro-navy">
-          {value}
-        </span>
-        {trend && (
-          <span
-            className={`text-[11px] font-black px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-sm ${
-              isUp
-                ? "bg-green-100 text-green-700"
-                : isDown
-                ? "bg-red-100 text-red-700"
-                : "bg-slate-100 text-slate-600"
-            }`}
-          >
-            {trend}{" "}
-            {isUp ? (
-              <ArrowUpRight size={10} />
-            ) : isDown ? (
-              <TrendingDown size={10} />
-            ) : null}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-};
-
-const CompactTag = ({ status }: { status: string }) => {
-  const styles: Record<string, string> = {
-    Marketing: "text-alloro-orange bg-alloro-orange/5 border-alloro-orange/10",
-    Doctor: "text-alloro-navy bg-slate-100 border-slate-200",
-    Insurance: "text-green-600 bg-green-50 border-green-100",
-    digital: "text-alloro-orange bg-alloro-orange/5 border-alloro-orange/10",
-    patient: "text-green-600 bg-green-50 border-green-100",
-    other: "text-alloro-navy bg-slate-100 border-slate-200",
-  };
-  return (
-    <span
-      className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider border leading-none mt-1 w-fit ${
-        styles[status] || styles["Doctor"]
-      }`}
-    >
-      {status}
-    </span>
-  );
-};
+import type {
+  ReferralEngineData,
+  ReferralEngineDashboardProps,
+  PMSTrendMonth,
+} from "./referralEngineDashboard.types";
+import { formatCurrency } from "./referralEngineDashboard.utils";
+import { MetricCard } from "./ReferralEngineDashboard/MetricCard";
+import { CompactTag } from "./ReferralEngineDashboard/CompactTag";
+import { LoadingState } from "./ReferralEngineDashboard/LoadingState";
+import { ErrorState } from "./ReferralEngineDashboard/ErrorState";
 
 // ============================================================================
 // MAIN COMPONENT: Revenue Attribution Dashboard
@@ -548,44 +385,12 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
 
   // Show loading state
   if (loading) {
-    return (
-      <div className="min-h-screen bg-alloro-bg font-body text-alloro-textDark pb-32">
-        <div className="max-w-[1400px] mx-auto relative flex flex-col">
-          <div className="flex items-center justify-center py-32">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-alloro-orange mx-auto mb-4"></div>
-              <p className="text-slate-500 font-bold">
-                Loading revenue attribution data...
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <LoadingState />;
   }
 
   // Show error state
   if (error) {
-    return (
-      <div className="min-h-screen bg-alloro-bg font-body text-alloro-textDark pb-32">
-        <div className="max-w-[1400px] mx-auto relative flex flex-col">
-          <div className="py-32 px-6">
-            <div className="bg-red-50 border border-red-200 rounded-2xl p-10 text-center max-w-lg mx-auto">
-              <p className="text-red-600 font-black text-lg mb-2">
-                Failed to load data
-              </p>
-              <p className="text-red-500 text-sm mb-6">{error}</p>
-              <button
-                onClick={() => window.location.reload()}
-                className="px-6 py-3 bg-red-600 text-white rounded-xl font-black text-sm uppercase tracking-widest hover:bg-red-700 transition-colors"
-              >
-                Retry
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <ErrorState error={error} />;
   }
 
   return (
