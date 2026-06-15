@@ -115,18 +115,14 @@ function SafeMarkdown({ body, mentionNames }: SafeMarkdownProps) {
           // Replace sentinel-wrapped mentions with a styled span. We run
           // the substitution per text node so mentions inside paragraphs,
           // list items, etc. all get highlighted without injecting HTML.
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          p: ({ children, ...props }: any) => (
-            <p {...props}>{renderWithMentions(children)}</p>
+          p: ({ children }: React.HTMLAttributes<HTMLParagraphElement>) => (
+            <p>{renderWithMentions(children)}</p>
           ),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          li: ({ children, ...props }: any) => (
-            <li {...props}>{renderWithMentions(children)}</li>
+          li: ({ children }: React.HTMLAttributes<HTMLLIElement>) => (
+            <li>{renderWithMentions(children)}</li>
           ),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          a: ({ children, href, ...props }: any) => (
+          a: ({ children, href }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
             <a
-              {...props}
               href={href}
               target="_blank"
               rel="noopener noreferrer"
@@ -170,8 +166,7 @@ function SafeMarkdown({ body, mentionNames }: SafeMarkdownProps) {
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function renderWithMentions(children: any): any {
+function renderWithMentions(children: React.ReactNode): React.ReactNode {
   if (typeof children === "string") {
     return substituteMentions(children);
   }

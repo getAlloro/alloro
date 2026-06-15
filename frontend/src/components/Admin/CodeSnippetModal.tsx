@@ -11,6 +11,7 @@ import {
   updateProjectCodeSnippet,
 } from "../../api/codeSnippets";
 import type { WebsitePage } from "../../api/websites";
+import { getErrorMessage } from "../../lib/errorMessage";
 
 interface CodeSnippetModalProps {
   templateId?: string;
@@ -97,8 +98,8 @@ export default function CodeSnippetModal({
       }
 
       onSuccess();
-    } catch (err: any) {
-      setError(err.message || "Failed to save code snippet");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || "Failed to save code snippet");
     } finally {
       setSaving(false);
     }

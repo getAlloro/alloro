@@ -29,6 +29,8 @@ import {
   type AdminBillingDetails,
 } from "../../api/admin-organizations";
 import { fetchWebsites, linkWebsiteToOrganization } from "../../api/websites";
+import { isAxiosError } from "axios";
+import { getErrorMessage } from "../../lib/errorMessage";
 
 interface OrgSubscriptionSectionProps {
   org: AdminOrganizationDetail;
@@ -107,10 +109,10 @@ export function OrgSubscriptionSection({
       } else {
         toast.error((response as any).error || "Failed to create project");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       const message =
-        error?.response?.data?.error ||
-        error?.message ||
+        (isAxiosError(error) ? error.response?.data?.error : undefined) ||
+        getErrorMessage(error) ||
         "Failed to create project";
       toast.error(message);
     } finally {
@@ -125,8 +127,8 @@ export function OrgSubscriptionSection({
       await linkWebsiteToOrganization(websiteId, orgId);
       toast.success("Website attached to organization");
       await onRefresh();
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to attach website");
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error) || "Failed to attach website");
     } finally {
       setIsAttaching(false);
     }
@@ -153,10 +155,10 @@ export function OrgSubscriptionSection({
           (response as any).error || "Failed to remove payment method",
         );
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       const message =
-        error?.response?.data?.error ||
-        error?.message ||
+        (isAxiosError(error) ? error.response?.data?.error : undefined) ||
+        getErrorMessage(error) ||
         "Failed to remove payment method";
       toast.error(message);
     } finally {
@@ -220,10 +222,10 @@ export function OrgSubscriptionSection({
       } else {
         toast.error((response as any).error || "Failed to set organization type");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       const message =
-        error?.response?.data?.error ||
-        error?.message ||
+        (isAxiosError(error) ? error.response?.data?.error : undefined) ||
+        getErrorMessage(error) ||
         "Failed to set organization type";
       toast.error(message);
     } finally {

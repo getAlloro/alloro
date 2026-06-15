@@ -11,10 +11,16 @@ import { logger } from "../../lib/logger";
 const RANGES = ["7d", "4w", "3m"] as const;
 type Range = typeof RANGES[number];
 
-function CustomTooltip({ active, payload, label }: any) {
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: Array<{ dataKey: string; value: number }>;
+  label?: string;
+}
+
+function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
   if (!active || !payload?.length) return null;
-  const completed = payload.find((p: any) => p.dataKey === "completed")?.value ?? 0;
-  const overdue = payload.find((p: any) => p.dataKey === "overdue")?.value ?? 0;
+  const completed = payload.find((p) => p.dataKey === "completed")?.value ?? 0;
+  const overdue = payload.find((p) => p.dataKey === "overdue")?.value ?? 0;
 
   return (
     <div className="rounded-lg px-3 py-2" style={{ backgroundColor: "var(--color-pm-bg-tertiary)", border: "1px solid var(--color-pm-border)", boxShadow: "var(--pm-shadow-elevated)" }}>

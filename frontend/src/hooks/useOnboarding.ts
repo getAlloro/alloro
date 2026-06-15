@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import onboarding from "../api/onboarding";
 import { createCheckoutSession } from "../api/billing";
 import { logger } from "../lib/logger";
+import { getErrorMessage } from "../lib/errorMessage";
 
 interface GBPSelection {
   accountId: string;
@@ -87,9 +88,9 @@ export const useOnboarding = (initialStep: number = 1) => {
       } else {
         throw new Error(response.errorMessage || response.message || "Failed to save profile");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error("[Onboarding] Error saving profile:", err);
-      setError(err.message || "Failed to save profile");
+      setError(getErrorMessage(err) || "Failed to save profile");
       return null;
     } finally {
       setIsSavingProfile(false);
@@ -113,9 +114,9 @@ export const useOnboarding = (initialStep: number = 1) => {
       } else {
         throw new Error(response.message || "Failed to complete onboarding");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error("[Onboarding] Error completing onboarding:", err);
-      setError(err.message || "Failed to complete onboarding");
+      setError(getErrorMessage(err) || "Failed to complete onboarding");
       return false;
     } finally {
       setIsLoading(false);
@@ -142,9 +143,9 @@ export const useOnboarding = (initialStep: number = 1) => {
           response.error || "Failed to create checkout session"
         );
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error("[Onboarding] Checkout error:", err);
-      setError(err.message || "Failed to start checkout");
+      setError(getErrorMessage(err) || "Failed to start checkout");
       setIsCheckoutProcessing(false);
     }
     // Note: no finally — if redirect succeeds, we never return here

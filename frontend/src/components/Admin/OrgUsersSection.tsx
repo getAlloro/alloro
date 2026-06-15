@@ -9,6 +9,8 @@ import {
   Copy,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { isAxiosError } from "axios";
+import { getErrorMessage } from "../../lib/errorMessage";
 import {
   adminStartPilotSession,
   adminSetUserPassword,
@@ -64,10 +66,10 @@ export function OrgUsersSection({
         toast.success(response.message);
         await onRefresh();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       const message =
-        error?.response?.data?.error ||
-        error?.message ||
+        (isAxiosError(error) ? error.response?.data?.error : undefined) ||
+        getErrorMessage(error) ||
         "Failed to set password";
       toast.error(message);
     } finally {
@@ -108,7 +110,7 @@ export function OrgUsersSection({
     } catch (error) {
       toast.dismiss();
       const message =
-        error instanceof Error ? error.message : "Unknown error";
+        error instanceof Error ? getErrorMessage(error) : "Unknown error";
       toast.error(`Pilot failed: ${message}`);
     }
   };

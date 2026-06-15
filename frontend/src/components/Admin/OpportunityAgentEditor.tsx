@@ -112,7 +112,7 @@ export function OpportunityAgentEditor({
                   #{index + 1}
                 </span>
                 <textarea
-                  value={typeof step === "string" ? step : (step as any)?.step || ""}
+                  value={typeof step === "string" ? step : String((step as Record<string, unknown>)?.step ?? "")}
                   onChange={(e) => handleUpdateStep(index, e.target.value)}
                   disabled={isReadOnly}
                   rows={2}

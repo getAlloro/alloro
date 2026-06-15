@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import type { DynamicSlotDef, BlockCheckResult } from "../../api/websites";
 import { testUrl } from "../../api/websites";
+import { getErrorMessage } from "../../lib/errorMessage";
 
 // Special slot value markers the backend recognizes:
 //   "__generate__" → "AI, write this for me based on identity"
@@ -207,12 +208,12 @@ function UrlSlotInput({
       setResult(null);
       const res = await testUrl(projectId, value.trim());
       setResult(res.data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setResult({
         ok: false,
         block_type: "unknown",
         status: null,
-        detail: err?.message || "Test failed",
+        detail: getErrorMessage(err) || "Test failed",
         detected_signals: [],
       });
     } finally {

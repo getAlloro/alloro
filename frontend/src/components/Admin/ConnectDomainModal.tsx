@@ -11,6 +11,7 @@ import {
   Unlink,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { getErrorMessage } from "../../lib/errorMessage";
 
 interface ConnectDomainModalProps {
   isOpen: boolean;
@@ -62,8 +63,8 @@ export default function ConnectDomainModal({
       setServerIp(result.server_ip);
       toast.success("Domain connected. Now update your DNS.");
       await onDomainChange();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to connect domain");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || "Failed to connect domain");
     } finally {
       setConnecting(false);
     }
@@ -81,8 +82,8 @@ export default function ConnectDomainModal({
       } else {
         toast.error("DNS not pointing to the correct IP yet. Try again in a few minutes.");
       }
-    } catch (err: any) {
-      toast.error(err.message || "Verification failed");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || "Verification failed");
     } finally {
       setVerifying(false);
     }
@@ -110,8 +111,8 @@ export default function ConnectDomainModal({
       stopAutoVerify();
       toast.success("Domain disconnected");
       onDomainChange();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to disconnect");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || "Failed to disconnect");
     } finally {
       setDisconnecting(false);
     }

@@ -227,7 +227,7 @@ export async function sendChatMessageStream(
   message: string,
   conversationId?: string
 ): Promise<Response> {
-  const api = (import.meta as any)?.env?.VITE_API_URL ?? "/api";
+  const api = import.meta.env.VITE_API_URL ?? "/api";
 
   // Replicate auth header logic from getCommonHeaders
   const isPilot =
@@ -692,7 +692,7 @@ export async function sendSkillBuilderChatStream(
   messages: SkillBuilderMessage[],
   resolvedFields: ResolvedFields,
 ): Promise<Response> {
-  const api = (import.meta as any)?.env?.VITE_API_URL ?? "/api";
+  const api = import.meta.env.VITE_API_URL ?? "/api";
 
   const isPilot =
     typeof window !== "undefined" &&
@@ -1007,7 +1007,7 @@ export async function sendParentingChatStream(
   sessionId: string,
   message: string
 ): Promise<Response> {
-  const api = (import.meta as any)?.env?.VITE_API_URL ?? "/api";
+  const api = import.meta.env.VITE_API_URL ?? "/api";
 
   const isPilot =
     typeof window !== "undefined" &&
@@ -1040,7 +1040,7 @@ export async function triggerParentingReadingStream(
   mindId: string,
   sessionId: string
 ): Promise<Response> {
-  const api = (import.meta as any)?.env?.VITE_API_URL ?? "/api";
+  const api = import.meta.env.VITE_API_URL ?? "/api";
 
   const isPilot =
     typeof window !== "undefined" &&
@@ -1211,7 +1211,7 @@ export async function sendSkillUpgradeChatStream(
   sessionId: string,
   message: string
 ): Promise<Response> {
-  const api = (import.meta as any)?.env?.VITE_API_URL ?? "/api";
+  const api = import.meta.env.VITE_API_URL ?? "/api";
 
   const isPilot =
     typeof window !== "undefined" &&
@@ -1245,7 +1245,7 @@ export async function triggerSkillUpgradeReadingStream(
   skillId: string,
   sessionId: string
 ): Promise<Response> {
-  const api = (import.meta as any)?.env?.VITE_API_URL ?? "/api";
+  const api = import.meta.env.VITE_API_URL ?? "/api";
 
   const isPilot =
     typeof window !== "undefined" &&

@@ -24,6 +24,7 @@ import { useConfirm } from "../ui/ConfirmModal";
 import { renderPage } from "../../utils/templateRenderer";
 import { prepareHtmlForPreview } from "../../hooks/useIframeSelector";
 import { logger } from "../../lib/logger";
+import { getErrorMessage } from "../../lib/errorMessage";
 
 const DEFAULT_MENU_TEMPLATE_HTML = `<style>
 .site-nav { font-family: inherit; }
@@ -312,9 +313,9 @@ export default function MenuTemplatesTab({
       }
       closeEditor();
       await loadData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error("Save failed:", err);
-      alert(err.message || "Failed to save menu template");
+      alert(getErrorMessage(err) || "Failed to save menu template");
     } finally {
       setSaving(false);
     }

@@ -4,6 +4,7 @@ import {
   Plus,
   Trash2,
   Pencil,
+  Copy,
   Tag,
   FolderTree,
   Loader2,
@@ -37,6 +38,7 @@ import {
   createPost as defaultCreatePost,
   updatePost as defaultUpdatePost,
   deletePost as defaultDeletePost,
+  duplicatePost as defaultDuplicatePost,
   fetchPostTypes as defaultFetchPostTypes,
   fetchCategories as defaultFetchCategories,
   fetchTags as defaultFetchTags,
@@ -48,6 +50,7 @@ import { ActionButton } from "../ui/DesignSystem";
 import { useConfirm } from "../ui/ConfirmModal";
 import { useBulkSeoProgress } from "../../hooks/useBulkSeoProgress";
 import { logger } from "../../lib/logger";
+import { getErrorMessage } from "../../lib/errorMessage";
 
 /** Compute a quick SEO score from seo_data alone (no wrapper/uniqueness) */
 function quickPostSeoScore(seoData: SeoData | null): {
@@ -85,11 +88,11 @@ function quickPostSeoScore(seoData: SeoData | null): {
   if (maxPreview === "large") score += 4;
 
   // Significant (22)
-  if (Array.isArray(schema) && schema.some((s: any) => s["@type"] === "LocalBusiness")) score += 6;
-  if (Array.isArray(schema) && schema.some((s: any) => s["@type"] === "FAQPage")) score += 5;
-  if (Array.isArray(schema) && schema.some((s: any) => s["@type"] === "Organization")) score += 4;
-  if (Array.isArray(schema) && schema.some((s: any) => s["@type"] === "Service")) score += 4;
-  if (Array.isArray(schema) && schema.some((s: any) => s["@type"] === "BreadcrumbList")) score += 3;
+  if (Array.isArray(schema) && schema.some((s: Record<string, unknown>) => s["@type"] === "LocalBusiness")) score += 6;
+  if (Array.isArray(schema) && schema.some((s: Record<string, unknown>) => s["@type"] === "FAQPage")) score += 5;
+  if (Array.isArray(schema) && schema.some((s: Record<string, unknown>) => s["@type"] === "Organization")) score += 4;
+  if (Array.isArray(schema) && schema.some((s: Record<string, unknown>) => s["@type"] === "Service")) score += 4;
+  if (Array.isArray(schema) && schema.some((s: Record<string, unknown>) => s["@type"] === "BreadcrumbList")) score += 3;
 
   // Moderate (13)
   if (ogImage.length > 0) score += 8;
@@ -291,6 +294,7 @@ interface PostsTabProps {
   createPostFn?: typeof defaultCreatePost;
   updatePostFn?: typeof defaultUpdatePost;
   deletePostFn?: typeof defaultDeletePost;
+  duplicatePostFn?: typeof defaultDuplicatePost;
   fetchPostTypesFn?: typeof defaultFetchPostTypes;
   fetchCategoriesFn?: typeof defaultFetchCategories;
   fetchTagsFn?: typeof defaultFetchTags;
@@ -310,6 +314,7 @@ export default function PostsTab({
   createPostFn = defaultCreatePost,
   updatePostFn = defaultUpdatePost,
   deletePostFn = defaultDeletePost,
+  duplicatePostFn = defaultDuplicatePost,
   fetchPostTypesFn = defaultFetchPostTypes,
   fetchCategoriesFn = defaultFetchCategories,
   fetchTagsFn = defaultFetchTags,
@@ -384,8 +389,8 @@ export default function PostsTab({
     try {
       await ensureIdentityLoaded();
       setImportModalOpen(true);
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to load identity");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || "Failed to load identity");
     }
   };
 
@@ -407,7 +412,7 @@ export default function PostsTab({
         setSelectedTypeId(typesRes.data[0].id);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load");
+      setError(err instanceof Error ? getErrorMessage(err) : "Failed to load");
     } finally {
       setInitialLoading(false);
     }
@@ -508,7 +513,7 @@ export default function PostsTab({
       setView("list");
       await loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save");
+      setError(err instanceof Error ? getErrorMessage(err) : "Failed to save");
     } finally {
       setSaving(false);
     }
@@ -528,6 +533,16 @@ export default function PostsTab({
       setView("list");
     }
     await loadData();
+  };
+
+  const handleDuplicate = async (post: Post) => {
+    try {
+      await duplicatePostFn(projectId, post.id);
+      toast.success(`Duplicated "${post.title}"`);
+      await loadData();
+    } catch (err) {
+      toast.error(err instanceof Error ? getErrorMessage(err) : "Failed to duplicate post");
+    }
   };
 
   const handleAddCategory = async () => {
@@ -884,6 +899,13 @@ export default function PostsTab({
                       <Pencil className="w-4 h-4" />
                     </button>
                     <button
+                      onClick={() => handleDuplicate(post)}
+                      className="p-2 text-gray-400 hover:text-alloro-orange rounded-lg hover:bg-orange-50"
+                      title="Duplicate"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                    <button
                       onClick={() => handleDelete(post)}
                       className="p-2 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50"
                     >
@@ -1073,8 +1095,8 @@ export default function PostsTab({
                           setFormContent(res.data.content);
                           setShowAiGenerate(false);
                           toast.success("Content generated");
-                        } catch (err: any) {
-                          toast.error(err.message || "Failed to generate content");
+                        } catch (err: unknown) {
+                          toast.error(getErrorMessage(err) || "Failed to generate content");
                         } finally {
                           setAiGenerating(false);
                         }

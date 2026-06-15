@@ -43,6 +43,8 @@ import {
   type PostImportResultSummary,
 } from "../../api/websites";
 import { showSuccessToast, showErrorToast, showInfoToast } from "../../lib/toast";
+import { logger } from "../../lib/logger";
+import { getErrorMessage } from "../../lib/errorMessage";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -57,7 +59,6 @@ export interface ImportFromIdentityModalProps {
   /**
    * Set of `source_url` values already attached to existing posts of this
    * post type. Used to flip rows from "checkbox" to "overwrite toggle".
-import { logger } from "../../lib/logger";
    * For locations the `place_id` is the dedup key (it's stored in source_url).
    */
   existingSourceUrls: Set<string>;
@@ -341,13 +342,13 @@ export default function ImportFromIdentityModal({
               );
             }
           }
-        } catch (err: any) {
+        } catch (err: unknown) {
           // A transient poll failure shouldn't kill the whole flow — log it.
           logger.error("[ImportFromIdentityModal] poll error", err);
         }
       }, POLL_INTERVAL_MS);
-    } catch (err: any) {
-      const msg = err?.message || "Failed to start import";
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err) || "Failed to start import";
       showErrorToast("Import failed to start", msg);
     }
   };
@@ -396,8 +397,8 @@ export default function ImportFromIdentityModal({
           );
         }
       }
-    } catch (err: any) {
-      showErrorToast("Retry failed", err?.message || "Unknown error");
+    } catch (err: unknown) {
+      showErrorToast("Retry failed", getErrorMessage(err) || "Unknown error");
     } finally {
       setRetrying((m) => ({ ...m, [entry.key]: false }));
     }

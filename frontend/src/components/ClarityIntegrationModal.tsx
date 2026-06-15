@@ -15,7 +15,7 @@ interface BaseIntegrationModalProps {
   clientId: string;
   onSuccess?: () => void;
   ready?: boolean;
-  session?: any;
+  session?: unknown;
 }
 
 // Microsoft Clarity Integration Modal

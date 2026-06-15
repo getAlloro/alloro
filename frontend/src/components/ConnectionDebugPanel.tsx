@@ -33,6 +33,21 @@ const ConnectionTester = {
   }),
 };
 
+interface TestResultItem {
+  name: string;
+  success: boolean;
+  message: string;
+  duration: number;
+  data?: object;
+}
+
+interface TestResults {
+  passed: number;
+  failed: number;
+  total: number;
+  results: TestResultItem[];
+}
+
 interface ConnectionDebugPanelProps {
   isVisible: boolean;
   onClose: () => void;
@@ -42,7 +57,7 @@ export const ConnectionDebugPanel: React.FC<ConnectionDebugPanelProps> = ({
   isVisible,
   onClose,
 }) => {
-  const [testResults, setTestResults] = useState<any>(null);
+  const [testResults, setTestResults] = useState<TestResults | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [quickIssues, setQuickIssues] = useState<string[]>([]);
 
@@ -175,7 +190,7 @@ export const ConnectionDebugPanel: React.FC<ConnectionDebugPanelProps> = ({
                 </div>
 
                 <div className="space-y-2">
-                  {testResults.results.map((result: any, index: number) => (
+                  {testResults.results.map((result, index) => (
                     <div
                       key={index}
                       className={`p-4 rounded-lg border ${

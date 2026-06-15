@@ -39,7 +39,7 @@ export function TaskDetailPanel({ task, onClose, isBacklog }: TaskDetailPanelPro
   const prevColumnIdRef = useRef<string | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState<string>("P3");
+  const [priority, setPriority] = useState<"P1" | "P2" | "P3" | "P4" | "P5">("P3");
   const [deadline, setDeadline] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [assignedTo, setAssignedTo] = useState<number | null>(null);
@@ -106,19 +106,19 @@ export function TaskDetailPanel({ task, onClose, isBacklog }: TaskDetailPanelPro
 
   const handleDescriptionBlur = () => {
     if (description !== (task.description || "")) {
-      updateTask(task.id, { description: description || null } as any);
+      updateTask(task.id, { description: description || null });
     }
   };
 
-  const handlePriorityChange = (p: string) => {
+  const handlePriorityChange = (p: "P1" | "P2" | "P3" | "P4" | "P5") => {
     setPriority(p);
     // Auto-set deadline to today for P1/P2 if no deadline
     if (["P1", "P2"].includes(p) && !deadline) {
       const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
       setDeadline(today);
-      updateTask(task.id, { priority: p, deadline: endOfDayPST(today) } as any);
+      updateTask(task.id, { priority: p, deadline: endOfDayPST(today) });
     } else {
-      updateTask(task.id, { priority: p } as any);
+      updateTask(task.id, { priority: p });
     }
   };
 
@@ -126,7 +126,7 @@ export function TaskDetailPanel({ task, onClose, isBacklog }: TaskDetailPanelPro
     setDeadline(value);
     updateTask(task.id, {
       deadline: value ? endOfDayPST(value) : null,
-    } as any);
+    });
   };
 
   const handleAssignChange = (userId: number | null) => {
@@ -279,7 +279,7 @@ export function TaskDetailPanel({ task, onClose, isBacklog }: TaskDetailPanelPro
                               : "text-pm-text-muted hover:bg-pm-bg-hover"
                           }`}
                         >
-                          <PriorityTriangle priority={p.value as any} size={12} />
+                          <PriorityTriangle priority={p.value} size={12} />
                           {p.label}
                         </button>
                       ))}

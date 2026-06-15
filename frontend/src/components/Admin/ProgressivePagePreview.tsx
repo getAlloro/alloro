@@ -6,6 +6,7 @@ import {
 } from "../../api/websites";
 import { renderPage } from "../../utils/templateRenderer";
 import { prepareHtmlForPreview } from "../../hooks/useIframeSelector";
+import { getErrorMessage } from "../../lib/errorMessage";
 
 interface ProgressivePagePreviewProps {
   projectId: string;
@@ -68,9 +69,9 @@ export default function ProgressivePagePreview({
         ) {
           timer = setTimeout(tick, pollMs);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (cancelled) return;
-        setError(err?.message || "Failed to load page state");
+        setError(getErrorMessage(err) || "Failed to load page state");
         timer = setTimeout(tick, pollMs * 2);
       }
     };

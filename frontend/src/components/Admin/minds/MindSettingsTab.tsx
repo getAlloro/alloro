@@ -21,6 +21,7 @@ import {
 import { toast } from "react-hot-toast";
 import { useConfirm } from "../../ui/ConfirmModal";
 import { ActionButton } from "../../ui/DesignSystem";
+import { getErrorMessage } from "../../../lib/errorMessage";
 import {
   updateMind,
   updateBrain,
@@ -305,8 +306,8 @@ export function MindSettingsTab({ mind, onMindUpdated, onMindDeleted }: MindSett
       } else {
         toast.error("Failed to delete mind");
       }
-    } catch (err: any) {
-      toast.error(err.message || "Failed to delete mind");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || "Failed to delete mind");
     } finally {
       setDeletingMind(false);
     }
@@ -318,7 +319,7 @@ export function MindSettingsTab({ mind, onMindUpdated, onMindDeleted }: MindSett
       available_work_types: workTypes,
       available_publish_targets: publishTargets,
       rejection_categories: rejectionCats,
-    } as any);
+    });
     if (result) {
       toast.success("Pipeline config saved");
       onMindUpdated();

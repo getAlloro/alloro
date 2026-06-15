@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { X, Plus, Mail, Users, Loader2 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { fetchRecipients, updateRecipients } from "../../api/websites";
+import { getErrorMessage } from "../../lib/errorMessage";
 
 interface Props {
   projectId: string;
@@ -42,8 +43,8 @@ export default function RecipientsConfig({ projectId, fetchRecipientsFn, updateR
       await updateFn(projectId, updated);
       setRecipients(updated);
       toast.success("Recipients updated");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to save");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || "Failed to save");
     } finally {
       setSaving(false);
     }

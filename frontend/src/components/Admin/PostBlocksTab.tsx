@@ -345,13 +345,13 @@ export default function PostBlocksTab({
 
   const openSchemaEditor = (pt: PostType) => {
     const fields: SchemaField[] = Array.isArray(pt.schema)
-      ? pt.schema.map((f: any) => ({
-          name: f.name || "",
-          slug: f.slug || "",
-          type: f.type || "text",
+      ? pt.schema.map((f: Record<string, unknown>) => ({
+          name: String(f.name ?? ""),
+          slug: String(f.slug ?? ""),
+          type: String(f.type ?? "text"),
           required: !!f.required,
-          default_value: f.default_value ?? null,
-          options: f.options,
+          default_value: f.default_value != null ? f.default_value : null,
+          options: Array.isArray(f.options) ? (f.options as string[]) : undefined,
         }))
       : [];
     setSchemaFields(fields);

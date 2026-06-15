@@ -99,13 +99,13 @@ export const PropertiesTab: React.FC = () => {
     await fetchAvailableGBP();
   };
 
-  const handleGBPSelected = async (item: any) => {
+  const handleGBPSelected = async (item: { accountId?: string; locationId?: string; name: string }) => {
     if (!gbpTargetLocationId) return;
     setIsSaving(true);
     try {
       await updateLocationGBP(gbpTargetLocationId, {
-        accountId: item.accountId,
-        locationId: item.locationId,
+        accountId: item.accountId ?? "",
+        locationId: item.locationId ?? "",
         displayName: item.name,
       });
       setGbpModalOpen(false);
@@ -133,14 +133,14 @@ export const PropertiesTab: React.FC = () => {
     await fetchAvailableGBP();
   };
 
-  const handleAddGBPSelected = async (item: any) => {
+  const handleAddGBPSelected = async (item: { accountId?: string; locationId?: string; name: string }) => {
     setIsSaving(true);
     try {
       await createLocation({
         name: newLocationName.trim(),
         gbp: {
-          accountId: item.accountId,
-          locationId: item.locationId,
+          accountId: item.accountId ?? "",
+          locationId: item.locationId ?? "",
           displayName: item.name,
         },
       });

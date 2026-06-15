@@ -4,6 +4,7 @@ import { toast } from "react-hot-toast";
 import { apiGet } from "../api";
 import { WebsiteLoadingSkeleton } from "./website/WebsiteLoadingSkeleton";
 import { logger } from "../lib/logger";
+import { isAxiosError } from "axios";
 
 interface DFYRouteProps {
   children: React.ReactNode;
@@ -29,8 +30,8 @@ export function DFYRoute({ children }: DFYRouteProps) {
       try {
         await apiGet({ path: "/user/website" });
         setHasDFY(true);
-      } catch (error: any) {
-        const status = error?.response?.status;
+      } catch (error: unknown) {
+        const status = isAxiosError(error) ? error.response?.status : undefined;
         if (status === 403) {
           toast.error("Website project is not available yet");
         } else {

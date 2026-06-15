@@ -716,7 +716,7 @@ export default function AiCommandTab({ projectId, pages = [], onExecutionComplet
 
 function BatchTypeBadge({ targets }: { targets: AiCommandTargets | string }) {
   const parsed = typeof targets === "string" ? JSON.parse(targets) : targets;
-  const type = (parsed as any)?.type || "ai_editor";
+  const type = (parsed as { type?: string })?.type || "ai_editor";
   const map: Record<string, { label: string; color: string }> = {
     ai_editor: { label: "AI Editor", color: "bg-alloro-orange/10 text-alloro-orange" },
     ui_checker: { label: "UI Check", color: "bg-purple-50 text-purple-600" },

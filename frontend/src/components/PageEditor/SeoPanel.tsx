@@ -124,11 +124,11 @@ function calculateScores(
       max: 22,
       score: 0,
       items: [
-        { id: 11, label: "LocalBusiness schema", points: 6, passed: schema.some((s: any) => s["@type"] === "LocalBusiness") },
-        { id: 12, label: "FAQ schema", points: 5, passed: schema.some((s: any) => s["@type"] === "FAQPage") },
-        { id: 13, label: "Organization schema", points: 4, passed: schema.some((s: any) => s["@type"] === "Organization") },
-        { id: 14, label: "Service schema", points: 4, passed: schema.some((s: any) => s["@type"] === "Service") },
-        { id: 15, label: "Breadcrumb schema", points: 3, passed: schema.some((s: any) => s["@type"] === "BreadcrumbList") },
+        { id: 11, label: "LocalBusiness schema", points: 6, passed: schema.some((s: Record<string, unknown>) => s["@type"] === "LocalBusiness") },
+        { id: 12, label: "FAQ schema", points: 5, passed: schema.some((s: Record<string, unknown>) => s["@type"] === "FAQPage") },
+        { id: 13, label: "Organization schema", points: 4, passed: schema.some((s: Record<string, unknown>) => s["@type"] === "Organization") },
+        { id: 14, label: "Service schema", points: 4, passed: schema.some((s: Record<string, unknown>) => s["@type"] === "Service") },
+        { id: 15, label: "Breadcrumb schema", points: 3, passed: schema.some((s: Record<string, unknown>) => s["@type"] === "BreadcrumbList") },
       ],
     },
     {
@@ -471,7 +471,7 @@ export default function SeoPanel({
   const pct = Math.round((totalScore / totalMax) * 100);
   const currentSection = scores.find((s) => s.key === activeSection) || scores[0];
   const isWrapperLevel = activeSection === "low" || activeSection === "negligible";
-  const isGeneratable = GENERATABLE_SECTIONS.includes(activeSection as any);
+  const isGeneratable = (GENERATABLE_SECTIONS as string[]).includes(activeSection);
   const currentInsight = sectionInsights[activeSection];
   const isBusy = isGenerating || isAnalyzing;
 

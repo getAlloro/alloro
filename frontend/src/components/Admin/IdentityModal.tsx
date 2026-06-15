@@ -58,6 +58,7 @@ import MonacoJsonEditor from "./MonacoJsonEditor";
 import RerunWarmupDialog from "./RerunWarmupDialog";
 import { useConfirm } from "../ui/ConfirmModal";
 import { showSuccessToast, showErrorToast } from "../../lib/toast";
+import { getErrorMessage } from "../../lib/errorMessage";
 
 type IdentityTab =
   | "summary"
@@ -290,9 +291,9 @@ export default function IdentityModal({
         if (res.data?.brand?.gradient_enabled) {
           setGradientEnabled(true);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!isMountedRef.current) return;
-        setError(err?.message || "Failed to load identity");
+        setError(getErrorMessage(err) || "Failed to load identity");
       } finally {
         if (isMountedRef.current) setLoading(false);
       }
@@ -422,7 +423,7 @@ export default function IdentityModal({
             : u,
         ),
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       setUrlInputs((prev) =>
         prev.map((u) =>
           u.id === id
@@ -433,7 +434,7 @@ export default function IdentityModal({
                   ok: false,
                   block_type: "unknown",
                   status: null,
-                  detail: err?.message || "Test failed",
+                  detail: getErrorMessage(err) || "Test failed",
                   detected_signals: [],
                 },
               }
@@ -572,8 +573,8 @@ export default function IdentityModal({
 
       await startIdentityWarmup(projectId, inputs);
       setWarmupStatus("queued");
-    } catch (err: any) {
-      setError(err?.message || "Failed to start warmup");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || "Failed to start warmup");
     } finally {
       setSubmitting(false);
     }
@@ -756,8 +757,8 @@ export default function IdentityModal({
     try {
       await cancelGeneration(projectId);
       setWarmupStatus("failed");
-    } catch (err: any) {
-      setError(err?.message || "Failed to cancel");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || "Failed to cancel");
     }
   };
 
@@ -787,8 +788,8 @@ export default function IdentityModal({
       setIdentity(res.data);
       onIdentityChanged?.(res.data);
       setToast({ type: "success", text: "Identity saved." });
-    } catch (err: any) {
-      setJsonError(err?.message || "Save failed");
+    } catch (err: unknown) {
+      setJsonError(getErrorMessage(err) || "Save failed");
     } finally {
       setSavingJson(false);
     }
@@ -1827,7 +1828,7 @@ function IdentitySummary({
   const br = identity.brand;
   const v = identity.voice_and_tone;
   const ce = identity.content_essentials;
-  const hoursRows = normalizeHours((b as any)?.hours);
+  const hoursRows = normalizeHours(b?.hours);
 
   return (
     <div className="space-y-4">
@@ -1936,8 +1937,8 @@ function BrandEditableSection({
         gradient_preset: gradient.enabled ? gradient.preset : null,
       });
       setEditing(false);
-    } catch (err: any) {
-      setError(err?.message || "Failed to save");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || "Failed to save");
     } finally {
       setSaving(false);
     }
@@ -2546,8 +2547,8 @@ function IdentityListTab({
         `${list[0].toUpperCase() + list.slice(1)} re-synced`,
         `${res.data.refreshed_count} fresh, ${res.data.stale_count} stale.`,
       );
-    } catch (err: any) {
-      const msg = err?.message || "Re-sync failed";
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err) || "Re-sync failed";
       setError(msg);
       showErrorToast("Re-sync failed", msg);
     } finally {
@@ -2568,8 +2569,8 @@ function IdentityListTab({
         Array.isArray(rawList) ? (rawList as ProjectIdentityListEntry[]) : [],
       );
       onToast({ type: "success", text: `${list[0].toUpperCase() + list.slice(1)} updated.` });
-    } catch (err: any) {
-      const msg = err?.message || "Save failed";
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err) || "Save failed";
       setError(msg);
       onToast({ type: "error", text: msg });
       throw err;
@@ -2878,8 +2879,8 @@ function IdentityListRowEditor({
     if (urlDraft.trim()) {
       try {
         mergedUrl = validateUrlOrThrow(urlDraft, "Source URL");
-      } catch (e: any) {
-        setErr(e.message);
+      } catch (e: unknown) {
+        setErr(getErrorMessage(e));
         return;
       }
     }
@@ -3012,8 +3013,8 @@ function IdentityListAddRow({
     if (url.trim()) {
       try {
         validUrl = validateUrlOrThrow(url, "Source URL");
-      } catch (e: any) {
-        setErr(e.message);
+      } catch (e: unknown) {
+        setErr(getErrorMessage(e));
         return;
       }
     }
@@ -3175,8 +3176,8 @@ function IdentityLocationsTab({
         setLocalLocations(nextLocations);
       }
       showSuccessToast("Primary location updated", `"${name}" is now primary.`);
-    } catch (err: any) {
-      showErrorToast("Set primary failed", err?.message || "Unknown error");
+    } catch (err: unknown) {
+      showErrorToast("Set primary failed", getErrorMessage(err) || "Unknown error");
     } finally {
       setBusyPlaceId(null);
     }
@@ -3198,8 +3199,8 @@ function IdentityLocationsTab({
           res.data.location.warmup_error || "Apify returned no data — try again later.",
         );
       }
-    } catch (err: any) {
-      showErrorToast("Re-sync failed", err?.message || "Unknown error");
+    } catch (err: unknown) {
+      showErrorToast("Re-sync failed", getErrorMessage(err) || "Unknown error");
     } finally {
       setBusyPlaceId(null);
     }
@@ -3236,8 +3237,8 @@ function IdentityLocationsTab({
         await refreshIdentity();
       }
       showSuccessToast("Location removed", `"${name}" removed from project.`);
-    } catch (err: any) {
-      showErrorToast("Remove failed", err?.message || "Unknown error");
+    } catch (err: unknown) {
+      showErrorToast("Remove failed", getErrorMessage(err) || "Unknown error");
     } finally {
       setRemovingPlaceId(null);
     }

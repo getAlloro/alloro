@@ -528,14 +528,17 @@ export function DFYWebsite() {
     return apiGet({ path: `/user/website/posts${qs}` });
   };
 
-  const userCreatePost = async (_projectId: string, data: any) =>
+  const userCreatePost = async (_projectId: string, data: object) =>
     apiPost({ path: "/user/website/posts", passedData: data });
 
-  const userUpdatePost = async (_projectId: string, postId: string, data: any) =>
+  const userUpdatePost = async (_projectId: string, postId: string, data: object) =>
     apiPatch({ path: `/user/website/posts/${postId}`, passedData: data });
 
   const userDeletePost = async (_projectId: string, postId: string) =>
     apiDelete({ path: `/user/website/posts/${postId}` });
+
+  const userDuplicatePost = async (_projectId: string, postId: string) =>
+    apiPost({ path: `/user/website/posts/${postId}/duplicate` });
 
   const userFetchPostTypes = async (_templateId: string) =>
     apiGet({ path: "/user/website/post-types" });
@@ -546,13 +549,13 @@ export function DFYWebsite() {
   const userFetchTags = async (postTypeId: string) =>
     apiGet({ path: `/user/website/post-types/${postTypeId}/tags` });
 
-  const userCreateCategory = async (postTypeId: string, data: any) =>
+  const userCreateCategory = async (postTypeId: string, data: object) =>
     apiPost({ path: `/user/website/post-types/${postTypeId}/categories`, passedData: data });
 
-  const userCreateTag = async (postTypeId: string, data: any) =>
+  const userCreateTag = async (postTypeId: string, data: object) =>
     apiPost({ path: `/user/website/post-types/${postTypeId}/tags`, passedData: data });
 
-  const userUpdatePostSeo = async (_projectId: string, postId: string, data: any) =>
+  const userUpdatePostSeo = async (_projectId: string, postId: string, data: object) =>
     apiPatch({ path: `/user/website/posts/${postId}/seo`, passedData: data });
 
   // User-facing API wrappers for Menus
@@ -562,30 +565,30 @@ export function DFYWebsite() {
   const userFetchMenu = async (_projectId: string, menuId: string) =>
     apiGet({ path: `/user/website/menus/${menuId}` });
 
-  const userCreateMenu = async (_projectId: string, data: any) =>
+  const userCreateMenu = async (_projectId: string, data: object) =>
     apiPost({ path: "/user/website/menus", passedData: data });
 
-  const userUpdateMenu = async (_projectId: string, menuId: string, data: any) =>
+  const userUpdateMenu = async (_projectId: string, menuId: string, data: object) =>
     apiPatch({ path: `/user/website/menus/${menuId}`, passedData: data });
 
   const userDeleteMenu = async (_projectId: string, menuId: string) =>
     apiDelete({ path: `/user/website/menus/${menuId}` });
 
-  const userCreateMenuItem = async (_projectId: string, menuId: string, data: any) =>
+  const userCreateMenuItem = async (_projectId: string, menuId: string, data: object) =>
     apiPost({ path: `/user/website/menus/${menuId}/items`, passedData: data });
 
-  const userUpdateMenuItem = async (_projectId: string, menuId: string, itemId: string, data: any) =>
+  const userUpdateMenuItem = async (_projectId: string, menuId: string, itemId: string, data: object) =>
     apiPatch({ path: `/user/website/menus/${menuId}/items/${itemId}`, passedData: data });
 
   const userDeleteMenuItem = async (_projectId: string, menuId: string, itemId: string) =>
     apiDelete({ path: `/user/website/menus/${menuId}/items/${itemId}` });
 
-  const userReorderMenuItems = async (_projectId: string, menuId: string, items: any[]) =>
+  const userReorderMenuItems = async (_projectId: string, menuId: string, items: object[]) =>
     apiPatch({ path: `/user/website/menus/${menuId}/items/reorder`, passedData: { items } });
 
   const handleExportSubmissions = async () => {
     try {
-      const apiBase = (import.meta as any)?.env?.VITE_API_URL ?? "/api";
+      const apiBase = import.meta.env.VITE_API_URL ?? "/api";
       const response = await adminFetch(`${apiBase}/user/website/form-submissions/export`);
       if (!response.ok) {
         toast.error("Failed to export submissions");
@@ -706,7 +709,7 @@ export function DFYWebsite() {
 
   // --- Handle edit send (ported from admin PageEditor) ---
   const handleSendEdit = useCallback(
-    async (instruction: string, attachedMedia?: any[]) => {
+    async (instruction: string, attachedMedia?: Array<{ alt_text?: string | null; s3_url: string }>) => {
       if (!selectedPage || !selectedInfo) return;
 
       setIsEditing(true);
@@ -1590,6 +1593,7 @@ export function DFYWebsite() {
               createPostFn={userCreatePost}
               updatePostFn={userUpdatePost}
               deletePostFn={userDeletePost}
+              duplicatePostFn={userDuplicatePost}
               fetchPostTypesFn={userFetchPostTypes}
               fetchCategoriesFn={userFetchCategories}
               fetchTagsFn={userFetchTags}

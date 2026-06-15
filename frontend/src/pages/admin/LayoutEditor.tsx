@@ -194,7 +194,7 @@ function LayoutEditorInner() {
 
   // --- Handle AI edit (header/footer only) ---
   const handleSendEdit = useCallback(
-    async (instruction: string, attachedMedia?: any[]) => {
+    async (instruction: string, attachedMedia?: Array<{ alt_text?: string | null; s3_url: string }>) => {
       if (!projectId || !field || !selectedInfo || !isVisualMode) return;
 
       setIsEditing(true);

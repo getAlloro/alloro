@@ -37,6 +37,7 @@ import {
 } from "../ui/DesignSystem";
 import { ConfirmModal } from "@/components/settings/ConfirmModal";
 import { logger } from "../../lib/logger";
+import { getErrorMessage } from "../../lib/errorMessage";
 
 type StatusFilter =
   | "all"
@@ -321,8 +322,8 @@ const validateJson = (value: string): string | undefined => {
   try {
     JSON.parse(trimmed);
     return undefined;
-  } catch (error: any) {
-    return error?.message || "Invalid JSON";
+  } catch (error: unknown) {
+    return getErrorMessage(error) || "Invalid JSON";
   }
 };
 

@@ -119,7 +119,7 @@ export function ActivityModal({ isOpen, onClose }: ActivityModalProps) {
                   const actionLabel = ACTION_LABELS[entry.action] || entry.action;
                   const dotColor = ACTION_DOT_COLORS[entry.action] || "#9A938A";
                   const timeAgo = formatDistanceToNow(new Date(entry.created_at), { addSuffix: true });
-                  const userName = (entry as any).user_name || (entry as any).user_email?.split("@")[0] || "someone";
+                  const userName = entry.user?.display_name || entry.user?.email?.split("@")[0] || "someone";
 
                   return (
                     <div key={entry.id} className="flex items-start gap-3 px-6 py-3" style={{ borderBottom: "1px solid var(--color-pm-border-subtle)" }}>

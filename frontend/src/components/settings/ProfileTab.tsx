@@ -15,7 +15,9 @@ import {
   getPasswordStatus,
   changePassword,
 } from "../../api/profile";
+import { isAxiosError } from "axios";
 import { logger } from "../../lib/logger";
+import { getErrorMessage } from "../../lib/errorMessage";
 
 const PASSWORD_RULES = [
   { label: "At least 8 characters", test: (p: string) => p.length >= 8 },
@@ -87,9 +89,9 @@ export const ProfileTab: React.FC = () => {
       } else {
         setError(response.error || "Failed to update password");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       const message =
-        err?.response?.data?.error || err?.message || "Failed to update password";
+        (isAxiosError(err) ? err.response?.data?.error : undefined) || getErrorMessage(err) || "Failed to update password";
       setError(message);
     } finally {
       setIsSaving(false);

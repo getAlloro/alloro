@@ -2072,9 +2072,11 @@ function RankingResultsView({
           return { bar: "bg-red-400", text: "text-red-700", bg: "bg-red-50", border: "border-red-100", badge: "bg-red-100 text-red-700" };
         };
 
+        type FactorValue = { score: number; weight: number; weighted: number; details?: string; value?: number };
+
         const renderFactor = (
           key: string,
-          value: any,
+          value: FactorValue,
           index: number,
         ) => {
           const pct = Math.round((value?.score ?? 0) * 100);
@@ -2125,10 +2127,10 @@ function RankingResultsView({
         };
 
         const competitiveFactors = factors
-          ? COMPETITIVE_KEYS.filter((k) => k in factors).map((k) => [k, (factors as any)[k]] as [string, any])
+          ? COMPETITIVE_KEYS.filter((k) => k in factors).map((k) => [k, (factors as Record<string, FactorValue>)[k]] as [string, FactorValue])
           : [];
         const clientFactors = factors
-          ? CLIENT_ONLY_KEYS.filter((k) => k in factors).map((k) => [k, (factors as any)[k]] as [string, any])
+          ? CLIENT_ONLY_KEYS.filter((k) => k in factors).map((k) => [k, (factors as Record<string, FactorValue>)[k]] as [string, FactorValue])
           : [];
 
         return (

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { X, Loader2, Sparkles } from "lucide-react";
 import { regenerateComponent } from "../../api/websites";
+import { getErrorMessage } from "../../lib/errorMessage";
 
 interface RegenerateComponentModalProps {
   projectId: string;
@@ -56,8 +57,8 @@ export default function RegenerateComponentModal({
       onWillRegenerate?.(section);
       await regenerateComponent(projectId, pageId, section, instruction.trim() || undefined);
       onRegenerated(section);
-    } catch (err: any) {
-      setError(err?.message || "Failed to regenerate");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || "Failed to regenerate");
     } finally {
       setSubmitting(false);
     }

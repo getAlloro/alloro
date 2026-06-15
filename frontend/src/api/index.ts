@@ -1,10 +1,10 @@
-import axios, { type ResponseType } from "axios";
+import axios, { isAxiosError, type ResponseType } from "axios";
 import { getPriorityItem } from "../hooks/useLocalStorage";
 import { logger } from "../lib/logger";
 
 // Prefer environment-configured API base; default to relative "/api" so Vite dev proxy handles CORS in development.
 // Define VITE_API_URL in .env for deployments that need an absolute URL.
-const api = (import.meta as any)?.env?.VITE_API_URL ?? "/api";
+const api = import.meta.env.VITE_API_URL ?? "/api";
 
 /**
  * Helper function to get common headers for API requests.
@@ -74,9 +74,9 @@ export async function apiGet({
       headers,
     });
     return data;
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.log(err);
-    if (err?.response?.data) {
+    if (isAxiosError(err) && err.response?.data) {
       return err.response.data;
     }
     return {
@@ -132,9 +132,9 @@ export async function apiPost({
       headers,
     });
     return data;
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.log(err);
-    if (err?.response?.data) {
+    if (isAxiosError(err) && err.response?.data) {
       return err.response.data;
     }
     return {
@@ -175,9 +175,9 @@ export async function apiPatch({
       headers,
     });
     return data;
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.log(err);
-    if (err?.response?.data) {
+    if (isAxiosError(err) && err.response?.data) {
       return err.response.data;
     }
     return {
@@ -218,9 +218,9 @@ export async function apiPut({
       headers,
     });
     return data;
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.log(err);
-    if (err?.response?.data) {
+    if (isAxiosError(err) && err.response?.data) {
       return err.response.data;
     }
     return {
@@ -237,9 +237,9 @@ export async function apiDelete({ path }: { path: string }) {
     });
 
     return data;
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.log(err);
-    if (err?.response?.data) {
+    if (isAxiosError(err) && err.response?.data) {
       return err.response.data;
     }
     return {

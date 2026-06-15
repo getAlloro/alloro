@@ -157,7 +157,7 @@ export default function BackupsTab({ projectId, projectName }: BackupsTabProps) 
         setActiveJobId(data.job_id);
         loadBackups();
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error("Failed to create backup:", err);
       setCreating(false);
     }
@@ -167,7 +167,7 @@ export default function BackupsTab({ projectId, projectName }: BackupsTabProps) 
     try {
       const { data } = await getBackupDownloadUrl(projectId, jobId);
       window.open(data.url, "_blank");
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error("Failed to get download URL:", err);
     }
   };
@@ -190,7 +190,7 @@ export default function BackupsTab({ projectId, projectName }: BackupsTabProps) 
       setRestoreTarget(null);
       setRestoreConfirmText("");
       loadBackups();
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error("Restore failed:", err);
       setRestoring(false);
     }
@@ -208,7 +208,7 @@ export default function BackupsTab({ projectId, projectName }: BackupsTabProps) 
     try {
       await deleteBackupApi(projectId, jobId);
       loadBackups();
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error("Failed to delete backup:", err);
     }
   };

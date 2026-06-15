@@ -3,6 +3,7 @@ import { X, Loader2, MapPin } from "lucide-react";
 import GbpSearchPicker, { type SelectedPlace } from "./GbpSearchPicker";
 import { addProjectLocation, type ProjectIdentityLocation } from "../../api/websites";
 import { showSuccessToast, showErrorToast } from "../../lib/toast";
+import { getErrorMessage } from "../../lib/errorMessage";
 
 /**
  * AddLocationModal — small wrapper around GbpSearchPicker that calls
@@ -40,8 +41,8 @@ export default function AddLocationModal({
           : "Location attached, but the GBP scrape failed — re-sync from the row.",
       );
       onClose();
-    } catch (err: any) {
-      const msg = err?.message || "Failed to add location";
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err) || "Failed to add location";
       setError(msg);
       showErrorToast("Add location failed", msg);
     } finally {

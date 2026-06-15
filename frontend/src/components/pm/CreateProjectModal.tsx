@@ -186,7 +186,7 @@ export function CreateProjectModal({ isOpen, onClose }: CreateProjectModalProps)
                 </label>
                 <div className="grid grid-cols-10 gap-1.5">
                   {ICON_NAMES.map((iconName) => {
-                    const IconComponent = (LucideIcons as any)[iconName];
+                    const IconComponent = (LucideIcons as unknown as Record<string, React.ComponentType<{ className?: string; strokeWidth?: number }>>)[iconName];
                     if (!IconComponent) return null;
                     const isSelected = icon === iconName;
                     return (

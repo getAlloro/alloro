@@ -56,8 +56,11 @@ export function AISynthModal({ isOpen, onClose, projectId }: AISynthModalProps) 
       setText("");
       setFile(null);
       loadBatches();
-    } catch (err: any) {
-      setError(err?.error || "Extraction failed. Try again.");
+    } catch (err: unknown) {
+      const errMsg = (typeof err === 'object' && err !== null && 'error' in err)
+        ? String((err as Record<string, unknown>).error)
+        : "Extraction failed. Try again.";
+      setError(errMsg);
     } finally {
       setIsExtracting(false);
     }

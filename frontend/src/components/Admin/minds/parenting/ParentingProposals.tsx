@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { ActionButton } from "../../../ui/DesignSystem";
+import { getErrorMessage } from "../../../../lib/errorMessage";
 import {
   getParentingProposals,
   updateParentingProposal,
@@ -183,8 +184,8 @@ export function ParentingProposals({
         created_at: "",
         updated_at: "",
       });
-    } catch (err: any) {
-      toast.error(err.message || "Failed to start compile");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || "Failed to start compile");
     } finally {
       setCompileStarting(false);
     }

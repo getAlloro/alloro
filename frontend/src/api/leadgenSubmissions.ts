@@ -14,7 +14,7 @@ import type {
   LeadgenStats,
 } from "../types/leadgen";
 
-const API_BASE = (import.meta as any)?.env?.VITE_API_URL ?? "/api";
+const API_BASE = import.meta.env.VITE_API_URL ?? "/api";
 
 function buildQuery(filters: Record<string, unknown>): string {
   const params = new URLSearchParams();

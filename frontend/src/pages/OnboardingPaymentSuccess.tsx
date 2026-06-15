@@ -11,6 +11,7 @@ import { motion } from "framer-motion";
 import { Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { getBillingStatus } from "../api/billing";
 import onboarding from "../api/onboarding";
+import { getErrorMessage } from "../lib/errorMessage";
 
 const MAX_POLL_ATTEMPTS = 15;
 const POLL_INTERVAL_MS = 2000;
@@ -70,8 +71,8 @@ export default function OnboardingPaymentSuccess() {
       } else {
         throw new Error(response.message || "Failed to complete onboarding");
       }
-    } catch (err: any) {
-      setError(err.message || "Something went wrong");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || "Something went wrong");
       setPageState("timeout");
     }
   };

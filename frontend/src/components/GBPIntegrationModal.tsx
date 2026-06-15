@@ -16,7 +16,7 @@ interface BaseIntegrationModalProps {
   clientId: string;
   onSuccess?: () => void;
   ready?: boolean;
-  session?: any;
+  session?: unknown;
 }
 
 // Mock data for demo purposes

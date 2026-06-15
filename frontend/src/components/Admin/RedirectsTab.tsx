@@ -20,6 +20,7 @@ import {
 } from "../../api/websites";
 import type { Redirect } from "../../api/websites";
 import { toast } from "react-hot-toast";
+import { getErrorMessage } from "../../lib/errorMessage";
 
 interface RedirectsTabProps {
   projectId: string;
@@ -62,8 +63,8 @@ export default function RedirectsTab({ projectId }: RedirectsTabProps) {
       setToPath("");
       await fetchRedirects();
       toast.success("Redirect created");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to create redirect");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || "Failed to create redirect");
     } finally {
       setCreating(false);
     }

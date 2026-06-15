@@ -35,6 +35,7 @@ import GradientPicker from "./GradientPicker";
 import type { GradientValue } from "./GradientPicker";
 import DynamicSlotInputs from "./DynamicSlotInputs";
 import TemplatePageSelect from "./TemplatePageSelect";
+import { getErrorMessage } from "../../lib/errorMessage";
 
 export interface CreatePageModalProps {
   projectId: string;
@@ -192,8 +193,8 @@ export default function CreatePageModal({
       );
       const generated = res.data?.values || {};
       setDynamicSlotValues((prev) => ({ ...prev, ...generated }));
-    } catch (err: any) {
-      setRewriteError(err?.message || "Failed to generate slot values");
+    } catch (err: unknown) {
+      setRewriteError(getErrorMessage(err) || "Failed to generate slot values");
     } finally {
       setRewriting(false);
     }
@@ -317,10 +318,10 @@ export default function CreatePageModal({
           dataSource === "pasted" ? scrapedData.trim() || null : null,
         gradient: gradient.enabled ? gradient : undefined,
         dynamicSlotValues: Object.keys(dynamicSlotValues).length > 0 ? dynamicSlotValues : undefined,
-      } as any);
+      });
       onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create page");
+      setError(err instanceof Error ? getErrorMessage(err) : "Failed to create page");
     } finally {
       setSubmitting(false);
     }
@@ -340,7 +341,7 @@ export default function CreatePageModal({
       onBlankPageCreated?.(result.data.id);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create page");
+      setError(err instanceof Error ? getErrorMessage(err) : "Failed to create page");
     } finally {
       setSubmitting(false);
     }
@@ -366,7 +367,7 @@ export default function CreatePageModal({
       onClose();
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to upload artifact page"
+        err instanceof Error ? getErrorMessage(err) : "Failed to upload artifact page"
       );
     } finally {
       setSubmitting(false);

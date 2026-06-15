@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ReadingAnimation } from "./ReadingAnimation";
 import { triggerParentingReadingStream } from "../../../../api/minds";
+import { getErrorMessage } from "../../../../lib/errorMessage";
 
 interface ParentingReadingViewProps {
   mindId: string;
@@ -118,9 +119,9 @@ export function ParentingReadingView({
             }
           }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!cancelled) {
-          onError(err.message || "Reading failed");
+          onError(getErrorMessage(err) || "Reading failed");
         }
       }
     }

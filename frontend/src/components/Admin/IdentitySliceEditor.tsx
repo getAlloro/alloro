@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, AlertTriangle } from "lucide-react";
 import MonacoJsonEditor from "./MonacoJsonEditor";
 import { useConfirm } from "../ui/ConfirmModal";
+import { getErrorMessage } from "../../lib/errorMessage";
 
 interface IdentitySliceEditorProps {
   open: boolean;
@@ -103,7 +104,7 @@ export default function IdentitySliceEditor({
     let parsed: unknown;
     try {
       parsed = JSON.parse(draft);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError("JSON failed to parse — fix errors before saving.");
       return;
     }
@@ -112,8 +113,8 @@ export default function IdentitySliceEditor({
       setError(null);
       await onSave(parsed);
       onClose();
-    } catch (err: any) {
-      setError(err?.message || "Save failed");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || "Save failed");
     } finally {
       setSaving(false);
     }

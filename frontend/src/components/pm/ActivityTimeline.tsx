@@ -100,7 +100,7 @@ export function ActivityTimeline({ projectId, compact = false, onSeeMore }: Acti
             const actionLabel = ACTION_LABELS[entry.action] || entry.action;
             const dotColor = ACTION_DOT_COLORS[entry.action] || "var(--color-pm-text-muted)";
             const timeAgo = formatDistanceToNow(new Date(entry.created_at), { addSuffix: true });
-            const userName = (entry as any).user_name || (entry as any).user_email?.split("@")[0] || "someone";
+            const userName = entry.user?.display_name || entry.user?.email?.split("@")[0] || "someone";
 
             return (
               <motion.div
@@ -122,7 +122,7 @@ export function ActivityTimeline({ projectId, compact = false, onSeeMore }: Acti
                     )}
                   </p>
                   <p className="text-[11px] mt-0.5" style={{ color: "var(--color-pm-text-muted)" }}>
-                    {(entry as any).user_email && <>{(entry as any).user_email} &middot; </>}
+                    {entry.user?.email && <>{entry.user.email} &middot; </>}
                     {timeAgo}
                   </p>
                 </div>
