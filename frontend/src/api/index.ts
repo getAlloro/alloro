@@ -38,6 +38,24 @@ export const getCommonHeaders = (): Record<string, string> => {
   return headers;
 };
 
+/**
+ * adminFetch — the shared authed fetch wrapper. Attaches the JWT (via
+ * getCommonHeaders) without overriding caller-set headers, then returns the raw
+ * Response so the caller keeps full control of status / streaming handling (and
+ * throws on !response.ok as it sees fit). Replaces the byte-identical helper that
+ * was copy-pasted across ~11 api/ domain files (code-constitution §14.2 + §4.3).
+ */
+export const adminFetch = (
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+): Promise<Response> => {
+  const headers = new Headers(init.headers);
+  Object.entries(getCommonHeaders()).forEach(([key, value]) => {
+    if (!headers.has(key)) headers.set(key, value);
+  });
+  return fetch(input, { ...init, headers });
+};
+
 export async function apiGet({
   path,
   token,

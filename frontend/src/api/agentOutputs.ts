@@ -11,20 +11,9 @@ import type {
   DeleteResponse,
   BulkDeleteResponse,
 } from "../types/agentOutputs";
-import { getCommonHeaders } from "./index";
+import { adminFetch } from "./index";
 
 const API_BASE = "/api/admin/agent-outputs";
-
-// Attach the Bearer token (via getCommonHeaders) to every admin agent-outputs
-// call. These routes are protected by the app-level auth guard; bare fetch
-// would 401.
-const adminFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
-  const headers = new Headers(init.headers);
-  Object.entries(getCommonHeaders()).forEach(([key, value]) => {
-    if (!headers.has(key)) headers.set(key, value);
-  });
-  return fetch(input, { ...init, headers });
-};
 
 /**
  * Fetch all agent outputs with filters (admin only)
