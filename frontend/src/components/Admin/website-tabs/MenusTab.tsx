@@ -9,7 +9,6 @@ import {
   Loader2,
   Menu as MenuIcon,
   Save,
-  X,
   GripVertical,
   ExternalLink,
   CornerDownRight,
@@ -31,88 +30,16 @@ import type { Menu, MenuWithItems, MenuItem } from "../../../api/menus";
 import { fetchPosts as defaultFetchPosts } from "../../../api/posts";
 import { fetchPostTypes as defaultFetchPostTypes } from "../../../api/posts";
 import type { Post, PostType } from "../../../api/posts";
-import AnimatedSelect from "../../ui/AnimatedSelect";
 import { ActionButton } from "../../ui/DesignSystem";
 import { useConfirm } from "../../ui/ConfirmModal";
 import { logger } from "../../../lib/logger";
-
-interface MenusTabProps {
-  projectId: string;
-  templateId?: string | null;
-  borderless?: boolean;
-  // Optional API overrides for user-facing context
-  fetchMenusFn?: typeof defaultFetchMenus;
-  fetchMenuFn?: typeof defaultFetchMenu;
-  createMenuFn?: typeof defaultCreateMenu;
-  updateMenuFn?: typeof defaultUpdateMenu;
-  deleteMenuFn?: typeof defaultDeleteMenu;
-  createMenuItemFn?: typeof defaultCreateMenuItem;
-  updateMenuItemFn?: typeof defaultUpdateMenuItem;
-  deleteMenuItemFn?: typeof defaultDeleteMenuItem;
-  reorderMenuItemsFn?: typeof defaultReorderMenuItems;
-  fetchPostsFn?: typeof defaultFetchPosts;
-  fetchPostTypesFn?: typeof defaultFetchPostTypes;
-}
-
-/** Flat representation of a menu item for DnD */
-interface FlatItem {
-  id: string;
-  parentId: string | null;
-  depth: number;
-  item: MenuItem;
-}
-
-const INDENT_PX = 24; // pixels per depth level, matches paddingLeft
-
-/** Flatten a nested menu tree into an ordered list with depth info */
-function flattenTree(items: MenuItem[], depth = 0, parentId: string | null = null): FlatItem[] {
-  const result: FlatItem[] = [];
-  for (const item of items) {
-    result.push({ id: item.id, parentId, depth, item });
-    if (item.children && item.children.length > 0) {
-      result.push(...flattenTree(item.children, depth + 1, item.id));
-    }
-  }
-  return result;
-}
-
-/** Count how many descendants (children, grandchildren, etc.) an item has in the flat list */
-function countDescendants(flatItems: FlatItem[], startIndex: number): number {
-  const startDepth = flatItems[startIndex].depth;
-  let count = 0;
-  for (let i = startIndex + 1; i < flatItems.length; i++) {
-    if (flatItems[i].depth > startDepth) count++;
-    else break;
-  }
-  return count;
-}
-
-/** Rebuild parent_id + order_index from the flat list's position and depth */
-function rebuildHierarchy(flatItems: FlatItem[]): { id: string; parent_id: string | null; order_index: number }[] {
-  const result: { id: string; parent_id: string | null; order_index: number }[] = [];
-  const orderCounters = new Map<string, number>();
-
-  for (let idx = 0; idx < flatItems.length; idx++) {
-    const fi = flatItems[idx];
-    let parentId: string | null = null;
-    if (fi.depth > 0) {
-      for (let i = idx - 1; i >= 0; i--) {
-        if (flatItems[i].depth === fi.depth - 1) {
-          parentId = flatItems[i].id;
-          break;
-        }
-      }
-    }
-
-    const counterKey = parentId || "__root__";
-    const orderIndex = orderCounters.get(counterKey) || 0;
-    orderCounters.set(counterKey, orderIndex + 1);
-
-    result.push({ id: fi.id, parent_id: parentId, order_index: orderIndex });
-  }
-
-  return result;
-}
+import type { FlatItem, MenusTabProps } from "./menusTab.types";
+import { INDENT_PX, flattenTree, countDescendants, rebuildHierarchy } from "./menusTab.utils";
+import { MenusTabSidebar } from "./MenusTab/MenusTabSidebar";
+import { MenusTabMenuForm } from "./MenusTab/MenusTabMenuForm";
+import { MenusTabItemForm } from "./MenusTab/MenusTabItemForm";
+import { MenusTabPostPicker } from "./MenusTab/MenusTabPostPicker";
+import { MenusTabEmpty } from "./MenusTab/MenusTabEmpty";
 
 export default function MenusTab({
   projectId,
@@ -500,138 +427,6 @@ export default function MenusTab({
     );
   }
 
-  /* ─── Sidebar ─── */
-  const renderSidebar = () => (
-    <div className="flex flex-col h-full border-r border-gray-200">
-      <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-        <h3 className="text-sm font-semibold text-gray-900">Menus</h3>
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-xs text-gray-400">
-            {menus.length} menu{menus.length !== 1 ? "s" : ""}
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              resetMenuForm();
-              setShowMenuForm(true);
-            }}
-            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-alloro-orange hover:bg-orange-50 rounded-md transition-colors"
-            title="New Menu"
-          >
-            <Plus className="w-3 h-3" />
-            New
-          </button>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto py-1">
-        {menus.length === 0 ? (
-          <div className="text-center py-8 text-xs text-gray-400">
-            No menus yet
-          </div>
-        ) : (
-          menus.map((menu) => {
-            const isActive = menu.id === selectedMenuId;
-            return (
-              <div key={menu.id} className="group">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedMenuId(menu.id);
-                    resetMenuForm();
-                    resetItemForm();
-                  }}
-                  className={`w-full text-left px-4 py-2.5 transition-colors border-l-2 ${
-                    isActive
-                      ? "border-l-alloro-orange bg-orange-50/50"
-                      : "border-l-transparent hover:bg-gray-50"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium text-gray-900 truncate">{menu.name}</div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteMenu(menu);
-                      }}
-                      className="p-1 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-xs text-gray-400 font-mono">/{menu.slug}</span>
-                    <span className="text-xs text-gray-400">&middot;</span>
-                    <span className="text-xs text-gray-500">{menu.item_count} items</span>
-                  </div>
-                </button>
-              </div>
-            );
-          })
-        )}
-      </div>
-
-    </div>
-  );
-
-  /* ─── Main: Create/Edit Menu Form ─── */
-  const renderMenuForm = () => (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="p-6"
-    >
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">
-        {editingMenu ? "Edit Menu" : "New Menu"}
-      </h3>
-      <div className="space-y-4 max-w-md">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-          <input
-            type="text"
-            value={menuName}
-            onChange={(e) => setMenuName(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-            placeholder="Primary Navigation"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Slug <span className="text-xs text-gray-400 font-normal">(used in shortcode)</span>
-          </label>
-          <input
-            type="text"
-            value={menuSlug}
-            onChange={(e) => setMenuSlug(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono"
-            placeholder="auto-generated from name"
-          />
-          <p className="mt-1.5 text-xs text-gray-400">
-            Use in header: <code className="px-1 py-0.5 bg-gray-100 rounded text-[11px]">{`{{ menu id='${menuSlug || "slug"}' }}`}</code>
-          </p>
-        </div>
-
-        {error && <p className="text-sm text-red-600">{error}</p>}
-
-        <div className="flex gap-3 pt-1">
-          <ActionButton
-            onClick={handleSaveMenu}
-            disabled={savingMenu || !menuName.trim()}
-            loading={savingMenu}
-            icon={<Save className="w-4 h-4" />}
-            label={editingMenu ? "Update" : "Create"}
-          />
-          <button
-            onClick={resetMenuForm}
-            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    </motion.div>
-  );
-
   /* ─── Main: Menu detail with items ─── */
   const renderMenuDetail = () => {
     if (!activeMenu) return null;
@@ -831,168 +626,69 @@ export default function MenusTab({
           )}
 
           {/* Add/edit item form */}
-          <AnimatePresence>
-            {showItemForm && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                className="border-t border-gray-200 bg-gray-50/50"
-              >
-                <div className="p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-gray-700">
-                      {editingItem ? "Edit Item" : "Add Item"}
-                    </h4>
-                    <button onClick={resetItemForm} className="text-gray-400 hover:text-gray-600">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Label</label>
-                      <input
-                        type="text"
-                        value={itemLabel}
-                        onChange={(e) => setItemLabel(e.target.value)}
-                        className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
-                        placeholder="Home"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">URL</label>
-                      <input
-                        type="text"
-                        value={itemUrl}
-                        onChange={(e) => setItemUrl(e.target.value)}
-                        className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
-                        placeholder="/"
-                      />
-                    </div>
-                    <div>
-                      <AnimatedSelect
-                        label="Opens in"
-                        options={targetOptions}
-                        value={itemTarget}
-                        onChange={setItemTarget}
-                        size="sm"
-                      />
-                    </div>
-                    <div>
-                      <AnimatedSelect
-                        label="Parent"
-                        options={parentOptions}
-                        value={itemParentId || "__none__"}
-                        onChange={(val) => setItemParentId(val === "__none__" ? null : val)}
-                        size="sm"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex gap-2 pt-1">
-                    <ActionButton
-                      onClick={handleSaveItem}
-                      disabled={savingItem || !itemLabel.trim() || !itemUrl.trim()}
-                      loading={savingItem}
-                      icon={<Save className="w-3.5 h-3.5" />}
-                      label={editingItem ? "Update" : "Add"}
-                    />
-                    <button
-                      onClick={resetItemForm}
-                      className="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <MenusTabItemForm
+            showItemForm={showItemForm}
+            editingItem={editingItem}
+            resetItemForm={resetItemForm}
+            itemLabel={itemLabel}
+            setItemLabel={setItemLabel}
+            itemUrl={itemUrl}
+            setItemUrl={setItemUrl}
+            targetOptions={targetOptions}
+            itemTarget={itemTarget}
+            setItemTarget={setItemTarget}
+            parentOptions={parentOptions}
+            itemParentId={itemParentId}
+            setItemParentId={setItemParentId}
+            handleSaveItem={handleSaveItem}
+            savingItem={savingItem}
+          />
         </div>
 
         {/* Post Picker */}
-        <AnimatePresence>
-          {showPostPicker && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="border-t border-gray-200 bg-gray-50/50"
-            >
-              <div className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-semibold text-gray-700">Add Post</h4>
-                  <button onClick={() => setShowPostPicker(false)} className="text-gray-400 hover:text-gray-600">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-                {postsLoading ? (
-                  <div className="flex items-center justify-center py-6">
-                    <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-                  </div>
-                ) : posts.length === 0 ? (
-                  <p className="text-xs text-gray-400 text-center py-4">No published posts found.</p>
-                ) : (
-                  <div className="max-h-[200px] overflow-y-auto space-y-1">
-                    {posts.map((post) => {
-                      const postType = postTypes.find((pt) => pt.id === post.post_type_id);
-                      const url = postType ? `/${postType.slug}/${post.slug}` : `/${post.slug}`;
-                      const isAdding = addingPostId === post.id;
-                      return (
-                        <button
-                          key={post.id}
-                          onClick={() => handleAddPost(post)}
-                          disabled={isAdding}
-                          className="w-full text-left flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white transition-colors group disabled:opacity-50"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="text-sm font-medium text-gray-900 truncate">{post.title}</div>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              {postType && (
-                                <span className="text-[10px] font-medium text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded">{postType.name}</span>
-                              )}
-                              <span className="text-xs text-gray-400 font-mono truncate">{url}</span>
-                            </div>
-                          </div>
-                          {isAdding ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400 ml-2 flex-shrink-0" />
-                          ) : (
-                            <Plus className="w-3.5 h-3.5 text-gray-300 group-hover:text-alloro-orange ml-2 flex-shrink-0 transition-colors" />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <MenusTabPostPicker
+          showPostPicker={showPostPicker}
+          setShowPostPicker={setShowPostPicker}
+          postsLoading={postsLoading}
+          posts={posts}
+          postTypes={postTypes}
+          addingPostId={addingPostId}
+          handleAddPost={handleAddPost}
+        />
 
       </div>
     );
   };
 
-  /* ─── Main: Empty state ─── */
-  const renderEmpty = () => (
-    <div className="flex items-center justify-center h-full text-gray-500">
-      <div className="text-center">
-        <MenuIcon className="w-10 h-10 mx-auto mb-3 opacity-30" />
-        <p className="text-sm">Select a menu or create one to get started</p>
-      </div>
-    </div>
-  );
-
   /* ─── Layout ─── */
   return (
     <div className={`flex bg-white overflow-hidden ${borderless ? "h-full" : "rounded-xl border border-gray-200 shadow-sm"}`} style={borderless ? undefined : { minHeight: 480 }}>
       <div className="w-[30%] min-w-[220px] max-w-[320px] flex-shrink-0 bg-gray-50/50">
-        {renderSidebar()}
+        <MenusTabSidebar
+          menus={menus}
+          selectedMenuId={selectedMenuId}
+          resetMenuForm={resetMenuForm}
+          setShowMenuForm={setShowMenuForm}
+          setSelectedMenuId={setSelectedMenuId}
+          resetItemForm={resetItemForm}
+          handleDeleteMenu={handleDeleteMenu}
+        />
       </div>
       <div className="flex-1 min-w-0">
         <AnimatePresence mode="wait">
           {showMenuForm ? (
             <motion.div key="menu-form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              {renderMenuForm()}
+              <MenusTabMenuForm
+                editingMenu={editingMenu}
+                menuName={menuName}
+                setMenuName={setMenuName}
+                menuSlug={menuSlug}
+                setMenuSlug={setMenuSlug}
+                error={error}
+                handleSaveMenu={handleSaveMenu}
+                savingMenu={savingMenu}
+                resetMenuForm={resetMenuForm}
+              />
             </motion.div>
           ) : selectedMenuId && activeMenu ? (
             <motion.div key="menu-detail" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
@@ -1000,7 +696,7 @@ export default function MenusTab({
             </motion.div>
           ) : (
             <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
-              {renderEmpty()}
+              <MenusTabEmpty />
             </motion.div>
           )}
         </AnimatePresence>
