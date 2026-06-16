@@ -58,11 +58,11 @@
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
         <span class="status-pill">In Progress</span>
-        <!-- T0/T1a/T2/T3/T5/T6 done (T6: all 33 god-files <800, detector=0). Remaining: T4 4 domains (behavioral) + QA guide. -->
+        <!-- CODE-COMPLETE: T0/T1a/T2/T3/T4/T5/T6 all done (33 god-files <800, detector=0; T4 all 5 domains). Remaining = owner browser-QA via test.html (then --done). -->
       </div>
       <h1>Frontend Remediation</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>In Progress — T6 complete (0 files &gt;800); T4 (4 domains) + QA guide remain</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>Code-complete (T3/T4/T5/T6 done) — owner browser-QA pending via test.html</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/06152026-frontend-remediation</dd></div>
         <div><dt>Size</dt><dd>Large (multi-phase program)</dd></div>
         <div><dt>Risk</dt><dd>Level 4</dd></div>
@@ -254,6 +254,13 @@
         <p><strong>Reason:</strong> Owner directive: "big batch… keep grinding… don't stop until done." Ran in parallel batches (≤6 subagents, each extract+eslint+wc+self-diff, NO tsc to avoid <code>.tsbuildinfo</code> races) then ONE project-wide <code>tsc -b</code> + commit-per-file; the 5 hardest done sequentially with each agent self-running <code>tsc -b</code>. Two integration seams (a prop typed too narrow) fixed by 1-line type widen.</p>
         <p><strong>Verify:</strong> 44 commits on dev/dave (local, NOT pushed), one screen per commit. Final: <code>tsc -b</code> 0, <code>npm run build</code> exit 0, harness 6/6, detector frontend files&gt;800 = 0. Behavior-preserving (per-file diffs = removed-blocks + added-imports + render/hook-call swaps; god-file JSX bodies byte-identical; hook order 1:1 with HEAD). NOT browser-verified — owner QA pending per the click-through guide (next deliverable).</p>
         <p><strong>Remaining:</strong> T4 error-contract flips for the 4 domains clarity/google-auth/gbp/onboarding (behavioral, owner browser-QA of failure path); then the full acceptance/QA click-through guide. Working tree also carries owner's own uncommitted <code>code-constitution.html</code> + <code>package.json</code> + <code>scripts/check-conventions.sh</code> (NOT mine, never staged) + 2 throwaway <code>.py</code> in repo root.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 4 — 2026-06-16</h3>
+        <p><strong>Change:</strong> <strong>T4 error-contract COMPLETE — all 5 domains flipped to throw-via-<code>unwrap</code>:</strong> agents (<code>1e2865b3</code>), clarity (<code>4f64dbeb</code>), google-auth (<code>2cc6a5d9</code>, + removed dead validateToken/disconnectAccount), gbp (<code>233a95e1</code>), onboarding (<code>12cacca1</code>, full flip of all 14 fns + 7 consumers). Consumers drop the <code>{successful:false}</code> envelope checks and surface errors through their existing catch blocks via <code>getErrorMessage</code>. Onboarding's <code>AuthContext</code> app-startup guard preserved exactly (no-downgrade of an onboarded user on a status-fetch error, + only persist the downgrade to localStorage when not already onboarded). Also authored the <strong>Layer-2 acceptance artifact</strong>: <code>test-results.json</code> (16 items: E1–E5 T4 error-path checks + D1–D16 decomposition smoke) + <code>test.html</code> viewer.</p>
+        <p><strong>Reason:</strong> Owner approved full onboarding flip after the keep/safe/full decision; completes the error-contract theme. The api/ helper primitives intentionally still swallow (domains opt in via <code>unwrap</code>); PMS api submodules were never in T4 scope.</p>
+        <p><strong>Verify:</strong> <code>tsc -b</code> 0, <code>npm run build</code> exit 0, harness 6/6, detector <code>frontend files &gt;800 = 0</code>. Onboarding eslint: 0 new errors (8 pre-existing react-refresh/unused). ~50 commits dev/dave, local — NOT pushed. <strong>This whole program (T3/T4/T5/T6) is now code-complete; what remains is the OWNER browser-QA pass</strong> driven by <code>test.html</code>/<code>test-results.json</code> (esp. E5 onboarding app-load incl. the offline-reload-as-onboarded-user case). <code>--done</code> stays blocked until that checklist rolls up to Passed (§20.5).</p>
+        <p><strong>Updated Done criteria:</strong> all 33 god-files &lt;800 ✅; T4 all 5 domains ✅; acceptance artifact generated (status Not Run — owner to run) ⏳; per-surface manual QA pending ⏳.</p>
       </article>
     </section>
   </main>
