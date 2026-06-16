@@ -1,7 +1,7 @@
 import type { Section } from "../api/templates";
 
 let prettierModule: typeof import("prettier/standalone") | null = null;
-let htmlPlugin: any = null;
+let htmlPlugin: import("prettier").Plugin | null = null;
 
 async function loadPrettier() {
   if (!prettierModule) {
@@ -21,7 +21,7 @@ export async function beautifyHtml(html: string): Promise<string> {
   const { prettier, plugin } = await loadPrettier();
   const formatted = await prettier.format(html, {
     parser: "html",
-    plugins: [plugin],
+    plugins: plugin ? [plugin] : [],
     printWidth: 120,
     tabWidth: 2,
     useTabs: false,

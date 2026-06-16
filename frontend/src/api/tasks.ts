@@ -29,6 +29,7 @@ export const fetchClientTasks = async (
  */
 export const completeTask = async (
   taskId: number,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for call-site compat; org is derived server-side
   _organizationId: number
 ): Promise<{ success: boolean; task: ActionItem; message: string }> => {
   return apiPatch({ path: `/tasks/${taskId}/complete` });

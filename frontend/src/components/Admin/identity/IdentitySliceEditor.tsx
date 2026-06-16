@@ -104,7 +104,7 @@ export default function IdentitySliceEditor({
     let parsed: unknown;
     try {
       parsed = JSON.parse(draft);
-    } catch (err: unknown) {
+    } catch {
       setError("JSON failed to parse — fix errors before saving.");
       return;
     }

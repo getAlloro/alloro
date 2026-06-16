@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPatch, apiDelete } from "../index";
+import { apiGet, apiPost, apiPatch, apiDelete, adminFetch } from "../index";
 import type {
   ParentingSession,
   ParentingSessionDetails,
@@ -42,28 +42,12 @@ export async function sendParentingChatStream(
 ): Promise<Response> {
   const api = import.meta.env.VITE_API_URL ?? "/api";
 
-  const isPilot =
-    typeof window !== "undefined" &&
-    (window.sessionStorage?.getItem("pilot_mode") === "true" ||
-      !!window.sessionStorage?.getItem("token"));
-
-  let jwt: string | null = null;
-  if (isPilot) {
-    jwt = window.sessionStorage.getItem("token");
-  } else {
-    jwt = localStorage.getItem("auth_token") || localStorage.getItem("token");
-  }
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  if (jwt) headers.Authorization = `Bearer ${jwt}`;
-
-  return fetch(
+  // Streaming/SSE response — shared authed wrapper keeps the raw Response.
+  return adminFetch(
     `${api}/admin/minds/${mindId}/parenting/sessions/${sessionId}/chat/stream`,
     {
       method: "POST",
-      headers,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message }),
     }
   );
@@ -75,28 +59,12 @@ export async function triggerParentingReadingStream(
 ): Promise<Response> {
   const api = import.meta.env.VITE_API_URL ?? "/api";
 
-  const isPilot =
-    typeof window !== "undefined" &&
-    (window.sessionStorage?.getItem("pilot_mode") === "true" ||
-      !!window.sessionStorage?.getItem("token"));
-
-  let jwt: string | null = null;
-  if (isPilot) {
-    jwt = window.sessionStorage.getItem("token");
-  } else {
-    jwt = localStorage.getItem("auth_token") || localStorage.getItem("token");
-  }
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  if (jwt) headers.Authorization = `Bearer ${jwt}`;
-
-  return fetch(
+  // Streaming/SSE response — shared authed wrapper keeps the raw Response.
+  return adminFetch(
     `${api}/admin/minds/${mindId}/parenting/sessions/${sessionId}/trigger-reading/stream`,
     {
       method: "POST",
-      headers,
+      headers: { "Content-Type": "application/json" },
     }
   );
 }

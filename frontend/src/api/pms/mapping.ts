@@ -1,4 +1,5 @@
 import { apiGet, apiPost } from "../index";
+import { logger } from "../../lib/logger";
 
 // =====================================================================
 // COLUMN MAPPING TYPES (mirrored from backend src/types/pmsMapping.ts)
@@ -140,7 +141,7 @@ export async function previewMapping(payload: {
     });
     return result as PreviewMappingResponse;
   } catch (error) {
-    console.error("PMS previewMapping API error:", error);
+    logger.error("PMS previewMapping API error:", error);
     return {
       success: false,
       error: "Failed to preview column mapping. Please try again.",
@@ -181,7 +182,7 @@ export async function uploadWithMapping(payload: {
     });
     return result as UploadWithMappingResponse;
   } catch (error) {
-    console.error("PMS uploadWithMapping API error:", error);
+    logger.error("PMS uploadWithMapping API error:", error);
     return {
       success: false,
       error: "Failed to upload PMS data. Please try again.",
@@ -219,7 +220,7 @@ export async function reprocessJob(
     });
     return result as ReprocessJobResponse;
   } catch (error) {
-    console.error("PMS reprocessJob API error:", error);
+    logger.error("PMS reprocessJob API error:", error);
     return {
       success: false,
       error: "Failed to reprocess job. Please try again.",

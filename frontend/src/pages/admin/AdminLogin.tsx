@@ -71,7 +71,7 @@ export function AdminLogin() {
           const channel = new BroadcastChannel("auth_channel");
           channel.postMessage({ type: "login", token: res.token });
           channel.close();
-        } catch (e) {
+        } catch {
           // BroadcastChannel not supported
         }
 

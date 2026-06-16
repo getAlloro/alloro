@@ -250,6 +250,7 @@ export function SetupProgressProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSetupProgress(): SetupProgressContextType {
   const context = useContext(SetupProgressContext);
   if (!context) {
@@ -261,6 +262,7 @@ export function useSetupProgress(): SetupProgressContextType {
 }
 
 // Safe hook that returns null if outside provider (for components that may render outside the provider)
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSetupProgressSafe(): SetupProgressContextType | null {
   return useContext(SetupProgressContext);
 }

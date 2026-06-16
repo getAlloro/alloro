@@ -64,6 +64,7 @@ const STAGE_CLASSES: Record<StageTone, string> = {
 // and this label map so legacy sessions still render correctly in the
 // submissions table, but it is NO LONGER rendered as a row in the funnel
 // chart (see LeadgenFunnelChart's FUNNEL_STAGES allowlist).
+// eslint-disable-next-line react-refresh/only-export-components
 export const STAGE_LABEL: Record<FinalStage, string> = {
   landed: "Landed on Page",
   input_started: "Started Typing Search",
@@ -145,6 +146,7 @@ function AuditStatusPill({ status }: { status: string | null }) {
  * Covers the common cases (Chrome, Safari, Firefox, Edge; iOS, Android,
  * macOS, Windows, Linux). Fallback: truncated UA tail.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function friendlyUserAgent(ua: string | null | undefined): string | null {
   if (!ua) return null;
   const u = ua.toLowerCase();
@@ -165,6 +167,7 @@ export function friendlyUserAgent(ua: string | null | undefined): string | null 
   return `${browser} · ${os}`;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function shortSessionId(id: string): string {
   if (!id) return "";
   return id.slice(0, 8);
@@ -405,4 +408,5 @@ export default function LeadgenSubmissionsTable({
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export { STAGE_TONE, STAGE_CLASSES };

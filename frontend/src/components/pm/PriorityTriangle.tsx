@@ -39,4 +39,5 @@ export function PriorityTriangle({ priority, size = 12, showLabel = false }: Pri
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export { LABELS as PRIORITY_LABELS };

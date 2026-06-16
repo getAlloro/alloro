@@ -2,6 +2,10 @@ import axios, { isAxiosError, type ResponseType } from "axios";
 import { getPriorityItem } from "../hooks/useLocalStorage";
 import { logger } from "../lib/logger";
 
+// Re-exported so components use the axios error type-guard via the client (§14.2)
+// instead of importing "axios" directly.
+export { isAxiosError } from "axios";
+
 /**
  * ApiError — carries a backend error `code` and HTTP `status` alongside the
  * message. Thrown by {@link unwrap} so callers (React Query, try/catch) can
@@ -104,6 +108,35 @@ export const adminFetch = (
   return fetch(input, { ...init, headers });
 };
 
+/**
+ * normalizeApiFailure — collapse any caught request error into the shared
+ * failure envelope so the §16.1 error-contract holds: `unwrap()` throws on it and
+ * `.success`/`.successful` checks see a failure. Without this, a raw non-envelope
+ * error body (a 500 proxy-error string, an HTML page) flowed straight through
+ * `unwrap()` as if it were data and crashed array consumers (`x.map is not a function`).
+ */
+function normalizeApiFailure(err: unknown): ApiEnvelope {
+  if (isAxiosError(err) && err.response?.data) {
+    const body = err.response.data;
+    // Backend already returned a recognized { success | successful } envelope —
+    // preserve its code/message so unwrap() throws with the real reason.
+    if (typeof body === "object" && ("success" in body || "successful" in body)) {
+      return body as ApiEnvelope;
+    }
+  }
+  // No response, or a non-envelope body (raw 500 text, HTML, proxy error): return
+  // a safe generic failure. The raw body is logged by the caller, never surfaced
+  // to the UI (§3.4 — no internal leakage).
+  const status = isAxiosError(err) ? err.response?.status : undefined;
+  return {
+    success: false,
+    successful: false,
+    error: "An error occurred. Please try again.",
+    errorMessage: "An error occurred. Please try again.",
+    ...(status ? { errorCode: `HTTP_${status}` } : {}),
+  };
+}
+
 export async function apiGet({
   path,
   token,
@@ -123,13 +156,7 @@ export async function apiGet({
     return data;
   } catch (err: unknown) {
     logger.log(err);
-    if (isAxiosError(err) && err.response?.data) {
-      return err.response.data;
-    }
-    return {
-      successful: false,
-      errorMessage: "An error occurred. Please try again.",
-    };
+    return normalizeApiFailure(err);
   }
 }
 
@@ -181,13 +208,7 @@ export async function apiPost({
     return data;
   } catch (err: unknown) {
     logger.log(err);
-    if (isAxiosError(err) && err.response?.data) {
-      return err.response.data;
-    }
-    return {
-      successful: false,
-      errorMessage: "An error occurred. Please try again.",
-    };
+    return normalizeApiFailure(err);
   }
 }
 
@@ -224,13 +245,7 @@ export async function apiPatch({
     return data;
   } catch (err: unknown) {
     logger.log(err);
-    if (isAxiosError(err) && err.response?.data) {
-      return err.response.data;
-    }
-    return {
-      successful: false,
-      errorMessage: "An error occurred. Please try again.",
-    };
+    return normalizeApiFailure(err);
   }
 }
 
@@ -267,13 +282,7 @@ export async function apiPut({
     return data;
   } catch (err: unknown) {
     logger.log(err);
-    if (isAxiosError(err) && err.response?.data) {
-      return err.response.data;
-    }
-    return {
-      successful: false,
-      errorMessage: "An error occurred. Please try again.",
-    };
+    return normalizeApiFailure(err);
   }
 }
 
@@ -286,13 +295,7 @@ export async function apiDelete({ path }: { path: string }) {
     return data;
   } catch (err: unknown) {
     logger.log(err);
-    if (isAxiosError(err) && err.response?.data) {
-      return err.response.data;
-    }
-    return {
-      successful: false,
-      errorMessage: "An error occurred. Please try again.",
-    };
+    return normalizeApiFailure(err);
   }
 }
 

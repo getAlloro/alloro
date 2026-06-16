@@ -29,7 +29,9 @@ interface ParentingProposalsProps {
   onComplete: () => void;
   apiGetProposals?: (mindId: string, sessionId: string) => Promise<SyncProposal[]>;
   apiUpdateProposal?: (mindId: string, sessionId: string, proposalId: string, status: "approved" | "rejected" | "pending") => Promise<boolean>;
-  apiStartCompile?: (mindId: string, sessionId: string) => Promise<any>;
+  // runId/autoCompleted are optional because this component is reused for skill-upgrade
+  // compiles too, whose endpoint returns { success } (no runId). The original `any` hid this.
+  apiStartCompile?: (mindId: string, sessionId: string) => Promise<{ runId?: string; autoCompleted?: boolean; success?: boolean } | null>;
 }
 
 function ProposalDiff({ proposal }: { proposal: SyncProposal }) {
@@ -179,7 +181,7 @@ export function ParentingProposals({
         result: null,
         title: null,
         knowledge_buffer: "",
-        sync_run_id: result.runId,
+        sync_run_id: result.runId ?? null,
         admin_id: null,
         created_at: "",
         updated_at: "",

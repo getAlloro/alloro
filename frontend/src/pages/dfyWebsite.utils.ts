@@ -22,8 +22,10 @@ export function getWebsiteTabFromParams(searchParams: URLSearchParams): WebsiteT
 }
 
 // User-facing API wrappers (routes don't need projectId — inferred from auth)
-export const userFetchRecipients = async (_projectId: string) =>
-  apiGet({ path: "/user/website/recipients" });
+export const userFetchRecipients = async (_projectId: string) => {
+  void _projectId;
+  return apiGet({ path: "/user/website/recipients" });
+};
 
 export const userUpdateRecipients = async (
   _projectId: string,
@@ -133,8 +135,10 @@ export const userDeletePost = async (_projectId: string, postId: string) =>
 export const userDuplicatePost = async (_projectId: string, postId: string) =>
   apiPost({ path: `/user/website/posts/${postId}/duplicate` });
 
-export const userFetchPostTypes = async (_templateId: string) =>
-  apiGet({ path: "/user/website/post-types" });
+export const userFetchPostTypes = async (_templateId: string) => {
+  void _templateId;
+  return apiGet({ path: "/user/website/post-types" });
+};
 
 export const userFetchCategories = async (postTypeId: string) =>
   apiGet({ path: `/user/website/post-types/${postTypeId}/categories` });
@@ -152,8 +156,10 @@ export const userUpdatePostSeo = async (_projectId: string, postId: string, data
   apiPatch({ path: `/user/website/posts/${postId}/seo`, passedData: data });
 
 // User-facing API wrappers for Menus
-export const userFetchMenus = async (_projectId: string) =>
-  apiGet({ path: "/user/website/menus" });
+export const userFetchMenus = async (_projectId: string) => {
+  void _projectId;
+  return apiGet({ path: "/user/website/menus" });
+};
 
 export const userFetchMenu = async (_projectId: string, menuId: string) =>
   apiGet({ path: `/user/website/menus/${menuId}` });

@@ -74,14 +74,14 @@ export const serializeResponse = (value: unknown): string => {
     }
     try {
       return JSON.stringify(JSON.parse(trimmed), null, 2);
-    } catch (error) {
+    } catch {
       return value;
     }
   }
 
   try {
     return JSON.stringify(value, null, 2);
-  } catch (error) {
+  } catch {
     return String(value);
   }
 };

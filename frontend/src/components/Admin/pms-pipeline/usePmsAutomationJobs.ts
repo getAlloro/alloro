@@ -6,6 +6,7 @@ import {
   updatePmsJobResponse,
   type PmsJob,
   type AutomationStatusDetail,
+  type FetchPmsJobsResponse,
 } from "../../../api/pms";
 import { fetchOrganizations } from "../../../api/agentOutputs";
 import { logger } from "../../../lib/logger";
@@ -20,6 +21,19 @@ import {
   validateJson,
   POLL_INTERVAL_MS,
 } from "./pmsAutomationCards.utils";
+
+/**
+ * Shared envelope shape the PMS job endpoints return. The api/ helpers
+ * (apiGet/apiPatch/apiDelete) return the raw axios body, so the precise
+ * fields the hook reads are declared here. `errorMessage` is an alternate
+ * error key some endpoints use alongside `error`.
+ */
+interface PmsJobResponseEnvelope {
+  success?: boolean;
+  data?: { jobs?: PmsJob[]; job?: PmsJob; pagination?: PaginationState } | null;
+  error?: string;
+  errorMessage?: string;
+}
 
 export function usePmsAutomationJobs() {
   const [jobs, setJobs] = useState<PmsJob[]>([]);
@@ -71,7 +85,7 @@ export function usePmsAutomationJobs() {
       }
 
       try {
-        const response = (await fetchPmsJobs({
+        const response = await fetchPmsJobs({
           page: pagination.page,
           status: statusFilter === "all" ? undefined : [statusFilter],
           isApproved:
@@ -79,7 +93,7 @@ export function usePmsAutomationJobs() {
               ? undefined
               : approvalFilter === "approved",
           organization_id: organizationFilter === "all" ? undefined : parseInt(organizationFilter, 10),
-        })) as any;
+        }) as FetchPmsJobsResponse & { errorMessage?: string };
 
         if (response?.success && response.data) {
           const incomingJobs: PmsJob[] = response.data.jobs;
@@ -214,7 +228,10 @@ export function usePmsAutomationJobs() {
     setApprovingJobId(job.id);
 
     try {
-      const response = (await togglePmsJobApproval(job.id, true)) as any;
+      const response = (await togglePmsJobApproval(
+        job.id,
+        true
+      )) as PmsJobResponseEnvelope;
 
       if (response?.success && response.data?.job) {
         const updatedJob: PmsJob = response.data.job;
@@ -292,7 +309,7 @@ export function usePmsAutomationJobs() {
       const response = (await updatePmsJobResponse(
         jobId,
         payload.trim().length ? payload : null
-      )) as any;
+      )) as PmsJobResponseEnvelope;
 
       if (response?.success && response.data?.job) {
         const updatedJob: PmsJob = response.data.job;
@@ -340,7 +357,7 @@ export function usePmsAutomationJobs() {
         setDeletingJobId(jobId);
 
         try {
-          const response = (await deletePmsJob(jobId)) as any;
+          const response = (await deletePmsJob(jobId)) as PmsJobResponseEnvelope;
 
           if (response?.success) {
             setJobs((prev) => prev.filter((job) => job.id !== jobId));

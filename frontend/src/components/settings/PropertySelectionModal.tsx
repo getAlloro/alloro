@@ -36,7 +36,6 @@ export const PropertySelectionModal: React.FC<PropertySelectionModalProps> = ({
   onMultiSelect,
   isLoading,
   isSaving,
-  type: _type,
   initialSelections = [],
   multiSelect = false,
 }) => {

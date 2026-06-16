@@ -12,6 +12,7 @@ import { MemoryRouter } from "react-router-dom";
  * need more context (Auth / Location / GBP / Clarity) compose those providers on
  * top inside their own test file — this is the floor, not the ceiling.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function createTestQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
@@ -35,6 +36,7 @@ export function AppTestProviders({
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function renderWithProviders(
   ui: ReactElement,
   options: { route?: string } & Omit<RenderOptions, "wrapper"> = {},
@@ -49,4 +51,5 @@ export function renderWithProviders(
 }
 
 // Re-export RTL so tests pull screen / fireEvent / waitFor from one place.
+// eslint-disable-next-line react-refresh/only-export-components
 export * from "@testing-library/react";

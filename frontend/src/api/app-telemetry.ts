@@ -1,4 +1,4 @@
-import { getCommonHeaders } from "./index";
+import { getCommonHeaders, adminFetch } from "./index";
 
 const api = import.meta.env.VITE_API_URL ?? "/api";
 
@@ -26,15 +26,12 @@ export type AppTelemetryEvent = {
 
 export function recordAppTelemetryEvents(events: AppTelemetryEvent[]): void {
   if (events.length === 0) return;
-  const headers: Record<string, string> = {
-    ...getCommonHeaders(),
-    "Content-Type": "application/json",
-  };
-  if (!headers.Authorization) return;
+  // Skip when unauthenticated — telemetry requires a JWT.
+  if (!getCommonHeaders().Authorization) return;
 
-  void fetch(`${api}/telemetry/events`, {
+  void adminFetch(`${api}/telemetry/events`, {
     method: "POST",
-    headers,
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ events }),
     keepalive: true,
   }).catch(() => undefined);

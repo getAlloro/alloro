@@ -82,6 +82,8 @@ async function findLargeImages(doc: Document): Promise<PublishLintWarning[]> {
 
   const results = await Promise.allSettled(
     urls.map(async (url) => {
+      // §14.2 exception: HEAD to EXTERNAL image URLs — must NOT go through the authed
+      // client (adminFetch) or it would leak the JWT to third-party hosts.
       const response = await fetch(url, { method: "HEAD" });
       const length = Number(response.headers.get("content-length") || 0);
       return { url, length };

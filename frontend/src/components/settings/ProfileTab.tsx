@@ -15,7 +15,7 @@ import {
   getPasswordStatus,
   changePassword,
 } from "../../api/profile";
-import { isAxiosError } from "axios";
+import { isAxiosError } from "../../api";
 import { logger } from "../../lib/logger";
 import { getErrorMessage } from "../../lib/errorMessage";
 

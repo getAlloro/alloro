@@ -21,7 +21,7 @@ export function ParentingReadingView({
   onError,
   triggerReadingStream,
 }: ParentingReadingViewProps) {
-  const [_phase, setPhase] = useState<string>("starting");
+  const [, setPhase] = useState<string>("starting");
   const [narrationKey, setNarrationKey] = useState(0);
   const [idleMessageIdx, setIdleMessageIdx] = useState(0);
   const [previewMessages, setPreviewMessages] = useState<string[]>([]);

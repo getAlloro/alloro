@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
-import { apiGet } from "../api";
+import { apiGet, isAxiosError } from "../api";
 import { WebsiteLoadingSkeleton } from "./website/WebsiteLoadingSkeleton";
 import { logger } from "../lib/logger";
-import { isAxiosError } from "axios";
 
 interface DFYRouteProps {
   children: React.ReactNode;

@@ -269,43 +269,6 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
     return 0;
   }, [totalReferrals, doctorReferralCount, isWizardActive, wizardDemoData]);
 
-  // Debug: Log calculated data only on change (not on every render)
-  useMemo(() => {
-    console.log("📈 Calculated data:", {
-      monthlyData: monthlyData,
-      topSources: topSources,
-      totalProduction: totalProduction,
-      totalReferrals: totalReferrals,
-      doctorReferralCount: doctorReferralCount,
-      doctorPercentage: doctorPercentage,
-      mktProduction: totalProduction,
-      docProduction: (totalProduction * doctorPercentage) / 100,
-    });
-    console.log("🔍 Data source breakdown:", {
-      "referralVelocity.selfReferrals": monthlyData.map((m) => ({
-        month: m.month,
-        selfReferrals: m.selfReferrals,
-      })),
-      "referralVelocity.doctorReferrals": monthlyData.map((m) => ({
-        month: m.month,
-        doctorReferrals: m.doctorReferrals,
-      })),
-      "productionCards.topSources": topSources.map((s) => ({
-        name: s.name,
-        production: s.production,
-      })),
-      "productionCards.totalProduction": totalProduction,
-      "productionCards.doctorPercentage": doctorPercentage,
-    });
-  }, [
-    monthlyData,
-    topSources,
-    totalProduction,
-    totalReferrals,
-    doctorReferralCount,
-    doctorPercentage,
-  ]);
-
   const showClientApprovalBanner =
     !isLoading &&
     latestJobIsApproved === true &&
@@ -353,19 +316,6 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
       return;
     }
 
-    console.log(
-      "✅ handleConfirmApproval called with latestJobId:",
-      latestJobId,
-    );
-    console.log("📊 Current state BEFORE confirmation:", {
-      keyData_months: keyData?.months,
-      keyData_sources: keyData?.sources,
-      monthlyData: monthlyData,
-      totalProduction: totalProduction,
-      doctorPercentage: doctorPercentage,
-      totalReferrals: totalReferrals,
-    });
-
     setIsConfirming(true);
     setBannerError(null);
 
@@ -386,9 +336,6 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
         window.localStorage.removeItem(storageKey);
       }
 
-      console.log(
-        "🔄 Calling loadKeyData AFTER confirmation (with silent: false to see fresh data)",
-      );
       await loadKeyData({ silent: false });
 
       // Don't refetch referral data immediately - it will return pending anyway

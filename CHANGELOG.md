@@ -2,6 +2,28 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.129] - June 2026
+
+### Frontend Architecture Remediation (Code Constitution) + reliability fixes
+
+Finalized the behavior-preserving frontend remediation to the Code Constitution standard, plus the QA pass that closed it out. The SPA was refactored, not rewritten — every screen behaves as before, with a healthier codebase underneath: oversized "god" components were decomposed, the API error contract was unified, and the Admin tree was reorganized into feature folders. A full 41-item, page-by-page QA (admin + One Endodontics client) drove the acceptance checklist to Passed and surfaced one real crash, which was fixed.
+
+**Key Changes:**
+
+- **God-file decomposition:** every frontend source file is now under the ~800-line ceiling (was 38 over, including a 3,422-line Identity modal and 2,000+-line pages) — split into `use<Feature>()` hooks, sibling `*.utils.ts`, and child components.
+- **Unified error contract (§16.1):** the API client throws a typed `ApiError` on failure via `unwrap()`, and a new `normalizeApiFailure()` guarantees every `api*` helper returns a proper `{ success:false }` envelope on any non-2xx — so a bad response now surfaces a handled error instead of crashing the page (protects the live Rankings / Reviews GBP surfaces).
+- **AI Data Insights crash fixed:** the orphaned `/admin/ai-data-insight` page (superseded by `/admin/ai-data-insights`, linked nowhere) crashed on a 500. Removed the dead page + its `api/agents.ts` module, and hardened the dev proxy so an unknown `/api/*` route returns a fast 404 instead of an Express↔Vite loop that hung ~25s.
+- **Convention cleanup:** lint errors 49 → 0 (lint passes), `console.*` 6 → 0 (routed to the shared logger), `: any` 12 → 0 (typed), raw `fetch`/`axios` 16 → 3 — the 3 remaining are documented, legitimate exceptions (axios upload-progress, external-URL HEAD checks, generated published-site form code) the shared client cannot replace.
+- **Acceptance:** `tsc` 0, `eslint` 0 errors (advisory `max-lines`/`exhaustive-deps`/`max-depth` warnings remain by design), vitest harness 6/6, and the 41-item behavioral checklist (`plans/06152026-frontend-remediation/test.html`) rolls up to Passed.
+
+**Commits:**
+
+- `frontend/src/api/index.ts` — `normalizeApiFailure()`, shared `adminFetch` adoption, `isAxiosError` re-export
+- `src/app.ts` — unmatched `/api/*` → clean 404 (kills the dev proxy loop)
+- Removed orphaned `AgentInsights` page + `frontend/src/api/agents.ts`
+- ~35 files — god-file splits, hook/utils extraction, error-contract flips, logger routing, `any` typing, `fetch` → `adminFetch` migration
+- `plans/06152026-frontend-remediation/` — spec (Rev 1–8), acceptance artifact (`test.html` + `full-test-results.json`)
+
 ## [0.0.128] - June 2026
 
 ### Referrals Hub — Month Comparison + AI Insights

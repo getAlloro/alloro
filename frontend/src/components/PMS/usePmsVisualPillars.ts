@@ -9,7 +9,8 @@ import {
 } from "../../api/pms";
 import type { ReferralEngineData } from "./ReferralMatrices";
 import { useLocationContext } from "../../contexts/locationContext";
-import { apiGet } from "../../api";
+import { apiGet, adminFetch } from "../../api";
+import { logger } from "../../lib/logger";
 
 interface UsePmsVisualPillarsParams {
   domain?: string;
@@ -93,17 +94,6 @@ export function usePmsVisualPillars({
         }
 
         if (response?.success && response.data) {
-          // Only log if not silent mode (to reduce console noise during polling)
-          if (!silent) {
-            console.log("📊 loadKeyData response:", {
-              organizationId,
-              monthsCount: response.data.months?.length,
-              sourcesCount: response.data.sources?.length,
-              stats: response.data.stats,
-              months: response.data.months,
-              sources: response.data.sources,
-            });
-          }
           setKeyData(response.data);
         } else {
           setKeyData(null);
@@ -137,7 +127,6 @@ export function usePmsVisualPillars({
 
   useEffect(() => {
     isMountedRef.current = true;
-    console.log("🎯 Initial component mount - loading key data for first time");
     loadKeyData();
     return () => {
       isMountedRef.current = false;
@@ -169,7 +158,7 @@ export function usePmsVisualPillars({
           setConnectionStatus((prev) => ({ ...prev, isLoading: false }));
         }
       } catch (err) {
-        console.error("Failed to fetch connection status:", err);
+        logger.error("Failed to fetch connection status:", err);
         setConnectionStatus((prev) => ({ ...prev, isLoading: false }));
       }
     };
@@ -285,7 +274,7 @@ export function usePmsVisualPillars({
 
     try {
       const locParam = locationId ? `?locationId=${locationId}` : "";
-      const response = await fetch(
+      const response = await adminFetch(
         `/api/agents/getLatestReferralEngineOutput/${organizationId}${locParam}`,
       );
 
@@ -313,7 +302,7 @@ export function usePmsVisualPillars({
         setReferralData(dataToSet);
       }
     } catch (err) {
-      console.error("Failed to fetch referral engine data:", err);
+      logger.error("Failed to fetch referral engine data:", err);
       setReferralData(null);
       setReferralPending(false);
     }
@@ -335,18 +324,11 @@ export function usePmsVisualPillars({
         return;
       }
 
-      console.log("🔍 Initial check for active automation on mount");
-
       try {
         const response = await fetchActiveAutomationJobs(organizationId, locationId);
 
         if (response.success && response.data?.jobs?.length) {
           const activeJob = response.data.jobs[0];
-          console.log("🔍 Found active job on mount:", {
-            jobId: activeJob.jobId,
-            status: activeJob.automationStatus?.status,
-            currentStep: activeJob.automationStatus?.currentStep,
-          });
 
           if (activeJob?.automationStatus) {
             // Set automation status
@@ -360,18 +342,13 @@ export function usePmsVisualPillars({
               "awaiting_approval",
             ];
             if (activeStatuses.includes(activeJob.automationStatus.status)) {
-              console.log(
-                "🔍 Setting referralPending = true for active automation",
-              );
               setReferralPending(true);
               setReferralData(null);
             }
           }
-        } else {
-          console.log("🔍 No active automation found on mount");
         }
       } catch (err) {
-        console.error("❌ Error checking for active automation:", err);
+        logger.error("Error checking for active automation:", err);
       } finally {
         setAutomationChecked(true);
       }
@@ -388,37 +365,22 @@ export function usePmsVisualPillars({
     }
 
     if (!organizationId || !locationId) {
-      console.log("🔍 loadAutomationStatus: no organizationId or locationId");
       setAutomationStatus(null);
       return;
     }
 
-    console.log("🔍 loadAutomationStatus: fetching for org", organizationId);
-
     try {
       const response = await fetchActiveAutomationJobs(organizationId, locationId);
-
-      console.log("🔍 fetchActiveAutomationJobs response:", {
-        success: response.success,
-        jobCount: response.data?.jobs?.length,
-        jobs: response.data?.jobs,
-      });
 
       if (response.success && response.data?.jobs?.length) {
         // Get the most recent active job for this domain
         const activeJob = response.data.jobs[0];
-        console.log("🔍 Active job found:", {
-          jobId: activeJob.jobId,
-          status: activeJob.automationStatus?.status,
-          currentStep: activeJob.automationStatus?.currentStep,
-        });
 
         if (activeJob?.automationStatus) {
           setAutomationStatus(activeJob.automationStatus);
 
           // If automation is complete, refresh referral data
           if (activeJob.automationStatus.status === "completed") {
-            console.log("🔍 Automation completed, refreshing referral data");
             setReferralPending(false);
             loadReferralData();
           }
@@ -428,22 +390,14 @@ export function usePmsVisualPillars({
             activeJob.automationStatus.status === "awaiting_approval" &&
             activeJob.automationStatus.currentStep === "client_approval"
           ) {
-            console.log(
-              "🔍 Automation reached client_approval, refreshing key data for banner",
-            );
             loadKeyData({ silent: true });
           }
         }
       } else {
-        // No active jobs found - automation might have completed
-        console.log("🔍 No active jobs found, automation may have completed");
-
-        // If we previously had an active automation, it means it completed
-        // Clear the automation status and refresh the referral data
+        // No active jobs found - automation might have completed.
+        // If we previously had an active automation, it means it completed:
+        // clear the automation status and refresh the referral data.
         if (automationStatus || referralPending) {
-          console.log(
-            "🔍 Clearing automation state and refreshing data after completion",
-          );
           setAutomationStatus(null);
           setReferralPending(false);
           // Refresh referral data after automation completion
@@ -453,7 +407,7 @@ export function usePmsVisualPillars({
         }
       }
     } catch (err) {
-      console.error("❌ Failed to fetch automation status:", err);
+      logger.error("Failed to fetch automation status:", err);
       setAutomationStatus(null);
     }
   }, [domain, organizationId, locationId, loadReferralData, loadKeyData, isWizardActive]);
@@ -484,21 +438,8 @@ export function usePmsVisualPillars({
         (automationStatus && activeStatuses.includes(automationStatus.status)));
 
     if (!shouldPoll) {
-      if (isOnNonPollingStep) {
-        if (automationStatus?.status === "completed") {
-          console.log(`⏸️ Polling DISABLED - automation completed`);
-        } else {
-          console.log(
-            `⏸️ Polling DISABLED - on ${automationStatus?.currentStep} (approval step)`,
-          );
-        }
-      }
       return;
     }
-
-    console.log(
-      `▶️ Polling ENABLED - referralPending: ${referralPending}, status: ${automationStatus?.status}, step: ${automationStatus?.currentStep}`,
-    );
 
     let isCancelled = false;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -509,7 +450,7 @@ export function usePmsVisualPillars({
       try {
         await loadAutomationStatus();
       } catch (err) {
-        console.error("Polling error:", err);
+        logger.error("Polling error:", err);
       }
 
       if (!isCancelled) {
@@ -569,7 +510,7 @@ export function usePmsVisualPillars({
           }
         }
       } catch (err) {
-        console.error("Background automation check failed:", err);
+        logger.error("Background automation check failed:", err);
       }
 
       if (!isCancelled) {
@@ -610,21 +551,14 @@ export function usePmsVisualPillars({
         return;
       }
 
-      console.log("🔍 Fetching automation status for job", latestJobId);
-
       try {
         const response = await fetchAutomationStatus(latestJobId);
 
         if (response.success && response.data?.automationStatus) {
-          console.log("🔍 Got automation status for job:", {
-            jobId: latestJobId,
-            status: response.data.automationStatus.status,
-            currentStep: response.data.automationStatus.currentStep,
-          });
           setAutomationStatus(response.data.automationStatus);
         }
       } catch (err) {
-        console.error("❌ Failed to fetch job automation status:", err);
+        logger.error("Failed to fetch job automation status:", err);
       }
     };
 

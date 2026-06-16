@@ -51,7 +51,7 @@ export default function PostsTab({
   const [posts, setPosts] = useState<Post[]>([]);
   const [postTypes, setPostTypes] = useState<PostType[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
-  const [_taxonomyLoading, setTaxonomyLoading] = useState(false);
+  const [, setTaxonomyLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // View state

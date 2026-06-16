@@ -117,7 +117,7 @@ export default function CreatePageModal({
         if (response.data.length > 0) {
           setSelectedPageId(response.data[0].id);
         }
-      } catch (err) {
+      } catch {
         setError("Failed to load template pages");
       } finally {
         setLoadingPages(false);

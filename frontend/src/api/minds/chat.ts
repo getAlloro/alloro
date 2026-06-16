@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPatch, apiDelete } from "../index";
+import { apiGet, apiPost, apiPatch, apiDelete, adminFetch } from "../index";
 import type { MindMessage, MindConversation } from "./types";
 
 // ─── Chat ────────────────────────────────────────────────────────
@@ -22,27 +22,11 @@ export async function sendChatMessageStream(
 ): Promise<Response> {
   const api = import.meta.env.VITE_API_URL ?? "/api";
 
-  // Replicate auth header logic from getCommonHeaders
-  const isPilot =
-    typeof window !== "undefined" &&
-    (window.sessionStorage?.getItem("pilot_mode") === "true" ||
-      !!window.sessionStorage?.getItem("token"));
-
-  let jwt: string | null = null;
-  if (isPilot) {
-    jwt = window.sessionStorage.getItem("token");
-  } else {
-    jwt = localStorage.getItem("auth_token") || localStorage.getItem("token");
-  }
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  if (jwt) headers.Authorization = `Bearer ${jwt}`;
-
-  return fetch(`${api}/admin/minds/${mindId}/chat/stream`, {
+  // Streaming/SSE response — go through the shared authed wrapper (it attaches the
+  // JWT via getCommonHeaders and returns the raw Response so we keep stream control).
+  return adminFetch(`${api}/admin/minds/${mindId}/chat/stream`, {
     method: "POST",
-    headers,
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message, conversationId }),
   });
 }

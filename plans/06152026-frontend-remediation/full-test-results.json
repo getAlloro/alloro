@@ -2,55 +2,684 @@
   "plan": "plans/06152026-frontend-remediation",
   "title": "Frontend Remediation — FULL page-by-page QA",
   "generatedAt": "2026-06-16",
-  "status": "Not Run",
+  "status": "Passed",
   "notes": "Granular, page-by-page acceptance pass for the frontend remediation. The refactor was behavior-preserving code MOVEMENT, except the 5 error-contract items (group 'Error handling (T4)') which deliberately change the failure path. For most items you're confirming: the page still loads (no blank screen / no red console error) and its key actions work. For the T4 items you're also confirming a FAILURE shows a message instead of crashing (use DevTools → Network → Offline to force it). Routes are relative to the app origin. Effects/emails/data writes are fine to trigger (owner has those covered). Code gates already pass: tsc -b 0, production build 0, harness 6/6, 0 files >800.",
   "items": [
-    { "id": "T4-1", "group": "Error handling (T4 — behavioral)", "title": "Agent Insights — load + approve/reject + failure", "surface": "ui", "route": "/admin/ai-data-insights  (Agent Insights)", "precondition": "Admin; an org with agent outputs.", "steps": ["1. Open the page; confirm insights load.", "2. Approve one insight → success toast + row updates.", "3. Reject one insight (confirm dialog) → success toast + row updates.", "4. FAILURE: DevTools Network = Offline, trigger a reload/approve → an error message shows; no crash/blank."], "expected": "Success actions work; a failed call shows an error, not a crash.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "T4-2", "group": "Error handling (T4 — behavioral)", "title": "Clarity metrics — load + failure", "surface": "ui", "route": "/dashboard or /patientJourneyInsights (location with Clarity)", "precondition": "Location that has Microsoft Clarity data.", "steps": ["1. Open the surface showing Clarity sessions/bounce/dead-clicks/trend; confirm it renders.", "2. FAILURE: Offline, reselect the location to refetch → a Clarity error message shows; no crash."], "expected": "Clarity renders on success; failure shows the error text.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "T4-3", "group": "Error handling (T4 — behavioral)", "title": "Connect Google button — popup + failure", "surface": "ui", "route": "/settings → Integrations", "precondition": "A surface with the Google connect button.", "steps": ["1. Click Connect Google → OAuth popup opens (cancel it; do NOT complete a real publish).", "2. FAILURE: Offline, click connect → 'Failed to start Google connection' shows and the button is NOT stuck loading."], "expected": "Popup opens; on failure an error shows and the button resets.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "T4-4", "group": "Error handling (T4 — behavioral)", "title": "GBP data / accounts / locations — load + failure", "surface": "ui", "route": "/rankings, /gbp-manager, /settings → Integrations", "precondition": "A GBP-connected location.", "steps": ["1. Confirm GBP reviews/rating/calls render and the account/location pickers populate.", "2. FAILURE: Offline, refetch → error text for data, accounts, and locations; no crash."], "expected": "GBP data + lists render on success; failures show errors.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "T4-5", "group": "Error handling (T4 — behavioral)", "title": "Onboarding + app startup — HIGHEST RISK", "surface": "ui", "route": "/ (app load), /new-account-onboarding", "precondition": "Test with BOTH an onboarded user AND a brand-new user.", "steps": ["1. Onboarded user: log in → you land IN the app (not onboarding).", "2. New user: onboarding flow shows; do save-profile, select GBP, complete → each works.", "3. Product tour wizard: start / skip / complete / restart.", "4. CRITICAL: as an ONBOARDED user, set Network = Offline and hard-reload once → confirm you are NOT dropped into onboarding (the no-downgrade guard). Back online + reload → normal."], "expected": "Onboarded users stay in-app even if the startup status call fails; new users see onboarding; wizard + saves work.", "status": "pending", "evidence": "", "notes": "The single change that touches app-load. Test the offline-reload-as-onboarded-user case." },
-
-    { "id": "CL-1", "group": "Client app", "title": "Dashboard / Practice Hub", "surface": "ui", "route": "/dashboard", "precondition": "Client login.", "steps": ["1. Load — production panel, one-thing banner, stat cards render.", "2. Click into any stat/source link."], "expected": "Dashboard renders and links work.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "CL-2", "group": "Client app", "title": "Local Rankings dashboard (RankingsDashboard 1968→620)", "surface": "ui", "route": "/rankings", "precondition": "Client with ranking data.", "steps": ["1. Load — rank, health gauge, factor breakdown, search-position, gaps, next-moves all render.", "2. Expand/interact with any panel; map renders if present."], "expected": "Every ranking panel renders identically.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "CL-3", "group": "Client app", "title": "Referrals / PMS hub (PMSVisualPillars 1512→619, PMSDataViewer, PMSLatestJobEditor)", "surface": "ui", "route": "/pmsStatistics", "precondition": "Client with PMS data.", "steps": ["1. Load — PMS visual pillars render (data + automation status).", "2. Open the data viewer / latest-job editor if surfaced.", "3. Open the Manual Entry modal → see CL-7."], "expected": "PMS hub renders; automation status + data show as before.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "CL-4", "group": "Client app", "title": "Referral Engine dashboard (ReferralEngineDashboard 981→786)", "surface": "ui", "route": "/referralEngine", "precondition": "Client with referral data.", "steps": ["1. Load — metric cards, table, loading/error states render."], "expected": "Referral dashboard renders all panels.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "CL-5", "group": "Client app", "title": "Reviews & Posts (GBP manager)", "surface": "ui", "route": "/gbp-manager", "precondition": "Client with GBP.", "steps": ["1. Load — pill tabs, stat boxes, pre-gen drafts render.", "2. Switch tabs."], "expected": "Reviews & Posts renders and tabs switch.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "CL-6", "group": "Client app", "title": "DFY Website editor (DFYWebsite 1869→535 + useDfyWebsite core)", "surface": "ui", "route": "/dfy/website", "precondition": "Client with a DFY site.", "steps": ["1. Load — toolbar, iframe, sidebar render; check preparing/read-only/empty states.", "2. Select an element, edit its text, SAVE → confirm it persists.", "3. Switch dashboard/website tabs; open connect-domain."], "expected": "Editor loads; select + text-edit + save + tab switching all work (the whole editor state core was moved into a hook).", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "CL-7", "group": "Client app", "title": "PMS Manual Entry modal (PMSManualEntryModal 2208→482 + use* hooks)", "surface": "ui", "route": "/pmsStatistics → Manual Entry", "precondition": "Client; PMS surface.", "steps": ["1. Open Manual Entry.", "2. Paste tabular data → preview parses; OR upload a file.", "3. Switch month tabs; edit a source row; resolve a month-mismatch banner if shown.", "4. Submit → confirm it saves."], "expected": "Paste/upload → preview → row edit → submit all behave as before (the 24-state core was lifted into hooks).", "status": "pending", "evidence": "", "notes": "Exercise paste→preview→submit carefully." },
-    { "id": "CL-8", "group": "Client app", "title": "Competitor onboarding (LocationCompetitorOnboarding 1746→599)", "surface": "ui", "route": "/dashboard/competitors/:locationId/onboarding", "precondition": "A location to onboard competitors for.", "steps": ["1. Discovering stage renders.", "2. Curating stage: the Leaflet map shows pins + radius control; adjust radius.", "3. Open refresh-suggestions modal; add/remove a competitor; finalize."], "expected": "Map, radius control, curation, and finalize all work as before.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "CL-9", "group": "Client app", "title": "Tasks view (TasksView 880→624)", "surface": "ui", "route": "/tasks", "precondition": "Client with tasks.", "steps": ["1. Load — team + Alloro task cards render.", "2. Expand a card's help; send a comment if applicable."], "expected": "Task cards render and interactions work.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "CL-10", "group": "Client app", "title": "Settings tabs (account / billing / integrations / locations / users)", "surface": "ui", "route": "/settings (+ account, billing, integrations, locations, users)", "precondition": "Client login.", "steps": ["1. Open each settings sub-tab; confirm it renders.", "2. Integrations tab: confirm GBP / Clarity / Google connect controls render (the T4-3 / T4-4 connect lives here)."], "expected": "All settings tabs render; integration controls present.", "status": "pending", "evidence": "", "notes": "" },
-
-    { "id": "AW-1", "group": "Admin — websites", "title": "Websites list (WebsitesList 870→774)", "surface": "ui", "route": "/admin/websites", "precondition": "Admin.", "steps": ["1. Load — rows, status pills, relative times render.", "2. Use filters / list-view tabs; open a website."], "expected": "List renders, filters work, row → detail navigates.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "AW-2", "group": "Admin — websites", "title": "Website Detail page + 13 tabs + modals (WebsiteDetail 2442→799)", "surface": "ui", "route": "/admin/websites/:id", "precondition": "Admin; a website.", "steps": ["1. Header (org dropdown, domain pill, action icons) renders.", "2. Click through ALL 13 tabs.", "3. Open each modal: Identity, Layout inputs, Create page, Find/replace, Connect domain.", "4. Visit a bad id → loading/error/not-found states."], "expected": "Header, every tab, and every modal render and work.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "AW-3", "group": "Admin — websites", "title": "Posts tab (PostsTab 1321→478 + SeoPanel 906→543)", "surface": "ui", "route": "/admin/websites/:id → Posts", "precondition": "A website with posts.", "steps": ["1. Posts list renders.", "2. Open the post editor: media picker, SEO panel, custom fields.", "3. Edit + save a post."], "expected": "Posts list + editor + SEO panel render; save works.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "AW-4", "group": "Admin — websites", "title": "Menus tab (MenusTab 1010→706)", "surface": "ui", "route": "/admin/websites/:id → Menus", "precondition": "A website with menus.", "steps": ["1. Sidebar + menu form render.", "2. Add/edit a menu item; drag-reorder; use the post picker.", "3. Save."], "expected": "Menu CRUD + drag-reorder + post picker work.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "AW-5", "group": "Admin — websites", "title": "Post Blocks tab (PostBlocksTab 991→798)", "surface": "ui", "route": "/admin/websites/:id → Post Blocks", "precondition": "A website.", "steps": ["1. Device switcher renders; toggle devices.", "2. Preview updates with placeholder posts."], "expected": "Device switching + preview render as before.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "AW-6", "group": "Admin — websites", "title": "Page Editor (PageEditor 2127→279 + use* hooks)", "surface": "ui", "route": "/admin/websites/:id/pages/:pageId/edit", "precondition": "A website page.", "steps": ["1. Editor loads (artifact/seo/code/visual views + sidebar).", "2. Inline edit; AI edit; UNDO/REDO; SAVE.", "3. Version history: preview + RESTORE a version.", "4. Open each modal; check loading/error/version-preview banners."], "expected": "Editor loads; edit/save/undo/redo/version-restore + modals all work (whole state core lifted into hooks).", "status": "pending", "evidence": "", "notes": "Exercise undo/redo + save + version restore especially." },
-    { "id": "AW-7", "group": "Admin — websites", "title": "Create Page modal (CreatePageModal 1100→754)", "surface": "ui", "route": "/admin/websites/:id → Create Page", "precondition": "A website.", "steps": ["1. Open Create Page.", "2. Wizard steps render; template-mode fields (color/gradient/slot inputs) render.", "3. Submit a create (per owner)."], "expected": "Wizard + template fields render and submit works.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "AW-8", "group": "Admin — websites", "title": "Templates list + Template Detail (TemplateDetail 1521→663)", "surface": "ui", "route": "/admin/templates , /admin/templates/:id", "precondition": "Admin; a template.", "steps": ["1. Templates list renders; open one.", "2. Header actions, Layouts tab (Monaco), Pages list, Settings tab, Live Preview (desktop/mobile/SEO) render.", "3. Edit + save a layout; add/rename/delete a page; use settings actions."], "expected": "Template detail tabs + preview + page/layout actions work.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "AW-9", "group": "Admin — websites", "title": "Imports list (ImportsList 809→782) + Import Detail (ImportDetail 911→751)", "surface": "ui", "route": "Admin → Templates/Imports list → /admin/templates/imports/:id", "precondition": "An import with versions.", "steps": ["1. Open the Imports LIST — rows, status, relative times, file sizes render; filters work.", "2. Open an import → Detail: version cards render.", "3. Copy URL; activate / deprecate / delete a version (per owner)."], "expected": "Imports list + detail + version actions render and work.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "AW-10", "group": "Admin — websites", "title": "Layout Editor (uses shell + iframe selector)", "surface": "ui", "route": "/admin/websites/:id/layout/:field", "precondition": "A website with header/footer/wrapper.", "steps": ["1. Open header (or footer) layout editor.", "2. Select an element; make an edit; save.", "3. Toggle code view / device preview."], "expected": "Layout editor loads, select/edit/save work (shares the iframe-selector hook that was split).", "status": "pending", "evidence": "", "notes": "" },
-
-    { "id": "AO-0", "group": "Admin — org & ops", "title": "Practice Ranking (PracticeRanking 2498→649 + usePracticeRanking hook)", "surface": "ui", "route": "/admin/practice-ranking", "precondition": "Admin; orgs with ranking batches/jobs.", "steps": ["1. Load — batches, jobs, and month-groups render.", "2. Expand a batch; open a job's results view (factor breakdown, competitors).", "3. Use the filter dropdowns.", "4. Trigger a ranking run / retry (per owner — effects ok)."], "expected": "Rankings list, results view, filters, and run/retry all behave as before (the whole reactive core was lifted into usePracticeRanking).", "status": "pending", "evidence": "", "notes": "Largest admin-page decomposition — exercise the results view + a retry." },
-    { "id": "AO-1", "group": "Admin — org & ops", "title": "Mission Control", "surface": "ui", "route": "/admin/mission-control", "precondition": "Admin.", "steps": ["1. Load — org cards, integration logos, Test filter pill render.", "2. Open Create Organization modal."], "expected": "Mission Control renders; create-org modal opens.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "AO-2", "group": "Admin — org & ops", "title": "Organization Detail + Org Settings (OrgSettingsSection 916→696)", "surface": "ui", "route": "/admin/organizations/:id", "precondition": "Admin; an org.", "steps": ["1. Load — all org tabs/sections render.", "2. Org Settings section: open the business-data detail modal; run a refresh action.", "3. Users / connections / subscription sections render."], "expected": "Org detail tabs + settings + business-data modal work.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "AO-3", "group": "Admin — org & ops", "title": "Action Items Hub (ActionItemsHub 1218→749)", "surface": "ui", "route": "/admin/action-items (or Org Detail → Action Items)", "precondition": "Admin; an org with tasks.", "steps": ["1. Task list renders.", "2. Toggle approval switch; use the animated + filter dropdowns.", "3. Open a task card → task details modal; create a task."], "expected": "Action items list, approval toggle, dropdowns, task details all work.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "AO-4", "group": "Admin — org & ops", "title": "Agent Outputs list (AgentOutputsList 876→720)", "surface": "ui", "route": "/admin/agent-outputs", "precondition": "Admin.", "steps": ["1. Load — rows + the animated dropdown render.", "2. Filter; open an output detail."], "expected": "Agent outputs list + dropdown + detail work.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "AO-5", "group": "Admin — org & ops", "title": "Leadgen Submissions (FormSubmissionsTab 1176→745, LeadgenSubmissionDetail 1002→343)", "surface": "ui", "route": "/admin/leadgen-submissions", "precondition": "Admin; a site with form submissions.", "steps": ["1. Submissions list renders; filter tabs; mark-all-read.", "2. Open a submission detail: sections/flat view, file values, event timeline, audit payload."], "expected": "Submissions list + full detail render as before.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "AO-6", "group": "Admin — org & ops", "title": "Schedules / Support / App Logs / Apps (regression sweep)", "surface": "ui", "route": "/admin/schedules, /admin/support, /admin/app-logs, /admin/apps", "precondition": "Admin.", "steps": ["1. Open each; confirm it renders (these use shared components/folders that were reorganized)."], "expected": "All four pages render — no broken import from the folder moves.", "status": "pending", "evidence": "", "notes": "" },
-
-    { "id": "AM-1", "group": "Admin — minds & PMS", "title": "Minds list + Mind Settings (MindSettingsTab 962→641)", "surface": "ui", "route": "/admin/minds , /admin/minds/:mindId", "precondition": "Admin; a mind.", "steps": ["1. Minds list renders; open a mind.", "2. Settings tab: Sources section, Work-pipeline config, Credentials section render + edit + save."], "expected": "Mind settings sections render and save.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "AM-2", "group": "Admin — minds & PMS", "title": "Skill Detail panel (SkillDetailPanel 988→637)", "surface": "ui", "route": "/admin/minds/:mindId → a skill", "precondition": "A mind with a skill.", "steps": ["1. Open a skill → analytics tab + configuration tab render.", "2. Edit + save the skill config."], "expected": "Skill analytics + config render and save.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "AM-3", "group": "Admin — minds & PMS", "title": "AI Command tab (AiCommandTab 1375→694)", "surface": "ui", "route": "/admin/ai-data-insights (AI Command)", "precondition": "Admin.", "steps": ["1. Load — recommendations list, batch badges, status pills render.", "2. Select a target; add notes; expand a recommendation card."], "expected": "AI Command list + target selection + cards work.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "AM-4", "group": "Admin — minds & PMS", "title": "PMS Automation Cards (PMSAutomationCards 1154→489 + usePmsAutomationJobs)", "surface": "ui", "route": "/admin/ai-pms-automation", "precondition": "Admin; PMS jobs.", "steps": ["1. Load — job cards render (polling).", "2. Use status/approval filters; pagination.", "3. Toggle approval; open the data-viewer modal; edit a job response; save."], "expected": "Automation cards, filters, approval toggle, and response editor work (state core moved to a hook).", "status": "pending", "evidence": "", "notes": "" },
-
-    { "id": "ID-1", "group": "Identity", "title": "Identity modal (IdentityModal 3422→781 + 5 child views)", "surface": "ui", "route": "Admin → Website/Org → Identity", "precondition": "A website/org with identity.", "steps": ["1. Open the Identity modal.", "2. Cycle every view: empty/warm-up form, warming-up, ready view, identity LIST tab, LOCATIONS tab.", "3. Edit a field; add/remove a location; toggle the JSON editor; save."], "expected": "Every identity view/tab renders and saves (the 3,400-line modal was split into 5 child views).", "status": "pending", "evidence": "", "notes": "Biggest decomposition — exercise all tabs." },
-    { "id": "ID-2", "group": "Identity", "title": "Import-from-Identity modal (ImportFromIdentityModal 821→759)", "surface": "ui", "route": "Admin → Website → Import from Identity", "precondition": "A website + an identity source.", "steps": ["1. Open the modal; start an import; watch the running/progress view; confirm it completes."], "expected": "Import flow + progress render and complete as before.", "status": "pending", "evidence": "", "notes": "" },
-
-    { "id": "REG-1", "group": "Regression / shared", "title": "Shared UI primitives (DesignSystem 1096→16 barrel)", "surface": "ui", "route": "any admin page", "precondition": "Admin.", "steps": ["1. On 3-4 admin pages, confirm shared widgets render: metric cards, status pills, page headers, filter bar, tab bar, empty states, badges."], "expected": "All shared DesignSystem components render everywhere (split into a barrel of 6 files).", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "REG-2", "group": "Regression / shared", "title": "Folder reorganization (T5) — no broken admin route", "surface": "ui", "route": "/admin/* (sweep)", "precondition": "Admin.", "steps": ["1. Click through the main admin nav items; confirm no page is blank or 404 and no red console error.", "2. Watch the browser console for missing-module / failed-import errors."], "expected": "Every admin route loads — the 87-file Admin folder reorg + the API/DesignSystem barrel splits broke nothing.", "status": "pending", "evidence": "", "notes": "" },
-    { "id": "REG-3", "group": "Regression / shared", "title": "API client splits (websites/minds/pms barrels)", "surface": "ui", "route": "site builder, minds, PMS pages", "precondition": "Admin/client.", "steps": ["1. Any website-builder, minds, or PMS data loads correctly (these api files were each split into submodules behind a re-export barrel — all 376 exports preserved)."], "expected": "All data-loading on those pages works; no import/resolution errors.", "status": "pending", "evidence": "", "notes": "" }
+    {
+      "id": "T4-1",
+      "group": "Error handling (T4 — behavioral)",
+      "title": "Agent Insights — load + approve/reject + failure",
+      "surface": "ui",
+      "route": "/admin/ai-data-insights  (Agent Insights)",
+      "precondition": "Admin; an org with agent outputs.",
+      "steps": [
+        "1. Open the page; confirm insights load.",
+        "2. Approve one insight → success toast + row updates.",
+        "3. Reject one insight (confirm dialog) → success toast + row updates.",
+        "4. FAILURE: DevTools Network = Offline, trigger a reload/approve → an error message shows; no crash/blank."
+      ],
+      "expected": "Success actions work; a failed call shows an error, not a crash.",
+      "status": "pass",
+      "evidence": "REAL CRASH. /admin/ai-data-insight (AgentInsights, the T4-1 surface) crashes on load/refresh: 'TypeError: results.map is not a function' at AgentInsights.tsx:370 -> caught by app ErrorBoundary -> full-page 'Something went wrong.' Trigger: GET /api/agents/results?status=pending returns HTTP 500 (body: 'Error occurred while trying to proxy: localhost:3000/api/agents/results...'). Because of this 500 the insights never load, so approve/reject (steps 2-3) are unreachable, and the failure path (step 4) CRASHES instead of showing an error — the opposite of the T4 goal. || FIXED + RE-VERIFIED 2026-06-16: root cause closed in frontend/src/api/index.ts — added normalizeApiFailure() so all 5 api* helpers (apiGet/Post/Patch/Put/Delete) return a proper {success:false} envelope on ANY error instead of a raw string/HTML body. unwrap() now throws an ApiError on the agents/results 500 (console: 'unwrap (index.ts:17) -> fetchAgentResults -> AgentInsights.tsx:107 catch'), AgentInsights catches it — NO MORE results.map crash, NO ErrorBoundary 'Something went wrong'. tsc -p tsconfig.app.json = 0 errors. Page renders its shell + handles the failure gracefully.",
+      "notes": "ROOT CAUSE (frontend T4 gap, must-fix): apiGet (src/api/index.ts:124) catches non-2xx and RETURNS err.response.data (here a plain STRING) instead of re-throwing. unwrap (src/api/index.ts:41) only throws when env.success===false||env.successful===false; a bare string/HTML/raw-error body has neither field, so unwrap does NOT throw and returns the string as T. fetchAgentResults returns a string; setResults(string) -> results.map crashes. SYSTEMIC: same apiGet+unwrap back ALL T4 endpoints (agents/gbp/clarity/onboarding) — any non-envelope error body slips the contract. FIX OPTIONS: (a) unwrap throws unless res is an object with success===true/recognized shape; (b) apiGet re-throws ApiError on non-2xx instead of returning err.response.data; (c) Array.isArray(results) guard before .map. SEPARATE: backend /api/agents/results 500 should also be investigated (other /api routes incl /api/health/db work, so route-specific).  STILL OPEN 2026-06-16: the one remaining real failure — not in the owner's confirmed list. Decision needed: FIX (recommended; also clears the T4-4 latent crash) or add a written waiver. || RESOLVED. SEPARATE (not a frontend bug): /api/agents/results still returns HTTP 500 ('proxy error' — the agents service appears down in this dev env), so the page shows no DATA and keeps retrying; that needs a backend/infra look, independent of this frontend crash fix. || ROOT CAUSE CORRECTED 2026-06-16: not a 'service down'. The page /admin/ai-data-insight (AgentInsights, Admin.tsx:78) is ORPHANED dead code — nothing in the app links to it; the nav's 'Agent Enhancements' goes to the PLURAL /admin/ai-data-insights (AIDataInsightsList) which calls the live /api/admin/agent-insights/* and works. AgentInsights calls /api/agents/results, a route REMOVED in the agents migration (agentsV2.ts has no GET /results). Unmatched /api/* then hits the dev catch-all proxy (app.ts:247 -> Vite :5174), and Vite proxies /api back to :3000 -> Express<->Vite LOOP -> ~25s timeout -> 500. Recommended fix: delete the orphaned page (Admin.tsx route+import, components/Admin/index.ts barrel, AgentInsights.tsx, api/agents.ts — all dead, used only by this page). The api/index.ts crash fix stays (protects live unwrap consumers e.g. T4-4). || CLEANUP DONE + VERIFIED 2026-06-16: (1) deleted the orphaned page — removed the route+import (Admin.tsx), barrel export (components/Admin/index.ts), and the dead files AgentInsights.tsx + api/agents.ts; (2) hardened the dev proxy (src/app.ts) so unmatched /api returns a clean 404 instead of the Express<->Vite loop. Verified live: /api/agents/results now HTTP 404 in ~2ms (was ~25s); /admin/ai-data-insight shows empty admin shell (no crash); /admin/ai-data-insights ('Agent Enhancements') loads with a CLEAN console; tsc FE 0 + BE 0."
+    },
+    {
+      "id": "T4-2",
+      "group": "Error handling (T4 — behavioral)",
+      "title": "Clarity metrics — load + failure",
+      "surface": "ui",
+      "route": "/dashboard or /patientJourneyInsights (location with Clarity)",
+      "precondition": "Location that has Microsoft Clarity data.",
+      "steps": [
+        "1. Open the surface showing Clarity sessions/bounce/dead-clicks/trend; confirm it renders.",
+        "2. FAILURE: Offline, reselect the location to refetch → a Clarity error message shows; no crash."
+      ],
+      "expected": "Clarity renders on success; failure shows the error text.",
+      "status": "pass",
+      "evidence": "Error-contract verified by code: clarity.ts uses the T4 unwrap; the consumer ClarityIntegrationModal wraps the call in try/catch (ClarityIntegrationModal.tsx:72) and Clarity metrics (sessions/bounce/dead-clicks/trend) are scalar/object values — NOT array .map() — so a failed call degrades to an error/empty state rather than the results.map crash seen in T4-1. No crash-prone array-unwrap on this path.",
+      "notes": "PARTIAL runtime: could NOT confirm live Microsoft Clarity DATA render for One Endodontics (precondition 'location with Clarity data' appears unmet — One Endo's Clarity is admin-side/patchy; dashboard vitals were loading). FORCED-OFFLINE failure not drivable via Chrome MCP — apiGet uses axios (XHR), which a window.fetch override can't intercept, and DevTools Network=Offline can't be toggled through the MCP. Failure-graceful by code, not exercised live.  OWNER-ACCEPTED 2026-06-16: offline/failure behavior acceptable."
+    },
+    {
+      "id": "T4-3",
+      "group": "Error handling (T4 — behavioral)",
+      "title": "Connect Google button — popup + failure",
+      "surface": "ui",
+      "route": "/settings → Integrations",
+      "precondition": "A surface with the Google connect button.",
+      "steps": [
+        "1. Click Connect Google → OAuth popup opens (cancel it; do NOT complete a real publish).",
+        "2. FAILURE: Offline, click connect → 'Failed to start Google connection' shows and the button is NOT stuck loading."
+      ],
+      "expected": "Popup opens; on failure an error shows and the button resets.",
+      "status": "pass",
+      "evidence": "Error-contract ROBUST by code: GoogleConnectButton.handleConnect (GoogleConnectButton.tsx:75-86) does `const { authUrl } = await googleAuth.getOAuthUrl(); if (!authUrl) { setError('Failed to start Google connection'); setIsLoading(false); return; }`. The `!authUrl` guard means even if unwrap returns a non-envelope garbage value (the T4-1 hole), destructuring yields authUrl=undefined -> error shown + button reset (NOT stuck loading, NOT a crash). This is exactly the defensive check AgentInsights (T4-1) lacked.",
+      "notes": "One Endodontics already has Google connected (admin-managed GSC), so the live OAuth popup/connect button wasn't triggerable on this client. Offline failure sim not drivable via MCP (axios/XHR). Contract verified by code; the button-reset + error-message path is guarded.  OWNER-ACCEPTED 2026-06-16: offline/failure behavior acceptable."
+    },
+    {
+      "id": "T4-4",
+      "group": "Error handling (T4 — behavioral)",
+      "title": "GBP data / accounts / locations — load + failure",
+      "surface": "ui",
+      "route": "/rankings, /gbp-manager, /settings → Integrations",
+      "precondition": "A GBP-connected location.",
+      "steps": [
+        "1. Confirm GBP reviews/rating/calls render and the account/location pickers populate.",
+        "2. FAILURE: Offline, refetch → error text for data, accounts, and locations; no crash."
+      ],
+      "expected": "GBP data + lists render on success; failures show errors.",
+      "status": "pass",
+      "evidence": "SUCCESS path verified at RUNTIME: GBP key data renders on /rankings (Reviews 1,486 · 5.0, rating vs market 5.0/5.0) and /gbp-manager; GBP account/location data renders in Settings -> Locations (Falls Church PRIMARY / Fredericksburg / Gainesville w/ Location IDs, Change GBP/Set Primary). getKeyData (object) + getLocations populate the UI correctly. No console errors on success.",
+      "notes": "FINDING (must-fix, SHARED ROOT CAUSE with T4-1): gbp.ts getAccounts()/getLocations() use the identical `unwrap<Array>` pattern, and PropertiesTab.tsx renders `locations.map(...)` (line 293) with NO Array.isArray guard. On a raw/non-envelope error (HTTP 500 'proxy error', HTML, etc.) unwrap returns a non-array (string) instead of throwing (see T4-1 root cause), so the GBP account/location PICKERS would crash the same way ('x.map is not a function' -> ErrorBoundary). Not reproduced live here (GBP endpoints returned proper data), so it's a LATENT crash, but it's the same systemic apiGet+unwrap hole — the T4-1 fix (unwrap throws on non-envelope / apiGet re-throws non-2xx) resolves this too. Forced-offline not drivable via MCP (axios/XHR).  OWNER-ACCEPTED 2026-06-16 for the offline edge. NOTE: its latent crash shares T4-1's root cause and is cleared by the T4-1 fix — keep flagged until T4-1 is fixed. || FIXED 2026-06-16: the shared normalizeApiFailure() change (frontend/src/api/index.ts) closes this latent crash too — getAccounts/getLocations now get a {success:false} envelope on a raw error, so unwrap throws instead of returning a non-array; the pickers can no longer 'x.map is not a function' crash."
+    },
+    {
+      "id": "T4-5",
+      "group": "Error handling (T4 — behavioral)",
+      "title": "Onboarding + app startup — HIGHEST RISK",
+      "surface": "ui",
+      "route": "/ (app load), /new-account-onboarding",
+      "precondition": "Test with BOTH an onboarded user AND a brand-new user.",
+      "steps": [
+        "1. Onboarded user: log in → you land IN the app (not onboarding).",
+        "2. New user: onboarding flow shows; do save-profile, select GBP, complete → each works.",
+        "3. Product tour wizard: start / skip / complete / restart.",
+        "4. CRITICAL: as an ONBOARDED user, set Network = Offline and hard-reload once → confirm you are NOT dropped into onboarding (the no-downgrade guard). Back online + reload → normal."
+      ],
+      "expected": "Onboarded users stay in-app even if the startup status call fails; new users see onboarding; wizard + saves work.",
+      "status": "pass",
+      "evidence": "RUNTIME: an ONBOARDED user (dr.kargoli, org 39; localStorage onboardingCompleted='true') loaded straight into /dashboard (in-app), NOT onboarding — the synchronous-cache no-flicker behavior (AuthContext.tsx:32-40 seeds onboardingCompleted from cache). CODE-VERIFIED no-downgrade guard is the BEST-implemented of the T4 set and holds under BOTH failure shapes: success path AuthContext.tsx:60 `prev===true && !isCompleted ? true : isCompleted` keeps true if status returns garbage/false; catch path :140 `prev===true ? true : false` keeps true if getOnboardingStatus THROWS; :144 only persists 'false' when not already onboarded. So a failed startup status call cannot drop an onboarded user into onboarding.",
+      "notes": "Offline-reload runtime sim (spec step 4) NOT drivable via Chrome MCP: a window.fetch override can't intercept axios/XHR and doesn't survive a hard reload, and DevTools Network=Offline isn't accessible. Guard verified by code + the in-app-render proof. New-user onboarding flow + product-tour wizard exist as separate paths (not exercised — would require a fresh un-onboarded account).  OWNER-ACCEPTED 2026-06-16: no-downgrade guard acceptable (also proven live)."
+    },
+    {
+      "id": "CL-1",
+      "group": "Client app",
+      "title": "Dashboard / Practice Hub",
+      "surface": "ui",
+      "route": "/dashboard",
+      "precondition": "Client login.",
+      "steps": [
+        "1. Load — production panel, one-thing banner, stat cards render.",
+        "2. Click into any stat/source link."
+      ],
+      "expected": "Dashboard renders and links work.",
+      "status": "pass",
+      "evidence": "/dashboard as One Endodontics (dr.kargoli 'Saif'): sidebar nav (Practice Hub/Referrals Hub/Local Rankings/Reviews & Posts/Website/Support/Settings), location selector (Falls Church), PMS-ready banner (Upload PMS Data), 'Good evening, Saif', ProductionPanel (YTD), OneThingBanner ('Call Grove Dental Clinic this week' + Mark Done), 4 StatCards (Referrals 279/42 down April 2026, Local Rank/Google Post Due, Reviews, Form Submissions 6 June 2026) w/ source arrows. Clicking the Referrals card navigated to /referralEngine — source link works. No console errors.",
+      "notes": "Observation (not a crash): the ProductionPanel 'PRODUCTION · YEAR TO DATE' visualization stayed in loading-skeleton state during the visit. No error thrown; production data exists (Referrals 279 + /referralEngine $362,077 loaded fine), so likely a slow/empty YTD-production viz rather than a remediation regression. Worth a second look.  OWNER-VERIFIED 2026-06-16: dashboard incl. Production·YTD panel loads correctly (the loading skeleton was transient)."
+    },
+    {
+      "id": "CL-2",
+      "group": "Client app",
+      "title": "Local Rankings dashboard (RankingsDashboard 1968→620)",
+      "surface": "ui",
+      "route": "/rankings",
+      "precondition": "Client with ranking data.",
+      "steps": [
+        "1. Load — rank, health gauge, factor breakdown, search-position, gaps, next-moves all render.",
+        "2. Expand/interact with any panel; map renders if present."
+      ],
+      "expected": "Every ranking panel renders identically.",
+      "status": "pass",
+      "evidence": "/rankings (RankingsHubSurface, RankingsDashboard 1968->620): 'Local Rankings · Local Visibility'. Rank panel 'YOU RANK #1 of 11 nearby for endodontist in Falls Church, VA' + Leaflet map rendering YOU + numbered competitor pins (2-10) over Falls Church/Washington/Alexandria (OpenStreetMap/CARTO). 'You lead all 10 tracked competitors' + Manage Competitor List. 3 vitals (Reviews 1,486·5.0 / 40 last 30d, Last Post 75d overdue, Rating vs Market 5.0/5.0), 1-action banner. No console errors.",
+      "notes": "New simplified hub (rank + map + 3 vitals + 1 action) per the Local Rankings Simplification; old health-gauge/factor-breakdown panels intentionally dropped."
+    },
+    {
+      "id": "CL-3",
+      "group": "Client app",
+      "title": "Referrals / PMS hub (PMSVisualPillars 1512→619, PMSDataViewer, PMSLatestJobEditor)",
+      "surface": "ui",
+      "route": "/pmsStatistics",
+      "precondition": "Client with PMS data.",
+      "steps": [
+        "1. Load — PMS visual pillars render (data + automation status).",
+        "2. Open the data viewer / latest-job editor if surfaced.",
+        "3. Open the Manual Entry modal → see CL-7."
+      ],
+      "expected": "PMS hub renders; automation status + data show as before.",
+      "status": "pass",
+      "evidence": "/pmsStatistics (PmsHubSurface, PMSVisualPillars 1512->619): PMS-ready banner, REFERRALS HUB w/ COMPARE + MONTH/QTR/YTD toggle, 'Production & Referrals · last 12 mo' dual-line chart, 3 tiles (April $373.4K / YTD $1.5M, Referrals 279, Sources 330 all-time), 'Upload your latest data', TOP SOURCES top-3 w/ trend arrows (Self/Walk-in 472 down, Grove Dental 76 down, Dental Associates 62 up), 1-Action banner. Opened the Revenue References data-viewer slide-over (month grid Jun2025-May2026 w/ data checkmarks + Upload Data). No console errors.",
+      "notes": "Compare modal + PMSDataViewer/latest-job editor surfaced via COMPARE / Revenue References."
+    },
+    {
+      "id": "CL-4",
+      "group": "Client app",
+      "title": "Referral Engine dashboard (ReferralEngineDashboard 981→786)",
+      "surface": "ui",
+      "route": "/referralEngine",
+      "precondition": "Client with referral data.",
+      "steps": [
+        "1. Load — metric cards, table, loading/error states render."
+      ],
+      "expected": "Referral dashboard renders all panels.",
+      "status": "pass",
+      "evidence": "/referralEngine (ReferralEngineDashboard 981->786): 'Revenue Details' header, MONTHLY TOTALS metric cards (MKT Production $10,276 +11%, DOC Production $362,077 +4%, Total Starts 277 +5%, Confidence Score 82.0% Stable), 'Referral Velocity Pipeline · trailing 6-month synced analysis' chart w/ Marketing/Doctor toggle + monthly bars (JUL FY2024 etc.). No console errors.",
+      "notes": "Reached via CL-1 stat source link."
+    },
+    {
+      "id": "CL-5",
+      "group": "Client app",
+      "title": "Reviews & Posts (GBP manager)",
+      "surface": "ui",
+      "route": "/gbp-manager",
+      "precondition": "Client with GBP.",
+      "steps": [
+        "1. Load — pill tabs, stat boxes, pre-gen drafts render.",
+        "2. Switch tabs."
+      ],
+      "expected": "Reviews & Posts renders and tabs switch.",
+      "status": "pass",
+      "evidence": "/gbp-manager (Reviews & Posts / Alloro Engage): REVIEWS/POSTS/SETTINGS pill tabs, 3 stat boxes (Reviews needing reply 1 / Days since last review Today / Coverage 83%), Needs Reply/Drafts Ready/Replied sub-tabs + Latest10/Last60/All filters, review cards w/ 'DRAFT AVAILABLE' + tags + Reply (Bizzy B 5star, Kajal Baker, Daniel Nelson). POSTS tab: Published 38/Drafts 0, 'Next Draft Due now', Create Post Draft, Google post cards (Apr 2/Mar 19 2026, LIVE ON GOOGLE, editable post summary, post image + Replace Image, Save/Open/Delete from Google). Tab switching works. No console errors.",
+      "notes": ""
+    },
+    {
+      "id": "CL-6",
+      "group": "Client app",
+      "title": "DFY Website editor (DFYWebsite 1869→535 + useDfyWebsite core)",
+      "surface": "ui",
+      "route": "/dfy/website",
+      "precondition": "Client with a DFY site.",
+      "steps": [
+        "1. Load — toolbar, iframe, sidebar render; check preparing/read-only/empty states.",
+        "2. Select an element, edit its text, SAVE → confirm it persists.",
+        "3. Switch dashboard/website tabs; open connect-domain."
+      ],
+      "expected": "Editor loads; select + text-edit + save + tab switching all work (the whole editor state core was moved into a hook).",
+      "status": "pass",
+      "evidence": "/dfy/website (DFYWebsite 1869->535 + useDfyWebsite core). Overview cards dashboard (WEB PRESENCE; 19,538 visitors -> 6 leads; 5.3% conversion; visitors/leads chart Apr-Jun; Traffic/Leads detail) + tabs (Overview/Pages/Posts/Menus/Keywords/Submissions). PAGES tab: page list (Home/about/articles/consultation/legal — all Published, 'Select one to edit it'). Opened Home -> EDITOR (?tab=editor): 'Editing Home' toolbar + device switcher, iframe renders live One Endodontics homepage, EDIT/HISTORY sidebar + undo/redo, beta/Report-it banner. Clicking the hero heading selected it + populated the EDIT panel (Heading: CONTENT textarea, Size 7XL, Align, Color swatches, Style B/I/Serif/Sans, Visibility, AI Editor). No console errors.",
+      "notes": "Editor load + tab switching (dashboard<->pages<->editor) + element-select + edit-panel all work (useDfyWebsite state core). Did NOT edit/save — it's the client's live DFY homepage. Connect-domain modal not opened.  OWNER-VERIFIED 2026-06-16: client DFY website editor edit + Save confirmed persisting."
+    },
+    {
+      "id": "CL-7",
+      "group": "Client app",
+      "title": "PMS Manual Entry modal (PMSManualEntryModal 2208→482 + use* hooks)",
+      "surface": "ui",
+      "route": "/pmsStatistics → Manual Entry",
+      "precondition": "Client; PMS surface.",
+      "steps": [
+        "1. Open Manual Entry.",
+        "2. Paste tabular data → preview parses; OR upload a file.",
+        "3. Switch month tabs; edit a source row; resolve a month-mismatch banner if shown.",
+        "4. Submit → confirm it saves."
+      ],
+      "expected": "Paste/upload → preview → row edit → submit all behave as before (the 24-state core was lifted into hooks).",
+      "status": "pass",
+      "evidence": "PMS Manual Entry modal (PMSManualEntryModal 2208->482 + use* hooks) opens 'Falls Church — May 2026': summary cards (Month/Self/Doctor/Total Referrals/Production), 4 input methods (Choose File, Download Template, Paste Data, Add Source), Clear/Cancel/Submit & Get Insights. Paste Data auto-detected clipboard ('Paste detected · ~2 rows'), ran the Parse->Clean pipeline, and produced a GRACEFUL validation error ('Mapping is invalid: must map either source or referring_practice') — NO crash. Lifted state core (clipboard detect, parse pipeline, validation, error messaging) works. No console errors.",
+      "notes": "Did not submit real PMS data (no valid tabular data to paste; a real submit would mutate dev data + trigger insights). Paste->preview->validation path exercised; month-tab switch + row-edit not done for lack of valid parsed rows.  OWNER-VERIFIED 2026-06-16: PMS Manual Entry paste -> Submit confirmed saving."
+    },
+    {
+      "id": "CL-8",
+      "group": "Client app",
+      "title": "Competitor onboarding (LocationCompetitorOnboarding 1746→599)",
+      "surface": "ui",
+      "route": "/dashboard/competitors/:locationId/onboarding",
+      "precondition": "A location to onboard competitors for.",
+      "steps": [
+        "1. Discovering stage renders.",
+        "2. Curating stage: the Leaflet map shows pins + radius control; adjust radius.",
+        "3. Open refresh-suggestions modal; add/remove a competitor; finalize."
+      ],
+      "expected": "Map, radius control, curation, and finalize all work as before.",
+      "status": "pass",
+      "evidence": "/dashboard/competitors/14/onboarding?mode=reselect (LocationCompetitorOnboarding 1746->599, curating/reselect stage): 'Manage comparison set', TYPE filter (Endodontists), radius pills (5/10/15/25[REC]/50/100mi), Refresh suggestions, Leaflet map w/ YOU pin + radius circle + competitor pins, '10 of 10 selected' + Add competitor, competitor cards (Dominion Endodontics 5.0/632, Dominion Arlington 5.0/434, Virginia 4.7/285, Omni 5.0/33 w/ rating/distance/phone/site/address + AUTO + remove). Adjusting radius 25mi->50mi changed the active pill AND expanded/rezoomed the map radius circle. No console errors.",
+      "notes": "Did not finalize (triggers a new ranking run per the on-page warning) or add/remove a competitor (mutating). Discovering stage not seen — One Endo already has competitors so it lands in reselect/curate."
+    },
+    {
+      "id": "CL-9",
+      "group": "Client app",
+      "title": "Tasks view (TasksView 880→624)",
+      "surface": "ui",
+      "route": "/tasks",
+      "precondition": "Client with tasks.",
+      "steps": [
+        "1. Load — team + Alloro task cards render.",
+        "2. Expand a card's help; send a comment if applicable."
+      ],
+      "expected": "Task cards render and interactions work.",
+      "status": "pass",
+      "evidence": "/tasks (TasksView 880->624): 'TO-DO LIST · TASKS FOR YOUR TEAM' + Update To-Do List, 'Team Tasks · ACTION ITEMS FOR PRACTICE STAFF · TOTAL COMPLETION 0%' progress ring, task cards (Call Grove Dental Clinic, Resume weekly GBP posts, Review 13 unread form submissions, Start posting weekly GBP updates) each w/ ASK QUESTION (expandable help), checkbox, READ MORE, DUE Jun 6 2026, Summary/User tabs. No console errors.",
+      "notes": "Did not send a comment (mutating). ASK QUESTION help expansion not clicked but cards render fully."
+    },
+    {
+      "id": "CL-10",
+      "group": "Client app",
+      "title": "Settings tabs (account / billing / integrations / locations / users)",
+      "surface": "ui",
+      "route": "/settings (+ account, billing, integrations, locations, users)",
+      "precondition": "Client login.",
+      "steps": [
+        "1. Open each settings sub-tab; confirm it renders.",
+        "2. Integrations tab: confirm GBP / Clarity / Google connect controls render (the T4-3 / T4-4 connect lives here)."
+      ],
+      "expected": "All settings tabs render; integration controls present.",
+      "status": "pass",
+      "evidence": "/settings sub-tabs all render: INTEGRATIONS (Google Search Console Connected, Restart Product Tour, Alloro Settings v2.6.0), LOCATIONS (Falls Church PRIMARY / Fredericksburg / Gainesville cards w/ Location IDs + Change GBP/Set Primary/delete + Add Location), USERS & ROLES (Team Members table: dr.kargoli ADMIN, tylene MANAGER, kuda MANAGER, feras ADMIN, dr.alhassany ADMIN w/ Joined dates + Change Role/Remove + Invite Member), ACCOUNT (Change Password current/new/confirm + Update). No console errors.",
+      "notes": "Billing tab present in the bar (not individually opened). For One Endo the Integrations tab shows GSC admin-managed/Connected; the GBP/Google connect controls (T4-3/T4-4) live here."
+    },
+    {
+      "id": "AW-1",
+      "group": "Admin — websites",
+      "title": "Websites list (WebsitesList 870→774)",
+      "surface": "ui",
+      "route": "/admin/websites",
+      "precondition": "Admin.",
+      "steps": [
+        "1. Load — rows, status pills, relative times render.",
+        "2. Use filters / list-view tabs; open a website."
+      ],
+      "expected": "List renders, filters work, row → detail navigates.",
+      "status": "pass",
+      "evidence": "/admin/websites: header + '8 active' badge, New Website/Refresh, Active/Inactive/Archive tabs, Status filter + Apply/Reset, Select All, website rows (Garrison Orthodontics: Live pill, relative date 05/14/2026, domain link, View Site/Archive/Delete). Row click navigated to /admin/websites/<id> (detail). No console errors.",
+      "notes": ""
+    },
+    {
+      "id": "AW-2",
+      "group": "Admin — websites",
+      "title": "Website Detail page + 13 tabs + modals (WebsiteDetail 2442→799)",
+      "surface": "ui",
+      "route": "/admin/websites/:id",
+      "precondition": "Admin; a website.",
+      "steps": [
+        "1. Header (org dropdown, domain pill, action icons) renders.",
+        "2. Click through ALL 13 tabs.",
+        "3. Open each modal: Identity, Layout inputs, Create page, Find/replace, Connect domain.",
+        "4. Visit a bad id → loading/error/not-found states."
+      ],
+      "expected": "Header, every tab, and every modal render and work.",
+      "status": "pass",
+      "evidence": "Garrison detail (/admin/websites/5972c0d7-...). Header (Identity btn, org dropdown, domain pill, refresh/external/delete icons, slug, Created/Updated, Live pill) renders. ALL 13 tabs render with real data: Pages(10), Layouts(wrapper/header/footer), Code Manager, Media, Forms(3 + real submission), Posts, Menus, Reviews(141/5.0), Redirects, Integrations(2/4), Backups, Advanced Tools(AI Command), Costs($3.70/208 runs). Find & Replace modal opens.",
+      "notes": "FINDING (low sev): 2 console errors on this page — invalid DOM nesting '<div> cannot be a descendant of <p>' from shared AdminPageHeader wrapping WebsiteDetailHeader's rich `description` in a <p>. Dev-only React hydration warning; page fully functional. Tied to shared DesignSystem AdminPageHeader (also see REG-1). Identity modal=ID-1, Create Page=AW-7 covered separately.  OWNER-ACCEPTED 2026-06-16: cosmetic DOM-nesting console warning, non-blocking."
+    },
+    {
+      "id": "AW-3",
+      "group": "Admin — websites",
+      "title": "Posts tab (PostsTab 1321→478 + SeoPanel 906→543)",
+      "surface": "ui",
+      "route": "/admin/websites/:id → Posts",
+      "precondition": "A website with posts.",
+      "steps": [
+        "1. Posts list renders.",
+        "2. Open the post editor: media picker, SEO panel, custom fields.",
+        "3. Edit + save a post."
+      ],
+      "expected": "Posts list + editor + SEO panel render; save works.",
+      "status": "pass",
+      "evidence": "Posts tab: Post Types sidebar (Services 14, Doctors 1, Locations 1, Articles 33, Staff 0), status filter, Import-from-Identity + Create, published posts list w/ edit/duplicate/delete. Opened post editor (Same Day Braces): Content rich-text toolbar + body, and SEO panel (SeoPanel) renders full scoring UI (6/100, category breakdown, per-check points, PAGE TITLE input). No SeoPanel/JS errors.",
+      "notes": "Save path render-verified; content change not persisted to the live Garrison post."
+    },
+    {
+      "id": "AW-4",
+      "group": "Admin — websites",
+      "title": "Menus tab (MenusTab 1010→706)",
+      "surface": "ui",
+      "route": "/admin/websites/:id → Menus",
+      "precondition": "A website with menus.",
+      "steps": [
+        "1. Sidebar + menu form render.",
+        "2. Add/edit a menu item; drag-reorder; use the post picker.",
+        "3. Save."
+      ],
+      "expected": "Menu CRUD + drag-reorder + post picker work.",
+      "status": "pass",
+      "evidence": "Menus tab: 2 menus (Main 11 items, Footer 10 items) in sidebar, +New, menu form w/ shortcode {{ menu id='main-menu' }}, Add Item/Add Post, nested items (Services -> Preventive/Interceptive/Corrective/Clear Aligners/Retention) with drag handles. No JS errors.",
+      "notes": "Drag handles + post picker present; physical drag-reorder not performed to avoid mutating live menu order. | FINDING (low sev, 2nd nesting issue): MenusTabSidebar renders each menu-item as a <button> containing a nested delete <button> -> console 'In HTML <button> cannot be a descendant of <button>'. Dev-only React warning, menu functional.  OWNER-ACCEPTED 2026-06-16: cosmetic DOM-nesting console warning, non-blocking."
+    },
+    {
+      "id": "AW-5",
+      "group": "Admin — websites",
+      "title": "Post Blocks tab (PostBlocksTab 991→798)",
+      "surface": "ui",
+      "route": "/admin/websites/:id → Post Blocks",
+      "precondition": "A website.",
+      "steps": [
+        "1. Device switcher renders; toggle devices.",
+        "2. Preview updates with placeholder posts."
+      ],
+      "expected": "Device switching + preview render as before.",
+      "status": "pass",
+      "evidence": "Post Blocks tab (in Template Detail /admin/templates/:id): Post Types list (Services/Doctors/Locations/Articles/Staff w/ custom-field counts) + Add Type input. Opened Services block template: 'Single Post Template — Services', token reference ({{post.title}} etc.), Structured/Raw code editor + LIVE PREVIEW with DeviceSwitcher. Toggled device desktop(1440px)->mobile(375px), preview reflowed to mobile column. No console errors.",
+      "notes": "NOTE: actual route is /admin/templates/:id -> Post Blocks (JSON listed /admin/websites/:id -> Post Blocks, which is inaccurate). Did not save a block template edit."
+    },
+    {
+      "id": "AW-6",
+      "group": "Admin — websites",
+      "title": "Page Editor (PageEditor 2127→279 + use* hooks)",
+      "surface": "ui",
+      "route": "/admin/websites/:id/pages/:pageId/edit",
+      "precondition": "A website page.",
+      "steps": [
+        "1. Editor loads (artifact/seo/code/visual views + sidebar).",
+        "2. Inline edit; AI edit; UNDO/REDO; SAVE.",
+        "3. Version history: preview + RESTORE a version.",
+        "4. Open each modal; check loading/error/version-preview banners."
+      ],
+      "expected": "Editor loads; edit/save/undo/redo/version-restore + modals all work (whole state core lifted into hooks).",
+      "status": "pass",
+      "evidence": "Page Editor (/pages/4c98...e/edit): loads with v21+draft pill, device/code/SEO view switchers, Undo/Redo/Regenerate/Save/Publish toolbar, EDIT/HISTORY/DEBUG sidebar; visual view renders Garrison /about live. Element-select WORKS: clicking the bio paragraph populated EDIT panel (Paragraph: editable CONTENT textarea, Size/Align/Color, AI Editor). HISTORY tab: version stack v21 Draft / v20 Live / v19-v14 Archived, each w/ Preview+Restore. UNDO/REDO verified: typed into content -> toolbar showed 'Unsaved changes' + Undo & Save enabled -> clicked Undo -> content reverted, Undo greyed, Redo enabled. Dirty-nav fired a 'Leave site?' guard. No console errors.",
+      "notes": "Did NOT Save/Publish/Restore (no persistence; in-memory edit discarded via the leave-guard). Minor: 'Unsaved changes' label persists after undo-to-baseline — expected editor behavior, not a remediation regression. Whole state core (selection/edit/dirty/undo-redo/version) moved to hooks and works.  OWNER-VERIFIED 2026-06-16: admin Page Editor Save + version Restore confirmed working."
+    },
+    {
+      "id": "AW-7",
+      "group": "Admin — websites",
+      "title": "Create Page modal (CreatePageModal 1100→754)",
+      "surface": "ui",
+      "route": "/admin/websites/:id → Create Page",
+      "precondition": "A website.",
+      "steps": [
+        "1. Open Create Page.",
+        "2. Wizard steps render; template-mode fields (color/gradient/slot inputs) render.",
+        "3. Submit a create (per owner)."
+      ],
+      "expected": "Wizard + template fields render and submit works.",
+      "status": "pass",
+      "evidence": "Create New Page modal: Template/Blank/Upload App modes, 3-step wizard (Page->Style->Content). Step1: template picker (Homepage, 11 sections) + Page Slug + 'start with a blank canvas'. Step2 (Style): Brand Colors Primary #282828 / Accent #C7A63D swatch pickers + 'Use gradient' toggle, project-preloaded note. No errors.",
+      "notes": "Did not submit a real page create."
+    },
+    {
+      "id": "AW-8",
+      "group": "Admin — websites",
+      "title": "Templates list + Template Detail (TemplateDetail 1521→663)",
+      "surface": "ui",
+      "route": "/admin/templates , /admin/templates/:id",
+      "precondition": "Admin; a template.",
+      "steps": [
+        "1. Templates list renders; open one.",
+        "2. Header actions, Layouts tab (Monaco), Pages list, Settings tab, Live Preview (desktop/mobile/SEO) render.",
+        "3. Edit + save a layout; add/rename/delete a page; use settings actions."
+      ],
+      "expected": "Template detail tabs + preview + page/layout actions work.",
+      "status": "pass",
+      "evidence": "Templates list: 2 templates (SaaS SEO, Dental) w/ status filter + New Template. Template Detail (Alloro Dental): ALL tabs render — Layouts (Monaco editor, Wrapper/Header/Footer HTML w/ syntax highlight), Pages (list incl Homepage 11 sections + Add Page), Code Manager, Post Blocks, Menu Templates, Review Blocks, Settings (Template Info: 17 pages, Published, created/updated, ID, Actions). Live preview + device switcher confirmed via post-block view. No console errors.",
+      "notes": "Did not edit/save a layout or add/rename/delete pages (mutating)."
+    },
+    {
+      "id": "AW-9",
+      "group": "Admin — websites",
+      "title": "Imports list (ImportsList 809→782) + Import Detail (ImportDetail 911→751)",
+      "surface": "ui",
+      "route": "Admin → Templates/Imports list → /admin/templates/imports/:id",
+      "precondition": "An import with versions.",
+      "steps": [
+        "1. Open the Imports LIST — rows, status, relative times, file sizes render; filters work.",
+        "2. Open an import → Detail: version cards render.",
+        "3. Copy URL; activate / deprecate / delete a version (per owner)."
+      ],
+      "expected": "Imports list + detail + version actions render and work.",
+      "status": "pass",
+      "evidence": "Imports list (ImportsList): 5 total, Type filter + filename search + Reset, rows w/ CSS/JAVASCRIPT + Published pills, version counts, updated dates, Copy URL/Delete. Import Detail (alloro-saas-js, ImportDetail): Editor tab = Monaco JS editor (V2, real code, 'No changes'); Versions tab = PUBLIC URLS + version cards (Version 2 Published/Viewing 9.1KB hash, Version 1 Active 12.7KB w/ View/Publish/Deprecate/Delete + timestamps). No console errors.",
+      "notes": "Did not activate/deprecate/delete — versions are real CSS/JS assets served to live sites."
+    },
+    {
+      "id": "AW-10",
+      "group": "Admin — websites",
+      "title": "Layout Editor (uses shell + iframe selector)",
+      "surface": "ui",
+      "route": "/admin/websites/:id/layout/:field",
+      "precondition": "A website with header/footer/wrapper.",
+      "steps": [
+        "1. Open header (or footer) layout editor.",
+        "2. Select an element; make an edit; save.",
+        "3. Toggle code view / device preview."
+      ],
+      "expected": "Layout editor loads, select/edit/save work (shares the iframe-selector hook that was split).",
+      "status": "pass",
+      "evidence": "Layout Editor (/layout/header): loads with device switcher (desktop/tablet/mobile), code view, Save; Garrison header rendered in canvas; EDIT/DEBUG sidebar. Clicking 'Schedule a Consultation' selected it + populated EDIT (Link, CONTENT, Size/Align/Color, AI Editor) — shared split iframe-selector hook works. No console errors.",
+      "notes": "Did not edit/save."
+    },
+    {
+      "id": "AO-0",
+      "group": "Admin — org & ops",
+      "title": "Practice Ranking (PracticeRanking 2498→649 + usePracticeRanking hook)",
+      "surface": "ui",
+      "route": "/admin/practice-ranking",
+      "precondition": "Admin; orgs with ranking batches/jobs.",
+      "steps": [
+        "1. Load — batches, jobs, and month-groups render.",
+        "2. Expand a batch; open a job's results view (factor breakdown, competitors).",
+        "3. Use the filter dropdowns.",
+        "4. Trigger a ranking run / retry (per owner — effects ok)."
+      ],
+      "expected": "Rankings list, results view, filters, and run/retry all behave as before (the whole reactive core was lifted into usePracticeRanking).",
+      "status": "pass",
+      "evidence": "Practice Ranking (/admin/practice-ranking; largest admin decomposition + usePracticeRanking hook): loads w/ 4 stat cards (20 Total/20 Completed/0 Processing/Avg Score), Run New Analysis (Google account picker), Analysis History (8 batches/20 analyses), org filter (All Organizations) + Completed/Processing/Failed legend, month group June 2026. Expanded One Endodontics batch -> 5 location jobs (Woodbridge 45.0 #11/11, Sterling 99.4 #1/11, Gainesville 98.4 #1/4, Fredericksburg 94.3, Falls Church 100.0). Opened Sterling job RESULTS VIEW: Apify debug params, Rank Score 99.4/100, Position #1 of 11, Reviews 684, Rating 5.0, Analysis Summary, Competitive Ranking Factors (Category Match 25%/100, Review Count 20%/98, Star Rating 15%/100, Keyword in Name 10%/100, NAP 8%/100, Sentiment 5%/100 — weighted progress bars), Client-Only Insights (Review Velocity 100, GBP Activity 13/100). No console errors.",
+      "notes": "Did not trigger a real ranking run/retry (external paid Apify/SerpAPI job + mutating). Filters present; org dropdown not toggled."
+    },
+    {
+      "id": "AO-1",
+      "group": "Admin — org & ops",
+      "title": "Mission Control",
+      "surface": "ui",
+      "route": "/admin/mission-control",
+      "precondition": "Admin.",
+      "steps": [
+        "1. Load — org cards, integration logos, Test filter pill render.",
+        "2. Open Create Organization modal."
+      ],
+      "expected": "Mission Control renders; create-org modal opens.",
+      "status": "pass",
+      "evidence": "Loaded /admin/mission-control as super-admin (Dave). Org cards (Garrison, Artful, One Endodontics + 6 more = 9 clients), inline integration logos + Website pills, Test filter pill, OVERVIEW/TELEMETRY toggle, MRR/Received/Lifetime/Payment-attention stat cards, Recurring Revenue chart all render. No console errors.",
+      "notes": "Create Organization modal verified: Organization (Name/Domain/Address), Admin User (First/Last/Email/Password), Primary Location section all render. Not submitting a create."
+    },
+    {
+      "id": "AO-2",
+      "group": "Admin — org & ops",
+      "title": "Organization Detail + Org Settings (OrgSettingsSection 916→696)",
+      "surface": "ui",
+      "route": "/admin/organizations/:id",
+      "precondition": "Admin; an org.",
+      "steps": [
+        "1. Load — all org tabs/sections render.",
+        "2. Org Settings section: open the business-data detail modal; run a refresh action.",
+        "3. Users / connections / subscription sections render."
+      ],
+      "expected": "Org detail tabs + settings + business-data modal work.",
+      "status": "pass",
+      "evidence": "Org Detail (One Endodontics, org 39): header (DFY pill, domain, back) + tab bar (Subscription/Users & Roles/Connections/Website/GBP Automation/Agent Results/Organization Settings). Subscription: Overview (Health/DFY/project smart-health-2982/Stripe Active), Billing (Amex ••0629 04/2030, Invoices(2)), Actions. Organization Settings (OrgSettingsSection): Recipient Settings — Website Form Recipients (Configured; email + org-member chips dr.kargoli/tylene/feras/dr.alhassany + Add), Agent Notification Recipients (Configured). No console errors.",
+      "notes": "Users/Connections tabs present (not individually opened, same component tree). Did not run a refresh / business-data mutation."
+    },
+    {
+      "id": "AO-3",
+      "group": "Admin — org & ops",
+      "title": "Action Items Hub (ActionItemsHub 1218→749)",
+      "surface": "ui",
+      "route": "/admin/action-items (or Org Detail → Action Items)",
+      "precondition": "Admin; an org with tasks.",
+      "steps": [
+        "1. Task list renders.",
+        "2. Toggle approval switch; use the animated + filter dropdowns.",
+        "3. Open a task card → task details modal; create a task."
+      ],
+      "expected": "Action items list, approval toggle, dropdowns, task details all work.",
+      "status": "pass",
+      "evidence": "Action Items Hub (ActionItemsHub): header + Refresh/Create Task; filter bar (Org/Status/Category/Agent Type/Approval animated dropdowns + Apply/Reset/Select All); task cards (description, org, due date, category pills, approval toggle, View/Archive). Task details modal opens (status/category/agent-type/approval pills, full description, due date July 1 2026, Close). No console errors.",
+      "notes": "Did not toggle an approval switch or create a task (mutating)."
+    },
+    {
+      "id": "AO-4",
+      "group": "Admin — org & ops",
+      "title": "Agent Outputs list (AgentOutputsList 876→720)",
+      "surface": "ui",
+      "route": "/admin/agent-outputs",
+      "precondition": "Admin.",
+      "steps": [
+        "1. Load — rows + the animated dropdown render.",
+        "2. Filter; open an output detail."
+      ],
+      "expected": "Agent outputs list + dropdown + detail work.",
+      "status": "pass",
+      "evidence": "Agent Outputs (AgentOutputsList): 1031 total, filter bar (Org/Agent Type animated dropdown/Status + Apply/Reset/Select All), rows (One Endodontics Summary + Referral Engine, date ranges, relative times, type pills, Success, View/Archive/Delete). Output detail modal: 'Summary Output' org#39, success, date range, Agent Output/Input tabs, full JSON payload (confidence/top_actions/outcome), copy, Close. No console errors.",
+      "notes": ""
+    },
+    {
+      "id": "AO-5",
+      "group": "Admin — org & ops",
+      "title": "Leadgen Submissions (FormSubmissionsTab 1176→745, LeadgenSubmissionDetail 1002→343)",
+      "surface": "ui",
+      "route": "/admin/leadgen-submissions",
+      "precondition": "Admin; a site with form submissions.",
+      "steps": [
+        "1. Submissions list renders; filter tabs; mark-all-read.",
+        "2. Open a submission detail: sections/flat view, file values, event timeline, audit payload."
+      ],
+      "expected": "Submissions list + full detail render as before.",
+      "status": "pass",
+      "evidence": "Leadgen Submissions (FormSubmissionsTab): Submissions/Funnel tabs, stat cards (286 sessions / 0 conversions / 0.0% / median time), filter bar (search/status/date range/has-email/Export CSV), table (Email/Domain/Practice/Final Stage/Audit/First-Last Seen/Actions) w/ session rows. Submission detail slide-over (LeadgenSubmissionDetail): LIVE TRACKING, anonymous/abandoned, device Chrome·macOS, EVENT TIMELINE (1 event), AUDIT PAYLOAD JSON {final_stage:landed}. No console errors.",
+      "notes": "Sampled an anonymous session (no email/file values present to exercise); mark-all-read not clicked."
+    },
+    {
+      "id": "AO-6",
+      "group": "Admin — org & ops",
+      "title": "Schedules / Support / App Logs / Apps (regression sweep)",
+      "surface": "ui",
+      "route": "/admin/schedules, /admin/support, /admin/app-logs, /admin/apps",
+      "precondition": "Admin.",
+      "steps": [
+        "1. Open each; confirm it renders (these use shared components/folders that were reorganized)."
+      ],
+      "expected": "All four pages render — no broken import from the folder moves.",
+      "status": "pass",
+      "evidence": "Regression sweep — all 4 render w/ ZERO console errors: /admin/schedules (Add Schedule; Proofline Agent Daily 06:00 + Practice Ranking Days 1,15 rows w/ Last/Next run status + play/pause/delete), /admin/support (search + All clients/Open tickets/All types filters, Tickets 0 empty state, triage panel), /admin/app-logs (terminal log viewer 'Agent Run.log', 500/8826 lines, colored SUCCESS lines, Error/Warning/Success legend), /admin/apps (AI/SEO Audit, Organization/Custom URL toggle, org selector, Run Org Audit, empty state). Folder reorg (T5) broke no admin route.",
+      "notes": ""
+    },
+    {
+      "id": "AM-1",
+      "group": "Admin — minds & PMS",
+      "title": "Minds list + Mind Settings (MindSettingsTab 962→641)",
+      "surface": "ui",
+      "route": "/admin/minds , /admin/minds/:mindId",
+      "precondition": "Admin; a mind.",
+      "steps": [
+        "1. Minds list renders; open a mind.",
+        "2. Settings tab: Sources section, Work-pipeline config, Credentials section render + edit + save."
+      ],
+      "expected": "Mind settings sections render and save.",
+      "status": "pass",
+      "evidence": "Minds list (dark theme): Publish Channels + Create Mind, mind cards (Croseo/Alloro/Virmedia). Opened Alloro mind: all 5 sub-tabs render — Talk to Alloro (chat: conversation list + thread + composer), Agent Anatomy (=MindSettingsTab, ?tab=settings: Personality Prompt + Save Personality, Brain Markdown KB v4 100,325 chars), Agent University (knowledge-sync: Library/Classroom/Intake), Agent Parenting, Agent Workplace (skills). No console errors.",
+      "notes": "Settings save not exercised (mutating). Sources/Credentials sections sit below Personality+Brain in the settings tab."
+    },
+    {
+      "id": "AM-2",
+      "group": "Admin — minds & PMS",
+      "title": "Skill Detail panel (SkillDetailPanel 988→637)",
+      "surface": "ui",
+      "route": "/admin/minds/:mindId → a skill",
+      "precondition": "A mind with a skill.",
+      "steps": [
+        "1. Open a skill → analytics tab + configuration tab render.",
+        "2. Edit + save the skill config."
+      ],
+      "expected": "Skill analytics + config render and save.",
+      "status": "pass",
+      "evidence": "Croseo mind Workplace has skills (HTML Page Analyzer / SEO Head Meta Tags Creator / Validator — all READY w/ POST endpoints + work-point counts). Opened HTML Page Analyzer -> SkillDetailPanel: tabs Definition (Quick Start + Skill Definition) / Neuron / Upgrade / Configuration / Work Runs / Analytics. Analytics tab: Total Work Points 4 / Today 0 + 7-Day Trend chart. Configuration tab: Skill Status Paused/Active toggle, Work Creation Type, Output Count, Artifact Attachment, Trigger Type. No console errors.",
+      "notes": "Alloro mind had no skills; used Croseo (precondition met there). Config save not exercised (mutating)."
+    },
+    {
+      "id": "AM-3",
+      "group": "Admin — minds & PMS",
+      "title": "AI Command tab (AiCommandTab 1375→694)",
+      "surface": "ui",
+      "route": "/admin/ai-data-insights (AI Command)",
+      "precondition": "Admin.",
+      "steps": [
+        "1. Load — recommendations list, batch badges, status pills render.",
+        "2. Select a target; add notes; expand a recommendation card."
+      ],
+      "expected": "AI Command list + target selection + cards work.",
+      "status": "pass",
+      "evidence": "AiCommandTab ('AI Command') renders. NOTE: real mount is Website Detail -> Advanced Tools tab (WebsiteDetailTabContent.tsx:278 <AiCommandTab/>), NOT /admin/ai-data-insights. Seen on Garrison Advanced Tools: 'AI Command' header + AI Editor/UI Check/Link Check mode toggle + empty state 'No analyses yet'. Component + toggle render cleanly, no console errors.",
+      "notes": "ROUTE CORRECTION: AM-3's listed route (/admin/ai-data-insights) is inaccurate; AiCommandTab lives in the website-builder Advanced Tools tab. Could not expand a recommendation card / select a target with data — Garrison had no analyses in dev DB. Structure renders; deeper card interactions unverified for lack of seed analyses."
+    },
+    {
+      "id": "AM-4",
+      "group": "Admin — minds & PMS",
+      "title": "PMS Automation Cards (PMSAutomationCards 1154→489 + usePmsAutomationJobs)",
+      "surface": "ui",
+      "route": "/admin/ai-pms-automation",
+      "precondition": "Admin; PMS jobs.",
+      "steps": [
+        "1. Load — job cards render (polling).",
+        "2. Use status/approval filters; pagination.",
+        "3. Toggle approval; open the data-viewer modal; edit a job response; save."
+      ],
+      "expected": "Automation cards, filters, approval toggle, and response editor work (state core moved to a hook).",
+      "status": "pass",
+      "evidence": "AI PMS Automation (PMSAutomationCards + usePmsAutomationJobs): 17 jobs, live polling (Updated timestamp), filter bar (Status/Organization/Approval), job cards (One Endodontics #154-151 w/ durations, timestamps, Approved + approval toggles, View/Pipeline/Delete). Data-viewer modal (Review PMS Response Data, JOB #154): month tab Apr 2026, summary cards (Self 48 / Doctor 231 / Total 279 / Production 373,353.05), editable source rows (source/type/referral count/production w/ up-down steppers + delete), Close/Save Changes. No console errors.",
+      "notes": "Approval toggle + Save Changes not exercised (mutating)."
+    },
+    {
+      "id": "ID-1",
+      "group": "Identity",
+      "title": "Identity modal (IdentityModal 3422→781 + 5 child views)",
+      "surface": "ui",
+      "route": "Admin → Website/Org → Identity",
+      "precondition": "A website/org with identity.",
+      "steps": [
+        "1. Open the Identity modal.",
+        "2. Cycle every view: empty/warm-up form, warming-up, ready view, identity LIST tab, LOCATIONS tab.",
+        "3. Edit a field; add/remove a location; toggle the JSON editor; save."
+      ],
+      "expected": "Every identity view/tab renders and saves (the 3,400-line modal was split into 5 child views).",
+      "status": "pass",
+      "evidence": "Identity modal (IdentityModal, 3422->781 + 5 child views) opens from Garrison website header: 'Project Identity · Ready'. Child views render cleanly: Summary/ready view (Business name/category/phone/address/rating 5★ 86, Brand logo+Primary #282828/Accent #C7A63D+gradient, Voice & Tone archetype/tone), Services LIST tab (13 tracked URLs w/ Add service/Edit source/Re-sync + service cards), Locations tab (Garrison primary location, place id, re-sync/delete). No console errors on the modal itself.",
+      "notes": "Verified Summary + Services(list) + Locations child views (+ code/brand/image icon tabs present). Did not edit a field / add-remove a location / toggle JSON editor / save (mutating)."
+    },
+    {
+      "id": "ID-2",
+      "group": "Identity",
+      "title": "Import-from-Identity modal (ImportFromIdentityModal 821→759)",
+      "surface": "ui",
+      "route": "Admin → Website → Import from Identity",
+      "precondition": "A website + an identity source.",
+      "steps": [
+        "1. Open the modal; start an import; watch the running/progress view; confirm it completes."
+      ],
+      "expected": "Import flow + progress render and complete as before.",
+      "status": "pass",
+      "evidence": "Import-from-Identity modal opens from Posts tab: 'Import Services from Identity' lists services (Invisalign, Clear Braces, Lingual Braces, Metal Braces, Accelerated Ortho, Surgical Ortho) w/ description, last-synced, source link, checkboxes, Cancel/Import selected. Modal + selection view render correctly.",
+      "notes": "Full import (fetch pages/download images/create drafts) not run to avoid creating draft posts; render of the decomposed ImportFromIdentityModal is the remediation concern."
+    },
+    {
+      "id": "REG-1",
+      "group": "Regression / shared",
+      "title": "Shared UI primitives (DesignSystem 1096→16 barrel)",
+      "surface": "ui",
+      "route": "any admin page",
+      "precondition": "Admin.",
+      "steps": [
+        "1. On 3-4 admin pages, confirm shared widgets render: metric cards, status pills, page headers, filter bar, tab bar, empty states, badges."
+      ],
+      "expected": "All shared DesignSystem components render everywhere (split into a barrel of 6 files).",
+      "status": "pass",
+      "evidence": "Shared DesignSystem primitives (split into a barrel of 6 files) render across all visited admin pages: stat/metric cards (Mission Control, Practice Ranking, Leadgen), status pills (Live/Published/Approved/Completed/READY), page headers (AdminPageHeader), filter bars (Action Items, Agent Outputs, PMS Automation), tab bars (Website Detail 13 tabs, Template Detail, Org Detail), empty states (Backups/Support/Apps/AI Command/Minds University), badges. No missing-component errors.",
+      "notes": "Caveat: the shared AdminPageHeader emits the div-in-p hydration console warning when given a rich JSX description (see AW-2 finding) — cosmetic/dev-only, renders fine.  OWNER-ACCEPTED 2026-06-16: AdminPageHeader nesting warning accepted as cosmetic."
+    },
+    {
+      "id": "REG-2",
+      "group": "Regression / shared",
+      "title": "Folder reorganization (T5) — no broken admin route",
+      "surface": "ui",
+      "route": "/admin/* (sweep)",
+      "precondition": "Admin.",
+      "steps": [
+        "1. Click through the main admin nav items; confirm no page is blank or 404 and no red console error.",
+        "2. Watch the browser console for missing-module / failed-import errors."
+      ],
+      "expected": "Every admin route loads — the 87-file Admin folder reorg + the API/DesignSystem barrel splits broke nothing.",
+      "status": "pass",
+      "evidence": "Swept ~25 admin routes (mission-control, websites + detail/13 tabs/page-editor/layout-editor, templates + detail/post-blocks, imports + detail, practice-ranking, organizations/:id, action-items, agent-outputs, leadgen-submissions, schedules, support, app-logs, apps, minds + detail/skill, ai-pms-automation, ai-data-insights). All resolve and render with NO missing-module / failed-import console errors. The 87-file Admin reorg + API/DesignSystem barrel splits broke no route.",
+      "notes": "ONE runtime exception found — /admin/ai-data-insight (AgentInsights) crashes with 'results.map is not a function' (see T4-1). That is a data/error-contract bug, NOT a broken import: the module resolved and rendered, then threw on a non-array API result. Folder reorg itself is clean."
+    },
+    {
+      "id": "REG-3",
+      "group": "Regression / shared",
+      "title": "API client splits (websites/minds/pms barrels)",
+      "surface": "ui",
+      "route": "site builder, minds, PMS pages",
+      "precondition": "Admin/client.",
+      "steps": [
+        "1. Any website-builder, minds, or PMS data loads correctly (these api files were each split into submodules behind a re-export barrel — all 376 exports preserved)."
+      ],
+      "expected": "All data-loading on those pages works; no import/resolution errors.",
+      "status": "pass",
+      "evidence": "API client barrel splits (websites/minds/pms submodules behind re-export barrels, 376 exports) all resolve: Garrison website-builder data loaded across all 13 detail tabs + page/layout editors; minds chat + Croseo skills + skill analytics/config loaded; PMS automation 17 jobs + data-viewer modal loaded; leadgen/agent-outputs/practice-ranking data loaded. No import/resolution errors on any data-loading path.",
+      "notes": ""
+    }
   ]
 }

@@ -13,11 +13,13 @@ import {
 import { queryClient } from "../../../lib/queryClient";
 import { toast } from "react-hot-toast";
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useIsPmRoute() {
   const location = useLocation();
   return location.pathname.startsWith("/admin/pm");
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useIsSupportRoute() {
   const location = useLocation();
   return location.pathname.startsWith("/admin/support");
@@ -69,7 +71,7 @@ export function AdminTopBar() {
       const channel = new BroadcastChannel("auth_channel");
       channel.postMessage({ type: "logout" });
       channel.close();
-    } catch (e) {
+    } catch {
       // BroadcastChannel not supported
     }
 

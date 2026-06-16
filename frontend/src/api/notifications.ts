@@ -43,6 +43,7 @@ export const fetchNotifications = async (
  */
 export const markNotificationRead = async (
   notificationId: number,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for call-site compat; org is derived server-side
   _organizationId: number
 ): Promise<{ success: boolean; message: string }> => {
   return apiPatch({

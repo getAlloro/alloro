@@ -1,4 +1,5 @@
 import { apiPost } from "../index";
+import { logger } from "../../lib/logger";
 
 // =====================================================================
 // PASTE-PARSE TYPES AND API FUNCTION
@@ -41,7 +42,7 @@ export async function parsePastedData(
     });
     return result as PasteParseApiResponse;
   } catch (error) {
-    console.error("PMS paste-parse API error:", error);
+    logger.error("PMS paste-parse API error:", error);
     return {
       success: false,
       error: "Failed to parse pasted data. Please try again.",
@@ -97,7 +98,7 @@ export async function sanitizePastedData(
     });
     return result as PasteSanitizeApiResponse;
   } catch (error) {
-    console.error("PMS sanitize-paste API error:", error);
+    logger.error("PMS sanitize-paste API error:", error);
     return {
       success: false,
       error: "Failed to sanitize pasted data. Please try again.",

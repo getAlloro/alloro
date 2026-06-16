@@ -29,7 +29,7 @@ import {
   type AdminBillingDetails,
 } from "../../../api/admin-organizations";
 import { fetchWebsites, linkWebsiteToOrganization } from "../../../api/websites";
-import { isAxiosError } from "axios";
+import { isAxiosError } from "../../../api";
 import { getErrorMessage } from "../../../lib/errorMessage";
 
 interface OrgSubscriptionSectionProps {
@@ -107,7 +107,9 @@ export function OrgSubscriptionSection({
         toast.success(response.message);
         await onRefresh();
       } else {
-        toast.error((response as any).error || "Failed to create project");
+        toast.error(
+          (response as { error?: string }).error || "Failed to create project",
+        );
       }
     } catch (error: unknown) {
       const message =
@@ -152,7 +154,8 @@ export function OrgSubscriptionSection({
         await onRefresh();
       } else {
         toast.error(
-          (response as any).error || "Failed to remove payment method",
+          (response as { error?: string }).error ||
+            "Failed to remove payment method",
         );
       }
     } catch (error: unknown) {
@@ -175,7 +178,8 @@ export function OrgSubscriptionSection({
         await onRefresh();
       } else {
         toast.error(
-          (response as any).error || "Failed to lock out organization",
+          (response as { error?: string }).error ||
+            "Failed to lock out organization",
         );
       }
     } catch {
@@ -220,7 +224,10 @@ export function OrgSubscriptionSection({
         toast.success(response.message);
         await onRefresh();
       } else {
-        toast.error((response as any).error || "Failed to set organization type");
+        toast.error(
+          (response as { error?: string }).error ||
+            "Failed to set organization type",
+        );
       }
     } catch (error: unknown) {
       const message =

@@ -98,7 +98,7 @@ function toParentingMessage(msg: SkillUpgradeMessage): ParentingMessage {
   };
 }
 
-export function SkillUpgradeTab({ mindId, mindName: _mindName, skillId, skillName }: SkillUpgradeTabProps) {
+export function SkillUpgradeTab({ mindId, skillId, skillName }: SkillUpgradeTabProps) {
   const confirm = useConfirm();
   const [view, setView] = useState<View>("list");
   const [sessions, setSessions] = useState<SkillUpgradeSession[]>([]);

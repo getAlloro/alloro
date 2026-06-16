@@ -105,7 +105,7 @@ export default function AIDataInsightsList() {
 
     setIsRunning(true);
     try {
-      const response = await fetch(
+      const response = await adminFetch(
         "/api/agents/guardian-governance-agents-run",
         {
           method: "POST",

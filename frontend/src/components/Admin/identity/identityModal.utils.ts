@@ -83,7 +83,7 @@ export function isCompleteManualIdentity(
 /**
  * `identity.locations[]` isn't declared on ProjectIdentity yet (it's a JSONB
  * extension shipped in the identity-enrichments plan) — this helper narrows
- * the untyped lookup in one place so consumers don't reach for `as any`.
+ * the untyped lookup in one place so consumers don't reach for an untyped cast.
  */
 export function readIdentityLocations(
   identity: ProjectIdentity,

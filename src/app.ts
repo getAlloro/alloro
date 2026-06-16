@@ -234,6 +234,18 @@ app.use("/api/internal", internalApiRoutes); // Internal API for n8n workers
 app.use("/api/billing", billingRoutes); // Stripe billing & subscription management
 app.use("/api/telemetry", appTelemetryRoutes); // Authenticated first-party app usage telemetry
 
+// Any /api/* request that matched no route above returns a clean 404 — never fall
+// through to the frontend catch-all below (which serves index.html in prod and, in
+// dev, proxies to Vite which proxies /api back here → an Express↔Vite loop that hangs
+// ~25s before 500ing). Standard { success, data, error } shape (§8.1).
+app.use("/api", (_req, res) => {
+  res.status(404).json({
+    success: false,
+    data: null,
+    error: { code: "NOT_FOUND", message: "API route not found.", details: null },
+  });
+});
+
 // Sentry error handler — must be after all routes and before other error handlers
 Sentry.setupExpressErrorHandler(app);
 

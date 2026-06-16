@@ -9,7 +9,7 @@ import {
   Copy,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { isAxiosError } from "axios";
+import { isAxiosError } from "../../../api";
 import { getErrorMessage } from "../../../lib/errorMessage";
 import {
   adminStartPilotSession,

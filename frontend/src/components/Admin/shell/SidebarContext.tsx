@@ -27,6 +27,7 @@ export function SidebarProvider({ children, defaultCollapsed = false }: PropsWit
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSidebar() {
   return useContext(SidebarContext);
 }

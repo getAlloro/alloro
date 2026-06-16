@@ -528,7 +528,7 @@ export default function AiCommandTab({ projectId, pages = [], onExecutionComplet
                     <div className="flex flex-wrap gap-1.5 mt-2.5 pt-2.5 border-t border-gray-100">
                       {uniquePages.map((page) => (
                         <SelectChip key={page.id} label={page.path === "/" ? "Home (/)" : page.path} selected={selectedPageIds.has(page.id)}
-                          onClick={() => setSelectedPageIds((prev) => { const n = new Set(prev); n.has(page.id) ? n.delete(page.id) : n.add(page.id); return n; })} />
+                          onClick={() => setSelectedPageIds((prev) => { const n = new Set(prev); void (n.has(page.id) ? n.delete(page.id) : n.add(page.id)); return n; })} />
                       ))}
                     </div>
                   )}
@@ -540,7 +540,7 @@ export default function AiCommandTab({ projectId, pages = [], onExecutionComplet
                       <div className="flex flex-wrap gap-1.5 mt-2.5 pt-2.5 border-t border-gray-100">
                         {posts.length > 0 ? posts.map((post) => (
                           <SelectChip key={post.id} label={post.title} selected={selectedPostIds.has(post.id)}
-                            onClick={() => setSelectedPostIds((prev) => { const n = new Set(prev); n.has(post.id) ? n.delete(post.id) : n.add(post.id); return n; })} />
+                            onClick={() => setSelectedPostIds((prev) => { const n = new Set(prev); void (n.has(post.id) ? n.delete(post.id) : n.add(post.id)); return n; })} />
                         )) : <span className="text-xs text-gray-400 italic">No posts found</span>}
                       </div>
                     )}
@@ -551,7 +551,7 @@ export default function AiCommandTab({ projectId, pages = [], onExecutionComplet
                     <div className="flex flex-wrap gap-1.5 mt-2.5 pt-2.5 border-t border-gray-100">
                       {(["wrapper", "header", "footer"] as const).map((field) => (
                         <SelectChip key={field} label={field.charAt(0).toUpperCase() + field.slice(1)} selected={selectedLayouts.has(field)}
-                          onClick={() => setSelectedLayouts((prev) => { const n = new Set(prev); n.has(field) ? n.delete(field) : n.add(field); return n; })} />
+                          onClick={() => setSelectedLayouts((prev) => { const n = new Set(prev); void (n.has(field) ? n.delete(field) : n.add(field)); return n; })} />
                       ))}
                     </div>
                   )}

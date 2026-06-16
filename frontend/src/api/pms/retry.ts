@@ -1,4 +1,5 @@
 import { apiPost } from "../index";
+import { logger } from "../../lib/logger";
 import type { AutomationStatusDetail } from "./types";
 
 // =====================================================================
@@ -34,7 +35,7 @@ export async function retryPmsStep(
     });
     return result as RetryStepResponse;
   } catch (error) {
-    console.error("PMS retry API error:", error);
+    logger.error("PMS retry API error:", error);
     return {
       success: false,
       error: "Failed to retry step. Please try again.",
@@ -63,7 +64,7 @@ export async function restartPmsJob(
     });
     return result as RestartPmsJobResponse;
   } catch (error) {
-    console.error("PMS restart API error:", error);
+    logger.error("PMS restart API error:", error);
     return {
       success: false,
       error: "Failed to restart run. Please try again.",

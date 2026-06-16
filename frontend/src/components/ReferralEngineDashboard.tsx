@@ -17,6 +17,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { uploadPMSData } from "../api/pms";
+import { adminFetch } from "../api";
 import { showUploadToast } from "../lib/toast";
 import { useLocationContext } from "../contexts/locationContext";
 import {
@@ -78,7 +79,7 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
         setError(null);
 
         const locParam = props.locationId ? `?locationId=${props.locationId}` : "";
-        const response = await fetch(
+        const response = await adminFetch(
           `/api/agents/getLatestReferralEngineOutput/${props.organizationId}${locParam}`
         );
 

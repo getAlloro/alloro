@@ -206,7 +206,7 @@ export function SkillBuilderChat({
           }
         }
       }
-    } catch (err: unknown) {
+    } catch {
       toast.error("Failed to get response");
     }
 

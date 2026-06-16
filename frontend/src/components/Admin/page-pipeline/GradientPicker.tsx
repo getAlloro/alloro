@@ -42,6 +42,7 @@ type StopDef = {
  * The frontend picker and backend layouts pipeline both expand presets
  * via buildGradientStopsCss() below.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const GRADIENT_PRESETS: Record<
   GradientPresetId,
   {
@@ -153,6 +154,7 @@ function rgbToHex(r: number, g: number, b: number): string {
   return `#${h(r)}${h(g)}${h(b)}`.toUpperCase();
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function mixHex(from: string, to: string, ratio: number): string {
   const a = hexToRgb(from);
   const b = hexToRgb(to);
@@ -164,6 +166,7 @@ export function mixHex(from: string, to: string, ratio: number): string {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function buildGradientStopsCss(
   from: string,
   to: string,

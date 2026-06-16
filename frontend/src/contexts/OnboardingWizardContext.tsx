@@ -237,6 +237,7 @@ export function OnboardingWizardProvider({ children }: { children: ReactNode }) 
   }, [navigate, onboardingCompleted]);
 
   const shouldBlockNavigation = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     (_targetPath: string): boolean => {
       if (!isWizardActive) return false;
       // During wizard, block all navigation except what the wizard controls
@@ -280,6 +281,7 @@ export function OnboardingWizardProvider({ children }: { children: ReactNode }) 
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useOnboardingWizard() {
   const context = useContext(OnboardingWizardContext);
   if (context === undefined) {
@@ -294,6 +296,7 @@ export function useOnboardingWizard() {
  * Hook to check if wizard is active (safe to use outside provider)
  * Returns false if provider is not present
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useIsWizardActive(): boolean {
   const context = useContext(OnboardingWizardContext);
   return context?.isWizardActive ?? false;
@@ -302,6 +305,7 @@ export function useIsWizardActive(): boolean {
 /**
  * Hook to check if wizard status is still loading
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useIsWizardLoading(): boolean {
   const context = useContext(OnboardingWizardContext);
   return context?.isLoadingWizardStatus ?? false;
@@ -311,6 +315,7 @@ export function useIsWizardLoading(): boolean {
  * Hook to get demo data when wizard is active
  * Returns null if wizard is not active
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useWizardDemoData() {
   const context = useContext(OnboardingWizardContext);
   if (!context?.isWizardActive) return null;
@@ -321,6 +326,7 @@ export function useWizardDemoData() {
  * Hook to recheck wizard status and auto-start if not completed
  * Used after initial onboarding completes to trigger the wizard tour
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useRecheckWizardStatus() {
   const context = useContext(OnboardingWizardContext);
   return context?.recheckWizardStatus ?? (async () => {});

@@ -5,7 +5,6 @@ export type { AdminNavKey } from "./shell/AdminSidebar";
 export { AdminTopBar } from "./shell/AdminTopBar";
 export { SidebarProvider, useSidebar } from "./shell/SidebarContext";
 export { PMSAutomationCards } from "./pms-pipeline/PMSAutomationCards";
-export { AgentInsights } from "./agents/AgentInsights";
 export { ProoflineAgentEditor } from "./agents/ProoflineAgentEditor";
 export { SummaryAgentEditor } from "./agents/SummaryAgentEditor";
 export { OpportunityAgentEditor } from "./agents/OpportunityAgentEditor";

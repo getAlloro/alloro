@@ -1,4 +1,5 @@
 import { apiDelete, apiGet, apiPatch, apiPost } from "../index";
+import { logger } from "../../lib/logger";
 import type {
   FetchPmsJobsParams,
   FetchPmsJobsResponse,
@@ -78,7 +79,7 @@ export async function uploadPMSData(
 
     return result;
   } catch (error) {
-    console.error("PMS upload API error:", error);
+    logger.error("PMS upload API error:", error);
     return {
       success: false,
       error: "Failed to upload PMS data. Please try again.",
@@ -112,7 +113,7 @@ export async function submitManualPMSData(
 
     return result;
   } catch (error) {
-    console.error("PMS manual entry API error:", error);
+    logger.error("PMS manual entry API error:", error);
     return {
       success: false,
       error: "Failed to submit PMS data. Please try again.",
@@ -137,7 +138,7 @@ export async function getPMSDataSummary(clientId: string) {
 
     return response;
   } catch (error) {
-    console.error("PMS summary API error:", error);
+    logger.error("PMS summary API error:", error);
     return {
       success: false,
       error: "Failed to fetch PMS data summary.",

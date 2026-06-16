@@ -13,7 +13,15 @@ declare module "d3-force" {
     source: N | string | number;
     target: N | string | number;
     // Allow extra custom fields like distance
-    [key: string]: any;
+    [key: string]: unknown;
+  }
+
+  // Minimal force shape — a function the simulation invokes each tick, with an
+  // optional initialize hook. Mirrors d3-force's Force<N, L> without pulling in
+  // the full generic surface this shim doesn't model.
+  export interface Force<N extends SimulationNodeDatum> {
+    (alpha: number): void;
+    initialize?(nodes: N[]): void;
   }
 
   export function forceSimulation<N extends SimulationNodeDatum>(
@@ -22,7 +30,7 @@ declare module "d3-force" {
     alpha(value: number): typeof this;
     alphaMin(value: number): typeof this;
     alphaDecay(value: number): typeof this;
-    force(name: string, force: any): typeof this;
+    force(name: string, force: Force<N>): typeof this;
     on(event: string, cb: () => void): typeof this;
     stop(): void;
   };

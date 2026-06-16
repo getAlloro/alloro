@@ -154,7 +154,7 @@ export default function IdentityModal({
           return;
         }
         pollRef.current = setTimeout(poll, 2000);
-      } catch (err) {
+      } catch {
         pollRef.current = setTimeout(poll, 3000);
       }
     };
@@ -197,7 +197,7 @@ export default function IdentityModal({
       );
       setGbpSuggestions([]);
       setGbpQuery("");
-    } catch (err) {
+    } catch {
       setError("Failed to load place details");
     }
   };
@@ -605,7 +605,7 @@ export default function IdentityModal({
     let parsed: ProjectIdentity;
     try {
       parsed = JSON.parse(jsonDraft);
-    } catch (err) {
+    } catch {
       setJsonError("Invalid JSON.");
       return;
     }

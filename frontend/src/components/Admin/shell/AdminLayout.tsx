@@ -5,7 +5,7 @@ import { AdminTopBar, useIsPmRoute, useIsSupportRoute } from "./AdminTopBar";
 import { LoadingIndicator } from "./LoadingIndicator";
 import { SidebarProvider, useSidebar } from "./SidebarContext";
 
-export interface AdminLayoutProps extends PropsWithChildren {}
+export type AdminLayoutProps = PropsWithChildren;
 
 function AdminLayoutInner({ children }: AdminLayoutProps) {
   const { collapsed } = useSidebar();

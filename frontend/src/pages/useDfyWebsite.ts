@@ -435,7 +435,7 @@ export function useDfyWebsite() {
           });
         }
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to load website");
     } finally {
       setLoading(false);
