@@ -35,16 +35,13 @@ export const useOnboarding = (initialStep: number = 1) => {
    */
   const fetchAvailableGBP = useCallback(async () => {
     const response = await onboarding.getAvailableGBP();
-    if (response.success) {
-      return response.properties as Array<{
-        id: string;
-        name: string;
-        accountId: string;
-        locationId: string;
-        address?: string;
-      }>;
-    }
-    throw new Error(response.errorMessage || "Failed to fetch GBP locations");
+    return response.properties as Array<{
+      id: string;
+      name: string;
+      accountId: string;
+      locationId: string;
+      address?: string;
+    }>;
   }, []);
 
   /**
@@ -53,10 +50,7 @@ export const useOnboarding = (initialStep: number = 1) => {
   const saveGbpSelections = useCallback(async (locations: GBPSelection[]) => {
     setSelectedGbpLocations(locations);
 
-    const saveResponse = await onboarding.saveGBP(locations);
-    if (!saveResponse.success) {
-      throw new Error(saveResponse.errorMessage || "Failed to save GBP selection");
-    }
+    await onboarding.saveGBP(locations);
 
     logger.log("[Onboarding] GBP selections saved:", locations.length, "locations");
   }, []);
@@ -82,12 +76,8 @@ export const useOnboarding = (initialStep: number = 1) => {
         },
       });
 
-      if (response.success) {
-        logger.log("[Onboarding] Profile saved, org:", response.organizationId);
-        return response.organizationId;
-      } else {
-        throw new Error(response.errorMessage || response.message || "Failed to save profile");
-      }
+      logger.log("[Onboarding] Profile saved, org:", response.organizationId);
+      return response.organizationId ?? null;
     } catch (err: unknown) {
       logger.error("[Onboarding] Error saving profile:", err);
       setError(getErrorMessage(err) || "Failed to save profile");
@@ -106,14 +96,10 @@ export const useOnboarding = (initialStep: number = 1) => {
     setError(null);
 
     try {
-      const response = await onboarding.completeOnboarding();
+      await onboarding.completeOnboarding();
 
-      if (response.success) {
-        logger.log("[Onboarding] Successfully completed!");
-        return true;
-      } else {
-        throw new Error(response.message || "Failed to complete onboarding");
-      }
+      logger.log("[Onboarding] Successfully completed!");
+      return true;
     } catch (err: unknown) {
       logger.error("[Onboarding] Error completing onboarding:", err);
       setError(getErrorMessage(err) || "Failed to complete onboarding");

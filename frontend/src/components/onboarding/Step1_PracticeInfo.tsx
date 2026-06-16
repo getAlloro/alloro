@@ -64,14 +64,8 @@ export const Step1PracticeInfo: React.FC<Step1PracticeInfoProps> = ({
     debounceRef.current = setTimeout(async () => {
       try {
         const response = await onboarding.checkDomain(sanitized);
-
-        if (response.success) {
-          setDomainStatus(response.status as DomainStatus);
-          setDomainMessage(response.message);
-        } else {
-          setDomainStatus("idle");
-          setDomainMessage("");
-        }
+        setDomainStatus(response.status as DomainStatus);
+        setDomainMessage(response.message ?? "");
       } catch {
         setDomainStatus("idle");
         setDomainMessage("");

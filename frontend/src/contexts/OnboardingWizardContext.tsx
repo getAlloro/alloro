@@ -217,11 +217,6 @@ export function OnboardingWizardProvider({ children }: { children: ReactNode }) 
     try {
       const response = await onboarding.getWizardStatus();
 
-      if (!response || response.error) {
-        logger.error("[WizardContext] API error:", response?.error);
-        return;
-      }
-
       if (typeof response.onboarding_wizard_completed === "boolean") {
         setWizardCompleted(response.onboarding_wizard_completed);
         if (!response.onboarding_wizard_completed) {

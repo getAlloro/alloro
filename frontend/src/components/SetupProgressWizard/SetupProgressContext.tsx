@@ -110,16 +110,12 @@ export function SetupProgressProvider({ children }: { children: ReactNode }) {
 
       const apiProgress = await onboarding.getSetupProgress();
 
-      if (
-        apiProgress.success &&
-        "progress" in apiProgress &&
-        apiProgress.progress
-      ) {
+      if (apiProgress.progress) {
         const dbProgress = { ...defaultProgress, ...apiProgress.progress };
         setProgress(dbProgress);
         saveProgressToStorage(dbProgress);
       } else {
-        // Fall back to localStorage if API fails
+        // No progress in the response — fall back to localStorage
         setProgress(getStoredProgress());
       }
     } catch (err) {

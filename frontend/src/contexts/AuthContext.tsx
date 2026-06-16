@@ -56,7 +56,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Update centralized onboarding state
       // Guard: never downgrade from true → false (race condition after completeOnboarding)
-      const isCompleted = status.success && status.onboardingCompleted === true;
+      const isCompleted = status.success === true && status.onboardingCompleted === true;
       setOnboardingCompleted((prev) => (prev === true && !isCompleted) ? true : isCompleted);
       if (isCompleted && !isPilotSession()) {
         localStorage.setItem("onboardingCompleted", "true");
@@ -134,10 +134,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       logger.error("Failed to load user properties:", error);
       setSelectedDomain(null);
-      // If the API call fails, assume onboarding not complete
-      // so the user sees the onboarding flow instead of a blank screen
-      setOnboardingCompleted(false);
-      if (!isPilotSession()) {
+      // On a status-fetch error, replicate the old success:false path:
+      // never DOWNGRADE an already-onboarded user to not-onboarded on a
+      // transient load error — only fall to false when not already true.
+      setOnboardingCompleted((prev) => (prev === true ? true : false));
+      setHasGoogleConnection(false);
+      // Match the old success:false path: only persist the downgrade when the
+      // user wasn't already onboarded (don't clobber a true cache on a blip).
+      if (!isPilotSession() && onboardingCompleted !== true) {
         localStorage.setItem("onboardingCompleted", "false");
       }
     } finally {

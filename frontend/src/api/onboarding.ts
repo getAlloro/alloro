@@ -1,40 +1,132 @@
-import { apiGet, apiPost, apiPut } from "./index";
-import { logger } from "../lib/logger";
+import { apiGet, apiPost, apiPut, unwrap } from "./index";
 
 const baseurl = "/onboarding";
+
+// ─── Response contracts ───
+// These endpoints put their fields at the TOP LEVEL (no `data` wrapper), so
+// `unwrap` returns the full body. `success`/`successful:false` is only ever an
+// error signal — `unwrap` throws an ApiError on it — so on the success path the
+// body still carries `.success === true` plus the fields below, which consumers
+// keep reading. The real "not onboarded yet" state is `{ success:true,
+// onboardingCompleted:false }`, preserved here.
+
+interface OnboardingStatusResponse {
+  success?: boolean;
+  onboardingCompleted?: boolean;
+  hasGoogleConnection?: boolean;
+  role?: string;
+  organizationId?: number | null;
+  profile?: {
+    firstName?: string | null;
+    lastName?: string | null;
+    practiceName?: string | null;
+    domainName?: string | null;
+    email?: string | null;
+  } | null;
+  propertyIds?: {
+    gbp?: Array<{ accountId?: string; locationId?: string }> | null;
+  } | null;
+}
+
+interface AvailablePropertiesResponse {
+  success?: boolean;
+  properties?: Array<{
+    id: string;
+    name: string;
+    accountId: string;
+    locationId: string;
+    address?: string;
+  }>;
+}
+
+interface SaveProfileResponse {
+  success?: boolean;
+  organizationId?: number | null;
+}
+
+interface CompleteOnboardingResponse {
+  success?: boolean;
+}
+
+interface SavePropertiesResponse {
+  success?: boolean;
+}
+
+interface WizardStatusResponse {
+  onboarding_wizard_completed?: boolean;
+  error?: string;
+}
+
+interface CompleteWizardResponse {
+  success?: boolean;
+}
+
+interface RestartWizardResponse {
+  success?: boolean;
+}
+
+interface SetupProgressState {
+  step1_api_connected: boolean;
+  step2_pms_uploaded: boolean;
+  dismissed: boolean;
+  completed: boolean;
+}
+
+interface GetSetupProgressResponse {
+  success?: boolean;
+  progress?: SetupProgressState;
+}
+
+interface UpdateSetupProgressResponse {
+  success?: boolean;
+}
+
+interface AvailableGBPResponse {
+  success?: boolean;
+  properties?: Array<{
+    id: string;
+    name: string;
+    accountId: string;
+    locationId: string;
+    address?: string;
+  }>;
+}
+
+interface SaveGBPResponse {
+  success?: boolean;
+}
+
+interface GBPWebsiteResponse {
+  success?: boolean;
+  website?: string | null;
+}
+
+interface CheckDomainResponse {
+  success?: boolean;
+  status?: string;
+  message?: string;
+}
 
 /**
  * Check if user has completed onboarding
  */
 async function getOnboardingStatus() {
-  try {
-    return await apiGet({
+  return unwrap<OnboardingStatusResponse>(
+    await apiGet({
       path: baseurl + `/status`,
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      successful: false,
-      errorMessage: "Technical error, contact developer",
-    };
-  }
+    }),
+  );
 }
 
 /**
  * Fetch all available properties (GBP) for the authenticated user
  */
 async function getAvailableProperties() {
-  try {
-    return await apiGet({
+  return unwrap<AvailablePropertiesResponse>(
+    await apiGet({
       path: baseurl + `/available-properties`,
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      successful: false,
-      errorMessage: "Technical error, contact developer",
-    };
-  }
+    }),
+  );
 }
 
 /**
@@ -51,36 +143,24 @@ async function saveProfile(data: {
     domainName: string;
   };
 }) {
-  try {
-    return await apiPost({
+  return unwrap<SaveProfileResponse>(
+    await apiPost({
       path: baseurl + `/save-profile`,
       passedData: data,
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      success: false,
-      errorMessage: "Technical error, contact developer",
-    };
-  }
+    }),
+  );
 }
 
 /**
  * Mark onboarding as complete (Step 3 finalization).
  */
 async function completeOnboarding() {
-  try {
-    return await apiPost({
+  return unwrap<CompleteOnboardingResponse>(
+    await apiPost({
       path: baseurl + `/complete`,
       passedData: {},
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      success: false,
-      errorMessage: "Technical error, contact developer",
-    };
-  }
+    }),
+  );
 }
 
 /**
@@ -96,88 +176,58 @@ async function saveProperties(data: {
     domainName: string;
   };
 }) {
-  try {
-    return await apiPost({
+  return unwrap<SavePropertiesResponse>(
+    await apiPost({
       path: baseurl + `/save-properties`,
       passedData: data,
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      successful: false,
-      errorMessage: "Technical error, contact developer",
-    };
-  }
+    }),
+  );
 }
 
 /**
  * Check if user has completed the onboarding wizard (product tour)
  */
 async function getWizardStatus() {
-  try {
-    return await apiGet({
+  return unwrap<WizardStatusResponse>(
+    await apiGet({
       path: baseurl + `/wizard/status`,
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      successful: false,
-      errorMessage: "Technical error, contact developer",
-    };
-  }
+    }),
+  );
 }
 
 /**
  * Mark the onboarding wizard as completed
  */
 async function completeWizard() {
-  try {
-    return await apiPut({
+  return unwrap<CompleteWizardResponse>(
+    await apiPut({
       path: baseurl + `/wizard/complete`,
       passedData: {},
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      successful: false,
-      errorMessage: "Technical error, contact developer",
-    };
-  }
+    }),
+  );
 }
 
 /**
  * Reset the onboarding wizard (for re-showing the tour)
  */
 async function restartWizard() {
-  try {
-    return await apiPost({
+  return unwrap<RestartWizardResponse>(
+    await apiPost({
       path: baseurl + `/wizard/restart`,
       passedData: {},
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      successful: false,
-      errorMessage: "Technical error, contact developer",
-    };
-  }
+    }),
+  );
 }
 
 /**
  * Get setup progress wizard state
  */
 async function getSetupProgress() {
-  try {
-    return await apiGet({
+  return unwrap<GetSetupProgressResponse>(
+    await apiGet({
       path: baseurl + `/setup-progress`,
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      success: false,
-      errorMessage: "Technical error, contact developer",
-    };
-  }
+    }),
+  );
 }
 
 /**
@@ -189,89 +239,59 @@ async function updateSetupProgress(progress: {
   dismissed: boolean;
   completed: boolean;
 }) {
-  try {
-    return await apiPut({
+  return unwrap<UpdateSetupProgressResponse>(
+    await apiPut({
       path: baseurl + `/setup-progress`,
       passedData: { progress },
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      success: false,
-      errorMessage: "Technical error, contact developer",
-    };
-  }
+    }),
+  );
 }
 
 /**
  * Fetch available GBP locations for the authenticated user
  */
 async function getAvailableGBP() {
-  try {
-    return await apiGet({
+  return unwrap<AvailableGBPResponse>(
+    await apiGet({
       path: baseurl + `/available-gbp`,
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      success: false,
-      errorMessage: "Technical error, contact developer",
-    };
-  }
+    }),
+  );
 }
 
 /**
  * Save selected GBP locations to google_property_ids.gbp
  */
 async function saveGBP(data: Array<{ accountId: string; locationId: string; displayName: string }>) {
-  try {
-    return await apiPost({
+  return unwrap<SaveGBPResponse>(
+    await apiPost({
       path: baseurl + `/save-gbp`,
       passedData: { data },
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      success: false,
-      errorMessage: "Technical error, contact developer",
-    };
-  }
+    }),
+  );
 }
 
 /**
  * Fetch website URL for a specific GBP location
  */
 async function getGBPWebsite(accountId: string, locationId: string) {
-  try {
-    return await apiPost({
+  return unwrap<GBPWebsiteResponse>(
+    await apiPost({
       path: baseurl + `/gbp-website`,
       passedData: { accountId, locationId },
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      success: false,
-      errorMessage: "Technical error, contact developer",
-    };
-  }
+    }),
+  );
 }
 
 /**
  * Check if a domain is reachable and not behind a firewall
  */
 async function checkDomain(domain: string) {
-  try {
-    return await apiPost({
+  return unwrap<CheckDomainResponse>(
+    await apiPost({
       path: baseurl + `/check-domain`,
       passedData: { domain },
-    });
-  } catch (err) {
-    logger.log(err);
-    return {
-      success: false,
-      errorMessage: "Technical error, contact developer",
-    };
-  }
+    }),
+  );
 }
 
 const onboarding = {

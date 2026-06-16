@@ -60,17 +60,13 @@ export default function OnboardingPaymentSuccess() {
     setPageState("completing");
 
     try {
-      const response = await onboarding.completeOnboarding();
+      await onboarding.completeOnboarding();
 
-      if (response.success) {
-        setPageState("success");
-        // Brief pause to show success state, then redirect
-        setTimeout(() => {
-          window.location.href = "/dashboard";
-        }, 1500);
-      } else {
-        throw new Error(response.message || "Failed to complete onboarding");
-      }
+      setPageState("success");
+      // Brief pause to show success state, then redirect
+      setTimeout(() => {
+        window.location.href = "/dashboard";
+      }, 1500);
     } catch (err: unknown) {
       setError(getErrorMessage(err) || "Something went wrong");
       setPageState("timeout");
