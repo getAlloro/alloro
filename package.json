@@ -8,6 +8,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check:conventions": "bash scripts/check-conventions.sh",
+    "audit:constitution": "bash scripts/check-conventions.sh --audit",
     "lint": "eslint src",
     "depcruise": "depcruise src",
     "check:all": "npm run check:conventions; npm run lint; npm --prefix frontend run lint; npm run depcruise",

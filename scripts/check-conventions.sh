@@ -5,6 +5,8 @@
 # Default exits 0 (the backend is mid-remediation and carries known debt).
 # Pass --strict to exit 1 when any CLEAR structural violation exists — wire that into
 # CI once the debt is cleared, or use a ratchet/baseline (see NOTE at the bottom).
+# Pass --audit to print the full untruncated list for every check (the refactor backlog;
+#   `npm run audit:constitution`). Advisory — never changes the exit code.
 #
 # Covers (backend, src/): runtime file-size hard ceiling, console.* (should be Pino),
 # db() outside models/, and an ADVISORY list of route files with no inline auth
@@ -19,14 +21,22 @@ set -uo pipefail
 cd "$(dirname "$0")/.." || exit 2
 
 STRICT=0
-[ "${1:-}" = "--strict" ] && STRICT=1
+AUDIT=0
+for arg in "$@"; do
+  case "$arg" in
+    --strict) STRICT=1 ;;
+    --audit)  AUDIT=1 ;;
+  esac
+done
 CEILING=800
 
 count_nonempty() { [ -n "$1" ] && printf '%s\n' "$1" | grep -c . || echo 0; }
 rule() { printf -- '------------------------------------------------------------\n'; }
 icon() { if [ "$1" -gt 0 ]; then printf '⚠️ '; else printf '✅ '; fi; }
-show() { # $1=list $2=head-n
-  [ -n "$1" ] && printf '%s\n' "$1" | head -"$2" | sed 's/^/     /'
+show() { # $1=list $2=head-n  (AUDIT mode prints the full list)
+  local n="$2"
+  [ "$AUDIT" -eq 1 ] && n=100000
+  [ -n "$1" ] && printf '%s\n' "$1" | head -"$n" | sed 's/^/     /'
 }
 
 echo "code-constitution check  (backend, src/)"
@@ -180,6 +190,32 @@ a51=$(grep -rlEi '(secret|api[_-]?key|password|access[_-]?token)[" ]*[:=][ ]*"[A
 a51_n=$(count_nonempty "$a51")
 printf '%spossible hardcoded secret literals [§5.1]: %s   (verify each — false positives expected)\n' "$(icon "$a51_n")" "$a51_n"
 show "$a51" 5
+
+# §20.3 focused/skipped tests reaching the tree (silently disable coverage)
+a203=$(grep -rlE '\.only\(|describe\.skip|it\.skip|test\.skip|\bxit\(|\bxdescribe\(' src frontend/src --include='*.ts' --include='*.tsx' 2>/dev/null | sort)
+a203_n=$(count_nonempty "$a203")
+printf '%sfocused/skipped tests (.only/.skip/xit) [§20.3]: %s\n' "$(icon "$a203_n")" "$a203_n"
+show "$a203" 5
+
+# §12.4 frontend import-boundary breaches (components←pages, api←components/pages)
+a124=$( { grep -rlE "from ['\"][^'\"]*/pages/" frontend/src/components --include='*.ts' --include='*.tsx' 2>/dev/null;
+          grep -rlE "from ['\"][^'\"]*/(components|pages)/" frontend/src/api --include='*.ts' 2>/dev/null; } | sort -u)
+a124_n=$(count_nonempty "$a124")
+printf '%sfrontend import-boundary breaches (components←pages, api←components) [§12.4]: %s\n' "$(icon "$a124_n")" "$a124_n"
+show "$a124" 5
+
+# §11.7 tenant-scope heuristic — models that query but reference no tenant column.
+#    HEURISTIC ONLY (advisory): many models are legitimately global. A backstop for
+#    §5.5/§11.7 review, NOT proof. Strict promotion needs a curated tenant-table list.
+a117=$(for f in $(find src/models -name '*.ts' 2>/dev/null | sort); do
+         if grep -qE '\.where\(|\.join\(|\.andWhere\(|\.whereIn\(' "$f" \
+            && ! grep -qE 'organization_id|location_id|org_id|organizationId|locationId' "$f"; then
+           printf '%s\n' "$f"
+         fi
+       done)
+a117_n=$(count_nonempty "$a117")
+printf 'ℹ️  models querying w/o a tenant-scope column ref [§11.7]: %s   (HEURISTIC — verify each; many are legitimately global)\n' "$a117_n"
+show "$a117" 8
 printf 'NOTE: Tier A is ADVISORY — surfaced for the mechanization rollout; does not fail --strict.\n'
 rule
 
