@@ -1,0 +1,74 @@
+name: Gemini PR Review (warn-only)
+
+# Advisory AI code review on PRs into main. Posts inline comments on the changed
+# lines only, written as senior-engineer recommendations against the Code Constitution.
+# It NEVER blocks the merge: event=COMMENT, the job is continue-on-error, and both
+# scripts exit 0 on any failure. See plans/06192026-gemini-pr-review-warn/.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+# One review at a time per PR. We do NOT cancel in-flight runs: each push reviews only
+# its own new commits (before..after), so cancelling a run would skip that delta entirely.
+concurrency:
+  group: gemini-pr-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    continue-on-error: true # advisory: this job must never fail the PR
+    env:
+      GEMINI_MODEL: gemini-3.5-flash
+    steps:
+      - name: Checkout (full history for diff)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install dependencies (dependency-cruiser for the related-file graph)
+        run: npm ci
+
+      - name: Collect changed + related files and assemble prompt
+        id: collect
+        env:
+          EVENT_ACTION: ${{ github.event.action }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: node scripts/pr-review/collect-context.mjs
+
+      - name: Gemini review (inference only)
+        id: gemini
+        if: steps.collect.outputs.has_changes == 'true'
+        uses: google-github-actions/run-gemini-cli@v0.1.22
+        with:
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          gemini_model: ${{ env.GEMINI_MODEL }}
+          prompt: |
+            You are running inside a CI pull-request review.
+            Read the file `pr-review-prompt.md` in the current working directory: it
+            holds your full instructions, the Alloro Code Constitution, the changed
+            files, and read-only context files. Follow it exactly and respond with
+            ONLY the JSON array of findings it specifies — no prose, no code fences.
+
+      - name: Post inline comments (warn-only)
+        if: steps.collect.outputs.has_changes == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GEMINI_SUMMARY: ${{ steps.gemini.outputs.summary }}
+        run: node scripts/pr-review/post-review.mjs
