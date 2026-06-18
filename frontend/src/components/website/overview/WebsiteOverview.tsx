@@ -206,6 +206,14 @@ export function WebsiteOverview({
   const [gscHover, setGscHover] = useState<number | null>(null);
   const gscPoint = gscHover !== null ? gscSeries[gscHover] ?? null : null;
 
+  // Item 2 (Rev 1): the bottom cards headline the AGGREGATE over the months they
+  // plot, so the eyebrow + headline sub-text share one window label per card.
+  // `…Lower` is the lowercase variant for the inline "visitors · last 3 mo".
+  const trafficWindowLabel = monthsRangeLabel(m.visitorSeries.length);
+  const trafficWindowLabelLower = trafficWindowLabel.toLowerCase();
+  const leadsWindowLabel = monthsRangeLabel(m.leadSeriesCompact.length);
+  const leadsWindowLabelLower = leadsWindowLabel.toLowerCase();
+
   // #15/#16: honest chart-title spans — describe what the chart actually plots
   // (its real first→last point), not a nominal "last 12 months". Traffic uses
   // the daily series; leads uses the 3-month slice above.
@@ -262,7 +270,7 @@ export function WebsiteOverview({
   const funnelCols = [
     {
       key: "visitors",
-      label: "Unique visitors",
+      label: "Visitors",
       color: FUNNEL_COLORS.visitors,
       value: funnelPoint
         ? fmt(funnelPoint.visitors)
@@ -370,15 +378,15 @@ export function WebsiteOverview({
         insightHighlights={insightHighlights}
         score={score}
         scoreLabel="Last month's conversion rate"
-        scoreTooltip="Verified leads ÷ unique visitors for the last full calendar month. A retroactive, settled figure — it doesn't move with partial early-month data."
+        scoreTooltip="Verified leads ÷ visitors for the last full calendar month. A retroactive, settled figure — it doesn't move with partial early-month data."
         estimateSummary={estimateSummary}
         actions={actions}
       />
 
       <div className="grid gap-5 md:grid-cols-2">
         <OverviewCard
-          eyebrow={`Traffic · ${monthsRangeLabel(m.visitorSeries.length)}`}
-          infoTip="Unique visitors to your website. The headline is this month to date; the chart shows monthly visitors."
+          eyebrow={`Traffic · ${trafficWindowLabel}`}
+          infoTip="Visitors to your website — unique people, each counted once. The headline totals the displayed window; the chart shows monthly visitors. Hover a month for that month's number and its change against the previous month."
           onOpen={m.hasAnalytics ? () => setModal("traffic") : undefined}
           openLabel="Traffic detail"
         >
@@ -386,17 +394,17 @@ export function WebsiteOverview({
             <div>
               <div className="flex flex-wrap items-baseline gap-2">
                 <span className="font-display text-[32px] font-medium leading-none tracking-tight text-alloro-navy tabular-nums">
-                  {trafficPoint ? fmt(trafficPoint.visitors) : fmt(m.monthVisitors)}
+                  {trafficPoint ? fmt(trafficPoint.visitors) : fmt(m.windowVisitors)}
                 </span>
                 <span className="text-xs font-medium text-[color:var(--color-pm-text-secondary)]">
-                  {trafficPoint ? `visitors · ${trafficPoint.label}` : "visitors"}
+                  {trafficPoint ? `visitors · ${trafficPoint.label}` : `visitors · ${trafficWindowLabelLower}`}
                 </span>
-                {!trafficPoint && <TrendPill deltaPct={m.visitorsDeltaPct} />}
+                {trafficPoint && <HoverTrend deltaPct={trafficPoint.deltaPct} />}
               </div>
               <div className="mt-1 text-xs text-[color:var(--color-pm-text-secondary)]">
                 {trafficPoint
                   ? `${fmt(trafficPoint.sessions)} sessions · ${fmt(trafficPoint.pageviews)} page views`
-                  : `${fmt(m.monthSessions)} sessions · ${fmt(m.monthPageviews)} page views`}
+                  : `${fmt(m.windowSessions)} sessions · ${fmt(m.windowPageviews)} page views`}
               </div>
               <div className="mt-4">
                 <TrendSparkline
@@ -418,8 +426,8 @@ export function WebsiteOverview({
         </OverviewCard>
 
         <OverviewCard
-          eyebrow={`Leads (form submissions) · ${monthsRangeLabel(m.leadSeriesCompact.length)}`}
-          infoTip="Verified form submissions from your website."
+          eyebrow={`Leads (form submissions) · ${leadsWindowLabel}`}
+          infoTip="Verified form submissions from your website. The headline totals the displayed window; hover a month for that month's count and its change against the previous month."
           onOpen={() => setModal("leads")}
           openLabel="Leads detail"
         >
@@ -433,19 +441,12 @@ export function WebsiteOverview({
             <div>
               <div className="flex flex-wrap items-baseline gap-2">
                 <span className="font-display text-[32px] font-medium leading-none tracking-tight text-alloro-navy tabular-nums">
-                  {leadsPoint ? leadsPoint.leads : m.monthLeads}
+                  {leadsPoint ? leadsPoint.leads : m.windowLeads}
                 </span>
                 <span className="text-xs font-medium text-[color:var(--color-pm-text-secondary)]">
-                  {leadsPoint ? `leads · ${leadsPoint.label}` : "leads this month"}
+                  {leadsPoint ? `leads · ${leadsPoint.label}` : `leads · ${leadsWindowLabelLower}`}
                 </span>
-                {!leadsPoint && <TrendPill deltaPct={m.leadsPaceDeltaPct} />}
-              </div>
-              <div className="mt-1 text-xs text-[color:var(--color-pm-text-secondary)]">
-                {/* #14/#17: show last month's settled count for comparison
-                    instead of the volatile month-to-date conversion %. */}
-                {m.prevMonthLeads > 0
-                  ? `${m.prevMonthLeads} last month`
-                  : `${fmt(stats?.allCount ?? 0)} all-time`}
+                {leadsPoint && <HoverTrend deltaPct={leadsPoint.deltaPct} />}
               </div>
               <div className="mt-4">
                 <TrendSparkline
@@ -463,7 +464,7 @@ export function WebsiteOverview({
 
       <OverviewCard
         eyebrow="Search keywords · Last 90 days"
-        infoTip="Clicks and impressions from Google Search Console over the last 90 days. Hover the chart for a single day. The Keywords tab has the full trend, range selector, and top pages."
+        infoTip="Clicks and search appearances from Google Search Console over the last 90 days. Search appearances are how many times your site showed up in Google Search results. Hover the chart for a single day. The Keywords tab has the full trend, range selector, and top pages."
         onOpen={() => onOpenTab("keywords")}
         openLabel="Keyword detail"
       >
@@ -484,8 +485,8 @@ export function WebsiteOverview({
               <div className="mt-1 text-xs text-[color:var(--color-pm-text-secondary)]">
                 {/* #18: avg position removed — it contradicted Local Rankings. */}
                 {gscPoint
-                  ? `${fmt(gscPoint.impressions)} impressions that day`
-                  : `${fmt(gscTotals?.impressions ?? 0)} impressions in search`}
+                  ? `${fmt(gscPoint.impressions)} search appearances that day`
+                  : `${fmt(gscTotals?.impressions ?? 0)} search appearances`}
               </div>
               <div className="mt-4">
                 <TrendSparkline
@@ -653,7 +654,7 @@ export function WebsiteOverview({
                   ? formatConversion(m.prevConversionRate)
                   : "—"
               }
-              tip="Verified leads ÷ unique visitors for the last full month — a settled, retroactive figure."
+              tip="Verified leads ÷ visitors for the last full month — a settled, retroactive figure."
             />
           </div>
           <div className="rounded-[14px] border border-line-soft bg-white p-4 shadow-premium">
@@ -683,6 +684,24 @@ export function WebsiteOverview({
         </div>
       </DetailsModal>
     </div>
+  );
+}
+
+/**
+ * Item 2 (Rev 1): hover-only month-over-month trend for the bottom cards. Shows
+ * the colored ▲/▼ percent (TrendPill) followed by "against last month". Renders
+ * nothing when the delta isn't meaningful (null) so a tiny prior month doesn't
+ * produce a misleading swing.
+ */
+function HoverTrend({ deltaPct }: { deltaPct: number | null }) {
+  if (deltaPct === null || !Number.isFinite(deltaPct)) return null;
+  return (
+    <span className="inline-flex items-center gap-1">
+      <TrendPill deltaPct={deltaPct} />
+      <span className="text-[11px] font-medium text-[color:var(--color-pm-text-secondary)]">
+        against last month
+      </span>
+    </span>
   );
 }
 

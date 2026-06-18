@@ -1,9 +1,61 @@
-import axios, { type ResponseType } from "axios";
+import axios, { isAxiosError, type ResponseType } from "axios";
 import { getPriorityItem } from "../hooks/useLocalStorage";
+import { logger } from "../lib/logger";
+
+// Re-exported so components use the axios error type-guard via the client (§14.2)
+// instead of importing "axios" directly.
+export { isAxiosError } from "axios";
+
+/**
+ * ApiError — carries a backend error `code` and HTTP `status` alongside the
+ * message. Thrown by {@link unwrap} so callers (React Query, try/catch) can
+ * surface real failures instead of inspecting a `{ success:false }` envelope.
+ * Part of the T4 error-contract unification (code-constitution §17.x).
+ */
+export class ApiError extends Error {
+  readonly code?: string;
+  readonly status?: number;
+  constructor(message: string, opts?: { code?: string; status?: number }) {
+    super(message);
+    this.name = "ApiError";
+    this.code = opts?.code;
+    this.status = opts?.status;
+  }
+}
+
+interface ApiEnvelope {
+  success?: boolean;
+  successful?: boolean;
+  error?: string;
+  errorMessage?: string;
+  errorCode?: string;
+  message?: string;
+  data?: unknown;
+}
+
+/**
+ * unwrap — opt-in error-contract helper for the per-domain T4 migration.
+ * Pass the result of an `api*` helper: throws an {@link ApiError} when the
+ * envelope signals failure (`success:false` / `successful:false`), otherwise
+ * returns the payload (the `data` field when present, else the raw body).
+ *
+ * This lets a single domain adopt throw-on-error WITHOUT changing the shared
+ * `api*` primitives, which keep their swallow behavior for un-migrated domains.
+ */
+export function unwrap<T>(res: unknown): T {
+  const env = (res ?? {}) as ApiEnvelope;
+  if (env.success === false || env.successful === false) {
+    throw new ApiError(
+      env.error || env.errorMessage || env.message || "Request failed",
+      { code: env.errorCode },
+    );
+  }
+  return (env.data !== undefined ? env.data : res) as T;
+}
 
 // Prefer environment-configured API base; default to relative "/api" so Vite dev proxy handles CORS in development.
 // Define VITE_API_URL in .env for deployments that need an absolute URL.
-const api = (import.meta as any)?.env?.VITE_API_URL ?? "/api";
+const api = import.meta.env.VITE_API_URL ?? "/api";
 
 /**
  * Helper function to get common headers for API requests.
@@ -38,6 +90,53 @@ export const getCommonHeaders = (): Record<string, string> => {
   return headers;
 };
 
+/**
+ * adminFetch — the shared authed fetch wrapper. Attaches the JWT (via
+ * getCommonHeaders) without overriding caller-set headers, then returns the raw
+ * Response so the caller keeps full control of status / streaming handling (and
+ * throws on !response.ok as it sees fit). Replaces the byte-identical helper that
+ * was copy-pasted across ~11 api/ domain files (code-constitution §14.2 + §4.3).
+ */
+export const adminFetch = (
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+): Promise<Response> => {
+  const headers = new Headers(init.headers);
+  Object.entries(getCommonHeaders()).forEach(([key, value]) => {
+    if (!headers.has(key)) headers.set(key, value);
+  });
+  return fetch(input, { ...init, headers });
+};
+
+/**
+ * normalizeApiFailure — collapse any caught request error into the shared
+ * failure envelope so the §16.1 error-contract holds: `unwrap()` throws on it and
+ * `.success`/`.successful` checks see a failure. Without this, a raw non-envelope
+ * error body (a 500 proxy-error string, an HTML page) flowed straight through
+ * `unwrap()` as if it were data and crashed array consumers (`x.map is not a function`).
+ */
+function normalizeApiFailure(err: unknown): ApiEnvelope {
+  if (isAxiosError(err) && err.response?.data) {
+    const body = err.response.data;
+    // Backend already returned a recognized { success | successful } envelope —
+    // preserve its code/message so unwrap() throws with the real reason.
+    if (typeof body === "object" && ("success" in body || "successful" in body)) {
+      return body as ApiEnvelope;
+    }
+  }
+  // No response, or a non-envelope body (raw 500 text, HTML, proxy error): return
+  // a safe generic failure. The raw body is logged by the caller, never surfaced
+  // to the UI (§3.4 — no internal leakage).
+  const status = isAxiosError(err) ? err.response?.status : undefined;
+  return {
+    success: false,
+    successful: false,
+    error: "An error occurred. Please try again.",
+    errorMessage: "An error occurred. Please try again.",
+    ...(status ? { errorCode: `HTTP_${status}` } : {}),
+  };
+}
+
 export async function apiGet({
   path,
   token,
@@ -55,15 +154,9 @@ export async function apiGet({
       headers,
     });
     return data;
-  } catch (err: any) {
-    console.log(err);
-    if (err?.response?.data) {
-      return err.response.data;
-    }
-    return {
-      successful: false,
-      errorMessage: "An error occurred. Please try again.",
-    };
+  } catch (err: unknown) {
+    logger.log(err);
+    return normalizeApiFailure(err);
   }
 }
 
@@ -113,15 +206,9 @@ export async function apiPost({
       headers,
     });
     return data;
-  } catch (err: any) {
-    console.log(err);
-    if (err?.response?.data) {
-      return err.response.data;
-    }
-    return {
-      successful: false,
-      errorMessage: "An error occurred. Please try again.",
-    };
+  } catch (err: unknown) {
+    logger.log(err);
+    return normalizeApiFailure(err);
   }
 }
 
@@ -156,15 +243,9 @@ export async function apiPatch({
       headers,
     });
     return data;
-  } catch (err: any) {
-    console.log(err);
-    if (err?.response?.data) {
-      return err.response.data;
-    }
-    return {
-      successful: false,
-      errorMessage: "An error occurred. Please try again.",
-    };
+  } catch (err: unknown) {
+    logger.log(err);
+    return normalizeApiFailure(err);
   }
 }
 
@@ -199,15 +280,9 @@ export async function apiPut({
       headers,
     });
     return data;
-  } catch (err: any) {
-    console.log(err);
-    if (err?.response?.data) {
-      return err.response.data;
-    }
-    return {
-      successful: false,
-      errorMessage: "An error occurred. Please try again.",
-    };
+  } catch (err: unknown) {
+    logger.log(err);
+    return normalizeApiFailure(err);
   }
 }
 
@@ -218,15 +293,9 @@ export async function apiDelete({ path }: { path: string }) {
     });
 
     return data;
-  } catch (err: any) {
-    console.log(err);
-    if (err?.response?.data) {
-      return err.response.data;
-    }
-    return {
-      successful: false,
-      errorMessage: "An error occurred. Please try again.",
-    };
+  } catch (err: unknown) {
+    logger.log(err);
+    return normalizeApiFailure(err);
   }
 }
 

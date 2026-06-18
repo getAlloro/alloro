@@ -7,6 +7,7 @@ import { ConfirmModal } from "@/components/settings/ConfirmModal";
 import { AlertModal } from "@/components/ui/AlertModal";
 import { useSettingsUsers, useInvalidateSettingsUsers } from "../../hooks/queries/useSettingsQueries";
 import { useIsWizardActive, useWizardDemoData } from "../../contexts/OnboardingWizardContext";
+import { logger } from "../../lib/logger";
 
 interface User {
   id: number;
@@ -82,7 +83,7 @@ export const UsersTab: React.FC = () => {
       setInviteRole("viewer");
       fetchUsers(); // Reload
     } catch (err) {
-      console.error("Failed to invite user:", err);
+      logger.error("Failed to invite user:", err);
       setAlertModal({ isOpen: true, title: "Invite Failed", message: "Failed to invite user", type: "error" });
     }
   };
@@ -104,7 +105,7 @@ export const UsersTab: React.FC = () => {
 
           fetchUsers(); // Reload
         } catch (err) {
-          console.error("Failed to remove user:", err);
+          logger.error("Failed to remove user:", err);
           setAlertModal({ isOpen: true, title: "Remove Failed", message: "Failed to remove user", type: "error" });
         }
       },
@@ -127,7 +128,7 @@ export const UsersTab: React.FC = () => {
       setChangingRoleUserId(null);
       fetchUsers(); // Reload
     } catch (err) {
-      console.error("Failed to change role:", err);
+      logger.error("Failed to change role:", err);
       setAlertModal({ isOpen: true, title: "Role Change Failed", message: "Failed to change role", type: "error" });
     }
   };
@@ -147,7 +148,7 @@ export const UsersTab: React.FC = () => {
       setAlertModal({ isOpen: true, title: "Invitation Resent", message: data.message || "Invitation email has been resent", type: "success" });
       fetchUsers();
     } catch (err) {
-      console.error("Failed to resend invitation:", err);
+      logger.error("Failed to resend invitation:", err);
       setAlertModal({ isOpen: true, title: "Resend Failed", message: "Failed to resend invitation", type: "error" });
     }
   };

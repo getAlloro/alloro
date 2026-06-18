@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Website Post Duplicate Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 16px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .task-card dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin: 12px 0 0; }
+    .task-card dl > div { border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: var(--paper); }
+    .cite { display: inline-block; font-size: 0.72rem; font-weight: 700; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; margin-left: 6px; }
+    ul { margin: 0; padding-left: 18px; }
+    li { margin: 4px 0; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Completed</span>
+      </div>
+      <h1>Website Post Duplicate</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06152026-website-post-duplicate</dd></div>
+        <div><dt>Size</dt><dd>Medium (9 files)</dd></div>
+        <div><dt>Risk</dt><dd>Level 2 — Concern</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Recreating a near-identical website post (a service page, a doctor bio, a blog entry) today means re-entering title, content, excerpt, featured image, custom fields, SEO data, categories, tags, and attachments by hand. A one-click <strong>Duplicate</strong> turns an existing post into a pre-filled draft so the editor only changes what differs.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>A <strong>Duplicate</strong> action on each post in the Posts tab that creates a new post <em>faithfully cloned</em> from the source: it copies content, excerpt, featured image, custom fields, <strong>SEO data</strong>, category &amp; tag assignments, and <strong>attachments</strong>. The new post is titled <code>{title} [copy]</code>, forced to <code>draft</code>, and never inherits the source's <code>source_url</code>.</p>
+      <p>The action is available on <strong>both</strong> surfaces that render <code>PostsTab</code>: the staff admin <em>Website Detail</em> tab and the client <em>DFY editor</em> (<code>/dfy/website</code>). The clone logic is one shared service function; each surface adds only a thin handler + route + frontend wiring.</p>
+      <p><strong>Done when:</strong> clicking Duplicate on either surface produces a new <code>[copy]</code> draft in the list with SEO, attachments, categories, and tags carried over, <code>source_url</code> null, and no console/tsc/convention regressions.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/controllers/admin-websites/feature-services/service.post-manager.ts</code> — owns post CRUD; <code>createPost</code> (slugify + collision suffix + assignments + cache invalidation) is the direct analog for the new <code>duplicatePost</code>. Already exports <code>slugify</code>, <code>enrichPost</code>, <code>invalidatePostsCache</code> (reuse).</li>
+        <li><code>src/models/website-builder/PostModel.ts</code> — all post DB access; every method accepts <code>trx?: QueryContext</code>. Used: <code>findByIdAndProject</code>, <code>findBySlug</code>, <code>findAssignedCategories</code>, <code>findAssignedTags</code>, <code>findAttachmentsByPostId</code>, <code>insertReturning</code>, <code>insertCategoryAssignments</code>, <code>insertTagAssignments</code>, and inherited <code>transaction()</code>.</li>
+        <li><code>src/models/website-builder/PostAttachmentModel.ts</code> — <code>create({ post_id, url, filename, mime_type, file_size, order_index }, trx?)</code> for cloning attachment rows.</li>
+        <li><code>src/controllers/admin-websites/PostsController.ts</code> — thin admin handlers; <code>createPost</code> is the analog for the admin <code>duplicatePost</code> handler.</li>
+        <li><code>src/routes/admin/websites/posts.routes.ts</code> — admin post routes; auth (<code>authenticateToken, superAdminMiddleware</code>) is hoisted by the parent <code>websites.ts</code>.</li>
+        <li><code>src/controllers/user-website/postHandlers.ts</code> — org-scoped thin handlers that <strong>reuse the same <code>service.post-manager</code></strong>; <code>createUserPost</code> is the analog for <code>duplicateUserPost</code>.</li>
+        <li><code>src/controllers/user-website/UserWebsiteController.ts</code> — re-export barrel; the user route does <code>import * as controller</code> from here, so new handlers must be added to the <code>from "./postHandlers"</code> list (lines 29–39).</li>
+        <li><code>src/routes/user/website.ts</code> — user post routes use explicit per-route <code>authenticateToken, rbacMiddleware, requireRole("admin","manager")</code>.</li>
+        <li><code>frontend/src/api/posts.ts</code> — typed wrappers over the shared <code>adminFetch</code> client; <code>createPost</code>/<code>deletePost</code> are the analogs for <code>duplicatePost</code>.</li>
+        <li><code>frontend/src/components/Admin/PostsTab.tsx</code> — the UI; post-card Edit/Delete buttons (~line 879) are where Duplicate slots in; the injectable-fn prop pattern (<code>createPostFn</code>, <code>deletePostFn</code>) is how the action stays surface-agnostic.</li>
+        <li><code>frontend/src/pages/DFYWebsite.tsx</code> — client editor; defines <code>userCreatePost</code>/<code>userDeletePost</code> (the analog for <code>userDuplicatePost</code>) and renders <strong>two</strong> <code>PostsTab</code> instances (~lines 1583, 1620) that both need the prop wired.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li><strong>Transaction boundary</strong> via <code>PostModel.transaction(async (trx) =&gt; { … })</code> (BaseModel helper), threading <code>trx</code> into every model write — analog: <code>src/controllers/pm/PmTasksController.ts:87</code>. Honors §10.5 without inline <code>db()</code> in the service (§7.4).</li>
+        <li><strong>Response shape:</strong> match the <em>local sibling</em> in each file (admin <code>createPost</code> → <code>201 { success, data }</code>; user <code>createUserPost</code> → <code>sendManagerResult(res, result, { successStatus: 201, data })</code>). Do not introduce the <code>ok()/fail()</code> builders into files that don't use them.</li>
+        <li><strong>Slug logic:</strong> reuse <code>createPost</code>'s exact approach — <code>slugify(title)</code> then append <code>-${Date.now().toString(36).slice(-4)}</code> on collision via <code>findBySlug</code>.</li>
+        <li><strong>JSONB serialization:</strong> <code>custom_fields</code> and <code>seo_data</code> come back from <code>findByIdAndProject</code> as parsed objects (node-pg) — <code>JSON.stringify</code> them on insert, mirroring <code>createPost</code>.</li>
+        <li><strong>Frontend client:</strong> route through <code>adminFetch</code> (admin) / <code>apiPost</code> (user) — never raw <code>fetch</code> (§14.2). Surface errors via the existing <code>react-hot-toast</code> usage in <code>PostsTab</code> (§16.3).</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/controllers/admin-websites/feature-services/service.post-manager.ts</code> (the <code>createPost</code> function) — closest existing analog for the new <code>duplicatePost</code> structure, naming, logging, and error-tuple shape.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Write the clone logic <strong>once</strong> in <code>service.post-manager.duplicatePost</code>; both surfaces call it. <span class="cite">§4.3 DRY</span></li>
+            <li>Wrap the multi-table write (post + category + tag + attachment rows) in a transaction. <span class="cite">§10.5</span></li>
+            <li>Keep all DB access in models; thread <code>trx</code> through. <span class="cite">§7.4</span></li>
+            <li>Force <code>status: "draft"</code> and <code>published_at: null</code> on the clone.</li>
+            <li>Set <code>source_url: null</code> on the clone — never inherit the import dedup key.</li>
+            <li>Title the clone <code>{source.title} [copy]</code>; regenerate the slug with collision handling.</li>
+            <li>Copy <code>seo_data</code>, <code>custom_fields</code>, <code>featured_image</code>, <code>excerpt</code>, <code>content</code>, category &amp; tag assignments, and attachment rows.</li>
+            <li>Return <code>201</code> with the enriched new post; invalidate the posts cache. <span class="cite">§8.4</span></li>
+            <li>Add <code>duplicateUserPost</code> to the <code>UserWebsiteController</code> re-export list (no phantom export). <span class="cite">Read-before-write / No Phantom Files</span></li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No new dependencies, no DB migration (existing tables/columns only).</li>
+            <li>Do not decompose or refactor <code>PostsTab.tsx</code> as part of this work (see Risk / Refactoring Rule).</li>
+            <li>Do not retrofit <code>createPost</code> to be transactional or change its response shape.</li>
+            <li>Do not introduce a new response/error contract into files that use the legacy shape.</li>
+            <li>Do not re-upload or copy S3 objects — clone attachment rows by reference (same URL).</li>
+            <li>No raw <code>fetch</code>/<code>axios</code> or hand-rolled auth header on the frontend. <span class="cite">§14.2</span></li>
+            <li>No <code>console.*</code>, no <code>any</code> in new frontend code. <span class="cite">§17.1 §17.2</span></li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Decomposing the 1,298-line <code>PostsTab.tsx</code> (tracked by the frontend-remediation plan, T6 god-files).</li>
+        <li>Bulk-duplicate / duplicate-to-another-project.</li>
+        <li>A confirmation modal or rename-on-duplicate dialog (clone is immediate; the editor renames after).</li>
+        <li>Deep-cloning GBP local posts (<code>gbp-automation</code>) — different domain, not this feature.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 — Concern. Additive feature, no migration, no new deps, no change to existing exports.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>§13.1 file-size ceiling.</strong> <code>PostsTab.tsx</code> is 1,298 lines — ~500 over the ~800 hard ceiling; §13.1 says never add to a file already over it. <strong>Mitigation:</strong> add only the minimal button + handler (~15 lines); defer decomposition to the existing frontend-remediation backlog. Frontend checks are advisory until that lands (§18). Mixing a god-component refactor into feature work violates the Refactoring Rule.</li>
+        <li><strong>§8.1/§8.3 legacy response contract.</strong> Admin <code>PostsController</code> + <code>api/posts.ts</code> use <code>{success,data}</code> + string error code, not the <code>ok()/fail()</code> builders. <strong>Mitigation:</strong> new handlers match the local sibling; a third shape in one handler is worse drift. Pre-existing, not fixed here.</li>
+        <li><strong>source_url leakage (correctness).</strong> Copying <code>source_url</code> would collide with the import dedup key (<code>findByImportDedupKey</code> on project_id+post_type_id+source_url) and corrupt re-import matching. <strong>Mitigation:</strong> explicit <code>source_url: null</code> in the insert (covered by a Done check).</li>
+        <li><strong>Partial-failure orphan.</strong> Without a transaction, an attachment-insert failure after the post row commits leaves a half-cloned post. <strong>Mitigation:</strong> transaction wraps all writes (§10.5) — the clone is more correct than the non-transactional <code>createPost</code>.</li>
+        <li><strong>Shared S3 attachments.</strong> Clone rows point at the same S3 URLs. <strong>Mitigation:</strong> acceptable by design — <code>deletePost</code> removes only rows (no S3 cascade), so neither post orphans the other's media; replacing an image uploads a new URL.</li>
+        <li><strong>Double-duplicate naming.</strong> Two clones both titled <code>"… [copy]"</code> (slugs differ). <strong>Mitigation:</strong> acceptable; counter suffix is a later nicety.</li>
+      </ul>
+      <p><strong>Blast radius:</strong></p>
+      <ul>
+        <li><code>service.post-manager.duplicatePost</code> — new export; consumers = admin <code>PostsController</code> + user <code>postHandlers</code>. No existing export changes.</li>
+        <li><code>PostsTab</code> gains an optional <code>duplicatePostFn</code> prop defaulting to the admin endpoint → <code>WebsiteDetail.tsx</code> (admin) gets it free, <strong>no change needed there</strong>; <code>DFYWebsite.tsx</code> overrides with <code>userDuplicatePost</code> on both PostsTab instances.</li>
+        <li>New routes are deeper/distinct paths (<code>/:id/posts/:postId/duplicate</code>, <code>/posts/:postId/duplicate</code>) — no shadowing of existing matchers. Auth inherited (admin) / explicit RBAC (user).</li>
+      </ul>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>Recommended:</strong> accept the small additive change to <code>PostsTab.tsx</code> and flag it for the frontend-remediation backlog rather than extracting now. Alternative (only if you want it): pull the post-card row into a <code>PostListRow</code> child as a separate, pre-feature refactor task — keeps §13.1 honest but widens scope. Recommendation is to <em>not</em> do that in this plan.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: <code>duplicatePost</code> shared service (the only real logic)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>export async function duplicatePost(projectId, postId): Promise&lt;{ post; error? }&gt;</code> next to <code>createPost</code>. Steps: (1) load source via <code>findByIdAndProject</code> → 404 tuple if missing; (2) gather <code>findAssignedCategories</code>, <code>findAssignedTags</code>, <code>findAttachmentsByPostId</code>; (3) build <code>title = "${source.title} [copy]"</code>, slug via <code>slugify</code> + collision suffix; (4) inside <code>PostModel.transaction(trx)</code>: <code>insertReturning</code> the new row (copy content/excerpt/featured_image; <code>JSON.stringify</code> custom_fields &amp; seo_data; <strong>status "draft", published_at null, source_url null</strong>), then <code>insertCategoryAssignments</code>/<code>insertTagAssignments</code> (guard empty), then <code>PostAttachmentModel.create</code> per attachment with the new post_id; (5) <code>invalidatePostsCache</code> + return <code>enrichPost(newPost)</code>. Import <code>PostAttachmentModel</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.post-manager.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>; unit-trace the field list against <code>IPost</code> columns.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Admin handler + route</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>duplicatePost(req,res)</code> to <code>PostsController</code> mirroring <code>createPost</code> (read <code>{ id: projectId, postId }</code>, call <code>postManager.duplicatePost</code>, error-tuple → status, success → <code>201 { success, data }</code>, catch → <code>logger.error</code> + 500 <code>DUPLICATE_ERROR</code>). Register <code>router.post("/:id/posts/:postId/duplicate", controller.duplicatePost)</code> grouped with the <code>:postId</code> routes.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/PostsController.ts</code>, <code>src/routes/admin/websites/posts.routes.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>; route resolves under super-admin auth.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: User-website handler + re-export + route</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>duplicateUserPost(req,res)</code> to <code>postHandlers.ts</code> mirroring <code>createUserPost</code> (resolve org → projectId via <code>getProjectAndTemplate</code>, call <code>postManager.duplicatePost(ids.projectId, req.params.postId)</code>, <code>sendManagerResult(res, result, { successStatus: 201, data: result.post })</code>). Add <code>duplicateUserPost</code> to the <code>from "./postHandlers"</code> re-export in <code>UserWebsiteController.ts</code>. Register <code>userWebsiteRoutes.post("/posts/:postId/duplicate", authenticateToken, rbacMiddleware, requireRole("admin","manager"), controller.duplicateUserPost)</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/user-website/postHandlers.ts</code>, <code>src/controllers/user-website/UserWebsiteController.ts</code>, <code>src/routes/user/website.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>; <code>controller.duplicateUserPost</code> resolves (re-export present).</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Frontend API wrapper</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>export const duplicatePost = async (projectId, postId): Promise&lt;{ success; data: Post }&gt;</code> in <code>api/posts.ts</code> — <code>adminFetch(`${PROJECTS_BASE}/${projectId}/posts/${postId}/duplicate`, { method: "POST" })</code>, mirroring <code>deletePost</code>'s error handling.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/api/posts.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2 (route contract)</dd></div>
+          <div><dt>Verify</dt><dd><code>cd frontend &amp;&amp; npx tsc -p tsconfig.app.json --noEmit</code></dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: PostsTab Duplicate button + handler + prop</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add prop <code>duplicatePostFn?: typeof defaultDuplicatePost</code> defaulting to the admin <code>duplicatePost</code>. Add <code>handleDuplicate(post)</code>: <code>await duplicatePostFn(projectId, post.id)</code>, toast success, <code>await loadData()</code>, toast error on failure (no <code>console</code>). Render a <code>Copy</code> (lucide) icon button between the Edit and Delete buttons (~line 879), <code>title="Duplicate"</code>, matching their styling.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/Admin/PostsTab.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T4</dd></div>
+          <div><dt>Verify</dt><dd><code>cd frontend &amp;&amp; npx tsc -p tsconfig.app.json --noEmit</code>; <code>npm run check:conventions</code> (no new FE violations).</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Wire user surface in DFYWebsite</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>const userDuplicatePost = async (_projectId, postId) =&gt; apiPost({ path: `/user/website/posts/${postId}/duplicate` })</code> next to <code>userCreatePost</code>. Pass <code>duplicatePostFn={userDuplicatePost}</code> to <strong>both</strong> <code>PostsTab</code> instances (~lines 1583 &amp; 1620). <code>WebsiteDetail.tsx</code> needs no change (inherits the admin default).</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/DFYWebsite.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3, T5</dd></div>
+          <div><dt>Verify</dt><dd><code>cd frontend &amp;&amp; npx tsc -p tsconfig.app.json --noEmit</code></dd></div>
+        </dl>
+      </article>
+
+      <p style="margin-top:16px"><strong>Dependency order:</strong> T1 → { T2 ∥ T3 } → T4 → T5 → T6. T2 and T3 are independent after T1.</p>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> (backend) — zero new errors</li>
+        <li><input type="checkbox" disabled> <code>cd frontend &amp;&amp; npx tsc -p tsconfig.app.json --noEmit</code> — zero new errors</li>
+        <li><input type="checkbox" disabled> <code>npm run check:conventions</code> — no new violations (no <code>db()</code> outside models, no <code>console.*</code>, no new <code>any</code>, no <code>fetch</code> bypass)</li>
+        <li><input type="checkbox" disabled> Manual (admin Website Detail): Duplicate a post → new <code>"… [copy]"</code> draft appears; open it and confirm content, excerpt, featured image, custom fields, categories, tags, SEO data, and attachments all carried over</li>
+        <li><input type="checkbox" disabled> Manual (client DFY editor <code>/dfy/website</code>): Duplicate works on both PostsTab instances with the same fidelity</li>
+        <li><input type="checkbox" disabled> Manual: cloned post's <code>source_url</code> is <code>null</code> (DB check) and its <code>status</code> is <code>draft</code></li>
+        <li><input type="checkbox" disabled> Manual: duplicating an imported doctor/service post does not break the Import-from-Identity dedup (source still re-importable)</li>
+        <li><input type="checkbox" disabled> No regressions in create/update/delete post on either surface</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="task-card">
+        <h3>Rev 1 — 2026-06-15</h3>
+        <p><strong>Change:</strong> Executed T1–T6. All 9 files implemented per spec — shared <code>service.post-manager.duplicatePost</code> (transaction-wrapped), admin handler + route, user handler + re-export + route, FE <code>api/posts.ts</code> wrapper, <code>PostsTab</code> prop/handler/Copy-button, <code>DFYWebsite</code> <code>userDuplicatePost</code> wiring.</p>
+        <p><strong>Reason:</strong> <code>-x</code> execution.</p>
+        <p><strong>Execution deviation:</strong> <code>DFYWebsite.tsx</code> renders <strong>one</strong> <code>PostsTab</code> (line 1584), not two — the second <code>fetchPostsFn={userFetchPosts}</code> (~line 1621) belongs to <code>MenusTab</code>. <code>userDuplicatePost</code> is wired to the single PostsTab instance. Below Level 3; no design change.</p>
+        <p><strong>Verification — backend PASS:</strong> <code>tsc --noEmit</code> green; <code>npm run check:conventions</code> passes (exit 0); none of the new backend files flagged; <code>db() outside models/ [§7.4] = 0</code>.</p>
+        <p><strong>Verification — frontend BLOCKED (external):</strong> <code>tsc -p tsconfig.app.json</code> is currently red, but exclusively from a <em>concurrent</em> frontend-remediation migration (console→<code>logger</code> + a <code>getErrorMessage</code> error helper) caught mid-flight — 58 missing-import errors across 43 dirty FE files, including an in-place rewrite of <code>handleDuplicate</code>'s catch (<code>err.message</code> → <code>getErrorMessage(err)</code>) in <code>PostsTab.tsx</code> before its import landed. <strong>No error references any identifier this task introduced.</strong> Re-run the FE gate once that migration settles the tree.</p>
+        <p><strong>Updated Done criteria:</strong> FE <code>tsc</code> + manual QA pending a clean working tree. Not committing until the concurrent migration completes, to avoid entangling the two changesets in shared files (<code>PostsTab.tsx</code>).</p>
+      </article>
+      <article class="task-card">
+        <h3>Rev 2 — 2026-06-15</h3>
+        <p><strong>Change:</strong> Per owner direction, <strong>moved the entire feature into an isolated worktree/branch</strong> <code>dev/post-duplicate</code> (at <code>/Users/rustinedave/Desktop/alloro-post-duplicate</code>, based off dev/dave HEAD <code>68f54e51</code>) and <strong>removed all feature changes from the main working tree</strong>.</p>
+        <p><strong>Reason:</strong> User QA: isolate the feature from the concurrent frontend-remediation migration churning 43 FE files in main, so it can be type-gated and committed independently.</p>
+        <p><strong>Result — worktree:</strong> clean 9-file feature. Backend <code>tsc</code> green; FE <code>tsc</code> shows only <strong>1 pre-existing HEAD defect</strong> (<code>ImportFromIdentityModal.tsx:346</code> uses <code>logger</code> without import — from the committed T2 codemod, migration-owned), <strong>zero errors in feature files</strong> (proven by stashing my changes: the error persists without them).</p>
+        <p><strong>Result — main tree scrubbed:</strong> 7 pure-mine files reverted via <code>git checkout HEAD</code>; my edits <em>surgically reversed</em> from the 2 migration-entangled files (<code>PostsTab.tsx</code>, <code>DFYWebsite.tsx</code>), preserving the migration's uncommitted work (verified: 5 <code>getErrorMessage</code> + 9 <code>data: object</code> still present).</p>
+        <p><strong>Caught:</strong> a copy-contamination — the migration's <code>any</code>→<code>object</code>/shape narrowing in <code>DFYWebsite</code> rode into the worktree via the file copy and introduced a <code>MediaItem</code> type error at line 1768; corrected by reverting that file to HEAD and re-applying only my 2 edits. Lesson: "pure-mine" must be verified by full diff-vs-HEAD, not a marker grep.</p>
+        <p><strong>Status:</strong> built + type-verified in isolation on <code>dev/post-duplicate</code> (UNCOMMITTED). Manual QA + commit pending owner go-ahead.</p>
+      </article>
+      <article class="task-card">
+        <h3>Rev 3 — 2026-06-15</h3>
+        <p><strong>Change:</strong> Per owner direction (remediation paused + committed), <strong>merged the feature into local <code>dev/dave</code></strong> — cherry-picked the rebased feature commit; now commit <code>5c311e8f</code> on local <code>dev/dave</code> (<strong>not pushed</strong>).</p>
+        <p><strong>Reason:</strong> User QA: land on local <code>dev/dave</code> now that the concurrent frontend-remediation is paused and its 12 commits are in <code>dev/dave</code> history.</p>
+        <p><strong>Result:</strong> Clean cherry-pick, <strong>zero conflicts</strong> — git rename-detection followed <code>PostsTab.tsx</code> to its new <code>components/Admin/website-tabs/</code> home (moved by remediation T5) and auto-merged it + <code>DFYWebsite.tsx</code> with the remediation's changes. Verified on the merged tree: backend <code>tsc</code> green, frontend <code>tsc -p tsconfig.app.json</code> green (0 errors), <code>check:conventions</code> exit 0, no new violations from the feature (<code>DFYWebsite</code> &gt;800 size is pre-existing debt).</p>
+        <p><strong>Status:</strong> Completed (engineering: written, merged, type-checked, lint-clean). Owner browser QA of the Duplicate button on both surfaces remains per the visual-pass-is-owner's-job convention. The <code>dev/post-duplicate</code> worktree/branch is now redundant. Not on origin.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

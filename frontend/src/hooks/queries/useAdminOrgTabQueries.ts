@@ -8,6 +8,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryClient, QUERY_KEYS } from "../../lib/queryClient";
 
 // ─── API imports ─────────────────────────────────────────────────
+import { adminFetch } from "../../api";
 import { fetchAllTasks } from "../../api/tasks";
 import {
   fetchAdminNotifications,
@@ -162,7 +163,6 @@ export function useAdminOrgRankings(
   return useQuery<RankingJob[]>({
     queryKey,
     queryFn: async () => {
-      const token = localStorage.getItem("auth_token");
       const params = new URLSearchParams({
         organization_id: String(organizationId),
         limit: "100",
@@ -171,9 +171,8 @@ export function useAdminOrgRankings(
         params.set("location_id", String(locationId));
       }
 
-      const response = await fetch(
+      const response = await adminFetch(
         `/api/admin/practice-ranking/list?${params.toString()}`,
-        { headers: { Authorization: `Bearer ${token}` } },
       );
 
       if (!response.ok) throw new Error("Failed to fetch rankings");

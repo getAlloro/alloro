@@ -18,6 +18,9 @@ import {
   listPublishChannels,
   type SkillBuilderMessage,
   type ResolvedFields,
+  type WorkCreationType,
+  type TriggerType,
+  type PipelineMode,
 } from "../../../api/minds";
 
 const CHAT_FONT = "'Spectral', Georgia, serif";
@@ -203,7 +206,7 @@ export function SkillBuilderChat({
           }
         }
       }
-    } catch (err: any) {
+    } catch {
       toast.error("Failed to get response");
     }
 
@@ -251,12 +254,12 @@ export function SkillBuilderChat({
     }
 
     await updateSkill(mindId, skill.id, {
-      work_creation_type: (resolvedFields.work_creation_type as any) || null,
-      artifact_attachment_type: (resolvedFields.artifact_attachment_type as any) || null,
+      work_creation_type: (resolvedFields.work_creation_type as WorkCreationType | undefined) || null,
+      artifact_attachment_type: (resolvedFields.artifact_attachment_type as WorkCreationType | undefined) || null,
       output_count: resolvedFields.output_count || 1,
-      trigger_type: (resolvedFields.trigger_type as any) || "manual",
+      trigger_type: (resolvedFields.trigger_type as TriggerType | undefined) || "manual",
       trigger_config: resolvedFields.trigger_config || {},
-      pipeline_mode: (resolvedFields.pipeline_mode as any) || "review_and_stop",
+      pipeline_mode: (resolvedFields.pipeline_mode as PipelineMode | undefined) || "review_and_stop",
       publish_channel_id: publishChannelId,
     });
 

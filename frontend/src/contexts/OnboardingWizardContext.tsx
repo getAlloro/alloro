@@ -17,6 +17,7 @@ import {
   type WizardStep,
   type WizardPage,
 } from "../components/onboarding-wizard/wizardConfig";
+import { logger } from "../lib/logger";
 
 interface OnboardingWizardContextType {
   /** Whether the wizard is currently active */
@@ -106,7 +107,7 @@ export function OnboardingWizardProvider({ children }: { children: ReactNode }) 
           }
         }
       } catch (error) {
-        console.error("Failed to check wizard status:", error);
+        logger.error("Failed to check wizard status:", error);
       } finally {
         setIsLoadingWizardStatus(false);
       }
@@ -165,7 +166,7 @@ export function OnboardingWizardProvider({ children }: { children: ReactNode }) 
       // Navigate to dashboard after skipping
       navigate("/dashboard");
     } catch (error) {
-      console.error("Failed to skip wizard:", error);
+      logger.error("Failed to skip wizard:", error);
     }
   }, [navigate]);
 
@@ -177,7 +178,7 @@ export function OnboardingWizardProvider({ children }: { children: ReactNode }) 
       // Navigate to dashboard after completing
       navigate("/dashboard");
     } catch (error) {
-      console.error("Failed to complete wizard:", error);
+      logger.error("Failed to complete wizard:", error);
     }
   }, [navigate]);
 
@@ -194,7 +195,7 @@ export function OnboardingWizardProvider({ children }: { children: ReactNode }) 
         navigate(getPageRoute(firstStep.page));
       }
     } catch (error) {
-      console.error("Failed to restart wizard:", error);
+      logger.error("Failed to restart wizard:", error);
     }
   }, [navigate]);
 
@@ -216,11 +217,6 @@ export function OnboardingWizardProvider({ children }: { children: ReactNode }) 
     try {
       const response = await onboarding.getWizardStatus();
 
-      if (!response || response.error) {
-        console.error("[WizardContext] API error:", response?.error);
-        return;
-      }
-
       if (typeof response.onboarding_wizard_completed === "boolean") {
         setWizardCompleted(response.onboarding_wizard_completed);
         if (!response.onboarding_wizard_completed) {
@@ -234,13 +230,14 @@ export function OnboardingWizardProvider({ children }: { children: ReactNode }) 
         }
       }
     } catch (error) {
-      console.error("Failed to recheck wizard status:", error);
+      logger.error("Failed to recheck wizard status:", error);
     } finally {
       setIsLoadingWizardStatus(false);
     }
   }, [navigate, onboardingCompleted]);
 
   const shouldBlockNavigation = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     (_targetPath: string): boolean => {
       if (!isWizardActive) return false;
       // During wizard, block all navigation except what the wizard controls
@@ -284,6 +281,7 @@ export function OnboardingWizardProvider({ children }: { children: ReactNode }) 
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useOnboardingWizard() {
   const context = useContext(OnboardingWizardContext);
   if (context === undefined) {
@@ -298,6 +296,7 @@ export function useOnboardingWizard() {
  * Hook to check if wizard is active (safe to use outside provider)
  * Returns false if provider is not present
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useIsWizardActive(): boolean {
   const context = useContext(OnboardingWizardContext);
   return context?.isWizardActive ?? false;
@@ -306,6 +305,7 @@ export function useIsWizardActive(): boolean {
 /**
  * Hook to check if wizard status is still loading
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useIsWizardLoading(): boolean {
   const context = useContext(OnboardingWizardContext);
   return context?.isLoadingWizardStatus ?? false;
@@ -315,6 +315,7 @@ export function useIsWizardLoading(): boolean {
  * Hook to get demo data when wizard is active
  * Returns null if wizard is not active
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useWizardDemoData() {
   const context = useContext(OnboardingWizardContext);
   if (!context?.isWizardActive) return null;
@@ -325,6 +326,7 @@ export function useWizardDemoData() {
  * Hook to recheck wizard status and auto-start if not completed
  * Used after initial onboarding completes to trigger the wizard tour
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useRecheckWizardStatus() {
   const context = useContext(OnboardingWizardContext);
   return context?.recheckWizardStatus ?? (async () => {});

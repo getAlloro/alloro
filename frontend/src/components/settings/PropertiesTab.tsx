@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiGet } from "../../api";
 import { MapPin, Plus, Star, Trash2, RefreshCw, Pencil } from "lucide-react";
-import { PropertySelectionModal } from "./PropertySelectionModal";
+import { PropertySelectionModal, type PropertyItem } from "./PropertySelectionModal";
 import { ConfirmModal } from "./ConfirmModal";
 import { GoogleConnectButton } from "../GoogleConnectButton";
 import { getPriorityItem } from "../../hooks/useLocalStorage";
@@ -16,6 +16,7 @@ import {
   updateLocationGBP,
   type Location,
 } from "../../api/locations";
+import { logger } from "../../lib/logger";
 
 type UserRole = "admin" | "manager" | "viewer";
 
@@ -28,7 +29,7 @@ export const PropertiesTab: React.FC = () => {
 
   // GBP selection modal
   const [gbpModalOpen, setGbpModalOpen] = useState(false);
-  const [availableGBP, setAvailableGBP] = useState<any[]>([]);
+  const [availableGBP, setAvailableGBP] = useState<PropertyItem[]>([]);
   const [loadingAvailable, setLoadingAvailable] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [gbpTargetLocationId, setGbpTargetLocationId] = useState<number | null>(null);
@@ -59,7 +60,7 @@ export const PropertiesTab: React.FC = () => {
       const locs = await getLocations();
       setLocations(locs);
     } catch (err) {
-      console.error("Failed to fetch locations:", err);
+      logger.error("Failed to fetch locations:", err);
     } finally {
       setIsLoading(false);
       inFlightRef.current = false;
@@ -85,7 +86,7 @@ export const PropertiesTab: React.FC = () => {
         setAvailableGBP(data.properties);
       }
     } catch (err) {
-      console.error("Failed to fetch available GBP properties:", err);
+      logger.error("Failed to fetch available GBP properties:", err);
     } finally {
       setLoadingAvailable(false);
     }
@@ -98,13 +99,13 @@ export const PropertiesTab: React.FC = () => {
     await fetchAvailableGBP();
   };
 
-  const handleGBPSelected = async (item: any) => {
+  const handleGBPSelected = async (item: { accountId?: string; locationId?: string; name: string }) => {
     if (!gbpTargetLocationId) return;
     setIsSaving(true);
     try {
       await updateLocationGBP(gbpTargetLocationId, {
-        accountId: item.accountId,
-        locationId: item.locationId,
+        accountId: item.accountId ?? "",
+        locationId: item.locationId ?? "",
         displayName: item.name,
       });
       setGbpModalOpen(false);
@@ -112,7 +113,7 @@ export const PropertiesTab: React.FC = () => {
       await loadData();
       await refreshLocations();
     } catch (err) {
-      console.error("Failed to update GBP:", err);
+      logger.error("Failed to update GBP:", err);
     } finally {
       setIsSaving(false);
     }
@@ -132,14 +133,14 @@ export const PropertiesTab: React.FC = () => {
     await fetchAvailableGBP();
   };
 
-  const handleAddGBPSelected = async (item: any) => {
+  const handleAddGBPSelected = async (item: { accountId?: string; locationId?: string; name: string }) => {
     setIsSaving(true);
     try {
       await createLocation({
         name: newLocationName.trim(),
         gbp: {
-          accountId: item.accountId,
-          locationId: item.locationId,
+          accountId: item.accountId ?? "",
+          locationId: item.locationId ?? "",
           displayName: item.name,
         },
       });
@@ -147,7 +148,7 @@ export const PropertiesTab: React.FC = () => {
       await loadData();
       await refreshLocations();
     } catch (err) {
-      console.error("Failed to create location:", err);
+      logger.error("Failed to create location:", err);
     } finally {
       setIsSaving(false);
     }
@@ -169,7 +170,7 @@ export const PropertiesTab: React.FC = () => {
       await loadData();
       await refreshLocations();
     } catch (err) {
-      console.error("Failed to delete location:", err);
+      logger.error("Failed to delete location:", err);
     } finally {
       setIsDeleting(false);
     }
@@ -182,7 +183,7 @@ export const PropertiesTab: React.FC = () => {
       await loadData();
       await refreshLocations();
     } catch (err) {
-      console.error("Failed to set primary:", err);
+      logger.error("Failed to set primary:", err);
     }
   };
 
@@ -200,7 +201,7 @@ export const PropertiesTab: React.FC = () => {
       await loadData();
       await refreshLocations();
     } catch (err) {
-      console.error("Failed to update name:", err);
+      logger.error("Failed to update name:", err);
     }
   };
 

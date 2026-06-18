@@ -29,6 +29,7 @@ import {
   backdropVariants,
 } from "../../lib/animations";
 import { QUERY_KEYS } from "../../lib/queryClient";
+import { getErrorMessage } from "../../lib/errorMessage";
 import {
   fetchSchedules,
   fetchRegistry,
@@ -222,8 +223,8 @@ function CreateScheduleModal({
       });
       onCreated();
       onClose();
-    } catch (err: any) {
-      setError(err?.message || "Failed to create schedule");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || "Failed to create schedule");
     } finally {
       setSaving(false);
     }

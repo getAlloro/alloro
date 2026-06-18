@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { ChevronLeft, Loader2, MapPin, Check, X } from "lucide-react";
 import { GoogleConnectButton } from "../GoogleConnectButton";
+import { logger } from "../../lib/logger";
+import { getErrorMessage } from "../../lib/errorMessage";
 
 interface GBPSelection {
   accountId: string;
@@ -8,11 +10,19 @@ interface GBPSelection {
   displayName: string;
 }
 
+interface GbpLocation {
+  id: string;
+  name: string;
+  accountId: string;
+  locationId: string;
+  address?: string;
+}
+
 interface Step2GbpConnectProps {
   hasGoogleConnection: boolean;
   selectedGbpLocations: GBPSelection[];
   onGbpSelect: (locations: GBPSelection[]) => Promise<void>;
-  fetchAvailableGBP: () => Promise<any[]>;
+  fetchAvailableGBP: () => Promise<GbpLocation[]>;
   onGoogleConnected: () => void;
   autoOpenGbp?: boolean;
   onAutoOpenGbpHandled?: () => void;
@@ -35,7 +45,7 @@ export const Step2DomainInfo: React.FC<Step2GbpConnectProps> = ({
 }) => {
   // GBP modal state
   const [gbpModalOpen, setGbpModalOpen] = useState(false);
-  const [gbpLocations, setGbpLocations] = useState<any[]>([]);
+  const [gbpLocations, setGbpLocations] = useState<GbpLocation[]>([]);
   const [gbpLoading, setGbpLoading] = useState(false);
   const [gbpSaving, setGbpSaving] = useState(false);
   const [gbpError, setGbpError] = useState<string | null>(null);
@@ -87,9 +97,9 @@ export const Step2DomainInfo: React.FC<Step2GbpConnectProps> = ({
     try {
       const locations = await fetchAvailableGBP();
       setGbpLocations(locations);
-    } catch (err: any) {
-      console.error("[Onboarding] Failed to fetch GBP locations:", err);
-      setGbpError(err.message || "Failed to load GBP locations");
+    } catch (err: unknown) {
+      logger.error("[Onboarding] Failed to fetch GBP locations:", err);
+      setGbpError(getErrorMessage(err) || "Failed to load GBP locations");
       setGbpLocations([]);
     } finally {
       setGbpLoading(false);
@@ -120,9 +130,9 @@ export const Step2DomainInfo: React.FC<Step2GbpConnectProps> = ({
 
       await onGbpSelect(selections);
       setGbpModalOpen(false);
-    } catch (err: any) {
-      console.error("[Onboarding] Failed to save GBP selection:", err);
-      setGbpError(err.message || "Failed to save selection");
+    } catch (err: unknown) {
+      logger.error("[Onboarding] Failed to save GBP selection:", err);
+      setGbpError(getErrorMessage(err) || "Failed to save selection");
     } finally {
       setGbpSaving(false);
     }

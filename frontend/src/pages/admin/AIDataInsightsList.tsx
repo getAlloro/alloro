@@ -29,7 +29,8 @@ import {
   useAdminInsightsSummary,
   useInvalidateAdminInsights,
 } from "../../hooks/queries/useAdminStandaloneQueries";
-import { getCommonHeaders } from "../../api";
+import { adminFetch } from "../../api";
+import { logger } from "../../lib/logger";
 
 /**
  * AI Data Insights List Page
@@ -104,7 +105,7 @@ export default function AIDataInsightsList() {
 
     setIsRunning(true);
     try {
-      const response = await fetch(
+      const response = await adminFetch(
         "/api/agents/guardian-governance-agents-run",
         {
           method: "POST",
@@ -124,7 +125,7 @@ export default function AIDataInsightsList() {
         alert("Failed to run agents: " + (data.message || "Unknown error"));
       }
     } catch (err) {
-      console.error("Failed to run Guardian/Governance agents:", err);
+      logger.error("Failed to run Guardian/Governance agents:", err);
       alert("Failed to run agents. Please try again.");
     } finally {
       setIsRunning(false);
@@ -150,11 +151,11 @@ export default function AIDataInsightsList() {
 
     setIsClearing(true);
     try {
-      const response = await fetch(
+      const response = await adminFetch(
         `/api/admin/agent-insights/clear-month-data?month=${selectedMonth}`,
         {
           method: "DELETE",
-          headers: { "Content-Type": "application/json", ...getCommonHeaders() },
+          headers: { "Content-Type": "application/json" },
         }
       );
 
@@ -169,7 +170,7 @@ export default function AIDataInsightsList() {
         alert("Failed to clear data: " + (data.message || "Unknown error"));
       }
     } catch (err) {
-      console.error("Failed to clear Guardian/Governance data:", err);
+      logger.error("Failed to clear Guardian/Governance data:", err);
       alert("Failed to clear data. Please try again.");
     } finally {
       setIsClearing(false);
@@ -183,9 +184,8 @@ export default function AIDataInsightsList() {
     e.stopPropagation();
 
     try {
-      const response = await fetch(
+      const response = await adminFetch(
         `/api/admin/agent-insights/${agentType}/governance-ids`,
-        { headers: getCommonHeaders() }
       );
       const data = await response.json();
 
@@ -207,7 +207,7 @@ export default function AIDataInsightsList() {
             data.rejected.length > 0 ? data.rejected.join(", ") : "None"
           }\n\nTotal: ${totalCount} recommendations`;
           alert(message);
-          console.log("Governance IDs for", agentType, ":", data);
+          logger.log("Governance IDs for", agentType, ":", data);
         }
       } else {
         alert(
@@ -215,7 +215,7 @@ export default function AIDataInsightsList() {
         );
       }
     } catch (err) {
-      console.error("Failed to generate governance log ref:", err);
+      logger.error("Failed to generate governance log ref:", err);
       alert("Failed to generate governance log reference. Please try again.");
     }
   };

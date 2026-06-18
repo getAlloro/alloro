@@ -8,6 +8,7 @@ import {
 } from "./authContext";
 import onboarding from "../api/onboarding";
 import { getBillingStatus } from "../api/billing";
+import { logger } from "../lib/logger";
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -51,11 +52,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsLoadingUserProperties(true);
     try {
       const status = await onboarding.getOnboardingStatus();
-      console.log("[AuthContext] onboarding status API response:", JSON.stringify(status));
+      logger.log("[AuthContext] onboarding status API response:", JSON.stringify(status));
 
       // Update centralized onboarding state
       // Guard: never downgrade from true → false (race condition after completeOnboarding)
-      const isCompleted = status.success && status.onboardingCompleted === true;
+      const isCompleted = status.success === true && status.onboardingCompleted === true;
       setOnboardingCompleted((prev) => (prev === true && !isCompleted) ? true : isCompleted);
       if (isCompleted && !isPilotSession()) {
         localStorage.setItem("onboardingCompleted", "true");
@@ -124,19 +125,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             }
           } catch {
             // Billing fetch failed — don't block app load
-            console.error("[AuthContext] Failed to fetch billing status");
+            logger.error("[AuthContext] Failed to fetch billing status");
           }
         }
       } else {
         setSelectedDomain(null);
       }
     } catch (error) {
-      console.error("Failed to load user properties:", error);
+      logger.error("Failed to load user properties:", error);
       setSelectedDomain(null);
-      // If the API call fails, assume onboarding not complete
-      // so the user sees the onboarding flow instead of a blank screen
-      setOnboardingCompleted(false);
-      if (!isPilotSession()) {
+      // On a status-fetch error, replicate the old success:false path:
+      // never DOWNGRADE an already-onboarded user to not-onboarded on a
+      // transient load error — only fall to false when not already true.
+      setOnboardingCompleted((prev) => (prev === true ? true : false));
+      setHasGoogleConnection(false);
+      // Match the old success:false path: only persist the downgrade when the
+      // user wasn't already onboarded (don't clobber a true cache on a blip).
+      if (!isPilotSession() && onboardingCompleted !== true) {
         localStorage.setItem("onboardingCompleted", "false");
       }
     } finally {
@@ -171,7 +176,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const handleDomainChange = () => {
     // Domain change is no longer used since we removed hardcoded mappings
-    console.warn(
+    logger.warn(
       "[AuthContext] handleDomainChange called but no domain mappings exist"
     );
   };

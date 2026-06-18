@@ -5,8 +5,7 @@
  * header is preserved, then triggered via an anchor download.
  */
 
-import { apiDelete, apiGet, apiPost } from "./index";
-import { getPriorityItem } from "../hooks/useLocalStorage";
+import { adminFetch, apiDelete, apiGet, apiPost } from "./index";
 import type {
   ListFilters,
   ListResponse,
@@ -15,7 +14,7 @@ import type {
   LeadgenStats,
 } from "../types/leadgen";
 
-const API_BASE = (import.meta as any)?.env?.VITE_API_URL ?? "/api";
+const API_BASE = import.meta.env.VITE_API_URL ?? "/api";
 
 function buildQuery(filters: Record<string, unknown>): string {
   const params = new URLSearchParams();
@@ -214,14 +213,9 @@ export async function exportSubmissionsCsv(
     hasEmail: filters.hasEmail,
   });
 
-  const token =
-    getPriorityItem("auth_token") || getPriorityItem("token") || "";
-  const headers: Record<string, string> = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  const res = await fetch(
+  const res = await adminFetch(
     `${API_BASE}/admin/leadgen-submissions/export${query}`,
-    { headers, credentials: "include" }
+    { credentials: "include" }
   );
   if (!res.ok) {
     throw new Error(`Export failed (${res.status})`);

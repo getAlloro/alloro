@@ -9,11 +9,7 @@ import {
   Copy,
   Check,
   Upload,
-  Trash2,
   Clock,
-  ArrowUpCircle,
-  Ban,
-  Zap,
   FileCode,
   File,
   Eye,
@@ -33,50 +29,13 @@ import {
 } from "../../components/ui/DesignSystem";
 import { ConfirmModal } from "../../components/settings/ConfirmModal";
 import { AlertModal } from "../../components/ui/AlertModal";
-
-const TYPE_COLORS: Record<string, string> = {
-  css: "bg-blue-100 text-blue-700",
-  javascript: "bg-yellow-100 text-yellow-700",
-  image: "bg-purple-100 text-purple-700",
-  font: "bg-pink-100 text-pink-700",
-  file: "bg-gray-100 text-gray-700",
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  published: "border-green-200 bg-green-100 text-green-700",
-  active: "border-blue-200 bg-blue-100 text-blue-700",
-  deprecated: "border-red-200 bg-red-100 text-red-700",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  published: "Published",
-  active: "Active",
-  deprecated: "Deprecated",
-};
-
-function formatFileSize(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function editorLanguage(type: string): string {
-  if (type === "css") return "css";
-  if (type === "javascript") return "javascript";
-  return "plaintext";
-}
+import { logger } from "../../lib/logger";
+import {
+  TYPE_COLORS,
+  formatFileSize,
+  editorLanguage,
+} from "./importDetail.utils";
+import { VersionCard } from "./ImportDetail/VersionCard";
 
 export default function ImportDetail() {
   const { id } = useParams<{ id: string }>();
@@ -144,7 +103,7 @@ export default function ImportDetail() {
       setActiveTab(isText ? "editor" : "preview");
       setHasChanges(false);
     } catch (err) {
-      console.error("Failed to fetch import:", err);
+      logger.error("Failed to fetch import:", err);
       setError(err instanceof Error ? err.message : "Failed to load import");
     } finally {
       setLoading(false);
@@ -671,142 +630,24 @@ export default function ImportDetail() {
               const isSelected = selectedVersionId === version.id;
 
               return (
-                <motion.div
+                <VersionCard
                   key={version.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05, duration: 0.3 }}
-                  className={`rounded-xl border bg-white shadow-sm transition-all ${
-                    isSelected
-                      ? "border-alloro-orange/30 ring-2 ring-alloro-orange/10"
-                      : "border-gray-200"
-                  }`}
-                >
-                  <div className="p-4 space-y-3">
-                    {/* Version Header */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-bold text-gray-900">
-                          Version {version.version}
-                        </span>
-                        <span
-                          className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${
-                            STATUS_COLORS[version.status]
-                          }`}
-                        >
-                          {STATUS_LABELS[version.status]}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-xs text-gray-400">
-                        <Clock className="w-3.5 h-3.5" />
-                        {formatDate(version.created_at)}
-                      </div>
-                    </div>
-
-                    {/* Version Meta */}
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <span>{formatFileSize(version.file_size)}</span>
-                      <span>{version.mime_type}</span>
-                      {version.content_hash && (
-                        <span className="font-mono text-gray-400">
-                          {version.content_hash.slice(0, 8)}...
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Version URL */}
-                    <div className="flex items-center gap-2">
-                      <code className="flex-1 bg-gray-50 rounded-lg px-3 py-1.5 text-[11px] font-mono text-gray-600 border border-gray-100 truncate">
-                        {versionUrl}
-                      </code>
-                      <motion.button
-                        onClick={() => handleCopyUrl(versionUrl)}
-                        className="rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-50 transition"
-                        whileTap={{ scale: 0.95 }}
-                      >
-                        {copiedUrl === versionUrl ? (
-                          <Check className="w-3 h-3 text-green-500" />
-                        ) : (
-                          <Copy className="w-3 h-3" />
-                        )}
-                      </motion.button>
-                    </div>
-
-                    {/* Version Actions */}
-                    <div className="flex items-center gap-2 pt-1">
-                      {/* View in editor */}
-                      {isTextType && (
-                        <ActionButton
-                          label={isSelected ? "Viewing" : "View"}
-                          icon={<Eye className="w-3.5 h-3.5" />}
-                          onClick={() => {
-                            setSelectedVersionId(version.id);
-                            setActiveTab("editor");
-                          }}
-                          variant={isSelected ? "primary" : "secondary"}
-                          size="sm"
-                          disabled={isSelected}
-                        />
-                      )}
-
-                      {/* Publish */}
-                      {version.status !== "published" && (
-                        <ActionButton
-                          label={publishing ? "..." : "Publish"}
-                          icon={<ArrowUpCircle className="w-3.5 h-3.5" />}
-                          onClick={() =>
-                            handleStatusChange(version.id, "published")
-                          }
-                          variant="primary"
-                          size="sm"
-                          disabled={publishing || activating || deprecating}
-                        />
-                      )}
-
-                      {/* Activate */}
-                      {version.status !== "active" &&
-                        version.status !== "published" && (
-                          <ActionButton
-                            label={activating ? "..." : "Activate"}
-                            icon={<Zap className="w-3.5 h-3.5" />}
-                            onClick={() =>
-                              handleStatusChange(version.id, "active")
-                            }
-                            variant="secondary"
-                            size="sm"
-                            disabled={publishing || activating || deprecating}
-                          />
-                        )}
-
-                      {/* Deprecate */}
-                      {version.status !== "deprecated" &&
-                        version.status !== "published" && (
-                          <ActionButton
-                            label={deprecating ? "..." : "Deprecate"}
-                            icon={<Ban className="w-3.5 h-3.5" />}
-                            onClick={() =>
-                              handleStatusChange(version.id, "deprecated")
-                            }
-                            variant="danger"
-                            size="sm"
-                            disabled={publishing || activating || deprecating}
-                          />
-                        )}
-
-                      {/* Delete */}
-                      {version.status !== "published" && (
-                        <ActionButton
-                          label={deleting ? "..." : "Delete"}
-                          icon={<Trash2 className="w-3.5 h-3.5" />}
-                          onClick={() => handleDeleteVersion(version.id)}
-                          variant="danger"
-                          size="sm"
-                          disabled={deleting}
-                        />
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
+                  version={version}
+                  index={index}
+                  versionUrl={versionUrl}
+                  isSelected={isSelected}
+                  isTextType={isTextType}
+                  copiedUrl={copiedUrl}
+                  publishing={publishing}
+                  activating={activating}
+                  deprecating={deprecating}
+                  deleting={deleting}
+                  onCopyUrl={handleCopyUrl}
+                  onSelectVersion={setSelectedVersionId}
+                  onActivateEditorTab={() => setActiveTab("editor")}
+                  onStatusChange={handleStatusChange}
+                  onDeleteVersion={handleDeleteVersion}
+                />
               );
             })}
           </div>

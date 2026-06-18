@@ -4,18 +4,7 @@
 
 import type { Section } from "./templates";
 import type { SeoData } from "./websites";
-import { getCommonHeaders } from "./index";
-
-// Attach the Bearer token (via getCommonHeaders) to every admin call. These
-// /api/admin/websites/* routes are protected by the app-level auth guard;
-// bare fetch would 401.
-const adminFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
-  const headers = new Headers(init.headers);
-  Object.entries(getCommonHeaders()).forEach(([key, value]) => {
-    if (!headers.has(key)) headers.set(key, value);
-  });
-  return fetch(input, { ...init, headers });
-};
+import { adminFetch } from "./index";
 
 // =====================================================================
 // TYPES
@@ -428,6 +417,20 @@ export const deletePost = async (
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.message || "Failed to delete post");
+  }
+  return response.json();
+};
+
+export const duplicatePost = async (
+  projectId: string,
+  postId: string
+): Promise<{ success: boolean; data: Post }> => {
+  const response = await adminFetch(`${PROJECTS_BASE}/${projectId}/posts/${postId}/duplicate`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to duplicate post");
   }
   return response.json();
 };

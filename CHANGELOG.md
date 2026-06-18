@@ -2,6 +2,99 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.130] - June 2026
+
+### Website Editor Review 2 — Overview clarity, Posts/Submissions/Keywords fixes
+
+Owner review of the client-facing Website hub (Pilot Mode, One Endodontics) raised eight items; #1 was excluded by the owner. The rest landed as a single pass on the Website surface: clearer visitor / Search Console terminology, honest time-window math, surface-aware controls, location-aware submissions, and Search Console range guards. Verified in the browser with seeded sessions (One Endodontics + Tri-City Endodontics) — the acceptance checklist rolls up to Passed (the chart-hover item is code-verified with a written waiver).
+
+**Key Changes:**
+
+- **Visitors terminology + honest windows (#2):** the Overview hero and the Traffic-detail modal now read "Visitors" (not "Unique visitors") with a plain definition; the Traffic and Leads cards headline the deduplicated last-3-months total instead of the this-month number (a new backend Rybbit window-overview supplies the deduped figure); the always-on trend pill + "N last month" line moved to a hover that shows a single month and its change against the previous month.
+- **Import from Identity is admin-only (#3):** the button now renders only on the admin Website surface, so the client / pilot view no longer hits the super-admin-gated endpoint (the "Failed to fetch identity: Forbidden" 403). Server gating unchanged.
+- **Duplicate post (#4):** confirmed present for every post type including Doctors on the client surface (the earlier "missing" report was a pre-deploy capture).
+- **SEO score bar hidden on the client (#5):** the per-row and in-editor SEO completeness bars are hidden on the client Website view (kept on the admin view and on Pages) via a shared `surface` prop.
+- **Location-aware Submissions (#6):** the Forms list floats forms whose name matches the currently-selected location to the top; all forms stay visible and manual drag order still works.
+- **"Impressions" → "Search appearances" (#7):** renamed hub-wide (Keywords tab, Overview snapshot, admin GSC dashboard) with a plain definition; internal data field names unchanged.
+- **Search Console range guards (#8):** range toggles longer than the available GSC history are disabled with a "Not enough Search Console history yet." tooltip (new backend earliest-report-date), and the Keywords tab opens on the largest window that fits instead of a disabled default.
+
+**Commits:**
+
+- `frontend/src/components/website/overview/WebsiteOverview.tsx`, `websiteMetrics.ts`, `api/websiteAnalytics.ts` — Visitors label, last-3-months window aggregate, hover trend, GSC rename
+- `src/controllers/user-website/user-website-services/websiteAnalytics.service.ts` — deduped 3-month Rybbit window-overview (`windowVisitors`)
+- `PostsTab.tsx` + `PostsTab/PostsListView.tsx` + `PostsTab/PostsEditorView.tsx` + `PageEditor/SeoPanel.tsx` + `DFYWebsite.tsx` / `WebsiteDetail/WebsiteDetailTabContent.tsx` — shared `surface` prop gating Import-from-Identity + the SEO bar on the client surface
+- `Admin/leadgen/FormSubmissionsTab.tsx` — location-aware form ordering
+- `website/KeywordsTab.tsx`, `Admin/integrations/GscPerformanceDashboard.tsx` + `GscPerformanceParts.tsx`, `api/websiteGscPerformance.ts` — "Search appearances" rename, range-toggle disable, default-range clamp
+- `src/models/website-builder/GscDataModel.ts`, `controllers/admin-websites/feature-services/service.gsc-performance.ts` — `findEarliestReportDate` + `earliestReportDate`
+- `plans/06182026-website-editor-review-2/` — spec (Rev 1–4) + acceptance artifact (`test.html` + `test-results.json`)
+- Docs parity: `alloro-docs` Website page + dashboard replica synced (terminology + window copy)
+
+## [0.0.129] - June 2026
+
+### Frontend Architecture Remediation (Code Constitution) + reliability fixes
+
+Finalized the behavior-preserving frontend remediation to the Code Constitution standard, plus the QA pass that closed it out. The SPA was refactored, not rewritten — every screen behaves as before, with a healthier codebase underneath: oversized "god" components were decomposed, the API error contract was unified, and the Admin tree was reorganized into feature folders. A full 41-item, page-by-page QA (admin + One Endodontics client) drove the acceptance checklist to Passed and surfaced one real crash, which was fixed.
+
+**Key Changes:**
+
+- **God-file decomposition:** every frontend source file is now under the ~800-line ceiling (was 38 over, including a 3,422-line Identity modal and 2,000+-line pages) — split into `use<Feature>()` hooks, sibling `*.utils.ts`, and child components.
+- **Unified error contract (§16.1):** the API client throws a typed `ApiError` on failure via `unwrap()`, and a new `normalizeApiFailure()` guarantees every `api*` helper returns a proper `{ success:false }` envelope on any non-2xx — so a bad response now surfaces a handled error instead of crashing the page (protects the live Rankings / Reviews GBP surfaces).
+- **AI Data Insights crash fixed:** the orphaned `/admin/ai-data-insight` page (superseded by `/admin/ai-data-insights`, linked nowhere) crashed on a 500. Removed the dead page + its `api/agents.ts` module, and hardened the dev proxy so an unknown `/api/*` route returns a fast 404 instead of an Express↔Vite loop that hung ~25s.
+- **Convention cleanup:** lint errors 49 → 0 (lint passes), `console.*` 6 → 0 (routed to the shared logger), `: any` 12 → 0 (typed), raw `fetch`/`axios` 16 → 3 — the 3 remaining are documented, legitimate exceptions (axios upload-progress, external-URL HEAD checks, generated published-site form code) the shared client cannot replace.
+- **Acceptance:** `tsc` 0, `eslint` 0 errors (advisory `max-lines`/`exhaustive-deps`/`max-depth` warnings remain by design), vitest harness 6/6, and the 41-item behavioral checklist (`plans/06152026-frontend-remediation/test.html`) rolls up to Passed.
+
+**Commits:**
+
+- `frontend/src/api/index.ts` — `normalizeApiFailure()`, shared `adminFetch` adoption, `isAxiosError` re-export
+- `src/app.ts` — unmatched `/api/*` → clean 404 (kills the dev proxy loop)
+- Removed orphaned `AgentInsights` page + `frontend/src/api/agents.ts`
+- ~35 files — god-file splits, hook/utils extraction, error-contract flips, logger routing, `any` typing, `fetch` → `adminFetch` migration
+- `plans/06152026-frontend-remediation/` — spec (Rev 1–8), acceptance artifact (`test.html` + `full-test-results.json`)
+
+## [0.0.128] - June 2026
+
+### Referrals Hub — Month Comparison + AI Insights
+
+Added a Compare feature to the Referrals Hub (`/pmsStatistics`). A "Compare" button opens a modal where the owner picks two months via an animated month-calendar picker and sees a side-by-side dashboard: production and total/doctor/self referrals with directional change, plus a ranked per-source comparison (new / gone / up / down). An "Explain this comparison" action generates a concise, highlighted paragraph with Claude Haiku, summarizing the biggest production/referral shifts and naming any standout referral source. The "Spend time here" trend cue was removed from the hub.
+
+**Key Changes:**
+
+- New endpoint `POST /pms/comparison-insights` (controller + `pms-comparison-insights.service.ts`): re-derives both months server-side from the authoritative aggregation (never trusts client numbers), computes per-source movement A→B, and prompts Claude Haiku (`claude-haiku-4-5-20251001`) for a 2–3 sentence summary with `==highlight==` markers; cost logged via `safeLogAiCostEvent`.
+- Per-month referral `sources` were already returned by `/pms/keyData` but undeclared on the client — typed onto `PmsKeyDataMonth` and threaded through, so the comparison needed no new data endpoint or aggregator change.
+- New `CompareMonthsModal` (Framer Motion) with `MonthCalendarPicker` (animated year-nav + 12-month grid, data-only months selectable), `CompareMetricGrid` (left→right A→B change semantics), `CompareSourceList` (pairwise source diff), and an always-on "AI comparison" card that renders highlighted parchment/serif insight text via a React Query mutation (`usePmsComparisonInsights`).
+- Compare button added to `PmsHubSurface` (shown only with ≥2 months) via a new optional `onOpenCompare` prop; modal mounted from `PMSVisualPillars`.
+- Removed the `InsightCue` ("Spend time here.") line from the Referrals Hub.
+
+**Commits:**
+
+- `src/controllers/pms/pms-services/pms-comparison-insights.service.ts` (new), `src/controllers/pms/PmsController.ts`, `src/routes/pms.ts` — comparison-insights endpoint, Haiku service, per-source movement computation.
+- `frontend/src/api/pms.ts` — `PmsKeyDataMonth.sources`, comparison response types, `generateComparisonInsights`.
+- `frontend/src/hooks/queries/usePmsComparisonInsights.ts` (new) — generation mutation.
+- `frontend/src/components/PMS/dashboard/CompareMonthsModal.tsx`, `CompareMetricGrid.tsx`, `CompareSourceList.tsx`, `MonthCalendarPicker.tsx`, `compareMonths.utils.ts` (new) — comparison UI.
+- `frontend/src/components/PMS/dashboard/PmsHubSurface.tsx`, `PmsDashboardSurface.tsx`, `frontend/src/components/PMS/PMSVisualPillars.tsx` — Compare wiring + InsightCue removal.
+- `plans/06152026-referrals-month-comparison/spec.html` — plan/spec (Rev 1–10).
+
+## [0.0.127] - June 2026
+
+### Code Constitution — Full-Stack + Mechanized Enforcement
+
+The `/code-constitution` standard was expanded from backend-only to the full stack and turned into a citable, mechanically-enforced instrument. The skill doc (which lives outside the repo) was restructured into numbered Parts → Sections → Articles with stable `§N.M` identifiers plus an Enforcement Protocol, so any review/validation agent flags a violation as e.g. "§7.4 (Section 7, Article 4)" with the rule quoted verbatim. Repo-side, mechanized enforcement was extended across both trees and an interactive HTML viewer was added. All new enforcement is warn/baseline — it surfaces debt without failing CI.
+
+**Key Changes:**
+
+- `scripts/check-conventions.sh` now scans both `src/` and `frontend/src/`, prints the `§id` next to every finding, and adds an advisory Tier-A grep pass (§17.4 `dangerouslySetInnerHTML`, §17.5 token reads outside the api client, §17.3 `process.env` in the bundle, §15.4 stray state libraries, §10.2 `knex.raw`, §5.1 secret literals).
+- Backend ESLint bootstrapped for the first time (`eslint.config.mjs`) with article-mapped, warn-only rules (§2.2 `max-lines-per-function`, §2.3 `max-depth`, §9.1 `no-console`, §17.2 `no-explicit-any`, §1.4 naming) — deliberately not a generic `recommended` dump. Matching rules added to `frontend/eslint.config.js`.
+- `dependency-cruiser` (`.dependency-cruiser.cjs`) enforces the layering Articles structurally — §7.4 db-only-in-models, §7.3 controllers-no-db, §7.1 no-upward-imports, §7.2 routes-are-thin (33 advisory findings at baseline).
+- `code-constitution.html`: a self-contained, animated viewer — collapsible Parts/Sections/Articles, search, stack + mechanizability filters, click-to-copy `§` citations, and a live mechanization roadmap. Auto-enforced coverage rose from 8 to ~33 of 67 Articles.
+- New npm scripts: `lint`, `depcruise`, `check:all` (orchestrated advisory gate). `check:conventions --strict` still gates CI on backend size/console/db only.
+
+**Baseline (2026-06-15):** backend ESLint 2369 warnings (2153 `any`, 152 fn-length, 62 depth); dependency-cruiser 33 layering; frontend detector 38 oversized / 88 console / 35 fetch-bypass / 155 `any`. All advisory.
+
+**Commits:**
+
+- `3f8d985c` - full-stack detector + §-citations + Tier-A greps; backend & frontend ESLint configs; dependency-cruiser layering rules; `package.json` scripts + dev-deps (eslint, typescript-eslint, globals, dependency-cruiser); `code-constitution.html` viewer; constitution-mechanization (Completed) + frontend-remediation (Pending) plan specs.
+- Constitution skill doc (`~/.claude/skills/code-constitution/SKILL.md`, outside the repo) expanded to Backend + Frontend halves, numbered Articles, and the Enforcement Protocol.
+
 ## [0.0.126] - June 2026
 
 ### Codebase Orphan Cleanup

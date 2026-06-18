@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getBulkSeoStatus, startBulkSeoGenerate, getActiveBulkSeoJob } from "../api/websites";
 import type { BulkSeoStatus } from "../api/websites";
+import { getErrorMessage } from "../lib/errorMessage";
 
 const POLL_INTERVAL = 2000;
 
@@ -48,9 +49,9 @@ export function useBulkSeoProgress(
           }, 2000);
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (!mountedRef.current) return;
-      setError(err.message);
+      setError(getErrorMessage(err));
       stopPolling();
     }
   }, [projectId, stopPolling]);
@@ -75,8 +76,8 @@ export function useBulkSeoProgress(
         failed_items: null,
       });
       startPolling(jId);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     }
   }, [projectId, entityType, postTypeId, startPolling]);
 

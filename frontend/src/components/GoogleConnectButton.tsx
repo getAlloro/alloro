@@ -1,6 +1,8 @@
 import React, { useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import googleAuth from "../api/google-auth";
+import { logger } from "../lib/logger";
+import { getErrorMessage } from "../lib/errorMessage";
 
 // Popup dimensions and timeout
 const POPUP_WIDTH = 500;
@@ -76,9 +78,9 @@ export const GoogleConnectButton: React.FC<GoogleConnectButtonProps> = ({
     setError(null);
 
     try {
-      const response = await googleAuth.getOAuthUrl();
-      if (!response.success || !response.authUrl) {
-        setError(response.message || "Failed to start Google connection");
+      const { authUrl } = await googleAuth.getOAuthUrl();
+      if (!authUrl) {
+        setError("Failed to start Google connection");
         setIsLoading(false);
         return;
       }
@@ -95,7 +97,7 @@ export const GoogleConnectButton: React.FC<GoogleConnectButtonProps> = ({
       ].join(",");
 
       popupRef.current = window.open(
-        response.authUrl,
+        authUrl,
         "google_oauth_connect",
         popupFeatures
       );
@@ -126,7 +128,7 @@ export const GoogleConnectButton: React.FC<GoogleConnectButtonProps> = ({
         }
 
         if (event.data.type === "GOOGLE_OAUTH_SUCCESS") {
-          console.log("[GoogleConnect] OAuth success");
+          logger.log("[GoogleConnect] OAuth success");
           closePopup();
           setIsLoading(false);
           window.removeEventListener("message", handleMessage);
@@ -135,7 +137,7 @@ export const GoogleConnectButton: React.FC<GoogleConnectButtonProps> = ({
             onSuccess();
           }
         } else if (event.data.type === "GOOGLE_OAUTH_ERROR") {
-          console.error("[GoogleConnect] OAuth error:", event.data.error);
+          logger.error("[GoogleConnect] OAuth error:", event.data.error);
           closePopup();
           setIsLoading(false);
           setError("Google connection failed. Please try again.");
@@ -161,8 +163,8 @@ export const GoogleConnectButton: React.FC<GoogleConnectButtonProps> = ({
       };
 
       checkClosed();
-    } catch {
-      setError("Failed to connect. Please try again.");
+    } catch (err) {
+      setError(getErrorMessage(err) || "Failed to connect. Please try again.");
       setIsLoading(false);
       closePopup();
     }

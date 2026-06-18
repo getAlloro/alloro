@@ -9,6 +9,8 @@ import type {
 } from "../hooks/useGBP";
 import { GBPContext } from "./GBPContext";
 import { useLocationContext } from "./locationContext";
+import { logger } from "../lib/logger";
+import { getErrorMessage } from "../lib/errorMessage";
 
 interface GBPProviderProps {
   children: ReactNode;
@@ -58,15 +60,11 @@ export const GBPProvider: React.FC<GBPProviderProps> = ({ children }) => {
         endDate
       );
 
-      if (result.successful !== false) {
-        setAiData(result as GBPAIReadyData);
-        console.log("GBP AI Ready Data:", result);
-      } else {
-        setAiError(result.errorMessage || "Failed to fetch GBP AI-ready data");
-      }
+      setAiData(result);
+      logger.log("GBP AI Ready Data:", result);
     } catch (error) {
-      setAiError("Failed to fetch GBP AI-ready data");
-      console.error("GBP AI Ready Data fetch error:", error);
+      setAiError(getErrorMessage(error) || "Failed to fetch GBP AI-ready data");
+      logger.error("GBP AI Ready Data fetch error:", error);
     } finally {
       setAiDataLoading(false);
     }
@@ -78,19 +76,15 @@ export const GBPProvider: React.FC<GBPProviderProps> = ({ children }) => {
       setError(null);
       const result = await gbp.getKeyData(accountId, locationId);
 
-      if (result.successful !== false) {
-        setGBPData({
-          newReviews: result.newReviews || { prevMonth: 0, currMonth: 0 },
-          avgRating: result.avgRating || { prevMonth: 0, currMonth: 0 },
-          callClicks: result.callClicks || { prevMonth: 0, currMonth: 0 },
-          trendScore: result.trendScore || 0,
-        });
-      } else {
-        setError(result.errorMessage || "Failed to fetch GBP data");
-      }
+      setGBPData({
+        newReviews: result.newReviews || { prevMonth: 0, currMonth: 0 },
+        avgRating: result.avgRating || { prevMonth: 0, currMonth: 0 },
+        callClicks: result.callClicks || { prevMonth: 0, currMonth: 0 },
+        trendScore: result.trendScore || 0,
+      });
     } catch (error) {
-      setError("Failed to fetch GBP data");
-      console.error("GBP Data fetch error:", error);
+      setError(getErrorMessage(error) || "Failed to fetch GBP data");
+      logger.error("GBP Data fetch error:", error);
     } finally {
       setIsLoading(false);
     }
@@ -102,14 +96,12 @@ export const GBPProvider: React.FC<GBPProviderProps> = ({ children }) => {
       setAccountsError(null);
       const result = await gbp.getAccounts();
 
-      if (result.successful !== false && Array.isArray(result)) {
-        setAccounts(result);
-      } else {
-        setAccountsError(result.errorMessage || "Failed to fetch GBP accounts");
-      }
+      setAccounts(result);
     } catch (error) {
-      setAccountsError("Failed to fetch GBP accounts");
-      console.error("GBP Accounts fetch error:", error);
+      setAccountsError(
+        getErrorMessage(error) || "Failed to fetch GBP accounts"
+      );
+      logger.error("GBP Accounts fetch error:", error);
     } finally {
       setAccountsLoading(false);
     }
@@ -121,16 +113,12 @@ export const GBPProvider: React.FC<GBPProviderProps> = ({ children }) => {
       setLocationsError(null);
       const result = await gbp.getLocations(accountName);
 
-      if (result.successful !== false && Array.isArray(result)) {
-        setLocations(result);
-      } else {
-        setLocationsError(
-          result.errorMessage || "Failed to fetch GBP locations"
-        );
-      }
+      setLocations(result);
     } catch (error) {
-      setLocationsError("Failed to fetch GBP locations");
-      console.error("GBP Locations fetch error:", error);
+      setLocationsError(
+        getErrorMessage(error) || "Failed to fetch GBP locations"
+      );
+      logger.error("GBP Locations fetch error:", error);
     } finally {
       setLocationsLoading(false);
     }

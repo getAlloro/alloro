@@ -2,19 +2,9 @@
  * Admin Settings API
  */
 
-import { getCommonHeaders } from "./index";
+import { adminFetch } from "./index";
 
 const API_BASE = "/api/admin/settings";
-
-// Attach the Bearer token (via getCommonHeaders) to every admin settings call.
-// These routes are protected by the app-level auth guard; bare fetch would 401.
-const adminFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
-  const headers = new Headers(init.headers);
-  Object.entries(getCommonHeaders()).forEach(([key, value]) => {
-    if (!headers.has(key)) headers.set(key, value);
-  });
-  return fetch(input, { ...init, headers });
-};
 
 export interface SettingRow {
   category: string;

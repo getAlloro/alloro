@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Check, Loader2, Search } from "lucide-react";
 
-interface PropertyItem {
+export interface PropertyItem {
   id: string;
   name: string;
   account?: string;
@@ -36,7 +36,6 @@ export const PropertySelectionModal: React.FC<PropertySelectionModalProps> = ({
   onMultiSelect,
   isLoading,
   isSaving,
-  type: _type,
   initialSelections = [],
   multiSelect = false,
 }) => {

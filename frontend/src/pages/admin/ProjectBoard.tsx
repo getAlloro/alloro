@@ -30,6 +30,7 @@ import { BulkActionBar } from "../../components/ui/DesignSystem";
 import { formatDeadline } from "../../utils/pmDateFormat";
 import { showErrorToast } from "../../lib/toast";
 import type { TaskContextAction } from "../../components/pm/TaskCard";
+import { logger } from "../../lib/logger";
 
 export default function ProjectBoard() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -89,7 +90,7 @@ export default function ProjectBoard() {
     try {
       await usePmStore.getState().deleteTask(taskId);
     } catch {
-      console.error("[PM] Failed to delete task");
+      logger.error("[PM] Failed to delete task");
     }
   }, []);
 
@@ -155,7 +156,7 @@ export default function ProjectBoard() {
             try {
               await moveTask(id, action.columnId, position);
             } catch (err) {
-              console.error("[PM] moveToColumn failed", err);
+              logger.error("[PM] moveToColumn failed", err);
             }
           }
           setActionTargetIds(null);
@@ -167,7 +168,7 @@ export default function ProjectBoard() {
             try {
               await updateTask(id, { priority: action.priority });
             } catch (err) {
-              console.error("[PM] setPriority failed", err);
+              logger.error("[PM] setPriority failed", err);
             }
           }
           setActionTargetIds(null);

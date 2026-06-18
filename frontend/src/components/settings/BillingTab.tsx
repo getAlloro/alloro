@@ -39,6 +39,7 @@ import {
   type BillingDetails,
 } from "../../api/billing";
 import { showWarningToast } from "../../lib/toast";
+import { logger } from "../../lib/logger";
 
 // ─── Plan Details (Single Product) ───
 
@@ -112,7 +113,7 @@ export const BillingTab: React.FC = () => {
         setDetails(detailsResult.value);
       }
     } catch (err) {
-      console.error("Failed to fetch billing data:", err);
+      logger.error("Failed to fetch billing data:", err);
     } finally {
       setIsLoading(false);
     }
@@ -126,7 +127,7 @@ export const BillingTab: React.FC = () => {
         window.location.href = response.url;
       }
     } catch (err) {
-      console.error("Checkout error:", err);
+      logger.error("Checkout error:", err);
     } finally {
       setIsCheckoutLoading(false);
     }
@@ -140,7 +141,7 @@ export const BillingTab: React.FC = () => {
         window.location.href = response.url;
       }
     } catch (err) {
-      console.error("Portal error:", err);
+      logger.error("Portal error:", err);
     } finally {
       setIsPortalLoading(false);
     }

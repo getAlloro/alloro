@@ -15,7 +15,7 @@ interface QuickAddTaskProps {
 export function QuickAddTask({ projectId, columnId, isBacklog = false }: QuickAddTaskProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [title, setTitle] = useState("");
-  const [priority, setPriority] = useState<string>("P3");
+  const [priority, setPriority] = useState<typeof PRIORITY_CYCLE[number]>("P3");
   const [isCreating, setIsCreating] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const createTask = usePmStore((s) => s.createTask);
@@ -27,7 +27,7 @@ export function QuickAddTask({ projectId, columnId, isBacklog = false }: QuickAd
   };
 
   const cyclePriority = () => {
-    const idx = PRIORITY_CYCLE.indexOf(priority as any);
+    const idx = PRIORITY_CYCLE.indexOf(priority);
     setPriority(PRIORITY_CYCLE[(idx + 1) % PRIORITY_CYCLE.length]);
   };
 
@@ -39,7 +39,7 @@ export function QuickAddTask({ projectId, columnId, isBacklog = false }: QuickAd
       await createTask(projectId, {
         title: trimmed,
         column_id: columnId,
-        priority: isBacklog ? undefined : (priority as any),
+        priority: isBacklog ? undefined : priority,
       });
       setTitle("");
     } finally {
@@ -75,7 +75,7 @@ export function QuickAddTask({ projectId, columnId, isBacklog = false }: QuickAd
           <motion.div key="input" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="flex items-center gap-1.5">
             {!isBacklog && (
               <button onClick={cyclePriority} className="flex-shrink-0 rounded-md p-1.5" style={{ backgroundColor: "var(--color-pm-bg-hover)" }} title={`Priority: ${priority}`}>
-                <PriorityTriangle priority={priority as any} size={14} />
+                <PriorityTriangle priority={priority} size={14} />
               </button>
             )}
             <input

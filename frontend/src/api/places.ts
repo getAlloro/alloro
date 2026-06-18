@@ -2,6 +2,8 @@
  * Places API - Google Places autocomplete and details
  */
 
+import { adminFetch } from "./index";
+
 export interface PlaceSuggestion {
   placeId: string;
   mainText: string;
@@ -46,7 +48,7 @@ export const searchPlaces = async (
   input: string,
   sessionToken?: string
 ): Promise<AutocompleteResponse> => {
-  const response = await fetch(`${API_BASE}/autocomplete`, {
+  const response = await adminFetch(`${API_BASE}/autocomplete`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -71,7 +73,7 @@ export const getPlaceDetails = async (
   const params = sessionToken
     ? `?sessionToken=${encodeURIComponent(sessionToken)}`
     : "";
-  const response = await fetch(`${API_BASE}/${placeId}${params}`);
+  const response = await adminFetch(`${API_BASE}/${placeId}${params}`);
 
   if (!response.ok) {
     throw new Error(`Failed to get place details: ${response.statusText}`);

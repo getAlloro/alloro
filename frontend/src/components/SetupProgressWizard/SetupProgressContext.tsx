@@ -10,6 +10,7 @@ import {
 import onboarding from "../../api/onboarding";
 import { fireConfetti } from "../../lib/confetti";
 import { useAuth } from "../../hooks/useAuth";
+import { logger } from "../../lib/logger";
 
 interface SetupProgress {
   step1_api_connected: boolean; // All 3 scopes granted AND all 3 services connected
@@ -91,7 +92,7 @@ export function SetupProgressProvider({ children }: { children: ReactNode }) {
       try {
         await onboarding.updateSetupProgress(newProgress);
       } catch (err) {
-        console.error("Failed to save setup progress to API:", err);
+        logger.error("Failed to save setup progress to API:", err);
       }
     }, 500);
   }, []);
@@ -109,20 +110,16 @@ export function SetupProgressProvider({ children }: { children: ReactNode }) {
 
       const apiProgress = await onboarding.getSetupProgress();
 
-      if (
-        apiProgress.success &&
-        "progress" in apiProgress &&
-        apiProgress.progress
-      ) {
+      if (apiProgress.progress) {
         const dbProgress = { ...defaultProgress, ...apiProgress.progress };
         setProgress(dbProgress);
         saveProgressToStorage(dbProgress);
       } else {
-        // Fall back to localStorage if API fails
+        // No progress in the response — fall back to localStorage
         setProgress(getStoredProgress());
       }
     } catch (err) {
-      console.error("Failed to fetch setup progress:", err);
+      logger.error("Failed to fetch setup progress:", err);
       setProgress(getStoredProgress());
     } finally {
       setIsLoading(false);
@@ -253,6 +250,7 @@ export function SetupProgressProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSetupProgress(): SetupProgressContextType {
   const context = useContext(SetupProgressContext);
   if (!context) {
@@ -264,6 +262,7 @@ export function useSetupProgress(): SetupProgressContextType {
 }
 
 // Safe hook that returns null if outside provider (for components that may render outside the provider)
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSetupProgressSafe(): SetupProgressContextType | null {
   return useContext(SetupProgressContext);
 }

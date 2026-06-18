@@ -46,7 +46,7 @@ import { PublicRoute } from "./components/PublicRoute";
 import { ConfirmProvider } from "./components/ui/ConfirmModal";
 import { DFYRoute } from "./components/DFYRoute";
 import { PilotHandler } from "./components/PilotHandler";
-import { PilotBanner } from "./components/Admin/PilotBanner";
+import { PilotBanner } from "./components/Admin/shell/PilotBanner";
 import { SessionExpiredModal } from "./components/SessionExpiredModal";
 import { GlobalSupportAction } from "./components/support/GlobalSupportAction";
 import { SupportQuickActionProvider } from "./contexts/SupportQuickActionContext";

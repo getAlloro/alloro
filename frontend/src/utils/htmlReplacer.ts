@@ -7,6 +7,7 @@
  */
 
 import type { Section } from "../api/templates";
+import { logger } from "../lib/logger";
 
 /**
  * Replace a component's HTML directly in the iframe DOM.
@@ -28,7 +29,7 @@ export function replaceComponentInDom(
   }
 
   if (matches.length > 1) {
-    console.warn(
+    logger.warn(
       `[htmlReplacer] Found ${matches.length} elements with class "${alloroClass}". Replacing first match.`
     );
   }
@@ -61,7 +62,7 @@ export function replaceComponentHtml(
   }
 
   if (matches.length > 1) {
-    console.warn(
+    logger.warn(
       `[htmlReplacer] Found ${matches.length} elements with class "${alloroClass}". Replacing first match.`
     );
   }
@@ -268,7 +269,7 @@ export function extractSectionsFromDom(
       }
     }
 
-    console.warn(`[extractSections] "${section.name}" → no match in DOM`);
+    logger.warn(`[extractSections] "${section.name}" → no match in DOM`);
     return section;
   });
 }

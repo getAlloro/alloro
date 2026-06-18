@@ -30,6 +30,7 @@ export {
   getPost,
   updateUserPost,
   deleteUserPost,
+  duplicateUserPost,
   listPostTypes,
   listCategories,
   createUserCategory,

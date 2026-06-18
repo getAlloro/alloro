@@ -7,6 +7,8 @@ import type {
 } from "../hooks/useClarity";
 import { ClarityContext } from "./ClarityContext";
 import { useLocationContext } from "./locationContext";
+import { logger } from "../lib/logger";
+import { getErrorMessage } from "../lib/errorMessage";
 
 interface ClarityProviderProps {
   children: ReactNode;
@@ -38,18 +40,11 @@ export const ClarityProvider: React.FC<ClarityProviderProps> = ({
       setAiDataLoading(true);
       setAiError(null);
       const result = await clarity.getAIReadyData(locationDomain);
-
-      if (result.successful !== false) {
-        setAiData(result as ClarityAIReadyData);
-        console.log("Clarity AI Ready Data:", result);
-      } else {
-        setAiError(
-          result.errorMessage || "Failed to fetch Clarity AI-ready data"
-        );
-      }
+      setAiData(result);
+      logger.log("Clarity AI Ready Data:", result);
     } catch (error) {
-      setAiError("Failed to fetch AI-ready data");
-      console.error("Clarity AI Ready Data fetch error:", error);
+      setAiError(getErrorMessage(error) || "Failed to fetch AI-ready data");
+      logger.error("Clarity AI Ready Data fetch error:", error);
     } finally {
       setAiDataLoading(false);
     }
@@ -62,20 +57,15 @@ export const ClarityProvider: React.FC<ClarityProviderProps> = ({
       setIsLoading(true);
       setError(null);
       const result = await clarity.getKeyData(locationDomain);
-
-      if (result.successful !== false) {
-        setClarityData({
-          sessions: result.sessions || { prevMonth: 0, currMonth: 0 },
-          bounceRate: result.bounceRate || { prevMonth: 0, currMonth: 0 },
-          deadClicks: result.deadClicks || { prevMonth: 0, currMonth: 0 },
-          trendScore: result.trendScore || 0,
-        });
-      } else {
-        setError(result.errorMessage || "Failed to fetch Clarity data");
-      }
+      setClarityData({
+        sessions: result.sessions || { prevMonth: 0, currMonth: 0 },
+        bounceRate: result.bounceRate || { prevMonth: 0, currMonth: 0 },
+        deadClicks: result.deadClicks || { prevMonth: 0, currMonth: 0 },
+        trendScore: result.trendScore || 0,
+      });
     } catch (error) {
-      setError("Failed to fetch Clarity data");
-      console.error("Clarity Data fetch error:", error);
+      setError(getErrorMessage(error) || "Failed to fetch Clarity data");
+      logger.error("Clarity Data fetch error:", error);
     } finally {
       setIsLoading(false);
     }

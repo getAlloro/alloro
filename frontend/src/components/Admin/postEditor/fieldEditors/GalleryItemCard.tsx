@@ -21,6 +21,7 @@ import type { MediaItem } from "../../../PageEditor/MediaBrowser";
 import { createAdminWebsiteMediaApi } from "../../../../api/websiteMedia";
 import { useInlineEdit } from "../hooks/useInlineEdit";
 import type { GalleryItem } from "../types";
+import { logger } from "../../../../lib/logger";
 
 interface GalleryItemCardProps {
   item: GalleryItem;
@@ -91,7 +92,7 @@ export default function GalleryItemCard({
           onChange({ ...item, url: data.data[0].s3_url });
         }
       } catch (err) {
-        console.error("Upload failed:", err);
+        logger.error("Upload failed:", err);
       } finally {
         setUploading(false);
       }

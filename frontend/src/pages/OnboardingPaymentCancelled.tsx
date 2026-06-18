@@ -11,6 +11,7 @@ import { motion } from "framer-motion";
 import { XCircle, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import onboarding from "../api/onboarding";
+import { getErrorMessage } from "../lib/errorMessage";
 
 export default function OnboardingPaymentCancelled() {
   const navigate = useNavigate();
@@ -25,20 +26,13 @@ export default function OnboardingPaymentCancelled() {
     setSkipError(null);
     setIsSkipping(true);
     try {
-      const response = await onboarding.completeOnboarding();
-      if (response?.success) {
-        localStorage.setItem("onboardingCompleted", "true");
-        window.location.href = "/dashboard";
-      } else {
-        setSkipError(
-          response?.errorMessage ||
-            response?.message ||
-            "Something went wrong. Please try again."
-        );
-        setIsSkipping(false);
-      }
-    } catch {
-      setSkipError("Something went wrong. Please try again.");
+      await onboarding.completeOnboarding();
+      localStorage.setItem("onboardingCompleted", "true");
+      window.location.href = "/dashboard";
+    } catch (err) {
+      setSkipError(
+        getErrorMessage(err) || "Something went wrong. Please try again."
+      );
       setIsSkipping(false);
     }
   };

@@ -11,6 +11,7 @@ import {
   Download,
 } from "lucide-react";
 import { uploadPMSData } from "../../api/pms";
+import { logger } from "../../lib/logger";
 
 interface TemplateUploadModalProps {
   isOpen: boolean;
@@ -123,7 +124,7 @@ export const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({
             });
             window.dispatchEvent(event);
           } catch (storageError) {
-            console.warn(
+            logger.warn(
               "Unable to persist PMS processing flag:",
               storageError
             );
@@ -137,7 +138,7 @@ export const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({
         throw new Error(result.error || "Upload failed");
       }
     } catch (error) {
-      console.error("TemplateUploadModal: Upload error:", error);
+      logger.error("TemplateUploadModal: Upload error:", error);
       setUploadStatus("error");
       setMessage(error instanceof Error ? error.message : "Upload failed");
     } finally {

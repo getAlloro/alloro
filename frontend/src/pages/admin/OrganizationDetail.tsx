@@ -9,18 +9,18 @@ import { motion } from "framer-motion";
 import { ArrowLeft, RefreshCw, Globe, FileCode, Archive } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Badge } from "../../components/ui/DesignSystem";
-import { OrgLocationSelector } from "../../components/Admin/OrgLocationSelector";
-import { OrgTasksTab } from "../../components/Admin/OrgTasksTab";
-import { OrgPmsTab } from "../../components/Admin/OrgPmsTab";
-import { OrgAgentOutputsTab } from "../../components/Admin/OrgAgentOutputsTab";
-import { OrgRankingsTab } from "../../components/Admin/OrgRankingsTab";
-import { OrgNotificationsTab } from "../../components/Admin/OrgNotificationsTab";
-import { OrgGbpAutomationTab } from "../../components/Admin/OrgGbpAutomationTab";
-import { OrgSubscriptionSection } from "../../components/Admin/OrgSubscriptionSection";
-import { OrgUsersSection } from "../../components/Admin/OrgUsersSection";
-import { OrgConnectionsSection } from "../../components/Admin/OrgConnectionsSection";
-import { OrgSettingsSection } from "../../components/Admin/OrgSettingsSection";
-import { OrganizationDetailNavigation } from "../../components/Admin/OrganizationDetailNavigation";
+import { OrgLocationSelector } from "../../components/Admin/org/OrgLocationSelector";
+import { OrgTasksTab } from "../../components/Admin/org/OrgTasksTab";
+import { OrgPmsTab } from "../../components/Admin/org/OrgPmsTab";
+import { OrgAgentOutputsTab } from "../../components/Admin/org/OrgAgentOutputsTab";
+import { OrgRankingsTab } from "../../components/Admin/org/OrgRankingsTab";
+import { OrgNotificationsTab } from "../../components/Admin/org/OrgNotificationsTab";
+import { OrgGbpAutomationTab } from "../../components/Admin/org/OrgGbpAutomationTab";
+import { OrgSubscriptionSection } from "../../components/Admin/org/OrgSubscriptionSection";
+import { OrgUsersSection } from "../../components/Admin/org/OrgUsersSection";
+import { OrgConnectionsSection } from "../../components/Admin/org/OrgConnectionsSection";
+import { OrgSettingsSection } from "../../components/Admin/org/OrgSettingsSection";
+import { OrganizationDetailNavigation } from "../../components/Admin/org/OrganizationDetailNavigation";
 import {
   isOrganizationDetailAgentTabKey,
   isOrganizationDetailGbpTabKey,

@@ -45,6 +45,12 @@ pmsRoutes.get("/mappings/cache", authenticateToken, rbacMiddleware, controller.g
 
 // Data Retrieval
 pmsRoutes.get("/keyData", authenticateToken, rbacMiddleware, controller.getKeyData);
+pmsRoutes.post(
+  "/comparison-insights",
+  authenticateToken,
+  rbacMiddleware,
+  controller.generateComparisonInsights
+);
 
 // Location-scoped PMS File Manager
 pmsRoutes.get("/file-manager", ...protectedPms, fileManagerController.listFiles);

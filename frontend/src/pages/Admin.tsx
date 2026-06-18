@@ -2,10 +2,9 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import {
   AdminLayout,
   PMSAutomationCards,
-  AgentInsights,
 } from "../components/Admin";
-import { ActionItemsHub } from "@/components/Admin/ActionItemsHub";
-import { AdminGuard } from "@/components/Admin/AdminGuard";
+import { ActionItemsHub } from "@/components/Admin/org/ActionItemsHub";
+import { AdminGuard } from "@/components/Admin/shell/AdminGuard";
 import AIDataInsightsList from "./admin/AIDataInsightsList";
 import AIDataInsightsDetail from "./admin/AIDataInsightsDetail";
 import AppLogs from "./admin/AppLogs";
@@ -75,7 +74,6 @@ function AdminWithLayout() {
         <Route path="ai-pms-automation" element={<PMSAutomationCards />} />
         <Route path="action-items" element={<ActionItemsHub />} />
         <Route path="agent-outputs" element={<AgentOutputsList />} />
-        <Route path="ai-data-insight" element={<AgentInsights />} />
         <Route path="ai-data-insights" element={<AIDataInsightsList />} />
         <Route
           path="ai-data-insights/:agentType"

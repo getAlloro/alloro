@@ -2,18 +2,7 @@
  * Templates API - Admin portal for managing website-builder templates
  */
 
-import { getCommonHeaders } from "./index";
-
-// Attach the Bearer token (via getCommonHeaders) to every admin call. These
-// /api/admin/websites/* routes are protected by the app-level auth guard;
-// bare fetch would 401.
-const adminFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
-  const headers = new Headers(init.headers);
-  Object.entries(getCommonHeaders()).forEach(([key, value]) => {
-    if (!headers.has(key)) headers.set(key, value);
-  });
-  return fetch(input, { ...init, headers });
-};
+import { adminFetch } from "./index";
 
 export type TemplateStatus = "draft" | "published";
 

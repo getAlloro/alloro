@@ -43,6 +43,8 @@ export interface WebsiteMetrics {
     pageviews: number;
     month: string;
     monthName: string;
+    /** % change vs the prior plotted month; null when there's no meaningful base */
+    deltaPct: number | null;
   }>;
   /**
    * Combined per-month funnel series for the hero: visitors + leads + conversion
@@ -72,7 +74,24 @@ export interface WebsiteMetrics {
   /** monthly leads series, full window (for the modal) */
   leadSeries: Array<{ label: string; leads: number }>;
   /** monthly leads series with the leading no-data run trimmed (for the card) */
-  leadSeriesCompact: Array<{ label: string; leads: number }>;
+  leadSeriesCompact: Array<{
+    label: string;
+    leads: number;
+    /** % change vs the prior plotted month; null when there's no meaningful base */
+    deltaPct: number | null;
+  }>;
+  /**
+   * Aggregates over the bottom-card window (the months actually plotted): a
+   * deduplicated visitor count + summed sessions/page views/leads. Visitors are
+   * the backend window-overview (deduped) when available; the fallback sums the
+   * plotted months' uniques and slightly over-counts cross-month repeats.
+   */
+  windowVisitors: number;
+  /** True when windowVisitors is the backend deduped figure (not a summed fallback). */
+  windowVisitorsDeduped: boolean;
+  windowSessions: number;
+  windowPageviews: number;
+  windowLeads: number;
   /** YYYY-MM → verified leads that month (to show leads for a hovered day's month) */
   leadsByMonth: Record<string, number>;
   /** totals over the analytics window (for the traffic modal) */
@@ -165,6 +184,26 @@ function meaningfulDelta(
   return pct;
 }
 
+/**
+ * Annotate each point in a series with its month-over-month % change vs the
+ * immediately preceding plotted point. The first point has no prior, so its
+ * delta is null. Used for the bottom cards' hover-only "against last month"
+ * trend (Item 2, Rev 1).
+ */
+function withMonthlyDelta<T>(
+  items: T[],
+  getValue: (item: T) => number,
+  minBase: number,
+): Array<T & { deltaPct: number | null }> {
+  return items.map((item, index) => ({
+    ...item,
+    deltaPct:
+      index > 0
+        ? meaningfulDelta(getValue(item), getValue(items[index - 1]), minBase)
+        : null,
+  }));
+}
+
 export function computeWebsiteMetrics(
   analytics: WebsiteAnalytics | undefined,
   timeseries: TimeseriesPoint[],
@@ -251,12 +290,49 @@ export function computeWebsiteMetrics(
   const leadsPace = today > 0 ? monthLeads * (daysInMonth / today) : monthLeads;
 
   // Cards drop the leading no-data run; the leads modal keeps the full window.
-  const visitorSeriesTrimmed = trimLeadingZeros(visitorSeries, (p) => p.visitors);
+  // The hero funnel plots the full trimmed series; the BOTTOM cards plot only
+  // the last 3 months (Item 2, Rev 1 — "Last 3 Mo"), so the headline aggregate,
+  // the eyebrow label, and the summed sessions/page views/leads all describe the
+  // same window the backend dedups. Each plotted point carries its
+  // month-over-month delta for the cards' hover-only "against last month" trend.
+  const visitorSeriesTrimmed = withMonthlyDelta(
+    trimLeadingZeros(visitorSeries, (p) => p.visitors),
+    (p) => p.visitors,
+    10,
+  );
+  const visitorSeriesCard = visitorSeriesTrimmed.slice(-3);
   const leadSeriesFull = timeseries.map((p) => ({
     label: monthLabel(p.month),
     leads: p.verified,
   }));
-  const leadSeriesCompact = trimLeadingZeros(leadSeriesFull, (p) => p.leads);
+  const leadSeriesCompact = withMonthlyDelta(
+    trimLeadingZeros(leadSeriesFull, (p) => p.leads),
+    (p) => p.leads,
+    3,
+  ).slice(-3);
+
+  // Bottom-card window aggregates (the 3 months the cards plot).
+  // Visitors: the backend deduped window-overview when available — summing the
+  // plotted months' uniques double-counts visitors who return across months, so
+  // it's only a fallback. Sessions/page views/leads are additive, so summing the
+  // plotted months is exact.
+  const dedupedWindowVisitors =
+    typeof analytics?.windowVisitors === "number" && analytics.windowVisitors > 0
+      ? analytics.windowVisitors
+      : null;
+  const windowVisitorsDeduped = dedupedWindowVisitors !== null;
+  const windowVisitors =
+    dedupedWindowVisitors ??
+    visitorSeriesCard.reduce((sum, p) => sum + p.visitors, 0);
+  const windowSessions = visitorSeriesCard.reduce(
+    (sum, p) => sum + p.sessions,
+    0,
+  );
+  const windowPageviews = visitorSeriesCard.reduce(
+    (sum, p) => sum + p.pageviews,
+    0,
+  );
+  const windowLeads = leadSeriesCompact.reduce((sum, p) => sum + p.leads, 0);
 
   // Continuous DAILY visitor series for the traffic detail modal. Rybbit stores
   // a row only for days that have data, so walk every calendar day from the
@@ -323,11 +399,16 @@ export function computeWebsiteMetrics(
     visitorsDeltaPct: meaningfulDelta(dailyCurUsers, prevVisitorsMtd, 10),
     leadsPaceDeltaPct: meaningfulDelta(leadsPace, prevMonthLeads, 3),
     prevMonthLeads,
-    visitorSeries: visitorSeriesTrimmed,
+    visitorSeries: visitorSeriesCard,
     funnelSeries,
     visitorDaily,
     leadSeries: leadSeriesFull,
     leadSeriesCompact,
+    windowVisitors,
+    windowVisitorsDeduped,
+    windowSessions,
+    windowPageviews,
+    windowLeads,
     leadsByMonth: Object.fromEntries(
       timeseries.map((p) => [p.month, p.verified]),
     ),

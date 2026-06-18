@@ -37,6 +37,16 @@ export interface WebsiteAnalytics {
   daily: WebsiteAnalyticsDailyPoint[];
   /** True per-month uniques for cards/headline; empty if the live fetch failed. */
   monthly: WebsiteAnalyticsMonthlyPoint[];
+  /**
+   * Deduplicated unique visitors for the last-3-month card window (Rybbit
+   * dedupes within the window — summing the monthly uniques would double-count
+   * cross-month repeat visitors). Null when the live query failed.
+   */
+  windowVisitors: number | null;
+  /** Inclusive start (YYYY-MM-DD) of the windowVisitors window. */
+  windowFromDate: string | null;
+  /** Inclusive end (YYYY-MM-DD) of the windowVisitors window. */
+  windowToDate: string | null;
 }
 
 interface WebsiteAnalyticsResponse extends WebsiteAnalytics {
@@ -64,5 +74,8 @@ export async function fetchWebsiteAnalytics(
     totals: response.totals,
     daily: response.daily,
     monthly: response.monthly ?? [],
+    windowVisitors: response.windowVisitors ?? null,
+    windowFromDate: response.windowFromDate ?? null,
+    windowToDate: response.windowToDate ?? null,
   };
 }

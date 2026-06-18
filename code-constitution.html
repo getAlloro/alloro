@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Code Constitution — Alloro</title>
+<style>
+  :root{
+    color-scheme: light;
+    --paper:#ffffff; --ink:#080808; --muted:#6a6a6a; --line:#dcdcdc; --soft:#f5f5f5; --softer:#fafafa;
+    --warn:#8a6d00; --warn-bg:#fbf3d6; --ok:#0a6b2e; --ok-bg:#e7f4ec; --info:#3a3a3a; --info-bg:#eee;
+    --shadow:0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    line-height:1.5; -webkit-font-smoothing:antialiased;
+  }
+  .shell{width:min(1040px,calc(100% - 32px));margin:0 auto;padding:40px 0 80px}
+  a{color:inherit}
+
+  /* ---------- hero ---------- */
+  .hero{border:1px solid var(--ink);border-radius:14px;padding:34px 32px;margin-bottom:18px;position:relative;overflow:hidden}
+  .hero .eyebrow{margin:0 0 14px;font-size:.74rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .hero h1{margin:0 0 8px;font-size:clamp(2.4rem,7vw,4.4rem);line-height:.92;letter-spacing:-.02em}
+  .hero p.sub{margin:0 0 22px;max-width:60ch;color:var(--muted);font-size:1.02rem}
+  .stats{display:flex;flex-wrap:wrap;gap:10px}
+  .stat{border:1px solid var(--line);border-radius:10px;padding:10px 16px;min-width:92px;background:var(--softer)}
+  .stat b{display:block;font-size:1.7rem;line-height:1;letter-spacing:-.02em}
+  .stat span{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
+
+  /* ---------- enforcement callout ---------- */
+  .enforce{border:1px solid var(--ink);border-radius:12px;padding:0;margin-bottom:18px;background:var(--ink);color:var(--paper)}
+  .enforce .eh{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 22px;cursor:pointer;user-select:none}
+  .enforce .eh h2{margin:0;font-size:1.04rem;letter-spacing:.01em}
+  .enforce .eh .chev{transition:transform .3s ease}
+  .enforce.open .eh .chev{transform:rotate(90deg)}
+  .enforce-wrap{display:grid;grid-template-rows:0fr;transition:grid-template-rows .4s cubic-bezier(.4,0,.2,1)}
+  .enforce.open .enforce-wrap{grid-template-rows:1fr}
+  .enforce-inner{overflow:hidden}
+  .enforce-pad{padding:0 22px 22px}
+  .enforce-pad p{margin:.1rem 0 .8rem;color:#d6d6d6;font-size:.92rem}
+  .cite{background:#141414;border:1px solid #333;border-left:3px solid var(--paper);border-radius:8px;padding:14px 16px;font-size:.86rem}
+  .cite .row{margin:2px 0}
+  .cite .k{color:#9a9a9a;font-weight:700;text-transform:uppercase;font-size:.68rem;letter-spacing:.06em;margin-right:6px}
+  .cite code{background:#000;border:1px solid #2c2c2c;color:#fff;border-radius:4px;padding:.05rem .3rem;font-size:.85em}
+
+  /* ---------- controls ---------- */
+  .controls{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.86);backdrop-filter:blur(8px);
+    border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:18px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .search{flex:1 1 260px;display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:9px;padding:8px 12px;background:var(--paper)}
+  .search svg{flex:none;opacity:.5}
+  .search input{border:0;outline:0;font:inherit;width:100%;background:transparent;color:var(--ink)}
+  .pillset{display:flex;gap:6px;flex-wrap:wrap}
+  .pill{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:7px 13px;font-size:.8rem;font-weight:700;cursor:pointer;transition:all .15s ease;color:var(--muted)}
+  .pill:hover{border-color:var(--ink);color:var(--ink)}
+  .pill.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .ghost{border:1px solid var(--line);background:var(--paper);border-radius:9px;padding:7px 12px;font-size:.8rem;font-weight:700;cursor:pointer;color:var(--ink)}
+  .ghost:hover{background:var(--soft)}
+
+  /* ---------- parts / sections / articles ---------- */
+  .part{margin-bottom:14px;opacity:0;transform:translateY(10px);animation:rise .5s ease forwards}
+  .part:nth-child(1){animation-delay:.02s}.part:nth-child(2){animation-delay:.08s}
+  .part:nth-child(3){animation-delay:.14s}.part:nth-child(4){animation-delay:.2s}
+  @keyframes rise{to{opacity:1;transform:none}}
+  .part-head{width:100%;text-align:left;display:flex;align-items:center;gap:14px;cursor:pointer;user-select:none;
+    border:1px solid var(--ink);border-radius:12px;background:var(--paper);padding:16px 18px;font:inherit}
+  .part-head .rn{font-weight:800;border:1px solid var(--ink);border-radius:8px;min-width:42px;text-align:center;padding:6px 0;font-size:.9rem;letter-spacing:.04em}
+  .part-head .pt{flex:1}
+  .part-head .pt b{display:block;font-size:1.22rem;letter-spacing:-.01em}
+  .part-head .pt span{font-size:.82rem;color:var(--muted)}
+  .part-head .chev{transition:transform .3s ease;opacity:.6}
+  .part.open>.part-head .chev{transform:rotate(90deg)}
+  .part-wrap{display:grid;grid-template-rows:0fr;transition:grid-template-rows .4s cubic-bezier(.4,0,.2,1)}
+  .part.open>.part-wrap{grid-template-rows:1fr}
+  .part-inner{overflow:hidden;padding:10px 0 2px 14px;border-left:1px dashed var(--line);margin:8px 0 0 22px}
+
+  .section{margin:8px 0}
+  .section-head{width:100%;text-align:left;display:flex;align-items:center;gap:11px;cursor:pointer;user-select:none;
+    border:1px solid var(--line);border-radius:10px;background:var(--softer);padding:12px 14px;font:inherit;transition:background .15s ease,border-color .15s ease}
+  .section-head:hover{border-color:var(--ink);background:var(--soft)}
+  .section-head .chev{transition:transform .3s ease;opacity:.55;flex:none}
+  .section.open>.section-head .chev{transform:rotate(90deg)}
+  .section-head .sn{font-weight:800;font-size:.78rem;color:var(--muted);font-variant-numeric:tabular-nums}
+  .section-head .st{flex:1;font-weight:700;font-size:.98rem}
+  .section-head .cnt{font-size:.7rem;font-weight:800;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 9px;background:var(--paper)}
+  .section-head .mech{font-size:.7rem}
+  .section-wrap{display:grid;grid-template-rows:0fr;transition:grid-template-rows .35s cubic-bezier(.4,0,.2,1)}
+  .section.open>.section-wrap{grid-template-rows:1fr}
+  .section-inner{overflow:hidden;padding:8px 2px 4px}
+
+  .article{border:1px solid var(--line);border-radius:9px;background:var(--paper);padding:13px 15px;margin:8px 0;display:flex;gap:13px;
+    opacity:0;transform:translateY(6px);transition:opacity .35s ease,transform .35s ease,box-shadow .15s ease,border-color .15s ease;transition-delay:calc(var(--i,0)*28ms)}
+  .section.open .article{opacity:1;transform:none}
+  .article:hover{box-shadow:var(--shadow);border-color:#c4c4c4}
+  .chip{flex:none;align-self:flex-start;font-weight:800;font-size:.78rem;border:1px solid var(--ink);border-radius:7px;padding:5px 9px;cursor:pointer;
+    background:var(--paper);font-variant-numeric:tabular-nums;transition:all .12s ease;white-space:nowrap}
+  .chip:hover{background:var(--ink);color:var(--paper)}
+  .chip:active{transform:scale(.94)}
+  .abody{flex:1;min-width:0}
+  .atitle{font-weight:700;font-size:.96rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .arule{margin:5px 0 0;color:#3c3c3c;font-size:.9rem}
+  .badge{font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;border-radius:999px;padding:2px 8px;border:1px solid}
+  .badge.mech{border-color:var(--ink);background:var(--ink);color:var(--paper)}
+  .status{display:inline-flex;align-items:center;gap:5px;font-size:.72rem;font-weight:800;border-radius:999px;padding:2px 9px;border:1px solid}
+  .status.ok{color:var(--ok);background:var(--ok-bg);border-color:#bfe0cb}
+  .status.warn{color:var(--warn);background:var(--warn-bg);border-color:#ecdca0}
+  .status.info{color:var(--info);background:var(--info-bg);border-color:#d8d8d8}
+  .tier{font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;border-radius:999px;padding:2px 8px;border:1px dashed #b3b3b3;color:#555}
+  .tier.C{border-style:solid;border-color:var(--line);color:#9a9a9a}
+  .planbar{display:flex;flex-wrap:wrap;align-items:center;gap:14px;border:1px dashed var(--ink);border-radius:11px;padding:11px 16px;margin-bottom:18px;font-size:.8rem}
+  .planbar .pb-k{font-weight:800;text-transform:uppercase;letter-spacing:.06em;font-size:.7rem}
+  .planbar .leg{display:inline-flex;align-items:center;gap:6px;color:var(--muted)}
+  .planbar .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .planbar .dot.now{background:var(--ink)}
+  .planbar .dot.ab{background:#fff;border:1px dashed #888}
+  .planbar .dot.c{background:#cfcfcf}
+  .planbar #mechSummary{color:var(--ink)}
+  .planbar code{margin-left:auto;background:var(--soft);border:1px solid var(--line);border-radius:5px;padding:2px 7px}
+  mark{background:#fff1a8;color:inherit;border-radius:2px;padding:0 1px}
+
+  /* verification customs */
+  table{width:100%;border-collapse:collapse;font-size:.86rem;margin:4px 0}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:middle}
+  th{background:var(--soft);text-transform:uppercase;font-size:.68rem;letter-spacing:.05em}
+  td code{background:var(--soft);border:1px solid var(--line);border-radius:4px;padding:.05rem .3rem;font-size:.86em;font-weight:700}
+  .checklist{list-style:none;padding:0;margin:6px 0}
+  .checklist li{display:flex;gap:9px;padding:7px 2px;border-top:1px solid var(--line);font-size:.88rem;align-items:flex-start}
+  .checklist li:first-child{border-top:0}
+  .checklist .cs{flex:none;font-weight:800;color:var(--muted);font-size:.76rem;border:1px solid var(--line);border-radius:5px;padding:1px 6px;background:var(--softer)}
+  .cl-title{font-weight:800;font-size:.82rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:14px 0 4px}
+
+  .empty{display:none;text-align:center;color:var(--muted);padding:40px;border:1px dashed var(--line);border-radius:12px}
+  .foot{margin-top:26px;color:var(--muted);font-size:.8rem;text-align:center}
+
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--paper);
+    padding:11px 18px;border-radius:10px;font-size:.86rem;font-weight:600;opacity:0;pointer-events:none;transition:all .25s ease;z-index:60;box-shadow:var(--shadow)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @media(max-width:620px){
+    .hero{padding:24px 20px}
+    .part-inner{margin-left:8px;padding-left:8px}
+    .article{flex-direction:column;gap:8px}
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+
+  <header class="hero">
+    <p class="eyebrow">Alloro · Architecture Contract</p>
+    <h1>Code Constitution</h1>
+    <p class="sub">The full-stack architecture contract — backend (<code>src/</code>) and frontend (<code>frontend/</code>). A numbered instrument: every Article has a stable <b>§N.M</b> identifier so any violation can be cited precisely.</p>
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <section class="enforce open" id="enforce">
+    <div class="eh" data-toggle="enforce">
+      <h2>⚖️ Enforcement Protocol — how violations are cited</h2>
+      <span class="chev">▶</span>
+    </div>
+    <div class="enforce-wrap"><div class="enforce-inner"><div class="enforce-pad">
+      <p>Any agent reviewing code under this Constitution must cite every violation against its Article — never "this is messy," always <b>which Article it breaks</b>, with the rule quoted verbatim. Tip: click any <b>§</b> chip below to copy its citation.</p>
+      <div class="cite">
+        <div class="row">⚠️ <b>Constitution violation — §13.1 (Section 13, Article 1: File-size tiers and hard ceiling)</b></div>
+        <div class="row"><span class="k">Rule</span><code>~800-line hard ceiling for any .ts/.tsx; past it, extract hooks + children + utils.</code></div>
+        <div class="row"><span class="k">Where</span><code>frontend/src/components/Admin/IdentityModal.tsx:1</code> (3,410 lines)</div>
+        <div class="row"><span class="k">Issue</span> 4.3× over ceiling — data-fetch + logic + presentation in one file.</div>
+        <div class="row"><span class="k">Fix</span> extract <code>useIdentityForm()</code> + child components + <code>*.utils.ts</code>.</div>
+        <div class="row"><span class="k">Severity</span> advisory (frontend mechanized Articles are advisory until the remediation lands)</div>
+      </div>
+    </div></div></div>
+  </section>
+
+  <div class="planbar">
+    <span class="pb-k">Mechanization ✓ live</span>
+    <span class="leg"><span class="dot now"></span>auto · strict</span>
+    <span class="leg"><span class="dot ab"></span>auto · advisory</span>
+    <span class="leg"><span class="dot c"></span>judgment</span>
+    <span id="mechSummary"></span>
+    <code>plans/06152026-constitution-mechanization</code>
+  </div>
+
+  <div class="controls">
+    <label class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="q" type="search" placeholder="Search articles, rules, or §id…" autocomplete="off">
+    </label>
+    <div class="pillset" id="stackpills">
+      <button class="pill active" data-stack="all">All</button>
+      <button class="pill" data-stack="shared">Shared</button>
+      <button class="pill" data-stack="backend">Backend</button>
+      <button class="pill" data-stack="frontend">Frontend</button>
+    </div>
+    <div class="pillset" id="mechpills">
+      <button class="pill active" data-mech="all">All</button>
+      <button class="pill" data-mech="now">🔎 Auto</button>
+      <button class="pill" data-mech="planned">⟳ Advisory</button>
+      <button class="pill" data-mech="judgment">◇ Judgment</button>
+    </div>
+    <button class="ghost" id="expandAll">Expand all</button>
+    <button class="ghost" id="collapseAll">Collapse all</button>
+  </div>
+
+  <div id="tree"></div>
+  <div class="empty" id="empty">No articles match your filter.</div>
+
+  <p class="foot" id="foot"></p>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================ DATA ============================ */
+const DATA = [
+ {n:"I", title:"Shared Principles", stack:"shared", blurb:"Apply to both stacks — same meaning on each side.", sections:[
+   {n:1, title:"Naming", articles:[
+     {id:"1.1", t:"Files are named for what they export", r:"A file is named for its primary export — stripeWebhook.ts not webhook.ts, PatientService.ts not service.ts."},
+     {id:"1.2", t:"Functions describe the action", r:"Function names state what they do — getPatientsByPractice() not getData(), sendWelcomeEmail() not send()."},
+     {id:"1.3", t:"Booleans read as questions", r:"Boolean identifiers read as questions — isActive, hasSubscription, canEdit — never active, subscription, edit."},
+     {id:"1.4", t:"Casing and role suffixes", r:"PascalCase for types, components, controllers, services; role suffixes mandatory — Controller/Service (backend), use- prefix (hooks)."},
+   ]},
+   {n:2, title:"Structure & Responsibility", articles:[
+     {id:"2.1", t:"One responsibility per file", r:"A file does one thing. A file that needs 'and' to describe its purpose should be two files."},
+     {id:"2.2", t:"Functions under ~50 lines", r:"Keep functions to ~50 lines; beyond that extract named helpers that describe each chunk."},
+     {id:"2.3", t:"Nesting under 4 levels", r:"Maximum 3–4 levels of nesting. Use early returns, guard clauses, or extracted functions to flatten."},
+     {id:"2.4", t:"File-size tiers and the hard ceiling", r:"Tiered by role; ~800-line hard ceiling for any living source file — past it, decomposition is a must-fix.", mech:true, status:{state:"ok", label:"backend 0"}},
+   ]},
+   {n:3, title:"Error Handling", articles:[
+     {id:"3.1", t:"Every async call is handled", r:"Every async call is wrapped in try/catch or has a .catch() handler. No exceptions."},
+     {id:"3.2", t:"Never swallow errors", r:"Never swallow an error. Catch → log → re-throw or return a typed error. A catch that returns undefined is a violation."},
+     {id:"3.3", t:"Errors carry context", r:"Error messages include context: what operation was attempted and the key identifiers (userId, patientId, etc.)."},
+     {id:"3.4", t:"No internal leakage to clients", r:"Never expose stack traces, internal paths, or query details to clients. Generic message externally; full detail logged internally."},
+   ]},
+   {n:4, title:"Code Hygiene", articles:[
+     {id:"4.1", t:"No commented-out code", r:"Delete commented-out code. Git has the history."},
+     {id:"4.2", t:"No magic numbers or strings", r:"Extract magic values to named constants. If a value appears in logic, it gets a name that explains it."},
+     {id:"4.3", t:"DRY carefully", r:"Deduplicate only genuinely-identical concepts. Coincidental similarity across domains is not duplication; premature abstraction is worse than repetition."},
+     {id:"4.4", t:"Dependency discipline", r:"Prefer stdlib and existing utilities before a package; audit imports; pin versions; run npm audit."},
+   ]},
+   {n:5, title:"Security Baseline", articles:[
+     {id:"5.1", t:"No secrets in code", r:"No secrets, API keys, or credentials in code — environment variables only, accessed via config."},
+     {id:"5.2", t:"Never trust client input", r:"Sanitize and validate all user input. Guard against SQL injection, XSS, and path traversal on every user-facing input."},
+     {id:"5.3", t:"Never log sensitive data", r:"Never log passwords, tokens, or PII. Redact before logging."},
+     {id:"5.4", t:"Re-enforce every check server-side", r:"The client protects nothing. Every authorization and validation check is authoritative on the server."},
+   ]},
+ ]},
+
+ {n:"II", title:"Backend", stack:"backend", blurb:"src/ · TypeScript + Express + Knex + PostgreSQL.", sections:[
+   {n:6, title:"Reference & Folder Structure", articles:[
+     {id:"6.1", t:"Mirror the reference implementation", r:"When in doubt, mirror src/controllers/gbp-automation/ — the certified-clean domain: thin controllers, feature-services/, feature-utils/, all DB through models/."},
+     {id:"6.2", t:"Every file has a home", r:"Place each file in the correct top-level folder — controllers/, models/, routes/, services/, middleware/, validation/, config/, workers/, …"},
+     {id:"6.3", t:"In-domain nesting uses feature- prefixes", r:"Domain code nests under feature-services/ (logic) and feature-utils/ (helpers, builders, typed errors). Never bare services/ or utils/ inside a domain."},
+   ]},
+   {n:7, title:"Data Flow & Layering", articles:[
+     {id:"7.1", t:"The chain is strict", r:"Routes → Controllers → Services → Models. Each layer talks only to the next."},
+     {id:"7.2", t:"Routes are thin", r:"Routes define HTTP method/path, apply middleware, call the controller, and return — no business logic."},
+     {id:"7.3", t:"Controllers orchestrate, never touch the DB", r:"Controllers receive validated input, coordinate services, and shape the response. No business logic, no DB access."},
+     {id:"7.4", t:"All database access lives in models/", r:"Every Knex query lives in a model file. No inline db()/SQL in routes, controllers, or services.", mech:true, status:{state:"ok", label:"0"}},
+   ]},
+   {n:8, title:"Response & Error Contracts", articles:[
+     {id:"8.1", t:"The two response shapes", r:"Every endpoint returns exactly one of { success, data, error } — no variations."},
+     {id:"8.2", t:"Use thin response builders", r:"Don't hand-roll responses per handler — use ok()/fail() builders from feature-utils."},
+     {id:"8.3", t:"Typed domain error + centralized status mapping", r:"Carry a machine code on a typed error; map error→HTTP status in one handler, not scattered res.status() calls."},
+     {id:"8.4", t:"Correct HTTP status codes", r:"200 success · 201 created · 400 bad request · 401 unauthenticated · 403 unauthorized · 404 not found · 500 server error."},
+   ]},
+   {n:9, title:"Logging", articles:[
+     {id:"9.1", t:"Pino only, no console.*", r:"No console.log in production code — use the Pino logger instance (pino-http for request logging).", mech:true, status:{state:"warn", label:"2"}},
+     {id:"9.2", t:"Correct log levels", r:"error (failures) · warn (recoverable) · info (key operations) · debug (developer-only, never in production)."},
+     {id:"9.3", t:"Include request context", r:"Every log entry includes the route, userId, and relevant entity IDs."},
+   ]},
+   {n:10, title:"Database (Knex + PostgreSQL)", articles:[
+     {id:"10.1", t:"Parameterized queries only", r:"Use the Knex query builder; never concatenate strings into SQL."},
+     {id:"10.2", t:"Avoid knex.raw()", r:"Avoid knex.raw(); if unavoidable, parameterize the inputs."},
+     {id:"10.3", t:"Schema changes go through migrations", r:"All schema changes are migrations in database/migrations/; never run manual DDL. Reference data lives in seeds/."},
+     {id:"10.4", t:"Index what you filter or join on", r:"If a query filters (WHERE status = ?) or joins (ON user_id), there is an index for it."},
+     {id:"10.5", t:"Transactions for multi-table writes", r:"Any operation writing to multiple tables runs in a transaction — if one write fails, all roll back."},
+     {id:"10.6", t:"Connection pooling is managed centrally", r:"Knex manages pooling via database/connection.ts. Never open/close connections per query."},
+   ]},
+   {n:11, title:"API & Backend Security", articles:[
+     {id:"11.1", t:"Auth middleware on every protected route", r:"Auth middleware on every protected route. No exceptions, no 'add it later.' (Public webhooks/forms are confirmed exceptions.)", mech:true, status:{state:"info", label:"19 advisory"}},
+     {id:"11.2", t:"Validation at the boundary", r:"Input validation happens at the route level via schemas applied as middleware. Once data reaches the controller, it is trusted."},
+     {id:"11.3", t:"Rate-limit public endpoints", r:"Rate limiting on all public-facing endpoints. Failed auth attempts are rate-limited and logged (IP, timestamp, route)."},
+     {id:"11.4", t:"Transport & headers", r:"CORS explicit (no wildcard * in production); Helmet enabled; CSRF protection on state-changing endpoints."},
+     {id:"11.5", t:"Credentials & tokens", r:"Password hashing with bcrypt, ≥10 salt rounds. JWTs short-expiry; httpOnly cookies preferred over localStorage."},
+     {id:"11.6", t:"Standard pagination", r:"All list endpoints paginate with the same shape: { page, limit, total, totalPages }."},
+   ]},
+ ]},
+
+ {n:"III", title:"Frontend", stack:"frontend", blurb:"frontend/ · React 19 + Vite + TypeScript SPA. Strict mode + ESLint are on.", sections:[
+   {n:12, title:"Reference & Folder Structure", articles:[
+     {id:"12.1", t:"Mirror the reference triad", r:"Mirror the api/index.ts client + React Query + feature-folder triad. api/index.ts is the only place that reads the JWT (getCommonHeaders)."},
+     {id:"12.2", t:"Every file has a home", r:"Place each file correctly — api/, components/, contexts/, hooks/, lib/, pages/, stores/, types/, utils/."},
+     {id:"12.3", t:"Feature folders, not flat dumps", r:"Group components by feature folder. A directory accreting 80+ files in one level is the anti-pattern."},
+   ]},
+   {n:13, title:"Size & Structure", articles:[
+     {id:"13.1", t:"File-size tiers and hard ceiling", r:"Same tiers as §2.4, JSX-adjusted; ~800-line hard ceiling for any .ts/.tsx. Past it, extract a use<Feature>() hook + child components + *.utils.ts.", mech:true, status:{state:"warn", label:"38"}},
+     {id:"13.2", t:"Small functions, lean components", r:"Max ~50 lines per handler. A component carrying dozens of useState/useEffect is logic that belongs in a hook."},
+     {id:"13.3", t:"One responsibility per file", r:"A component renders; a hook owns logic; an api/ file talks to one backend domain."},
+   ]},
+   {n:14, title:"Data Flow", articles:[
+     {id:"14.1", t:"The chain", r:"Component → hook (React Query / custom) → api/ client → backend."},
+     {id:"14.2", t:"No raw fetch/axios outside the client", r:"Components and domain files never call fetch/axios directly or hand-roll an Authorization header. Route everything through api/index.ts.", mech:true, status:{state:"warn", label:"35"}},
+     {id:"14.3", t:"Data-fetching lives in a hook", r:"Data-fetching belongs in a use<Feature>() hook, not inline in the component body."},
+   ]},
+   {n:15, title:"State Management", articles:[
+     {id:"15.1", t:"Server state is React Query", r:"Anything fetched from the API is React Query state. Don't mirror it into useState."},
+     {id:"15.2", t:"UI state is Context", r:"UI / session / cross-cutting state lives in Context. The .ts context-object + .tsx provider split is intentional — follow it."},
+     {id:"15.3", t:"Zustand sparingly", r:"Use Zustand only for client-only ephemeral domain state that is awkward in Context."},
+     {id:"15.4", t:"No fourth state system", r:"Do not introduce another state-management library."},
+   ]},
+   {n:16, title:"Error Handling", articles:[
+     {id:"16.1", t:"One error contract, end to end", r:"The api/ layer unwraps { success, data, error } and throws on success:false; React Query surfaces it; the component renders an error state or toast."},
+     {id:"16.2", t:"Never swallow", r:"No catch (e) { console.log(e) } that returns undefined and leaves the UI showing 'Cannot read properties of undefined.'"},
+     {id:"16.3", t:"Use the shared toast", r:"Surface errors through lib/toast, not ad-hoc alert()/console."},
+   ]},
+   {n:17, title:"Hygiene & Security", articles:[
+     {id:"17.1", t:"No console.* in shipped code", r:"Remove console.* before merge (or route through a thin logger). It is noise and can leak data in the browser.", mech:true, status:{state:"warn", label:"88"}},
+     {id:"17.2", t:"No any", r:"No : any or as any. Type API responses in types/ and use them; reach for unknown + a narrow before an any.", mech:true, status:{state:"warn", label:"155"}},
+     {id:"17.3", t:"No secrets in the bundle", r:"Only VITE_-prefixed public config is shipped. Anything sensitive stays server-side."},
+     {id:"17.4", t:"Avoid dangerouslySetInnerHTML", r:"Avoid dangerouslySetInnerHTML; if unavoidable, sanitize the input first."},
+     {id:"17.5", t:"JWT through one path only", r:"Read the JWT only through the client's getCommonHeaders path. Don't scatter localStorage.getItem('auth_token') across components."},
+   ]},
+ ]},
+
+ {n:"IV", title:"Verification", stack:"shared", blurb:"How the Constitution is mechanically and manually checked.", sections:[
+   {n:18, title:"Mechanized Checks", custom:"mechtable"},
+   {n:19, title:"Verification Checklist", custom:"checklist"},
+ ]},
+];
+
+const MECH_ROWS = [
+  ["File over the ~800 hard ceiling","§2.4 / §13.1","both","BE 0 · FE 38"],
+  ["console.* in production code","§9.1 / §17.1","both","BE 2 · FE 88"],
+  ["db() outside models/","§7.4","backend","0"],
+  ["Raw fetch/axios outside api/index.ts","§14.2","frontend","35"],
+  [": any / as any","§17.2","frontend","155"],
+  ["Route file with no inline auth (advisory)","§11.1","backend","19"],
+  ["Migration/seed over ceiling (advisory)","§10.3","backend","1"],
+  ["ESLint: no-explicit-any","§17.2","both","BE 2153 (warn)"],
+  ["ESLint: max-lines-per-function","§2.2 / §13.2","both","BE 152 (warn)"],
+  ["ESLint: max-depth","§2.3","both","BE 62 (warn)"],
+  ["dependency-cruiser: layering","§7.1–§7.4","backend","33 (warn)"],
+  ["grep: dangerouslySetInnerHTML","§17.4","frontend","2"],
+  ["grep: token read outside api client","§17.5","frontend","12"],
+  ["grep: knex .raw outside models/","§10.2","backend","3"],
+];
+const CHECK_BE = [
+  ["§2.4","File within its size tier (~300 single-purpose, ~800 ceiling)"],
+  ["§7.1","Data flow Routes → Controllers → Services → Models; no logic in routes"],
+  ["§7.4","No DB queries outside models/"],
+  ["§8.1","Responses use { success, data, error }"],
+  ["§9.1","No console.* — using Pino"],
+  ["§11.1","Auth middleware on protected routes"],
+  ["§10.5","Transactions for multi-table writes"],
+];
+const CHECK_FE = [
+  ["§13.1","File within its size tier (~300 single-purpose, ~800 ceiling)"],
+  ["§14.2","No raw fetch/axios outside api/index.ts"],
+  ["§17.1","No console.* in shipped code"],
+  ["§17.2","No : any / as any"],
+  ["§14.3","Data-fetching in a hook, not inline"],
+  ["§16.1","Errors surfaced through the one contract, never swallowed"],
+  ["§12.3","Component in a feature folder, not a flat dump"],
+];
+
+/* mechanizability roadmap (plans/06152026-constitution-mechanization).
+   'now' = a.mech (enforced today). The rest derive: Tier A = quick grep, Tier B = linter/depcruise, else judgment-only. */
+const TIER_A = ["5.1","10.2","15.4","17.3","17.4","17.5"];
+const TIER_B = ["1.1","1.3","1.4","2.2","2.3","3.1","4.1","4.2","6.3","7.1","7.3","10.1","11.4","11.5","12.3","13.2","14.1","14.3","16.3"];
+
+/* ============================ RENDER ============================ */
+const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const tree = document.getElementById("tree");
+let totalArticles = 0, totalMech = 0, totalSections = 0;
+
+function mechTableHTML(){
+  let rows = MECH_ROWS.map(r=>`<tr><td>${esc(r[0])}</td><td><code>${esc(r[1])}</code></td><td>${esc(r[2])}</td><td>${esc(r[3])}</td></tr>`).join("");
+  return `<p class="arule" style="margin:2px 4px 8px">Run <code>npm run check:all</code> — the bash detector (<code>check:conventions</code>) + ESLint (article-mapped, warn) + dependency-cruiser (layering, warn). <code>check:conventions --strict</code> gates CI on backend violations; ESLint &amp; depcruise are advisory baselines. Each finding prints its §id.</p>
+  <table><thead><tr><th>Check</th><th>Article</th><th>Tree</th><th>Current (2026-06-15)</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function checklistHTML(){
+  const li = arr => arr.map(c=>`<li><span class="cs">${esc(c[0])}</span><span>${esc(c[1])}</span></li>`).join("");
+  return `<div class="cl-title">Backend</div><ul class="checklist">${li(CHECK_BE)}</ul>
+          <div class="cl-title">Frontend</div><ul class="checklist">${li(CHECK_FE)}</ul>`;
+}
+
+DATA.forEach(part=>{
+  const partEl = document.createElement("div");
+  partEl.className = "part open";
+  partEl.dataset.stack = part.stack;
+  let secHTML = "";
+  part.sections.forEach(sec=>{
+    totalSections++;
+    let inner = "";
+    if(sec.custom === "mechtable") inner = mechTableHTML();
+    else if(sec.custom === "checklist") inner = checklistHTML();
+    else {
+      const mechInSec = sec.articles.filter(a=>a.mech).length;
+      inner = sec.articles.map((a,i)=>{
+        if(a.mech) totalMech++;
+        totalArticles++;
+        const mechBadge = a.mech ? `<span class="badge mech">🔎 mechanized</span>` : "";
+        const status = a.status ? `<span class="status ${a.status.state}">${a.status.state==="ok"?"✓":a.status.state==="warn"?"⚠":"ℹ"} ${esc(a.status.label)}</span>` : "";
+        const tier = a.mech ? "now" : TIER_A.includes(a.id) ? "A" : TIER_B.includes(a.id) ? "B" : "C";
+        const tierTag = a.mech ? "" : `<span class="tier ${tier}">${tier==="A"?"auto · grep":tier==="B"?"auto · lint/cruise":"judgment"}</span>`;
+        return `<div class="article" style="--i:${i}" data-tier="${tier}" data-text="${esc((a.id+" "+a.t+" "+a.r).toLowerCase())}">
+            <button class="chip" data-cite="§${a.id} (Section ${sec.n}, Article ${a.id.split(".")[1]}: ${esc(a.t)})">§${a.id}</button>
+            <div class="abody">
+              <div class="atitle"><span class="t-txt">${esc(a.t)}</span>${mechBadge}${status}${tierTag}</div>
+              <p class="arule">${esc(a.r)}</p>
+            </div>
+          </div>`;
+      }).join("");
+    }
+    const cntBadge = sec.custom ? "" : `<span class="cnt">${sec.articles.length}</span>`;
+    const mechDot = (!sec.custom && sec.articles.some(a=>a.mech)) ? `<span class="mech" title="contains mechanized articles">🔎</span>` : "";
+    secHTML += `<div class="section" data-sec="${sec.n}">
+        <button class="section-head" data-toggle="section">
+          <span class="chev">▶</span>
+          <span class="sn">§${sec.n}</span>
+          <span class="st">${esc(sec.title)}</span>
+          ${mechDot}${cntBadge}
+        </button>
+        <div class="section-wrap"><div class="section-inner">${inner}</div></div>
+      </div>`;
+  });
+  partEl.innerHTML = `
+    <button class="part-head" data-toggle="part">
+      <span class="rn">${part.n}</span>
+      <span class="pt"><b>Part ${part.n} — ${esc(part.title)}</b><span>${esc(part.blurb)}</span></span>
+      <span class="chev">▶</span>
+    </button>
+    <div class="part-wrap"><div class="part-inner">${secHTML}</div></div>`;
+  tree.appendChild(partEl);
+});
+
+/* stats */
+document.getElementById("stats").innerHTML = [
+  [DATA.length,"Parts"],[totalSections,"Sections"],[totalArticles,"Articles"],[totalMech,"Mechanized 🔎"]
+].map(s=>`<div class="stat"><b>${s[0]}</b><span>${s[1]}</span></div>`).join("");
+const _planned = TIER_A.length + TIER_B.length;
+const _ms = document.getElementById("mechSummary");
+if(_ms) _ms.innerHTML = `<b>${totalMech}</b> strict · <b>+${_planned}</b> advisory (live) · <b>${totalArticles-totalMech-_planned}</b> judgment-only`;
+document.getElementById("foot").textContent = "Generated view of ~/.claude/skills/code-constitution/SKILL.md — "+DATA.length+" Parts · "+totalSections+" Sections · "+totalArticles+" Articles. Current-compliance figures are the 2026-06-15 detector snapshot.";
+
+/* ============================ INTERACTIONS ============================ */
+const q = document.getElementById("q");
+const emptyEl = document.getElementById("empty");
+let activeStack = "all", activeMech = "all";
+
+tree.addEventListener("click", e=>{
+  const chip = e.target.closest(".chip");
+  if(chip){ copyCite(chip.dataset.cite); return; }
+  const head = e.target.closest("[data-toggle]");
+  if(!head) return;
+  const kind = head.dataset.toggle;
+  if(kind==="part") head.closest(".part").classList.toggle("open");
+  if(kind==="section") head.closest(".section").classList.toggle("open");
+});
+document.getElementById("enforce").querySelector(".eh").addEventListener("click", function(){
+  this.closest("#enforce").classList.toggle("open");
+});
+
+document.getElementById("stackpills").addEventListener("click", e=>{
+  const p = e.target.closest(".pill"); if(!p) return;
+  activeStack = p.dataset.stack;
+  [...e.currentTarget.children].forEach(c=>c.classList.toggle("active", c===p));
+  applyFilters();
+});
+document.getElementById("mechpills").addEventListener("click", e=>{
+  const p = e.target.closest(".pill"); if(!p) return;
+  activeMech = p.dataset.mech;
+  [...e.currentTarget.children].forEach(c=>c.classList.toggle("active", c===p));
+  applyFilters();
+});
+document.getElementById("expandAll").addEventListener("click", ()=>setAll(true));
+document.getElementById("collapseAll").addEventListener("click", ()=>setAll(false));
+q.addEventListener("input", applyFilters);
+
+function setAll(open){
+  document.querySelectorAll(".part").forEach(p=>p.classList.toggle("open",open));
+  document.querySelectorAll(".section").forEach(s=>s.classList.toggle("open",open));
+}
+
+function applyFilters(){
+  const term = q.value.trim().toLowerCase();
+  const filtering = term || activeMech!=="all";
+  let anyVisible = false;
+
+  document.querySelectorAll(".part").forEach(part=>{
+    const stackOk = activeStack==="all" || part.dataset.stack===activeStack;
+    let partHasVisible = false;
+
+    part.querySelectorAll(".section").forEach(sec=>{
+      const articles = sec.querySelectorAll(".article");
+      let secHasVisible = false;
+
+      if(articles.length===0){
+        // custom section (verification) — only when no search/tier filter and stack ok
+        const show = stackOk && !term && activeMech==="all";
+        sec.style.display = show ? "" : "none";
+        if(show) secHasVisible = true;
+      } else {
+        articles.forEach(a=>{
+          const tier = a.dataset.tier;
+          const matchTerm = !term || a.dataset.text.includes(term);
+          const matchMech = activeMech==="all"
+            || (activeMech==="now" && tier==="now")
+            || (activeMech==="planned" && (tier==="A" || tier==="B"))
+            || (activeMech==="judgment" && tier==="C");
+          const show = stackOk && matchTerm && matchMech;
+          a.style.display = show ? "" : "none";
+          if(show){ secHasVisible = true; highlight(a, term); }
+        });
+        sec.style.display = secHasVisible ? "" : "none";
+      }
+      if(secHasVisible && filtering) sec.classList.add("open");
+      if(secHasVisible) partHasVisible = true;
+    });
+
+    part.style.display = (stackOk && partHasVisible) ? "" : "none";
+    if(stackOk && partHasVisible && filtering) part.classList.add("open");
+    if(partHasVisible) anyVisible = true;
+  });
+
+  emptyEl.style.display = anyVisible ? "none" : "block";
+}
+
+function highlight(article, term){
+  ["t-txt","arule"].forEach(cls=>{
+    const node = article.querySelector("."+cls);
+    if(!node) return;
+    const original = node.dataset.orig || node.textContent;
+    node.dataset.orig = original;
+    if(!term){ node.textContent = original; return; }
+    const re = new RegExp("("+term.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")","ig");
+    node.innerHTML = esc(original).replace(re, "<mark>$1</mark>");
+  });
+}
+
+function copyCite(text){
+  const done = ()=>showToast("Copied: "+text.split(" (")[0]);
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(()=>fallbackCopy(text,done));
+  } else fallbackCopy(text, done);
+}
+function fallbackCopy(text, cb){
+  const ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.opacity="0";
+  document.body.appendChild(ta); ta.select();
+  try{document.execCommand("copy");}catch(e){}
+  document.body.removeChild(ta); cb();
+}
+let toastTimer;
+function showToast(msg){
+  const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"),1600);
+}
+
+/* default: collapse sections, keep parts open */
+document.querySelectorAll(".section").forEach(s=>s.classList.remove("open"));
+applyFilters();
+</script>
+</body>
+</html>

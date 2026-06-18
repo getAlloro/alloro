@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Referrals Month Comparison Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); }
+    .task-card + .task-card { margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .task-card dl { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0; }
+    .task-card dl > div { display: grid; grid-template-columns: 120px 1fr; gap: 12px; }
+    .task-card dd { font-weight: 500; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .data-note { border-left: 3px solid var(--ink); padding-left: 14px; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+      .task-card dl > div { grid-template-columns: 1fr; gap: 2px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-completed">Completed</span>
+      </div>
+      <h1>Referrals Month Comparison</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed — owner-verified, committed to dev/dave</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06152026-referrals-month-comparison</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Practice owners (Jo's request) can see individual months in Manage Data but cannot <em>compare</em> them. They want side-by-side month-over-month referral comparison — production, referral mix, and which referral sources moved — plus a one-paragraph AI read on what changed. This is the "Month toggling + side-by-side comparison (referrals)" feasibility item; feasibility is confirmed and this spec is the greenlit Tier B build (includes per-month source comparison).</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>A <strong>Compare</strong> button in the Referrals Hub header opens a modal where the user picks two months and sees a side-by-side dashboard: production, total/doctor/self referrals (each with a delta badge), and a ranked per-source comparison (referrals in A vs B with up/down/new/gone indicators). A <strong>Generate comparison insights</strong> button in the modal header calls a new backend endpoint that uses Claude Haiku (<code>claude-haiku-4-5-20251001</code>) to write a short paragraph summarizing the comparison.</p>
+      <p><strong>Done when:</strong> the modal opens from the live hub (<code>PmsHubSurface</code>), both months and their sources render correctly, deltas are accurate, the insight paragraph generates from real data, and the build/lint gates pass with manual QA in dev.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <p class="data-note"><strong>Key finding (verified):</strong> per-month referral <em>sources</em> already ship to the client. <code>aggregatePmsData()</code> builds each month with its own <code>sources[]</code> array (<code>src/utils/pms/pmsAggregator.ts:375</code>) and <code>aggregateKeyData()</code> returns <code>months</code> verbatim (<code>src/controllers/pms/pms-services/pms-data.service.ts:106</code>). The data is on the wire in <code>/pms/keyData</code> today; the frontend <code>PmsKeyDataMonth</code> type simply does not declare <code>sources</code>, and <code>PMSVisualPillars</code> strips it when remapping to <code>monthlyData</code>. <strong>No new data endpoint and no aggregator change are needed for the comparison.</strong></p>
+
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/components/PMS/dashboard/PmsHubSurface.tsx</code> - live Referrals Hub surface; header at lines 246-256 is where the Compare button goes</li>
+        <li><code>frontend/src/components/PMS/dashboard/PmsDashboardSurface.tsx:21</code> - <code>PmsDashboardSurfaceProps</code> (shared by both surfaces); add optional <code>onOpenCompare</code> here</li>
+        <li><code>frontend/src/components/PMS/PMSVisualPillars.tsx</code> - orchestrator; holds <code>keyData</code> (raw months WITH sources), <code>organizationId</code>, <code>locationId</code>; mounts the surface at line 1390</li>
+        <li><code>frontend/src/api/pms.ts:255</code> - <code>PmsKeyDataMonth</code> (extend with optional <code>sources</code>/<code>timestamp</code>); line 265 <code>PmsKeyDataSource</code>; line 593 <code>fetchPmsKeyData</code> (api-fn analog)</li>
+        <li><code>src/routes/pms.ts:47</code> - mount the new <code>POST /pms/comparison-insights</code> next to <code>keyData</code></li>
+        <li><code>src/controllers/pms/PmsController.ts</code> - add <code>generateComparisonInsights</code> controller (alongside <code>getKeyData</code>)</li>
+        <li><code>src/utils/pms/pmsAggregator.ts</code> - reused read-only via <code>aggregatePmsData(org, location)</code></li>
+      </ul>
+
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li><strong>Haiku call:</strong> <code>src/services/reviewSentiment.ts:65-135</code> - lazy <code>new Anthropic()</code>, <code>messages.create({ model: "claude-haiku-4-5-20251001", max_tokens, messages })</code>, read <code>response.content[0]</code> text, try/catch. Our summary returns plain text (no JSON parse).</li>
+        <li><strong>PMS service shape:</strong> <code>src/controllers/pms/pms-services/pms-data.service.ts</code> - domain service that calls the aggregator; new insights service lives beside it.</li>
+        <li><strong>Cost logging:</strong> <code>safeLogAiCostEvent</code> from <code>src/services/ai-cost/service.ai-cost</code> (fire-and-forget, never blocks).</li>
+        <li><strong>Modal:</strong> Framer Motion <code>AnimatePresence</code> backdrop + panel, per <code>frontend/src/components/PMS/DirectUploadModal.tsx</code>.</li>
+        <li><strong>Frontend api fn:</strong> <code>apiPost({ path, passedData })</code> from <code>frontend/src/api/index</code>; org/location passed as args like <code>fetchPmsKeyData</code>.</li>
+        <li><strong>Success envelope:</strong> all endpoints return <code>{ success: boolean, data?, error? }</code>.</li>
+      </ul>
+      <p><strong>Reference files:</strong> <code>src/services/reviewSentiment.ts</code> (Haiku call) and <code>frontend/src/components/PMS/DirectUploadModal.tsx</code> (modal structure) are the closest analogs to match.</p>
+      <p><strong>Execution skills (run before coding):</strong> <code>code-constitution</code> (backend endpoint/service/route) and <code>alloro-frontend</code> (modal, api module, anti-AI-slop UI).</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Server re-derives both months from <code>aggregatePmsData(org, location)</code>; client sends only the two month keys + location_id (org from JWT).</li>
+            <li>Use <code>claude-haiku-4-5-20251001</code>, <code>max_tokens</code> ~400, plain-text output.</li>
+            <li>New endpoint reuses <code>[authenticateToken, rbacMiddleware, locationScopeMiddleware]</code>.</li>
+            <li>Type/prop additions are optional/additive only.</li>
+            <li>Compare button renders only when ≥2 months exist; pickers block identical A/B.</li>
+            <li>Disable Generate button while a request is in flight; log cost via <code>safeLogAiCostEvent</code>.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No change to the <code>/pms/keyData</code> response shape or <code>aggregatePmsData</code> logic.</li>
+            <li>No new dependencies.</li>
+            <li>No new DB table / migration (no v1 persistence of insights).</li>
+            <li>Do not refactor <code>PMSVisualPillars</code> beyond adding state + modal mount + props.</li>
+            <li>Do not trust client-sent referral numbers for the insight.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Comparing 3+ months; cross-location comparison.</li>
+        <li>Persisting/caching generated insights (future: <code>agent_results</code>).</li>
+        <li>Exporting/printing the comparison; QTD/YTD comparison (months only).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>User-triggered LLM cost.</strong> <strong>Mitigation:</strong> explicit click only, disable-while-loading guard, cost logged via <code>safeLogAiCostEvent</code> (Haiku ≈ $0.001/call at ~400 tokens out).</li>
+        <li><strong>Shared-type edits</strong> (<code>PmsDashboardSurfaceProps</code>, <code>PmsKeyDataMonth</code>). <strong>Mitigation:</strong> additions are optional; <code>PmsDashboardSurface</code> ignores <code>onOpenCompare</code> (only <code>PmsHubSurface</code> renders the button); backend payload untouched.</li>
+        <li><strong>Sparse / mismatched per-month sources.</strong> Raw source values may be strings and unranked. <strong>Mitigation:</strong> normalize with <code>Number()</code> and sort client-side; guard ≥2 months.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> consumers of <code>PmsDashboardSurfaceProps</code> = <code>PmsHubSurface</code> + <code>PmsDashboardSurface</code> (both safe with optional prop). Consumers of <code>PmsKeyDataMonth</code> = the <code>monthlyData</code> map in <code>PMSVisualPillars</code> + any keyData reader (safe with optional fields). New endpoint/service/modal have no existing consumers. <code>aggregatePmsData</code> is read-only reuse — unchanged.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>Server-side re-derivation (chosen) vs client-sends-numbers.</strong> Recommended: server re-derives — avoids trusting client input and keeps prompt/model server-side; no drift since both paths read the same <code>monthly_rollup</code>. The client-numbers shortcut was rejected despite being marginally less code.</li>
+        <li><strong>No v1 caching.</strong> Recommended: generate fresh per explicit click; persistence to <code>agent_results</code> deferred until there's evidence users re-open the same comparison often.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Backend insights endpoint + service</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New service <code>generateReferralComparisonInsight({ organizationId, locationId, monthA, monthB })</code>: call <code>aggregatePmsData</code>, locate both <code>AggregatedMonthData</code> by month key, build a comparison object (production, total/doctor/self referrals, top sources per month with referral deltas), construct the Haiku prompt, call <code>messages.create</code>, return <code>{ insight, monthA, monthB }</code>. Log cost via <code>safeLogAiCostEvent</code>. Add controller <code>generateComparisonInsights</code> (validates body, org from <code>rbacReq.organizationId</code>, returns success envelope, 404 if a month is missing). Mount <code>POST /pms/comparison-insights</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/pms/pms-services/pms-comparison-insights.service.ts</code> (new), <code>src/controllers/pms/PmsController.ts</code>, <code>src/routes/pms.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> (backend) + curl/Postman with a real org/location returns a paragraph</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Frontend types + api function</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Extend <code>PmsKeyDataMonth</code> with optional <code>sources?: PmsKeyDataSource[]</code> and <code>timestamp?: string</code>. Add <code>generateComparisonInsights(organizationId, locationId, monthA, monthB)</code> + its response type calling <code>apiPost({ path: "/pms/comparison-insights", passedData })</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/api/pms.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none (parallel with T1)</dd></div>
+          <div><dt>Verify</dt><dd><code>cd frontend &amp;&amp; npx tsc -p tsconfig.app.json --noEmit</code></dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: CompareMonthsModal component</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New modal (AnimatePresence backdrop + panel). Props <code>{ isOpen, onClose, months: PmsKeyDataMonth[], organizationId, locationId }</code>. Two month <code>&lt;select&gt;</code> pickers defaulting to the two latest months (block identical). Side-by-side stat tiles (production, total/doctor/self) with delta badges. Ranked per-source comparison list (normalize + sort each month's <code>sources</code>; compute pairwise referrals A vs B → up/down/new/gone). Header "Generate comparison insights" button → loading → render paragraph; inline error on failure. Match hub visual tokens (reuse <code>StatTile</code> styling / <code>formatCompactCurrency</code>).</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/PMS/dashboard/CompareMonthsModal.tsx</code> (new), optional <code>compareUtils.ts</code> for the pairwise diff</dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>tsc app project; renders with mock months</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Wire Compare button + modal into the hub</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add optional <code>onOpenCompare?: () =&gt; void</code> to <code>PmsDashboardSurfaceProps</code>. In <code>PmsHubSurface</code> header, render a Compare button (only when <code>monthlyData.length &gt;= 2</code>) calling <code>onOpenCompare</code>. In <code>PMSVisualPillars</code>: add <code>showCompare</code> state, pass <code>onOpenCompare</code>, render <code>&lt;CompareMonthsModal isOpen months={keyData?.months ?? []} organizationId locationId onClose /&gt;</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/PMS/dashboard/PmsDashboardSurface.tsx</code>, <code>frontend/src/components/PMS/dashboard/PmsHubSurface.tsx</code>, <code>frontend/src/components/PMS/PMSVisualPillars.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3</dd></div>
+          <div><dt>Verify</dt><dd>tsc app project + lint</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Verify end-to-end in dev</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Run dev; open the Referrals Hub for an org with ≥2 months; open Compare; switch month pairs; confirm tiles, deltas, and source comparison are correct against Manage Data; click Generate and confirm a coherent paragraph from real numbers; confirm cost event logged.</dd></div>
+          <div><dt>Files</dt><dd>n/a (manual)</dd></div>
+          <div><dt>Depends on</dt><dd>T1, T4</dd></div>
+          <div><dt>Verify</dt><dd>Manual QA checklist below</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> Backend <code>npx tsc --noEmit</code> - zero new errors</li>
+        <li><input type="checkbox" checked disabled> <code>cd frontend &amp;&amp; npx tsc -p tsconfig.app.json --noEmit</code> - zero new errors</li>
+        <li><input type="checkbox" checked disabled> Lint passes on changed files</li>
+        <li><input type="checkbox" checked disabled><code>POST /pms/comparison-insights</code> returns a paragraph for a real org/location</li>
+        <li><input type="checkbox" checked disabled> Manual: Compare opens, two months + per-source comparison render, deltas correct vs Manage Data</li>
+        <li><input type="checkbox" checked disabled> Manual: Generate insights produces a coherent paragraph; button disabled while loading</li>
+        <li><input type="checkbox" checked disabled> Manual: Compare hidden when &lt;2 months; identical A/B blocked</li>
+        <li><input type="checkbox" checked disabled> No regressions to the Referrals Hub surface or <code>/pms/keyData</code> consumers</li>
+        <li><input type="checkbox" checked disabled> Cost event logged via <code>safeLogAiCostEvent</code></li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-06-15</h3>
+        <p><strong>Change:</strong> Execution deviations to honor conventions. (1) The insight call routes through a React Query mutation hook <code>useGenerateComparisonInsights</code> (<code>hooks/queries/usePmsComparisonInsights.ts</code>) rather than a direct call inside the modal (§14.1/§14.3). It throws on the failure envelope locally so React Query gets real isError/error semantics without altering the shared client (which returns <code>{success,data,error}</code> and never throws). (2) The modal was split into <code>CompareMetricGrid</code> + <code>CompareSourceList</code> + <code>compareMonths.utils.ts</code> to keep each file within the size/nesting tiers (§13.1/§13.2). (3) Backend uses the PMS domain's existing <code>{success,error,message}</code> + <code>handleError</code> shape, not the gbp-automation builders, to avoid a parallel response contract inside one domain (no drive-by refactor).</p>
+        <p><strong>Reason:</strong> Execution deviation: conventions conformance (code-constitution + alloro-frontend). No scope or behavior change vs the approved spec.</p>
+        <p><strong>Build:</strong> backend <code>tsc --noEmit</code> 0 errors; frontend <code>tsc -p tsconfig.app.json</code> 0 errors; eslint 0 problems on changed files; <code>npm run check:conventions</code> no findings for new files. Manual/visual QA pending (owner verifies in their tab).</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-06-15</h3>
+        <p><strong>Change:</strong> Owner QA fixes. (1) Comparison direction now reads left-to-right (A → B): per-source Move ("new"/"gone"/"up"/"down") and the metric-grid Change arrow/% describe the move from the left column to the right column. This fixes inverted labels when the earlier month is placed in A — a source going 0 → 4 now reads "New" (not "Gone"), and a metric rising from A to B shows ▲. (2) Default selection now puts the earlier month in A and the most recent in B so the default view reads chronologically. (3) "Generate comparison insights" recolored to brand near-black <code>alloro-navy</code> (no pure #000 per the design system).</p>
+        <p><strong>Reason:</strong> User QA: with the older month on the left, the prior "A relative to B" semantics inverted every label and arrow.</p>
+        <p><strong>Files:</strong> <code>compareMonths.utils.ts</code> (source direction), <code>CompareMetricGrid.tsx</code> (ChangeBadge direction), <code>CompareMonthsModal.tsx</code> (default A/B + button color).</p>
+        <p><strong>Build:</strong> frontend <code>tsc -p tsconfig.app.json</code> 0 errors; eslint 0 problems on changed files.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-06-15</h3>
+        <p><strong>Change:</strong> Owner QA on the AI summary. (1) The "AI comparison" panel now renders at the TOP of the comparison (above the metric grid and source list). (2) Restyled as a parchment-paper card (<code>--color-pm-bg-primary</code>) in the serif display face (<code>font-display</code>). (3) The model now emits <code>==highlight==</code> markers around the 2-4 most important phrases, parsed into <code>&lt;mark&gt;</code> spans with a terracotta tint. (4) Prompt tightened to one or two sentences under ~45 words (max_tokens 400 → 220). Modal header extracted to <code>CompareModalHeader</code> to keep the component within the function-size lint limit.</p>
+        <p><strong>Reason:</strong> User QA: the original summary was too long and visually plain; owner wanted a concise, highlighted, paper-styled hero on top.</p>
+        <p><strong>Files:</strong> <code>pms-comparison-insights.service.ts</code> (prompt + max_tokens), <code>compareMonths.utils.ts</code> (parseHighlights), <code>CompareMonthsModal.tsx</code> (panel restyle + reorder + header extract).</p>
+        <p><strong>Build:</strong> backend + frontend <code>tsc</code> 0 errors; eslint 0 problems on changed files.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 4 - 2026-06-15</h3>
+        <p><strong>Change:</strong> Replaced the native <code>&lt;select&gt;</code> month pickers with an animated month-calendar picker (<code>MonthCalendarPicker</code>): a Framer-Motion popover with a year header (prev/next) over a 12-month grid, staggered cell entrance, selected-month highlight, and only data-backed months selectable. Closes on outside-click and Escape. Removed the old <code>MonthSelect</code> sub-component and its <code>options</code> memo from the modal.</p>
+        <p><strong>Reason:</strong> User request: an animated calendar picker instead of plain dropdowns.</p>
+        <p><strong>Files:</strong> <code>MonthCalendarPicker.tsx</code> (new), <code>CompareMonthsModal.tsx</code> (wire-in + cleanup).</p>
+        <p><strong>Build:</strong> frontend <code>tsc -p tsconfig.app.json</code> 0 errors; eslint 0 problems on changed files. The popover renders inside the modal's <code>overflow-y-auto</code> body — visual QA should confirm it is not clipped (portal fallback available if needed).</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 5 - 2026-06-15</h3>
+        <p><strong>Change:</strong> (1) The "AI comparison" card is now always present whenever two months are selected; the black "Generate comparison insights" button was removed from the modal header and replaced by an underlined <strong>"Explain this comparison"</strong> text link inside the card (the loading state, the result, and a "Try again" error state all render in that same card). (2) The insight now surfaces notable referral-source highlights: the service computes per-source movement A → B (new / gone / up / down), feeds the top movers to Haiku, and the prompt instructs it to name a standout source when one exists. Output widened to two or three sentences under ~55 words (max_tokens 220 → 280).</p>
+        <p><strong>Reason:</strong> User request: keep the summary container always visible with an inline text trigger, and call out notable source movements.</p>
+        <p><strong>Files:</strong> <code>pms-comparison-insights.service.ts</code> (buildSourceMoves + prompt + tokens), <code>CompareMonthsModal.tsx</code> (always-on InsightPanel + InsightBody; header button removed).</p>
+        <p><strong>Build:</strong> backend + frontend <code>tsc</code> 0 errors; eslint 0 problems on changed files.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 6 - 2026-06-15</h3>
+        <p><strong>Change:</strong> Reworked the empty state of the AI comparison card. It previously collapsed onto the eyebrow's line and read muted; now the eyebrow sits on its own line above a short serif invite ("Want a plain-English read on what changed?") and a prominent terracotta underlined "Explain this comparison" CTA.</p>
+        <p><strong>Reason:</strong> User QA: the empty-state UI looked muted and cramped.</p>
+        <p><strong>Files:</strong> <code>CompareMonthsModal.tsx</code> (InsightBody idle state).</p>
+        <p><strong>Build:</strong> frontend <code>tsc -p tsconfig.app.json</code> 0 errors; eslint 0 problems on changed files.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 7 - 2026-06-15</h3>
+        <p><strong>Change:</strong> The "AI comparison" eyebrow now renders only when there is a result; it is hidden on the empty, loading, and error states. Removed the now-dangling top margins so each state sits flush in the card.</p>
+        <p><strong>Reason:</strong> User QA: the label should not appear on the empty state.</p>
+        <p><strong>Files:</strong> <code>CompareMonthsModal.tsx</code> (InsightPanel / InsightBody).</p>
+        <p><strong>Build:</strong> frontend <code>tsc -p tsconfig.app.json</code> 0 errors; eslint 0 problems on changed files.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 8 - 2026-06-15</h3>
+        <p><strong>Change:</strong> Swapped the empty-state fonts — the invite line is now sans (body) and the "Explain this comparison" CTA uses the serif display face.</p>
+        <p><strong>Reason:</strong> User QA: font preference on the empty state.</p>
+        <p><strong>Files:</strong> <code>CompareMonthsModal.tsx</code> (InsightBody idle state).</p>
+        <p><strong>Build:</strong> frontend <code>tsc -p tsconfig.app.json</code> 0 errors; eslint 0 problems on changed files.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 9 - 2026-06-15</h3>
+        <p><strong>Change:</strong> Removed the underline from the empty-state "Explain this comparison" CTA (kept the terracotta serif + sparkle + hover-to-navy).</p>
+        <p><strong>Reason:</strong> User QA: drop the underline.</p>
+        <p><strong>Files:</strong> <code>CompareMonthsModal.tsx</code> (InsightBody idle state).</p>
+        <p><strong>Build:</strong> frontend <code>tsc -p tsconfig.app.json</code> 0 errors; eslint 0 problems on changed files.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 10 - 2026-06-15</h3>
+        <p><strong>Change:</strong> Empty-state invite and "Explain this comparison" CTA now sit inline on one row (flex-wrap, so they still stack gracefully on narrow widths).</p>
+        <p><strong>Reason:</strong> User QA: make the empty state inline.</p>
+        <p><strong>Files:</strong> <code>CompareMonthsModal.tsx</code> (InsightBody idle state).</p>
+        <p><strong>Build:</strong> frontend <code>tsc -p tsconfig.app.json</code> 0 errors; eslint 0 problems on changed files.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

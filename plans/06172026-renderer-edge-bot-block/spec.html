@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Renderer Edge Bot Block Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    pre { background: var(--soft); border: 1px solid var(--line); border-radius: 6px; padding: 14px; overflow-x: auto; font-size: 0.86rem; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .tag { display:inline-block; font-size: 0.66rem; font-weight: 800; text-transform: uppercase; border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; color: var(--muted); margin-left:6px; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">In Progress</span>
+      </div>
+      <h1>Renderer Edge Bot Block</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>In Progress</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06172026-renderer-edge-bot-block</dd></div>
+        <div><dt>Size</dt><dd>Medium (infra)</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Client websites served by the shared renderer are being flooded by datacenter bots (headless Chrome from AWS us-west-2, plus internet-wide scanners). For One Endodontics this turned ~1,300 real June visitors into ~21,000 reported, wrecking the dashboard and conversion math. A one-time data scrub already cleaned June, but the bots keep arriving daily and re-inflate it. The only durable fix is to stop the bots at the edge so they never load the page, never reach Rybbit, and never cost renderer CPU.</p>
+      <p><strong>Hard constraints from the owner:</strong> the fix must never block legitimate SEO crawlers (Googlebot/Bing — an SEO outage is unacceptable) and must never block real visitors / potential clients.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Add an IP-origin block to the renderer's Caddy (<code>alloro-renderer</code>, 54.159.199.33) that denies requests originating from cloud/hosting networks (AWS + GCP + Azure + DigitalOcean + Oracle + Hetzner + OVH), while explicitly allowing our own infrastructure and verified search crawlers. Real visitors come from ISP/mobile networks and are structurally never in these ranges; Googlebot/Bing run on Google/Microsoft networks (not the blocked clouds) and are additionally allowlisted.</p>
+      <p><strong>Done = </strong> a 7-day <em>dry-run</em> (log-only, nothing blocked; checked automatically each day by a cron that emails the verdict) proves the would-block set is all bots — zero Googlebot/Bing, zero engaged/converting visitors — then enforcement is switched on; all client sites keep loading; Googlebot still crawls; new-day Rybbit bot volume drops to baseline. Coverage = Approach B (multi-cloud CIDR), all client sites, via native Caddy <code>remote_ip</code> matchers (no custom binary).</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Target system (verified by recon)</h3>
+      <ul>
+        <li><code>alloro-renderer</code> (54.159.199.33, AWS us-east-1) — serves <strong>every</strong> client domain. DNS points straight here (GoDaddy), no Cloudflare in front, so <code>remote_ip</code> = the real client IP.</li>
+        <li><code>/etc/caddy/Caddyfile</code> — Caddy v2.11.1 (systemd service). Single catch-all <code>https://</code> block → <code>reverse_proxy localhost:7777</code> (pm2 <code>website-builder</code>). On-demand TLS via <code>ask http://localhost:7777/verify-domain</code>.</li>
+        <li>Built-in matchers <code>http.matchers.remote_ip</code> / <code>client_ip</code> are present. <strong>No MaxMind/ratelimit plugins</strong> → ASN-by-number blocking would need a custom binary; CIDR blocking works today.</li>
+        <li>Caddy currently writes <strong>no access log</strong> (only TLS/reverse-proxy warnings to journald) — the dry-run requires enabling one.</li>
+      </ul>
+      <h3>Current Caddyfile</h3>
+      <pre>{
+    on_demand_tls { ask http://localhost:7777/verify-domain }
+}
+https:// {
+    tls { on_demand }
+    reverse_proxy localhost:7777
+}</pre>
+      <h3>Allowlist source-of-truth</h3>
+      <ul>
+        <li><strong>Our 9 Elastic IPs</strong> (the 10th is intentionally disregarded per owner): <code>18.213.168.139</code>, <code>23.20.182.194</code> (N8N), <code>23.23.202.251</code> (Rybbit), <code>3.210.251.123</code> (AuditTool/Docs), <code>3.210.41.226</code> (Dev), <code>44.220.215.37</code> (Sandbox), <code>52.203.199.155</code> (App — the audit scraper egress), <code>54.159.199.33</code> (Renderer), <code>54.197.53.133</code>.</li>
+        <li><strong>Googlebot</strong>: <code>developers.google.com/static/search/apis/ipranges/googlebot.json</code> (+ <code>special-crawlers.json</code>, <code>user-triggered-fetchers.json</code>). <strong>Bingbot</strong>: <code>bing.com/toolbox/bingbot.json</code>.</li>
+      </ul>
+      <h3>Blocklist source-of-truth (published ranges)</h3>
+      <ul>
+        <li>AWS <code>ip-ranges.amazonaws.com/ip-ranges.json</code>; GCP <code>gstatic.com/ipranges/cloud.json</code> (compute only — NOT <code>goog.json</code>, which contains Google services); DigitalOcean CSV; Oracle <code>public_ip_ranges.json</code>; Azure ServiceTags JSON; Hetzner/OVH via ASN→prefix derivation (RADb/BGP).</li>
+      </ul>
+      <p><strong>Reference analog:</strong> this is an infrastructure change on the renderer box, outside the app code trees (<code>src/</code>, <code>frontend/</code>), so the Code Constitution (backend §6 / frontend §12) does not govern it. It follows the renderer/ops + AGENTS.md deploy-safety conventions instead. Closest prior analog = the <code>alloro-site</code> nginx vhost handling (and its <code>.bak</code>-in-config landmine lesson: never leave backups where the server parses them).</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Allowlist evaluated <strong>before</strong> the block; ACME path <code>/.well-known/acme-challenge/*</code> always exempt so on-demand cert issuance for new client domains never breaks.</li>
+            <li>Block only at the HTTP layer (never the TLS layer) so TLS-ALPN cert challenges are unaffected.</li>
+            <li>Run a 7-day dry-run (log-only), checked automatically each day by a renderer cron that emails a CLEAN/NOT-CLEAN verdict, and pass its acceptance gate before any enforcement.</li>
+            <li><code>caddy validate</code> must pass before every reload; reloads are graceful (zero-downtime); keep a timestamped backup of the working Caddyfile <em>outside</em> <code>/etc/caddy</code>.</li>
+            <li>CIDR refresh script must validate the generated config before reloading; on failure keep the last-good list and alert — never reload an unvalidated config.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Block Googlebot/Bing or any verified search crawler. Verify Google by published ranges + reverse-DNS, never by user-agent (UA is spoofable).</li>
+            <li>Block ISP/mobile (real visitor) traffic.</li>
+            <li>Block Google's crawler network — only GCP <em>compute</em> ranges (<code>cloud.json</code>), never Google services (<code>goog.json</code>).</li>
+            <li>Rebuild/replace the Caddy binary (no MaxMind plugin this round — config-only change).</li>
+            <li>Leave <code>.bak</code>/backup files inside <code>/etc/caddy</code> where Caddy would parse them.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>MaxMind ASN-by-number blocking (custom binary) — future graduation if CIDR upkeep gets heavy.</li>
+        <li>Secret-header allowlisting of our own scrapers (needs app-code change) — phase 1 allowlists our tools by Elastic IP instead.</li>
+        <li>Proof-of-work / JS challenge (e.g., Anubis) — future backstop if bots ever move to residential IPs.</li>
+        <li>Rate-limiting (needs a plugin).</li>
+        <li>Cleaning historical Rybbit data for the other client sites (separate task).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 — Structural/availability + SEO. The change is on the single box that keeps <em>every</em> client site online, and a crawler mistake risks deindexing.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>SEO deindexing</strong> if a crawler is blocked. <strong>Mitigation:</strong> AWS/GCP-compute/etc. ranges structurally exclude Googlebot; additionally allowlist Googlebot/Bing published ranges; dry-run proves zero crawlers in the would-block set; post-enforce monitor Search Console + alert on any 403 to an IP that reverse-DNS-verifies as Google/Bing.</li>
+        <li><strong>Real visitor blocked</strong> (e.g., a patient on a datacenter-exit VPN). <strong>Mitigation:</strong> dry-run flags engaged/converting sessions (form submits, multi-page) inside the would-block set; if material, soften to a challenge or allow for that range. Residual low for a local dental practice.</li>
+        <li><strong>All-sites outage from a bad config.</strong> <strong>Mitigation:</strong> <code>caddy validate</code> gate + graceful reload + working backup outside /etc/caddy + instant rollback.</li>
+        <li><strong>Cert issuance breaks for new domains.</strong> <strong>Mitigation:</strong> exempt the ACME path; block is HTTP-layer only.</li>
+        <li><strong>Stale/broken CIDR list</strong> under-blocks or breaks a reload. <strong>Mitigation:</strong> refresh script validates before reload; keeps last-good on failure; alerts.</li>
+        <li><strong>Provider list sourcing</strong> — AWS/GCP/DO/Oracle have clean JSON/CSV; Azure's URL rotates; Hetzner/OVH need ASN→prefix derivation. <strong>Mitigation:</strong> ship AWS/GCP/DO/Oracle first; add Azure/Hetzner/OVH as derivable, defer any that can't be fetched reliably and log the gap.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> every domain served by <code>alloro-renderer</code> — all client sites (One Endo, Caswell, Garrison, Surf City, Tri-City, …), all <code>*.sites.getalloro.com</code> previews, the landing page, and the on-demand TLS issuance flow. Our own AWS-hosted tools that fetch the sites (audit scraper on <code>52.203.199.155</code>) are protected by the EIP allowlist.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>CIDR lists are reactive (bots can hop to an un-listed network). Accepted for phase 1 because coverage is a dial we can widen anytime and the dry-run + monitoring catch drift. The durable end-state is MaxMind ASN blocking (out of scope now, by owner choice, to avoid a binary swap on the shared box).</li>
+        <li>Allowlisting our scrapers by Elastic IP (not a secret header) is slightly less robust if an EIP changes, but avoids an app-code change this round. Revisit with the secret-header approach if EIPs churn.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Access logging + dry-run instrumentation</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Enable a structured JSON access log on the renderer's Caddy (remote_ip, host, uri, user-agent, status) to a file with rotation. No blocking added. This is the dry-run's data source.</dd></div>
+          <div><dt>Files</dt><dd><code>/etc/caddy/Caddyfile</code> (renderer), log dir <code>/var/log/caddy/</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>caddy validate</code>; graceful reload; confirm requests appear in the log with real client IPs.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: CIDR refresh script (blocklist generator)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Script that fetches published ranges (AWS, GCP <code>cloud.json</code>, DigitalOcean, Oracle, Azure, Hetzner/OVH via ASN derivation), generates a Caddy snippet of CIDRs for a <code>@datacenter</code> matcher, runs <code>caddy validate</code> on the candidate config, and only then swaps it in. Install as a weekly cron. Last-good retained on failure + alert.</dd></div>
+          <div><dt>Files</dt><dd><code>/opt/alloro/edge-block/refresh-cidrs.sh</code>, generated <code>/etc/caddy/snippets/datacenter-cidrs.caddy</code>, cron entry (version-controlled copy in the <code>website-builder-rebuild</code> repo)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Script produces a non-empty, <code>caddy validate</code>-clean snippet; spot-check known bot IPs (44.252.x, 35.93.x) fall inside; known Googlebot IP falls outside.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Allowlist snippet (our infra + verified crawlers + ACME)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Generate an <code>@allowed</code> snippet: the 9 Elastic IPs (/32) + Googlebot + Bing published ranges (fetched + refreshed alongside T2). Wire the ACME-path exemption. Allowlist is referenced before the block.</dd></div>
+          <div><dt>Files</dt><dd><code>/etc/caddy/snippets/allowed-cidrs.caddy</code>, refresh hook in <code>refresh-cidrs.sh</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2 (shares the refresh/validate harness)</dd></div>
+          <div><dt>Verify</dt><dd>Each EIP + a sample Googlebot range present; <code>caddy validate</code> clean.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Dry-run analysis — automated daily, 7-day window</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Script that reads the access log + the T2/T3 CIDR lists and reports the <strong>would-block set</strong> = requests in datacenter ranges AND not allowlisted. Breaks down by network/ASN and UA; reverse-DNS-verifies and flags any Googlebot/Bing in the set; flags any IP showing engagement (form submit / multiple distinct paths); emits a one-line CLEAN/NOT-CLEAN verdict. A <strong>daily cron</strong> on the renderer runs it and emails the summary via the existing n8n <code>emailService</code> webhook (the same path the worker-watchdog uses to email dave@getalloro.com). Run 7 days to cover a full weekly crawl/traffic cycle.</dd></div>
+          <div><dt>Files</dt><dd><code>/opt/alloro/edge-block/analyze-dryrun.sh</code>, daily cron entry, emailService webhook env</dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2, T3</dd></div>
+          <div><dt>Verify</dt><dd>Acceptance gate: <strong>7 consecutive daily reports</strong> show the would-block set is ~the bot volume with <strong>zero</strong> verified Googlebot/Bing and <strong>zero</strong> engaged/converting visitors. Any non-clean day resets the count after the allowlist is fixed.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Enforce</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add the block handler: <code>@block</code> = datacenter AND not-allowed AND not-ACME → <code>respond 403</code> (or <code>abort</code>); everything else proxies as today. Back up the working Caddyfile outside /etc/caddy, <code>caddy validate</code>, graceful reload.</dd></div>
+          <div><dt>Files</dt><dd><code>/etc/caddy/Caddyfile</code></dd></div>
+          <div><dt>Depends on</dt><dd>T4 (gate passed)</dd></div>
+          <div><dt>Verify</dt><dd>Several client domains return 200 from a normal browser; a simulated AWS-range IP gets 403; an EIP and a Googlebot-range request pass; ACME path reachable.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Monitoring, alerting, rollback</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Alert if any 403 hits an IP that reverse-DNS-verifies as Google/Bing (allowlist gap). Check Google Search Console for crawl-error spikes. Confirm Rybbit new-day bot volume drops to baseline across sites. Document the one-line rollback (restore backup Caddyfile + reload).</dd></div>
+          <div><dt>Files</dt><dd><code>/opt/alloro/edge-block/verify-crawlers.sh</code>, runbook note in the plan folder</dd></div>
+          <div><dt>Depends on</dt><dd>T5</dd></div>
+          <div><dt>Verify</dt><dd>48h post-enforce: no verified-crawler 403s, no Search Console crawl errors, Rybbit baseline holds, all sites up.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> Access log live on the renderer; daily cron emailing the dry-run verdict.</li>
+        <li><input type="checkbox" disabled> Dry-run gate passed: <strong>7 consecutive CLEAN daily reports</strong> — would-block set all-bots, <strong>zero</strong> verified Googlebot/Bing, <strong>zero</strong> engaged/converting visitors.</li>
+        <li><input type="checkbox" disabled> <code>caddy validate</code> clean; enforcement reloaded gracefully; working backup stored outside /etc/caddy.</li>
+        <li><input type="checkbox" disabled> Manual: ≥3 client domains load 200 in a normal browser; an AWS-range IP gets 403; an EIP + a Googlebot-range request pass; ACME path reachable.</li>
+        <li><input type="checkbox" disabled> Googlebot can still fetch (Search Console live test / verified-rDNS request passes).</li>
+        <li><input type="checkbox" disabled> New-domain on-demand cert issuance still works.</li>
+        <li><input type="checkbox" disabled> 48h monitoring: no verified-crawler 403s, no SC crawl errors, Rybbit new-day bot volume at baseline.</li>
+        <li><input type="checkbox" disabled> Rollback procedure documented and confirmed restorable.</li>
+      </ul>
+    </section>
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-06-18</h3>
+        <p><strong>Change:</strong> Executed T1–T4 on <code>alloro-renderer</code>. T1: JSON access log live at <code>/var/log/caddy/access.log</code> (recovered a wedged reload via clean restart). T2: blocklist generator → 13,898 cloud CIDRs (AWS/GCP/DigitalOcean/Oracle). T3: allowlist → 352 CIDRs (9 Elastic IPs + Googlebot + Bing). T4: analyzer (<code>analyze-dryrun.py</code>) + daily email cron (13:13 UTC) + weekly refresh cron (Sun 3am UTC); first verdict CLEAN. Status → In Progress; T5 enforce pending the 7-day gate. Artifacts live under <code>/opt/alloro/edge-block/</code>.</p>
+        <p><strong>Reason:</strong> Execution deviation (recorded): (a) the analyzer reads the access log via passwordless <code>sudo</code>/stdin rather than a Caddy <code>mode</code> directive — the file is <code>caddy:caddy 0600</code> and rolls at 100&nbsp;MiB; (b) the dry-run hard gate is the rDNS-verified-crawler check ONLY — multi-page/form-POST "engagement" was demoted to an informational REVIEW list, because real users are structurally never in the datacenter would-block set, so engagement signals there only flag sophisticated bots, not real people; (c) Caddy config changes on this box use <code>systemctl restart</code> (≈1–2s blip) not <code>reload</code> — <code>systemctl reload</code> wedges/times out here; (d) <code>caddy validate</code> must NOT be run as root against a config that opens the log file (it creates a root-owned log that jams Caddy).</p>
+        <p><strong>Updated Done criteria:</strong> unchanged — still gated on 7 consecutive CLEAN daily reports before enforce.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

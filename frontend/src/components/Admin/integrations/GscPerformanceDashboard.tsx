@@ -157,7 +157,7 @@ export function GscPerformanceDashboard({
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
             <MetricCard label="Total clicks" value={formatGscMetric(totals?.clicks ?? 0, "number")} accent="bg-blue-500" />
-            <MetricCard label="Total impressions" value={formatGscMetric(totals?.impressions ?? 0, "number")} accent="bg-violet-500" />
+            <MetricCard label="Total search appearances" value={formatGscMetric(totals?.impressions ?? 0, "number")} accent="bg-violet-500" />
             <MetricCard label="Average CTR" value={formatGscMetric(totals?.ctr ?? 0, "percent")} accent="bg-emerald-500" />
             <MetricCard label="Average position" value={formatGscMetric(totals?.position ?? 0, "position")} accent="bg-amber-500" />
           </div>
@@ -171,7 +171,7 @@ export function GscPerformanceDashboard({
                 <YAxis yAxisId="impressions" orientation="right" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#9CA3AF" }} />
                 <Tooltip />
                 <Line yAxisId="clicks" type="monotone" dataKey="clicks" stroke="#3B82F6" strokeWidth={2.4} dot={false} name="Clicks" />
-                <Line yAxisId="impressions" type="monotone" dataKey="impressions" stroke="#7C3AED" strokeWidth={2.4} dot={false} name="Impressions" />
+                <Line yAxisId="impressions" type="monotone" dataKey="impressions" stroke="#7C3AED" strokeWidth={2.4} dot={false} name="Search appearances" />
               </LineChart>
             </ResponsiveContainer>
           </div>

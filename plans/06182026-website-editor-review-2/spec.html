@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Website Editor Review 2 — Fixes Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .task-card dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin: 12px 0 0; }
+    .task-card dl > div { border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: var(--paper); }
+    .tag { display: inline-block; border: 1px solid var(--ink); border-radius: 999px; padding: 1px 9px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; }
+    .revision-entry { border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-top: 12px; background: var(--soft); }
+    .revision-entry h3 { margin-bottom: 8px; }
+    ul { margin-top: 0; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-completed">Completed</span>
+      </div>
+      <h1>Website Editor Review 2 — Fixes (Items 2&ndash;8)</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06182026-website-editor-review-2</dd></div>
+        <div><dt>Size</dt><dd>Large (12&ndash;18 files)</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Owner review of the Website hub (PDF "Website Editor Review 2_ 6/16", reviewed on <strong>dev.getalloro.com</strong> in <strong>Pilot Mode</strong> on the client-facing surface, client One&nbsp;Endodontics / 1endodontics.com) raised eight feedback items. Item&nbsp;1 is explicitly out of scope for this plan. Items&nbsp;2&ndash;8 are clarity fixes, one real bug, one verification, and a couple of small behavior changes that make the hub honest and self-explanatory for practice owners. None are large features; together they remove confusion the owner hit while using the live editor.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Seven scoped tasks (T1&ndash;T7) covering feedback items 2&ndash;8. Mostly frontend on the client-facing Website surface, plus one small read-only backend addition for item&nbsp;8. Done when: visitor terminology is consistent and the numbers line up (item&nbsp;2); the admin-only "Import from Identity" no longer appears on the client surface (item&nbsp;3); the duplicate button is confirmed present for Doctors on dev (item&nbsp;4); the SEO progress bar is gone on the client view but kept on admin (item&nbsp;5); Submissions floats the currently-selected location's forms to the top (item&nbsp;6); "Impressions" is renamed to a plainer term hub-wide with a definition (item&nbsp;7); and the Keywords 6M/12M range toggles disable with a tooltip when Google Search Console history is too short (item&nbsp;8).</p>
+    </section>
+
+    <section class="spec-card" id="scope-map">
+      <h2>Item &rarr; Task Map</h2>
+      <dl class="meta-grid">
+        <div><dt>Item 1</dt><dd>Out of scope (owner)</dd></div>
+        <div><dt>Item 2 &rarr; T1</dt><dd>Visitors vs Unique visitors clarity</dd></div>
+        <div><dt>Item 3 &rarr; T2</dt><dd>Hide Import-from-Identity on client</dd></div>
+        <div><dt>Item 4 &rarr; T4</dt><dd>Verify duplicate button (Doctors)</dd></div>
+        <div><dt>Item 5 &rarr; T3</dt><dd>Remove SEO bar on client view</dd></div>
+        <div><dt>Item 6 &rarr; T5</dt><dd>Location-aware Submissions order</dd></div>
+        <div><dt>Item 7 &rarr; T6</dt><dd>Rename "Impressions" hub-wide</dd></div>
+        <div><dt>Item 8 &rarr; T7</dt><dd>Disable out-of-range GSC toggles</dd></div>
+      </dl>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files (verified to exist)</h3>
+      <ul>
+        <li><code>frontend/src/components/website/overview/WebsiteOverview.tsx</code> &mdash; client overview hero, traffic card, and "Traffic &amp; engagement" modal tiles/labels (item 2). Modal "Visitors" tile + tooltip at ~L570; card "Unique visitors" at ~L265/381.</li>
+        <li><code>frontend/src/components/website/overview/websiteMetrics.ts</code> &mdash; client-side metric computation; <code>monthVisitors</code> (this-month uniques) and <code>totals</code> (full-range) (item 2).</li>
+        <li><code>frontend/src/api/websiteAnalytics.ts</code> + <code>src/controllers/user-website/user-website-services/websiteAnalytics.service.ts</code> &mdash; data source for traffic (Rybbit). Read-only context for item 2.</li>
+        <li><code>frontend/src/components/Admin/website-tabs/PostsTab/PostsListView.tsx</code> &mdash; Posts list rows: Import-from-Identity button (~L118), SEO bar (~L209&ndash;217), duplicate Copy button (~L228) (items 3, 4, 5).</li>
+        <li><code>frontend/src/components/Admin/website-tabs/PostsTab.tsx</code> &mdash; parent; wires <code>openImportModal</code>/<code>handleDuplicate</code> and would carry the new surface prop (items 3, 4, 5).</li>
+        <li><code>frontend/src/pages/DFYWebsite.tsx</code> (client surface) and <code>frontend/src/pages/admin/WebsiteDetail/WebsiteDetailTabContent.tsx</code> (admin surface) &mdash; the two render sites that must declare which surface they are (items 3, 5).</li>
+        <li><code>frontend/src/api/websites/identity.ts</code> &mdash; <code>fetchIdentity</code> hits the super-admin-only <code>/api/admin/websites/{id}/identity</code> via <code>adminFetch</code> (item 3, the 403 source).</li>
+        <li><code>frontend/src/components/PageEditor/SeoPanel.tsx</code> &mdash; SEO score bars in the editor header + sidebar (item 5).</li>
+        <li><code>frontend/src/components/Admin/leadgen/FormSubmissionsTab.tsx</code> + <code>FormSubmissionsSidebar.tsx</code> &mdash; the Submissions forms list + drag-reorder (item 6).</li>
+        <li><code>frontend/src/contexts/locationContext.ts</code> &mdash; provides <code>selectedLocation</code>; not currently read by Submissions (item 6).</li>
+        <li><code>frontend/src/components/website/KeywordsTab.tsx</code> &mdash; Clicks/Impressions tiles + 28D/3M/6M/12M toggle (items 7, 8).</li>
+        <li><code>frontend/src/components/.../GscPerformanceDashboard.tsx</code> ("Total impressions") and the keyword table header ("Impr.") &mdash; other "Impressions" labels to align (item 7).</li>
+        <li><code>src/models/website-builder/GscDataModel.ts</code> &mdash; has <code>findLatestReportDate</code> (MAX) but no earliest; needs a MIN query (item 8).</li>
+        <li><code>src/controllers/admin-websites/feature-services/service.gsc-performance.ts</code> + <code>frontend/src/api/websiteGscPerformance.ts</code> &mdash; GSC dashboard service + FE type; must expose <code>earliestReportDate</code> (item 8).</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li><strong>Frontend reference analog (§12.1):</strong> the <code>frontend/src/api/</code> + React Query hook + feature-folder triad. New data (item 8's earliest date) flows Component &rarr; hook &rarr; <code>api/</code> client &rarr; backend (§14.1). No raw <code>fetch</code> (§14.2).</li>
+        <li><strong>Backend reference analog (§6.1):</strong> <code>src/controllers/gbp-automation/</code> &mdash; thin controller, logic in <code>feature-services/</code>, every DB call in <code>models/</code> (§7.4), <code>{ success, data, error }</code> response (§8.1). Item 8's MIN query lives in <code>GscDataModel</code>, computed in the service, shaped by the existing response builder.</li>
+        <li><strong>Surface awareness:</strong> items 3 &amp; 5 introduce one shared prop (e.g. <code>surface: "admin" | "client"</code>) threaded from the two page-level render sites down to <code>PostsListView</code> / <code>SeoPanel</code>. One source of truth, reused by both items (§4.3 DRY).</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/controllers/gbp-automation/</code> for the item-8 backend triad; <code>frontend/src/api/index.ts</code> + an existing <code>hooks/queries/</code> hook for the item-8 frontend.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Keep the identity endpoint super-admin-gated on the server (§5.4, §11.1). Item 3's fix is hiding the client-side affordance only &mdash; never weaken the server check.</li>
+            <li>Item 8's new model query goes through <code>GscDataModel</code> (§7.4) and the response keeps the <code>{ success, data, error }</code> shape (§8.1).</li>
+            <li>Thread one shared surface prop for items 3 &amp; 5 (§4.3) &mdash; do not duplicate the admin/client check in two places.</li>
+            <li>All client calls route through <code>api/index.ts</code> / <code>adminFetch</code> (§14.2); no new raw <code>fetch</code>.</li>
+            <li>No <code>: any</code> / <code>as any</code> (§17.2); no <code>console.*</code> (§17.1).</li>
+            <li>Update Alloro Docs for the client-facing Website surface changes (labels, tooltips, removed controls) before <code>--done</code> (repo docs-parity rule).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No new dependencies.</li>
+            <li>No DB schema change / migration (item 8 reads the existing <code>report_date</code> column).</li>
+            <li>Do not remove the SEO bar or the Import button on the <strong>admin</strong> surface &mdash; admins keep both.</li>
+            <li>Do not hide forms in Submissions &mdash; item 6 is a <em>sort</em> (float to top), not a filter; all forms stay visible.</li>
+            <li>No drive-by refactors of the already-oversized <code>PostsTab.tsx</code> / <code>WebsiteOverview.tsx</code> beyond the minimal additive change (§13.1 &mdash; do not add bulk to a file near the ceiling; extract if a change would push it over).</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Item 1 (landing-page unique-visitor math) &mdash; owner excluded it.</li>
+        <li>Re-architecting form&ndash;location data (no structured location field on forms). Item 6 uses name-string matching by owner's choice; a real location field is a separate future plan.</li>
+        <li>Pages-tab SEO bars (item 5 is about Posts; note if the client Pages editor shares <code>SeoPanel</code>, but do not expand scope without confirmation).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 (Concern). No architecture or auth-model changes; the heaviest item is one read-only backend query.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Item 2 &mdash; deduplicated window total + per-month trend (Level 2). [Rev 1]</strong> The bottom Traffic card's "visitors over the window" must be the <em>deduplicated</em> count for that exact window (e.g. last 3 months), not the sum of monthly uniques (which double-counts repeat visitors). Sessions, page views, and leads sum cleanly. <strong>Mitigation:</strong> source the window visitor total from a Rybbit overview for that window; if only the 365-day overview + monthly series are available client-side, add a small backend window-overview (reusing <code>fetchRybbitOverview</code>) rather than summing monthly uniques. Per-month hover values + month-over-month % come from the monthly series. Confirm at execution; record the outcome here. (Supersedes the earlier "force the modal tiles to this-month" approach &mdash; the modal now stays as-is per Rev 1.)</li>
+        <li><strong>Item 3 &mdash; surface detection correctness (Level 2).</strong> If the surface prop is wired wrong, the Import button could vanish on admin (regression) or persist on client (no fix). <strong>Mitigation:</strong> default the prop to <code>"admin"</code> (current behavior) and have only the client page (<code>DFYWebsite.tsx</code>) opt into <code>"client"</code>; verify both surfaces in the acceptance run.</li>
+        <li><strong>Item 4 &mdash; nothing to fix (Level 1).</strong> The duplicate button already renders unconditionally and is deployed to dev. The screenshot likely predates deploy. <strong>Mitigation:</strong> verify on current dev first; only open a code fix if it is genuinely absent for the Doctors type on the client surface.</li>
+        <li><strong>Item 6 &mdash; fragile name matching (Level 2).</strong> A form maps to a location only via its name string ("Sterling - referral"). A form whose name omits the location won't float. <strong>Mitigation:</strong> case-insensitive contains-match on the selected location's name; forms with no match keep their existing relative order; document the limitation in Docs. This is the owner's chosen trade-off over a schema change.</li>
+        <li><strong>Item 8 &mdash; "insufficient history" threshold (Level 1).</strong> Disabling a toggle needs a clear rule. <strong>Mitigation:</strong> available-days = latest&minus;earliest <code>report_date</code>; disable a range whose required days exceed available-days by a small margin (e.g. &gt; 7 days short). Tooltip explains why.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>PostsListView.tsx</code> / <code>PostsTab.tsx</code> render on both the admin <code>WebsiteDetail</code> and client <code>DFYWebsite</code> surfaces &mdash; the surface prop touches both render sites (intended). <code>SeoPanel.tsx</code> is shared by the post and page editors &mdash; gate only the Posts/client path. <code>KeywordsTab.tsx</code> is client-only; the admin <code>GscPerformanceDashboard</code> is a separate consumer of the same service (item 7 rename touches it; item 8 disable is client-only unless the admin view shares the toggle &mdash; confirm at execution). <code>GscDataModel</code> / <code>service.gsc-performance.ts</code> feed the GSC dashboard on both surfaces; the new field is additive and backward-compatible.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>Item 6:</strong> name-string location matching is genuine tech debt &mdash; it will silently fail for any form not named after its location, and break if naming conventions drift. The cleaner answer is a structured location reference on the form/submission. Recommended: ship the sort now (owner's call), but log a follow-up plan for a real location field so this doesn't calcify. Surfaced, not blocking.</li>
+        <li><strong>Item 7:</strong> "Impressions" is the Google Search Console term of art; renaming it hub-wide (to e.g. "Search appearances") diverges from what owners may see in Google's own tools. Recommended term: <strong>"Search appearances"</strong> with a one-line definition that names Google Search, but the exact wording is the owner's to finalize before merge (low risk, easily tweaked).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Visitors terminology + overview-card scope (Item 2) <span class="tag">Rev 1</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd><strong>(a) Terminology:</strong> standardize on <strong>"Visitors"</strong> everywhere &mdash; rename the hero card label <code>UNIQUE VISITORS</code> &rarr; <code>VISITORS</code> and keep the modal tile as "Visitors"; add a one-line plain definition (counts unique people) on the cards and modal. <strong>(b) Hero card</strong> keeps the <em>this-month</em> number. <strong>(c) Bottom cards (Traffic / Leads &middot; Last 3 Mo):</strong> headline shows the <strong>aggregate over the displayed window</strong> (not this-month) &mdash; Traffic = deduplicated window visitors + summed sessions + summed page views; Leads = summed leads over the window. <strong>(d) Default view:</strong> remove the trend arrow + percent and the "N last month" line. <strong>(e) Hover a chart plot point (month):</strong> show that month's value plus the trend arrow + percent labeled <strong>"against last month."</strong> Modal stays structurally as-is (labels + definitions only).</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/.../overview/WebsiteOverview.tsx</code> (labels, bottom-card numbers, chart hover/tooltip), <code>frontend/.../overview/websiteMetrics.ts</code> (window-aggregate + per-month MoM); backend <code>websiteAnalytics.service.ts</code> / <code>service.rybbit-performance.ts</code> only if a deduplicated sub-window (3-mo) visitor total isn't already available client-side</dd></div>
+          <div><dt>Articles</dt><dd>§12.1, §13.1, §1.4, §16.1; if backend touched: §7.4, §8.1</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: hero says "Visitors" (this month); both bottom cards show the 3-month aggregate (Traffic visitors &gt; the this-month hero number); no arrow/percent on default; hovering a month dot reveals that month's value + "against last month" trend; modal labels read "Visitors" with a definition.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Hide "Import from Identity" on the client surface (Item 3)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Introduce a shared <code>surface: "admin" | "client"</code> prop on <code>PostsTab</code> (default <code>"admin"</code>), threaded from <code>DFYWebsite.tsx</code> (pass <code>"client"</code>) and <code>WebsiteDetailTabContent.tsx</code> (pass <code>"admin"</code>) down to <code>PostsListView</code>. Render the Import-from-Identity button only when <code>surface === "admin"</code>. Leave the server endpoint super-admin-gated unchanged.</dd></div>
+          <div><dt>Files</dt><dd><code>PostsListView.tsx</code>, <code>PostsTab.tsx</code>, <code>DFYWebsite.tsx</code>, <code>WebsiteDetailTabContent.tsx</code></dd></div>
+          <div><dt>Articles</dt><dd>§5.4 (server stays authoritative), §11.1, §4.3 (shared prop), §12.1, §13.1</dd></div>
+          <div><dt>Depends on</dt><dd>none (introduces the surface prop reused by T3)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: on client/pilot Doctors view the Import button is gone (no 403); on admin <code>WebsiteDetail</code> it still shows and works.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Remove the SEO progress bar on the client view (Item 5)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Using the surface prop from T2, hide the SEO-completeness bar on the <strong>client</strong> surface in both places it renders: the Posts list rows (<code>PostsListView.tsx</code> ~L209&ndash;217) and the SEO editor panel bars (<code>SeoPanel.tsx</code> header + sidebar). Keep both intact on the <strong>admin</strong> surface. Thread the surface flag into <code>SeoPanel</code> for the Posts/client editing path only.</dd></div>
+          <div><dt>Files</dt><dd><code>PostsListView.tsx</code>, <code>SeoPanel.tsx</code> (+ the prop wiring through the post editor on each surface)</dd></div>
+          <div><dt>Articles</dt><dd>§13.1, §12.1, §4.3</dd></div>
+          <div><dt>Depends on</dt><dd>T2 (reuses the surface prop)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: client Posts list + post SEO editor show no bar; admin shows the bar unchanged.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Verify the duplicate button for Doctors on dev (Item 4)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Confirm on current <code>dev.getalloro.com</code> (client/pilot surface, Doctors post type) that the duplicate (Copy) button renders &mdash; the code at <code>PostsListView.tsx:228</code> already renders it unconditionally and is deployed to dev (commit <code>432473cb</code>). If present: mark resolved (stale screenshot). If genuinely absent: reproduce and root-cause (deploy timing vs a different list component on the Doctors view) and fix minimally.</dd></div>
+          <div><dt>Files</dt><dd>likely none (verification); small fix only if reproduced</dd></div>
+          <div><dt>Articles</dt><dd>§20.5 (acceptance artifact)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual on dev: duplicate button visible + working for a Doctors post on the client surface.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Location-aware form ordering in Submissions (Item 6)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Read <code>selectedLocation</code> from <code>LocationContext</code> in <code>FormSubmissionsTab</code> and pass it to the list. Add "form name matches the selected location" as the <strong>top</strong> sort key applied client-side, ahead of the existing order (manual <code>sort_order</code> &rarr; last submission &rarr; count &rarr; name). All forms stay visible; manual drag still orders within each group. Case-insensitive contains-match on the location name.</dd></div>
+          <div><dt>Files</dt><dd><code>FormSubmissionsTab.tsx</code>, <code>FormSubmissionsSidebar.tsx</code> (+ a small sort util if needed)</dd></div>
+          <div><dt>Articles</dt><dd>§15.2 (UI state via Context), §14.3, §13.2, §1</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: select Fredericksburg &rarr; Fredericksburg-named forms float to the top; switch location &rarr; ordering updates; no forms hidden.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Rename "Impressions" hub-wide + add a definition (Item 7)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Rename "Impressions" to a plainer term (proposed: <strong>"Search appearances"</strong>) consistently across the hub: the Keywords tile (<code>KeywordsTab.tsx</code>), the admin "Total impressions" label (<code>GscPerformanceDashboard.tsx</code>), and the keyword table "Impr." header. Add a short plain definition that names Google Search. Finalize the exact wording with the owner before merge.</dd></div>
+          <div><dt>Files</dt><dd><code>KeywordsTab.tsx</code>, <code>GscPerformanceDashboard.tsx</code>, the keyword table component</dd></div>
+          <div><dt>Articles</dt><dd>§1 (naming consistency), §13.1</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: the same term + definition appears everywhere the metric is shown; no "Impressions"/"Impr."/"Total impressions" left inconsistent.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: Disable out-of-range GSC toggles with a tooltip (Item 8)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><strong>Backend:</strong> add <code>findEarliestReportDate</code> (MIN(<code>report_date</code>)) to <code>GscDataModel</code>; compute and return <code>earliestReportDate</code> from <code>service.gsc-performance.ts</code>; add the field to the FE type in <code>websiteGscPerformance.ts</code>. <strong>Frontend:</strong> in <code>KeywordsTab.tsx</code>, compute available-days = latest&minus;earliest; disable any range toggle (3M/6M/12M) whose required window exceeds available-days beyond the threshold, with a tooltip "Not enough Search Console history yet." Keep the existing honest "all N days available" label.</dd></div>
+          <div><dt>Files</dt><dd><code>src/models/website-builder/GscDataModel.ts</code>, <code>src/controllers/admin-websites/feature-services/service.gsc-performance.ts</code>, <code>frontend/src/api/websiteGscPerformance.ts</code>, <code>frontend/src/components/website/KeywordsTab.tsx</code></dd></div>
+          <div><dt>Articles</dt><dd>§7.4 (MIN query in the model), §8.1 (response shape), §12.1/§14.1 (FE chain), §17.2</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual on a site with ~3 months of GSC data: 6M/12M are greyed/disabled with the tooltip; 28D/3M stay active; data still labeled honestly. (Rev 3) Page opens on the largest in-history range, not a disabled toggle.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="docs">
+      <h2>Docs Impact (Alloro Docs parity)</h2>
+      <p>Client-facing Website surface UI changes &mdash; docs parity required before <code>--done</code> (repo rule). Update <code>/Users/rustinedave/Desktop/alloro-docs</code> for: the Traffic &amp; engagement modal labels/definitions (T1), the removed Import-from-Identity control on the client view (T2), the removed SEO bar on the client view (T3), the Submissions ordering behavior (T5), the renamed "Impressions" metric + definition (T6), and the disabled GSC range toggles + tooltip (T7). If a given page needs no change, state why at finalization.</p>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> (backend) &mdash; zero new errors</li>
+        <li><input type="checkbox" disabled> <code>cd frontend &amp;&amp; tsc -p tsconfig.app.json</code> &mdash; zero new errors (the real FE gate)</li>
+        <li><input type="checkbox" disabled> <code>npm run check:conventions --strict</code> (backend) clean; cite §N.M for any finding</li>
+        <li><input type="checkbox" disabled> Item 2: hero reads "Visitors" (this month); bottom cards show the window aggregate (not this-month); default view has no arrow/percent; hovering a month dot shows that month + "against last month" trend; modal labels read "Visitors" with a definition</li>
+        <li><input type="checkbox" disabled> Item 3: Import-from-Identity hidden on client/pilot (no 403); still present + working on admin</li>
+        <li><input type="checkbox" disabled> Item 4: duplicate button verified present + working for Doctors on dev client surface</li>
+        <li><input type="checkbox" disabled> Item 5: SEO bar removed on client (list + editor), kept on admin</li>
+        <li><input type="checkbox" disabled> Item 6: selected location's forms float to top in Submissions; no forms hidden; drag still works</li>
+        <li><input type="checkbox" disabled> Item 7: "Impressions" renamed consistently hub-wide with a definition (wording owner-approved)</li>
+        <li><input type="checkbox" disabled> Item 8: 6M/12M toggles disable with tooltip when GSC history is short; 28D/3M unaffected</li>
+        <li><input type="checkbox" disabled> Alloro Docs updated for the client-facing Website changes (or "no change" justified)</li>
+        <li><input type="checkbox" disabled> No regressions in the admin Website surface (Import button, SEO bar, posts list)</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-06-18</h3>
+        <p><strong>Change:</strong> Reworked T1 (item 2) per owner refinements on the overview mockups. (1) Standardize terminology on <strong>"Visitors"</strong> &mdash; reversing the earlier "Unique visitors" decision: hero label <code>UNIQUE VISITORS</code> &rarr; <code>VISITORS</code>, modal stays "Visitors", both keep a plain "counts unique people" definition. (2) Hero card keeps the this-month number. (3) Bottom Traffic/Leads (Last 3 Mo) cards now show the <strong>aggregate over the displayed window</strong> instead of the this-month number &mdash; Traffic = deduplicated window visitors + summed sessions + summed page views, Leads = summed window leads. (4) Default view drops the trend arrow + percent and the "N last month" line. (5) Hovering a chart plot point reveals that month's value + the trend arrow + percent labeled <strong>"against last month."</strong> (6) The Traffic/Leads Detail modal stays structurally as-is &mdash; labels + definitions only (owner confirmed). The "Text" annotation in the owner's screenshot was withdrawn ("nevermind that"). Note: the bottom-card aggregate overlaps the previously-excluded item 1; implemented here per the owner's new direction, while item 1 as a whole remains owner-excluded.</p>
+        <p><strong>Reason:</strong> User QA: owner refinements on the item-2 mockups (2026-06-18).</p>
+        <p><strong>Updated Done criteria:</strong> Item-2 Done line rewritten to: hero "Visitors" (this month); bottom cards show the window aggregate; no arrow/percent on default; hover shows that month + "against last month"; modal labels "Visitors" + definition.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-06-18</h3>
+        <p><strong>Change:</strong> Executed T1&ndash;T7 (4 parallel sub-agent groups on disjoint files). <strong>T1:</strong> hero label &rarr; "Visitors"; bottom Traffic/Leads cards now headline the deduplicated 3-month window aggregate via new <code>windowVisitors/windowSessions/windowPageviews/windowLeads</code> in <code>websiteMetrics.ts</code> (backend added <code>windowVisitors</code> deduped overview in <code>websiteAnalytics.service.ts</code> + <code>api/websiteAnalytics.ts</code>; FE falls back to a summed approximation with a <code>windowVisitorsDeduped</code> flag when the live figure is null); default trend + "N last month" line removed; new <code>HoverTrend</code> shows per-month delta labeled "against last month"; modal/conversion tooltips aligned to "Visitors". <strong>T2:</strong> new <code>surface: "admin" | "client"</code> prop on PostsTab (default admin) gates the Import-from-Identity button to admin only. <strong>T3:</strong> same prop + new <code>hideScoreBar</code> on SeoPanel hides the SEO bar on the client list + SEO editor (admin + pages keep it). <strong>T4:</strong> verify-only &mdash; duplicate (Copy) button left rendering unconditionally on both surfaces. <strong>T5:</strong> FormSubmissionsTab reads <code>selectedLocation</code> and stable-presorts forms whose name/label matches the location to the top (drag + persistence intact). <strong>T6:</strong> "Impressions" &rarr; "Search appearances" across Keywords + admin GSC dashboard (labels/headers/tooltips only; data fields unchanged). <strong>T7:</strong> new <code>GscDataModel.findEarliestReportDate</code> (MIN) + <code>earliestReportDate</code> on the dashboard; KeywordsTab disables range toggles whose window exceeds available history (&gt;7-day grace) with a "Not enough Search Console history yet." tooltip. <strong>Gate:</strong> backend <code>tsc</code> clean, frontend <code>tsc -p tsconfig.app.json</code> clean, <code>check:conventions</code> zero new violations. <strong>Minor deviations:</strong> (a) SeoPanel hides only the bar visuals, keeping the numeric score + label (matches "remove the bar" intent); (b) Group D also renamed the admin chart line label (user-visible in tooltip/legend); (c) backend Rybbit window-overview added because no client-side deduped 3-month total existed (spec pre-authorized this). Acceptance artifact (<code>test.html</code> + <code>test-results.json</code>, 11 items) generated &mdash; all <code>pending</code> for a human/dev run (UI behavioral checks in Pilot Mode; not auto-driven per owner preference).</p>
+        <p><strong>Reason:</strong> Execution deviation: <code>-x</code> run on 2026-06-18.</p>
+        <p><strong>Updated Done criteria:</strong> none added; existing Done items now satisfied at the code level (build gate green), pending behavioral verification via the acceptance checklist.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-06-18</h3>
+        <p><strong>Change:</strong> Browser QA on localhost:5174 (seeded JWTs for One Endodontics + Tri-City Endodontics) verified 10/11 acceptance items pass; T1-d (chart-hover trend) is code-verified only (recharts hover can't be driven by synthetic events in the headless preview). One fix from QA: <strong>T7 default-range clamp</strong> &mdash; the Keywords tab defaulted to 3 Months, so on a short-history site it opened sitting on a now-disabled toggle. Added a <code>useEffect</code> in <code>KeywordsTab.tsx</code> that, once the dashboard loads, drops the selected range to the largest window that fits the available GSC history &mdash; but only when the current range is out of history, so a manual pick is never overridden and it can't loop. Verified: Tri-City (30-day history) now opens on 28 Days (window "May 20 &ndash; Jun 16"); One Endo (long history) still opens on 3 Months with no disabled ranges. FE <code>tsc -p tsconfig.app.json</code> clean.</p>
+        <p><strong>Reason:</strong> User QA: browser visual test surfaced the disabled-default-toggle UX issue.</p>
+        <p><strong>Updated Done criteria:</strong> T7 also requires the Keywords tab to open on the largest in-history range (never a disabled toggle).</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 4 - 2026-06-18</h3>
+        <p><strong>Change:</strong> Finalized (<code>--done</code>). Acceptance checklist rolls up to <strong>Passed</strong> &mdash; 10/11 items verified in the browser (localhost:5174, seeded sessions for One Endodontics + Tri-City), and T1-d (chart-hover trend) carries a written waiver (code-verified; recharts hover can't be driven by synthetic events in the headless preview). <code>CHANGELOG.md</code> bumped to <strong>0.0.130</strong>. <strong>Docs parity done:</strong> alloro-docs Website walkthrough (<code>src/data/pages/website.ts</code>) + dashboard replica (<code>WebsiteDashboardReplica.tsx</code>) synced for the "Visitors" / "Search appearances" terminology, the last-3-months window copy, and the hover trend; added docs-changelog entry (docs 0.0.125); docs <code>tsc</code> green. No migration (item 8 adds a read-only MIN query, no schema change). Committed on <code>dev/dave</code> (author LagDave) and pushed to deploy to dev; docs committed + pushed in the alloro-docs repo separately.</p>
+        <p><strong>Reason:</strong> Finalization.</p>
+        <p><strong>Updated Done criteria:</strong> all met &mdash; backend + frontend <code>tsc</code> clean, <code>check:conventions</code> zero new violations, acceptance Passed (1 waiver), docs parity complete, changelog 0.0.130.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

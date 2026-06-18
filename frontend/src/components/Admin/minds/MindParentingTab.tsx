@@ -15,6 +15,7 @@ import { ParentingChat } from "./parenting/ParentingChat";
 import { ParentingProposals } from "./parenting/ParentingProposals";
 import { ParentingReadingView } from "./parenting/ParentingReadingView";
 import { CompileAnimation } from "./wizard/CompileAnimation";
+import { getErrorMessage } from "../../../lib/errorMessage";
 import {
   createParentingSession,
   listParentingSessions,
@@ -127,8 +128,8 @@ export function MindParentingTab({ mindId, mindName }: MindParentingTabProps) {
       } else {
         toast.error("Failed to create session");
       }
-    } catch (err: any) {
-      toast.error(err.message || "Failed to create session");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || "Failed to create session");
     } finally {
       setCreatingSession(false);
     }

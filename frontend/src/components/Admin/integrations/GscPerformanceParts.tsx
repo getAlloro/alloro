@@ -51,7 +51,7 @@ export function DimensionTable({
           <tr className="border-b border-gray-100 text-left text-[11px] font-semibold uppercase text-gray-400">
             <th className="py-2 pr-3">Item</th>
             <th className="px-3 py-2 text-right">Clicks</th>
-            <th className="px-3 py-2 text-right">Impressions</th>
+            <th className="px-3 py-2 text-right">Search appearances</th>
             <th className="px-3 py-2 text-right">CTR</th>
             <th className="py-2 pl-3 text-right">Position</th>
           </tr>

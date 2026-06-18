@@ -22,6 +22,7 @@ import {
   useIsWizardActive,
   useWizardDemoData,
 } from "../../contexts/OnboardingWizardContext";
+import { logger } from "../../lib/logger";
 
 interface VitalSignsCardsProps {
   className?: string;
@@ -253,7 +254,7 @@ export const VitalSignsCards: React.FC<VitalSignsCardsProps> = ({
               setAiDataStatus((prev) => ({ ...prev, gbp: "error" }));
             }
           } catch (error) {
-            console.error("GBP AI Data Error:", error);
+            logger.error("GBP AI Data Error:", error);
             setAiDataStatus((prev) => ({ ...prev, gbp: "error" }));
           }
         })(),
@@ -262,13 +263,13 @@ export const VitalSignsCards: React.FC<VitalSignsCardsProps> = ({
             await fetchClarityAIData();
             setAiDataStatus((prev) => ({ ...prev, clarity: "success" }));
           } catch (error) {
-            console.error("Clarity AI Data Error:", error);
+            logger.error("Clarity AI Data Error:", error);
             setAiDataStatus((prev) => ({ ...prev, clarity: "error" }));
           }
         })(),
       ]);
     } catch (error) {
-      console.error("Error fetching AI Ready Data:", error);
+      logger.error("Error fetching AI Ready Data:", error);
     } finally {
       setIsFetchingAIData(false);
     }

@@ -15,6 +15,8 @@ import {
 import { PmsStatus } from "./pms-utils/pms-constants";
 import { RBACRequest } from "../../middleware/rbac";
 import type { MonthlyRollupForJob } from "../../utils/pms/applyColumnMapping";
+import * as comparisonInsightsService from "./pms-services/pms-comparison-insights.service";
+import { monthSortValue } from "../../utils/pms/monthKey";
 import logger from "../../lib/logger";
 
 function handleError(res: Response, error: any, operation: string): Response {
@@ -193,6 +195,55 @@ export async function getKeyData(req: Request, res: Response) {
       success: false,
       error: `Failed to fetch PMS key data: ${error.message}`,
     });
+  }
+}
+
+/**
+ * POST /pms/comparison-insights
+ * Generate a Claude Haiku paragraph comparing two months of referral data.
+ * Organization is taken from the JWT (RBAC); the months are re-derived
+ * server-side from the authoritative aggregation, never from client numbers.
+ */
+export async function generateComparisonInsights(req: Request, res: Response) {
+  try {
+    const rbacReq = req as RBACRequest;
+    const organizationId = rbacReq.organizationId ?? null;
+    const { monthA, monthB, locationId: reqLocationId } = req.body ?? {};
+    const locationId = reqLocationId ? Number(reqLocationId) : null;
+
+    if (!organizationId) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Missing organization context" });
+    }
+    if (
+      typeof monthA !== "string" ||
+      typeof monthB !== "string" ||
+      !monthA.trim() ||
+      !monthB.trim()
+    ) {
+      return res
+        .status(400)
+        .json({ success: false, error: "monthA and monthB are required" });
+    }
+    if (monthSortValue(monthA) === monthSortValue(monthB)) {
+      return res.status(400).json({
+        success: false,
+        error: "Select two different months to compare",
+      });
+    }
+
+    const data =
+      await comparisonInsightsService.generateReferralComparisonInsight({
+        organizationId,
+        locationId,
+        monthA: monthA.trim(),
+        monthB: monthB.trim(),
+      });
+
+    return res.json({ success: true, data });
+  } catch (error: any) {
+    return handleError(res, error, "generate comparison insights");
   }
 }
 

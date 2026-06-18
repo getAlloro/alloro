@@ -4,6 +4,7 @@ import { Target, CalendarRange, Inbox } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { PmStats } from "../../types/pm";
 import { fetchStats } from "../../api/pm";
+import { logger } from "../../lib/logger";
 
 function AnimatedNum({ value }: { value: number }) {
   const mv = useMotionValue(0);
@@ -37,7 +38,7 @@ type StatCard = {
 export function StatsRow({ onBacklogClick }: StatsRowProps) {
   const [stats, setStats] = useState<PmStats | null>(null);
 
-  useEffect(() => { fetchStats().then(setStats).catch(console.error); }, []);
+  useEffect(() => { fetchStats().then(setStats).catch((err) => logger.error(err)); }, []);
 
   const cards: StatCard[] = [
     {

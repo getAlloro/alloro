@@ -2,13 +2,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertCircle,
-  ArrowDown,
-  ArrowUp,
   Calendar,
   DollarSign,
   Loader2,
   Plus,
-  RefreshCw,
   Save,
   Stethoscope,
   Trash2,
@@ -21,13 +18,19 @@ import {
   transformBackendToUI,
   transformUIToBackend,
   calculateTotals,
-  formatMoney,
   sanitizeNumber,
   addMonths,
-  type MonthEntryForm,
-  type SourceEntryForm,
 } from "./pmsDataTransform";
 import type { MonthBucket, SourceRow } from "./types";
+import { logger } from "../../lib/logger";
+import {
+  ALORO_ORANGE,
+  ALORO_ORANGE_DARK,
+  normaliseMonthEntries,
+} from "./pmsLatestJobEditor.utils";
+import { Odometer } from "./PMSLatestJobEditor/Odometer";
+import { MonthYearPickerModal } from "./PMSLatestJobEditor/MonthYearPickerModal";
+import { SourceRowItem } from "./PMSLatestJobEditor/SourceRowItem";
 
 interface PMSLatestJobEditorProps {
   isOpen: boolean;
@@ -37,126 +40,6 @@ interface PMSLatestJobEditorProps {
   onSaved: () => Promise<void> | void;
   onConfirmApproval?: () => Promise<void> | void;
 }
-
-const ALORO_ORANGE = "#C9765E";
-const ALORO_ORANGE_DARK = "#D66853";
-
-const toNumber = (value: unknown): number => {
-  if (typeof value === "number" && !Number.isNaN(value)) {
-    return value;
-  }
-  const parsed = Number((value ?? 0) as unknown);
-  return Number.isFinite(parsed) ? parsed : 0;
-};
-
-const normaliseMonthEntries = (raw: unknown): MonthEntryForm[] => {
-  let dataArray: unknown = raw;
-
-  // Handle new canonical structure with monthly_rollup
-  if (typeof raw === "object" && raw !== null && !Array.isArray(raw)) {
-    const container = raw as Record<string, unknown>;
-
-    // Check for monthly_rollup (canonical format)
-    if (Array.isArray(container.monthly_rollup)) {
-      dataArray = container.monthly_rollup;
-    }
-    // Fallback to report_data (legacy format)
-    else if (Array.isArray(container.report_data)) {
-      dataArray = container.report_data;
-    }
-  }
-
-  if (!Array.isArray(dataArray)) {
-    return [];
-  }
-
-  return dataArray.map((entry) => {
-    const monthEntry = typeof entry === "object" && entry !== null ? entry : {};
-    const sourcesRaw = Array.isArray(
-      (monthEntry as Record<string, unknown>).sources
-    )
-      ? ((monthEntry as Record<string, unknown>).sources as unknown[])
-      : [];
-
-    const sources: SourceEntryForm[] = sourcesRaw.map((source) => {
-      const src = typeof source === "object" && source !== null ? source : {};
-      return {
-        name: String((src as Record<string, unknown>).name ?? ""),
-        referrals: toNumber((src as Record<string, unknown>).referrals),
-        production: toNumber((src as Record<string, unknown>).production),
-        inferred_referral_type: (src as Record<string, unknown>)
-          .inferred_referral_type as "self" | "doctor" | undefined,
-      };
-    });
-
-    return {
-      month: String((monthEntry as Record<string, unknown>).month ?? ""),
-      self_referrals: toNumber(
-        (monthEntry as Record<string, unknown>).self_referrals
-      ),
-      doctor_referrals: toNumber(
-        (monthEntry as Record<string, unknown>).doctor_referrals
-      ),
-      total_referrals: toNumber(
-        (monthEntry as Record<string, unknown>).total_referrals
-      ),
-      production_total: toNumber(
-        (monthEntry as Record<string, unknown>).production_total
-      ),
-      sources,
-    };
-  });
-};
-
-/**
- * Odometer animation component for numbers
- */
-const Odometer = ({ value }: { value: string | number }) => {
-  const str = String(value);
-  const digitHeight = 48;
-  const digitWidth = 22;
-
-  return (
-    <div className="flex items-center overflow-visible">
-      {str.split("").map((char, i) => {
-        if (isNaN(Number(char))) {
-          return (
-            <div
-              key={i}
-              className="mx-0 text-2xl font-semibold leading-none flex items-center"
-            >
-              {char}
-            </div>
-          );
-        }
-
-        return (
-          <div
-            key={i}
-            className="relative overflow-hidden"
-            style={{ height: digitHeight, width: digitWidth }}
-          >
-            <motion.div
-              animate={{ y: -Number(char) * digitHeight }}
-              transition={{ type: "spring", stiffness: 120, damping: 18 }}
-              className="absolute top-0 left-0"
-            >
-              {Array.from({ length: 10 }).map((_, n) => (
-                <div
-                  key={n}
-                  style={{ height: digitHeight }}
-                  className="flex items-center justify-center text-3xl font-semibold leading-none"
-                >
-                  {n}
-                </div>
-              ))}
-            </motion.div>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
 
 export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
   isOpen,
@@ -195,12 +78,12 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
   useEffect(() => {
     if (isOpen && !hasInitializedRef.current) {
       const normalized = normaliseMonthEntries(initialData);
-      console.log("🔍 Modal loaded - normalized data from backend:", {
+      logger.log("🔍 Modal loaded - normalized data from backend:", {
         monthsCount: normalized.length,
         secondMonthSources: normalized[1]?.sources,
       });
       const uiMonths = transformBackendToUI(normalized);
-      console.log("🎯 Transformed to UI format:", {
+      logger.log("🎯 Transformed to UI format:", {
         monthsCount: uiMonths.length,
         secondMonthRows: uiMonths[1]?.rows,
       });
@@ -416,7 +299,7 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
       const backendData = transformUIToBackend(months);
       const payload = JSON.stringify(backendData, null, 2);
 
-      console.log("💾 Saving modal changes - transformed data being sent:", {
+      logger.log("💾 Saving modal changes - transformed data being sent:", {
         backendData,
         monthsSent: backendData.length,
         secondMonthSources: backendData[1]?.sources,
@@ -660,121 +543,16 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
                   </div>
 
                   {/* ===== MONTH/YEAR PICKER MODAL ===== */}
-                  <AnimatePresence>
-                    {showMonthPicker && (
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/30 flex items-center justify-center z-50"
-                        onClick={() => setShowMonthPicker(false)}
-                      >
-                        <motion.div
-                          initial={{ scale: 0.9, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          exit={{ scale: 0.9, opacity: 0 }}
-                          onClick={(e) => e.stopPropagation()}
-                          className="bg-white rounded-2xl p-6 w-96 shadow-xl relative"
-                        >
-                          <button
-                            onClick={() => setShowMonthPicker(false)}
-                            className="absolute right-3 top-3 p-1 rounded-lg hover:bg-gray-50"
-                            aria-label="Close"
-                          >
-                            <X size={16} className="text-gray-400" />
-                          </button>
-
-                          {pickerStep === "month" && (
-                            <>
-                              <div className="text-sm font-semibold text-gray-500 mb-4 text-center">
-                                Select Month
-                              </div>
-                              <div className="grid grid-cols-3 gap-3">
-                                {Array.from({ length: 12 }).map((_, i) => {
-                                  const m = String(i + 1).padStart(2, "0");
-                                  const label = new Date(
-                                    `2024-${m}-01`
-                                  ).toLocaleString(undefined, {
-                                    month: "short",
-                                  });
-                                  const isSelected = m === tempMonth;
-                                  return (
-                                    <motion.button
-                                      key={m}
-                                      whileTap={{ scale: 0.95 }}
-                                      onClick={() => {
-                                        setTempMonth(m);
-                                        setPickerStep("year");
-                                      }}
-                                      className="rounded-xl py-2 text-sm border transition-colors"
-                                      style={{
-                                        backgroundColor: isSelected
-                                          ? "rgba(201,118,94,0.12)"
-                                          : undefined,
-                                      }}
-                                    >
-                                      {label}
-                                    </motion.button>
-                                  );
-                                })}
-                              </div>
-                            </>
-                          )}
-
-                          {pickerStep === "year" && (
-                            <>
-                              <div className="text-sm font-semibold text-gray-500 mb-2 text-center">
-                                Select Year
-                              </div>
-                              <div className="text-xs text-gray-400 text-center mb-4">
-                                for{" "}
-                                {new Date(
-                                  `2024-${tempMonth}-01`
-                                ).toLocaleString(undefined, {
-                                  month: "long",
-                                })}
-                              </div>
-                              <div className="grid grid-cols-3 gap-3">
-                                {Array.from({ length: 5 }).map((_, i) => {
-                                  const y = new Date().getFullYear() - i;
-                                  const candidate = `${y}-${tempMonth}`;
-                                  const isActive =
-                                    candidate === activeMonth.month;
-                                  return (
-                                    <motion.button
-                                      key={y}
-                                      whileTap={{ scale: 0.95 }}
-                                      onClick={() =>
-                                        commitMonthChange(candidate)
-                                      }
-                                      className="rounded-xl py-2 text-sm border transition-colors"
-                                      style={{
-                                        backgroundColor: isActive
-                                          ? ALORO_ORANGE
-                                          : undefined,
-                                        color: isActive ? "white" : undefined,
-                                      }}
-                                    >
-                                      {y}
-                                    </motion.button>
-                                  );
-                                })}
-                              </div>
-
-                              <div className="flex justify-center mt-5">
-                                <button
-                                  onClick={() => setPickerStep("month")}
-                                  className="text-xs text-gray-500 hover:text-gray-700"
-                                >
-                                  Back to months
-                                </button>
-                              </div>
-                            </>
-                          )}
-                        </motion.div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                  <MonthYearPickerModal
+                    showMonthPicker={showMonthPicker}
+                    setShowMonthPicker={setShowMonthPicker}
+                    pickerStep={pickerStep}
+                    setPickerStep={setPickerStep}
+                    tempMonth={tempMonth}
+                    setTempMonth={setTempMonth}
+                    activeMonthMonth={activeMonth.month}
+                    commitMonthChange={commitMonthChange}
+                  />
 
                   {/* ===== TABLE HEADER ===== */}
                   <div className="grid grid-cols-13 gap-4 mb-3 px-2 text-[11px] font-bold text-gray-400 uppercase">
@@ -788,186 +566,19 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
                   {/* ===== DATA GRID ROWS ===== */}
                   <AnimatePresence>
                     {rows.map((row) => (
-                      <motion.div
+                      <SourceRowItem
                         key={row.id}
-                        layout
-                        initial={{ opacity: 0, y: -12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -12 }}
-                        transition={{ duration: 0.2 }}
-                        className="grid grid-cols-13 gap-4 mb-4 items-center px-2"
-                      >
-                        {/* Source Input */}
-                        <div className="col-span-3 relative">
-                          <User
-                            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                            size={16}
-                          />
-                          <input
-                            value={row.source}
-                            onChange={(e) =>
-                              handleSourceChange(row.id, e.target.value)
-                            }
-                            placeholder="e.g., Google Ads"
-                            className="pl-9 w-full border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-alloro-orange/20 transition-colors"
-                          />
-                        </div>
-
-                        {/* Type Toggle */}
-                        <div className="col-span-2">
-                          <motion.button
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => handleTypeToggle(row.id)}
-                            className="w-full border rounded-xl px-3 py-3 flex items-center justify-between capitalize text-sm font-semibold transition-colors"
-                            style={{
-                              backgroundColor:
-                                row.type === "self" ? "#C9765E11" : "#C9765E22",
-                            }}
-                          >
-                            <span>{row.type}</span>
-                            <RefreshCw size={14} className="text-gray-400" />
-                          </motion.button>
-                        </div>
-
-                        {/* Referrals (with +/- buttons) */}
-                        <div
-                          className="col-span-3 relative rounded-xl"
-                          style={{
-                            backgroundColor:
-                              row.type === "self" ? "#C9765E11" : "#C9765E22",
-                          }}
-                        >
-                          <User
-                            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                            size={16}
-                          />
-                          <input
-                            type="text"
-                            value={row.referrals}
-                            onChange={(e) =>
-                              handleReferralsChange(row.id, e.target.value)
-                            }
-                            className="pl-9 pr-12 w-full border rounded-xl px-4 py-3 text-sm bg-transparent focus:outline-none focus:ring-2 focus:ring-alloro-orange/20 transition-colors"
-                          />
-                          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col">
-                            <button
-                              onClick={() =>
-                                incrementField(row.id, "referrals", 1)
-                              }
-                              className="p-0.5 text-gray-500 hover:text-gray-700 transition-colors"
-                            >
-                              <ArrowUp size={14} />
-                            </button>
-                            <button
-                              onClick={() =>
-                                incrementField(row.id, "referrals", -1)
-                              }
-                              className="p-0.5 text-gray-500 hover:text-gray-700 transition-colors"
-                            >
-                              <ArrowDown size={14} />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Production (with +/- buttons) */}
-                        <div
-                          className="col-span-4 relative rounded-xl"
-                          style={{
-                            backgroundColor:
-                              row.type === "self" ? "#C9765E11" : "#C9765E22",
-                          }}
-                        >
-                          <DollarSign
-                            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                            size={16}
-                          />
-                          <input
-                            type="text"
-                            value={formatMoney(row.production)}
-                            onChange={(e) =>
-                              handleProductionChange(row.id, e.target.value)
-                            }
-                            className="pl-9 pr-12 w-full border rounded-xl px-4 py-3 text-sm bg-transparent focus:outline-none focus:ring-2 focus:ring-alloro-orange/20 transition-colors"
-                          />
-                          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col">
-                            <button
-                              onClick={() =>
-                                incrementField(row.id, "production", 1)
-                              }
-                              className="p-0.5 text-gray-500 hover:text-gray-700 transition-colors"
-                            >
-                              <ArrowUp size={14} />
-                            </button>
-                            <button
-                              onClick={() =>
-                                incrementField(row.id, "production", -1)
-                              }
-                              className="p-0.5 text-gray-500 hover:text-gray-700 transition-colors"
-                            >
-                              <ArrowDown size={14} />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Delete Button */}
-                        <div className="col-span-1 flex justify-end relative">
-                          <button
-                            onClick={() => requestDeleteRow(row.id)}
-                            className="p-2.5 rounded-xl transition-colors hover:brightness-110"
-                            style={{
-                              backgroundColor: ALORO_ORANGE_DARK,
-                              color: "white",
-                            }}
-                          >
-                            <Trash2 size={18} />
-                          </button>
-
-                          {/* Confirmation Tooltip */}
-                          <AnimatePresence>
-                            {confirmDeleteRowId === row.id && (
-                              <motion.div
-                                initial={{
-                                  opacity: 0,
-                                  scale: 0.95,
-                                  y: -6,
-                                }}
-                                animate={{
-                                  opacity: 1,
-                                  scale: 1,
-                                  y: 0,
-                                }}
-                                exit={{
-                                  opacity: 0,
-                                  scale: 0.95,
-                                  y: -6,
-                                }}
-                                className="absolute right-10 top-1/2 -translate-y-1/2 bg-white border rounded-xl shadow-lg p-3 z-10"
-                              >
-                                <div className="text-xs mb-2">
-                                  Delete source?
-                                </div>
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() => deleteRow(row.id)}
-                                    className="text-xs px-3 py-1 rounded-lg text-white"
-                                    style={{
-                                      backgroundColor: ALORO_ORANGE_DARK,
-                                    }}
-                                  >
-                                    Delete
-                                  </button>
-                                  <button
-                                    onClick={() => setConfirmDeleteRowId(null)}
-                                    className="text-xs px-3 py-1 rounded-lg border border-red-200 text-red-500 hover:bg-red-50"
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-                      </motion.div>
+                        row={row}
+                        confirmDeleteRowId={confirmDeleteRowId}
+                        handleSourceChange={handleSourceChange}
+                        handleTypeToggle={handleTypeToggle}
+                        handleReferralsChange={handleReferralsChange}
+                        handleProductionChange={handleProductionChange}
+                        incrementField={incrementField}
+                        requestDeleteRow={requestDeleteRow}
+                        deleteRow={deleteRow}
+                        setConfirmDeleteRowId={setConfirmDeleteRowId}
+                      />
                     ))}
                   </AnimatePresence>
 

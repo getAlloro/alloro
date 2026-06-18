@@ -20,8 +20,7 @@ import { MindWorkplaceTab } from "../../components/Admin/minds/MindWorkplaceTab"
 import { MindParentingTab } from "../../components/Admin/minds/MindParentingTab";
 import { getMind, type MindWithVersion } from "../../api/minds";
 
-const TAB_KEYS = ["chat", "settings", "knowledge-sync", "parenting", "workplace"] as const;
-type TabKey = (typeof TAB_KEYS)[number];
+type TabKey = "chat" | "settings" | "knowledge-sync" | "parenting" | "workplace";
 
 function buildTabs(mindName: string): Array<{
   id: TabKey;

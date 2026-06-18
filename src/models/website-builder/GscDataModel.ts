@@ -85,6 +85,19 @@ export class GscDataModel extends BaseModel {
     return row?.latest_report_date ?? null;
   }
 
+  static async findEarliestReportDate(
+    projectId: string,
+    trx?: QueryContext,
+  ): Promise<string | null> {
+    const row = await this.table(trx)
+      .where({ project_id: projectId })
+      .select<{ earliest_report_date: string | null }[]>(
+        db.raw("min(report_date)::text as earliest_report_date"),
+      )
+      .first();
+    return row?.earliest_report_date ?? null;
+  }
+
   static async deleteByProjectId(
     projectId: string,
     trx?: QueryContext,

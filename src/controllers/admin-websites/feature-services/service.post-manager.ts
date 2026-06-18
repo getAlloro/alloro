@@ -8,6 +8,7 @@
 import { ProjectModel } from "../../../models/website-builder/ProjectModel";
 import { PostModel } from "../../../models/website-builder/PostModel";
 import { PostTypeModel } from "../../../models/website-builder/PostTypeModel";
+import { PostAttachmentModel } from "../../../models/website-builder/PostAttachmentModel";
 import { getRedisConnection } from "../../../workers/queues";
 import logger from "../../../lib/logger";
 
@@ -227,6 +228,115 @@ export async function createPost(
   await invalidatePostsCache(projectId);
 
   const enriched = await enrichPost(post);
+  return { post: enriched };
+}
+
+// ---------------------------------------------------------------------------
+// Duplicate post
+// ---------------------------------------------------------------------------
+
+/**
+ * Clone an existing post into a new draft titled `"{title} [copy]"`.
+ *
+ * Faithfully copies content, excerpt, featured image, custom fields, SEO data,
+ * and the post's category/tag assignments and attachment rows. The clone is
+ * always a draft and never inherits `source_url` — that column is the
+ * import-from-identity dedup key (project_id + post_type_id + source_url), so
+ * copying it would corrupt re-import matching.
+ *
+ * The post row and all child rows are written in one transaction (§10.5);
+ * attachment rows reference the same S3 URLs (no re-upload).
+ */
+export async function duplicatePost(
+  projectId: string,
+  postId: string
+): Promise<{
+  post: any;
+  error?: { status: number; code: string; message: string };
+}> {
+  const source = await PostModel.findByIdAndProject(postId, projectId);
+  if (!source) {
+    return {
+      post: null,
+      error: { status: 404, code: "NOT_FOUND", message: "Post not found" },
+    };
+  }
+
+  // Gather the child rows to clone alongside the post.
+  const [sourceCategories, sourceTags, sourceAttachments] = await Promise.all([
+    PostModel.findAssignedCategories(postId),
+    PostModel.findAssignedTags(postId),
+    PostModel.findAttachmentsByPostId(postId),
+  ]);
+
+  // New title + unique slug (mirrors createPost's slug logic).
+  const title = `${source.title} [copy]`;
+  let slug = slugify(title);
+  const existing = await PostModel.findBySlug(projectId, source.post_type_id, slug);
+  if (existing) {
+    slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
+  }
+
+  logger.info(
+    `[Admin Websites] Duplicating post ${postId} -> "${title}" for project ${projectId}`
+  );
+
+  // Clone the post and its child rows atomically.
+  const newPost = await PostModel.transaction(async (trx) => {
+    const post = await PostModel.insertReturning(
+      {
+        project_id: projectId,
+        post_type_id: source.post_type_id,
+        title,
+        slug,
+        content: source.content || "",
+        excerpt: source.excerpt ?? null,
+        featured_image: source.featured_image ?? null,
+        custom_fields: JSON.stringify(source.custom_fields ?? {}),
+        seo_data: source.seo_data == null ? null : JSON.stringify(source.seo_data),
+        status: "draft",
+        published_at: null,
+        source_url: null,
+      },
+      trx
+    );
+
+    if (sourceCategories.length > 0) {
+      await PostModel.insertCategoryAssignments(
+        sourceCategories.map((c) => ({ post_id: post.id, category_id: c.id })),
+        trx
+      );
+    }
+
+    if (sourceTags.length > 0) {
+      await PostModel.insertTagAssignments(
+        sourceTags.map((t) => ({ post_id: post.id, tag_id: t.id })),
+        trx
+      );
+    }
+
+    for (const attachment of sourceAttachments) {
+      await PostAttachmentModel.create(
+        {
+          post_id: post.id,
+          url: attachment.url,
+          filename: attachment.filename,
+          mime_type: attachment.mime_type,
+          file_size: attachment.file_size,
+          order_index: attachment.order_index,
+        },
+        trx
+      );
+    }
+
+    return post;
+  });
+
+  logger.info(`[Admin Websites] ✓ Duplicated post ID: ${newPost.id}`);
+
+  await invalidatePostsCache(projectId);
+
+  const enriched = await enrichPost(newPost);
   return { post: enriched };
 }
 

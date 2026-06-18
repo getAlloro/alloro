@@ -1,0 +1,207 @@
+{
+  "plan": "plans/06152026-frontend-remediation",
+  "generatedAt": "2026-06-16",
+  "status": "Not Run",
+  "notes": "Layer-2 acceptance click-through for the frontend remediation. EVERYTHING below is behavior-preserving code movement EXCEPT the 5 T4 items (E1-E5), which deliberately change the error path. So: for the decomposition items (D*), you're confirming the screen still renders + key interactions work (no blank screen, no console crash). For the error items (E*), you're confirming a FAILURE shows a message instead of crashing. Effects/emails/data writes are fine to trigger per the owner (already covered). Code gates already pass: tsc -b 0, production build 0, harness 6/6, 0 files >800.",
+  "items": [
+    {
+      "id": "E1",
+      "title": "T4 agents — Agent Insights error path",
+      "surface": "ui",
+      "precondition": "Admin logged in; an org with agent outputs.",
+      "steps": ["1. Open Admin → Agent Insights (AgentInsights).", "2. Confirm insights load.", "3. Approve and reject an insight — confirm the success toast and the row updates.", "4. (Failure path) With DevTools Network set to Offline, trigger a load/approve — confirm an error message/banner appears and the page does NOT crash."],
+      "expected": "Success actions work as before; on a failed call an error is shown (not a blank screen or unhandled crash).",
+      "status": "pending",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "E2",
+      "title": "T4 clarity — Clarity dashboard error path",
+      "surface": "ui",
+      "precondition": "Client/admin with a location that has Clarity data.",
+      "steps": ["1. Open the surface that shows Clarity metrics (selected location with Clarity).", "2. Confirm sessions/bounce/dead-clicks/trend render.", "3. (Failure path) Offline, reselect the location to force a refetch — confirm a Clarity error message appears, no crash."],
+      "expected": "Clarity data renders on success; a fetch failure shows the error text, app stays usable.",
+      "status": "pending",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "E3",
+      "title": "T4 google-auth — Connect Google button error path",
+      "surface": "ui",
+      "precondition": "A surface with the Google connect button (settings / integrations).",
+      "steps": ["1. Click 'Connect Google' — confirm the OAuth popup opens (cancel it; do NOT complete a real publish).", "2. (Failure path) Offline, click connect — confirm 'Failed to start Google connection' / error message shows and the button resets (not stuck loading)."],
+      "expected": "Popup opens on success; on failure an error shows and the button is not stuck in loading.",
+      "status": "pending",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "E4",
+      "title": "T4 gbp — GBP data/accounts/locations error path",
+      "surface": "ui",
+      "precondition": "Client/admin with a GBP-connected location.",
+      "steps": ["1. Open the GBP metrics surface; confirm reviews/rating/calls render and account/location pickers populate.", "2. (Failure path) Offline, refetch — confirm GBP error text shows for data, accounts, and locations; no crash."],
+      "expected": "GBP data + account/location lists render on success; failures show errors, app stays usable.",
+      "status": "pending",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "E5",
+      "title": "T4 onboarding — app startup + onboarding flow (HIGHEST RISK)",
+      "surface": "ui",
+      "precondition": "Test with BOTH an onboarded user and a not-yet-onboarded user.",
+      "steps": ["1. Log in as an onboarded user — confirm you land in the app (NOT kicked to onboarding).", "2. Log in as a new user — confirm the onboarding flow shows; complete a step (save profile, select GBP, complete) — confirm each works.", "3. Run the product-tour wizard (start / skip / complete / restart).", "4. CRITICAL failure path: as an ONBOARDED user, set Network to Offline and hard-reload the app once. Confirm you are NOT downgraded into the onboarding flow (the no-downgrade guard). Then go back online and reload — confirm normal."],
+      "expected": "Onboarded users stay in-app even if the startup status call fails; new users see onboarding; wizard + save actions work; no crash on failure.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "This is the one change that touches app-load behavior. Test the offline-reload-as-onboarded-user case specifically."
+    },
+    {
+      "id": "D1",
+      "title": "Identity editor (IdentityModal 3422→781 + 5 child views)",
+      "surface": "ui",
+      "precondition": "Admin → a website/org with identity.",
+      "steps": ["1. Open the Identity modal.", "2. Cycle every state/tab: empty/warm-up form, warming-up view, ready view, identity list tab, locations tab.", "3. Edit a field, add/remove a location, toggle the JSON editor — confirm all render and save."],
+      "expected": "All identity tabs/views render and behave exactly as before; edits save.",
+      "status": "pending", "evidence": "", "notes": ""
+    },
+    {
+      "id": "D2",
+      "title": "Website Detail page (2442→799) + tabs/header/modals",
+      "surface": "ui",
+      "precondition": "Admin → Websites → open a website.",
+      "steps": ["1. Confirm header (org dropdown, domain pill, action icons) renders.", "2. Click through all 13 tabs.", "3. Open each modal (Identity, Layout inputs, Create page, Find/replace, Connect domain).", "4. Confirm loading/error/not-found states (e.g., bad id)."],
+      "expected": "Header, every tab, and every modal render and work as before.",
+      "status": "pending", "evidence": "", "notes": ""
+    },
+    {
+      "id": "D3",
+      "title": "Page Editor (2127→279) + body/modals/states",
+      "surface": "ui",
+      "precondition": "Admin → a website page → open the editor.",
+      "steps": ["1. Confirm the editor loads (artifact/seo/code/visual views + sidebar).", "2. Make an inline edit, an AI edit, undo/redo, save.", "3. Open version history; preview + restore a version.", "4. Open each modal; confirm loading/error/version-preview banners."],
+      "expected": "Editor loads and all edit/save/version/modals behave identically.",
+      "status": "pending", "evidence": "", "notes": "Heavy state core was lifted into usePageEditor/usePageEditorActions — exercise undo/redo + save + version restore especially."
+    },
+    {
+      "id": "D4",
+      "title": "Practice Ranking page (2498→649) + usePracticeRanking",
+      "surface": "ui",
+      "precondition": "Admin → Practice Ranking.",
+      "steps": ["1. Confirm batches/jobs/month-groups render.", "2. Expand a batch; open a job's results view.", "3. Use the filter dropdowns; trigger a ranking run/retry (per owner — effects ok)."],
+      "expected": "Rankings list, results view, filters, and run/retry behave as before.",
+      "status": "pending", "evidence": "", "notes": ""
+    },
+    {
+      "id": "D5",
+      "title": "DFY Website page (1869→535) + useDfyWebsite editor core",
+      "surface": "ui",
+      "precondition": "Client → DFY website editor.",
+      "steps": ["1. Confirm the editor loads (toolbar, iframe, sidebar) + the preparing/read-only/empty states.", "2. Select an element, edit text, save.", "3. Switch tabs (dashboard/website views), connect-domain header."],
+      "expected": "DFY editor loads and select/edit/save + tab switching work identically.",
+      "status": "pending", "evidence": "", "notes": "Whole editor state machine lifted into useDfyWebsite + useDfyWebsiteEditor — exercise element-select + text-edit + save."
+    },
+    {
+      "id": "D6",
+      "title": "PMS screens (ManualEntry 2208→482, VisualPillars 1512→619, AutomationCards, LatestJobEditor, DataViewer)",
+      "surface": "ui",
+      "precondition": "Admin/client with PMS data + the PMS manual-entry/automation surfaces.",
+      "steps": ["1. Open PMS Visual Pillars — confirm it loads (data, automation status, polling).", "2. Open the Manual Entry modal — paste/upload data, switch month tabs, edit rows, submit.", "3. Open PMS Automation Cards (admin) — filters, approve toggle, edit a job's response.", "4. Open the Latest Job editor + Data viewer."],
+      "expected": "All PMS surfaces render and the manual-entry pipeline (paste/upload/rows/submit) + automation actions behave as before.",
+      "status": "pending", "evidence": "", "notes": "ManualEntry had its whole 24-state core (incl. TDZ refs + paste handler) lifted into usePmsManualEntry hooks — exercise paste → preview → submit carefully."
+    },
+    {
+      "id": "D7",
+      "title": "Rankings Dashboard (1968→620) + Referral Engine Dashboard (981→786)",
+      "surface": "ui",
+      "precondition": "Client dashboard with ranking + referral data.",
+      "steps": ["1. Open the rankings dashboard — confirm health gauge, factor breakdown, search-position, gaps, next-moves render.", "2. Open the referral engine dashboard — metric cards, table, loading/error states."],
+      "expected": "Both dashboards render all panels identically.",
+      "status": "pending", "evidence": "", "notes": ""
+    },
+    {
+      "id": "D8",
+      "title": "Website-builder tabs (PostsTab 1321→478, MenusTab 1010→706, PostBlocksTab, SeoPanel)",
+      "surface": "ui",
+      "precondition": "Admin → a website → Posts / Menus / Post-blocks tabs.",
+      "steps": ["1. Posts tab: list, open editor, media picker, SEO panel, custom fields, save a post.", "2. Menus tab: sidebar, menu form, item add/edit, drag-reorder, post picker.", "3. Post-blocks tab: device switcher + preview."],
+      "expected": "Posts/Menus/Post-blocks tabs + the SEO panel render and CRUD/drag/preview work as before.",
+      "status": "pending", "evidence": "", "notes": ""
+    },
+    {
+      "id": "D9",
+      "title": "Template Detail (1521→663) + children",
+      "surface": "ui",
+      "precondition": "Admin → Templates → open a template.",
+      "steps": ["1. Confirm header actions, layouts tab (Monaco), pages list, settings tab, live preview (desktop/mobile/SEO) render.", "2. Edit + save a layout; add/rename/delete a page; use settings actions."],
+      "expected": "Template detail tabs, preview, and page/layout actions behave as before.",
+      "status": "pending", "evidence": "", "notes": ""
+    },
+    {
+      "id": "D10",
+      "title": "Minds (MindSettingsTab 962→641, SkillDetailPanel 988→637, AiCommandTab 1375→694)",
+      "surface": "ui",
+      "precondition": "Admin → Minds.",
+      "steps": ["1. Mind settings tab: sources, work-pipeline config, credentials — render + edit.", "2. Skill detail panel: analytics tab + configuration tab — render + save config.", "3. AI Command tab: recommendations list, batch badges, target selection, additional notes."],
+      "expected": "All minds surfaces render and edits/saves work as before.",
+      "status": "pending", "evidence": "", "notes": ""
+    },
+    {
+      "id": "D11",
+      "title": "Leadgen (FormSubmissionsTab 1176→745, LeadgenSubmissionDetail 1002→343)",
+      "surface": "ui",
+      "precondition": "Admin → a website → Form Submissions.",
+      "steps": ["1. Submissions list renders; filter tabs work; mark-all-read.", "2. Open a submission detail — sections/flat view, file values, event timeline, audit payload, status chip."],
+      "expected": "Submissions list + detail (timeline, files, audit) render as before.",
+      "status": "pending", "evidence": "", "notes": ""
+    },
+    {
+      "id": "D12",
+      "title": "Org admin (OrgSettingsSection 916→696, ActionItemsHub 1218→749)",
+      "surface": "ui",
+      "precondition": "Admin → Organizations → open an org.",
+      "steps": ["1. Org settings section: render, business-data detail modal, refresh actions.", "2. Action items hub: task list, approval switch, animated/filter dropdowns, task card → details."],
+      "expected": "Org settings + action items render and actions work as before.",
+      "status": "pending", "evidence": "", "notes": ""
+    },
+    {
+      "id": "D13",
+      "title": "List/detail pages (WebsitesList, ImportsList, ImportDetail, AgentOutputsList, TasksView)",
+      "surface": "ui",
+      "precondition": "Admin.",
+      "steps": ["1. Open Websites list, Imports list, Agent Outputs list, Tasks view — confirm rows/filters/relative-times render.", "2. Open an Import detail — version cards, copy URL, activate/deprecate/delete (per owner)."],
+      "expected": "All list pages + import detail render and row actions work as before.",
+      "status": "pending", "evidence": "", "notes": ""
+    },
+    {
+      "id": "D14",
+      "title": "Competitor onboarding (LocationCompetitorOnboarding 1746→599) + Create Page modal (1100→754)",
+      "surface": "ui",
+      "precondition": "Admin/client competitor-onboarding flow; a website for create-page.",
+      "steps": ["1. Competitor onboarding: discovering stage, curating stage, the Leaflet map (pins/radius control), refresh-suggestions modal.", "2. Create Page modal: wizard steps + template-mode fields render and submit."],
+      "expected": "Competitor map/curation flow + create-page wizard render and behave as before.",
+      "status": "pending", "evidence": "", "notes": ""
+    },
+    {
+      "id": "D15",
+      "title": "Shared UI primitives (DesignSystem 1096→16 barrel) + folder-nesting (T5) imports",
+      "surface": "ui",
+      "precondition": "Any admin pages that use shared cards/badges/headers/bars.",
+      "steps": ["1. Spot-check 3-4 admin pages that use DesignSystem components (MetricCard, StatusPill, headers, FilterBar, TabBar, EmptyState) — confirm they render normally.", "2. Confirm no admin route 404s / blank-screens after the components/Admin folder reorganization (T5)."],
+      "expected": "Shared UI components render everywhere; no broken admin route from the folder moves.",
+      "status": "pending", "evidence": "", "notes": "DesignSystem split into a barrel + the entire flat Admin/ folder was reorganized into feature subfolders — this item catches any missed import."
+    },
+    {
+      "id": "D16",
+      "title": "Onboarding wizard config + Step 1 (wizardConfig split, Step1_PracticeInfo)",
+      "surface": "ui",
+      "precondition": "New-user onboarding.",
+      "steps": ["1. Run the onboarding wizard — confirm steps + demo data render.", "2. Step 1 practice info: fill + domain check + continue."],
+      "expected": "Wizard steps and Step 1 render and proceed as before.",
+      "status": "pending", "evidence": "", "notes": ""
+    }
+  ]
+}

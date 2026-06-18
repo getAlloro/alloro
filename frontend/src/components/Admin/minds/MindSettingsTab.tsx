@@ -2,25 +2,21 @@ import { useState, useEffect } from "react";
 import {
   Save,
   Loader2,
-  Plus,
   Trash2,
-  ToggleLeft,
-  ToggleRight,
   BookOpen,
   Crown,
-  Globe,
-  X,
   Key,
   Copy,
   Check,
-  Settings,
   Send,
-  Shield,
-  Ban,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useConfirm } from "../../ui/ConfirmModal";
 import { ActionButton } from "../../ui/DesignSystem";
+import { getErrorMessage } from "../../../lib/errorMessage";
+import { SourcesSection } from "./MindSettingsTab/SourcesSection";
+import { WorkPipelineSection } from "./MindSettingsTab/WorkPipelineSection";
+import { CredentialsSection } from "./MindSettingsTab/CredentialsSection";
 import {
   updateMind,
   updateBrain,
@@ -76,15 +72,6 @@ export function MindSettingsTab({ mind, onMindUpdated, onMindDeleted }: MindSett
   const [publishingId, setPublishingId] = useState<string | null>(null);
 
   // Work pipeline config
-  const ALL_WORK_TYPES = ["text", "markdown", "image", "video", "pdf", "docx", "audio"];
-  const ALL_PUBLISH_TARGETS = [
-    "internal_only",
-    "post_to_x",
-    "post_to_instagram",
-    "post_to_facebook",
-    "post_to_youtube",
-    "post_to_gbp",
-  ];
   const [workTypes, setWorkTypes] = useState<string[]>(mind.available_work_types || ["text", "markdown"]);
   const [publishTargets, setPublishTargets] = useState<string[]>(mind.available_publish_targets || ["internal_only"]);
   const [rejectionCats, setRejectionCats] = useState<string[]>(mind.rejection_categories || []);
@@ -305,8 +292,8 @@ export function MindSettingsTab({ mind, onMindUpdated, onMindDeleted }: MindSett
       } else {
         toast.error("Failed to delete mind");
       }
-    } catch (err: any) {
-      toast.error(err.message || "Failed to delete mind");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || "Failed to delete mind");
     } finally {
       setDeletingMind(false);
     }
@@ -318,7 +305,7 @@ export function MindSettingsTab({ mind, onMindUpdated, onMindDeleted }: MindSett
       available_work_types: workTypes,
       available_publish_targets: publishTargets,
       rejection_categories: rejectionCats,
-    } as any);
+    });
     if (result) {
       toast.success("Pipeline config saved");
       onMindUpdated();
@@ -435,115 +422,20 @@ export function MindSettingsTab({ mind, onMindUpdated, onMindDeleted }: MindSett
       </section>
 
       {/* Sources Section */}
-      <section className="rounded-xl border border-gray-200 bg-white p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-gray-900">Sources</h3>
-          <ActionButton
-            label="Add Source"
-            icon={<Plus className="h-4 w-4" />}
-            onClick={() => setShowAddSource(true)}
-            variant="secondary"
-            size="sm"
-          />
-        </div>
-
-        {showAddSource && (
-          <div className="mb-4 rounded-lg border border-gray-100 bg-gray-50 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-gray-600">New Source</span>
-              <button
-                onClick={() => setShowAddSource(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            <div className="space-y-2">
-              <input
-                type="text"
-                value={newSourceUrl}
-                onChange={(e) => setNewSourceUrl(e.target.value)}
-                placeholder="https://example.com/blog"
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-alloro-orange focus:outline-none focus:ring-1 focus:ring-alloro-orange"
-              />
-              <input
-                type="text"
-                value={newSourceName}
-                onChange={(e) => setNewSourceName(e.target.value)}
-                placeholder="Name (optional)"
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-alloro-orange focus:outline-none focus:ring-1 focus:ring-alloro-orange"
-              />
-              <div className="flex justify-end">
-                <ActionButton
-                  label="Add"
-                  onClick={handleAddSource}
-                  variant="primary"
-                  size="sm"
-                  disabled={!newSourceUrl.trim()}
-                  loading={addingSource}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {loadingSources ? (
-          <div className="flex justify-center py-6">
-            <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
-          </div>
-        ) : sources.length === 0 ? (
-          <p className="text-sm text-gray-400 py-4 text-center">
-            No sources added yet.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {sources.map((source) => (
-              <div
-                key={source.id}
-                className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-4 py-3"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <Globe className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                    <span className="text-sm text-gray-800 truncate">
-                      {source.name || source.url}
-                    </span>
-                    {!source.is_active && (
-                      <span className="text-[10px] font-medium text-gray-400 uppercase">
-                        inactive
-                      </span>
-                    )}
-                  </div>
-                  {source.name && (
-                    <p className="text-xs text-gray-400 truncate mt-0.5 ml-5.5">
-                      {source.url}
-                    </p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 ml-3">
-                  <button
-                    onClick={() => handleToggleSource(source.id, source.is_active)}
-                    className="text-gray-400 hover:text-gray-600"
-                    title={source.is_active ? "Deactivate" : "Activate"}
-                  >
-                    {source.is_active ? (
-                      <ToggleRight className="h-5 w-5 text-green-500" />
-                    ) : (
-                      <ToggleLeft className="h-5 w-5" />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => handleDeleteSource(source.id)}
-                    className="text-gray-400 hover:text-red-500"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+      <SourcesSection
+        sources={sources}
+        loadingSources={loadingSources}
+        showAddSource={showAddSource}
+        setShowAddSource={setShowAddSource}
+        newSourceUrl={newSourceUrl}
+        setNewSourceUrl={setNewSourceUrl}
+        newSourceName={newSourceName}
+        setNewSourceName={setNewSourceName}
+        addingSource={addingSource}
+        handleAddSource={handleAddSource}
+        handleToggleSource={handleToggleSource}
+        handleDeleteSource={handleDeleteSource}
+      />
 
       {/* Versions Section */}
       <section className="rounded-xl border border-gray-200 bg-white p-5">
@@ -604,112 +496,19 @@ export function MindSettingsTab({ mind, onMindUpdated, onMindDeleted }: MindSett
       </section>
 
       {/* Work Pipeline Configuration */}
-      <section className="rounded-xl border border-gray-200 bg-white p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Settings className="h-4 w-4 text-gray-500" />
-          <h3 className="text-sm font-semibold text-gray-900">
-            Work Pipeline Configuration
-          </h3>
-        </div>
-
-        {/* Available Work Types */}
-        <div className="mb-5">
-          <label className="block text-xs font-semibold text-gray-600 mb-2">
-            Available Work Creation Types
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {ALL_WORK_TYPES.map((type) => (
-              <button
-                key={type}
-                onClick={() => toggleWorkType(type)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                  workTypes.includes(type)
-                    ? "bg-alloro-orange/10 text-alloro-orange border border-alloro-orange/20"
-                    : "bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200"
-                }`}
-              >
-                {type}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Available Publish Targets */}
-        <div className="mb-5">
-          <label className="block text-xs font-semibold text-gray-600 mb-2">
-            Available Publish Targets
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {ALL_PUBLISH_TARGETS.map((target) => (
-              <button
-                key={target}
-                onClick={() => togglePublishTarget(target)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                  publishTargets.includes(target)
-                    ? "bg-green-50 text-green-700 border border-green-200"
-                    : "bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200"
-                }`}
-              >
-                {target.replace(/^post_to_/, "").replace(/_/g, " ")}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Rejection Categories */}
-        <div className="mb-5">
-          <label className="block text-xs font-semibold text-gray-600 mb-2">
-            Rejection Categories
-          </label>
-          <div className="flex flex-wrap gap-2 mb-3">
-            {rejectionCats.map((cat) => (
-              <span
-                key={cat}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-red-50 text-red-600 border border-red-100"
-              >
-                {cat.replace(/_/g, " ")}
-                <button
-                  onClick={() => removeRejectionCategory(cat)}
-                  className="hover:text-red-800"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={newRejectionCat}
-              onChange={(e) => setNewRejectionCat(e.target.value)}
-              placeholder="Add category..."
-              className="flex-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:border-alloro-orange focus:outline-none focus:ring-1 focus:ring-alloro-orange"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") addRejectionCategory();
-              }}
-            />
-            <ActionButton
-              label="Add"
-              icon={<Plus className="h-3.5 w-3.5" />}
-              onClick={addRejectionCategory}
-              variant="secondary"
-              size="sm"
-              disabled={!newRejectionCat.trim()}
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end">
-          <ActionButton
-            label="Save Pipeline Config"
-            icon={<Save className="h-4 w-4" />}
-            onClick={handleSavePipelineConfig}
-            variant="primary"
-            size="sm"
-            loading={savingPipeline}
-          />
-        </div>
-      </section>
+      <WorkPipelineSection
+        workTypes={workTypes}
+        publishTargets={publishTargets}
+        rejectionCats={rejectionCats}
+        newRejectionCat={newRejectionCat}
+        setNewRejectionCat={setNewRejectionCat}
+        savingPipeline={savingPipeline}
+        toggleWorkType={toggleWorkType}
+        togglePublishTarget={togglePublishTarget}
+        addRejectionCategory={addRejectionCategory}
+        removeRejectionCategory={removeRejectionCategory}
+        handleSavePipelineConfig={handleSavePipelineConfig}
+      />
 
       {/* Portal Key */}
       <section className="rounded-xl border border-gray-200 bg-white p-5">
@@ -805,141 +604,22 @@ export function MindSettingsTab({ mind, onMindUpdated, onMindDeleted }: MindSett
       )}
 
       {/* Platform Credentials */}
-      <section className="rounded-xl border border-gray-200 bg-white p-5">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Shield className="h-4 w-4 text-gray-500" />
-            <h3 className="text-sm font-semibold text-gray-900">
-              Platform Credentials
-            </h3>
-          </div>
-          <ActionButton
-            label="Add Credential"
-            icon={<Plus className="h-4 w-4" />}
-            onClick={() => setShowAddCred(true)}
-            variant="secondary"
-            size="sm"
-          />
-        </div>
-        <p className="text-xs text-gray-400 mb-4 leading-relaxed">
-          Store API keys for publish targets (X, Instagram, etc.). Credentials
-          are encrypted and never shown after creation.
-        </p>
-
-        {showAddCred && (
-          <div className="mb-4 rounded-lg border border-gray-100 bg-gray-50 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-gray-600">New Credential</span>
-              <button onClick={() => setShowAddCred(false)} className="text-gray-400 hover:text-gray-600">
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            <div className="space-y-2">
-              <select
-                value={newCredPlatform}
-                onChange={(e) => setNewCredPlatform(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-alloro-orange focus:outline-none focus:ring-1 focus:ring-alloro-orange bg-white"
-              >
-                <option value="">Select platform...</option>
-                <option value="x">X (Twitter)</option>
-                <option value="instagram">Instagram</option>
-                <option value="facebook">Facebook</option>
-                <option value="youtube">YouTube</option>
-                <option value="google_business">Google Business Profile</option>
-                <option value="other">Other</option>
-              </select>
-              <input
-                type="text"
-                value={newCredLabel}
-                onChange={(e) => setNewCredLabel(e.target.value)}
-                placeholder="Label (optional)"
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-alloro-orange focus:outline-none focus:ring-1 focus:ring-alloro-orange"
-              />
-              <textarea
-                value={newCredKey}
-                onChange={(e) => setNewCredKey(e.target.value)}
-                placeholder="Paste API key or credentials..."
-                rows={3}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-mono focus:border-alloro-orange focus:outline-none focus:ring-1 focus:ring-alloro-orange resize-none"
-              />
-              <div className="flex justify-end">
-                <ActionButton
-                  label="Save Credential"
-                  onClick={handleAddCredential}
-                  variant="primary"
-                  size="sm"
-                  disabled={!newCredPlatform || !newCredKey.trim()}
-                  loading={addingCred}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {loadingCreds ? (
-          <div className="flex justify-center py-6">
-            <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
-          </div>
-        ) : credentials.length === 0 ? (
-          <p className="text-sm text-gray-400 py-4 text-center">
-            No credentials stored yet.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {credentials.map((cred) => (
-              <div
-                key={cred.id}
-                className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-4 py-3"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-gray-800">
-                      {cred.platform}
-                    </span>
-                    {cred.label && (
-                      <span className="text-xs text-gray-400">
-                        {cred.label}
-                      </span>
-                    )}
-                    <span
-                      className={`text-[10px] font-medium uppercase px-2 py-0.5 rounded-full ${
-                        cred.status === "active"
-                          ? "bg-green-50 text-green-600"
-                          : cred.status === "revoked"
-                            ? "bg-red-50 text-red-500"
-                            : "bg-gray-100 text-gray-500"
-                      }`}
-                    >
-                      {cred.status}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-gray-400 mt-0.5">
-                    Added {new Date(cred.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 ml-3">
-                  {cred.status === "active" && (
-                    <button
-                      onClick={() => handleRevokeCredential(cred.id)}
-                      className="text-gray-400 hover:text-amber-500"
-                      title="Revoke"
-                    >
-                      <Ban className="h-4 w-4" />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleDeleteCredential(cred.id)}
-                    className="text-gray-400 hover:text-red-500"
-                    title="Delete"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+      <CredentialsSection
+        credentials={credentials}
+        loadingCreds={loadingCreds}
+        showAddCred={showAddCred}
+        setShowAddCred={setShowAddCred}
+        newCredPlatform={newCredPlatform}
+        setNewCredPlatform={setNewCredPlatform}
+        newCredLabel={newCredLabel}
+        setNewCredLabel={setNewCredLabel}
+        newCredKey={newCredKey}
+        setNewCredKey={setNewCredKey}
+        addingCred={addingCred}
+        handleAddCredential={handleAddCredential}
+        handleRevokeCredential={handleRevokeCredential}
+        handleDeleteCredential={handleDeleteCredential}
+      />
 
       {/* Danger Zone */}
       <section className="rounded-xl border border-red-500/20 bg-red-500/5 p-6">

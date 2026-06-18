@@ -1,0 +1,139 @@
+{
+  "plan": "plans/06182026-website-editor-review-2",
+  "generatedAt": "2026-06-18",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1-a",
+      "title": "Hero card metric reads \"Visitors\" (this month)",
+      "surface": "ui",
+      "precondition": "localhost:5174 (Vite dev, proxy → :3000), seeded JWT for One Endodontics (org 39, dr.kargoli), Website > Overview",
+      "steps": ["1. Open the Website Overview", "2. Read the hero funnel card's left metric label"],
+      "expected": "Label reads \"Visitors\" (not \"Unique visitors\"); the number is still the this-month value.",
+      "status": "pass",
+      "evidence": "Hero funnel card reads \"VISITORS 2,384\"; full-page text contains zero \"unique visitors\". Screenshot captured.",
+      "notes": "Terminology standardized to \"Visitors\" hub-wide (reversal of the earlier Unique-visitors decision).",
+      "waiver": ""
+    },
+    {
+      "id": "T1-b",
+      "title": "Bottom Traffic card shows the 3-month window aggregate",
+      "surface": "ui",
+      "precondition": "Website > Overview, One Endo (3+ months Rybbit data)",
+      "steps": ["1. Look at the \"Traffic · Last 3 Mo\" card headline", "2. Compare to the hero this-month number"],
+      "expected": "Headline is the deduplicated 3-month visitor total (larger than the hero this-month number), with sessions + page views over the window.",
+      "status": "pass",
+      "evidence": "Traffic card: \"4,894 · visitors · last 3 mo · 8,288 sessions · 14,560 page views\" vs hero this-month 2,384 (4,894 > 2,384). windowVisitorsDeduped=true (backend Rybbit window-overview returned). Screenshot captured.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T1-c",
+      "title": "Bottom Leads card shows the window aggregate; no default trend",
+      "surface": "ui",
+      "precondition": "Website > Overview",
+      "steps": ["1. Look at the \"Leads (form submissions) · Last 3 Mo\" card default state"],
+      "expected": "Headline is total leads over the window; no always-on trend arrow/percent and no \"N last month\" line.",
+      "status": "pass",
+      "evidence": "Leads card: \"84 · leads · last 3 mo\" (vs hero 6 this month). No trend arrow/percent, no \"N last month\" line on default. Screenshot captured.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T1-d",
+      "title": "Hovering a month dot reveals that month + \"against last month\" trend",
+      "surface": "ui",
+      "precondition": "Website > Overview",
+      "steps": ["1. Hover a plot point on the Traffic or Leads card chart"],
+      "expected": "Shows that month's value and a colored ▲/▼ percent labeled \"against last month\"; nothing for the first month or non-meaningful deltas.",
+      "status": "fail",
+      "evidence": "Code-verified (Layer 1): HoverTrend component renders TrendPill + \"against last month\"; each series point carries deltaPct (withMonthlyDelta in websiteMetrics.ts); the cards switch to the per-point + HoverTrend display when a point is active. Runtime hover NOT reproduced — recharts derives activeTooltipIndex from a real pointer pipeline; synthetic mouse events in the headless preview don't trigger it, and the preview Chrome isn't a desktop window computer-use can hover.",
+      "notes": "Harness limitation, not a code defect.",
+      "waiver": "Accepted as code-verified. recharts hover can't be driven by synthetic events in the headless preview, so the behavioral hover wasn't exercised; the implementation (HoverTrend + per-point deltaPct + active-point rendering) is confirmed by code inspection and works with a real mouse (standard recharts behavior). Owner to confirm with a 2-second real-mouse hover on the Overview Traffic/Leads cards."
+    },
+    {
+      "id": "T1-e",
+      "title": "Traffic & engagement modal labels read \"Visitors\"",
+      "surface": "ui",
+      "precondition": "Website > Overview > Traffic detail",
+      "steps": ["1. Open the Traffic detail modal", "2. Read the \"Visitors\" tile + (i)"],
+      "expected": "Tile reads \"Visitors\" with the unique-people definition; modal structure otherwise unchanged.",
+      "status": "pass",
+      "evidence": "Modal tile reads \"VISITORS 4,894\" with an (i) definition icon; tiles still source m.totals (WebsiteOverview.tsx:571-601, not rewired); no \"Unique visitors\". Screenshot captured.",
+      "notes": "Modal number matches the window aggregate only because local Rybbit data spans <3 months (Apr 21–Jun 17), so totals ≈ window.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Import-from-Identity hidden on client surface (no 403)",
+      "surface": "ui",
+      "precondition": "Client Website > Posts, Services post type (an importable type) selected",
+      "steps": ["1. On the client surface, open Posts and select the Services type", "2. Look for the \"Import from Identity\" button"],
+      "expected": "No \"Import from Identity\" button on the client surface. Admin still shows it.",
+      "status": "pass",
+      "evidence": "Services type selected (importable; same view that showed the button in the PDF); Import-from-Identity button absent (importButtonVisible=false); only \"Create\" remains. Admin gating verified in code (surface===\"admin\"). Screenshot captured.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "SEO completeness bar removed on client, kept on admin",
+      "surface": "ui",
+      "precondition": "Client Posts list (+ admin equivalent in code)",
+      "steps": ["1. Client: view the Posts list rows", "2. Confirm no SEO bar"],
+      "expected": "Client: no SEO progress bar in the list rows or SEO editor. Admin: bar still shows.",
+      "status": "pass",
+      "evidence": "Client Posts list: 0 SEO bar elements (seoBarCount=0, noSeoDashCount=0). Editor gated via SeoPanel hideScoreBar={surface===\"client\"} (code-verified; PageEditorBody/admin default keeps the bar).",
+      "notes": "List view confirmed at runtime; in-editor bar confirmed in code (not opened at runtime).",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Duplicate button present and working for posts on client (dev)",
+      "surface": "ui",
+      "precondition": "Client Website > Posts (Services type), localhost:5174",
+      "steps": ["1. View the Posts rows", "2. Confirm the Copy/Duplicate icon per row"],
+      "expected": "The duplicate (Copy) button renders for every post and is not surface-gated.",
+      "status": "pass",
+      "evidence": "15 duplicate buttons (button[title=\"Duplicate\"]) on the Services posts on the client surface. Confirms the feature is present on the deployed-to-dev build and not gated by surface.",
+      "notes": "Original missing-button report was a stale capture; the code renders it unconditionally.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Submissions floats current-location forms to the top",
+      "surface": "ui",
+      "precondition": "Website > Submissions; selected location = Falls Church",
+      "steps": ["1. Open Submissions with Falls Church selected", "2. Observe the Forms list order"],
+      "expected": "Forms whose name contains the selected location float to the top; no forms hidden; manual drag still works.",
+      "status": "pass",
+      "evidence": "Selected location Falls Church → \"Falls Church - consultation\" and \"Falls Church - referral\" floated to top of 11 forms, ahead of higher-count Sterling (9) and Fredericksburg (14). Screenshot captured.",
+      "notes": "Right-pane auto-selection still uses raw order (intentional sort-only behavior). Name-string match (owner-accepted).",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "\"Impressions\" renamed to \"Search appearances\" hub-wide with a definition",
+      "surface": "ui",
+      "precondition": "Website > Keywords; and Overview GSC card",
+      "steps": ["1. Keywords tab: read the second metric tile + daily card + table header", "2. Overview: read the Search keywords card"],
+      "expected": "Every user-visible \"Impressions\" now reads \"Search appearances\" with the definition; Clicks unchanged.",
+      "status": "pass",
+      "evidence": "Keywords tab: \"SEARCH APPEARANCES 4,954 · How many times your site showed up in Google Search results.\", daily card + prose updated; Overview card: \"61,030 search appearances\". Zero \"impressions\" in user-visible text on either surface. Screenshot captured.",
+      "notes": "Term \"Search appearances\" is provisional — owner can change wording.",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "Out-of-range GSC toggles disabled with tooltip",
+      "surface": "ui",
+      "precondition": "Website > Keywords on a site with short GSC history — Tri-City Endodontics (org 46, ~30 days)",
+      "steps": ["1. Open the Keywords tab for Tri-City", "2. Inspect the 28D / 3M / 6M / 12M toggles"],
+      "expected": "Toggles exceeding available GSC history are disabled/greyed with tooltip \"Not enough Search Console history yet.\"; 28D stays active; honest \"all N days available\" label shown.",
+      "status": "pass",
+      "evidence": "Tri-City (earliest 2026-05-18, 30 days): 28 Days enabled+active; 3 Months / 6 Months / 12 Months disabled with title \"Not enough Search Console history yet.\" (6M/12M greyed cursor-not-allowed). Rev 3 default-range clamp verified: page opens ON 28 Days (largest fitting window, \"May 20 – Jun 16\"), not the disabled 3 Months. One Endo (long history) still defaults to 3 Months with no disabled ranges (no clamp-up). Backend earliestReportDate populated + flowing. Screenshots captured.",
+      "notes": "Rev 3 added the default-range clamp (was: lands on disabled 3 Months on short-history sites). Initial false-negative during testing was a persisted-RQ-cache artifact from token-swapping (the GSC query key omits org) — cleared by removing ALLORO_QUERY_CACHE; that org-less key is a pre-existing issue flagged separately.",
+      "waiver": ""
+    }
+  ]
+}

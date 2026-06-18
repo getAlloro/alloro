@@ -16,7 +16,7 @@ import {
   FileText,
   BarChart3,
 } from "lucide-react";
-import RecommendationCard from "../../components/Admin/RecommendationCard";
+import RecommendationCard from "../../components/Admin/agents/RecommendationCard";
 import {
   AdminPageHeader,
   ActionButton,
@@ -28,13 +28,14 @@ import { staggerContainer, cardVariants, fadeInUp } from "../../lib/animations";
 import { ConfirmModal } from "../../components/settings/ConfirmModal";
 import { AlertModal } from "../../components/ui/AlertModal";
 import { getAgentIcon } from "../../lib/adminIcons";
-import { getCommonHeaders } from "../../api";
+import { adminFetch } from "../../api";
 // AgentRecommendation type used indirectly via TQ hook data
 
 import {
   useAdminInsightsRecommendations,
   useInvalidateAdminInsights,
 } from "../../hooks/queries/useAdminStandaloneQueries";
+import { logger } from "../../lib/logger";
 
 /**
  * AI Data Insights Detail Page
@@ -91,9 +92,9 @@ export default function AIDataInsightsDetail() {
       onConfirm: async () => {
         setConfirmModal((prev) => ({ ...prev, isOpen: false }));
         try {
-          const response = await fetch(
+          const response = await adminFetch(
             `/api/admin/agent-insights/${agentType}/recommendations/mark-all-completed`,
-            { method: "PATCH", headers: getCommonHeaders() }
+            { method: "PATCH" }
           );
           const data = await response.json();
           if (data.success) {
@@ -113,7 +114,7 @@ export default function AIDataInsightsDetail() {
             });
           }
         } catch (error) {
-          console.error("Failed to mark all as completed:", error);
+          logger.error("Failed to mark all as completed:", error);
           setAlertModal({
             isOpen: true,
             title: "Operation Failed",
@@ -137,11 +138,11 @@ export default function AIDataInsightsDetail() {
         setConfirmModal((prev) => ({ ...prev, isOpen: false }));
         setBulkOperationLoading(true);
         try {
-          const response = await fetch(
+          const response = await adminFetch(
             "/api/admin/agent-insights/recommendations/bulk-delete",
             {
               method: "DELETE",
-              headers: { "Content-Type": "application/json", ...getCommonHeaders() },
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ ids: Array.from(selectedIds) }),
             }
           );
@@ -164,7 +165,7 @@ export default function AIDataInsightsDetail() {
             });
           }
         } catch (error) {
-          console.error("Failed to bulk delete recommendations:", error);
+          logger.error("Failed to bulk delete recommendations:", error);
           setAlertModal({
             isOpen: true,
             title: "Delete Failed",

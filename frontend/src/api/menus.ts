@@ -2,20 +2,9 @@
  * Menus API — Admin portal for managing navigation menus
  */
 
-import { getCommonHeaders } from "./index";
+import { adminFetch } from "./index";
 
 const BASE = "/api/admin/websites";
-
-// Attach the Bearer token (via getCommonHeaders) to every admin call. These
-// /api/admin/websites/* routes are protected by the app-level auth guard;
-// bare fetch would 401.
-const adminFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
-  const headers = new Headers(init.headers);
-  Object.entries(getCommonHeaders()).forEach(([key, value]) => {
-    if (!headers.has(key)) headers.set(key, value);
-  });
-  return fetch(input, { ...init, headers });
-};
 
 // =====================================================================
 // TYPES

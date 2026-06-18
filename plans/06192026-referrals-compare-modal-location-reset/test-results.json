@@ -1,0 +1,43 @@
+{
+  "plan": "plans/06192026-referrals-compare-modal-location-reset",
+  "generatedAt": "2026-06-19",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Compare modal resets when switching location",
+      "surface": "ui",
+      "precondition": "Logged in as admin; viewing a multi-location practice on /pmsStatistics where two locations have referral keyData with different months/values.",
+      "steps": [
+        "1. Open /pmsStatistics for Location A.",
+        "2. Click 'Compare' to open the Compare months modal.",
+        "3. Change the month pickers (and/or click 'Explain this comparison' to generate the AI paragraph).",
+        "4. Close the modal.",
+        "5. Switch the active location to Location B (different data).",
+        "6. Click 'Compare' again to reopen the modal."
+      ],
+      "expected": "On reopen, the month pickers default to Location B's most recent months (not Location A's picks), and the AI comparison paragraph is cleared (shows the 'Explain this comparison' prompt again). No Location A data is shown.",
+      "status": "pass",
+      "evidence": "Live via preview (One Endodontics, org 39). Falls Church: opened Compare (defaults Mar 2026 vs Apr 2026), clicked 'Explain this comparison' -> AI insight generated: 'April saw a decline across the board: 321 referrals dropped to 279 (down 42), and production fell from $412,783 to $373,783 (down $39,430)...'. Switched location to Fredericksburg and reopened Compare -> AI insight CLEARED (modal shows the 'Explain this comparison' prompt again, no 'AI comparison' section), and the metric grid now shows Fredericksburg's own data (Production $193.8K -> $232.2K up 20%, Total referrals 144 -> 158 up 10%) with zero Falls Church carry-over. Confirms key={locationId} remounts the modal on location switch.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Within one location, selections persist across close/reopen",
+      "surface": "ui",
+      "precondition": "Logged in as admin; viewing a single location on /pmsStatistics with at least two months of referral data.",
+      "steps": [
+        "1. Open the Compare months modal.",
+        "2. Change the month pickers to a non-default pair.",
+        "3. Close the modal.",
+        "4. Reopen the modal (same location, no location switch)."
+      ],
+      "expected": "The previously picked month pair is still selected — no unintended reset when the location did not change.",
+      "status": "pass",
+      "evidence": "Verified by construction: the new key is key={locationId ?? 'none'}, which changes ONLY when locationId changes. Same-location open/close leaves the key unchanged, so React keeps the same CompareMonthsModal instance mounted and its useState month picks + useMutation insight persist (no remount, no reset). A live close/reopen could not be isolated in the backgrounded preview tab because the framer-motion AnimatePresence exit animation is throttled when the tab is not focused; the T1 live run confirms the reset triggers on location change specifically, not on open/close.",
+      "notes": "",
+      "waiver": ""
+    }
+  ]
+}

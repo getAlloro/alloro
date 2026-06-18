@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Bug, CheckCircle, AlertTriangle, RefreshCw } from "lucide-react";
+import { logger } from "../lib/logger";
 
 // TODO: Create src/utils/connectionTester.ts with ConnectionTester class
 const ConnectionTester = {
@@ -32,6 +33,21 @@ const ConnectionTester = {
   }),
 };
 
+interface TestResultItem {
+  name: string;
+  success: boolean;
+  message: string;
+  duration: number;
+  data?: object;
+}
+
+interface TestResults {
+  passed: number;
+  failed: number;
+  total: number;
+  results: TestResultItem[];
+}
+
 interface ConnectionDebugPanelProps {
   isVisible: boolean;
   onClose: () => void;
@@ -41,7 +57,7 @@ export const ConnectionDebugPanel: React.FC<ConnectionDebugPanelProps> = ({
   isVisible,
   onClose,
 }) => {
-  const [testResults, setTestResults] = useState<any>(null);
+  const [testResults, setTestResults] = useState<TestResults | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [quickIssues, setQuickIssues] = useState<string[]>([]);
 
@@ -56,7 +72,7 @@ export const ConnectionDebugPanel: React.FC<ConnectionDebugPanelProps> = ({
       const issues = await ConnectionTester.quickDiagnostic();
       setQuickIssues(issues);
     } catch (error) {
-      console.error("Quick diagnostic failed:", error);
+      logger.error("Quick diagnostic failed:", error);
     }
   };
 
@@ -67,7 +83,7 @@ export const ConnectionDebugPanel: React.FC<ConnectionDebugPanelProps> = ({
       const results = await tester.runAllTests();
       setTestResults(results);
     } catch (error) {
-      console.error("Full tests failed:", error);
+      logger.error("Full tests failed:", error);
     } finally {
       setIsRunning(false);
     }
@@ -174,7 +190,7 @@ export const ConnectionDebugPanel: React.FC<ConnectionDebugPanelProps> = ({
                 </div>
 
                 <div className="space-y-2">
-                  {testResults.results.map((result: any, index: number) => (
+                  {testResults.results.map((result, index) => (
                     <div
                       key={index}
                       className={`p-4 rounded-lg border ${

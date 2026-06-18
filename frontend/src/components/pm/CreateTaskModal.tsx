@@ -19,7 +19,7 @@ export function CreateTaskModal({ isOpen, onClose, preselectedProjectId }: Creat
   const [description, setDescription] = useState("");
   const [projectId, setProjectId] = useState(preselectedProjectId || "");
   const [columnId, setColumnId] = useState("");
-  const [priority, setPriority] = useState<string>("P4");
+  const [priority, setPriority] = useState<typeof PRIORITY_CYCLE[number]>("P4");
   const [deadline, setDeadline] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [projects, setProjects] = useState<PmProject[]>([]);
@@ -52,7 +52,7 @@ export function CreateTaskModal({ isOpen, onClose, preselectedProjectId }: Creat
   const selectedColumnIsBacklog = columns.find((c) => c.id === columnId)?.is_backlog ?? false;
 
   const cyclePriority = () => {
-    const idx = PRIORITY_CYCLE.indexOf(priority as any);
+    const idx = PRIORITY_CYCLE.indexOf(priority);
     setPriority(PRIORITY_CYCLE[(idx + 1) % PRIORITY_CYCLE.length]);
   };
 
@@ -65,7 +65,7 @@ export function CreateTaskModal({ isOpen, onClose, preselectedProjectId }: Creat
         title: title.trim(),
         description: description || undefined,
         column_id: columnId,
-        priority: selectedColumnIsBacklog ? undefined : (priority as any),
+        priority: selectedColumnIsBacklog ? undefined : priority,
         deadline: deadline ? new Date(deadline).toISOString() : undefined,
       });
       // Refresh active project if viewing it
@@ -136,7 +136,7 @@ export function CreateTaskModal({ isOpen, onClose, preselectedProjectId }: Creat
                 <div>
                   <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.05em]" style={{ color: "var(--color-pm-text-secondary)" }}>Priority</label>
                   <button type="button" onClick={cyclePriority} disabled={selectedColumnIsBacklog} className="flex items-center gap-2 rounded-lg px-3.5 py-2.5 text-sm w-full disabled:opacity-40" style={{ backgroundColor: "var(--color-pm-bg-primary)", border: "1px solid var(--color-pm-border)", color: "var(--color-pm-text-primary)" }}>
-                    <PriorityTriangle priority={selectedColumnIsBacklog ? null : priority as any} size={14} />
+                    <PriorityTriangle priority={selectedColumnIsBacklog ? null : priority} size={14} />
                     <span>{selectedColumnIsBacklog ? "N/A" : PRIORITY_LABELS[priority] || priority}</span>
                   </button>
                 </div>

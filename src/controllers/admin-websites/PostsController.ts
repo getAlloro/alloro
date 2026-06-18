@@ -90,6 +90,19 @@ export async function deletePost(req: Request, res: Response): Promise<Response>
   }
 }
 
+/** POST /:id/posts/:postId/duplicate */
+export async function duplicatePost(req: Request, res: Response): Promise<Response> {
+  try {
+    const { id: projectId, postId } = req.params;
+    const result = await postManager.duplicatePost(projectId, postId);
+    if (result.error) return res.status(result.error.status).json({ success: false, ...result.error });
+    return res.status(201).json({ success: true, data: result.post });
+  } catch (error: any) {
+    logger.error({ err: error }, "[Admin Websites] Error duplicating post:");
+    return res.status(500).json({ success: false, error: "DUPLICATE_ERROR", message: error?.message });
+  }
+}
+
 // =====================================================================
 // MENUS
 // =====================================================================

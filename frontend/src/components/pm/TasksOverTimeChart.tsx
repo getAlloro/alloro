@@ -7,6 +7,7 @@ import {
 import type { ChartDataResponse } from "../../types/pm";
 import { getChartData } from "../../api/pm";
 import { NoActivity } from "./EmptyStates";
+import { logger } from "../../lib/logger";
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -84,7 +85,7 @@ export function TasksOverTimeChart() {
           setChartKey((k) => k + 1);
         }
       })
-      .catch(console.error)
+      .catch((err) => logger.error(err))
       .finally(() => {
         if (!cancelled) setIsLoading(false);
       });

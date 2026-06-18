@@ -17,19 +17,18 @@ import {
   Settings as SettingsIcon,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useSidebar } from "./Admin/SidebarContext";
+import { useSidebar } from "./Admin/shell/SidebarContext";
 import { apiGet } from "../api/index";
 import { useIsWizardActive } from "../contexts/OnboardingWizardContext";
 import { useAuth } from "../hooks/useAuth";
+import type { UserProfile } from "../contexts/authContext";
 import { LocationSwitcher } from "./LocationSwitcher";
 
 interface SidebarProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userProfile: any;
+  userProfile: UserProfile | null;
   onboardingCompleted: boolean | null;
   disconnect: () => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  selectedDomain?: any;
+  selectedDomain?: unknown;
   isOpen?: boolean;
   onClose?: () => void;
 }

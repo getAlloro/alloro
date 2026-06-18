@@ -1,5 +1,6 @@
 import { Navigate } from "react-router-dom";
 import { getPriorityItem } from "../hooks/useLocalStorage";
+import { logger } from "../lib/logger";
 
 interface PublicRouteProps {
   children: React.ReactNode;
@@ -17,7 +18,7 @@ export const PublicRoute: React.FC<PublicRouteProps> = ({ children }) => {
   const isAuthenticated = !!authToken || !!token;
 
   if (isAuthenticated) {
-    console.log("[PublicRoute] JWT token present; redirecting to dashboard");
+    logger.log("[PublicRoute] JWT token present; redirecting to dashboard");
     return <Navigate to="/dashboard" replace />;
   }
 
