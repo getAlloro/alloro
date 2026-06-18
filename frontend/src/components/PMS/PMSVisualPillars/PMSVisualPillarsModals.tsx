@@ -144,8 +144,11 @@ export function PMSVisualPillarsModals({
         onSuccess={handleUploadWizardSuccess}
       />
 
-      {/* Month Comparison Modal */}
+      {/* Month Comparison Modal — keyed by location so switching locations
+          remounts it with fresh state, clearing the previous location's picked
+          months and AI comparison insight. */}
       <CompareMonthsModal
+        key={locationId ?? "none"}
         isOpen={showCompare}
         onClose={() => setShowCompare(false)}
         months={months}

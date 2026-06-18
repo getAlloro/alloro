@@ -1,0 +1,43 @@
+{
+  "plan": "plans/06192026-referrals-compare-modal-location-reset",
+  "generatedAt": "2026-06-19",
+  "status": "Not Run",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Compare modal resets when switching location",
+      "surface": "ui",
+      "precondition": "Logged in as admin; viewing a multi-location practice on /pmsStatistics where two locations have referral keyData with different months/values.",
+      "steps": [
+        "1. Open /pmsStatistics for Location A.",
+        "2. Click 'Compare' to open the Compare months modal.",
+        "3. Change the month pickers (and/or click 'Explain this comparison' to generate the AI paragraph).",
+        "4. Close the modal.",
+        "5. Switch the active location to Location B (different data).",
+        "6. Click 'Compare' again to reopen the modal."
+      ],
+      "expected": "On reopen, the month pickers default to Location B's most recent months (not Location A's picks), and the AI comparison paragraph is cleared (shows the 'Explain this comparison' prompt again). No Location A data is shown.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Within one location, selections persist across close/reopen",
+      "surface": "ui",
+      "precondition": "Logged in as admin; viewing a single location on /pmsStatistics with at least two months of referral data.",
+      "steps": [
+        "1. Open the Compare months modal.",
+        "2. Change the month pickers to a non-default pair.",
+        "3. Close the modal.",
+        "4. Reopen the modal (same location, no location switch)."
+      ],
+      "expected": "The previously picked month pair is still selected — no unintended reset when the location did not change.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    }
+  ]
+}
