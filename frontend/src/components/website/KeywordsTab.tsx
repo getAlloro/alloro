@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Hourglass, ArrowRight } from "lucide-react";
 import { TrendSparkline } from "../dashboard/shared/TrendSparkline";
@@ -62,6 +62,27 @@ const fmt = (n: number) => numberFmt.format(Math.round(n));
 function shortDate(iso: string): string {
   const [, month, day] = iso.split("-");
   return `${MONTHS[Number(month) - 1] ?? ""} ${Number(day)}`;
+}
+
+/** Inclusive day span between two YYYY-MM-DD dates (UTC, timezone-safe). */
+function daysBetween(fromIso: string, toIso: string): number {
+  const from = Date.parse(`${fromIso}T00:00:00.000Z`);
+  const to = Date.parse(`${toIso}T00:00:00.000Z`);
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return 0;
+  return Math.round((to - from) / 86_400_000) + 1;
+}
+
+/**
+ * A range toggle is out of range when its window asks for more history than
+ * Search Console has stored, beyond a small grace margin (#8). When the earliest
+ * report date is unknown, every range stays enabled (no-op).
+ */
+function isRangeOutOfHistory(
+  rangeDays: number,
+  availableDays: number | null,
+): boolean {
+  if (availableDays === null) return false;
+  return rangeDays - availableDays > 7;
 }
 
 /** Full page URL → readable path (host stripped), with the raw URL as title. */
@@ -135,7 +156,9 @@ function KeywordTable({
                 {column === "query" ? "Query" : "Page"}
               </th>
               <th className="px-3 py-2.5 text-right font-bold">Clicks</th>
-              <th className="px-5 py-2.5 text-right font-bold">Impr.</th>
+              <th className="px-5 py-2.5 text-right font-bold">
+                Search appearances
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -231,6 +254,23 @@ export function KeywordsTab() {
     [query.data],
   );
 
+  // Open on the largest range that actually fits the practice's GSC history.
+  // The default is 3 months, but on a short-history site that range is disabled
+  // (#8 / Rev 3), so landing on it leaves the page sitting on a greyed-out
+  // toggle. Drop the selection to the biggest in-history window instead. This
+  // only acts when the current range is out of history, so a manual pick (always
+  // an enabled, in-history range) is never overridden, and it can't loop.
+  useEffect(() => {
+    const dash = query.data?.dashboard;
+    if (!dash?.earliestReportDate || !dash?.latestReportDate) return;
+    const avail = daysBetween(dash.earliestReportDate, dash.latestReportDate);
+    if (!isRangeOutOfHistory(rangeDays, avail)) return;
+    const fits = [...RANGES]
+      .reverse()
+      .find((r) => !isRangeOutOfHistory(r.days, avail));
+    if (fits && fits.days !== rangeDays) setRangeDays(fits.days);
+  }, [query.data, rangeDays]);
+
   if (query.isLoading) {
     return (
       <div className={shellCls}>
@@ -307,6 +347,13 @@ export function KeywordsTab() {
     ? `${exactRange} · all ${dashboard.dataDays} days available`
     : exactRange;
 
+  // Available history span drives which range toggles are reachable (#8).
+  // Null when the earliest date is unknown — leaves every toggle enabled.
+  const availableDays =
+    dashboard.earliestReportDate && dashboard.latestReportDate
+      ? daysBetween(dashboard.earliestReportDate, dashboard.latestReportDate)
+      : null;
+
   return (
     <div className={shellCls}>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -321,15 +368,26 @@ export function KeywordsTab() {
         <div className="inline-flex rounded-[10px] border border-line-soft bg-white p-1 shadow-premium">
           {RANGES.map((r) => {
             const active = r.days === rangeDays;
+            const outOfHistory = isRangeOutOfHistory(r.days, availableDays);
             return (
               <button
                 key={r.days}
                 type="button"
-                onClick={() => setRangeDays(r.days)}
+                disabled={outOfHistory}
+                title={
+                  outOfHistory
+                    ? "Not enough Search Console history yet."
+                    : undefined
+                }
+                onClick={() => {
+                  if (!outOfHistory) setRangeDays(r.days);
+                }}
                 className={`rounded-[7px] px-3 py-1.5 text-[11px] font-black uppercase tracking-wide transition-colors focus:outline-none ${
                   active
                     ? "bg-alloro-navy text-white"
-                    : "text-slate-500 hover:bg-slate-50 hover:text-alloro-navy"
+                    : outOfHistory
+                      ? "cursor-not-allowed text-slate-300"
+                      : "text-slate-500 hover:bg-slate-50 hover:text-alloro-navy"
                 }`}
               >
                 {WINDOW_LABELS_BY_DAYS[r.days] ?? windowLabel(r.key)}
@@ -346,9 +404,9 @@ export function KeywordsTab() {
           hint="Visits from Google search in this window"
         />
         <StatTile
-          label="Impressions"
+          label="Search appearances"
           value={fmt(totals?.impressions ?? 0)}
-          hint="Times you appeared in search in this window"
+          hint="How many times your site showed up in Google Search results."
         />
       </div>
 
@@ -361,8 +419,8 @@ export function KeywordsTab() {
           valueKey="clicks"
         />
         <TrendCard
-          title="Impressions · daily"
-          unit="impressions"
+          title="Search appearances · daily"
+          unit="search appearances"
           total={totals?.impressions ?? 0}
           data={series}
           valueKey="impressions"
@@ -374,8 +432,8 @@ export function KeywordsTab() {
         <span className="font-semibold text-alloro-navy">Top queries</span> are
         the search terms people typed on Google to find you;{" "}
         <span className="font-semibold text-alloro-navy">Top pages</span> are the
-        pages of your site they landed on. Clicks and impressions match the
-        window selected above.
+        pages of your site they landed on. Clicks and search appearances match
+        the window selected above.
       </p>
 
       <KeywordTable

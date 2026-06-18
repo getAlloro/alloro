@@ -21,6 +21,7 @@ import { MediaPickerField } from "./MediaPickerField";
 import type { ViewState } from "../postsTab.types";
 
 interface PostsEditorViewProps {
+  surface: "admin" | "client";
   postTypes: PostType[];
   editingPost: Post | null;
   editorTab: "content" | "seo";
@@ -72,6 +73,7 @@ interface PostsEditorViewProps {
 }
 
 export function PostsEditorView({
+  surface,
   postTypes,
   editingPost,
   editorTab,
@@ -192,6 +194,7 @@ export function PostsEditorView({
             pageContent={formContent}
             onSeoDataChange={handleSeoDataChange}
             organizationId={organizationId}
+            hideScoreBar={surface === "client"}
           />
         </div>
       ) : (

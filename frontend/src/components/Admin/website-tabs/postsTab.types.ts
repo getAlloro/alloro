@@ -18,6 +18,12 @@ export interface PostsTabProps {
   organizationId?: number;
   /** Remove outer border/shadow — useful when embedded edge-to-edge (e.g. user editor). */
   borderless?: boolean;
+  /**
+   * Which surface is rendering this tab. Defaults to "admin" (full admin
+   * affordances). The client-facing surface (DFYWebsite) passes "client" to
+   * hide super-admin-only controls (Import-from-Identity) and the SEO score bar.
+   */
+  surface?: "admin" | "client";
   // Optional API overrides for user-facing context
   fetchPostsFn?: typeof defaultFetchPosts;
   createPostFn?: typeof defaultCreatePost;

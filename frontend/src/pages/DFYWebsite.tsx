@@ -255,6 +255,7 @@ export function DFYWebsite() {
               templateId={project.template_id}
               organizationId={project.organization_id || undefined}
               borderless
+              surface="client"
               fetchPostsFn={userFetchPosts}
               createPostFn={userCreatePost}
               updatePostFn={userUpdatePost}

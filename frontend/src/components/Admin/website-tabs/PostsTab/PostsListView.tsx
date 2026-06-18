@@ -16,6 +16,7 @@ import type { Post, PostType, PostCategory, PostTag } from "../../../../api/post
 import { quickPostSeoScore } from "../postsTab.utils";
 
 interface PostsListViewProps {
+  surface: "admin" | "client";
   categories: PostCategory[];
   tags: PostTag[];
   selectedType: PostType | undefined;
@@ -36,6 +37,7 @@ interface PostsListViewProps {
 
 /* ─── Main Content: Posts List ─── */
 export function PostsListView({
+  surface,
   categories,
   tags,
   selectedType,
@@ -117,20 +119,24 @@ export function PostsListView({
         )}
         {importablePostType && (
           <div className="ml-auto flex items-center gap-2">
-            <button
-              type="button"
-              onClick={openImportModal}
-              disabled={identityLoading}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-alloro-orange hover:bg-orange-100 transition-colors disabled:opacity-50"
-              title={`Import ${importablePostType}s from identity`}
-            >
-              {identityLoading ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Download className="w-3.5 h-3.5" />
-              )}
-              Import from Identity
-            </button>
+            {/* Import-from-Identity hits a super-admin-only endpoint — only
+                offer it on the admin surface so the client never sees a 403. */}
+            {surface === "admin" && (
+              <button
+                type="button"
+                onClick={openImportModal}
+                disabled={identityLoading}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-alloro-orange hover:bg-orange-100 transition-colors disabled:opacity-50"
+                title={`Import ${importablePostType}s from identity`}
+              >
+                {identityLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                )}
+                Import from Identity
+              </button>
+            )}
             <button
               type="button"
               onClick={() => openEditor()}
@@ -199,8 +205,9 @@ export function PostsListView({
                   </div>
                 </div>
                 <div className="flex items-center gap-2 ml-4">
-                  {/* SEO Score */}
-                  {(() => {
+                  {/* SEO Score — admin only. The client surface hides the
+                      completeness bar (item 5), so render nothing for it. */}
+                  {surface === "admin" && (() => {
                     const seoScore = quickPostSeoScore(post.seo_data);
                     // Feedback #21: drop the bare orange number on each post
                     // card (read as a confusing standalone score). Keep the

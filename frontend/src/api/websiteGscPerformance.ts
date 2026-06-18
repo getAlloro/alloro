@@ -35,6 +35,7 @@ export interface GscPerformanceDashboard {
   fromDate: string | null;
   toDate: string | null;
   latestReportDate: string | null;
+  earliestReportDate: string | null;
   dataDays: number;
   totals: GscMetricSummary;
   daily: GscDailyPoint[];

@@ -35,6 +35,12 @@ export interface SeoPanelProps {
   wrapperHtml?: string;
   onSeoDataChange: (data: SeoData) => void;
   organizationId?: number;
+  /**
+   * Hide the SEO-completeness score bars (header total bar + sidebar per-section
+   * bars) only. The checklist, insights, and editable fields stay intact.
+   * Defaults to false so pages and the admin surface keep the bars.
+   */
+  hideScoreBar?: boolean;
 }
 
 export interface LocationOption {

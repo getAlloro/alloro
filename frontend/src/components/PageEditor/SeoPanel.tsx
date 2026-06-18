@@ -39,6 +39,7 @@ export default function SeoPanel({
   wrapperHtml,
   onSeoDataChange,
   organizationId,
+  hideScoreBar = false,
 }: SeoPanelProps) {
   const [seo, setSeo] = useState<SeoData>(seoData || {});
   const [activeSection, setActiveSection] = useState("critical");
@@ -303,12 +304,14 @@ export default function SeoPanel({
               <span className={`text-xl font-black tabular-nums ${getScoreColor(pct)}`}>{totalScore}</span>
               <span className="text-sm text-gray-300 font-semibold">/ {totalMax}</span>
             </div>
-            <div className="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-700 ease-out ${getScoreBarColor(pct)}`}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
+            {!hideScoreBar && (
+              <div className="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-700 ease-out ${getScoreBarColor(pct)}`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            )}
             <span className="text-[11px] font-medium text-gray-400">{getScoreLabel(pct)}</span>
           </div>
 
@@ -415,17 +418,19 @@ export default function SeoPanel({
                     <span className="w-1.5 h-1.5 rounded-full bg-blue-400 ml-auto shrink-0" />
                   )}
                 </div>
-                <div className="flex items-center gap-2 mt-1.5 pl-4">
-                  <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${s.dotColor}`}
-                      style={{ width: `${sectionPct}%` }}
-                    />
+                {!hideScoreBar && (
+                  <div className="flex items-center gap-2 mt-1.5 pl-4">
+                    <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${s.dotColor}`}
+                        style={{ width: `${sectionPct}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] tabular-nums font-medium text-gray-400 w-8 text-right">
+                      {s.score}/{s.max}
+                    </span>
                   </div>
-                  <span className="text-[10px] tabular-nums font-medium text-gray-400 w-8 text-right">
-                    {s.score}/{s.max}
-                  </span>
-                </div>
+                )}
               </button>
             );
           })}

@@ -231,7 +231,7 @@ export function WebsiteDetailTabContent({
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
-          <PostsTab projectId={id!} templateId={website.template_id} organizationId={website.organization?.id} />
+          <PostsTab projectId={id!} templateId={website.template_id} organizationId={website.organization?.id} surface="admin" />
         </motion.div>
       )}
 

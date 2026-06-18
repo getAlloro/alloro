@@ -46,6 +46,7 @@ export type GscPerformanceDashboard = {
   fromDate: string | null;
   toDate: string | null;
   latestReportDate: string | null;
+  earliestReportDate: string | null;
   dataDays: number;
   totals: GscMetricSummary;
   daily: GscDailyPoint[];
@@ -185,6 +186,7 @@ function emptyDashboard(rangeDays: number): GscPerformanceDashboard {
     fromDate: null,
     toDate: null,
     latestReportDate: null,
+    earliestReportDate: null,
     dataDays: 0,
     totals: summarize(createAccumulator()),
     daily: [],
@@ -207,6 +209,9 @@ export async function getDashboard(
   const rangeDays = getRangeDays(rangeDaysInput);
   const latestReportDate = normalizeDateString(
     await GscDataModel.findLatestReportDate(integration.project_id),
+  );
+  const earliestReportDate = normalizeDateString(
+    await GscDataModel.findEarliestReportDate(integration.project_id),
   );
 
   if (!latestReportDate) {
@@ -274,6 +279,7 @@ export async function getDashboard(
     fromDate,
     toDate: latestReportDate,
     latestReportDate,
+    earliestReportDate,
     dataDays: rows.length,
     totals: summarize(totals),
     daily,

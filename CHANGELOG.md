@@ -2,6 +2,33 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.130] - June 2026
+
+### Website Editor Review 2 — Overview clarity, Posts/Submissions/Keywords fixes
+
+Owner review of the client-facing Website hub (Pilot Mode, One Endodontics) raised eight items; #1 was excluded by the owner. The rest landed as a single pass on the Website surface: clearer visitor / Search Console terminology, honest time-window math, surface-aware controls, location-aware submissions, and Search Console range guards. Verified in the browser with seeded sessions (One Endodontics + Tri-City Endodontics) — the acceptance checklist rolls up to Passed (the chart-hover item is code-verified with a written waiver).
+
+**Key Changes:**
+
+- **Visitors terminology + honest windows (#2):** the Overview hero and the Traffic-detail modal now read "Visitors" (not "Unique visitors") with a plain definition; the Traffic and Leads cards headline the deduplicated last-3-months total instead of the this-month number (a new backend Rybbit window-overview supplies the deduped figure); the always-on trend pill + "N last month" line moved to a hover that shows a single month and its change against the previous month.
+- **Import from Identity is admin-only (#3):** the button now renders only on the admin Website surface, so the client / pilot view no longer hits the super-admin-gated endpoint (the "Failed to fetch identity: Forbidden" 403). Server gating unchanged.
+- **Duplicate post (#4):** confirmed present for every post type including Doctors on the client surface (the earlier "missing" report was a pre-deploy capture).
+- **SEO score bar hidden on the client (#5):** the per-row and in-editor SEO completeness bars are hidden on the client Website view (kept on the admin view and on Pages) via a shared `surface` prop.
+- **Location-aware Submissions (#6):** the Forms list floats forms whose name matches the currently-selected location to the top; all forms stay visible and manual drag order still works.
+- **"Impressions" → "Search appearances" (#7):** renamed hub-wide (Keywords tab, Overview snapshot, admin GSC dashboard) with a plain definition; internal data field names unchanged.
+- **Search Console range guards (#8):** range toggles longer than the available GSC history are disabled with a "Not enough Search Console history yet." tooltip (new backend earliest-report-date), and the Keywords tab opens on the largest window that fits instead of a disabled default.
+
+**Commits:**
+
+- `frontend/src/components/website/overview/WebsiteOverview.tsx`, `websiteMetrics.ts`, `api/websiteAnalytics.ts` — Visitors label, last-3-months window aggregate, hover trend, GSC rename
+- `src/controllers/user-website/user-website-services/websiteAnalytics.service.ts` — deduped 3-month Rybbit window-overview (`windowVisitors`)
+- `PostsTab.tsx` + `PostsTab/PostsListView.tsx` + `PostsTab/PostsEditorView.tsx` + `PageEditor/SeoPanel.tsx` + `DFYWebsite.tsx` / `WebsiteDetail/WebsiteDetailTabContent.tsx` — shared `surface` prop gating Import-from-Identity + the SEO bar on the client surface
+- `Admin/leadgen/FormSubmissionsTab.tsx` — location-aware form ordering
+- `website/KeywordsTab.tsx`, `Admin/integrations/GscPerformanceDashboard.tsx` + `GscPerformanceParts.tsx`, `api/websiteGscPerformance.ts` — "Search appearances" rename, range-toggle disable, default-range clamp
+- `src/models/website-builder/GscDataModel.ts`, `controllers/admin-websites/feature-services/service.gsc-performance.ts` — `findEarliestReportDate` + `earliestReportDate`
+- `plans/06182026-website-editor-review-2/` — spec (Rev 1–4) + acceptance artifact (`test.html` + `test-results.json`)
+- Docs parity: `alloro-docs` Website page + dashboard replica synced (terminology + window copy)
+
 ## [0.0.129] - June 2026
 
 ### Frontend Architecture Remediation (Code Constitution) + reliability fixes

@@ -51,6 +51,9 @@ export async function getWebsiteAnalytics(projectId: string, rangeDays: unknown)
       totals: EMPTY_TOTALS,
       daily: [] as RybbitDashboardDaily,
       monthly: [] as RybbitMonthlyPoint[],
+      windowVisitors: null as number | null,
+      windowFromDate: null as string | null,
+      windowToDate: null as string | null,
     };
   }
 
@@ -63,11 +66,21 @@ export async function getWebsiteAnalytics(projectId: string, rangeDays: unknown)
   // Both live calls fall back to stored values on any failure (see helpers).
   let monthly: RybbitMonthlyPoint[] = [];
   let liveTotals: RybbitMetricSummary | null = null;
+  // Deduplicated visitor total for the last-3-month window the overview's
+  // bottom Traffic card plots. Summing the per-month uniques double-counts
+  // visitors who return across months, so the card needs a single overview
+  // query scoped to that window (Rybbit dedupes within the from→to range).
+  let windowOverview: RybbitMetricSummary | null = null;
+  let windowFromDate: string | null = null;
   if (dashboard.fromDate && dashboard.latestReportDate) {
     const timeZone = resolveRybbitTimeZone(
       await ProjectModel.getRybbitTimeZone(integration.project_id)
     );
-    const [monthlyResult, totalsResult] = await Promise.all([
+    // The card window is the last 3 calendar months ending at the latest
+    // report month (first day of two months back → latest report date),
+    // matching the "Last 3 mo" the card shows for a typical practice.
+    windowFromDate = firstDayOfMonthsBack(dashboard.latestReportDate, 2);
+    const [monthlyResult, totalsResult, windowResult] = await Promise.all([
       fetchRybbitMonthlyUniques(
         integration,
         dashboard.fromDate,
@@ -80,9 +93,16 @@ export async function getWebsiteAnalytics(projectId: string, rangeDays: unknown)
         dashboard.latestReportDate,
         timeZone
       ),
+      fetchRybbitOverview(
+        integration,
+        windowFromDate,
+        dashboard.latestReportDate,
+        timeZone
+      ),
     ]);
     monthly = monthlyResult ?? [];
     liveTotals = totalsResult;
+    windowOverview = windowResult;
   }
 
   return {
@@ -92,7 +112,23 @@ export async function getWebsiteAnalytics(projectId: string, rangeDays: unknown)
     totals: liveTotals ?? dashboard.totals,
     daily: dashboard.daily,
     monthly,
+    // Deduplicated traffic for the last-3-month card window. Null when the live
+    // query failed — the card falls back to the most defensible client value.
+    windowVisitors: windowOverview?.users ?? null,
+    windowFromDate,
+    windowToDate: dashboard.latestReportDate,
   };
+}
+
+/**
+ * First day (YYYY-MM-DD) of the calendar month `monthsBack` months before the
+ * month of `dateString`. e.g. firstDayOfMonthsBack("2026-06-14", 2) → "2026-04-01".
+ */
+function firstDayOfMonthsBack(dateString: string, monthsBack: number): string {
+  const [year, month] = dateString.split("-").map(Number);
+  if (!year || !month) return dateString;
+  const date = new Date(Date.UTC(year, month - 1 - monthsBack, 1));
+  return date.toISOString().split("T")[0];
 }
 
 // `daily` is whatever the Rybbit dashboard returns; alias keeps the empty-state

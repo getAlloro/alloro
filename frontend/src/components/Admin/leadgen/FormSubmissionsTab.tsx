@@ -32,6 +32,7 @@ import {
   useUpdateWebsiteFormCatalogPreferences,
   useWebsiteFormRecipientCatalog,
 } from "../../../hooks/queries/useWebsiteFormRecipientRouting";
+import { useLocationContext } from "../../../contexts/locationContext";
 import { BulkActionBar } from "../../ui/DesignSystem";
 import { FormSubmissionsSettingsModal } from "./FormSubmissionsSettingsModal";
 import { FormSubmissionsSidebar } from "./FormSubmissionsSidebar";
@@ -111,7 +112,35 @@ export default function FormSubmissionsTab({
       catalogQueryKey,
     },
   );
+  const { selectedLocation } = useLocationContext();
   const forms = useMemo(() => catalogQuery.data ?? [], [catalogQuery.data]);
+
+  // Location-aware ordering (item 6): forms carry no structured location, so the
+  // selected location is matched by a case-insensitive substring of its name in
+  // the form's name/label. Matching forms float to the top via a STABLE presort
+  // — relative order within each group is preserved, so manual drag still
+  // orders within each group and no forms are hidden. Falls back to the server
+  // order unchanged when there's no usable location name.
+  const displayedForms = useMemo(() => {
+    const locationName = selectedLocation?.name?.trim().toLowerCase();
+    if (!locationName) return forms;
+    const matchesLocation = (form: (typeof forms)[number]): boolean => {
+      const haystacks = [form.form_name, form.display_label];
+      return haystacks.some(
+        (value) => value != null && value.toLowerCase().includes(locationName),
+      );
+    };
+    return forms
+      .map((form, index) => ({ form, index }))
+      .sort((a, b) => {
+        const aMatch = matchesLocation(a.form) ? 0 : 1;
+        const bMatch = matchesLocation(b.form) ? 0 : 1;
+        if (aMatch !== bMatch) return aMatch - bMatch;
+        return a.index - b.index;
+      })
+      .map((entry) => entry.form);
+  }, [forms, selectedLocation]);
+
   const selectedForm = useMemo(
     () =>
       forms.find((form) => form.form_key === selectedFormKey) ??
@@ -504,7 +533,7 @@ export default function FormSubmissionsTab({
     <>
       <div className="grid overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm lg:grid-cols-[240px_minmax(0,1fr)]">
         <FormSubmissionsSidebar
-          forms={forms}
+          forms={displayedForms}
           selectedFormKey={selectedForm?.form_key ?? null}
           isLoading={catalogQuery.isLoading}
           onSelectForm={(formKey) => {

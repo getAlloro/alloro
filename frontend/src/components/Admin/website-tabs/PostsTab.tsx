@@ -34,6 +34,7 @@ export default function PostsTab({
   templateId,
   organizationId,
   borderless = false,
+  surface = "admin",
   fetchPostsFn = defaultFetchPosts,
   createPostFn = defaultCreatePost,
   updatePostFn = defaultUpdatePost,
@@ -384,6 +385,7 @@ export default function PostsTab({
           {view === "list" && (
             <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <PostsListView
+                surface={surface}
                 categories={categories}
                 tags={tags}
                 selectedType={selectedType}
@@ -406,6 +408,7 @@ export default function PostsTab({
           {view === "editor" && (
             <motion.div key="editor" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <PostsEditorView
+                surface={surface}
                 postTypes={postTypes}
                 editingPost={editingPost}
                 editorTab={editorTab}
