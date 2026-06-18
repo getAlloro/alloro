@@ -57,8 +57,3 @@ signals-google-key.json
 .claude
 .agents
 .github/skills
-
-# Gemini PR-review runtime artifacts (generated in CI, never committed)
-pr-review-prompt.md
-pr-review-changed.json
-pr-review-findings.json
