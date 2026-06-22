@@ -2,6 +2,27 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.132] - June 2026
+
+### Fix: PMS month labels showed the wrong month for US-timezone users
+
+The PMS "Manage Data" screens labeled an uploaded month one month early for users in US (negative-UTC-offset) timezones — a May upload showed as "April." The data was always stored correctly as May; only the on-screen label was wrong. The cause: rendering a `YYYY-MM` key with `new Date(key + "-01")`, which JavaScript parses as UTC midnight and then formats in local time, rolling the first of the month back a day for US users. It was invisible in development because the dev machine runs Asia/Manila (UTC+8). Reported by One Endodontics (all locations US Eastern).
+
+**Key Changes:**
+
+- Routed all 11 affected month-label sites (7 files) through the existing timezone-safe labeler in `utils/timeframe.ts` (`formatDataMonth` plus a new `formatDataMonthShort`), which builds the label from a month-name array and never constructs a `Date` from the key.
+- Fixed both month pickers to label tiles by index, so the tile a US user reads as "May" commits `05` — also closing a real wrong-slot selection in the free-form upload flow.
+- Consolidated two duplicate `formatMonthLabel` helpers to delegate to the shared util (no behavior change).
+- Added timezone regression tests; verified by simulation under `TZ=America/New_York` with the real One Endodontics export (Fredericksburg May.csv, 641 rows → month key `2026-05`; the real component renders "May 2026"). Backend and persisted data untouched.
+
+**Commits:**
+
+- `frontend/src/utils/timeframe.ts` — add `formatDataMonthShort`; export `MONTH_NAMES` / `MONTH_NAMES_SHORT`
+- `frontend/src/components/PMS/PMSDataViewer.tsx`, `PMSLatestJobEditor.tsx`, `PMSManualEntryModal/SummaryCards.tsx`, `MonthConflictDialog.tsx`, `MonthTabs.tsx` — month labels via the shared util
+- `frontend/src/components/PMS/PMSManualEntryModal/MonthYearPickerModal.tsx`, `PMSLatestJobEditor/MonthYearPickerModal.tsx` — picker tiles labeled by index
+- `frontend/src/components/PMS/pmsManualEntryModal.utils.ts`, `pmsVisualPillars.utils.ts` — `formatMonthLabel` delegates to the shared util
+- `frontend/src/utils/timeframe.test.ts`, `PMSManualEntryModal/MonthTabs.test.tsx`, `MonthYearPickerModal.test.tsx` — timezone regression tests
+
 ## [0.0.131] - June 2026
 
 ### Renderer edge bot-block — enforced + One Endodontics analytics cleanup

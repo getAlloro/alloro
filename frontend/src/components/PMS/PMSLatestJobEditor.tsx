@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { updatePmsJobResponse } from "../../api/pms";
+import { formatDataMonthShort } from "../../utils/timeframe";
 import {
   transformBackendToUI,
   transformUIToBackend,
@@ -401,10 +402,7 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
                                 : undefined,
                             }}
                           >
-                            {new Date(m.month + "-01").toLocaleDateString(
-                              undefined,
-                              { month: "short", year: "numeric" }
-                            )}
+                            {formatDataMonthShort(m.month)}
                           </motion.button>
 
                           {/* Delete icon per tab */}
@@ -489,10 +487,7 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
                         Month
                       </div>
                       <div className="text-center text-xl font-semibold">
-                        {new Date(activeMonth.month + "-01").toLocaleDateString(
-                          undefined,
-                          { month: "short", year: "numeric" }
-                        )}
+                        {formatDataMonthShort(activeMonth.month)}
                       </div>
                     </motion.div>
 

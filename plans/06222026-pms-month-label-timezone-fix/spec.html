@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PMS Month Label Timezone Fix Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9rem; }
+    th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { background: var(--soft); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0; color: var(--muted); }
+    .task-card dl { display: grid; grid-template-columns: 120px 1fr; gap: 6px 14px; margin: 0; }
+    .task-card dt { padding-top: 2px; }
+    .task-card dd { margin: 0; font-weight: 400; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+      .task-card dl { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-completed">Completed</span>
+      </div>
+      <h1>PMS month label timezone fix</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed — verified by US-timezone simulation (acceptance Passed)</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06222026-pms-month-label-timezone-fix</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>A client (One Endodontics, org 39, all locations in US Eastern) uploads May data into the May slot and the dashboard labels it "April." Investigation (plans-less <code>-b</code>, 2026-06-22, 16-agent trace + adversarial verification) proved the data is <strong>stored correctly as <code>"2026-05"</code></strong> — this is a frontend display bug, not data corruption. Several PMS labels render a <code>"YYYY-MM"</code> key with <code>new Date(key + "-01")</code>, a date-only string the JS engine parses as <strong>UTC midnight</strong> and then formats in the browser's <strong>local</strong> time. For any negative-offset (US) user, midnight-May-1-UTC is the evening of April 30 locally, so the label rolls back a month. It is invisible in dev because the dev machine runs Asia/Manila (UTC+8, positive offset). Every US-timezone client is affected; the first-of-month dates that trigger it are common in DentalEMR exports.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Route all 11 broken month-label sites (7 files) through the codebase's existing timezone-safe labeler, <code>frontend/src/utils/timeframe.ts</code> <code>formatDataMonth()</code> (string-only, builds from a <code>MONTH_NAMES</code> array via <code>parseYM</code>, never touches <code>Date</code>) plus a short-format sibling and the exported month-name arrays for the pickers. Done when: every PMS month label shows the correct month for a US-timezone user (proven by a timezone unit test), the persisted month is untouched, and no <code>new Date(key + "-01")</code> pattern remains in <code>frontend/src/components/PMS</code>.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>The bug pattern</h3>
+      <p>Unsafe (parses as UTC, renders local → shifts for US users): <code>new Date(m.month + "-01").toLocaleDateString(...)</code>. Safe, already used in the same tree: <code>new Date(`${m}-01T00:00:00`)</code> (local parse) and, the canonical one, <code>formatDataMonth()</code> which never constructs a <code>Date</code> from the key at all.</p>
+
+      <h3>Broken sites — authoritative list (11 sites, 7 files)</h3>
+      <table>
+        <thead><tr><th>File</th><th>Line(s)</th><th>Current format</th><th>Replace with</th></tr></thead>
+        <tbody>
+          <tr><td><code>PMSDataViewer.tsx</code></td><td>345, 422</td><td>short "MMM YYYY"</td><td><code>formatDataMonthShort</code></td></tr>
+          <tr><td><code>PMSLatestJobEditor.tsx</code></td><td>404, 492</td><td>short "MMM YYYY"</td><td><code>formatDataMonthShort</code></td></tr>
+          <tr><td><code>PMSManualEntryModal/SummaryCards.tsx</code></td><td>39</td><td>short "MMM YYYY"</td><td><code>formatDataMonthShort</code></td></tr>
+          <tr><td><code>PMSManualEntryModal/MonthConflictDialog.tsx</code></td><td>48</td><td>long "Month YYYY"</td><td><code>formatDataMonth</code></td></tr>
+          <tr><td><code>PMSManualEntryModal/MonthTabs.tsx</code></td><td>47</td><td>short "MMM YYYY"</td><td><code>formatDataMonthShort</code></td></tr>
+          <tr><td><code>PMSManualEntryModal/MonthYearPickerModal.tsx</code></td><td>61, 96</td><td>month only (grid + caption)</td><td>name array by index</td></tr>
+          <tr><td><code>PMSLatestJobEditor/MonthYearPickerModal.tsx</code></td><td>60, 96</td><td>month only (grid + caption)</td><td>name array by index</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Duplicate helpers to consolidate (§4.3)</h3>
+      <ul>
+        <li><code>pmsManualEntryModal.utils.ts:116</code> <code>formatMonthLabel</code> — long form; safe but redundant. Make it delegate to <code>formatDataMonth</code>. 9 consumers, signature unchanged.</li>
+        <li><code>pmsVisualPillars.utils.ts:17</code> <code>formatMonthLabel</code> — short form; safe but redundant. Make it delegate to <code>formatDataMonthShort</code>. 2 consumers, signature unchanged.</li>
+      </ul>
+
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>The shared labeler lives in <code>frontend/src/utils/</code> (§12.2 — pure, framework-free helpers), already proven by <code>timeframe.ts</code> + <code>timeframe.test.ts</code>.</li>
+        <li>Pickers render the month name by loop index — use a name array, never a <code>Date</code>, so the visible tile always matches its committed <code>"MM"</code> value.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>frontend/src/utils/timeframe.ts</code> + <code>frontend/src/utils/timeframe.test.ts</code> — the closest existing analog (timezone-safe month labeler with a unit test).</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Preserve each site's exact visual format (short vs long, with/without year) — only the month value changes.</li>
+            <li>Keep <code>formatMonthLabel</code> signatures and outputs identical so the 11 consumers are untouched (§4.3, §13.3).</li>
+            <li>Add a timezone unit test (§20.1) proving the fix under <code>TZ=America/New_York</code> and unchanged under <code>Asia/Manila</code>.</li>
+            <li>Leave the persisted month, all backend code, and all data flow untouched.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No new dependencies; no new state; no <code>any</code> / <code>console.*</code> / raw <code>fetch</code> (§17.1, §17.2, §14.2).</li>
+            <li>Do not change the month-selection logic or the submitted payload key — only the rendered label.</li>
+            <li>Do not "fix" the pre-existing <code>utils/ → components/</code> import of <code>parseYM</code> (no drive-by refactor).</li>
+            <li>Do not touch the backend <code>parseDateToMonth</code> duplication — separate concern.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>DentalEMR standard-format hardening (production basis billed-vs-collected, header-signature brittleness, status filter, Doc-space guide) — separate plan, needs an owner decision first.</li>
+        <li>Backend <code>parseDateToMonth</code> 4× dedup.</li>
+        <li>Moving <code>parseYM</code> out of <code>components/</code> into <code>utils/</code>.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 (Concern)</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Format parity</strong> — sites use different formats (short MMM YYYY, long Month YYYY, month-only). A blind swap would change formats beyond the month value. <strong>Mitigation:</strong> add <code>formatDataMonthShort</code>; map each site per the table above; drive pickers off month-name arrays by index.</li>
+        <li><strong>Helper delegation drift</strong> — the two <code>formatMonthLabel</code> copies differ (long vs short). <strong>Mitigation:</strong> delegate each to the matching variant so output bytes are identical; covered by the unit test.</li>
+        <li><strong>utils → components boundary</strong> (§12.4, Level 1) — <code>timeframe.ts</code> already imports <code>parseYM</code> from <code>components/</code>. <strong>Mitigation:</strong> reuse as-is; do not worsen; advisory note only.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> 7 PMS component files (labels only), 2 PMS util helpers (delegation, signatures unchanged → 11 consumers unaffected), <code>timeframe.ts</code> (additive — new short variant + exported arrays), <code>timeframe.test.ts</code> (additive). No backend, no data, no payload changes.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>The cheaper fix (append <code>T00:00:00</code> at each site) was rejected: it leaves the same footgun in place and three parallel labelers. Routing through one tested helper kills the bug class (§4.3).</li>
+      </ul>
+      <h3>Docs parity</h3>
+      <ul>
+        <li>This corrects an existing label; it adds no controls, copy, or navigation. Likely no Alloro Docs change. At <code>-d</code>, check whether any PMS "Manage Data" screenshots in <code>~/Desktop/alloro-docs</code> bake in a wrong month label; update only if so.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Extend the shared timezone-safe labeler</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>frontend/src/utils/timeframe.ts</code>: add <code>formatDataMonthShort(key)</code> (returns "May 2026" with abbreviated month, mirroring <code>formatDataMonth</code> but using a <code>MONTH_NAMES_SHORT</code> array); export <code>MONTH_NAMES</code> and add+export <code>MONTH_NAMES_SHORT</code> for the pickers. No <code>Date</code> construction from the key.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/utils/timeframe.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc -p frontend/tsconfig.app.json</code></dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Replace the 7 key-based label sites</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Swap each <code>new Date(key + "-01").toLocaleDateString(...)</code> for <code>formatDataMonth</code> (long: MonthConflictDialog) or <code>formatDataMonthShort</code> (short: the rest) per the Context table. Output format must stay identical apart from the corrected month.</dd></div>
+          <div><dt>Files</dt><dd><code>PMSDataViewer.tsx</code>, <code>PMSLatestJobEditor.tsx</code>, <code>PMSManualEntryModal/SummaryCards.tsx</code>, <code>PMSManualEntryModal/MonthConflictDialog.tsx</code>, <code>PMSManualEntryModal/MonthTabs.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>grep: no <code>new Date(*-01)</code> remains in these files; <code>tsc</code></dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: Fix both month-picker components (4 sites)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Replace the grid-tile label (<code>new Date(`2024-${m}-01`)</code>) and the "for {month}" caption with a lookup into the exported name arrays by index (grid: <code>MONTH_NAMES_SHORT[i]</code>; caption: <code>MONTH_NAMES[Number(tempMonth) - 1]</code>). This makes the tile the user clicks match the value it commits, closing the wrong-slot pick.</dd></div>
+          <div><dt>Files</dt><dd><code>PMSManualEntryModal/MonthYearPickerModal.tsx</code>, <code>PMSLatestJobEditor/MonthYearPickerModal.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>grep: no <code>new Date(`2024-</code> remains; <code>tsc</code></dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T4: Consolidate the two duplicate <code>formatMonthLabel</code> helpers</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Make <code>pmsManualEntryModal.utils.ts</code> <code>formatMonthLabel</code> delegate to <code>formatDataMonth</code> (long) and <code>pmsVisualPillars.utils.ts</code> <code>formatMonthLabel</code> delegate to <code>formatDataMonthShort</code> (short). Keep signatures and output identical.</dd></div>
+          <div><dt>Files</dt><dd><code>PMS/pmsManualEntryModal.utils.ts</code>, <code>PMS/pmsVisualPillars.utils.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc</code>; 11 consumers compile unchanged</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T5: Timezone unit test (Layer 1, §20.1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a vitest spec (extend <code>timeframe.test.ts</code> or sibling) that sets the process timezone to <code>America/New_York</code> and asserts <code>formatDataMonth("2026-05") === "May 2026"</code> and <code>formatDataMonthShort("2026-05")</code> shows May (not April); assert the same keys are unchanged under <code>Asia/Manila</code>. This is the regression guard for the whole bug class.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/utils/timeframe.test.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>cd frontend && npm run test</code></dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>tsc -p frontend/tsconfig.app.json</code> — zero errors (the real FE gate)</li>
+        <li><input type="checkbox" disabled> <code>cd frontend &amp;&amp; npm run test</code> — new timezone test passes (US Eastern shows May; Manila unchanged)</li>
+        <li><input type="checkbox" disabled> <code>cd frontend &amp;&amp; npm run lint</code> — no new violations (§17.1/§17.2/§14.2)</li>
+        <li><input type="checkbox" disabled> grep: zero <code>new Date(*-01)</code> month-label patterns remain under <code>frontend/src/components/PMS</code></li>
+        <li><input type="checkbox" disabled> Manual (user, US timezone): a May upload reads "May" on the data-viewer tab + summary card, the latest-job confirm tab, the manual-entry tabs/cards, and the month picker</li>
+        <li><input type="checkbox" disabled> Persisted month and submitted payload unchanged (no backend/data diff)</li>
+        <li><input type="checkbox" disabled> Acceptance <code>test.html</code> + <code>test-results.json</code> generated at execution (Layer 2)</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-06-23</h3>
+        <p><strong>Change:</strong> Executed all 5 tasks, no deviations. Added <code>formatDataMonthShort</code> + exported <code>MONTH_NAMES</code>/<code>MONTH_NAMES_SHORT</code> to <code>utils/timeframe.ts</code> (T1); routed the 7 key-based label sites through <code>formatDataMonth</code>/<code>formatDataMonthShort</code> (T2); rewrote both month pickers to label tiles via <code>MONTH_NAMES_SHORT[i]</code> and the caption via <code>MONTH_NAMES[Number(tempMonth)-1]</code> (T3); made the two duplicate <code>formatMonthLabel</code> helpers delegate to the shared util, preserving the <code>pmsVisualPillars</code> "—" blank guard (T4); added a timezone regression test (T5). 11 sites across 7 files removed; grep for the <code>new Date(*-01)</code> month-label pattern under <code>components/PMS</code> now returns 0.</p>
+        <p><strong>Reason:</strong> Execution of the approved spec (<code>-x</code>).</p>
+        <p><strong>Verification:</strong> <code>tsc -p tsconfig.app.json</code> 0 errors; <code>vitest</code> 7/7 (incl. new TZ test); <code>eslint</code> 0 errors (4 pre-existing size/deps warnings); grep-clean 0. Layer-2 UI items (T2/T3 in <code>test-results.json</code>) left <code>pending</code> for the owner's US-timezone browser pass.</p>
+        <p><strong>Updated Done criteria:</strong> none (original criteria unchanged; build/test/lint/grep items met, manual US-tz item pending).</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-06-23</h3>
+        <p><strong>Change:</strong> Verified the fix by timezone simulation against real client data instead of leaving the UI items for a manual browser pass. Added two component-level tests (Rev 2): <code>MonthTabs.test.tsx</code> (renders the 2026-05 bucket and asserts "May 2026", with a control proving the process is US-Eastern) and <code>MonthYearPickerModal.test.tsx</code> (clicking the tile labeled "May" commits "05"). Ran the real export <code>Fredericksburg May.csv</code> (641 rows) through the shipped string parser under <code>TZ=America/New_York</code>.</p>
+        <p><strong>Reason:</strong> User QA: "simulate it… make sure to simulate timezone too then complete the results."</p>
+        <p><strong>Result:</strong> Under US-Eastern (offset 240 = UTC-4): all 641 rows → month key <code>2026-05</code> (data correct); the real <code>MonthTabs</code> renders "May 2026"; the pre-fix <code>new Date("2026-05-01")</code> renders "Apr 2026" (bug reproduced); the picker "May" tile commits "05". Full FE suite 10/10 green under US-Eastern; <code>tsc</code> 0; <code>eslint</code> 0 errors. Acceptance <code>test-results.json</code> now rolls up to <strong>Passed</strong> (T2/T3 marked pass with simulation evidence).</p>
+        <p><strong>Updated Done criteria:</strong> the manual US-tz item is satisfied by simulation evidence; owner may still confirm in a live tab.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

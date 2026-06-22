@@ -3,6 +3,7 @@ import { Calendar, DollarSign, Stethoscope, User } from "lucide-react";
 
 import type { MonthBucket, MonthSummary } from "../types";
 import { Odometer } from "./Odometer";
+import { formatDataMonthShort } from "../../../utils/timeframe";
 
 interface SummaryCardsProps {
   activeMonth: MonthBucket | undefined;
@@ -36,10 +37,7 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({
               Month
             </div>
             <div className="text-center text-lg font-semibold text-gray-900">
-              {new Date(activeMonth.month + "-01").toLocaleDateString(
-                undefined,
-                { month: "short", year: "numeric" }
-              )}
+              {formatDataMonthShort(activeMonth.month)}
             </div>
           </motion.div>
 

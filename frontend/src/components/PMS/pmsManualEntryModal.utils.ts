@@ -5,6 +5,7 @@
  */
 
 import { toYm } from "./pmsDataTransform";
+import { formatDataMonth } from "../../utils/timeframe";
 import type { MonthBucket } from "./types";
 import type {
   ManualMonthEntry,
@@ -113,14 +114,10 @@ export const getPreviousMonth = (): string => {
   return toYm(prevMonth.getFullYear(), prevMonth.getMonth() + 1);
 };
 
-export const formatMonthLabel = (month: string): string => {
-  const parsed = new Date(`${month}-01T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return month;
-  return parsed.toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-  });
-};
+// Delegates to the shared timezone-safe labeler (utils/timeframe). Kept as a
+// named re-export so existing call sites stay stable (§4.3).
+export const formatMonthLabel = (month: string): string =>
+  formatDataMonth(month);
 
 export const formatMonthList = (months: string[]): string => {
   if (months.length === 0) return "none";

@@ -13,6 +13,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "../../lib/toast";
+import { formatDataMonthShort } from "../../utils/timeframe";
 import {
   AlertCircle,
   ArrowDown,
@@ -342,13 +343,7 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
                             color: isActive ? "white" : undefined,
                           }}
                         >
-                          {new Date(m.month + "-01").toLocaleDateString(
-                            undefined,
-                            {
-                              month: "short",
-                              year: "numeric",
-                            }
-                          )}
+                          {formatDataMonthShort(m.month)}
                         </motion.button>
 
                         {/* delete icon per tab */}
@@ -419,10 +414,7 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
                       Month
                     </div>
                     <div className="text-center text-xl font-semibold">
-                      {new Date(activeMonth.month + "-01").toLocaleDateString(
-                        undefined,
-                        { month: "short", year: "numeric" }
-                      )}
+                      {formatDataMonthShort(activeMonth.month)}
                     </div>
                   </motion.div>
 

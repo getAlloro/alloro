@@ -1,0 +1,84 @@
+{
+  "plan": "plans/06222026-pms-month-label-timezone-fix",
+  "generatedAt": "2026-06-23",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Shared timezone-safe labeler exists and never shifts the month",
+      "surface": "cli",
+      "precondition": "frontend deps installed",
+      "steps": [
+        "1. cd frontend && npx vitest run src/utils/timeframe.test.ts"
+      ],
+      "expected": "formatDataMonth('2026-05') === 'May 2026' and formatDataMonthShort('2026-05') === 'May 2026'; built from name arrays, no Date constructed from the key.",
+      "status": "pass",
+      "evidence": "vitest: 5/5 passed including 'maps the key's own month, never a timezone-shifted one'",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Timezone regression test passes",
+      "surface": "cli",
+      "precondition": "frontend deps installed",
+      "steps": [
+        "1. cd frontend && npm run test"
+      ],
+      "expected": "All timeframe tests green; the May/Jan/Dec keys map to their own month.",
+      "status": "pass",
+      "evidence": "vitest full suite: 5 files, 10/10 passed (incl. real component + picker tests, run under TZ=America/New_York)",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "BUILD",
+      "title": "Type gate + lint clean, no broken consumers of delegated helpers",
+      "surface": "cli",
+      "precondition": "frontend deps installed",
+      "steps": [
+        "1. cd frontend && npx tsc -p tsconfig.app.json --noEmit",
+        "2. npx eslint <10 touched files>",
+        "3. grep for any remaining new Date(...-01) month-label pattern under src/components/PMS"
+      ],
+      "expected": "tsc exit 0; eslint 0 errors (pre-existing size warnings only); grep returns 0 matches.",
+      "status": "pass",
+      "evidence": "TSC_EXIT=0, 0 errors; ESLINT_EXIT=0, 0 errors / 4 pre-existing warnings; grep-clean = 0",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Month labels read the correct month for a US-timezone user",
+      "surface": "ui",
+      "precondition": "Logged in; a US/negative-offset timezone (e.g. America/New_York); a location with a May PMS upload (org 39 One Endodontics is the report source).",
+      "steps": [
+        "1. Open the PMS data viewer / Manage Data for a location with May data.",
+        "2. Read the month tab pill and the 'Month' summary card.",
+        "3. Open the latest-job confirm editor after an upload and read its month tab + card.",
+        "4. Trigger the 'Data already exists' conflict dialog and read the month name."
+      ],
+      "expected": "Every label shows 'May 2026' (not 'Apr 2026'). The persisted month and submitted payload are unchanged.",
+      "status": "pass",
+      "evidence": "Simulated under TZ=America/New_York (offset 240 = UTC-4). Real export 'Fredericksburg May.csv' (641 rows) all bucket to month key 2026-05 (data correct). The real MonthTabs component renders 'May 2026' (not April); the pre-fix `new Date('2026-05-01')` pattern renders 'Apr 2026' in the same zone — the reproduced bug. Full FE suite 10/10 green under US Eastern. Backend/persisted month untouched.",
+      "notes": "Verified by timezone simulation (forced TZ + real DentalEMR data + real component render), not a live browser. Owner may still confirm in their own US-tz tab.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Month-picker tiles are labeled correctly and commit the matching month",
+      "surface": "ui",
+      "precondition": "Logged in; US/negative-offset timezone; the free-form 'Upload New Data' / 'Add month' flow (no preset target month).",
+      "steps": [
+        "1. Open the month picker in the manual-entry editor and in the latest-job editor.",
+        "2. Read the 12 month tiles and the 'for {month}' caption on the year step.",
+        "3. Click the tile labeled 'May', pick a year, and confirm the bucket commits to that May."
+      ],
+      "expected": "Tiles read Jan…Dec correctly (no off-by-one); the tile labeled 'May' commits 'YYYY-05'.",
+      "status": "pass",
+      "evidence": "Real MonthYearPickerModal rendered under TZ=America/New_York: clicking the tile labeled 'May' calls setTempMonth('05') — the label now matches the committed value, closing the wrong-slot pick. Picker labels are built from MONTH_NAMES_SHORT[i] / MONTH_NAMES[Number(tempMonth)-1], so they never construct a Date and never shift by timezone.",
+      "notes": "Verified by timezone simulation (forced TZ + real component render).",
+      "waiver": ""
+    }
+  ]
+}

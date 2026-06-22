@@ -11,9 +11,15 @@ import { parseYM } from "../components/PMS/dashboard/pmsPeriod";
  * Spec: plans/06132026-dashboard-timeframe-foundation
  */
 
-const MONTH_NAMES = [
+export const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
+];
+
+/** Abbreviated month names, index-aligned with MONTH_NAMES. */
+export const MONTH_NAMES_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
 /** "2026-04" | "Apr 2026" → "April 2026". Empty when blank; raw key if unparseable. */
@@ -22,6 +28,18 @@ export function formatDataMonth(monthKey: string | null | undefined): string {
   const p = parseYM(monthKey);
   if (!p || p.month < 1 || p.month > 12) return monthKey;
   return `${MONTH_NAMES[p.month - 1]} ${p.year}`;
+}
+
+/**
+ * Abbreviated sibling of formatDataMonth: "2026-05" → "May 2026". Builds from
+ * MONTH_NAMES_SHORT via parseYM — never constructs a Date from the key, so the
+ * month never timezone-shifts (the `new Date("2026-05-01")` UTC-parse bug).
+ */
+export function formatDataMonthShort(monthKey: string | null | undefined): string {
+  if (!monthKey) return "";
+  const p = parseYM(monthKey);
+  if (!p || p.month < 1 || p.month > 12) return monthKey;
+  return `${MONTH_NAMES_SHORT[p.month - 1]} ${p.year}`;
 }
 
 /**
