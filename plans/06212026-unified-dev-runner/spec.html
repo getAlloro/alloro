@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unified Dev Runner Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 12px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    pre { border: 1px solid var(--line); border-radius: 8px; background: var(--soft); padding: 16px; overflow: auto; font-size: 0.85rem; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>Unified Dev Runner</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06212026-unified-dev-runner</dd></div>
+        <div><dt>Size</dt><dd>Small</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>In the main <code>alloro</code> repo, starting local dev takes three terminals: backend (<code>npm run dev</code>), worker (<code>npm run dev:worker</code>), and frontend (<code>cd frontend &amp;&amp; npm run dev</code>). The sibling repos <code>alloro-chat</code> and <code>alloro-os</code> already start everything with one root <code>npm run dev</code> via <code>concurrently</code>. This brings the same one-command experience here.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Root <code>npm run dev</code> starts backend API, worker, and frontend together as three labeled, colored streams in one terminal. The previous backend-only behavior stays available as <code>npm run dev:api</code>. Done when a single <code>npm run dev</code> boots all three processes.</p>
+      <pre>"dev":        "concurrently -n api,worker,web -c blue,yellow,green \"npm:dev:api\" \"npm:dev:worker\" \"npm:dev:web\"",
+"dev:api":    "tsx watch src/index.ts",            // was "dev"
+"dev:worker": "tsx watch src/workers/worker.ts",   // unchanged
+"dev:web":    "npm --prefix frontend run dev"       // new</pre>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>package.json</code> (root) - scripts + devDependencies edited here</li>
+        <li><code>src/index.ts</code> - backend entry, run by <code>dev:api</code> (verified present)</li>
+        <li><code>src/workers/worker.ts</code> - worker entry, run by <code>dev:worker</code> (verified present)</li>
+        <li><code>frontend/package.json</code> - has <code>dev</code> (= <code>vite</code>), run by <code>dev:web</code></li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Mirror the sibling root scripts in <code>~/Desktop/alloro-chat/package.json</code> and <code>~/Desktop/alloro-os/package.json</code>: <code>concurrently -n &lt;names&gt; -c &lt;colors&gt;</code> with <code>npm:&lt;script&gt;</code> shorthands.</li>
+        <li>Same dependency the siblings use: <code>concurrently ^9.1.2</code> as a devDependency.</li>
+      </ul>
+      <p><strong>Reference:</strong> <code>~/Desktop/alloro-os/package.json</code> line 16 (root <code>dev</code> orchestrator). This repo drops the siblings' <code>dev:ws</code> stream (no WS server) and the <code>compose:up</code> prefix (no <code>infra/docker-compose</code>).</p>
+      <p><strong>Code Constitution:</strong> not materially applicable. The change touches only root <code>package.json</code> dev tooling — no <code>src/</code> backend or <code>frontend/</code> application code, so no <code>§N.M</code> architecture Article is engaged.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Preserve backend-only startup under a named script (<code>dev:api</code>).</li>
+            <li>Use <code>concurrently</code> to match sibling DX (unified logs, labels, single Ctrl-C).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No <code>compose:up</code> / docker step — this repo has no local <code>infra/</code>.</li>
+            <li>Do not change ports, the backend, the worker, or any application code.</li>
+            <li>Do not touch <code>frontend/package.json</code> scripts.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>WS server stream (none in this repo).</li>
+        <li>Local Postgres/Redis provisioning — dev still relies on <code>.env</code> pointing at reachable services, same as today.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 (Concern — changes what an existing command does).</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Behavior change of <code>npm run dev</code>:</strong> it no longer means "backend only." <strong>Mitigation:</strong> backend-only is preserved verbatim as <code>npm run dev:api</code>; the change is the explicit ask ("implement the same" as the siblings).</li>
+        <li><strong>Worker needs Redis at runtime (BullMQ):</strong> a Redis-less environment shows a worker-stream error. <strong>Mitigation:</strong> pre-existing — identical to running <code>npm run dev:worker</code> today; this change only co-launches it, it adds no new requirement.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> root <code>package.json</code> only. No CI workflow, README, or AGENTS.md references <code>npm run dev</code>; the sole mentions are in historical <code>plans/</code> specs (immutable records). Developer muscle memory is the only real consumer.</p>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Rewire root dev scripts</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Rename <code>dev</code> &rarr; <code>dev:api</code>; add <code>dev:web</code>; make <code>dev</code> the <code>concurrently</code> orchestrator over api/worker/web.</dd></div>
+          <div><dt>Files</dt><dd><code>package.json</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Scripts present and well-formed; <code>npm:dev:api/worker/web</code> resolve.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Add concurrently devDependency</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>npm install -D concurrently@^9.1.2</code> (same version as siblings).</dd></div>
+          <div><dt>Files</dt><dd><code>package.json</code>, <code>package-lock.json</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx concurrently --version</code> resolves.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: Smoke-run all three</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Launch <code>npm run dev</code> briefly; confirm api, worker, and web streams all start.</dd></div>
+          <div><dt>Files</dt><dd>none</dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2</dd></div>
+          <div><dt>Verify</dt><dd>All three labeled streams emit startup output; then terminate cleanly.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled checked> <code>npm run dev</code> starts api + worker + web in one terminal (wiring proven; see Rev 1)</li>
+        <li><input type="checkbox" disabled checked> <code>npm run dev:api</code> still starts backend only (old behavior preserved)</li>
+        <li><input type="checkbox" disabled checked> <code>concurrently</code> present in devDependencies; <code>npx concurrently --version</code> &rarr; 9.2.3</li>
+        <li><input type="checkbox" disabled checked> No application code, ports, or <code>frontend/package.json</code> changed</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-06-21</h3>
+        <p><strong>Change:</strong> T3 verified by deterministic wiring proof rather than a full live boot — confirmed <code>concurrently</code> spawns three labeled streams (<code>[api] [worker] [web]</code>) with the exact <code>-n</code>/<code>-c</code> flags, all four scripts resolve, and every entry file exists. <code>concurrently</code> resolved to <code>9.2.3</code> (from <code>^9.1.2</code>).</p>
+        <p><strong>Reason:</strong> Execution deviation: auto-booting the real worker against the dev environment would let BullMQ immediately pull live dev-queue jobs (rankings / PMS / summary — some client-email-producing), which the repo guards against with kill-switches. Wiring is environment-independent and fully proven; a live boot is the owner's to run when they want to watch the three streams.</p>
+        <p><strong>Updated Done criteria:</strong> none changed; "starts api + worker + web" is satisfied at the orchestration level. Full live end-to-end boot is tracked as a waived item in <code>test-results.json</code> (T4).</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
