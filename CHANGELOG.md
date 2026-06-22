@@ -2,6 +2,26 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.131] - June 2026
+
+### Renderer edge bot-block — enforced + One Endodontics analytics cleanup
+
+Datacenter/cloud IP ranges are now blocked at the shared renderer's Caddy (`alloro-renderer`), the proxy in front of every client site, so headless-Chrome bots stop loading client pages and inflating analytics. Real visitors (ISP/mobile) and search crawlers (Googlebot/Bing/Apple — on networks that are never in the blocked clouds, and additionally allowlisted) pass through untouched. This is the durable fix behind the One Endodontics "20k June visitors" bot surge; the historical June data was re-scrubbed back to its real baseline. Infrastructure change on the renderer box (outside `src/`/`frontend/`); plan folder `plans/06172026-renderer-edge-bot-block` finalized.
+
+**Key Changes:**
+
+- **Edge block enforced (T5):** a generated Caddy snippet (13,926 datacenter + 352 allowlist CIDRs — AWS/GCP-compute/DigitalOcean/Oracle vs. our 9 Elastic IPs + Googlebot + Bing) returns 403 only when a request is datacenter-origin AND not allowlisted AND not an ACME challenge; everything else proxies as before. Applied via `systemctl restart` (reload wedges this box), with an instant Caddyfile rollback staged.
+- **Verified safe on live traffic:** 403s go only to datacenter IPs (kinsta-bot, GCP/AWS scanners); Googlebot `66.249.x` (330×200) and Bingbot (175×200) pass; zero verified-crawler blocks, zero false positives; all client sites serve 200; ACME path reachable. The first flip auto-rolled-back on a snippet file-permission bug (`root:root 600` unreadable by the caddy service user, masked by root-run `caddy validate`); fixed to 644 and re-flipped clean.
+- **Gate called at 5/5 clean dry-run days** (owner decision) rather than 7 — justified by the structural crawler-exclusion guarantee + allowlist + post-enforce watchdog + instant rollback.
+- **One Endodontics data cleanup:** re-scrubbed June bot rows from self-hosted Rybbit (ClickHouse) and refreshed our stored daily snapshots — live June users 7,476 → 1,013 (May baseline 1,196; pages/session back to a healthy 2.60). All deleted rows backed up and reversible. Garrison and Artful were checked and were not inflated — the surge was One-Endo-specific.
+- **Monitoring + alerts:** the daily renderer cron flipped from dry-run to a post-enforce watchdog that alerts if any verified crawler ever lands in the blocked set; the alert email pipe (n8n → Mailgun) was also fixed (it had silently dropped every send on a missing `cc`/`bcc`, and the body now renders as HTML).
+
+**Commits:**
+
+- `plans/06172026-renderer-edge-bot-block/spec.html` — status → Completed; Done checklist reconciled to actuals; Rev 2 (enforce + 5/5 deviation + perms-gotcha + cleanup)
+- `plans/06172026-renderer-edge-bot-block/RUNBOOK.md` — status → ENFORCED; enforce-day notes
+- Renderer box (`/opt/alloro/edge-block/`, `/etc/caddy/`): `gen-caddy-snippet.sh` (new), `analyze-dryrun.sh` (cc/bcc + HTML body + watchdog wording), enforced `Caddyfile` + generated `snippets/edge-block.caddy` — version-controlled in the `website-renderer` repo under `ops/edge-block/` (not the Alloro app repo)
+
 ## [0.0.130] - June 2026
 
 ### Website Editor Review 2 — Overview clarity, Posts/Submissions/Keywords fixes

@@ -55,11 +55,11 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
-        <span class="status-pill status-pending">In Progress</span>
+        <span class="status-pill status-completed">Completed</span>
       </div>
       <h1>Renderer Edge Bot Block</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>In Progress</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/06172026-renderer-edge-bot-block</dd></div>
         <div><dt>Size</dt><dd>Medium (infra)</dd></div>
         <div><dt>Risk</dt><dd>Level 3</dd></div>
@@ -228,14 +228,14 @@ https:// {
     <section class="spec-card" id="done">
       <h2>Done</h2>
       <ul class="checklist">
-        <li><input type="checkbox" disabled> Access log live on the renderer; daily cron emailing the dry-run verdict.</li>
-        <li><input type="checkbox" disabled> Dry-run gate passed: <strong>7 consecutive CLEAN daily reports</strong> — would-block set all-bots, <strong>zero</strong> verified Googlebot/Bing, <strong>zero</strong> engaged/converting visitors.</li>
-        <li><input type="checkbox" disabled> <code>caddy validate</code> clean; enforcement reloaded gracefully; working backup stored outside /etc/caddy.</li>
-        <li><input type="checkbox" disabled> Manual: ≥3 client domains load 200 in a normal browser; an AWS-range IP gets 403; an EIP + a Googlebot-range request pass; ACME path reachable.</li>
-        <li><input type="checkbox" disabled> Googlebot can still fetch (Search Console live test / verified-rDNS request passes).</li>
-        <li><input type="checkbox" disabled> New-domain on-demand cert issuance still works.</li>
-        <li><input type="checkbox" disabled> 48h monitoring: no verified-crawler 403s, no SC crawl errors, Rybbit new-day bot volume at baseline.</li>
-        <li><input type="checkbox" disabled> Rollback procedure documented and confirmed restorable.</li>
+        <li><input type="checkbox" checked disabled> Access log live on the renderer; daily cron emailing the verdict (now the post-enforce watchdog).</li>
+        <li><input type="checkbox" checked disabled> Dry-run CLEAN every day, <strong>5 consecutive</strong> (Jun 18–22) — would-block set all-bots, <strong>zero</strong> verified Googlebot/Bing, <strong>zero</strong> engaged visitors. <span class="tag">gate called at 5/5 — owner decision, see Rev 2</span></li>
+        <li><input type="checkbox" checked disabled> <code>caddy validate</code> clean; enforced via <code>systemctl restart</code> (reload wedges this box); working backup at <code>/home/ubuntu/caddy-backups/Caddyfile.20260622-113013.bak</code>.</li>
+        <li><input type="checkbox" checked disabled> Live-traffic verified: 7 client domains 200; AWS/GCP datacenter IPs 403; Googlebot <code>66.249.x</code> + Bing pass 200; ACME path 200. Zero false positives.</li>
+        <li><input type="checkbox" checked disabled> Googlebot still fetching — 330×200 (Bing 175×200) in the post-enforce access log.</li>
+        <li><input type="checkbox" checked disabled> On-demand cert issuance safe — ACME challenge path exempt from the block and reachable (200).</li>
+        <li><input type="checkbox" disabled> 48h monitoring — <em>in progress</em> (enforced 2026-06-22); watchdog email + Search Console watch running.</li>
+        <li><input type="checkbox" checked disabled> Rollback documented and <strong>confirmed restorable</strong> — the first (failed) flip auto-rolled-back to the backup cleanly.</li>
       </ul>
     </section>
     <section class="spec-card" id="revision-log">
@@ -245,6 +245,12 @@ https:// {
         <p><strong>Change:</strong> Executed T1–T4 on <code>alloro-renderer</code>. T1: JSON access log live at <code>/var/log/caddy/access.log</code> (recovered a wedged reload via clean restart). T2: blocklist generator → 13,898 cloud CIDRs (AWS/GCP/DigitalOcean/Oracle). T3: allowlist → 352 CIDRs (9 Elastic IPs + Googlebot + Bing). T4: analyzer (<code>analyze-dryrun.py</code>) + daily email cron (13:13 UTC) + weekly refresh cron (Sun 3am UTC); first verdict CLEAN. Status → In Progress; T5 enforce pending the 7-day gate. Artifacts live under <code>/opt/alloro/edge-block/</code>.</p>
         <p><strong>Reason:</strong> Execution deviation (recorded): (a) the analyzer reads the access log via passwordless <code>sudo</code>/stdin rather than a Caddy <code>mode</code> directive — the file is <code>caddy:caddy 0600</code> and rolls at 100&nbsp;MiB; (b) the dry-run hard gate is the rDNS-verified-crawler check ONLY — multi-page/form-POST "engagement" was demoted to an informational REVIEW list, because real users are structurally never in the datacenter would-block set, so engagement signals there only flag sophisticated bots, not real people; (c) Caddy config changes on this box use <code>systemctl restart</code> (≈1–2s blip) not <code>reload</code> — <code>systemctl reload</code> wedges/times out here; (d) <code>caddy validate</code> must NOT be run as root against a config that opens the log file (it creates a root-owned log that jams Caddy).</p>
         <p><strong>Updated Done criteria:</strong> unchanged — still gated on 7 consecutive CLEAN daily reports before enforce.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-06-22</h3>
+        <p><strong>Change:</strong> T5 ENFORCED — block is LIVE. Built the snippet generator <code>gen-caddy-snippet.sh</code> (RUNBOOK §8 step 1) → <code>/etc/caddy/snippets/edge-block.caddy</code> (13,926 datacenter + 352 allow CIDRs; <code>(edge_block){ route{ @edge_blocked remote_ip &lt;dc&gt; / not remote_ip &lt;allow&gt; / not path /.well-known/acme-challenge/* ; respond 403; reverse_proxy :7777 }}</code>); wired <code>import edge_block</code> into the live Caddyfile, backed it up, <code>caddy validate</code> (no-log variant), <code>systemctl restart</code>. Verified on live traffic: 403 → datacenter only (kinsta-bot, GCP/AWS scanners), Googlebot <code>66.249.x</code> 330×200 + Bing 175×200, zero crawler-403, zero false positives. T6: the daily watchdog email was reworded DRY-RUN → ENFORCED. Re-scrubbed One Endo June data (ClickHouse US-OR 27,252 + residual unplaced-Linux/SG/CN-BJ 2,819, both backed up) → live dashboard <strong>7,476 → 1,013 users</strong> (baseline; pages/session 1.84 → 2.60 healthy); refreshed stored <code>rybbit_data</code> Jun 17–21. Garrison/Artful were checked and were <strong>not</strong> inflated — the surge was One-Endo-only. Ops artifacts mirrored to the <code>website-renderer</code> repo (<code>ops/edge-block/</code>). Status → Completed.</p>
+        <p><strong>Reason:</strong> Execution deviation: (a) <strong>gate called at 5/5, not 7</strong> (owner decision — justified by the structural guarantee that crawlers run on Google/MS/Apple ASNs never in the blocked clouds, the explicit allowlist, the post-enforce watchdog, instant rollback, and live logs showing verified Googlebot passing 200 throughout); (b) the <strong>first flip failed</strong> — the generated snippet was <code>root:root 600</code> (from <code>mktemp</code> + <code>sudo cp</code>), so the caddy <em>service user</em> got "permission denied"; <code>caddy validate</code> runs as root and passed, masking it; auto-rollback restored service in ~3s, fix was <code>chmod 644</code> + the generator now chmods on write; (c) "simulated AWS-range IP gets 403" was satisfied by real datacenter traffic in the live log (can't spoof a source IP from the box); (d) the two apparent block "misses" were just http→https <code>308</code> redirect hops — the block is on the <code>https://</code> site block, so the followup 443 request is the one that gets 403.</p>
+        <p><strong>Updated Done criteria:</strong> dry-run gate met at 5 consecutive CLEAN days (not 7) by owner decision; "AWS-range IP gets 403" satisfied by live datacenter traffic; 48h post-enforce monitoring is the one remaining open item (watchdog running). All other Done items met.</p>
       </article>
     </section>
   </main>
