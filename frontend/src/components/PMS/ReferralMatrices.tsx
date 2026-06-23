@@ -4,6 +4,7 @@ import Lottie from "lottie-react";
 import cogitatingSpinner from "../../assets/cogitating-spinner.json";
 import { ClientProgressTimeline } from "./ClientProgressTimeline";
 import type { AutomationStatusDetail } from "../../api/pms";
+import { useLabels } from "../../hooks/useLabels";
 
 const COGITATING_PHRASES = [
   "Mapping your referral sources",
@@ -391,6 +392,7 @@ export const ReferralMatrices: React.FC<ReferralMatricesProps> = ({
   automationStatus = null,
   onConfirmationClick,
 }) => {
+  const labels = useLabels();
   const [activeFilter, setActiveFilter] = useState<FilterType>("all");
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
 
@@ -534,7 +536,7 @@ export const ReferralMatrices: React.FC<ReferralMatricesProps> = ({
                   : "text-slate-400 hover:text-slate-600"
               }`}
             >
-              Doctor
+              {labels.doctorShort}
               <span className="ml-1.5 text-[9px] opacity-60">
                 ({counts.doctor})
               </span>

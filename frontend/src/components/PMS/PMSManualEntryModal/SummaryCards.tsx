@@ -4,6 +4,7 @@ import { Calendar, DollarSign, Stethoscope, User } from "lucide-react";
 import type { MonthBucket, MonthSummary } from "../types";
 import { Odometer } from "./Odometer";
 import { formatDataMonthShort } from "../../../utils/timeframe";
+import { useLabels } from "../../../hooks/useLabels";
 
 interface SummaryCardsProps {
   activeMonth: MonthBucket | undefined;
@@ -18,6 +19,7 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({
   openMonthPicker,
   totals,
 }) => {
+  const labels = useLabels();
   return (
     <>
       {activeMonth && (
@@ -43,25 +45,25 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({
 
           {[
             {
-              label: "Self Referrals",
+              label: labels.selfReferrals,
               value: totals.selfReferrals,
               icon: User,
               tint: "#C9765E22",
             },
             {
-              label: "Doctor Referrals",
+              label: labels.doctorReferrals,
               value: totals.doctorReferrals,
               icon: Stethoscope,
               tint: "#C9765E11",
             },
             {
-              label: "Total Referrals",
+              label: labels.totalReferrals,
               value: totals.totalReferrals,
               icon: User,
               tint: "#C9765E18",
             },
             {
-              label: "Production",
+              label: labels.production,
               value: totals.productionTotal.toLocaleString(),
               icon: DollarSign,
               tint: "#34D39922",

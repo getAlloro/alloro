@@ -4,6 +4,7 @@ import type { PmsKeyDataSource } from "../../../api/pms";
 import { DetailsModal } from "../../dashboard/shared/DetailsModal";
 import { PmsCardShell } from "./primitives";
 import { formatCurrency } from "./utils";
+import { useLabels } from "../../../hooks/useLabels";
 
 export type PmsTopSourcesCardProps = {
   sources: PmsKeyDataSource[];
@@ -70,6 +71,7 @@ export function PmsTopSourcesCard({
   isProcessingInsights,
   expanded = false,
 }: PmsTopSourcesCardProps) {
+  const labels = useLabels();
   const [showAll, setShowAll] = useState(false);
   const [query, setQuery] = useState("");
 
@@ -94,7 +96,7 @@ export function PmsTopSourcesCard({
   return (
     <>
       <PmsCardShell
-        eyebrow="Referral sources"
+        eyebrow={labels.referralSources}
         title="Ranked by production"
         action={
           <span className="rounded-full border border-line-soft bg-[#FCFAED] px-3 py-1 text-xs font-bold text-alloro-navy tabular-nums">
@@ -157,7 +159,7 @@ export function PmsTopSourcesCard({
         <DetailsModal
           open={showAll}
           onClose={() => setShowAll(false)}
-          eyebrow="Referral sources · All time"
+          eyebrow={`${labels.referralSources} · All time`}
           title="All referral sources"
         >
           <div className="divide-y divide-line-soft">

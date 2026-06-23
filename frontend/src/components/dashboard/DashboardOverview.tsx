@@ -28,6 +28,7 @@
 
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
+import { useLabels } from "../../hooks/useLabels";
 import { useLocationContext } from "../../contexts/locationContext";
 import { usePmsFocusPeriod } from "../../hooks/queries/usePmsFocusPeriod";
 import { useRerunPmsInsights } from "../../hooks/queries/usePmsFileManagerQueries";
@@ -66,11 +67,12 @@ function resolveFirstName(
 }
 
 function PracticeHubHeader({ firstName }: { firstName: string }) {
+  const labels = useLabels();
   return (
     <div>
       <div className="flex items-center justify-between gap-4">
         <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-ink-muted">
-          Practice Hub
+          {labels.hubHome}
         </span>
         <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-ink-muted">
           Year to date

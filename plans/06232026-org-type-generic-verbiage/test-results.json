@@ -1,0 +1,117 @@
+{
+  "plan": "plans/06232026-org-type-generic-verbiage",
+  "generatedAt": "2026-06-23",
+  "status": "In Progress",
+  "items": [
+    {
+      "id": "T-BUILD",
+      "title": "Backend + frontend type-check, unit tests, and convention gate pass",
+      "surface": "cli",
+      "precondition": "Local checkout on dev/dave after execution",
+      "steps": [
+        "1. npx tsc --noEmit (backend)",
+        "2. cd frontend && npx tsc -p tsconfig.app.json --noEmit",
+        "3. npx vitest run src/__tests__/orgLabels.test.ts",
+        "4. npm run check:conventions --strict"
+      ],
+      "expected": "All four exit 0; 9/9 org-labels tests pass; no new backend structural violations",
+      "status": "pass",
+      "evidence": "tsc BE exit=0 (0 errors); tsc FE exit=0; vitest 9/9 pass; check:conventions --strict exit=0",
+      "notes": "Verified during execution.",
+      "waiver": ""
+    },
+    {
+      "id": "T1",
+      "title": "Migration backfills null->health and saas->generic; no row left null/saas",
+      "surface": "cli",
+      "precondition": "Dev database reachable",
+      "steps": [
+        "1. npm run db:migrate",
+        "2. SELECT organization_type, COUNT(*) FROM organizations GROUP BY organization_type;"
+      ],
+      "expected": "Only 'health' and (if any) 'generic' remain — no NULL, no 'saas'",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Migration 20260623000000 not yet applied on dev — runs at deploy or via npm run db:migrate.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Admin can create a generic org from the Mission Control popup and change type later",
+      "surface": "ui",
+      "precondition": "Logged in as admin; on /admin Mission Control",
+      "steps": [
+        "1. Click Create Organization",
+        "2. Set Type = Generic, fill required fields, submit",
+        "3. Open the org detail; change Type Health<->Generic"
+      ],
+      "expected": "Org is created with organization_type='generic'; type switches without a 409 'cannot be changed' error",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Requires running app.",
+      "waiver": ""
+    },
+    {
+      "id": "T10",
+      "title": "Generic org dashboard shows generic labels; health org unchanged",
+      "surface": "ui",
+      "precondition": "One generic org and one health org, each with a logged-in user",
+      "steps": [
+        "1. Log in as the generic org; visit sidebar, /dashboard, /pmsStatistics, journey insights",
+        "2. Confirm Business Hub, Revenue Hub, Direct/Partner/Total Leads, Revenue, Lead Sources/Trends, Customer Journey",
+        "3. Log in as a health org; confirm Practice Hub, Referrals Hub, Self/Doctor/Total Referrals, Production are unchanged"
+      ],
+      "expected": "Generic surfaces read non-healthcare; health surfaces are byte-identical to before",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Covers nav, hub headers, PMS stat cards, dashboard section titles, agent pills, setup link, journey card body. Known not-yet-swapped (follow-up): onboarding wizard copy, PMS-upload column-mapping help text, ReferralMatrices loading messages, api/pms/mapping default labels.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Client-facing agent output reads generic for a generic org; health identical",
+      "surface": "cli",
+      "precondition": "Generic org with data; ability to run monthly + GBP agents",
+      "steps": [
+        "1. Run the monthly pipeline (Summary, ReferralEngine, Opportunity) for a generic org",
+        "2. Run GBP review-reply + local-post drafts for a generic org",
+        "3. Inspect output for healthcare words (patient/practice/referral/doctor)"
+      ],
+      "expected": "Generic output uses customer/business/lead/revenue/you; output still parses to valid JSON; health output unchanged",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Substitution verified by unit test; live agent run pending.",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "Generic scheduled ranking does not surface dental specialties/competitors",
+      "surface": "cli",
+      "precondition": "Generic org with a GBP-linked location; ranking run",
+      "steps": [
+        "1. Trigger a scheduled ranking run for a generic org",
+        "2. Inspect the identified specialty/category and competitor set"
+      ],
+      "expected": "Specialty is a general business category (not 'orthodontist'); competitors are not dental",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Live scheduled path wired via work.organizationId. Competitor-onboarding (first-time) path still defaults to health until re-identified on the next scheduled run — documented follow-up.",
+      "waiver": ""
+    },
+    {
+      "id": "T12",
+      "title": "Jo copy review in a staging generic account",
+      "surface": "ui",
+      "precondition": "Seeded generic org in staging",
+      "steps": [
+        "1. Jo clicks through every hub and agent output",
+        "2. Records any healthcare wording that remains"
+      ],
+      "expected": "Jo signs off that client-facing copy reads non-healthcare",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Pending staging deploy + Jo review.",
+      "waiver": ""
+    }
+  ]
+}

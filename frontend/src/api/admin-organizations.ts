@@ -377,6 +377,7 @@ export interface AdminCreateOrgInput {
     name: string;
     domain?: string;
     address?: string;
+    type?: "health" | "generic";
   };
   user: {
     email: string;

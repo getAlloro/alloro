@@ -14,6 +14,7 @@ import { PmsReferralsMeaningCard } from "./PmsReferralsMeaningCard";
 import { PmsTopSourcesCard } from "./PmsTopSourcesCard";
 import { PmsVelocityCard } from "./PmsVelocityCard";
 import { DetailsModal } from "../../dashboard/shared/DetailsModal";
+import { useLabels } from "../../../hooks/useLabels";
 import type { PmsDashboardData } from "./types";
 
 type DetailModal = "sources" | "trends" | null;
@@ -48,6 +49,7 @@ export function PmsDashboardSurface({
   onSelectDataMonth,
   onOpenSettings,
 }: PmsDashboardSurfaceProps) {
+  const labels = useLabels();
   const [detailModal, setDetailModal] = useState<DetailModal>(null);
   const availabilityMonths = buildAvailabilityMonths(monthlyData);
 
@@ -123,7 +125,7 @@ export function PmsDashboardSurface({
       <DetailsModal
         open={detailModal === "sources"}
         title="All sources ranked by production"
-        eyebrow="Referral Sources"
+        eyebrow={labels.referralSources}
         onClose={() => setDetailModal(null)}
       >
         <PmsTopSourcesCard
@@ -135,8 +137,8 @@ export function PmsDashboardSurface({
 
       <DetailsModal
         open={detailModal === "trends"}
-        title="Production and referral patterns"
-        eyebrow="Referral Trends"
+        title={`${labels.production} and ${labels.referralsShort.toLowerCase()} patterns`}
+        eyebrow={labels.referralTrends}
         onClose={() => setDetailModal(null)}
       >
         <div className="space-y-5">

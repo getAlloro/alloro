@@ -23,6 +23,7 @@ import {
   addMonths,
 } from "./pmsDataTransform";
 import type { MonthBucket, SourceRow } from "./types";
+import { useLabels } from "../../hooks/useLabels";
 import { logger } from "../../lib/logger";
 import {
   ALORO_ORANGE,
@@ -50,6 +51,7 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
   onSaved,
   onConfirmApproval,
 }) => {
+  const labels = useLabels();
   // ==================== STATE ====================
   const [months, setMonths] = useState<MonthBucket[]>([]);
   const [activeMonthId, setActiveMonthId] = useState<number | null>(null);
@@ -494,25 +496,25 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
                     {/* Summary cards */}
                     {[
                       {
-                        label: "Self Referrals",
+                        label: labels.selfReferrals,
                         value: totals.selfReferrals,
                         icon: User,
                         tint: "#C9765E22",
                       },
                       {
-                        label: "Doctor Referrals",
+                        label: labels.doctorReferrals,
                         value: totals.doctorReferrals,
                         icon: Stethoscope,
                         tint: "#C9765E11",
                       },
                       {
-                        label: "Total Referrals",
+                        label: labels.totalReferrals,
                         value: totals.totalReferrals,
                         icon: User,
                         tint: "#C9765E18",
                       },
                       {
-                        label: "Production",
+                        label: labels.production,
                         value: totals.productionTotal.toLocaleString(),
                         icon: DollarSign,
                         tint: "#34D39922",

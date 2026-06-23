@@ -63,11 +63,11 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
-        <span class="status-pill status-pending">Pending Execution</span>
+        <span class="status-pill status-pending">In Progress</span>
       </div>
       <h1>Org-Type Generic Verbiage</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>In Progress</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/06232026-org-type-generic-verbiage</dd></div>
         <div><dt>Size</dt><dd>Large</dd></div>
         <div><dt>Risk</dt><dd>Level 3 (Structural)</dd></div>
@@ -493,6 +493,16 @@
         <li><input type="checkbox" disabled> Alloro Docs (<code>/Users/rustinedave/Desktop/alloro-docs</code>) updated for the generic label set wherever dashboard copy/labels/nav are documented (dashboard UI changed → docs parity required)</li>
         <li><input type="checkbox" disabled> <code>test-results.json</code> rolls up to Passed</li>
       </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-06-23</h3>
+        <p><strong>Change:</strong> Executed T1–T11. Backend committed (<code>47e4446c</code>): saas→generic rename, <code>config/orgLabels.ts</code> + <code>resolveOrgType</code>, relaxed immutable guard + write-type-at-creation, <code>organizationType</code> on <code>/onboarding/status</code>, <code>service.prompt-substituter.ts</code> + 4 wired seams, tokenized client-facing prompts, generalized ranking specialty, backfill migration, unit tests. Frontend: <code>constants/orgLabels.ts</code> + <code>useLabels()</code>, auth-context wiring, create-popup type selector, and ~22 display-string swaps (nav, hub headers, PMS stat cards, dashboard section titles, agent pills, setup link, Customer Journey card). Verified: backend tsc, frontend tsc (<code>tsconfig.app.json</code>), 9/9 unit tests, <code>check:conventions --strict</code> all green.</p>
+        <p><strong>Reason:</strong> Execution deviation: (1) Substituter <em>fails safe</em> (warn + leave token) instead of throwing on an unknown token — NODE_ENV is forced to production on dev too, so a throw would risk live agent runs; unit tests assert resolution instead. (2) T7 ranking: the live <em>scheduled</em> path is wired (<code>service.ranking-executor</code> via <code>work.organizationId</code>); the one-time competitor-onboarding path (<code>service.competitor-identity</code>) and the public audit-leadgen seam (a prospect audit with no org) were NOT wired — onboarding re-identifies on the next scheduled run. (3) <code>Dashboard.tsx</code> activeTab union values and <code>ReferralEngineDashboard</code> <code>category:"Doctor"</code> were left as internal identifiers (must-NOT-replace). (4) <code>routeTelemetry</code> pageLabels kept stable (internal analytics, out of scope).</p>
+        <p><strong>Updated Done criteria:</strong> Build/test/convention gates met. Still open (human/computer-use + deploy): apply migration on dev; create a generic org and verify labels in-browser; run agents for a generic org; confirm health unchanged; Jo copy review. <strong>Documented follow-up swaps (not yet done):</strong> onboarding <code>wizardConfig.ts</code> + <code>wizardDemoData.ts</code>, <code>ColumnMappingDrawer</code> help text, <code>ReferralMatrices</code> loading phrases, <code>api/pms/mapping.ts</code> default labels.</p>
+      </article>
     </section>
   </main>
 </body>

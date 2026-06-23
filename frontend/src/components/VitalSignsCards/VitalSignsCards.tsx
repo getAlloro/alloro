@@ -23,19 +23,21 @@ import {
   useWizardDemoData,
 } from "../../contexts/OnboardingWizardContext";
 import { logger } from "../../lib/logger";
+import { useLabels } from "../../hooks/useLabels";
+import type { OrgLabels } from "../../constants/orgLabels";
 
 interface VitalSignsCardsProps {
   className?: string;
 }
 
-// Stage configuration
-const STAGES = [
+// Stage configuration (org-type-aware copy)
+const getStages = (labels: OrgLabels) => [
   {
     id: "consideration",
     title: "Consideration",
     iconName: "Star",
     description:
-      "When patients compare options and evaluate your practice's reputation. Strong social proof and reputation management are crucial.",
+      `When ${labels.customers} compare options and evaluate your ${labels.orgNoun}'s reputation. Strong social proof and reputation management are crucial.`,
     dataSource: "Google Business Profile",
   },
   {
@@ -43,7 +45,7 @@ const STAGES = [
     title: "Decision",
     iconName: "MousePointer2",
     description:
-      "The critical conversion moment. User experience determines whether ready-to-book patients complete their appointment or abandon.",
+      `The critical conversion moment. User experience determines whether ready-to-book ${labels.customers} complete their ${labels.serviceEvent} or abandon.`,
     dataSource: "Microsoft Clarity",
   },
 ];
@@ -75,6 +77,7 @@ const getIcon = (name: string, size = 24, className = "") => {
 export const VitalSignsCards: React.FC<VitalSignsCardsProps> = ({
   className = "",
 }) => {
+  const labels = useLabels();
 
   const [activeTabId, setActiveTabId] = useState("consideration");
   const [isFetchingAIData, setIsFetchingAIData] = useState(false);
@@ -111,6 +114,7 @@ export const VitalSignsCards: React.FC<VitalSignsCardsProps> = ({
   const gbpError = isWizardActive ? null : rawGbpError;
   const clarityError = isWizardActive ? null : rawClarityError;
 
+  const STAGES = getStages(labels);
   const activeIndex = STAGES.findIndex((s) => s.id === activeTabId);
   const activeStage = STAGES[activeIndex];
 
@@ -301,11 +305,11 @@ export const VitalSignsCards: React.FC<VitalSignsCardsProps> = ({
           <div className="max-w-[1200px] mx-auto px-6 sm:px-12 py-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
             <div>
               <h1 className="font-display text-2xl md:text-3xl font-medium text-alloro-navy tracking-tight">
-                Patient Journey Insights
+                {labels.journeyInsights}
               </h1>
               <p className="text-slate-400 font-medium text-[11px] uppercase tracking-wider flex items-center gap-2 mt-1">
                 <Activity size={14} className="text-alloro-orange" />
-                AI-powered practice analytics • {STAGES.length} stages
+                AI-powered {labels.orgNoun} analytics • {STAGES.length} stages
               </p>
             </div>
 

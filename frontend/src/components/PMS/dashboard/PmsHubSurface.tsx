@@ -18,6 +18,7 @@ import {
   type Period,
 } from "./pmsPeriod";
 import { formatCompactCurrency } from "./utils";
+import { useLabels } from "../../../hooks/useLabels";
 import type { PmsDashboardSurfaceProps } from "./PmsDashboardSurface";
 
 /**
@@ -138,6 +139,8 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
     onOpenSettings,
   } = props;
 
+  const labels = useLabels();
+
   const [period, setPeriod] = useState<Period>("MONTH");
   // Chart hover scrubbing: while a plot point is hovered, the production +
   // referral tiles show that bucket; null falls back to the period scope.
@@ -215,7 +218,7 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
     },
     {
       slot: "referrals",
-      label: hovered ? `Referrals · ${hovered.fullLabel}` : `Referrals · ${periodLabel}`,
+      label: hovered ? `${labels.referralsShort} · ${hovered.fullLabel}` : `${labels.referralsShort} · ${periodLabel}`,
       value: String(hovered ? hovered.referrals : scoped.referrals),
     },
     {
@@ -233,7 +236,7 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
     <div className="pm-light mx-auto w-full max-w-[960px] space-y-6">
       <div className="flex items-center justify-between gap-4">
         <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-ink-muted">
-          Referrals Hub
+          {labels.hubReferrals}
         </span>
         <div className="flex items-center gap-2">
           {onOpenCompare && monthlyData.length >= 2 && (

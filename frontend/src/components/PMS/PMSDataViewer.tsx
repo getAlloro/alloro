@@ -39,6 +39,7 @@ import {
   type MonthEntryForm,
 } from "./pmsDataTransform";
 import { normaliseMonthEntries } from "./pmsDataViewer.utils";
+import { useLabels } from "../../hooks/useLabels";
 import type { MonthBucket, SourceRow } from "./types";
 
 interface PMSDataViewerProps {
@@ -116,6 +117,7 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
   onSave,
   readOnly = false,
 }) => {
+  const labels = useLabels();
   const [months, setMonths] = useState<MonthBucket[]>([]);
   const [activeMonthId, setActiveMonthId] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -420,25 +422,25 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
 
                   {[
                     {
-                      label: "Self Referrals",
+                      label: labels.selfReferrals,
                       value: totals.selfReferrals,
                       icon: User,
                       tint: "#C9765E22",
                     },
                     {
-                      label: "Doctor Referrals",
+                      label: labels.doctorReferrals,
                       value: totals.doctorReferrals,
                       icon: Stethoscope,
                       tint: "#C9765E11",
                     },
                     {
-                      label: "Total Referrals",
+                      label: labels.totalReferrals,
                       value: totals.totalReferrals,
                       icon: User,
                       tint: "#C9765E18",
                     },
                     {
-                      label: "Production",
+                      label: labels.production,
                       value: totals.productionTotal.toLocaleString(),
                       icon: DollarSign,
                       tint: "#34D39922",

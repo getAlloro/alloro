@@ -15,6 +15,7 @@ import { formatCurrency, getLatestMonth } from "./utils";
 import { PmsCardShell, PmsEyebrow } from "./primitives";
 import { PmsVelocityCard } from "./PmsVelocityCard";
 import { DetailsModal } from "../../dashboard/shared/DetailsModal";
+import { useLabels } from "../../../hooks/useLabels";
 
 export type PmsProductionChartProps = {
   months: PmsDashboardMonth[];
@@ -34,6 +35,7 @@ export function PmsProductionChart({
   months,
   isProcessingInsights,
 }: PmsProductionChartProps) {
+  const labels = useLabels();
   const gradientId = useId().replaceAll(":", "");
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [isPaceOpen, setIsPaceOpen] = useState(false);
@@ -192,7 +194,7 @@ export function PmsProductionChart({
       <DetailsModal
         open={isPaceOpen}
         title="Monthly referral pace"
-        eyebrow="Referral velocity · Last 6 months"
+        eyebrow={`${labels.referralVelocity} · Last 6 months`}
         onClose={() => setIsPaceOpen(false)}
       >
         <PmsVelocityCard months={months} isProcessingInsights={isProcessingInsights} />
