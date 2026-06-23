@@ -2,6 +2,30 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.133] - June 2026
+
+### Organization Type — Generic (non-healthcare) Verbiage
+
+Alloro can now serve a non-healthcare "generic" experience alongside the existing healthcare one, driven by a single per-organization type. Existing clients are unaffected — every organization is `health` and renders byte-identical to before. A `generic` organization shows business vocabulary across the dashboard and AI output: Practice Hub → Business Hub, Referrals Hub → Revenue Hub, patients → customers, referrals → leads, production → revenue, and "the doctor" → second-person "you". Type is chosen when an admin creates the org and is editable afterward.
+
+**Key Changes:**
+- Org-type value `saas` renamed to `generic`; `health` is the default — `null` resolves to health and a migration backfills existing rows, so current accounts are untouched.
+- One label config + `useLabels()` hook (frontend) and a prompt placeholder substituter (backend) resolve vocabulary per org type at runtime — the same components and prompts serve both verticals.
+- Client-facing agent prompts (monthly Summary / ReferralEngine / Opportunity, GBP review-reply + local-post) carry an org-type vocabulary directive so generic AI output reads non-healthcare; JSON schema keys and GBP safety rules are left intact.
+- Local Rankings specialty detection generalizes by org type (a plumber is identified as "plumber", not "orthodontist").
+- Org-type selector added to the admin Create-Organization popup; the once-immutable type is now editable.
+- ~40 frontend display strings routed through the label map (nav, hubs, PMS cards, dashboard panels, Customer Journey card).
+
+**Verification:** backend + frontend type-checks, 9/9 new unit tests, and `check:conventions --strict` all pass. Local browser + generation QA confirmed a generic org renders business vocabulary on the dashboard and Revenue Hub, generic agent output reads non-healthcare, and a health org is unchanged. Acceptance checklist rolls up to Passed (Jo's staging copy review waived to pre-rollout — no client is affected by this code-only finalization).
+
+**Commits:**
+- `47e4446c` — backend: config/orgLabels + resolveOrgType, saas→generic, relaxed immutability + write-type-at-creation, organizationType on /onboarding/status, prompt substituter + 4 seams, tokenized prompts, ranking generalization, backfill migration, unit tests.
+- `9cdab7a3` — frontend: label map + useLabels + auth-context wiring + create-popup selector + ~22 display swaps + acceptance artifact.
+- `c9572995` — browser-QA fixes: {{vocab_directive}} for generic agent output, ProductionPanel, ~15 undercounted Revenue-Hub/PMS labels.
+- `c246f07c`, `f04dc0cc` — QA results + spec revisions (Rev 2, Rev 3).
+
+**Pending rollout (not part of this finalization):** push `dev/dave` to deploy and run the migration on dev/prod; Jo copy review in staging; generic-variant Alloro Docs (the existing docs describe the unchanged health experience and remain accurate); a few deferred follow-up swaps (onboarding wizard copy, loading phrases, `mapping.ts` defaults).
+
 ## [0.0.132] - June 2026
 
 ### Fix: PMS month labels showed the wrong month for US-timezone users

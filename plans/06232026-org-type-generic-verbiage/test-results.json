@@ -1,7 +1,7 @@
 {
   "plan": "plans/06232026-org-type-generic-verbiage",
   "generatedAt": "2026-06-23",
-  "status": "In Progress",
+  "status": "Passed",
   "items": [
     {
       "id": "T-BUILD",
@@ -108,10 +108,10 @@
         "2. Records any healthcare wording that remains"
       ],
       "expected": "Jo signs off that client-facing copy reads non-healthcare",
-      "status": "pending",
+      "status": "fail",
       "evidence": "",
-      "notes": "Pending staging deploy + Jo review.",
-      "waiver": ""
+      "notes": "Deferred by owner at -d finalization.",
+      "waiver": "Deferred by owner. Jo's copy review gates the client-facing ROLLOUT (switching a real client to generic), not this code-only finalization — no existing client is affected (all are health and render byte-identical; generic orgs are admin-created only and nothing is deployed yet). Must be completed before any real client is set to generic."
     }
   ]
 }
