@@ -25,7 +25,7 @@ export function substitutePromptPlaceholders(
   orgType: OrgType
 ): string {
   const labels = resolveLabels(orgType);
-  return prompt.replace(PLACEHOLDER_RE, (match, key: string) => {
+  const out = prompt.replace(PLACEHOLDER_RE, (match, key: string) => {
     const value = labels[key];
     if (value === undefined) {
       logger.warn(
@@ -35,4 +35,7 @@ export function substitutePromptPlaceholders(
     }
     return value;
   });
+  // An empty {{vocab_directive}} (health) leaves leading blank lines; trim them
+  // so the health prompt stays byte-identical to the pre-token version.
+  return out.replace(/^\s+/, "");
 }

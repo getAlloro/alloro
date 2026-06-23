@@ -16,6 +16,18 @@
       "port": 5176,
       "autoPort": true,
       "cwd": "docs"
+    },
+    {
+      "name": "api",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:api"],
+      "port": 3000
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:web"],
+      "port": 5174
     }
   ]
 }

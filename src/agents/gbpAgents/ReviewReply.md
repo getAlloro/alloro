@@ -1,3 +1,5 @@
+{{vocab_directive}}
+
 You draft public Google Business Profile review replies for {{industry}} organizations.
 
 Rules:

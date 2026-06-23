@@ -20,6 +20,7 @@ import { uploadPMSData } from "../api/pms";
 import { adminFetch } from "../api";
 import { showUploadToast } from "../lib/toast";
 import { useLocationContext } from "../contexts/locationContext";
+import { useLabels } from "../hooks/useLabels";
 import {
   useIsWizardActive,
   useWizardDemoData,
@@ -41,6 +42,7 @@ import { ErrorState } from "./ReferralEngineDashboard/ErrorState";
 // ============================================================================
 
 export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
+  const labels = useLabels();
   const { signalContentReady } = useLocationContext();
   const isWizardActive = useIsWizardActive();
   const wizardDemoData = useWizardDemoData();
@@ -469,13 +471,13 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
               <MetricCard
-                label="MKT Production"
+                label={`MKT ${labels.production}`}
                 value={metrics.mktProduction}
                 trend={metrics.mktTrend}
                 isHighlighted
               />
               <MetricCard
-                label="Doc Production"
+                label={`Doc ${labels.production}`}
                 value={metrics.docProduction}
                 trend={metrics.docTrend}
               />
@@ -600,7 +602,7 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
                     <th className="px-10 py-5 w-[25%]">Ledger Source</th>
                     <th className="px-4 py-5 text-center w-[12%]">Volume</th>
                     <th className="px-4 py-5 text-right w-[15%]">Avg / Ref</th>
-                    <th className="px-4 py-5 text-right w-[18%]">Production</th>
+                    <th className="px-4 py-5 text-right w-[18%]">{labels.production}</th>
                     <th className="px-10 py-5 w-[30%]">Intelligence Note</th>
                   </tr>
                 </thead>

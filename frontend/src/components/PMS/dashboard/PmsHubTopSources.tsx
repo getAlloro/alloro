@@ -4,6 +4,7 @@ import { PmsCardShell } from "./primitives";
 import type { PmsDashboardSurfaceProps } from "./PmsDashboardSurface";
 import type { SourceDetail, SourceTrend } from "./sourceTrend";
 import { formatCompactCurrency } from "./utils";
+import { useLabels } from "../../../hooks/useLabels";
 
 /**
  * PmsHubTopSources — the Referrals Hub Top-Sources list with click-in
@@ -37,6 +38,7 @@ function pct(value: number | null): string {
 }
 
 export function PmsHubTopSources({ sources, trendFor, detailFor }: PmsHubTopSourcesProps) {
+  const labels = useLabels();
   const [expandedRank, setExpandedRank] = useState<number | null>(null);
 
   if (sources.length === 0) return null;
@@ -85,7 +87,7 @@ export function PmsHubTopSources({ sources, trendFor, detailFor }: PmsHubTopSour
                     <>
                       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                         <DetailStat
-                          label="Production"
+                          label={labels.production}
                           value={
                             detail.netProduction == null
                               ? "—"

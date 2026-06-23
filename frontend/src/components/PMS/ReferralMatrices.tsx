@@ -566,7 +566,7 @@ export const ReferralMatrices: React.FC<ReferralMatricesProps> = ({
               <th className="px-6 py-4 w-[20%]">Source</th>
               <th className="px-2 py-4 text-center w-[8%]">Type</th>
               <th className="px-2 py-4 text-center w-[7%]">Ref</th>
-              <th className="px-4 py-4 text-right w-[13%]">Production</th>
+              <th className="px-4 py-4 text-right w-[13%]">{labels.production}</th>
               <th className="px-4 py-4 text-right w-[13%]">Avg / Ref</th>
               <th className="px-6 py-4 w-[25%]">Note</th>
             </tr>

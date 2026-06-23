@@ -253,7 +253,7 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
             options={PERIOD_OPTIONS}
             active={period}
             onChange={handlePeriodChange}
-            ariaLabel="Referrals timeframe"
+            ariaLabel={`${labels.referralsShort} timeframe`}
           />
         </div>
       </div>

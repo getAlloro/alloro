@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { PmsCardShell, PmsEyebrow } from "./primitives";
 import type { HubTrendDatum } from "./pmsPeriod";
+import { useLabels } from "../../../hooks/useLabels";
 
 /**
  * PmsHubTrendChart — lean dual-line (production + referrals) chart for the
@@ -45,6 +46,7 @@ export function PmsHubTrendChart({
   periodLabel,
   onHoverChange,
 }: PmsHubTrendChartProps) {
+  const labels = useLabels();
   const gradientId = useId().replaceAll(":", "");
   const productionDomain = getAxisDomain(data.map((d) => d.production));
   const referralDomain = getAxisDomain(data.map((d) => d.referrals));
@@ -60,15 +62,15 @@ export function PmsHubTrendChart({
   return (
     <PmsCardShell>
       <div className="mb-5 flex items-center justify-between gap-3">
-        <PmsEyebrow>Production &amp; referrals · {periodLabel}</PmsEyebrow>
+        <PmsEyebrow>{labels.production} &amp; {labels.referralsShort.toLowerCase()} · {periodLabel}</PmsEyebrow>
         <div className="flex gap-4 text-[10px] font-bold uppercase tracking-widest text-[color:var(--color-pm-text-secondary)]">
           <span className="inline-flex items-center gap-2">
             <span className="h-1 w-4 rounded-full bg-alloro-orange" />
-            Production
+            {labels.production}
           </span>
           <span className="inline-flex items-center gap-2">
             <span className="h-1 w-4 rounded-full bg-green-700" />
-            Referrals
+            {labels.referralsShort}
           </span>
         </div>
       </div>
@@ -139,7 +141,7 @@ export function PmsHubTrendChart({
         </div>
       ) : (
         <div className="rounded-[14px] border border-dashed border-line-soft bg-[#FCFAED] p-10 text-center text-sm font-semibold text-[color:var(--color-pm-text-secondary)]">
-          Upload PMS data to see production &amp; referrals.
+          Upload PMS data to see {labels.production.toLowerCase()} &amp; {labels.referralsShort.toLowerCase()}.
         </div>
       )}
     </PmsCardShell>

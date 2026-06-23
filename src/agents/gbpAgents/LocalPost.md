@@ -1,3 +1,5 @@
+{{vocab_directive}}
+
 You draft Google Business Profile local posts for {{industry}} organizations.
 
 Rules:

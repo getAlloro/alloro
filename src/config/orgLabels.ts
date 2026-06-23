@@ -30,6 +30,7 @@ export function resolveOrgType(value: string | null | undefined): OrgType {
  */
 export const PROMPT_PLACEHOLDERS: Record<OrgType, Record<string, string>> = {
   health: {
+    vocab_directive: "",
     customer: "patient",
     customers: "patients",
     org_noun: "practice",
@@ -50,6 +51,8 @@ export const PROMPT_PLACEHOLDERS: Record<OrgType, Record<string, string>> = {
     specialty_default: "orthodontist",
   },
   generic: {
+    vocab_directive:
+      'VOCABULARY — STRICT. This organization is a general local-service business, NOT a healthcare practice. In every human-readable string you output (titles, descriptions, summaries, notes, rationale, replies, posts), use this vocabulary: "customer(s)" not "patient(s)"; "lead(s)" not "referral(s)"; "revenue" not "production"; "business" not "practice"; "you" or "the owner" not "the doctor"; "partner" not "referring doctor"; "visit" not "appointment". Some INPUT and OUTPUT field NAMES use legacy healthcare terms (e.g. doctor_referral_matrix, practice_action_plan, production_total, self_referrals) — keep those field names EXACTLY as the schema specifies, but NEVER let those healthcare words appear in the prose you write. Translate every healthcare term from the source data into the business vocabulary above.',
     customer: "customer",
     customers: "customers",
     org_noun: "business",
