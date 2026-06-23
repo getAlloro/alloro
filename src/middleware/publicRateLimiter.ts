@@ -69,6 +69,17 @@ export const checkupCreateAccountLimiter = rateLimit({
   message: RATE_LIMIT_MESSAGE,
 });
 
+// Audit pipeline is the most expensive public endpoint (Apify + Places + LLM,
+// ~$0.10-0.30/run). Generous per-IP cap: a real doctor runs one audit, so this
+// only stops a script hammering /api/audit/start. Rejects before the pipeline runs.
+export const auditStartLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: RATE_LIMIT_MESSAGE,
+});
+
 export const checkupCompareLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 20,
