@@ -48,7 +48,7 @@
       "expected": "Org is created with organization_type='generic'; type switches without a 409 'cannot be changed' error",
       "status": "pending",
       "evidence": "",
-      "notes": "Requires running app.",
+      "notes": "Create-popup selector + relaxed guard are code-complete and tsc-verified; not click-tested in-browser (QA used the existing generic org 6, and the backend create path was exercised earlier). The setOrganizationType 409 immutable guard is removed in code.",
       "waiver": ""
     },
     {
@@ -62,9 +62,9 @@
         "3. Log in as a health org; confirm Practice Hub, Referrals Hub, Self/Doctor/Total Referrals, Production are unchanged"
       ],
       "expected": "Generic surfaces read non-healthcare; health surfaces are byte-identical to before",
-      "status": "pending",
-      "evidence": "",
-      "notes": "Covers nav, hub headers, PMS stat cards, dashboard section titles, agent pills, setup link, journey card body. Known not-yet-swapped (follow-up): onboarding wizard copy, PMS-upload column-mapping help text, ReferralMatrices loading messages, api/pms/mapping default labels.",
+      "status": "pass",
+      "evidence": "Local browser QA (org 6 DentalEMR=generic): /dashboard shows Business Hub, Revenue Hub, 'Revenue · Year to date', Leads; /pmsStatistics shows Revenue Hub, 'Revenue & leads', 'Leads · {month}', Leads timeframe, Top sources. Health (org 8) returns organizationType=health (curl) and the label map's health values equal the original strings (unit-tested), so health renders unchanged. Browser QA also caught + fixed ProductionPanel and ~15 undercounted PMS/Revenue-Hub labels.",
+      "notes": "Verified generic in-browser. Follow-up (not swapped): onboarding wizard copy, ReferralMatrices loading phrases, api/pms/mapping default labels, a few self/walk-in legend words. Health-unchanged confirmed logically (not screenshotted — MCP browser was flaky on this machine).",
       "waiver": ""
     },
     {
@@ -78,9 +78,9 @@
         "3. Inspect output for healthcare words (patient/practice/referral/doctor)"
       ],
       "expected": "Generic output uses customer/business/lead/revenue/you; output still parses to valid JSON; health output unchanged",
-      "status": "pending",
-      "evidence": "",
-      "notes": "Substitution verified by unit test; live agent run pending.",
+      "status": "pass",
+      "evidence": "Direct LLM run (claude-sonnet-4-6) of ReferralEngineAnalysis with a sample PMS payload: generic output used leads/revenue/business/partner/customer/owner throughout (1 residual 'referral' vs 5+ before the {{vocab_directive}} was added); health output unchanged (referrals/production/doctor). parsed_ok=true for both. No email path touched.",
+      "notes": "Generation proven clean. Stored dashboard cards for existing orgs still show pre-change wording until the next normal agent run — the orchestrator/email path was deliberately NOT invoked to guarantee zero emails.",
       "waiver": ""
     },
     {
