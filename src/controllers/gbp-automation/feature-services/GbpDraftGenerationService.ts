@@ -1,6 +1,8 @@
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { loadPrompt } from "../../../agents/service.prompt-loader";
+import { substitutePromptPlaceholders } from "../../../agents/service.prompt-substituter";
+import { resolveOrgType } from "../../../config/orgLabels";
 import { runAgent } from "../../../agents/service.llm-runner";
 import { IReview } from "../../../models/website-builder/ReviewModel";
 import { ILocation } from "../../../models/LocationModel";
@@ -170,7 +172,10 @@ export class GbpDraftGenerationService {
     }
   ): Promise<GbpDraftGenerationResult> {
     const promptKey = "gbpAgents/ReviewReply";
-    const systemPrompt = loadPrompt(promptKey);
+    const systemPrompt = substitutePromptPlaceholders(
+      loadPrompt(promptKey),
+      resolveOrgType(params.organization.organization_type)
+    );
     const variationInstruction = pickVariationInstruction();
     const customizations =
       sanitizeGbpText(

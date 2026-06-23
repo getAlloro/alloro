@@ -1,0 +1,4 @@
+-- N/A — Alloro is PostgreSQL only (see AGENTS.md). There is no SQL Server target.
+-- This file exists to satisfy the plan-folder migrations convention.
+-- The executed migration is the Knex .ts file (see knexmigration.js);
+-- the PostgreSQL equivalent is in pgsql.sql.

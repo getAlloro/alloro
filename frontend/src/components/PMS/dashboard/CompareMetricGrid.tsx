@@ -2,6 +2,7 @@ import type { PmsKeyDataMonth } from "../../../api/pms";
 import { formatCompactCurrency } from "./utils";
 import { pctChange } from "./compareMonths.utils";
 import { PmsEyebrow } from "./primitives";
+import { useLabels } from "../../../hooks/useLabels";
 
 /**
  * CompareMetricGrid — the headline metric comparison for two months.
@@ -61,31 +62,32 @@ export function CompareMetricGrid({
   labelA: string;
   labelB: string;
 }) {
+  const labels = useLabels();
   const metrics: Metric[] = [
     {
       key: "production",
-      label: "Production",
+      label: labels.production,
       valueA: monthA.productionTotal,
       valueB: monthB.productionTotal,
       format: formatCompactCurrency,
     },
     {
       key: "total",
-      label: "Total referrals",
+      label: labels.totalReferrals,
       valueA: monthA.totalReferrals,
       valueB: monthB.totalReferrals,
       format: formatNumber,
     },
     {
       key: "doctor",
-      label: "Doctor referrals",
+      label: labels.doctorReferrals,
       valueA: monthA.doctorReferrals,
       valueB: monthB.doctorReferrals,
       format: formatNumber,
     },
     {
       key: "self",
-      label: "Self referrals",
+      label: labels.selfReferrals,
       valueA: monthA.selfReferrals,
       valueB: monthB.selfReferrals,
       format: formatNumber,

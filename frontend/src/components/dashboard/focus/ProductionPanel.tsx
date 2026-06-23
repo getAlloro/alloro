@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useAuth } from "../../../hooks/useAuth";
+import { useLabels } from "../../../hooks/useLabels";
 import { useLocationContext } from "../../../contexts/locationContext";
 import { useDashboardMetrics } from "../../../hooks/queries/useDashboardMetrics";
 import { usePmsKeyData } from "../../../hooks/queries/usePmsKeyData";
@@ -72,10 +73,11 @@ function compactCurrency(value: number): string {
 type MonthRow = { month: string; productionTotal: number; totalReferrals: number };
 
 function Eyebrow() {
+  const labels = useLabels();
   return (
     <div className="mb-2.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-ink-muted">
       <span className="inline-block h-1.5 w-1.5 rounded-full bg-alloro-navy" />
-      Production · Year to date
+      {labels.production} · Year to date
     </div>
   );
 }
@@ -103,6 +105,7 @@ export function ProductionPanel() {
   const isWizardActive = useIsWizardActive();
   const wizard = useWizardDemoData();
   const { userProfile } = useAuth();
+  const labels = useLabels();
   const { selectedLocation } = useLocationContext();
   const orgId = userProfile?.organizationId ?? null;
   const locationId = selectedLocation?.id ?? null;
@@ -142,7 +145,7 @@ export function ProductionPanel() {
         <EmptyState>
           {months.length > 0
             ? `No ${currentYear} data yet — your year-to-date trend starts with your first ${currentYear} upload.`
-            : "Upload PMS data to see your production trend."}
+            : `Upload PMS data to see your ${labels.revenueNoun} trend.`}
         </EmptyState>
       </Shell>
     );
@@ -156,7 +159,7 @@ export function ProductionPanel() {
     label: monthShort(m.month),
     tooltipLabel: monthShort(m.month),
     value: Number(m.productionTotal) || 0,
-    detail: `${m.totalReferrals} referrals`,
+    detail: `${m.totalReferrals} ${labels.referralsShort.toLowerCase()}`,
   }));
 
   return (
@@ -189,9 +192,9 @@ export function ProductionPanel() {
           data={chartData}
           color={TONE_COLOR.positive}
           gradientId="practice-hub-production"
-          ariaLabel="Year-to-date production trend"
-          emptyLabel="No production trend yet"
-          valueLabel={(value) => `${compactCurrency(value)} production`}
+          ariaLabel={`Year-to-date ${labels.revenueNoun} trend`}
+          emptyLabel={`No ${labels.revenueNoun} trend yet`}
+          valueLabel={(value) => `${compactCurrency(value)} ${labels.revenueNoun}`}
         />
       </div>
 

@@ -3,6 +3,8 @@
  * No React, no side effects — safe to import anywhere.
  */
 
+import { formatDataMonthShort } from "../../utils/timeframe";
+
 export const COGITATING_PHRASES = [
   "Reading the leaves", "Turning over new leaves", "Tending the garden",
   "Pruning the branches", "Cultivating insights", "Planting seeds",
@@ -18,14 +20,5 @@ export const formatMonthLabel = (value: string): string => {
   if (!value) {
     return "—";
   }
-
-  const date = new Date(`${value}-01T00:00:00`);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    year: "numeric",
-  });
+  return formatDataMonthShort(value);
 };

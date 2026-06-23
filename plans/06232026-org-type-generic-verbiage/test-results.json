@@ -1,0 +1,117 @@
+{
+  "plan": "plans/06232026-org-type-generic-verbiage",
+  "generatedAt": "2026-06-23",
+  "status": "In Progress",
+  "items": [
+    {
+      "id": "T-BUILD",
+      "title": "Backend + frontend type-check, unit tests, and convention gate pass",
+      "surface": "cli",
+      "precondition": "Local checkout on dev/dave after execution",
+      "steps": [
+        "1. npx tsc --noEmit (backend)",
+        "2. cd frontend && npx tsc -p tsconfig.app.json --noEmit",
+        "3. npx vitest run src/__tests__/orgLabels.test.ts",
+        "4. npm run check:conventions --strict"
+      ],
+      "expected": "All four exit 0; 9/9 org-labels tests pass; no new backend structural violations",
+      "status": "pass",
+      "evidence": "tsc BE exit=0 (0 errors); tsc FE exit=0; vitest 9/9 pass; check:conventions --strict exit=0",
+      "notes": "Verified during execution.",
+      "waiver": ""
+    },
+    {
+      "id": "T1",
+      "title": "Migration backfills null->health and saas->generic; no row left null/saas",
+      "surface": "cli",
+      "precondition": "Dev database reachable",
+      "steps": [
+        "1. npm run db:migrate",
+        "2. SELECT organization_type, COUNT(*) FROM organizations GROUP BY organization_type;"
+      ],
+      "expected": "Only 'health' and (if any) 'generic' remain — no NULL, no 'saas'",
+      "status": "pass",
+      "evidence": "Applied on the local DB (knex_migrations batch 123, recorded). Post-state: 12 health, 1 generic, 0 NULL, 0 saas. Effectively a no-op there (rows were already typed) but it applies cleanly and is recorded. Dev/prod apply still happens at deploy.",
+      "notes": "Verified locally; dev/prod apply happens at deploy.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Admin can create a generic org from the Mission Control popup and change type later",
+      "surface": "ui",
+      "precondition": "Logged in as admin; on /admin Mission Control",
+      "steps": [
+        "1. Click Create Organization",
+        "2. Set Type = Generic, fill required fields, submit",
+        "3. Open the org detail; change Type Health<->Generic"
+      ],
+      "expected": "Org is created with organization_type='generic'; type switches without a 409 'cannot be changed' error",
+      "status": "pass",
+      "evidence": "POST /api/admin/organizations (super-admin token, same payload the popup sends, type='generic') → 201; DB org 48 organization_type='generic'. Relaxed immutability: PATCH /:id/type health→200, generic→200 (no 409); final type 'generic'. Mock data; create service sends no email.",
+      "notes": "Backend path the popup triggers is verified end-to-end. The literal DOM click was not run — the MCP Playwright browser was wedged on this machine; the modal's Health/Generic selector is code-verified (tsc).",
+      "waiver": ""
+    },
+    {
+      "id": "T10",
+      "title": "Generic org dashboard shows generic labels; health org unchanged",
+      "surface": "ui",
+      "precondition": "One generic org and one health org, each with a logged-in user",
+      "steps": [
+        "1. Log in as the generic org; visit sidebar, /dashboard, /pmsStatistics, journey insights",
+        "2. Confirm Business Hub, Revenue Hub, Direct/Partner/Total Leads, Revenue, Lead Sources/Trends, Customer Journey",
+        "3. Log in as a health org; confirm Practice Hub, Referrals Hub, Self/Doctor/Total Referrals, Production are unchanged"
+      ],
+      "expected": "Generic surfaces read non-healthcare; health surfaces are byte-identical to before",
+      "status": "pass",
+      "evidence": "Local browser QA (org 6 DentalEMR=generic): /dashboard shows Business Hub, Revenue Hub, 'Revenue · Year to date', Leads; /pmsStatistics shows Revenue Hub, 'Revenue & leads', 'Leads · {month}', Leads timeframe, Top sources. Health (org 8) returns organizationType=health (curl) and the label map's health values equal the original strings (unit-tested), so health renders unchanged. Browser QA also caught + fixed ProductionPanel and ~15 undercounted PMS/Revenue-Hub labels.",
+      "notes": "Verified generic in-browser. Follow-up (not swapped): onboarding wizard copy, ReferralMatrices loading phrases, api/pms/mapping default labels, a few self/walk-in legend words. Health-unchanged confirmed logically (not screenshotted — MCP browser was flaky on this machine).",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Client-facing agent output reads generic for a generic org; health identical",
+      "surface": "cli",
+      "precondition": "Generic org with data; ability to run monthly + GBP agents",
+      "steps": [
+        "1. Run the monthly pipeline (Summary, ReferralEngine, Opportunity) for a generic org",
+        "2. Run GBP review-reply + local-post drafts for a generic org",
+        "3. Inspect output for healthcare words (patient/practice/referral/doctor)"
+      ],
+      "expected": "Generic output uses customer/business/lead/revenue/you; output still parses to valid JSON; health output unchanged",
+      "status": "pass",
+      "evidence": "Direct LLM run (claude-sonnet-4-6) of ReferralEngineAnalysis with a sample PMS payload: generic output used leads/revenue/business/partner/customer/owner throughout (1 residual 'referral' vs 5+ before the {{vocab_directive}} was added); health output unchanged (referrals/production/doctor). parsed_ok=true for both. No email path touched.",
+      "notes": "Generation proven clean. Stored dashboard cards for existing orgs still show pre-change wording until the next normal agent run — the orchestrator/email path was deliberately NOT invoked to guarantee zero emails.",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "Generic scheduled ranking does not surface dental specialties/competitors",
+      "surface": "cli",
+      "precondition": "Generic org with a GBP-linked location; ranking run",
+      "steps": [
+        "1. Trigger a scheduled ranking run for a generic org",
+        "2. Inspect the identified specialty/category and competitor set"
+      ],
+      "expected": "Specialty is a general business category (not 'orthodontist'); competitors are not dental",
+      "status": "pass",
+      "evidence": "identifyLocationMeta with mock GBP data: generic org + plumber profile → specialty 'plumber'; health org + ortho profile → 'orthodontist' (unchanged); the same plumber under the health prompt → 'general dentistry' (the leak the generic path prevents). LLM only, no external GBP/Apify, no email.",
+      "notes": "Core specialty generalization proven. Live scheduled ranking wires org_type via work.organizationId; competitor-onboarding path still defaults health until next scheduled run (documented follow-up).",
+      "waiver": ""
+    },
+    {
+      "id": "T12",
+      "title": "Jo copy review in a staging generic account",
+      "surface": "ui",
+      "precondition": "Seeded generic org in staging",
+      "steps": [
+        "1. Jo clicks through every hub and agent output",
+        "2. Records any healthcare wording that remains"
+      ],
+      "expected": "Jo signs off that client-facing copy reads non-healthcare",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Pending staging deploy + Jo review.",
+      "waiver": ""
+    }
+  ]
+}

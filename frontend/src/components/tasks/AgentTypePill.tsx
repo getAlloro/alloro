@@ -1,10 +1,13 @@
 import type { AgentType } from "../../types/tasks";
+import { useLabels } from "../../hooks/useLabels";
 
 interface AgentTypePillProps {
   agentType: AgentType | null | undefined;
 }
 
 export function AgentTypePill({ agentType }: AgentTypePillProps) {
+  const labels = useLabels();
+
   if (!agentType) {
     return (
       <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600">
@@ -32,12 +35,12 @@ export function AgentTypePill({ agentType }: AgentTypePillProps) {
         };
       case "REFERRAL_ENGINE_ANALYSIS":
         return {
-          label: "Referral Engine",
+          label: labels.engine,
           className: "border-orange-200 bg-orange-50 text-orange-700",
         };
       case "RANKING":
         return {
-          label: "Practice Ranking",
+          label: labels.practiceRanking,
           className: "border-indigo-200 bg-indigo-50 text-indigo-700",
         };
       case "MANUAL":

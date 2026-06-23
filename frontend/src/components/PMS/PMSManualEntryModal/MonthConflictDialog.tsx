@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 
 import type { MonthBucket } from "../types";
+import { formatDataMonth } from "../../../utils/timeframe";
 
 interface MonthConflictDialogProps {
   monthConflicts: Array<{
@@ -45,10 +46,7 @@ export const MonthConflictDialog: React.FC<MonthConflictDialogProps> = ({
             </p>
             <div className="space-y-2 mb-5">
               {monthConflicts.map((c) => {
-                const label = new Date(c.month + "-01").toLocaleDateString(
-                  "en-US",
-                  { month: "long", year: "numeric" }
-                );
+                const label = formatDataMonth(c.month);
                 return (
                   <div
                     key={c.month}

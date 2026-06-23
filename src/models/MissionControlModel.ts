@@ -10,7 +10,7 @@ export interface MissionControlOrgBase {
   id: number;
   name: string;
   domain: string | null;
-  organization_type: "health" | "saas" | null;
+  organization_type: "health" | "generic" | null;
   subscription_tier: "DWY" | "DFY" | null;
   subscription_status: MissionControlSubscriptionStatus;
   stripe_customer_id: string | null;

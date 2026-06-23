@@ -24,6 +24,7 @@ import {
   formatMonthLabel,
 } from "./pmsManualEntryModal.utils";
 import { usePmsManualEntry } from "./usePmsManualEntry";
+import { useLabels } from "../../hooks/useLabels";
 import { MonthConflictDialog } from "./PMSManualEntryModal/MonthConflictDialog";
 import { MonthYearPickerModal } from "./PMSManualEntryModal/MonthYearPickerModal";
 import { MonthTabs } from "./PMSManualEntryModal/MonthTabs";
@@ -52,6 +53,7 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
   targetMonth,
   onSuccess,
 }) => {
+  const labels = useLabels();
   const {
     months,
     activeMonthId,
@@ -321,8 +323,8 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
                   <div className="grid grid-cols-13 gap-4 px-2 text-[11px] font-bold text-gray-400 uppercase">
                     <div className="col-span-3">Source</div>
                     <div className="col-span-2">Type</div>
-                    <div className="col-span-3">Referral Count</div>
-                    <div className="col-span-4">Production</div>
+                    <div className="col-span-3">{labels.referralsShort} Count</div>
+                    <div className="col-span-4">{labels.production}</div>
                     <div className="col-span-1" />
                   </div>
                 )}

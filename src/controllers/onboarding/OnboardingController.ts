@@ -23,6 +23,7 @@ import {
 } from "./feature-services/SetupProgressService";
 import { GoogleConnectionModel } from "../../models/GoogleConnectionModel";
 import { OrganizationModel } from "../../models/OrganizationModel";
+import { resolveOrgType } from "../../config/orgLabels";
 import { OrganizationUserModel } from "../../models/OrganizationUserModel";
 import { UserModel } from "../../models/UserModel";
 import { checkDomain as checkDomainService } from "./feature-services/DomainCheckService";
@@ -102,6 +103,7 @@ export async function getOnboardingStatus(
         hasPropertyIds: false,
         propertyIds: null,
         organizationId: null,
+        organizationType: "health",
         hasGoogleConnection: false,
         role: null,
         profile: {
@@ -134,6 +136,7 @@ export async function getOnboardingStatus(
         hasPropertyIds: false,
         propertyIds: null,
         organizationId,
+        organizationType: resolveOrgType(org?.organization_type),
         hasGoogleConnection: false,
         role,
         profile: {
@@ -157,6 +160,7 @@ export async function getOnboardingStatus(
       hasPropertyIds: !!googleAccount.google_property_ids,
       propertyIds: googleAccount.google_property_ids || null,
       organizationId,
+      organizationType: resolveOrgType(org?.organization_type),
       hasGoogleConnection: true,
       role,
       profile: {

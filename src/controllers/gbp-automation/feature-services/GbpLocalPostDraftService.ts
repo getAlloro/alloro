@@ -1,6 +1,8 @@
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { loadPrompt } from "../../../agents/service.prompt-loader";
+import { substitutePromptPlaceholders } from "../../../agents/service.prompt-substituter";
+import { resolveOrgType } from "../../../config/orgLabels";
 import { runAgent } from "../../../agents/service.llm-runner";
 import { db } from "../../../database/connection";
 import { IGbpAutomationSettings } from "../../../models/GbpAutomationSettingsModel";
@@ -232,7 +234,10 @@ export class GbpLocalPostDraftService {
   }> {
     const insight = GbpReviewInsightService.classify(params.review);
     const promptKey = "gbpAgents/LocalPost";
-    const systemPrompt = loadPrompt(promptKey);
+    const systemPrompt = substitutePromptPlaceholders(
+      loadPrompt(promptKey),
+      resolveOrgType(params.organization.organization_type)
+    );
     const customizations =
       sanitizeGbpText(
         params.settings?.local_post_customizations,

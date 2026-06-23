@@ -1,0 +1,97 @@
+{
+  "plan": "plans/06172026-renderer-edge-bot-block",
+  "generatedAt": "2026-06-22",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T5a",
+      "title": "Edge block enforced — datacenter IPs receive 403",
+      "surface": "cli",
+      "precondition": "Block live on alloro-renderer; JSON access logging on.",
+      "steps": [
+        "ssh alloro-renderer",
+        "Classify post-flip access.log requests: datacenter-AND-not-allowlisted vs HTTP status."
+      ],
+      "expected": "Datacenter (AWS/GCP-compute/DO/Oracle) IPs not in the allowlist get 403; non-datacenter pass.",
+      "status": "pass",
+      "evidence": "Post-flip window: 11/11 datacenter requests 403; sample blocked 34.135.149.39 (kinsta-bot), 104.154.97.143 (GCP), 35.86.x / 34.222.x (AWS); 0 false positives.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T5b",
+      "title": "SEO safe — verified crawlers never blocked",
+      "surface": "cli",
+      "precondition": "Block live.",
+      "steps": [
+        "Grep post-flip access.log for 66.249.x (Googlebot) + bingbot and their status.",
+        "Confirm zero crawler-UA requests in the blocked set."
+      ],
+      "expected": "Googlebot/Bing return 200/redirects, never 403; zero verified crawlers blocked.",
+      "status": "pass",
+      "evidence": "Googlebot 66.249.x 330x200, Bingbot 175x200; crawler-UA 403s = NONE.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T5c",
+      "title": "All client sites still serve 200",
+      "surface": "cli",
+      "precondition": "Block live.",
+      "steps": ["curl --resolve <domain>:443:127.0.0.1 https://<domain>/ for the client domains"],
+      "expected": "Every client domain returns 200.",
+      "status": "pass",
+      "evidence": "www.1endodontics.com, 1endodontics.com, garrisonorthodontics.com, artfulorthodontics.com, caswellorthodontics.com, surfcityendo.com, tricity-endo.com all 200.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T5d",
+      "title": "ACME challenge path exempt (cert issuance safe)",
+      "surface": "cli",
+      "precondition": "Block live.",
+      "steps": ["curl the /.well-known/acme-challenge/ path on a client domain"],
+      "expected": "Reachable, not 403.",
+      "status": "pass",
+      "evidence": "acme path -> 200.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T5e",
+      "title": "Rollback confirmed restorable",
+      "surface": "cli",
+      "precondition": "Working Caddyfile backed up outside /etc/caddy.",
+      "steps": ["(observed) first flip failed on snippet perms -> auto-rollback restored the backup + restart"],
+      "expected": "Service restored to known-good config within seconds.",
+      "status": "pass",
+      "evidence": "First flip failed (snippet root:root 600 unreadable by caddy user); auto-rollback restored Caddyfile.20260622-113013.bak; caddy active in ~3s; re-flipped clean after chmod 644.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T-clean",
+      "title": "One Endodontics June dashboard back to baseline",
+      "surface": "api",
+      "precondition": "ClickHouse bot rows deleted (backed up); rybbit_data refreshed.",
+      "steps": ["GET Rybbit /api/sites/7/overview?start_date=2026-06-01&end_date=2026-06-30"],
+      "expected": "June users near the May baseline (~1,200); engagement metrics healthy.",
+      "status": "pass",
+      "evidence": "June users 7,476 -> 1,013 (May 1,196 / Apr 1,374); pages/session 1.84 -> 2.60; bounce 67% -> 53%. All deleted rows backed up + reversible.",
+      "notes": "Garrison (318) and Artful (280) checked and not inflated — surge was One-Endo-only.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "48h post-enforce monitoring",
+      "surface": "cli",
+      "precondition": "Block enforced 2026-06-22.",
+      "steps": ["Daily watchdog email", "Search Console crawl-error watch", "Rybbit new-day baseline holds"],
+      "expected": "No verified-crawler 403s, no Search Console crawl errors, baseline holds across 48h.",
+      "status": "fail",
+      "evidence": "Enforced 2026-06-22; daily watchdog (rDNS crawler check) running and reworded to ENFORCED.",
+      "notes": "Passive observation window through ~2026-06-24.",
+      "waiver": "Accepted as ongoing monitoring, not a release blocker — the daily watchdog email auto-alerts on any verified-crawler block and nothing is pending; window simply has not elapsed."
+    }
+  ]
+}

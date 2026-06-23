@@ -1,5 +1,6 @@
 import { UsersRound } from "lucide-react";
 import { PmsCardShell } from "./primitives";
+import { useLabels } from "../../../hooks/useLabels";
 
 export type PmsReferralMixCardProps = {
   doctorPercentage: number;
@@ -23,6 +24,7 @@ export function PmsReferralMixCard({
   totalReferrals,
   isProcessingInsights,
 }: PmsReferralMixCardProps) {
+  const labels = useLabels();
   const hasReferralMix = totalReferrals > 0;
   const doctorPct = hasReferralMix ? Math.round(doctorPercentage) : 0;
   const selfPct = hasReferralMix ? Math.max(100 - doctorPct, 0) : 0;
@@ -31,8 +33,8 @@ export function PmsReferralMixCard({
 
   return (
     <PmsCardShell
-      eyebrow="Referral mix"
-      title="Where your referrals come from"
+      eyebrow={labels.referralMix}
+      title={`Where your ${labels.referralsShort.toLowerCase()} come from`}
       action={
         <span className="inline-flex items-center justify-center rounded-xl bg-alloro-orange/10 p-2.5 text-alloro-orange">
           <UsersRound className="h-5 w-5" />
@@ -42,7 +44,7 @@ export function PmsReferralMixCard({
       {hasReferralMix ? (
         <>
           <p className="-mt-1 mb-5 text-xs font-semibold uppercase tracking-wider text-[color:var(--color-pm-text-secondary)]">
-            All-time · {totalReferrals.toLocaleString("en-US")} referrals observed
+            All-time · {totalReferrals.toLocaleString("en-US")} {labels.referralsShort.toLowerCase()} observed
           </p>
 
           <div className="grid grid-cols-2 gap-5">
@@ -93,8 +95,8 @@ export function PmsReferralMixCard({
       ) : (
         <div className="rounded-xl border border-dashed border-line-soft bg-[#F7F5F3] p-6 text-sm font-medium leading-6 text-[color:var(--color-pm-text-secondary)]">
           {isProcessingInsights
-            ? "Your referral mix will appear here once PMS processing finishes."
-            : "Your referral mix will appear here after PMS data is uploaded."}
+            ? `Your ${labels.referralMix.toLowerCase()} will appear here once PMS processing finishes.`
+            : `Your ${labels.referralMix.toLowerCase()} will appear here after PMS data is uploaded.`}
         </div>
       )}
     </PmsCardShell>

@@ -1,0 +1,68 @@
+{
+  "plan": "plans/06212026-unified-dev-runner",
+  "generatedAt": "2026-06-21",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "npm run dev orchestrates api + worker + web in one terminal",
+      "surface": "cli",
+      "precondition": "concurrently installed; repo root cwd",
+      "steps": [
+        "1. Run concurrently with the same -n api,worker,web -c blue,yellow,green flags over three commands",
+        "2. Observe one labeled, colored stream per command"
+      ],
+      "expected": "Three labeled streams [api] [worker] [web] start and report independently",
+      "status": "pass",
+      "evidence": "npx concurrently -n api,worker,web -c blue,yellow,green \"echo API-OK\" \"echo WORKER-OK\" \"echo WEB-OK\" -> printed [api] API-OK / [worker] WORKER-OK / [web] WEB-OK",
+      "notes": "Stand-in echo commands prove the -n/-c flags and three-stream spawning; the real dev script swaps in npm:dev:api/worker/web.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Backend-only startup preserved as npm run dev:api; all targets resolve",
+      "surface": "cli",
+      "precondition": "repo root cwd",
+      "steps": [
+        "1. Read root package.json scripts",
+        "2. Confirm dev, dev:api, dev:worker, dev:web exist",
+        "3. Confirm src/index.ts, src/workers/worker.ts, and frontend dev script exist"
+      ],
+      "expected": "dev:api -> tsx watch src/index.ts (unchanged old behavior); every referenced script and entry file resolves",
+      "status": "pass",
+      "evidence": "Script check: OK dev / dev:api -> tsx watch src/index.ts / dev:worker / dev:web. Files: OK src/index.ts, OK src/workers/worker.ts, OK frontend dev -> vite.",
+      "notes": "No phantom references.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "concurrently present in devDependencies",
+      "surface": "cli",
+      "precondition": "npm install -D concurrently@^9.1.2 run",
+      "steps": [
+        "1. npx concurrently --version"
+      ],
+      "expected": "concurrently resolves to a 9.x version",
+      "status": "pass",
+      "evidence": "npx concurrently --version -> 9.2.3; package.json devDependencies has \"concurrently\": \"^9.2.3\".",
+      "notes": "Same dependency the sibling repos (alloro-chat, alloro-os) use.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Full live end-to-end boot of the three real long-running processes",
+      "surface": "cli",
+      "precondition": ".env pointing at reachable dev DB + Redis",
+      "steps": [
+        "1. From repo root: npm run dev",
+        "2. Watch the [api], [worker], [web] streams come up",
+        "3. Ctrl-C once to stop all three"
+      ],
+      "expected": "Backend listening, worker connected to Redis, Vite ready — all under one process",
+      "status": "fail",
+      "evidence": "Not auto-run by the agent.",
+      "notes": "Owner can run npm run dev to watch all three live.",
+      "waiver": "Deliberately not auto-run: booting the dev worker makes BullMQ immediately pull live dev-queue jobs (rankings/PMS/summary, some client-email-producing). Orchestration wiring is environment-independent and fully proven by T1-T3; a live boot is a safe owner action, not a correctness gate for this change."
+    }
+  ]
+}

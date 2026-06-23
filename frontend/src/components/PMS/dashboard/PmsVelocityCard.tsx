@@ -1,6 +1,7 @@
 import type { PmsDashboardMonth } from "./types";
 import { formatCompactCurrency, getLastMonths } from "./utils";
 import { PmsEyebrow } from "./primitives";
+import { useLabels } from "../../../hooks/useLabels";
 
 export type PmsVelocityCardProps = {
   months: PmsDashboardMonth[];
@@ -21,6 +22,7 @@ export function PmsVelocityCard({
   months,
   isProcessingInsights,
 }: PmsVelocityCardProps) {
+  const labels = useLabels();
   const recentMonths = getLastMonths(months, 6);
   const maxReferrals = Math.max(
     ...recentMonths.map((month) => month.selfReferrals + month.doctorReferrals),
@@ -31,7 +33,7 @@ export function PmsVelocityCard({
     <div>
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-1">
-          <PmsEyebrow>Referral velocity · Last 6 months</PmsEyebrow>
+          <PmsEyebrow>{labels.referralVelocity} · Last 6 months</PmsEyebrow>
           <h3 className="font-display text-2xl font-medium tracking-tight text-alloro-navy">
             Monthly referral pace
           </h3>

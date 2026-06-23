@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Org-Type Generic Verbiage Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 4.5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.9em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    table.vtable { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 0.88rem; }
+    table.vtable th, table.vtable td { border: 1px solid var(--line); padding: 7px 9px; text-align: left; vertical-align: top; }
+    table.vtable th { background: var(--soft); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0; color: var(--muted); }
+    table.vtable td code { white-space: nowrap; }
+    .del { text-decoration: line-through; color: var(--muted); }
+    .arrow { color: var(--muted); padding: 0 4px; }
+    .note { border-left: 3px solid var(--ink); background: var(--soft); padding: 10px 14px; margin: 12px 0; border-radius: 0 6px 6px 0; }
+    .pillrow { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .tag { font-size: 0.66rem; font-weight: 800; text-transform: uppercase; border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; color: var(--muted); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+      table.vtable { font-size: 0.8rem; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">In Progress</span>
+      </div>
+      <h1>Org-Type Generic Verbiage</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>In Progress</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06232026-org-type-generic-verbiage</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 3 (Structural)</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Alloro is locked to dental/endo/ortho language across the UI and the AI agents, which blocks sales beyond the dental vertical. We need a single platform that serves either the current healthcare experience or a generic local-service-business experience, driven by one field per organization — no codebase fork, no disruption to current clients. Target: a demo-ready generic account for LinkedIn outreach the week of June 30, 2026.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>An organization gets a type — <code>health</code> (default, current verbiage) or <code>generic</code> (swapped verbiage). The type is chosen when an admin creates the org and is editable afterward. The type flows to the frontend (via the auth context) and to the AI agents (via the prompt loader), so every client-facing label, dashboard header, agent summary, and AI insight reflects the right vocabulary. Existing accounts are unaffected — they read and behave as <code>health</code>.</p>
+      <p><strong>Done when:</strong> an admin can create a <code>generic</code> org from the Mission Control popup; every string in the explicit inventory below renders generic copy for that org; every client-facing agent prompt emits generic copy; <code>health</code> orgs are byte-for-byte unchanged; Jo completes a copy review in a staging generic account.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Current state (verified)</h3>
+      <ul>
+        <li>Column <code>organizations.organization_type</code> already exists — <code>varchar(20)</code>, nullable, <strong>default null</strong> (not <code>health</code>), no DB enum/check. Migration <code>src/database/migrations/20260312000002_add_organization_type.ts</code>. Adding <code>generic</code> is <strong>not</strong> a schema change.</li>
+        <li>Current values are <code>"health" | "saas" | null</code>. The field is <strong>inert</strong> — nothing reads it for behavior, it is not in the JWT, not in <code>/onboarding/status</code>, not passed to agents.</li>
+        <li>Agents run on <strong>Claude</strong> (<code>claude-sonnet-4-6</code>) via the Anthropic SDK — <code>src/agents/service.llm-runner.ts:16</code>. (The original brief said "Gemini 2.5-flash"; that is wrong for the in-repo agents.) Prompts are 49 <code>.md</code> files loaded by <code>src/agents/service.prompt-loader.ts</code>, no templating today.</li>
+        <li>Set-type endpoint <code>PATCH /api/admin/organizations/:id/type</code> is <strong>immutable once set</strong> and only accepts <code>health|saas</code> — <code>OrganizationLifecycleAdminService.ts:42</code>.</li>
+        <li>Four org-creation paths exist; only the admin popup will carry the selector. The other three (OAuth, onboarding bootstrap, profile completion) leave type null → resolve to <code>health</code>.</li>
+      </ul>
+      <h3>Relevant files</h3>
+      <ul>
+        <li><code>src/config/</code> — new <code>orgLabels.ts</code> (backend label + placeholder dictionary).</li>
+        <li><code>src/agents/service.prompt-loader.ts</code>, new <code>src/agents/service.prompt-substituter.ts</code> — placeholder substitution.</li>
+        <li>Prompt seams: <code>controllers/agents/feature-services/service.monthly-agent-runner-core.ts:46</code>, <code>service.daily-agent-processor.ts:124</code>, <code>controllers/gbp-automation/feature-services/GbpDraftGenerationService.ts</code>, <code>GbpLocalPostDraftService.ts</code>.</li>
+        <li><code>controllers/onboarding/OnboardingController.ts</code> (getOnboardingStatus, ~line 99–121) — expose <code>organization_type</code>.</li>
+        <li><code>controllers/admin-organizations/feature-services/AdminOrgCreationService.ts:76</code> + <code>OrganizationLifecycleAdminService.ts:42</code> + <code>AdminOrganizationsController.ts</code> (validation array).</li>
+        <li>Frontend: <code>contexts/AuthContext.tsx</code>, <code>contexts/authContext.ts</code>, <code>api/onboarding.ts</code>; new <code>constants/orgLabels.ts</code> + <code>hooks/useLabels.ts</code>; <code>components/Admin/org/CreateOrganizationModal.tsx</code> + <code>api/admin-organizations.ts</code>; the ~25 display-string files in the inventory.</li>
+      </ul>
+      <h3>Code Constitution articles this work touches</h3>
+      <ul>
+        <li><strong>§10.3</strong> schema/data changes via migrations · <strong>§6.2</strong> file homes (label config in <code>src/config/</code>, substituter in <code>src/agents/</code>) · <strong>§6.3</strong> admin logic stays in <code>feature-services/</code> · <strong>§7.3</strong> controllers orchestrate, no DB · <strong>§7.4</strong> DB only in <code>models/</code> · <strong>§8.1</strong> <code>{ success, data, error }</code> response · <strong>§11.2</strong> validate the new <code>type</code> at the boundary · <strong>§4.2</strong> no magic strings (labels are named config) · <strong>§4.5/§17.2</strong> no <code>any</code>.</li>
+        <li>Frontend: <strong>§12.1</strong> the <code>api/</code> + React Query triad · <strong>§12.2</strong> file homes (<code>constants/</code>, <code>hooks/</code>) · <strong>§15.2</strong> org_type is cross-cutting UI state in Context · <strong>§13.3</strong> hook owns logic, component renders · <strong>§14.2</strong> no raw fetch (selector uses <code>api/index.ts</code>).</li>
+      </ul>
+      <p><strong>Reference analogs:</strong> backend <strong>§6.1</strong> <code>src/controllers/gbp-automation/</code> (thin controller + feature-services + typed errors); frontend <strong>§12.1</strong> the <code>frontend/src/api/</code> + React Query + feature-folder triad. The label config mirrors the existing named-constant pattern in <code>src/config/</code>; the substituter mirrors the single-purpose service shape in <code>src/agents/</code>.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Resolve <code>null → health</code> in code (a <code>resolveOrgType()</code> helper) so any null-typed org behaves as health.</li>
+            <li>Rename the <code>saas</code> value to <code>generic</code> in all three type declarations and the admin validation array.</li>
+            <li>Write <code>organization_type</code> on the admin create path; relax the immutable guard so type is editable.</li>
+            <li>Deliver org_type per-request: add to <code>/onboarding/status</code> and the agent runner fetch. <strong>No JWT change.</strong></li>
+            <li>Substitute prompt placeholders <strong>in prose only</strong>; leave every JSON schema key/example intact.</li>
+            <li>Swap only <strong>display strings</strong> via the label map; keep all data keys, API field names, and route paths.</li>
+            <li>Keep <code>health</code> output identical to today (placeholders resolve to the current words).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No new column or table. No new dependency.</li>
+            <li>Do not rename DB columns (<code>self_referrals</code>, <code>doctor_referrals</code>, <code>production</code>, <code>referrer_*</code>) or API/interface keys.</li>
+            <li>Do not blind find-replace healthcare words across prompt files — only hand-placed <code>{{tokens}}</code>.</li>
+            <li>Do not bake org_type into the JWT.</li>
+            <li>Do not add the selector to self-serve signup (admin popup only).</li>
+            <li>Do not change the GBP safety rules — keep them; only swap their framing words.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out of scope</h3>
+      <ul>
+        <li><strong>N8N workflows</strong> — external (<code>n8n.getalloro.com</code>), not in this repo. The backend will pass resolved labels in the webhook payload (T5); the n8n prompt-node edits are a separate task on the n8n server.</li>
+        <li><strong>Telemetry <code>pageLabel</code> values</strong> in <code>routeTelemetry.ts</code> — internal analytics, not shown to clients. Keep them stable so analytics stays consistent across org types, <em>unless</em> a label is also rendered as a visible breadcrumb/title (verify in T10).</li>
+        <li><strong>Generic data ingestion / Stripe pricing by type</strong> — verbiage only; no new data pipelines this round.</li>
+        <li>Self-serve signup type selection.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 (Structural) — wide blast radius across both stacks and a change to AI output; no destructive DB.</p>
+      <h3>Risks &amp; mitigations</h3>
+      <ul>
+        <li><strong>Placeholder leaks into JSON schema keys</strong> → corrupts agent output parsing. <strong>Mitigation:</strong> tokens are hand-placed in prose only; T6 lists exact lines; schema keys (<code>production_total</code>, <code>patient_records</code>) explicitly excluded; verify each prompt still returns valid parsed output.</li>
+        <li><strong>AuthContext contract change</strong> consumed by every authed page. <strong>Mitigation:</strong> the new field is optional (<code>organizationType?</code>); default resolves to health; no existing reader breaks.</li>
+        <li><strong>Migration down() can't restore nulls.</strong> <strong>Mitigation:</strong> null and health are behaviorally identical (code default), so a no-op down is documented and harmless; migration is idempotent and forward-only normalization.</li>
+        <li><strong>Over-replacement breaking data</strong> (renaming a key that looks like a word). <strong>Mitigation:</strong> the explicit Must-Not-Replace inventory; swaps go through the label map at render time, never at the data layer.</li>
+        <li><strong>Generic ranking competitors leak dental specialties</strong> (Identifier default "orthodontist"). <strong>Mitigation:</strong> T7 parameterizes the specialty enum/default by org_type (health = dental list unchanged; generic = general business category).</li>
+        <li><strong>"doctor" has two senses</strong> — the client/owner (prose → "you") vs. the external referring doctor (label → "Partner"). <strong>Mitigation:</strong> the dictionary separates <code>{{provider_*}}</code> (owner) from the <code>Doctor Referrals → Partner Leads</code> label entries.</li>
+      </ul>
+      <h3>Blast radius (known consumers)</h3>
+      <ul>
+        <li><code>AuthContext</code> → every authed page/component that calls <code>useAuth()</code>.</li>
+        <li>~25 frontend display files (full list in the inventory).</li>
+        <li>4 agent-prompt seams → monthly Summary/ReferralEngine/Opportunity, daily Proofline, GBP review reply + local post.</li>
+        <li>Admin create + set-type flows; Mission Control display of org type.</li>
+      </ul>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>Verbiage ≠ product fit (Level 2 concern).</strong> The swap makes Alloro <em>read</em> generic, but PMS ingestion is shaped around dental practice-management exports and the GBP prompts carry HIPAA-flavored safety rules. The generic version is a verbiage skin over a health-shaped product — good for a seeded demo, not a finished vertical. <strong>Recommendation:</strong> ship the verbiage layer now; seed the staging generic account with representative data for the demo; treat true generic data pipelines as a later plan.</li>
+        <li><strong>New pattern introduced (justified).</strong> There is no central label map today. This plan creates one (backend <code>config/orgLabels.ts</code> + frontend <code>constants/orgLabels.ts</code> + <code>useLabels()</code>). <strong>Recommendation:</strong> adopt it as the standard — new client-facing strings go through the map, not inline JSX. Note it in the team conventions after merge.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="dictionary">
+      <h2>Verbiage Dictionary (source of truth)</h2>
+      <p>Two resolvers read the same intent. <strong>Table A</strong> = prompt placeholders (backend <code>config/orgLabels.ts</code>, substituted into agent prose). <strong>Table B</strong> = frontend label keys (<code>constants/orgLabels.ts</code>, returned by <code>useLabels()</code>). <code>health</code> values reproduce today's words exactly.</p>
+
+      <h3>Table A — Prompt placeholders (prose only)</h3>
+      <table class="vtable">
+        <thead><tr><th>Placeholder</th><th>health</th><th>generic</th><th>Sense</th></tr></thead>
+        <tbody>
+          <tr><td><code>{{customer}}</code></td><td>patient</td><td>customer</td><td>the served individual (singular)</td></tr>
+          <tr><td><code>{{customers}}</code></td><td>patients</td><td>customers</td><td>plural</td></tr>
+          <tr><td><code>{{org_noun}}</code></td><td>practice</td><td>business</td><td>the client's organization</td></tr>
+          <tr><td><code>{{revenue_noun}}</code></td><td>production</td><td>revenue</td><td>money produced</td></tr>
+          <tr><td><code>{{lead}}</code></td><td>referral</td><td>lead</td><td>an inbound opportunity (singular)</td></tr>
+          <tr><td><code>{{leads}}</code></td><td>referrals</td><td>leads</td><td>plural</td></tr>
+          <tr><td><code>{{lead_source}}</code></td><td>referral source</td><td>lead source</td><td>where a lead came from</td></tr>
+          <tr><td><code>{{referral_partner}}</code></td><td>referring doctor</td><td>referral partner</td><td>external professional who sends business</td></tr>
+          <tr><td><code>{{provider_subject}}</code></td><td>the doctor</td><td>you</td><td>the client/owner being advised (subject)</td></tr>
+          <tr><td><code>{{provider_possessive}}</code></td><td>the doctor's</td><td>your</td><td>possessive of the above</td></tr>
+          <tr><td><code>{{industry}}</code></td><td>dental / healthcare</td><td>(business's industry)</td><td>vertical framing line</td></tr>
+          <tr><td><code>{{service_event}}</code></td><td>appointment</td><td>visit</td><td>a booked interaction</td></tr>
+          <tr><td><code>{{specialty_enum}}</code> (T7)</td><td>7 dental specialties</td><td>general business category</td><td>internal ranking category set</td></tr>
+          <tr><td><code>{{specialty_default}}</code> (T7)</td><td>orthodontist</td><td>(none / generic)</td><td>fallback when unclear</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Table B — Frontend label keys</h3>
+      <table class="vtable">
+        <thead><tr><th>Label key</th><th>health</th><th>generic</th></tr></thead>
+        <tbody>
+          <tr><td><code>hubHome</code></td><td>Practice Hub</td><td>Business Hub</td></tr>
+          <tr><td><code>hubReferrals</code></td><td>Referrals Hub</td><td>Revenue Hub</td></tr>
+          <tr><td><code>journey</code></td><td>Patient Journey</td><td>Customer Journey</td></tr>
+          <tr><td><code>journeyInsights</code></td><td>Patient Journey Insights</td><td>Customer Journey Insights</td></tr>
+          <tr><td><code>engine</code></td><td>Referral Engine</td><td>Lead Engine</td></tr>
+          <tr><td><code>selfReferrals</code></td><td>Self Referrals</td><td>Direct Leads</td></tr>
+          <tr><td><code>doctorReferrals</code></td><td>Doctor Referrals</td><td>Partner Leads</td></tr>
+          <tr><td><code>totalReferrals</code></td><td>Total Referrals</td><td>Total Leads</td></tr>
+          <tr><td><code>production</code></td><td>Production</td><td>Revenue</td></tr>
+          <tr><td><code>referralsShort</code></td><td>Referrals</td><td>Leads</td></tr>
+          <tr><td><code>referralSources</code></td><td>Referral Sources</td><td>Lead Sources</td></tr>
+          <tr><td><code>referralSourceSingular</code></td><td>Referral Source</td><td>Lead Source</td></tr>
+          <tr><td><code>referralType</code></td><td>Referral Type</td><td>Lead Type</td></tr>
+          <tr><td><code>referralMix</code></td><td>Referral mix</td><td>Lead mix</td></tr>
+          <tr><td><code>referralTrends</code></td><td>Referral Trends</td><td>Lead Trends</td></tr>
+          <tr><td><code>referralVelocity</code></td><td>Referral velocity</td><td>Lead velocity</td></tr>
+          <tr><td><code>doctorShort</code></td><td>Doctor</td><td>Partner</td></tr>
+          <tr><td><code>practiceRanking</code></td><td>Practice Ranking</td><td>Business Ranking</td></tr>
+          <tr><td><code>customerNoun</code> / plural</td><td>patient / patients</td><td>customer / customers</td></tr>
+          <tr><td><code>orgNoun</code></td><td>practice</td><td>business</td></tr>
+        </tbody>
+      </table>
+      <div class="note">Prose blocks (onboarding copy, demo data, vital-signs descriptions) combine several keys in one sentence — listed verbatim in the inventory with full before/after, not reduced to single keys.</div>
+    </section>
+
+    <section class="spec-card" id="inventory-fe">
+      <h2>Explicit Must-Replace Inventory — Frontend</h2>
+      <p>Every client-visible string that changes for <code>generic</code>. ~25 files. Each goes through <code>useLabels()</code>; <code>health</code> renders today's word. Verify <code>api/pms/mapping.ts</code> entries are display-only before swapping.</p>
+
+      <h3>Navigation &amp; headers</h3>
+      <table class="vtable">
+        <thead><tr><th>File:line</th><th>String</th><th>→ generic</th><th>Class</th></tr></thead>
+        <tbody>
+          <tr><td><code>components/Sidebar.tsx:201</code></td><td>Practice Hub</td><td>Business Hub</td><td>NAV</td></tr>
+          <tr><td><code>components/Sidebar.tsx:207</code></td><td>Referrals Hub</td><td>Revenue Hub</td><td>NAV</td></tr>
+          <tr><td><code>components/MobileBottomNav.tsx:22</code></td><td>Practice Hub</td><td>Business Hub</td><td>NAV</td></tr>
+          <tr><td><code>components/MobileBottomNav.tsx:23</code></td><td>Referrals Hub</td><td>Revenue Hub</td><td>NAV</td></tr>
+          <tr><td><code>components/dashboard/DashboardOverview.tsx:73</code></td><td>Practice Hub</td><td>Business Hub</td><td>HEADER</td></tr>
+          <tr><td><code>components/PMS/dashboard/PmsHubSurface.tsx:236</code></td><td>Referrals Hub</td><td>Revenue Hub</td><td>HEADER</td></tr>
+          <tr><td><code>pages/Dashboard.tsx:55,59</code></td><td>Patient Journey Insights</td><td>Customer Journey Insights</td><td>TAB</td></tr>
+          <tr><td><code>pages/Dashboard.tsx:73</code></td><td>Referral Engine</td><td>Lead Engine</td><td>TAB</td></tr>
+          <tr><td><code>components/VitalSignsCards/VitalSignsCards.tsx:304</code></td><td>Patient Journey Insights</td><td>Customer Journey Insights</td><td>HEADER</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Stat cards &amp; section titles (PMS / dashboard)</h3>
+      <table class="vtable">
+        <thead><tr><th>File:line</th><th>String</th><th>→ generic</th></tr></thead>
+        <tbody>
+          <tr><td><code>PMS/PMSDataViewer.tsx:423,429,435,441</code></td><td>Self Referrals / Doctor Referrals / Total Referrals / Production</td><td>Direct Leads / Partner Leads / Total Leads / Revenue</td></tr>
+          <tr><td><code>PMS/PMSLatestJobEditor.tsx:497,503,509,515</code></td><td>Self Referrals / Doctor Referrals / Total Referrals / Production</td><td>Direct Leads / Partner Leads / Total Leads / Revenue</td></tr>
+          <tr><td><code>PMS/PMSManualEntryModal/SummaryCards.tsx:46,52,58,64</code></td><td>Self Referrals / Doctor Referrals / Total Referrals / Production</td><td>Direct Leads / Partner Leads / Total Leads / Revenue</td></tr>
+          <tr><td><code>PMS/dashboard/CompareMetricGrid.tsx:67,74,81,88</code></td><td>Production / Total referrals / Doctor referrals / Self referrals</td><td>Revenue / Total leads / Partner leads / Direct leads</td></tr>
+          <tr><td><code>PMS/dashboard/PmsDashboardSurface.tsx:126,138,139</code></td><td>Referral Sources / Production and referral patterns / Referral Trends</td><td>Lead Sources / Revenue and lead patterns / Lead Trends</td></tr>
+          <tr><td><code>PMS/dashboard/PmsHubSurface.tsx:218</code></td><td>Referrals · {period}</td><td>Leads · {period}</td></tr>
+          <tr><td><code>PMS/dashboard/PmsReferralMixCard.tsx:34</code></td><td>Referral mix</td><td>Lead mix</td></tr>
+          <tr><td><code>PMS/dashboard/PmsProductionChart.tsx:195</code></td><td>Referral velocity · Last 6 months</td><td>Lead velocity · Last 6 months</td></tr>
+          <tr><td><code>PMS/dashboard/PmsTopSourcesCard.tsx:97,160</code></td><td>Referral sources / Referral sources · All time</td><td>Lead sources / Lead sources · All time</td></tr>
+          <tr><td><code>dashboard/focus/StatCardRow.tsx:86,162</code></td><td>Referrals</td><td>Leads</td></tr>
+          <tr><td><code>components/ReferralEngineDashboard.tsx:350</code></td><td>Doctor</td><td>Partner</td></tr>
+          <tr><td><code>PMS/ReferralMatrices.tsx:22,537</code></td><td>Tracking doctor referrals / Doctor</td><td>Tracking partner leads / Partner</td></tr>
+          <tr><td><code>components/tasks/AgentTypePill.tsx:35,40</code></td><td>Referral Engine / Practice Ranking</td><td>Lead Engine / Business Ranking</td></tr>
+          <tr><td><code>components/SetupProgressWizard/SetupProgressWizard.tsx:76</code></td><td>Go to Referrals Hub</td><td>Go to Revenue Hub</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Column-mapping &amp; mapping labels (verify display-only)</h3>
+      <table class="vtable">
+        <thead><tr><th>File:line</th><th>String</th><th>→ generic</th></tr></thead>
+        <tbody>
+          <tr><td><code>PMS/ColumnMappingDrawer.tsx:341</code></td><td>Which column shows where each patient came from? (referring practice, doctor, or marketing channel)</td><td>Which column shows where each customer came from? (referring partner, business, or marketing channel)</td></tr>
+          <tr><td><code>api/pms/mapping.ts:57,61</code></td><td>Referral Source / Referral Type</td><td>Lead Source / Lead Type</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Onboarding wizard &amp; demo data (prose — full sentences)</h3>
+      <table class="vtable">
+        <thead><tr><th>File:line</th><th>health → generic (verbatim)</th></tr></thead>
+        <tbody>
+          <tr><td><code>onboarding-wizard/wizardConfig.ts:50</code></td><td>"Welcome to Practice Hub" → "Welcome to Business Hub"</td></tr>
+          <tr><td><code>wizardConfig.ts:101</code></td><td>"See where your patients come from. Switch between month, quarter, and year-to-date to track production and referrals over time." → "…where your customers come from… track revenue and leads over time."</td></tr>
+          <tr><td><code>wizardConfig.ts:110</code></td><td>"Production for the selected period, total referrals, … year-to-date production — at a glance." → "Revenue …, total leads, … year-to-date revenue — at a glance."</td></tr>
+          <tr><td><code>wizardConfig.ts:139</code></td><td>"…which marketing channels and referring doctors generate the most production. Powered by your PMS data." → "…marketing channels and partner sources generate the most revenue. Powered by your data."</td></tr>
+          <tr><td><code>wizardConfig.ts:189,191</code></td><td>"Patient Journey Insights" + "Understand how patients discover and choose your practice…" → "Customer Journey Insights" + "…how customers discover and choose your business…"</td></tr>
+          <tr><td><code>wizardConfig.ts:258</code></td><td>"…never miss a patient inquiry." → "…never miss a customer inquiry."</td></tr>
+          <tr><td><code>wizardConfig.ts:376,377,380</code></td><td>"Practice Hub" / "Referrals Hub" / "Patient Journey" → "Business Hub" / "Revenue Hub" / "Customer Journey"</td></tr>
+          <tr><td><code>onboarding-wizard/wizardDemoData.ts:34-35</code></td><td>"Self Referral" → "Direct Lead"</td></tr>
+          <tr><td><code>wizardDemoData.ts:40</code></td><td>"new patient inquiries for similar practices" → "new customer inquiries for similar businesses"</td></tr>
+          <tr><td><code>wizardDemoData.ts:69</code></td><td>"New patient starts are up 12% … Production is trending 15% above last month, driven by a surge in marketing-sourced referrals." → "New customer acquisitions are up 12% … Revenue is trending 15% … marketing-sourced leads."</td></tr>
+          <tr><td><code>wizardDemoData.ts:224,246,291</code></td><td>"Patient Referrals" → "Customer Referrals"</td></tr>
+          <tr><td><code>PMS/PMSUploadWizardModal.tsx:34-35</code></td><td>"Self Referral" (demo table) → "Direct Lead"</td></tr>
+          <tr><td><code>VitalSignsCards.tsx:38</code></td><td>"When patients compare options and evaluate your practice's reputation." → "When customers compare options and evaluate your business's reputation."</td></tr>
+          <tr><td><code>VitalSignsCards.tsx:46</code></td><td>"ready-to-book patients complete their appointment or abandon" → "ready-to-book customers complete their visit or abandon"</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="spec-card" id="inventory-prompts">
+      <h2>Explicit Must-Replace Inventory — Agent Prompts</h2>
+      <p>Client-facing prompt prose only. Insert the listed <code>{{token}}</code>; the substituter (T5) resolves it by org_type. <strong>Do not touch JSON schema keys</strong> (e.g. <code>production_total</code>, <code>patient_records</code>, <code>production_change_30d</code>) — they stay so downstream parsing is unchanged. Daily <code>Proofline.md</code>, <code>ReviewInsight.md</code>, <code>AISynth.md</code>, <code>DailyBrief.md</code> have no client-facing healthcare terms → no change.</p>
+
+      <table class="vtable">
+        <thead><tr><th>Prompt file</th><th>Line · phrase → token</th></tr></thead>
+        <tbody>
+          <tr><td><code>monthlyAgents/Summary.md</code></td><td>2 "the practice's" → <code>{{org_noun}}'s</code> · 3 "referrals" → <code>{{leads}}</code> · 4 "the doctor" → <code>{{provider_subject}}</code> · 51 "doctor-readable" → "easy to read" · 255 "prospective patients" → "prospective {{customers}}" · 261 "gives patients a reason" → "gives {{customers}} a reason". <em>Keep</em> <code>patient_records</code>, <code>production_change_30d</code> keys.</td></tr>
+          <tr><td><code>monthlyAgents/ReferralEngineAnalysis.md</code></td><td>1 "referral performance analyzer" → "{{lead}} performance analyzer" · 2,4,5 "referral sources/volume" → "{{lead}} sources/volume" · 32,34 "patient-level" → "{{customer}}-level" · 40 "the same practice" → "the same {{org_noun}}" · 53 "production per referral" → "{{revenue_noun}} per {{lead}}" · 76 "Referral Engine" → "{{lead}} Engine" · 108 "call a referring doctor" → "call a {{referral_partner}}" · 112,118 "patients / patient software" → "{{customers}} / {{org_noun}} software". <em>Keep</em> example proper names (Dr. Joe, Southern Smiles) and <code>production_total</code> key.</td></tr>
+          <tr><td><code>monthlyAgents/Opportunity.md</code></td><td>19 "3 referred patients" → "3 referred {{customers}}" · 35 "Call the [X] referred patients" → "…referred {{customers}}".</td></tr>
+          <tr><td><code>gbpAgents/ReviewReply.md</code></td><td>1 "dental and healthcare organizations" → "{{industry}} organizations" · 10 "reviewer is a patient" → "reviewer is a {{customer}}". <em>Keep</em> the PHI/clinical safety rules (lines 11–12) verbatim — protective for all org types.</td></tr>
+          <tr><td><code>gbpAgents/LocalPost.md</code></td><td>1 "dental and healthcare organizations" → "{{industry}} organizations" · 11 "reviewer is a patient" → "reviewer is a {{customer}}" · 12 "patients and families" → "{{customers}} and families". <em>Keep</em> the clinical-wording prohibition list verbatim.</td></tr>
+          <tr><td><code>monthlyAgents/CRO.md</code> (optional)</td><td>80 "book an appointment" → "{{service_event}}" only if QA finds it reads dental; already fairly generic.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Internal ranking prompts — parameterize category (T7)</h3>
+      <table class="vtable">
+        <thead><tr><th>Prompt file</th><th>Dental hardcoding → treatment</th></tr></thead>
+        <tbody>
+          <tr><td><code>rankingAgents/Identifier.md</code></td><td>Lines 6–8 dental-specialty enum + line 12 default "orthodontist" → <code>{{specialty_enum}}</code> / <code>{{specialty_default}}</code>. health = the 7 dental specialties + orthodontist default (unchanged behavior); generic = general business category, no dental default.</td></tr>
+          <tr><td><code>auditAgents/CompetitorStringBuilder.md</code></td><td>Line 9 dental category example + line 12 "closest medical/dental specialty" fallback → use the same <code>{{specialty_*}}</code> tokens so generic competitor strings use the business category.</td></tr>
+        </tbody>
+      </table>
+      <div class="note">Substitution seams (T5): <code>service.monthly-agent-runner-core.ts:46</code> (after <code>loadPrompt</code>), <code>service.daily-agent-processor.ts:124</code>, <code>GbpDraftGenerationService.ts</code> (review reply), <code>GbpLocalPostDraftService.ts</code> (local post). Each fetches <code>organization_type</code> via the <code>organizationId</code> already in scope (runner) or the org join (GBP).</div>
+    </section>
+
+    <section class="spec-card" id="never-replace">
+      <h2>Must-NOT-Replace (identifiers &amp; data — keep verbatim)</h2>
+      <ul>
+        <li><strong>DB columns / output fields:</strong> <code>self_referrals</code>, <code>doctor_referrals</code>, <code>total_referrals</code>, <code>production</code>, <code>production_total</code>, <code>actual_production_total</code>, <code>attributed_production_total</code>, <code>referrer_org_id</code>, <code>referred_org_id</code>, <code>referral_code</code> (<code>utils/pms/applyColumnMapping.ts:28–39</code>, <code>models/ReferralModel.ts:6–8</code>).</li>
+        <li><strong>PMS column-role literals:</strong> <code>"patient"</code>, <code>"referring_doctor"</code>, canonical type <code>"self" | "doctor"</code> (seeds + sanitizer enum).</li>
+        <li><strong>API / interface keys:</strong> <code>OnboardingStatusResponse</code>, <code>UserProfile</code>, <code>IOrganization</code> field names — only their rendered display changes.</li>
+        <li><strong>Route paths:</strong> <code>/pmsStatistics</code>, <code>/gbp-manager</code>, <code>/referralEngine</code>, <code>/api/onboarding/status</code>.</li>
+        <li><strong>Agent path strings:</strong> <code>"monthlyAgents/Summary"</code> etc. passed to <code>loadPrompt()</code>.</li>
+        <li><strong>Telemetry internal keys:</strong> <code>routeTemplate</code>, <code>surface</code> (e.g. <code>"referrals_hub"</code>) — keep; <code>pageLabel</code> stays stable too (out of scope, internal analytics).</li>
+        <li><strong>Prompt JSON schema keys/examples</strong> the model must output and the parser reads.</li>
+        <li><strong>Enum literals:</strong> only <code>saas → generic</code> changes; <code>health</code> and <code>null</code> stay.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Data model, value rename, and migration</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Change the type union <code>"health" | "saas" | null</code> → <code>"health" | "generic" | null</code> in <code>OrganizationModel.ts:10</code>, <code>MissionControlModel.ts:13</code>, and the <code>setOrganizationType</code> param. Add <code>resolveOrgType(org)</code> helper (null → <code>"health"</code>) in <code>src/config/orgLabels.ts</code>. Write a Knex migration: idempotent backfill <code>organization_type = 'health' WHERE organization_type IS NULL</code>, and normalize <code>'saas' → 'generic'</code> if any rows exist; no-op documented <code>down()</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>src/models/OrganizationModel.ts</code>, <code>src/models/MissionControlModel.ts</code>, <code>src/controllers/admin-organizations/feature-services/OrganizationLifecycleAdminService.ts</code>, new <code>src/database/migrations/{ts}_backfill_organization_type.ts</code>, <code>src/config/orgLabels.ts</code></dd></div>
+          <div><dt>§</dt><dd>§10.3, §10.5, §6.2, §4.5</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>; <code>npm run db:migrate</code> on dev DB; confirm no row has null/saas after.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Relax immutability + write type at creation</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Remove the 409 immutable guard in <code>setOrganizationType</code> (allow change); extend the controller validation array to <code>["health","generic"]</code>. Add <code>organization_type?: "health" | "generic"</code> to <code>CreateOrgInput</code> and write it (default <code>"health"</code>) in <code>AdminOrgCreationService.createOrganizationWithUser</code> at the org insert.</dd></div>
+          <div><dt>Files</dt><dd><code>OrganizationLifecycleAdminService.ts</code>, <code>AdminOrganizationsController.ts</code>, <code>AdminOrgCreationService.ts</code></dd></div>
+          <div><dt>§</dt><dd>§7.3, §8.1, §11.2, §6.3</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Create a generic org via API; PATCH type health↔generic succeeds (no 409).</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Expose org_type on /onboarding/status</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>organizationType: resolveOrgType(org)</code> to the <code>getOnboardingStatus</code> response (the org is already fetched at ~line 121).</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/onboarding/OnboardingController.ts</code></dd></div>
+          <div><dt>§</dt><dd>§8.1, §7.3</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>GET /api/onboarding/status returns <code>organizationType</code>.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Backend label + placeholder config</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Build <code>config/orgLabels.ts</code>: nested object keyed by org_type → the Table A placeholder values (and the Table B values for any backend-emitted copy), plus <code>resolveLabels(orgType)</code> and <code>resolveOrgType()</code>. No magic strings elsewhere.</dd></div>
+          <div><dt>Files</dt><dd><code>src/config/orgLabels.ts</code></dd></div>
+          <div><dt>§</dt><dd>§4.2, §6.2, §4.5</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Unit: <code>resolveLabels("generic").customers === "customers"</code>, <code>resolveLabels("health").customers === "patients"</code>.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Prompt substituter + 4 seams</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New <code>service.prompt-substituter.ts</code>: <code>substitutePlaceholders(prompt, orgType)</code> replacing only <code>{{tokens}}</code> from T4. Hook after <code>loadPrompt()</code> at the four seams; fetch org_type via <code>OrganizationModel.findById(organizationId)</code> (or the existing org join). Also include resolved labels in the n8n webhook payload (<code>service.n8n-email-sender.ts</code>) for downstream use.</dd></div>
+          <div><dt>Files</dt><dd>new <code>src/agents/service.prompt-substituter.ts</code>; <code>service.monthly-agent-runner-core.ts</code>, <code>service.daily-agent-processor.ts</code>, <code>GbpDraftGenerationService.ts</code>, <code>GbpLocalPostDraftService.ts</code></dd></div>
+          <div><dt>§</dt><dd>§6.2, §2.1, §3.1, §7.4 (org fetch via model)</dd></div>
+          <div><dt>Depends on</dt><dd>T4</dd></div>
+          <div><dt>Verify</dt><dd>Unit: a prompt with <code>{{customers}}</code> resolves per type; an unmatched token throws (fail loud, not silent).</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Tokenize client-facing prompts (prose only)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Edit the prompts per the prompt inventory — insert tokens in prose, leave all JSON schema keys/examples and safety rules intact.</dd></div>
+          <div><dt>Files</dt><dd><code>Summary.md</code>, <code>ReferralEngineAnalysis.md</code>, <code>Opportunity.md</code>, <code>ReviewReply.md</code>, <code>LocalPost.md</code> (CRO.md optional)</dd></div>
+          <div><dt>§</dt><dd>§4.2</dd></div>
+          <div><dt>Depends on</dt><dd>T4</dd></div>
+          <div><dt>Verify</dt><dd>Run each agent for a health org → output identical to pre-change; for a generic org → no healthcare words; output still parses.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: Parameterize internal ranking category</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Tokenize the specialty enum + default in <code>Identifier.md</code> and the category in <code>CompetitorStringBuilder.md</code> with <code>{{specialty_enum}}</code>/<code>{{specialty_default}}</code>; health = dental list (unchanged), generic = general business category.</dd></div>
+          <div><dt>Files</dt><dd><code>rankingAgents/Identifier.md</code>, <code>auditAgents/CompetitorStringBuilder.md</code>, T4 config</dd></div>
+          <div><dt>§</dt><dd>§4.2</dd></div>
+          <div><dt>Depends on</dt><dd>T4, T5</dd></div>
+          <div><dt>Verify</dt><dd>Generic org ranking run produces non-dental competitor categories; health unchanged.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T8: Wire org_type into the frontend auth context</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>organizationType?: "health" | "generic" | null</code> to <code>OnboardingStatusResponse</code> (<code>api/onboarding.ts</code>) and <code>UserProfile</code> (<code>authContext.ts</code>); hydrate it in <code>AuthContext.tsx</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/api/onboarding.ts</code>, <code>frontend/src/contexts/authContext.ts</code>, <code>frontend/src/contexts/AuthContext.tsx</code></dd></div>
+          <div><dt>§</dt><dd>§12.1, §15.2</dd></div>
+          <div><dt>Depends on</dt><dd>T3</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc -p frontend/tsconfig.app.json</code>; <code>useAuth()</code> exposes the type.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T9: Frontend label map + useLabels hook</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New <code>constants/orgLabels.ts</code> mirroring Table B; new <code>hooks/useLabels.ts</code> reading org_type from <code>useAuth()</code> and returning resolved labels (defaults to health).</dd></div>
+          <div><dt>Files</dt><dd>new <code>frontend/src/constants/orgLabels.ts</code>, new <code>frontend/src/hooks/useLabels.ts</code></dd></div>
+          <div><dt>§</dt><dd>§12.2, §15.2, §13.3, §17.2</dd></div>
+          <div><dt>Depends on</dt><dd>T8</dd></div>
+          <div><dt>Verify</dt><dd>Unit/manual: hook returns "Business Hub" for generic, "Practice Hub" for health.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T10: Swap all frontend display strings</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Replace every string in the Frontend inventory with <code>useLabels()</code> lookups (or pass labels down where a hook can't be used). Verify <code>routeTelemetry.ts</code> pageLabels are not rendered as visible breadcrumbs before leaving them stable.</dd></div>
+          <div><dt>Files</dt><dd>~25 files listed in the Frontend inventory</dd></div>
+          <div><dt>§</dt><dd>§12.3, §13.3, §4.2</dd></div>
+          <div><dt>Depends on</dt><dd>T9</dd></div>
+          <div><dt>Verify</dt><dd>Grep the inventory files for the old literals → none rendered; health UI visually unchanged.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T11: Org-type selector in the create popup</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a Health/Generic selector to <code>CreateOrganizationModal.tsx</code>; extend <code>AdminCreateOrgInput</code> (<code>api/admin-organizations.ts</code>) with <code>type</code>; send it through the existing <code>adminCreateOrganization()</code> (no raw fetch).</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/Admin/org/CreateOrganizationModal.tsx</code>, <code>frontend/src/api/admin-organizations.ts</code></dd></div>
+          <div><dt>§</dt><dd>§12.1, §14.2, §13.2</dd></div>
+          <div><dt>Depends on</dt><dd>T8, T2</dd></div>
+          <div><dt>Verify</dt><dd>Create a generic org from the UI; confirm DB row = generic; dashboard renders generic copy.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T12: Staging generic account + Jo copy review</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create a seeded generic org in staging; click through every hub; run the agents for it; capture the acceptance artifact. Jo signs off on copy.</dd></div>
+          <div><dt>Files</dt><dd>plan folder <code>test.html</code> + <code>test-results.json</code></dd></div>
+          <div><dt>§</dt><dd>§20.5</dd></div>
+          <div><dt>Depends on</dt><dd>T1–T11</dd></div>
+          <div><dt>Verify</dt><dd>Zero healthcare words on any screen / agent output; health account unchanged; Jo approval recorded.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> (backend) and <code>tsc -p frontend/tsconfig.app.json</code> — zero new errors</li>
+        <li><input type="checkbox" disabled> <code>npm run check:conventions --strict</code> passes (cite §N.M for any finding)</li>
+        <li><input type="checkbox" disabled> Migration applied on dev; no org row is null or <code>saas</code></li>
+        <li><input type="checkbox" disabled> A new org can be created as <code>generic</code> from the Mission Control popup; type is editable (no 409)</li>
+        <li><input type="checkbox" disabled> Every string in the Frontend inventory renders generic copy for a generic org</li>
+        <li><input type="checkbox" disabled> Every client-facing agent (Summary, ReferralEngine, Opportunity, ReviewReply, LocalPost) emits generic copy and still parses</li>
+        <li><input type="checkbox" disabled> Generic ranking run shows no dental competitor categories</li>
+        <li><input type="checkbox" disabled> A <code>health</code> account is byte-for-byte unchanged (labels + agent output)</li>
+        <li><input type="checkbox" disabled> No data key, API field, or route path was renamed (Must-Not-Replace honored)</li>
+        <li><input type="checkbox" disabled> Jo completed the staging copy review and signed off</li>
+        <li><input type="checkbox" disabled> Alloro Docs (<code>/Users/rustinedave/Desktop/alloro-docs</code>) updated for the generic label set wherever dashboard copy/labels/nav are documented (dashboard UI changed → docs parity required)</li>
+        <li><input type="checkbox" disabled> <code>test-results.json</code> rolls up to Passed</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-06-23</h3>
+        <p><strong>Change:</strong> Executed T1–T11. Backend committed (<code>47e4446c</code>): saas→generic rename, <code>config/orgLabels.ts</code> + <code>resolveOrgType</code>, relaxed immutable guard + write-type-at-creation, <code>organizationType</code> on <code>/onboarding/status</code>, <code>service.prompt-substituter.ts</code> + 4 wired seams, tokenized client-facing prompts, generalized ranking specialty, backfill migration, unit tests. Frontend: <code>constants/orgLabels.ts</code> + <code>useLabels()</code>, auth-context wiring, create-popup type selector, and ~22 display-string swaps (nav, hub headers, PMS stat cards, dashboard section titles, agent pills, setup link, Customer Journey card). Verified: backend tsc, frontend tsc (<code>tsconfig.app.json</code>), 9/9 unit tests, <code>check:conventions --strict</code> all green.</p>
+        <p><strong>Reason:</strong> Execution deviation: (1) Substituter <em>fails safe</em> (warn + leave token) instead of throwing on an unknown token — NODE_ENV is forced to production on dev too, so a throw would risk live agent runs; unit tests assert resolution instead. (2) T7 ranking: the live <em>scheduled</em> path is wired (<code>service.ranking-executor</code> via <code>work.organizationId</code>); the one-time competitor-onboarding path (<code>service.competitor-identity</code>) and the public audit-leadgen seam (a prospect audit with no org) were NOT wired — onboarding re-identifies on the next scheduled run. (3) <code>Dashboard.tsx</code> activeTab union values and <code>ReferralEngineDashboard</code> <code>category:"Doctor"</code> were left as internal identifiers (must-NOT-replace). (4) <code>routeTelemetry</code> pageLabels kept stable (internal analytics, out of scope).</p>
+        <p><strong>Updated Done criteria:</strong> Build/test/convention gates met. Still open (human/computer-use + deploy): apply migration on dev; create a generic org and verify labels in-browser; run agents for a generic org; confirm health unchanged; Jo copy review. <strong>Documented follow-up swaps (not yet done):</strong> onboarding <code>wizardConfig.ts</code> + <code>wizardDemoData.ts</code>, <code>ColumnMappingDrawer</code> help text, <code>ReferralMatrices</code> loading phrases, <code>api/pms/mapping.ts</code> default labels.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-06-24</h3>
+        <p><strong>Change:</strong> Local browser + generation QA (commit <code>c9572995</code>), against the local DB's existing generic org (6, DentalEMR) and a health org (8, Artful). Three real defects found and fixed: (1) <strong>generic agent output still leaked</strong> healthcare words — partial prose tokenization was insufficient because the prompt + PMS schema are saturated with referral/production/practice; added a <code>{{vocab_directive}}</code> placeholder (empty for health, a strict "translate prose to customer/lead/revenue/business, keep field names" directive for generic) prepended to all 5 client-facing prompts; substituter now trims leading whitespace so health stays byte-identical. Generic ReferralEngine output dropped from 5 leak-words to ~1. (2) <code>ProductionPanel</code> ("Production · Year to date" + chart labels) was missed by the original harvest. (3) The harvest <strong>undercounted ~15 more visible labels</strong> on the Revenue Hub + PMS tables (Production / Referral Count / Referral velocity / Production trend / Production &amp; referrals / Production this month / Patient ID column …) across 13 components — all swept to <code>useLabels</code>.</p>
+        <p><strong>Reason:</strong> User QA: the user asked for self-run browser QA (email-safe) + a real generic generation. Email safety: ran on localhost (interceptor fails closed to interception by IP identity), used direct JWT injection (no OTP, no emails), and exercised generation only through the runner/LLM layer — never the orchestrator/email path. Verified: backend tsc, frontend tsc, 9/9 unit tests, <code>check:conventions --strict</code> all exit 0; generic <code>/dashboard</code> + <code>/pmsStatistics</code> render generic in-browser; backend returns <code>organizationType</code> per org.</p>
+        <p><strong>Updated Done criteria:</strong> Acceptance items T10 (frontend labels) and T6 (generic generation) now <strong>pass</strong> with evidence. Still open: migration apply on dev, create-popup click-test (code-complete, not clicked), generic ranking run, Jo review, docs parity. Stored agent cards on existing orgs refresh on the next normal agent run (orchestrator intentionally not invoked, to guarantee no emails).</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-06-24</h3>
+        <p><strong>Change:</strong> Verified the three remaining deploy/UI-gated acceptance items locally (email-safe). <strong>T1</strong>: migration applied on the local DB (knex_migrations batch 123) — post-state 12 health / 1 generic / 0 NULL / 0 saas. <strong>T2</strong>: create-with-type + relaxed immutability via the real API the popup posts — <code>POST /api/admin/organizations</code> (type='generic') → 201, DB org 48 <code>organization_type='generic'</code>; <code>PATCH /:id/type</code> health→200 then generic→200 (no 409). <strong>T7</strong>: <code>identifyLocationMeta</code> with mock GBP — generic+plumber → "plumber"; health+ortho → "orthodontist" (unchanged); the same plumber under the health prompt → "general dentistry" (the leak the generic path prevents).</p>
+        <p><strong>Reason:</strong> User QA: "perform the migration, the create-popup click-test, and the generic ranking run with mock data." Email-safe throughout — localhost, super-admin JWT (no OTP), create service + identifyLocationMeta send no email, orchestrator not invoked. Literal DOM click deferred (MCP Playwright browser wedged on this machine); the exact backend path the popup triggers was verified instead, and the modal selector is tsc-verified.</p>
+        <p><strong>Updated Done criteria:</strong> T1, T2, T6, T7, T10 and build all pass. Only T12 (Jo copy review) plus docs parity and the dev/prod deploy remain. A mock generic org (id 48, "QA Generic Plumbing Co") was left in the LOCAL DB by the T2 test.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

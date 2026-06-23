@@ -15,6 +15,7 @@ import { formatCurrency, getLatestMonth } from "./utils";
 import { PmsCardShell, PmsEyebrow } from "./primitives";
 import { PmsVelocityCard } from "./PmsVelocityCard";
 import { DetailsModal } from "../../dashboard/shared/DetailsModal";
+import { useLabels } from "../../../hooks/useLabels";
 
 export type PmsProductionChartProps = {
   months: PmsDashboardMonth[];
@@ -34,6 +35,7 @@ export function PmsProductionChart({
   months,
   isProcessingInsights,
 }: PmsProductionChartProps) {
+  const labels = useLabels();
   const gradientId = useId().replaceAll(":", "");
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [isPaceOpen, setIsPaceOpen] = useState(false);
@@ -74,7 +76,7 @@ export function PmsProductionChart({
     <PmsCardShell>
       <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <PmsEyebrow>Production trend</PmsEyebrow>
+          <PmsEyebrow>{labels.production} trend</PmsEyebrow>
           <div className="mt-2 flex flex-wrap items-baseline gap-2">
             <span className="font-display text-4xl font-medium leading-none tracking-tight text-alloro-navy tabular-nums">
               {formatCurrency(activeMonth?.productionTotal ?? 0)}
@@ -85,19 +87,19 @@ export function PmsProductionChart({
           </div>
           {activeMonth && (
             <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-[color:var(--color-pm-text-secondary)]">
-              {activeMonth.totalReferrals} referrals ·{" "}
-              {activeMonth.doctorReferrals} doctor · {activeMonth.selfReferrals} self
+              {activeMonth.totalReferrals} {labels.referralsShort.toLowerCase()} ·{" "}
+              {activeMonth.doctorReferrals} {labels.doctorShort.toLowerCase()} · {activeMonth.selfReferrals} self
             </p>
           )}
         </div>
         <div className="flex gap-4 text-[10px] font-bold uppercase tracking-widest text-[color:var(--color-pm-text-secondary)]">
           <span className="inline-flex items-center gap-2">
             <span className="h-1 w-4 rounded-full bg-alloro-orange" />
-            Production
+            {labels.production}
           </span>
           <span className="inline-flex items-center gap-2">
             <span className="h-1 w-4 rounded-full bg-green-700" />
-            Referrals
+            {labels.referralsShort}
           </span>
         </div>
       </div>
@@ -192,7 +194,7 @@ export function PmsProductionChart({
       <DetailsModal
         open={isPaceOpen}
         title="Monthly referral pace"
-        eyebrow="Referral velocity · Last 6 months"
+        eyebrow={`${labels.referralVelocity} · Last 6 months`}
         onClose={() => setIsPaceOpen(false)}
       >
         <PmsVelocityCard months={months} isProcessingInsights={isProcessingInsights} />

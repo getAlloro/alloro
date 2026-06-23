@@ -11,6 +11,7 @@ import {
   getPreviousMonth,
   getPercentChange,
 } from "./utils";
+import { useLabels } from "../../../hooks/useLabels";
 
 export type PmsReferralsMeaningCardProps = {
   months: PmsDashboardMonth[];
@@ -76,6 +77,7 @@ export function PmsReferralsMeaningCard({
   onOpenSources,
   onOpenTrends,
 }: PmsReferralsMeaningCardProps) {
+  const labels = useLabels();
   const latest = getLatestMonth(months);
   const previous = getPreviousMonth(months);
   const hasMonthData = months.length > 0;
@@ -95,7 +97,7 @@ export function PmsReferralsMeaningCard({
 
   const actions = [
     { label: "See all sources ranked", onClick: onOpenSources },
-    { label: "View referral trends", onClick: onOpenTrends },
+    { label: `View ${labels.referralTrends.toLowerCase()}`, onClick: onOpenTrends },
   ];
 
   return (
@@ -152,7 +154,7 @@ export function PmsReferralsMeaningCard({
               ) : (
                 <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
                   <MeaningMetric
-                    label="Production this month"
+                    label={`${labels.production} this month`}
                     value={
                       hasMonthData
                         ? formatCurrency(latest?.productionTotal ?? 0)
@@ -162,7 +164,7 @@ export function PmsReferralsMeaningCard({
                     isAccent
                   />
                   <MeaningMetric
-                    label="Total referrals"
+                    label={labels.totalReferrals}
                     value={
                       hasMonthData
                         ? String(latest?.totalReferrals ?? 0)
@@ -170,7 +172,7 @@ export function PmsReferralsMeaningCard({
                     }
                     sub={
                       hasMonthData
-                        ? `${latest?.doctorReferrals ?? 0} doctor · ${latest?.selfReferrals ?? 0} self`
+                        ? `${latest?.doctorReferrals ?? 0} ${labels.doctorShort.toLowerCase()} · ${latest?.selfReferrals ?? 0} self`
                         : undefined
                     }
                     change={hasMonthData ? referralChange : undefined}
@@ -187,7 +189,7 @@ export function PmsReferralsMeaningCard({
                     }
                   />
                   <MeaningMetric
-                    label="YTD production"
+                    label={`YTD ${labels.revenueNoun}`}
                     value={
                       totalProduction > 0
                         ? formatCompactCurrency(totalProduction)
@@ -195,7 +197,7 @@ export function PmsReferralsMeaningCard({
                     }
                     sub={
                       totalReferrals > 0
-                        ? `${totalReferrals} total referrals`
+                        ? `${totalReferrals} ${labels.totalReferrals.toLowerCase()}`
                         : undefined
                     }
                   />
@@ -222,18 +224,18 @@ export function PmsReferralsMeaningCard({
                     {topSource.name}
                   </h3>
                   <p className="mt-2 text-[13px] font-semibold leading-relaxed text-[#6F664A]/70">
-                    {topSource.referrals} referrals &middot;{" "}
-                    {topSource.percentage}% of production
+                    {topSource.referrals} {labels.referralsShort.toLowerCase()} &middot;{" "}
+                    {topSource.percentage}% of {labels.revenueNoun}
                   </p>
                   {hasMonthData && (
                     <p className="mt-1.5 text-[12px] font-semibold text-[#6F664A]/50">
-                      {doctorPercentage}% doctor &middot; {selfPercentage}% self
+                      {doctorPercentage}% {labels.doctorShort.toLowerCase()} &middot; {selfPercentage}% self
                     </p>
                   )}
                 </>
               ) : (
                 <p className="text-[13px] font-medium text-[#6F664A]/50">
-                  Upload PMS data to rank referral sources.
+                  Upload PMS data to rank {labels.referralSources.toLowerCase()}.
                 </p>
               )}
             </div>

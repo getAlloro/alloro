@@ -20,6 +20,7 @@ import {
   formSubsTone,
   type StatusTone,
 } from "./statusRules";
+import { useLabels } from "../../../hooks/useLabels";
 
 /**
  * StatCardRow — the four compact metric tiles for the simplified Practice
@@ -58,6 +59,7 @@ function ratingText(rating: number | null): string | null {
 export function StatCardRow() {
   const isWizardActive = useIsWizardActive();
   const wizard = useWizardDemoData();
+  const labels = useLabels();
   const { userProfile } = useAuth();
   const { selectedLocation } = useLocationContext();
   const orgId = userProfile?.organizationId ?? null;
@@ -83,7 +85,7 @@ export function StatCardRow() {
 
     cards = [
       {
-        label: "Referrals",
+        label: labels.referralsShort,
         value: thisRef != null ? String(thisRef) : String(dm.pms.total_referrals),
         trailing: refStatus.text,
         trailingTone: refStatus.tone,
@@ -159,7 +161,7 @@ export function StatCardRow() {
 
     cards = [
       {
-        label: "Referrals",
+        label: labels.referralsShort,
         value: thisRef != null ? String(thisRef) : "—",
         trailing: refStatus.text,
         trailingTone: refStatus.tone,

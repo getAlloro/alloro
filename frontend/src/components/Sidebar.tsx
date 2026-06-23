@@ -21,6 +21,7 @@ import { useSidebar } from "./Admin/shell/SidebarContext";
 import { apiGet } from "../api/index";
 import { useIsWizardActive } from "../contexts/OnboardingWizardContext";
 import { useAuth } from "../hooks/useAuth";
+import { useLabels } from "../hooks/useLabels";
 import type { UserProfile } from "../contexts/authContext";
 import { LocationSwitcher } from "./LocationSwitcher";
 
@@ -195,16 +196,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
 
+  const labels = useLabels();
+
   // Main navigation items
   const mainNavItems = [
     {
-      label: "Practice Hub",
+      label: labels.hubHome,
       icon: <LayoutDashboard size={18} />,
       path: "/dashboard",
       showDuringOnboarding: true,
     },
     {
-      label: "Referrals Hub",
+      label: labels.hubReferrals,
       icon: <Activity size={18} />,
       path: "/pmsStatistics",
       showDuringOnboarding: false,

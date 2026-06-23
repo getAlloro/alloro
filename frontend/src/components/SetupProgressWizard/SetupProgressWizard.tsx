@@ -5,6 +5,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useSetupProgressSafe } from "./SetupProgressContext";
 import { useIsWizardActive } from "../../contexts/OnboardingWizardContext";
 import { useAuth } from "../../hooks/useAuth";
+import { useLabels } from "../../hooks/useLabels";
 
 export function SetupProgressWizard() {
   const context = useSetupProgressSafe();
@@ -12,6 +13,7 @@ export function SetupProgressWizard() {
   const location = useLocation();
   const isOnboardingWizardActive = useIsWizardActive();
   const { onboardingCompleted } = useAuth();
+  const labels = useLabels();
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Clear the justCompletedStep after confetti fires (confetti is now handled in context)
@@ -73,7 +75,7 @@ export function SetupProgressWizard() {
       number: 2,
       title: "Upload your PMS data",
       completed: progress.step2_pms_uploaded,
-      link: "Go to Referrals Hub",
+      link: `Go to ${labels.hubReferrals}`,
       onClick: goToReferralsHub,
     },
   ];

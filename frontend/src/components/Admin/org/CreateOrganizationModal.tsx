@@ -15,7 +15,7 @@ export type CreateOrganizationModalProps = {
 };
 
 const EMPTY_CREATE_FORM: AdminCreateOrgInput = {
-  organization: { name: "", domain: "", address: "" },
+  organization: { name: "", domain: "", address: "", type: "health" },
   user: { email: "", password: "", firstName: "", lastName: "" },
   location: { name: "", address: "" },
 };
@@ -130,6 +130,25 @@ export function CreateOrganizationModal({
                   }
                   placeholder="e.g. 123 Main St, City, State"
                 />
+                <label className="block text-sm font-medium text-gray-700">
+                  <span className="mb-1 block">Type</span>
+                  <select
+                    value={form.organization.type || "health"}
+                    onChange={(event) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        organization: {
+                          ...prev.organization,
+                          type: event.target.value as "health" | "generic",
+                        },
+                      }))
+                    }
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-alloro-orange focus:outline-none focus:ring-2 focus:ring-alloro-orange/20"
+                  >
+                    <option value="health">Health — healthcare verbiage (default)</option>
+                    <option value="generic">Generic — general business verbiage</option>
+                  </select>
+                </label>
               </FieldGroup>
 
               <FieldGroup title="Admin User">

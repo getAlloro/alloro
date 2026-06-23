@@ -3,6 +3,7 @@ import { Plus, Trash2 } from "lucide-react";
 
 import type { MonthBucket } from "../types";
 import { ALORO_ORANGE, ALORO_ORANGE_DARK } from "../pmsManualEntryModal.utils";
+import { formatDataMonthShort } from "../../../utils/timeframe";
 
 interface MonthTabsProps {
   sortedMonths: MonthBucket[];
@@ -44,13 +45,7 @@ export const MonthTabs: React.FC<MonthTabsProps> = ({
                 borderColor: isActive ? ALORO_ORANGE : "#e5e7eb",
               }}
             >
-              {new Date(m.month + "-01").toLocaleDateString(
-                undefined,
-                {
-                  month: "short",
-                  year: "numeric",
-                }
-              )}
+              {formatDataMonthShort(m.month)}
             </motion.button>
 
             {/* Delete icon per tab */}

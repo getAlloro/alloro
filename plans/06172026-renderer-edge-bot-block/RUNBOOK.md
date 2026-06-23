@@ -2,9 +2,11 @@
 
 **Plan folder:** `plans/06172026-renderer-edge-bot-block/`
 **Created:** 2026-06-18 · **Spec:** [`spec.html`](spec.html)
-**Status:** Dry-run LIVE (T1–T4 done). **T5 (enforce) is GATED on 7 consecutive CLEAN days — NOT yet enforced.**
+**Status:** ✅ **ENFORCED 2026-06-22 — block LIVE.** T1–T5 done + data cleanup done. Gate was called at **5/5** clean days (owner decision; justified by structural exclusion + allowlist + watchdog + instant rollback, with verified Googlebot passing 200 in live logs). Now in **post-enforce monitoring (§9)** — the daily email is the watchdog.
 
-> This is the full record of the bot-traffic work — what we found, what we cleaned, what we built, and **exactly how to turn on blocking (T5) when the dry-run passes.** If you're here on enforce day, jump to **§8 — T5 ENFORCE RUNBOOK**.
+> This is the full record of the bot-traffic work — what we found, what we cleaned, what we built, and **how blocking (T5) was turned on.** Post-enforce, the daily watchdog email is the alarm; rollback is §8 step 7 / §10.
+>
+> **Enforce-day notes (2026-06-22):** the snippet generator (`gen-caddy-snippet.sh`, §8 step 1) was built; the first flip **failed** because the generated snippet was `root:root 600` (caddy service user couldn't read it — `caddy validate` runs as root and passed, masking it), auto-rollback restored service in ~3s, fix was `chmod 644` + generator patched. Verified: 403 → datacenter only, Googlebot/Bing 200, zero false positives. Cleanup dropped One Endo June 7,476 → 1,013 users (baseline); Garrison/Artful were not inflated.
 
 ---
 

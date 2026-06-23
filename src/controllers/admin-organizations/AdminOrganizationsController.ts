@@ -442,7 +442,7 @@ export async function updateTier(
 
 /**
  * PATCH /api/admin/organizations/:id/type
- * Set organization type (health or saas). Immutable once set.
+ * Set or change organization type (health or generic).
  */
 export async function updateOrganizationType(
   req: AuthRequest,
@@ -456,10 +456,10 @@ export async function updateOrganizationType(
       return res.status(400).json({ error: "Invalid organization ID" });
     }
 
-    if (!type || !["health", "saas"].includes(type)) {
+    if (!type || !["health", "generic"].includes(type)) {
       return res
         .status(400)
-        .json({ error: "Type must be either 'health' or 'saas'" });
+        .json({ error: "Type must be either 'health' or 'generic'" });
     }
 
     const result = await OrganizationLifecycleAdminService.setOrganizationType(

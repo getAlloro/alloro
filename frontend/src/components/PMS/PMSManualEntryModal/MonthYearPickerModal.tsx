@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 
 import type { MonthBucket } from "../types";
 import { ALORO_ORANGE } from "../pmsManualEntryModal.utils";
+import { MONTH_NAMES, MONTH_NAMES_SHORT } from "../../../utils/timeframe";
 
 interface MonthYearPickerModalProps {
   showMonthPicker: boolean;
@@ -58,10 +59,7 @@ export const MonthYearPickerModal: React.FC<MonthYearPickerModalProps> = ({
                 <div className="grid grid-cols-3 gap-3">
                   {Array.from({ length: 12 }).map((_, i) => {
                     const m = String(i + 1).padStart(2, "0");
-                    const label = new Date(`2024-${m}-01`).toLocaleString(
-                      undefined,
-                      { month: "short" }
-                    );
+                    const label = MONTH_NAMES_SHORT[i];
                     const isSelected = m === tempMonth;
                     return (
                       <motion.button
@@ -93,12 +91,7 @@ export const MonthYearPickerModal: React.FC<MonthYearPickerModalProps> = ({
                 </div>
                 <div className="text-xs text-gray-400 text-center mb-4">
                   for{" "}
-                  {new Date(`2024-${tempMonth}-01`).toLocaleString(
-                    undefined,
-                    {
-                      month: "long",
-                    }
-                  )}
+                  {tempMonth ? MONTH_NAMES[Number(tempMonth) - 1] : ""}
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   {Array.from({ length: 5 }).map((_, i) => {

@@ -17,6 +17,7 @@ export interface UserProfile {
   domainName: string | null;
   email?: string | null;
   organizationId?: number | null;
+  organizationType?: "health" | "generic" | null;
 }
 
 // Billing status from GET /api/billing/status

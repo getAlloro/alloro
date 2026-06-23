@@ -28,6 +28,7 @@ import {
   type ProductionFormula,
 } from "../../api/pms";
 import { ProductionFormulaBuilder } from "./ProductionFormulaBuilder";
+import { useLabels } from "../../hooks/useLabels";
 
 interface ColumnMappingDrawerProps {
   isOpen: boolean;
@@ -155,6 +156,7 @@ export const ColumnMappingDrawer: React.FC<ColumnMappingDrawerProps> = ({
   onReprocess,
   onClose,
 }) => {
+  const labels = useLabels();
   const banner = useMemo(() => computeBanner(mapping, source), [mapping, source]);
 
   // Snapshot the mapping each time the drawer opens fresh, so we can tell
@@ -328,7 +330,7 @@ export const ColumnMappingDrawer: React.FC<ColumnMappingDrawerProps> = ({
             {/* Date — required */}
             <SlotField
               label="Date"
-              helpText="Which column has the visit or treatment date?"
+              helpText={`Which column has the visit or ${labels.serviceEvent} date?`}
               value={dateHeader}
               options={headers}
               onChange={(h) => setSlotHeader("date", h)}
@@ -338,7 +340,7 @@ export const ColumnMappingDrawer: React.FC<ColumnMappingDrawerProps> = ({
             {/* Source — required (procedure-log: practice/doctor; template: source) */}
             <SlotField
               label="Source"
-              helpText="Which column shows where each patient came from? (referring practice, doctor, or marketing channel)"
+              helpText={`Which column shows where each ${labels.customer} came from? (referring ${labels.orgNoun}, ${labels.doctorShort.toLowerCase()}, or marketing channel)`}
               value={sourceHeader}
               options={headers}
               onChange={setSourceHeader}
@@ -348,7 +350,7 @@ export const ColumnMappingDrawer: React.FC<ColumnMappingDrawerProps> = ({
             {/* Production — required (formula builder) */}
             <div className="rounded-xl border border-gray-200 bg-white p-3 space-y-2">
               <div>
-                <p className="text-xs font-semibold text-gray-900">Production</p>
+                <p className="text-xs font-semibold text-gray-900">{labels.production}</p>
                 <p className="text-[11px] text-gray-500 leading-relaxed mt-0.5">
                   How should we calculate the dollar amount per row? Pick one
                   column or build a formula by adding/subtracting columns.
@@ -388,8 +390,8 @@ export const ColumnMappingDrawer: React.FC<ColumnMappingDrawerProps> = ({
             {advancedOpen && (
               <div className="space-y-3 rounded-xl border border-dashed border-gray-300 bg-white/60 p-3">
                 <SlotField
-                  label="Patient ID column (optional)"
-                  helpText="When provided, multiple procedures for the same patient on the same day count as ONE referral. Leave empty if your data is already at one-row-per-referral."
+                  label={`${labels.customer.charAt(0).toUpperCase()}${labels.customer.slice(1)} ID column (optional)`}
+                  helpText={`When provided, multiple procedures for the same ${labels.customer} on the same day count as ONE referral. Leave empty if your data is already at one-row-per-referral.`}
                   value={patientHeader}
                   options={headers}
                   onChange={(h) => setSlotHeader("patient", h)}

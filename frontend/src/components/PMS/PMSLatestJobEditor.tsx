@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { updatePmsJobResponse } from "../../api/pms";
+import { formatDataMonthShort } from "../../utils/timeframe";
 import {
   transformBackendToUI,
   transformUIToBackend,
@@ -22,6 +23,7 @@ import {
   addMonths,
 } from "./pmsDataTransform";
 import type { MonthBucket, SourceRow } from "./types";
+import { useLabels } from "../../hooks/useLabels";
 import { logger } from "../../lib/logger";
 import {
   ALORO_ORANGE,
@@ -49,6 +51,7 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
   onSaved,
   onConfirmApproval,
 }) => {
+  const labels = useLabels();
   // ==================== STATE ====================
   const [months, setMonths] = useState<MonthBucket[]>([]);
   const [activeMonthId, setActiveMonthId] = useState<number | null>(null);
@@ -401,10 +404,7 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
                                 : undefined,
                             }}
                           >
-                            {new Date(m.month + "-01").toLocaleDateString(
-                              undefined,
-                              { month: "short", year: "numeric" }
-                            )}
+                            {formatDataMonthShort(m.month)}
                           </motion.button>
 
                           {/* Delete icon per tab */}
@@ -489,35 +489,32 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
                         Month
                       </div>
                       <div className="text-center text-xl font-semibold">
-                        {new Date(activeMonth.month + "-01").toLocaleDateString(
-                          undefined,
-                          { month: "short", year: "numeric" }
-                        )}
+                        {formatDataMonthShort(activeMonth.month)}
                       </div>
                     </motion.div>
 
                     {/* Summary cards */}
                     {[
                       {
-                        label: "Self Referrals",
+                        label: labels.selfReferrals,
                         value: totals.selfReferrals,
                         icon: User,
                         tint: "#C9765E22",
                       },
                       {
-                        label: "Doctor Referrals",
+                        label: labels.doctorReferrals,
                         value: totals.doctorReferrals,
                         icon: Stethoscope,
                         tint: "#C9765E11",
                       },
                       {
-                        label: "Total Referrals",
+                        label: labels.totalReferrals,
                         value: totals.totalReferrals,
                         icon: User,
                         tint: "#C9765E18",
                       },
                       {
-                        label: "Production",
+                        label: labels.production,
                         value: totals.productionTotal.toLocaleString(),
                         icon: DollarSign,
                         tint: "#34D39922",
@@ -558,8 +555,8 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
                   <div className="grid grid-cols-13 gap-4 mb-3 px-2 text-[11px] font-bold text-gray-400 uppercase">
                     <div className="col-span-3">Source</div>
                     <div className="col-span-2">Type</div>
-                    <div className="col-span-3">Referral Count</div>
-                    <div className="col-span-4">Production</div>
+                    <div className="col-span-3">{labels.referralsShort} Count</div>
+                    <div className="col-span-4">{labels.production}</div>
                     <div className="col-span-1" />
                   </div>
 

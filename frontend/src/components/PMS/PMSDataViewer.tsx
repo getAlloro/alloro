@@ -13,6 +13,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "../../lib/toast";
+import { formatDataMonthShort } from "../../utils/timeframe";
 import {
   AlertCircle,
   ArrowDown,
@@ -38,6 +39,7 @@ import {
   type MonthEntryForm,
 } from "./pmsDataTransform";
 import { normaliseMonthEntries } from "./pmsDataViewer.utils";
+import { useLabels } from "../../hooks/useLabels";
 import type { MonthBucket, SourceRow } from "./types";
 
 interface PMSDataViewerProps {
@@ -115,6 +117,7 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
   onSave,
   readOnly = false,
 }) => {
+  const labels = useLabels();
   const [months, setMonths] = useState<MonthBucket[]>([]);
   const [activeMonthId, setActiveMonthId] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -342,13 +345,7 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
                             color: isActive ? "white" : undefined,
                           }}
                         >
-                          {new Date(m.month + "-01").toLocaleDateString(
-                            undefined,
-                            {
-                              month: "short",
-                              year: "numeric",
-                            }
-                          )}
+                          {formatDataMonthShort(m.month)}
                         </motion.button>
 
                         {/* delete icon per tab */}
@@ -419,34 +416,31 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
                       Month
                     </div>
                     <div className="text-center text-xl font-semibold">
-                      {new Date(activeMonth.month + "-01").toLocaleDateString(
-                        undefined,
-                        { month: "short", year: "numeric" }
-                      )}
+                      {formatDataMonthShort(activeMonth.month)}
                     </div>
                   </motion.div>
 
                   {[
                     {
-                      label: "Self Referrals",
+                      label: labels.selfReferrals,
                       value: totals.selfReferrals,
                       icon: User,
                       tint: "#C9765E22",
                     },
                     {
-                      label: "Doctor Referrals",
+                      label: labels.doctorReferrals,
                       value: totals.doctorReferrals,
                       icon: Stethoscope,
                       tint: "#C9765E11",
                     },
                     {
-                      label: "Total Referrals",
+                      label: labels.totalReferrals,
                       value: totals.totalReferrals,
                       icon: User,
                       tint: "#C9765E18",
                     },
                     {
-                      label: "Production",
+                      label: labels.production,
                       value: totals.productionTotal.toLocaleString(),
                       icon: DollarSign,
                       tint: "#34D39922",
@@ -475,8 +469,8 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
                 <div className="grid grid-cols-13 gap-4 mb-3 px-2 text-[11px] font-bold text-gray-400 uppercase">
                   <div className="col-span-3">Source</div>
                   <div className="col-span-2">Type</div>
-                  <div className="col-span-3">Referral Count</div>
-                  <div className="col-span-4">Production</div>
+                  <div className="col-span-3">{labels.referralsShort} Count</div>
+                  <div className="col-span-4">{labels.production}</div>
                   <div className="col-span-1" />
                 </div>
 

@@ -81,6 +81,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           domainName: status.profile?.domainName || null,
           email: status.profile?.email || null,
           organizationId: status.organizationId || null,
+          organizationType: status.organizationType || null,
         });
 
         if (status.onboardingCompleted) {

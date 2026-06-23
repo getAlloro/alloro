@@ -15,6 +15,8 @@ import { LocationModel } from "../../../models/LocationModel";
 import { GooglePropertyModel } from "../../../models/GooglePropertyModel";
 import { GoogleConnectionModel } from "../../../models/GoogleConnectionModel";
 import { PracticeRankingModel } from "../../../models/PracticeRankingModel";
+import { OrganizationModel } from "../../../models/OrganizationModel";
+import { resolveOrgType } from "../../../config/orgLabels";
 import {
   processLocationRanking,
   MAX_RETRIES,
@@ -196,6 +198,10 @@ export async function processRankingWork(workItems: WorkItem[]): Promise<void> {
     log(`\n[${"=".repeat(60)}]`);
     log(`[ORG] Processing: ${work.orgName} (${work.domain})`);
     log(`[ORG] Batch: ${work.batchId}, Locations: ${work.locations.length}`);
+
+    const orgType = resolveOrgType(
+      (await OrganizationModel.findById(work.organizationId))?.organization_type,
+    );
     log(`[${"=".repeat(60)}]`);
 
     for (let i = 0; i < work.locations.length; i++) {
@@ -261,7 +267,7 @@ export async function processRankingWork(workItems: WorkItem[]): Promise<void> {
             data: locationData,
           };
         }
-        const meta = await identifyLocationMeta(locationData, work.domain);
+        const meta = await identifyLocationMeta(locationData, work.domain, orgType);
         specialty = meta.specialty;
         marketLocation = meta.marketLocation;
 

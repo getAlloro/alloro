@@ -16,6 +16,7 @@ interface OnboardingStatusResponse {
   hasGoogleConnection?: boolean;
   role?: string;
   organizationId?: number | null;
+  organizationType?: "health" | "generic" | null;
   profile?: {
     firstName?: string | null;
     lastName?: string | null;

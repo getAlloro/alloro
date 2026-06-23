@@ -9,6 +9,8 @@
 import axios from "axios";
 import { log } from "../feature-utils/agentLogger";
 import { loadPrompt } from "../../../agents/service.prompt-loader";
+import { substitutePromptPlaceholders } from "../../../agents/service.prompt-substituter";
+import { OrgType } from "../../../config/orgLabels";
 import { runAgent } from "../../../agents/service.llm-runner";
 import {
   getExternalErrorMessage,
@@ -80,6 +82,7 @@ export async function callAgentWebhook(
 export async function identifyLocationMeta(
   gbpData: any,
   domain: string,
+  orgType: OrgType = "health",
 ): Promise<{ specialty: string; marketLocation: string }> {
   log(`  [IDENTIFIER] Identifying specialty and market for ${domain}`);
 
@@ -101,7 +104,10 @@ export async function identifyLocationMeta(
       },
     };
 
-    const systemPrompt = loadPrompt("rankingAgents/Identifier");
+    const systemPrompt = substitutePromptPlaceholders(
+      loadPrompt("rankingAgents/Identifier"),
+      orgType,
+    );
     const userMessage = JSON.stringify(payload, null, 2);
 
     const { value: result, attempts } = await runWithRetry(

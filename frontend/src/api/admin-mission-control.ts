@@ -50,7 +50,7 @@ export type MissionControlOrganization = {
   name: string;
   domain: string | null;
   createdAt: string;
-  organizationType: "health" | "saas" | null;
+  organizationType: "health" | "generic" | null;
   subscriptionTier: "DWY" | "DFY" | null;
   subscriptionStatus: "active" | "inactive" | "trial" | "cancelled";
   archivedAt: string | null;
