@@ -36,22 +36,15 @@ async function requireOrganization(orgId: number) {
 }
 
 /**
- * Set organization type ("health" | "saas"). Immutable once set.
+ * Set or change organization type ("health" | "generic"). Editable — the type
+ * controls which vocabulary the app serves, and admins may switch it.
  * Validity of `type` is the caller's responsibility.
  */
 export async function setOrganizationType(
   orgId: number,
-  type: "health" | "saas"
+  type: "health" | "generic"
 ): Promise<AdminOrgActionResult> {
-  const organization = await requireOrganization(orgId);
-
-  // Immutable once set
-  if (organization.organization_type) {
-    throw new AdminOrgError(409, {
-      success: false,
-      error: `Organization type is already set to "${organization.organization_type}" and cannot be changed.`,
-    });
-  }
+  await requireOrganization(orgId);
 
   await OrganizationModel.updateById(orgId, {
     organization_type: type,

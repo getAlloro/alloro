@@ -11,8 +11,11 @@
  */
 
 import { AgentResultModel } from "../../../models/AgentResultModel";
+import { OrganizationModel } from "../../../models/OrganizationModel";
 import { v4 as uuidv4 } from "uuid";
 import { loadPrompt } from "../../../agents/service.prompt-loader";
+import { substitutePromptPlaceholders } from "../../../agents/service.prompt-substituter";
+import { resolveOrgType } from "../../../config/orgLabels";
 import { runAgent } from "../../../agents/service.llm-runner";
 import { log } from "../feature-utils/agentLogger";
 import type { ZodTypeAny } from "zod";
@@ -43,7 +46,13 @@ export async function runMonthlyAgent(opts: {
   /** Override default maxTokens (16384). Use for agents with large output. */
   maxTokens?: number;
 }): Promise<{ agentOutput: any; agentResultId: number }> {
-  const systemPrompt = loadPrompt(opts.promptPath);
+  const orgType = resolveOrgType(
+    (await OrganizationModel.findById(opts.meta.organizationId))?.organization_type
+  );
+  const systemPrompt = substitutePromptPlaceholders(
+    loadPrompt(opts.promptPath),
+    orgType
+  );
   const userMessage = JSON.stringify(opts.payload, null, 2);
   const maxTokens = opts.maxTokens ?? 16384;
 

@@ -23,6 +23,7 @@ export interface CreateOrgInput {
     name: string;
     domain?: string;
     address?: string;
+    type?: "health" | "generic";
   };
   user: {
     email: string;
@@ -126,6 +127,7 @@ export async function createOrganizationWithUser(
     await OrganizationModel.updateById(
       org.id,
       {
+        organization_type: organization.type ?? "health",
         subscription_tier: "DFY",
         subscription_status: "active",
         operational_jurisdiction: organization.address?.trim() || null,

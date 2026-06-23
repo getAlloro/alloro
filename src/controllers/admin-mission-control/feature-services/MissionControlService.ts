@@ -34,7 +34,7 @@ export interface MissionControlOrganization {
   name: string;
   domain: string | null;
   createdAt: string;
-  organizationType: "health" | "saas" | null;
+  organizationType: "health" | "generic" | null;
   subscriptionTier: "DWY" | "DFY" | null;
   subscriptionStatus: MissionControlOrgBase["subscription_status"];
   archivedAt: string | null;

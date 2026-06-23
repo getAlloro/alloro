@@ -7,7 +7,7 @@ export interface IOrganization {
   name: string;
   domain: string | null;
   referral_code: string | null;
-  organization_type: "health" | "saas" | null;
+  organization_type: "health" | "generic" | null;
   subscription_tier: "DWY" | "DFY" | null;
   subscription_status: "active" | "inactive" | "trial" | "cancelled";
   subscription_started_at: Date | null;

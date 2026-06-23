@@ -206,12 +206,12 @@ export function OrgSubscriptionSection({
     }
   };
 
-  const handleSetOrgType = async (type: "health" | "saas") => {
-    const label = type === "saas" ? "SaaS" : "Health";
+  const handleSetOrgType = async (type: "health" | "generic") => {
+    const label = type === "generic" ? "Generic" : "Health";
     const confirmed = await confirm({
       title: `Set organization type to "${label}"?`,
       message:
-        "This cannot be changed later. Organization type determines the Stripe pricing used for this account.",
+        "Organization type controls the vocabulary shown across the app (healthcare vs. generic) and the Stripe pricing used for this account.",
       confirmLabel: `Set to ${label}`,
       variant: "danger",
     });
@@ -281,27 +281,21 @@ export function OrgSubscriptionSection({
             {/* Type */}
             <div>
               <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Type</div>
-              {org.organization_type ? (
-                <span className="inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-md bg-purple-50 text-purple-700">
-                  {org.organization_type === "saas" ? "SaaS" : "Health"}
-                </span>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <select
-                    disabled={isSavingType}
-                    defaultValue=""
-                    onChange={(e) => {
-                      if (e.target.value) handleSetOrgType(e.target.value as "health" | "saas");
-                    }}
-                    className="text-xs border border-gray-300 rounded-md px-2 py-1 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-alloro-orange/50 disabled:opacity-50"
-                  >
-                    <option value="" disabled>Select...</option>
-                    <option value="health">Health</option>
-                    <option value="saas">SaaS</option>
-                  </select>
-                  {isSavingType && <Loader2 className="h-3 w-3 animate-spin text-gray-400" />}
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                <select
+                  disabled={isSavingType}
+                  value={org.organization_type ?? ""}
+                  onChange={(e) => {
+                    if (e.target.value) handleSetOrgType(e.target.value as "health" | "generic");
+                  }}
+                  className="text-xs border border-gray-300 rounded-md px-2 py-1 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-alloro-orange/50 disabled:opacity-50"
+                >
+                  <option value="" disabled>Select...</option>
+                  <option value="health">Health</option>
+                  <option value="generic">Generic</option>
+                </select>
+                {isSavingType && <Loader2 className="h-3 w-3 animate-spin text-gray-400" />}
+              </div>
             </div>
 
             {/* Tier */}
