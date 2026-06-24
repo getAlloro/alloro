@@ -37,6 +37,7 @@ import { DashboardAlertStack } from "./alerts/DashboardAlertStack";
 import { showErrorToast, showSparkleToast } from "../../lib/toast";
 import { ProductionPanel } from "./focus/ProductionPanel";
 import { OneThingBanner } from "./focus/OneThingBanner";
+import { PatientJourneyCard } from "./focus/PatientJourneyCard";
 import { StatCardRow } from "./focus/StatCardRow";
 import { useIsWizardActive } from "../../contexts/OnboardingWizardContext";
 
@@ -148,6 +149,7 @@ export function DashboardOverview(props: DashboardOverviewProps) {
 
       <ProductionPanel />
       <OneThingBanner />
+      <PatientJourneyCard />
       <StatCardRow />
     </div>
   );

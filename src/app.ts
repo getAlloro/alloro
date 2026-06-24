@@ -31,6 +31,7 @@ import logger from "./lib/logger";
 
 import gbpRoutes from "./routes/gbp";
 import gbpAutomationRoutes from "./routes/gbpAutomation";
+import patientJourneyRoutes from "./routes/patient-journey";
 import { healthCheck } from "./database/connection";
 import clarityRoutes from "./routes/clarity";
 import taskRoutes from "./routes/tasks";
@@ -187,6 +188,7 @@ app.use(requireAuthUnlessPublic);
 app.use(router);
 app.use("/api/gbp", gbpRoutes);
 app.use("/api/gbp-automation", gbpAutomationRoutes);
+app.use("/api/patient-journey", patientJourneyRoutes);
 app.use("/api/clarity", clarityRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/auth", authRoutes);

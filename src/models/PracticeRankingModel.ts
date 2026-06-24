@@ -89,6 +89,19 @@ export interface RankingFilters {
   location_id?: number;
 }
 
+/**
+ * A location that has tracked ranking keywords, with the geo context needed to
+ * build a DataForSEO market-demand query. Projected from the latest completed
+ * ranking row per location (see findLocationsWithKeywords).
+ */
+export interface RankingKeywordLocation {
+  organization_id: number;
+  location_id: number;
+  rank_keywords: string;
+  search_city: string | null;
+  search_state: string | null;
+}
+
 export class PracticeRankingModel extends BaseModel {
   protected static tableName = "practice_rankings";
   protected static jsonFields = [
@@ -719,5 +732,43 @@ export class PracticeRankingModel extends BaseModel {
       query = query.where({ location_id: locationId });
     }
     return query.orderBy("created_at", "desc").select("llm_analysis").first();
+  }
+
+  /**
+   * Distinct locations that have tracked ranking keywords, each projected to the
+   * geo + keyword context the search-volume harvest needs (its latest completed
+   * ranking row per location). Used by the monthly DataForSEO search-volume job
+   * to iterate the fleet. One row per location_id, newest-first via DISTINCT ON.
+   *
+   * Only completed rows with a non-empty `rank_keywords` and a real `location_id`
+   * are considered — those are the locations we can build a market-demand query
+   * for. The harvest service owns ALL DB access through this method (§7.4): the
+   * worker/service never runs an inline db() query of its own.
+   */
+  static async findLocationsWithKeywords(
+    trx?: QueryContext
+  ): Promise<RankingKeywordLocation[]> {
+    const rows = await this.table(trx)
+      .distinctOn("location_id")
+      .whereNotNull("location_id")
+      .whereNotNull("rank_keywords")
+      .whereRaw("btrim(rank_keywords) <> ''")
+      .where("status", "completed")
+      .orderBy("location_id")
+      .orderBy("created_at", "desc")
+      .select(
+        "organization_id",
+        "location_id",
+        "rank_keywords",
+        "search_city",
+        "search_state"
+      );
+    return rows.map((row: RankingKeywordLocation) => ({
+      organization_id: row.organization_id,
+      location_id: row.location_id,
+      rank_keywords: row.rank_keywords,
+      search_city: row.search_city,
+      search_state: row.search_state,
+    }));
   }
 }

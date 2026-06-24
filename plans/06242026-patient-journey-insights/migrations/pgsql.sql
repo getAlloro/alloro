@@ -1,0 +1,21 @@
+-- Patient Journey Insights — market search-volume table (Task T1)
+-- PostgreSQL is Alloro's only DB. The canonical change ships as the Knex migration
+-- (knexmigration.js -> src/database/migrations/...); this SQL mirrors the intended DDL.
+-- Scaffold only. -- TODO: fill / verify during execution.
+
+-- CREATE TABLE website_builder.keyword_search_volume (
+--   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+--   location_id   integer NOT NULL REFERENCES public.locations(id) ON DELETE CASCADE,
+--   keyword       varchar(255) NOT NULL,
+--   report_month  date NOT NULL,
+--   search_volume integer NOT NULL,
+--   source        varchar(64) NOT NULL,
+--   data          jsonb,
+--   created_at    timestamptz NOT NULL DEFAULT now(),
+--   updated_at    timestamptz NOT NULL DEFAULT now(),
+--   CONSTRAINT uq_ksv_location_keyword_month UNIQUE (location_id, keyword, report_month)
+-- );
+-- CREATE INDEX idx_ksv_location_month ON website_builder.keyword_search_volume (location_id, report_month);
+
+-- DOWN:
+-- DROP TABLE IF EXISTS website_builder.keyword_search_volume;

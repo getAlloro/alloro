@@ -15,7 +15,7 @@ import { CogitatingLoader } from "../components/ui/CogitatingLoader";
 // Integration Modal Components
 import { GBPIntegrationModal } from "../components/GBPIntegrationModal";
 import { ClarityIntegrationModal } from "../components/ClarityIntegrationModal";
-import { VitalSignsCards } from "@/components/VitalSignsCards/VitalSignsCards";
+import { PatientJourneyDashboard } from "../components/dashboard/patient-journey/PatientJourneyDashboard";
 import { TasksView } from "../components/tasks/TasksView";
 import { AnimatePresence, motion } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -319,7 +319,10 @@ export default function Dashboard() {
                   )}
 
                   {activeTab === "Patient Journey Insights" && (
-                    <VitalSignsCards />
+                    <PatientJourneyDashboard
+                      organizationId={userProfile?.organizationId ?? null}
+                      locationId={locationId}
+                    />
                   )}
 
                   {activeTab === "PMS Statistics" && (

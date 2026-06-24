@@ -30,6 +30,7 @@ import { processPostImport } from "./processors/postImporter.processor";
 import { processCrmPush } from "./processors/crmPush.processor";
 import { processCrmMappingValidation } from "./processors/crmMappingValidation.processor";
 import { processDataHarvest } from "./processors/dataHarvest.processor";
+import { processSearchVolumeHarvest } from "./processors/searchVolumeHarvest.processor";
 import { processGbpAutomationJob } from "./processors/gbpAutomation.processor";
 import { getMindsQueue, getCrmQueue, getHarvestQueue, getGbpAutomationQueue } from "./queues";
 import { closeWbQueues } from "./wb-queues";
@@ -445,6 +446,24 @@ const dataHarvestWorker = new Worker(
   }
 );
 
+// Search Volume Harvest worker — MONTHLY market-demand pull from DataForSEO,
+// iterating every location with tracked ranking keywords. Search volume moves
+// slowly, so this runs once a month rather than in the daily harvest loop.
+const searchVolumeHarvestWorker = new Worker(
+  "harvest-search-volume",
+  async (job) => {
+    await processSearchVolumeHarvest(job);
+  },
+  {
+    connection: makeConnection(),
+    concurrency: 1,
+    lockDuration: 1800000, // 30 min — iterates the whole fleet, one DataForSEO call each
+    prefix: '{harvest}',
+    removeOnComplete: { count: 12 },
+    removeOnFail: { count: 12 },
+  }
+);
+
 const gbpAutomationWorker = new Worker(
   "gbp-automation-deployment",
   async (job) => {
@@ -461,7 +480,7 @@ const gbpAutomationWorker = new Worker(
 );
 
 // Event handlers
-for (const worker of [scrapeCompareWorker, compilePublishWorker, discoveryWorker, skillTriggerWorker, worksDigestWorker, seoBulkGenerateWorker, reviewSyncWorker, schedulerWorker, scheduleExecWorker, wbBackupWorker, wbRestoreWorker, wbIdentityWarmupWorker, wbAiSeoAuditWorker, wbLayoutsWorker, wbProjectScrapeWorker, wbPageGenerateWorker, wbPostImportWorker, auditLeadgenWorker, crmHubspotPushWorker, crmMappingValidationWorker, dataHarvestWorker, gbpAutomationWorker]) {
+for (const worker of [scrapeCompareWorker, compilePublishWorker, discoveryWorker, skillTriggerWorker, worksDigestWorker, seoBulkGenerateWorker, reviewSyncWorker, schedulerWorker, scheduleExecWorker, wbBackupWorker, wbRestoreWorker, wbIdentityWarmupWorker, wbAiSeoAuditWorker, wbLayoutsWorker, wbProjectScrapeWorker, wbPageGenerateWorker, wbPostImportWorker, auditLeadgenWorker, crmHubspotPushWorker, crmMappingValidationWorker, dataHarvestWorker, searchVolumeHarvestWorker, gbpAutomationWorker]) {
   worker.on("completed", (job) => {
     logger.info(`[MINDS-WORKER] Job ${job?.id} completed on queue ${worker.name}`);
   });
@@ -498,6 +517,7 @@ async function shutdown(): Promise<void> {
   await auditLeadgenWorker.close();
   await crmHubspotPushWorker.close();
   await crmMappingValidationWorker.close();
+  await searchVolumeHarvestWorker.close();
   await closeWbQueues();
   await gbpAutomationWorker.close();
   await Promise.all(connections.map((c) => c.quit()));
@@ -634,6 +654,29 @@ async function setupDataHarvestSchedule(): Promise<void> {
   }
 }
 
+// Set up MONTHLY market search-volume harvest (1st of the month, 6:00 AM UTC).
+// Volume moves slowly, so a monthly cadence is enough; runs after the daily
+// 5 AM harvest so it never overlaps it.
+async function setupSearchVolumeHarvestSchedule(): Promise<void> {
+  try {
+    const queue = getHarvestQueue("search-volume");
+    await queue.add(
+      "monthly-search-volume-harvest",
+      {},
+      {
+        repeat: {
+          pattern: "0 6 1 * *", // 6:00 AM UTC on the 1st of every month
+          tz: "UTC",
+        },
+        jobId: "monthly-search-volume-harvest",
+      }
+    );
+    logger.info("[MINDS-WORKER] Monthly search-volume harvest scheduled (6 AM UTC, 1st of month)");
+  } catch (err: any) {
+    logger.error({ err: err }, "[MINDS-WORKER] Failed to set up search-volume harvest schedule:");
+  }
+}
+
 // Set up GBP local post draft schedule scan (hourly)
 async function setupGbpLocalPostGenerationSchedule(): Promise<void> {
   try {
@@ -662,6 +705,7 @@ setupReviewSyncSchedule();
 setupSchedulerTick();
 setupCrmMappingValidationSchedule();
 setupDataHarvestSchedule();
+setupSearchVolumeHarvestSchedule();
 setupGbpLocalPostGenerationSchedule();
 setupGbpLocalPostSyncSchedule();
 
