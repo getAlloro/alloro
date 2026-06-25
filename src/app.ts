@@ -91,8 +91,26 @@ const router = Router();
 // single shared `logger` instance, so its `redact` config scrubs Authorization
 // / Cookie headers and other secrets out of the auto-logged req/res. Disabled
 // under test (VITEST) to keep the smoke-suite output clean and hermetic.
+//
+// In dev, every non-/api request is proxied to Vite (see the dev proxy at the
+// bottom of this file), which serves the frontend one source module at a time —
+// logging each one floods the console with hundreds of `/src/**.tsx` lines.
+// So in dev we skip auto-logging those proxied requests and keep only `/api/*`.
+// In prod the frontend is bundled and served statically (no per-module flood),
+// so every request is logged as before. Same isProd switch the proxy uses.
 if (process.env.VITEST !== "true") {
-  app.use(pinoHttp({ logger }));
+  app.use(
+    pinoHttp(
+      isProd
+        ? { logger }
+        : {
+            logger,
+            autoLogging: {
+              ignore: (req) => !(req.url || "").startsWith("/api"),
+            },
+          },
+    ),
+  );
 }
 
 // CORS middleware for development

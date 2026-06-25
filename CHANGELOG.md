@@ -2,6 +2,22 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.134] - June 2026
+
+### Dev API Boot Fix + Quieter Proxied Request Logs
+
+Fixes the local backend failing to start under `express-rate-limit` v8, and removes the request-log flood you see when browsing the app on `localhost:3000` in dev.
+
+**Key Changes:**
+- `fix:` the `authLimiter` rate limiter built its key from the client IP directly, which `express-rate-limit` v8 rejects for IPv6 safety (`ERR_ERL_KEY_GEN_IPV6`). It threw at module load, before `app.listen`, so the API never bound port 3000. The IP is now wrapped with the library's `ipKeyGenerator` helper (normalizes IPv6 to a /64 subnet), so the limiter is IPv6-safe and the server boots.
+- `chore:` in dev, `pino-http` no longer auto-logs the requests proxied to Vite (the per-module `/src/**.tsx` fetches). Browsing on `:3000` previously logged hundreds of lines per page load. `/api/*` requests still log fully; production logging is unchanged (the frontend is bundled there, so there is no per-module flood).
+
+**Verification:** `npx tsc --noEmit` passes (0 errors). Confirmed the API binds port 3000 after the fix and that the dev console shows only `/api/*` request logs.
+
+**Commits:**
+- `src/middleware/publicRateLimiter.ts` — import `ipKeyGenerator`; wrap the IP in `authLimiter`'s `keyGenerator`.
+- `src/app.ts` — dev-only `pino-http` `autoLogging.ignore` for non-`/api` (proxied) requests; same `isProd` switch the Vite dev proxy already uses.
+
 ## [0.0.133] - June 2026
 
 ### Organization Type — Generic (non-healthcare) Verbiage

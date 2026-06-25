@@ -11,7 +11,7 @@
  * in 5 minutes from same IP logs to behavioral_events.
  */
 
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import type { Request, Response, NextFunction } from "express";
 import { BehavioralEventModel } from "../models/BehavioralEventModel";
 import logger from "../lib/logger";
@@ -45,7 +45,10 @@ export const authLimiter = rateLimit({
   legacyHeaders: false,
   message: AUTH_RATE_LIMIT_MESSAGE,
   keyGenerator: (req): string => {
-    const ip = req.ip || req.socket.remoteAddress || "unknown";
+    // ipKeyGenerator normalizes IPv6 to a /64 subnet so v6 clients can't dodge
+    // the limit by rotating addresses (express-rate-limit v8 requires this for
+    // any custom keyGenerator that reads the IP — see ERR_ERL_KEY_GEN_IPV6).
+    const ip = ipKeyGenerator(req.ip || req.socket.remoteAddress || "unknown");
     const rawEmail = (req.body?.email ?? "").toString().trim().toLowerCase();
     return rawEmail ? `${ip}:${rawEmail}` : ip;
   },
