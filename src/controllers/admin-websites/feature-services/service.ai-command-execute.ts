@@ -21,16 +21,18 @@ import { PageModel } from "../../../models/website-builder/PageModel";
 import { PostModel } from "../../../models/website-builder/PostModel";
 import { normalizeSections } from "../feature-utils/util.section-normalizer";
 import { editHtmlContent } from "../../../utils/website-utils/aiCommandService";
-import { createDraft, publishPage } from "./service.page-editor";
+import { publishPage } from "./service.page-editor";
 import { runAgenticPipeline } from "../../../utils/website-utils/agenticHtmlPipeline";
 import logger from "../../../lib/logger";
 import {
   type ExecutionContext,
   refreshStats,
+  resolvePageDraftId,
   getExistingPaths,
   getExistingPostSlugs,
 } from "../feature-utils/util.ai-command-shared";
 import { buildExecutionSummary } from "../feature-utils/util.ai-command-summary";
+import { verifyBatchEdits } from "../feature-utils/util.ai-command-verify";
 import {
   executeCreateRedirect,
   executeUpdateRedirect,
@@ -134,6 +136,18 @@ export async function executeBatch(batchId: string): Promise<void> {
     }
   }
 
+  // Verify each executed HTML edit actually reached the published content. The
+  // execution status was set on "the LLM returned HTML", not "the change landed"
+  // — an edit lost to section drift or a concurrent overwrite is downgraded to
+  // "failed" here so the batch stats tell the truth. Built into the summary
+  // below (which reads post-downgrade rows).
+  const verifyResult = await verifyBatchEdits(batchId);
+  if (verifyResult.downgraded > 0) {
+    logger.warn(
+      `[AiCommand] Verify downgraded ${verifyResult.downgraded} recommendation(s) whose edit did not reach published content (batch ${batchId})`
+    );
+  }
+
   const executionSummary = await buildExecutionSummary(batchId);
 
   await AiCommandBatchModel.updateById(batchId, {
@@ -161,8 +175,9 @@ async function executeRecommendation(rec: any, ctx: ExecutionContext): Promise<v
   if (rec.target_type === "update_page_path") return executeUpdatePagePath(rec);
 
   // Always use the latest HTML from DB — previous recommendations in this
-  // batch may have already modified the same target
-  const currentHtml = await getCurrentHtml(rec);
+  // batch may have already modified the same target. For page sections this
+  // reads from the batch's pinned draft (same row the write targets).
+  const currentHtml = await getCurrentHtml(rec, ctx);
 
   if (!currentHtml) {
     await AiCommandRecommendationModel.updateById(rec.id, {
@@ -245,7 +260,7 @@ async function executeRecommendation(rec: any, ctx: ExecutionContext): Promise<v
   logger.info(`[AiCommand] ✓ Executed: ${rec.target_label}`);
 }
 
-async function getCurrentHtml(rec: any): Promise<string> {
+async function getCurrentHtml(rec: any, ctx: ExecutionContext): Promise<string> {
   const meta =
     typeof rec.target_meta === "string"
       ? JSON.parse(rec.target_meta)
@@ -258,16 +273,16 @@ async function getCurrentHtml(rec: any): Promise<string> {
   }
 
   if (rec.target_type === "page_section") {
-    // Get the original page to find its path, then prefer draft at that path
     const origPage = await PageModel.findRawById(rec.target_id);
     if (!origPage) throw new Error(`Page ${rec.target_id} not found`);
 
-    // If a draft exists for this path, use it (it may have been auto-created)
-    const page = await PageModel.findRawByProjectPathStatus(
-      origPage.project_id,
-      origPage.path,
-      "draft"
-    ) || origPage;
+    // Read from the batch's pinned draft — the same row saveEditedHtml writes —
+    // so edits from earlier recommendations on this page are visible here.
+    const draftId = await resolvePageDraftId(origPage, ctx);
+    const page = await PageModel.findRawById(draftId);
+    if (!page) {
+      throw new Error(`Draft ${draftId} disappeared for path ${origPage.path}`);
+    }
 
     const rawSections = typeof page.sections === "string"
       ? JSON.parse(page.sections)
@@ -306,44 +321,15 @@ async function saveEditedHtml(rec: any, editedHtml: string, ctx: ExecutionContex
   }
 
   if (rec.target_type === "page_section") {
-    // Find the original page to get its path
     const origPage = await PageModel.findRawById(rec.target_id);
     if (!origPage) throw new Error(`Page ${rec.target_id} not found`);
 
-    let draftId = ctx.pageDrafts.get(origPage.path);
-    let page: any;
-
-    if (draftId) {
-      // Reuse the draft already created for this page path during this batch
-      page = await PageModel.findRawById(draftId);
-      if (!page) throw new Error(`Draft ${draftId} disappeared for path ${origPage.path}`);
-    } else {
-      // Find the current active version at this path (draft preferred, then published)
-      page = await PageModel.findRawByProjectPathStatus(
-        origPage.project_id,
-        origPage.path,
-        "draft"
-      )
-        || await PageModel.findRawByProjectPathStatus(
-          origPage.project_id,
-          origPage.path,
-          "published"
-        );
-
-      if (!page) throw new Error(`No active page at path ${origPage.path}`);
-
-      // Auto-create draft from published page for version control (once per page per batch)
-      if (page.status === "published") {
-        logger.info(`[AiCommand] Auto-creating draft from published page ${page.id} (${page.path})`);
-        const draftResult = await createDraft(page.project_id, page.id);
-        if (draftResult.error) {
-          throw new Error(`Failed to create draft: ${draftResult.error.message}`);
-        }
-        page = draftResult.page;
-      }
-
-      // Track this draft so subsequent recommendations for the same page reuse it
-      ctx.pageDrafts.set(origPage.path, page.id);
+    // Write to the batch's pinned draft — the same row getCurrentHtml read —
+    // so edits to this page stack instead of each overwriting the last.
+    const draftId = await resolvePageDraftId(origPage, ctx);
+    const page = await PageModel.findRawById(draftId);
+    if (!page) {
+      throw new Error(`Draft ${draftId} disappeared for path ${origPage.path}`);
     }
 
     const rawSections = typeof page.sections === "string"
@@ -363,7 +349,7 @@ async function saveEditedHtml(rec: any, editedHtml: string, ctx: ExecutionContex
 
     await PageModel.updateSectionsById(page.id, JSON.stringify(sections));
 
-    // Don't publish here — batch will publish all drafts at the end
+    // Don't publish here — batch will publish all pinned drafts at the end
     return;
   }
 

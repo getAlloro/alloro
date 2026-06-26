@@ -13,6 +13,7 @@ import { PageModel } from "../../../models/website-builder/PageModel";
 import { PostModel } from "../../../models/website-builder/PostModel";
 import { PostTypeModel } from "../../../models/website-builder/PostTypeModel";
 import * as menuManager from "../feature-services/service.menu-manager";
+import { createDraft } from "../feature-services/service.page-editor";
 
 export interface AiCommandTargets {
   pages?: string[] | "all";
@@ -41,6 +42,55 @@ export interface ExecutionContext {
 export async function refreshStats(batchId: string): Promise<void> {
   const stats = await AiCommandRecommendationModel.computeStats(batchId);
   await AiCommandBatchModel.updateStats(batchId, JSON.stringify(stats));
+}
+
+/**
+ * Resolve the single draft row this batch edits for one page path, pinning it in
+ * `ctx.pageDrafts`. Every recommendation for the path — both the read in
+ * `getCurrentHtml` and the write in `saveEditedHtml` — shares this row, so edits
+ * to the same page stack onto each other instead of each being computed from a
+ * stale snapshot and overwriting the previous one (the edit-loss bug where only
+ * the last write per section survived).
+ *
+ * An existing draft at the path is reused as-is (NOT routed through
+ * `createDraft`, whose stale-refresh would wipe in-progress edits). A draft is
+ * created from the published row only when no draft exists yet.
+ */
+export async function resolvePageDraftId(
+  origPage: { project_id: string; path: string },
+  ctx: ExecutionContext
+): Promise<string> {
+  const pinned = ctx.pageDrafts.get(origPage.path);
+  if (pinned) return pinned;
+
+  let page =
+    (await PageModel.findRawByProjectPathStatus(
+      origPage.project_id,
+      origPage.path,
+      "draft"
+    )) ||
+    (await PageModel.findRawByProjectPathStatus(
+      origPage.project_id,
+      origPage.path,
+      "published"
+    ));
+
+  if (!page) {
+    throw new Error(`No active page at path ${origPage.path}`);
+  }
+
+  if (page.status === "published") {
+    const draftResult = await createDraft(page.project_id, page.id);
+    if (draftResult.error) {
+      throw new Error(
+        `Failed to create draft for ${origPage.path}: ${draftResult.error.message}`
+      );
+    }
+    page = draftResult.page;
+  }
+
+  ctx.pageDrafts.set(origPage.path, page.id);
+  return page.id;
 }
 
 export async function resolvePages(

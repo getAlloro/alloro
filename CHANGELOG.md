@@ -2,6 +2,27 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.135] - June 2026
+
+### AI Command Bulk Editor — Edits Now Persist (and Status Tells the Truth)
+
+Fixes a bug where the website AI Command bulk editor reported edits as "executed" but silently dropped them. A run that asked to "replace all cal.com links with /book-a-demo" reported 38/38 executed, yet the published pages were unchanged.
+
+**Root cause:** when several recommendations in one batch touched the same page section, the executor read the section from one draft row and wrote it to another, so each edit was computed from a stale snapshot and overwrote the previous one — only the last write per section survived. The status was set on "the LLM returned HTML," never on "the change reached the published page," so it reported success regardless.
+
+**Key Changes:**
+- `fix:` the executor now pins a single draft per page for the whole batch, used by both the read (`getCurrentHtml`) and the write (`saveEditedHtml`), so edits to the same section stack instead of clobbering each other.
+- `feat:` a post-publish verification pass re-reads the published content for every "executed" edit and confirms the change actually landed; anything that didn't is downgraded to `failed` with a reason, so the batch stats stop lying. The check is conservative — it only fails an edit when the change is provably absent.
+- `test:` added unit coverage for the draft-pinning (read+write share one row, idempotent) and the verify net (flags an absent change, confirms a present one).
+
+**Verification:** `npx tsc --noEmit` clean (0 errors from changed files); `npm run check:conventions --strict` 0 new backend violations; `npx vitest run` 83/83 pass (10 new). Behavioral UI re-run on dev deferred to post-deploy owner verification.
+
+**Commits:**
+- `src/controllers/admin-websites/feature-services/service.ai-command-execute.ts` — pin one draft per page across read + write; call the verify pass after publishing.
+- `src/controllers/admin-websites/feature-utils/util.ai-command-shared.ts` — add `resolvePageDraftId` (the per-path pinned-draft resolver).
+- `src/controllers/admin-websites/feature-utils/util.ai-command-verify.ts` — new post-publish verifier (`extractAddedTokens`, `changeIsPresent`, `verifyBatchEdits`).
+- `src/__tests__/ai-command-execute.test.ts` — new unit tests.
+
 ## [0.0.134] - June 2026
 
 ### Dev API Boot Fix + Quieter Proxied Request Logs
