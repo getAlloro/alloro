@@ -27,6 +27,7 @@ const NON_STAGE_EVENTS = new Set<string>([
   "cta_clicked_create_account",
   "email_field_focused",
   "email_field_blurred_empty",
+  "audit_retried",
 ]);
 
 /**
@@ -35,10 +36,28 @@ const NON_STAGE_EVENTS = new Set<string>([
  * terminal boolean flag — its own server-side guard (`shouldSetAbandoned`)
  * handles it separately.
  */
-export function isProgressionStage(event: string): boolean {
+export function isProgressionStage(event: string): event is FinalStage {
   if (NON_STAGE_EVENTS.has(event)) return false;
   if (event === "abandoned") return false;
-  return event in STAGE_ORDER;
+  // hasOwnProperty, not `in`: `"toString" in STAGE_ORDER` is true via the
+  // prototype chain, which would wrongly accept inherited Object members.
+  return Object.prototype.hasOwnProperty.call(STAGE_ORDER, event);
+}
+
+/**
+ * Is `event` a recognized leadgen event the API should accept — either a
+ * progression stage (in STAGE_ORDER) or a declared non-stage interaction event
+ * (CTA clicks, email-field focus/blur, audit retries)? The boundary validator
+ * on /event + /beacon uses this so legitimate interaction events are recorded
+ * instead of 400-rejected. Keep NON_STAGE_EVENTS in sync with the leadgen-tool
+ * LeadgenEventName union.
+ */
+export function isAcceptedEventName(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    (Object.prototype.hasOwnProperty.call(STAGE_ORDER, value) ||
+      NON_STAGE_EVENTS.has(value))
+  );
 }
 
 export type StageEventDecision =
