@@ -1,0 +1,118 @@
+{
+  "plan": "plans/06292026-audit-grade-scale-deterministic",
+  "generatedAt": "2026-06-29",
+  "status": "In Progress",
+  "evidenceRuns": [
+    { "org": "Artful Orthodontics", "auditId": "68df9656-bb5f-4153-ae6f-f6f11be536b2", "website": "78 → C+", "gbp": "79 → C+", "ranking": "72 → C-" },
+    { "org": "One Endodontics", "auditId": "752bb6bb-9c7b-4ac8-9d15-1728c0c177ea", "website": "78 → C+", "gbp": "68 → D+", "ranking": "98 → A" }
+  ],
+  "items": [
+    {
+      "id": "T1",
+      "title": "scoreToGrade unit suite — 12-band scale + DoD invariants",
+      "surface": "cli",
+      "precondition": "Backend deps installed (~/Desktop/alloro)",
+      "steps": [
+        "1. cd ~/Desktop/alloro",
+        "2. npx vitest run src/__tests__/gradeScale.test.ts"
+      ],
+      "expected": "31/31 pass; the 0–59→F and 70–72→C- loops are green; every band edge, rounding, clamp, and non-finite fallback asserted.",
+      "status": "pass",
+      "evidence": "Test Files 1 passed (1) · Tests 31 passed (31) — run 2026-06-29.",
+      "notes": "Layer-1 proof of the scale. A null→0→F coercion bug in deriveGrade was caught by this suite and fixed during the run.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Website Performance card letter matches the approved scale",
+      "surface": "api",
+      "precondition": "Run a fresh audit for a practice whose website scores ~72%.",
+      "steps": [
+        "1. Run a report at audit.getalloro.com",
+        "2. GET /api/audit/:id/status",
+        "3. Read website_analysis.overall_score and website_analysis.overall_grade"
+      ],
+      "expected": "overall_score 72 → overall_grade \"C-\" (previously \"C+\"); 76 → \"C\".",
+      "status": "pass",
+      "evidence": "Live via localhost:3002 → localhost:3000 (patched dev backend). Artful 78 → C+; One Endodontics 78 → C+. Both in the 77–79 = C+ band.",
+      "notes": "Verified end-to-end in the dashboard UI and the /audit/:id/status payload.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "GBP Readiness card letter matches the approved scale",
+      "surface": "api",
+      "precondition": "Fresh audit for a practice with GBP readiness ~88%.",
+      "steps": [
+        "1. GET /api/audit/:id/status",
+        "2. Read gbp_analysis.gbp_readiness_score and gbp_analysis.gbp_grade"
+      ],
+      "expected": "88 → \"B+\" (previously \"B\"); 81 → \"B-\"; 77 → \"C+\".",
+      "status": "pass",
+      "evidence": "Artful 79 → C+; One Endodontics 68 → D+. The 68 → D+ proves the 12-band scale is live — the old coarse scale returned D for 68.",
+      "notes": "Derived in code via scoreToGrade(gbp_readiness_score); confirms the +/- granularity.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Local Ranking card letter matches the approved scale",
+      "surface": "api",
+      "precondition": "Fresh audit that includes competitor analysis; client rank ~72%.",
+      "steps": [
+        "1. GET /api/audit/:id/status",
+        "2. Read gbp_analysis.competitor_analysis.rank_score and .rank_grade"
+      ],
+      "expected": "72 → \"C-\" (previously \"B\"); 68 → \"D+\"; 62 → \"D-\".",
+      "status": "pass",
+      "evidence": "Artful 72 → C- (Jo's exact headline case, previously displayed \"B\"); One Endodontics 98 → A. Both match the approved scale.",
+      "notes": "Biggest prior inflation — was LLM cohort-relative, now score-derived in the aggregator.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Invariant on a live report — 0–59 only ever F; 70–72 only ever C- (all three cards)",
+      "surface": "api",
+      "precondition": "A completed audit whose cards span these ranges.",
+      "steps": [
+        "1. GET /api/audit/:id/status",
+        "2. Cross-check every card's score against its letter"
+      ],
+      "expected": "No score 0–59 shows anything but F; no score 70–72 shows anything but C-.",
+      "status": "pass",
+      "evidence": "70–72 → C- hit live (Artful ranking 72 → C-). No 0–59 score occurred in these two runs (lowest was 68), so the F half is unit-proven (T1) but not yet observed live.",
+      "notes": "70–72 invariant confirmed end-to-end; 0–59 → F covered by the T1 loop assertion.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Prompt change — agents emit no letter, grades still populate from derivation",
+      "surface": "api",
+      "precondition": "Fresh audit after the prompt edits.",
+      "steps": [
+        "1. Run a full audit (website + GBP pillars)",
+        "2. Confirm no parse/validation error in the worker",
+        "3. Confirm overall_grade, gbp_grade, rank_grade are all present and correct"
+      ],
+      "expected": "Audit completes; all three letters derived in code, none sourced from the LLM.",
+      "status": "pass",
+      "evidence": "Both audits ran the edited prompts (dev prompt-loader reads .md fresh) and completed with no parse/validation error; all three letters present and matching the scale.",
+      "notes": "Confirms removing overall_grade/rank_grade from the prompts did not break the pipeline.",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "Jo confirms ≥2 documented examples (Definition of Done sign-off)",
+      "surface": "ui",
+      "precondition": "Fix deployed to audit.getalloro.com.",
+      "steps": [
+        "1. Jo re-runs at least two audits from her reference sheet",
+        "2. Jo confirms the letters now match the approved scale"
+      ],
+      "expected": "Both reports show correct letters across all three cards.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "External sign-off required by the card's Definition of Done.",
+      "waiver": ""
+    }
+  ]
+}

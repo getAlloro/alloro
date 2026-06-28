@@ -1,10 +1,13 @@
 import { ensureLatLng } from "./locationUtils";
+import { deriveGrade } from "./gradeScale";
 
 export function normalizeWebsiteAnalysis(data: any): any | null {
   if (!data) return null;
   return {
     overall_score: Number(data.overall_score),
-    overall_grade: data.overall_grade,
+    // Letter is derived from the score (the LLM no longer supplies it); fall
+    // back to any stored letter only if the score is somehow missing.
+    overall_grade: deriveGrade(data.overall_score, data.overall_grade),
     pillars: data.pillars.map((p: any) => ({
       ...p,
       score: Number(p.score),
@@ -40,9 +43,20 @@ export function normalizeCompetitors(
 
 export function normalizeGBPAnalysis(data: any): any | null {
   if (!data) return null;
+  const gbp_readiness_score = Number(data.gbp_readiness_score);
+  const competitor = data.competitor_analysis;
   return {
     ...data,
-    gbp_readiness_score: Number(data.gbp_readiness_score),
+    gbp_readiness_score,
+    // Grades are always derived from their score on the way out, so a stored
+    // letter or any LLM-authored one is superseded by the approved scale.
+    gbp_grade: deriveGrade(gbp_readiness_score, data.gbp_grade),
+    competitor_analysis: competitor
+      ? {
+          ...competitor,
+          rank_grade: deriveGrade(competitor.rank_score, competitor.rank_grade),
+        }
+      : competitor,
     pillars: data.pillars.map((p: any) => ({
       ...p,
       score: Number(p.score),
