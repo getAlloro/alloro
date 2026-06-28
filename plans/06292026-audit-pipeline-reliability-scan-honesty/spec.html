@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Audit Pipeline Reliability & Scan Honesty Spec</title>
+  <style>
+    :root { color-scheme: light; --paper:#fff; --ink:#080808; --muted:#5f5f5f; --line:#d8d8d8; --soft:#f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.5; }
+    .spec-shell { width:min(1120px,calc(100% - 32px)); margin:0 auto; padding:48px 0; }
+    .spec-hero,.spec-card,.task-card { border:1px solid var(--line); border-radius:8px; background:var(--paper); }
+    .spec-hero { border-color:var(--ink); padding:32px; margin-bottom:20px; }
+    .hero-topline { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+    .spec-card { padding:28px; margin-top:16px; }
+    .task-card { padding:20px; background:var(--soft); margin-top:14px; }
+    .eyebrow,dt { color:var(--muted); font-size:.78rem; font-weight:700; text-transform:uppercase; }
+    .eyebrow { margin:0; }
+    .status-pill { display:inline-flex; align-items:center; min-height:34px; padding:0 12px; border:1px solid var(--ink); border-radius:999px; background:var(--ink); color:var(--paper); font-size:.78rem; font-weight:800; text-transform:uppercase; }
+    .status-card { border-color:var(--ink); }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { max-width:840px; margin-bottom:24px; font-size:clamp(2rem,5vw,4rem); line-height:.95; }
+    h2 { font-size:1.35rem; } h3 { font-size:1rem; }
+    code { padding:.1rem .3rem; border:1px solid var(--line); border-radius:4px; background:var(--soft); font-size:.92em; }
+    pre { overflow-x:auto; padding:14px 16px; border:1px solid var(--line); border-radius:8px; background:var(--soft); font-size:.84rem; }
+    pre code { border:0; padding:0; background:none; }
+    .meta-grid,.split-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+    .meta-grid { margin:0; }
+    .meta-grid div,.split-grid > div { border:1px solid var(--line); border-radius:8px; padding:16px; }
+    dd { margin:4px 0 0; font-weight:700; }
+    table { width:100%; border-collapse:collapse; margin:8px 0; font-size:.9rem; }
+    th,td { border:1px solid var(--line); padding:6px 10px; text-align:left; vertical-align:top; }
+    th { background:var(--soft); text-transform:uppercase; font-size:.72rem; }
+    .tag { display:inline-block; font-size:.66rem; font-weight:800; text-transform:uppercase; border:1px solid var(--ink); border-radius:999px; padding:1px 8px; }
+    .checklist { list-style:none; padding-left:0; }
+    .checklist li { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); }
+    @media (max-width:640px){ .spec-shell{width:min(100% - 20px,1120px);padding:24px 0;} .spec-hero,.spec-card{padding:20px;} }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">In Progress</span>
+      </div>
+      <h1>Audit Pipeline Reliability &amp; Scan Honesty</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>In Progress — 4/4 shipped</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06292026-audit-pipeline-reliability-scan-honesty</dd></div>
+        <div><dt>Size</dt><dd>Medium–Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 3 — Structural</dd></div>
+        <div><dt>Repos</dt><dd>~/Desktop/alloro + ~/Desktop/alloro-leadgen-tool + prod</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Four follow-ups from the grade-scale work's live verification, bundled by request. One is a real correctness bug; the others harden trust and analytics.</p>
+      <table>
+        <tr><th>#</th><th>Problem</th><th>Evidence</th></tr>
+        <tr><td>T1</td><td><strong>GBP analysis silently skipped when the website scan is slow/fails.</strong> The independent website branch is awaited on the critical path before the GBP analysis; its throw aborts the whole job.</td><td>Reported by user; root cause confirmed in <code>auditLeadgen.processor.ts:396–399</code> + catch at <code>:596</code>.</td></tr>
+        <tr><td>T2</td><td>Competitor cohort can be too thin to grade against (n=2).</td><td>One Endodontics audit found 2 competitors; <code>rank_score</code> is a cohort percentile, so n=2 is fragile.</td></tr>
+        <tr><td>T3</td><td>Website-scan "result" tags are fake and can contradict the real report.</td><td><code>WebsiteScanStage.tsx:55</code> floats hardcoded green badges (Speed OK, CTA Found…) unconditionally.</td></tr>
+        <tr><td>T4</td><td>Leadgen tracking events 400 (funnel analytics may be dropping).</td><td><code>POST /api/leadgen/event</code> → 400 observed locally (placeholder key). Prod parity unconfirmed.</td></tr>
+      </table>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <ul>
+        <li><strong>T1:</strong> A slow/failed website analysis never aborts the GBP analysis. Website failure degrades to an empty website card; GBP + competitor + ranking still complete. <code>realtime_status</code> is monotonic (no backward UI flicker).</li>
+        <li><strong>T2:</strong> When the same-specialty competitor search returns fewer than a floor (e.g. &lt;4), broaden once (wider radius and/or adjacent category) and merge/dedupe; surface the true cohort size so a thin comparison is never presented as authoritative.</li>
+        <li><strong>T3:</strong> Scan tags describe <em>activity</em>, not fake results — neutral process verbs ("Checking SSL…", "Scanning CTAs…") instead of asserted positives the report may later contradict.</li>
+        <li><strong>T4:</strong> Confirm whether prod actually has a key mismatch; if so, align the backend <code>LEADGEN_TRACKING_KEY</code> with the deployed bundle's build-time <code>VITE_LEADGEN_TRACKING_KEY</code> and verify a tracking event returns 200.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><strong>T1</strong> — <code>~/alloro/src/workers/processors/auditLeadgen.processor.ts</code>. Branches A/B/C fan out; <code>bPromise</code> (website analysis) captured at <code>:299</code>, awaited at <code>:398</code> before GBP analysis at <code>:403</code>. <code>realtime_status</code> written by branchB (<code>:289</code> rt=2) and branchC (<code>:359</code> rt=3, <code>:389</code> rt=4) in parallel. Catch at <code>:596</code> marks <code>status:"failed"</code>.</li>
+        <li><strong>T1 helper</strong> — <code>audit-services/auditUpdateService.ts</code> (<code>updateAuditFields</code>) is the natural home for a monotonic <code>realtime_status</code> guard.</li>
+        <li><strong>T2</strong> — <code>~/alloro/src/controllers/audit/audit-services/service.audit-apify.ts</code> (<code>scrapeCompetitorGBPs</code>, single <code>textSearch</code>, <code>:322</code>) and <code>agents/auditAgents/CompetitorStringBuilder.md</code> (builds the search query).</li>
+        <li><strong>T3</strong> — <code>~/alloro-leadgen-tool/src/components/stages/WebsiteScanStage.tsx</code> (<code>messages</code> <code>:37</code>, <code>tags</code> <code>:55</code>).</li>
+        <li><strong>T4</strong> — prod <code>alloro-app</code> (52.203.199.155) backend <code>.env</code>; leadgen build secret (<code>VITE_LEADGEN_TRACKING_KEY</code>); validator behind <code>POST /api/leadgen/event</code>.</li>
+      </ul>
+      <h3>Patterns To Follow (Code Constitution)</h3>
+      <ul>
+        <li><strong>§21.1 / §21.3</strong> — workers stay idempotent and orchestrate services; T1 must not duplicate work on retry and should keep business logic in services. <strong>Reference analog:</strong> <code>src/workers/processors/scrapeCompare.processor.ts</code> (named in this processor's header).</li>
+        <li><strong>§3.1 / §3.2</strong> — every async call handled; T1 deliberately <em>catches</em> the website-branch failure and degrades (logged via Pino, <strong>§9.1</strong>), rather than letting it abort GBP. This is handled-and-logged, not swallowed.</li>
+        <li><strong>§6.1 / §6.3</strong> — T2 stays in <code>audit-services/</code>; mirror <code>controllers/gbp-automation/</code> structure.</li>
+        <li><strong>§13.2 / §17.1</strong> — T3 keeps the component lean and free of <code>console.*</code>.</li>
+        <li><strong>§5.1 / §5.6</strong> — T4 keeps the secret in env only; consider a startup check that <code>LEADGEN_TRACKING_KEY</code> is set (§5.6).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>T1: GBP analysis runs whenever its inputs (self GBP + competitors) succeeded, independent of the website branch.</li>
+            <li>T1: <code>realtime_status</code> never decreases.</li>
+            <li>T2: never present a thin cohort as authoritative — show the real count.</li>
+            <li>T4: back up prod <code>.env</code> before any edit; change a key only if a genuine mismatch is proven.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Don't rewrite a working prod key (the local 400 was a dev placeholder — prod may already be correct).</li>
+            <li>Don't change website/GBP scoring logic or the grade scale (just-shipped).</li>
+            <li>T3: don't fabricate real telemetry — at scan time the analysis isn't done, so tags stay process-descriptive.</li>
+            <li>No new dependencies; no schema migration.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Adding an LLM-output retry/repair for the website analysis (separate hardening; T1 only needs graceful degradation).</li>
+        <li>Re-running historical failed audits.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level 3 — Structural.</strong> T1 edits the core audit orchestration (blast radius: every audit). T4 writes prod config. Both demand care.</p>
+      <h3>Risks &amp; Mitigations</h3>
+      <ul>
+        <li><strong>T1 reorder changes completion semantics.</strong> Decoupling means an audit can now "complete" with a null website card where it previously failed. <strong>Mitigation:</strong> that is the intended, better behavior (partial result &gt; total failure); the frontend already greys out a null website card. Assert it explicitly in tests.</li>
+        <li><strong>Monotonic guard could mask a legit reset.</strong> <strong>Mitigation:</strong> the pipeline only ever moves forward (0→5); a guard that ignores lower writes is safe. Scope the guard to <code>realtime_status</code> only.</li>
+        <li><strong>T2 cohort broadening changes grade meaning.</strong> Comparing an endodontist against general dentists shifts the cohort. <strong>Mitigation / decision:</strong> prefer same-specialty; only broaden when below the floor, and label the cohort. Keep broadening conservative.</li>
+        <li><strong>T4 prod write.</strong> Wrong key value breaks tracking further. <strong>Mitigation:</strong> read both sides first, prove the mismatch, back up <code>.env</code>, change the minimum, restart, verify a 200, keep the old value to roll back.</li>
+      </ul>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>Bundling a prod-ops change with a Level-3 pipeline refactor in one plan is broad.</strong> Recommended execution order: <strong>T1 → T4 → T2 → T3</strong>, committing T1 on its own (it's the bug) before the rest, so the reliability fix can ship and be watched independently of the softer changes.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Decouple website analysis from GBP analysis + monotonic status <span class="tag">bug · backend</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Wrap the <code>await branchAResult.bPromise</code> (processor <code>:398</code>) in its own try/catch: on failure, log (Pino) and persist <code>step_website_analysis: null</code>, then continue to the GBP analysis. Add a monotonic guard so <code>realtime_status</code> never goes backward (in <code>updateAuditFields</code> or a dedicated <code>bumpRealtimeStatus</code>). Verify GBP analysis no longer sits behind the website await.</dd></div>
+          <div><dt>Files</dt><dd><code>auditLeadgen.processor.ts</code>, <code>audit-services/auditUpdateService.ts</code>, test under <code>src/__tests__/</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Unit/integration: simulate a throwing website branch → assert audit completes with <code>gbp_analysis</code> present and <code>website_analysis: null</code>. Manual: a known slow/heavy site completes with GBP intact.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Broaden thin competitor cohorts + surface cohort size <span class="tag">backend</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>scrapeCompetitorGBPs</code>, when the primary search yields fewer than a floor (e.g. &lt;4 after self-exclusion), run one broadened search (wider radius and/or adjacent category) and merge/dedupe by <code>placeId</code>. Pass the real cohort count through so the UI can label it. Keep same-specialty first.</dd></div>
+          <div><dt>Files</dt><dd><code>service.audit-apify.ts</code>, possibly <code>CompetitorStringBuilder.md</code> (emit a fallback query), competitor-analysis pillar prompt (acknowledge cohort size)</dd></div>
+          <div><dt>Depends on</dt><dd>none (independent of T1)</dd></div>
+          <div><dt>Verify</dt><dd>Re-run One Endodontics → cohort &gt; 2 or an explicit "limited cohort" signal; dedupe holds; self never appears as a competitor.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Honest website-scan tags <span class="tag">frontend · leadgen-tool</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>In the leadgen repo, change the floating green result-badges to neutral process verbs (e.g. "Checking SSL…", "Scanning CTAs…", "Measuring speed…") and align the message reel so the scan narrates activity, not asserted outcomes. No badge claims a positive result.</dd></div>
+          <div><dt>Files</dt><dd><code>~/alloro-leadgen-tool/src/components/stages/WebsiteScanStage.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Run an audit locally; tags read as in-progress activity; nothing asserts "OK/Found/Optimized" before the report exists.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Prod tracking-key parity <span class="tag">ops · prod</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>ssh alloro-app</code>; read <code>LEADGEN_TRACKING_KEY</code> from the backend <code>.env</code>. Determine the value the deployed audit.getalloro.com bundle sends (build secret / live request). If they match, record "no change needed" and stop. If they mismatch: back up <code>.env</code>, align the backend key to the deployed value, restart the service (pm2/systemd per <code>ecosystem.config.js</code>), and confirm a <code>POST /api/leadgen/event</code> returns 200.</dd></div>
+          <div><dt>Files</dt><dd>prod <code>.env</code> on alloro-app (no repo files); optional §5.6 startup check in <code>src/</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Live <code>POST /api/leadgen/event</code> against prod with the deployed key returns 200; a real audit on audit.getalloro.com logs no 400.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> T1: a thrown/slow website branch yields a completed audit with GBP intact + null website card (tested)</li>
+        <li><input type="checkbox" disabled> T1: <code>realtime_status</code> proven monotonic under a slow-website race</li>
+        <li><input type="checkbox" disabled> T2: One Endodontics re-run shows a larger cohort or an explicit limited-cohort signal; no self in competitors</li>
+        <li><input type="checkbox" disabled> T3: no scan badge asserts a positive result before the report exists</li>
+        <li><input type="checkbox" disabled> T4: prod mismatch proven-or-disproven; if changed, live tracking event returns 200 and old value retained for rollback</li>
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> clean; <code>npm run check:conventions --strict</code> cites no changed files; <code>npm test</code> green</li>
+        <li><input type="checkbox" disabled> No regression to the just-shipped grade scale</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 — 2026-06-29 (execution)</h3>
+        <p><strong>T1 — done &amp; committed</strong> (<code>1dfbfe6d</code>). Extracted <code>settleWebsiteBranchNonFatal</code> (audit-utils) + unit test; the processor now settles the website branch non-fatally so a slow/unparseable website analysis nulls the website card and the GBP analysis still runs. <em>Execution deviation:</em> the secondary "monotonic realtime_status" fix was already present — <code>updateAuditFields</code> routes through <code>updateFieldsWithRealtimeFloor</code> (a <code>GREATEST</code> floor), so T1 narrowed to the decoupling only. 4/4 unit tests pass; tsc + conventions clean.</p>
+        <p><strong>T4 — done, no prod change.</strong> Proved there is no key mismatch: prod backend <code>LEADGEN_TRACKING_KEY</code> (<code>/var/www/signals/.env</code>) equals the value baked into the deployed audit.getalloro.com bundle. A bad key returns <strong>401</strong>, not 400 — so the observed <code>/api/leadgen/event</code> 400 is a payload rejection (<code>invalid_session_id</code> / <code>invalid_event_name</code>), most likely a transient stale-session event during the <code>?audit_id=</code> navigation. <em>Hygiene flag:</em> prod runs the placeholder key <code>dev-leadgen-change-me-2026</code>; rotating it needs a coordinated backend-env + frontend-rebuild, not a lone <code>.env</code> edit.</p>
+        <p><strong>T3 — done &amp; committed</strong> (leadgen-tool <code>9e50030</code>). Scan badges relabeled from asserted verdicts (Speed OK, CTA Found) to activity verbs (Checking speed, Locating CTAs).</p>
+        <p><strong>T2 — BLOCKED on a decision.</strong> The 5-cap was never binding (One Endodontics' market genuinely has ~3 endodontists). Increasing the cohort forks: (a) widen radius — but the competitor fetch runs parallel to the self-GBP fetch, so the self lat/lng isn't available without serializing and slowing the pipeline; (b) broaden category — mixes specialties and would make an endodontist score worse vs general dentists, degrading the just-fixed grade; (c) keep same-specialty and only surface the true cohort size honestly. Awaiting direction; no code shipped for T2.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 — 2026-06-29 (T2 decision)</h3>
+        <p><strong>Decision:</strong> honesty-only (option c). <strong>T2 — done &amp; committed</strong> (leadgen-tool <code>854ef72</code>). The Local Ranking card now states "Ranked against N nearby competitors" and, when N&lt;4, adds "Limited local cohort — directional, not definitive". Deterministic, frontend-only, zero pipeline cost, no change to the cohort search or the grade. tsc clean. Live screenshot pending — the Playwright browser hung on the <code>?audit_id=</code> remount route (dev server healthy); flagged for a manual look.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
