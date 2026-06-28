@@ -8,6 +8,8 @@
  *   Search Conversion 15, Competitor Analysis 10.
  */
 
+import { scoreToGrade } from "./gradeScale";
+
 export interface PillarOutput {
   category: string;
   score: number;
@@ -54,14 +56,6 @@ const WEIGHTS: Record<string, number> = {
   "Competitor Analysis": 0.1,
 };
 
-function scoreToGrade(score: number): string {
-  if (score >= 90) return "A";
-  if (score >= 80) return "B";
-  if (score >= 70) return "C";
-  if (score >= 60) return "D";
-  return "F";
-}
-
 function pickTopActionItems(pillars: PillarOutput[], n = 3): string[] {
   // Strategy: pick action items from the lowest-scoring pillars first
   // (they're the biggest gaps). Take 1 per pillar until we hit `n`.
@@ -101,11 +95,19 @@ export function aggregateGbpAnalysis(bundle: PillarBundle) {
   const gbp_grade = scoreToGrade(gbp_readiness_score);
   const top_action_items = pickTopActionItems(pillars, 3);
 
+  // Letter grade is always derived from the score in code — never the LLM's
+  // freehand letter — so every audit card honors the same approved scale.
+  const competitorAnalysis = bundle.competitorAnalysis.competitor_analysis;
+  const competitor_analysis = {
+    ...competitorAnalysis,
+    rank_grade: scoreToGrade(competitorAnalysis.rank_score),
+  };
+
   return {
     top_action_items,
     gbp_readiness_score,
     gbp_grade,
-    competitor_analysis: bundle.competitorAnalysis.competitor_analysis,
+    competitor_analysis,
     sync_audit: bundle.profileIntegrity.sync_audit,
     pillars,
   };

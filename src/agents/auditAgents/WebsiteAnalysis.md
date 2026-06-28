@@ -27,7 +27,6 @@ Return a JSON object matching this schema:
 {
   "top_action_items": ["Urgent Action 1", "Urgent Action 2", "Urgent Action 3"],
   "overall_score": 0,
-  "overall_grade": "A",
   "pillars": [
     { "category": "Trust & Authority", "score": 0, "key_finding": "Summary + Recommendation", "action_items": [] },
     { "category": "Accessibility", "score": 0, "key_finding": "Summary + Recommendation", "action_items": [] },
