@@ -1,0 +1,49 @@
+{
+  "plan": "plans/06292026-leadgen-event-400-and-audit-id-hang",
+  "generatedAt": "2026-06-29",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "/leadgen/event accepts interaction events (no more 400)",
+      "surface": "api",
+      "precondition": "Local backend on :3000 (tsx watch) with a valid LEADGEN_TRACKING_KEY",
+      "steps": [
+        "1. npx vitest run src/__tests__/leadgen-event-validation.test.ts",
+        "2. POST /api/leadgen/event with X-Leadgen-Key + a UUID session_id for each event name"
+      ],
+      "expected": "The 5 previously-rejected names (cta_clicked_create_account, cta_clicked_strategy_call, email_field_focused, email_field_blurred_empty, audit_retried) return 200; unknown names + inherited members (toString) still 400.",
+      "status": "pass",
+      "evidence": "Unit 7/7 pass. Live: cta_clicked_create_account=200, audit_retried=200, email_field_focused=200, landed=200 (control), bogus_event_xyz=400, toString=400. Committed 4d3632ca.",
+      "notes": "Interaction events record without advancing final_stage (isProgressionStage=false).",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Reproduce + classify the ?audit_id= route hang",
+      "surface": "ui",
+      "precondition": "Clean browser session",
+      "steps": [
+        "1. Load http://localhost:3002/ (base)",
+        "2. Load http://localhost:3002/?audit_id=<completed-audit>"
+      ],
+      "expected": "Either reproduce a real hang (→ fix in T3) or refute it.",
+      "status": "pass",
+      "evidence": "Refuted: cold ?audit_id= load rendered the full dashboard with no hang on a clean browser. Earlier timeout = accumulated headless state after many heavy audits, not a product defect. Cold-mount code path has no sync loop.",
+      "notes": "Soft note: dashboard is iframe/animation-heavy; lazy-mounting the Google Maps embed is a future perf nicety, not a bug.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Fix the hang (conditional on T2)",
+      "surface": "none",
+      "precondition": "Only if T2 found a real hang",
+      "steps": ["N/A — T2 classified the hang as a test artifact, so no fix is warranted"],
+      "expected": "N/A",
+      "status": "pass",
+      "evidence": "Not needed — T2 refuted a real hang. No code change.",
+      "notes": "Dropped per T2 findings.",
+      "waiver": ""
+    }
+  ]
+}
