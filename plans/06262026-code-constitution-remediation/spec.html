@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Code Constitution Remediation Spec</title>
+  <style>
+    :root { color-scheme: light; --paper:#fff; --ink:#080808; --muted:#5f5f5f; --line:#d8d8d8; --soft:#f5f5f5; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; line-height:1.5; }
+    .spec-shell { width:min(1120px,calc(100% - 32px)); margin:0 auto; padding:48px 0; }
+    .spec-hero,.spec-card,.task-card { border:1px solid var(--line); border-radius:8px; background:var(--paper); }
+    .spec-hero { border-color:var(--ink); padding:32px; margin-bottom:20px; }
+    .hero-topline { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+    .spec-card { padding:28px; margin-top:16px; }
+    .task-card { padding:20px; background:var(--soft); margin-top:12px; }
+    .eyebrow,dt { color:var(--muted); font-size:.78rem; font-weight:700; letter-spacing:0; text-transform:uppercase; }
+    .eyebrow { margin:0; }
+    .status-pill { display:inline-flex; align-items:center; min-height:34px; padding:0 12px; border:1px solid var(--ink); border-radius:999px; background:var(--ink); color:var(--paper); font-size:.78rem; font-weight:800; letter-spacing:0; text-transform:uppercase; }
+    .status-card { border-color:var(--ink); }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { max-width:840px; margin-bottom:24px; font-size:clamp(2.25rem,6vw,5rem); line-height:.95; letter-spacing:0; }
+    h2 { font-size:1.35rem; letter-spacing:0; }
+    h3 { font-size:1rem; letter-spacing:0; }
+    code { padding:.1rem .3rem; border:1px solid var(--line); border-radius:4px; background:var(--soft); font-size:.92em; }
+    .meta-grid,.split-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+    .meta-grid { margin:0; }
+    .meta-grid div,.split-grid>div { border:1px solid var(--line); border-radius:8px; padding:16px; }
+    dd { margin:4px 0 0; font-weight:700; }
+    .checklist { list-style:none; padding-left:0; }
+    .checklist li { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); }
+    @media (max-width:640px) { .spec-shell { width:min(100% - 20px,1120px); padding:24px 0; } .spec-hero,.spec-card { padding:20px; } }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>Code Constitution Remediation</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06262026-code-constitution-remediation</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The current convention check is blocked by hard backend violations and a finite set of frontend and backend advisory violations. We need the codebase to move closer to the numbered constitution instead of carrying avoidable drift.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Remediate the convention-runner findings that are local and mechanical: backend file size, backend raw logging strings, query placement, frontend API boundaries, unsafe HTML handling, token access, and import-boundary findings. Keep behavior stable.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/controllers/pms/PmsController.ts</code> - currently exceeds the backend file-size ceiling.</li>
+        <li><code>src/controllers/googleauth/utils/templates/successTemplate.ts</code> and <code>src/lib/logger.ts</code> - contain backend <code>console.</code> strings caught by the checker.</li>
+        <li><code>src/app.ts</code>, <code>src/routes/billing.ts</code>, and <code>src/validation/billing.schemas.ts</code> - are reported by raw-query checks.</li>
+        <li><code>frontend/src/api/pm.ts</code>, <code>frontend/src/utils/publishLint.ts</code>, and <code>frontend/src/utils/templateRenderer.ts</code> - are reported by frontend raw HTTP checks.</li>
+        <li><code>frontend/src/components/Admin/leadgen/</code> and <code>frontend/src/components/pm/RichTextEditor.tsx</code> - are reported by HTML injection checks.</li>
+      </ul>
+      <h3>Constitution Articles</h3>
+      <ul>
+        <li><code>§2.4</code> file-size ceiling for living source files.</li>
+        <li><code>§7.4</code>, <code>§9.1</code>, and <code>§10.2</code> backend layering, logging, and query-placement rules.</li>
+        <li><code>§12.1</code>, <code>§12.4</code>, <code>§14.2</code>, <code>§17.4</code>, and <code>§17.5</code> frontend API, import, HTML, and token-boundary rules.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Preserve existing behavior and public API shapes.</li>
+            <li>Use established controller, route, model, API helper, and React patterns.</li>
+            <li>Keep fixes narrow to convention findings.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not revert unrelated patient-journey or market-intelligence work in the dirty tree.</li>
+            <li>Do not add new dependencies.</li>
+            <li>Do not make product behavior changes just to satisfy a checker.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li>Some convention findings are heuristic and may be false positives. <strong>Mitigation:</strong> inspect each reported file before changing it and avoid behavior changes where a local naming or helper fix is enough.</li>
+        <li>The working tree is dirty with unrelated work. <strong>Mitigation:</strong> touch only convention-remediation files plus this plan folder.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> PMS routes, Google OAuth success screen, logger documentation, billing routes/validation, frontend publish utilities, admin auth shell, auth pages, PM editor, and leadgen submission detail rendering.</p>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Backend Strict Fixes</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Split the PMS mapping endpoints out of the oversized controller and remove backend <code>console.</code> strings from reported files.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/pms/*</code>, <code>src/routes/pms.ts</code>, <code>src/controllers/googleauth/utils/templates/successTemplate.ts</code>, <code>src/lib/logger.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>None</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run check:conventions -- --strict</code></dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Query And Raw-Call Boundary Fixes</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Move or rename reported raw calls so backend DB access and non-query framework calls comply with convention checks.</dd></div>
+          <div><dt>Files</dt><dd><code>src/app.ts</code>, <code>src/routes/billing.ts</code>, <code>src/validation/billing.schemas.ts</code>, model files if needed</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run check:conventions -- --strict</code></dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: Frontend Boundary Fixes</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Route API calls, token access, and import-boundary violations through established frontend helper modules.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/api/*</code>, <code>frontend/src/utils/*</code>, auth pages, admin shell files</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>npm --prefix frontend run build</code> and convention check</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T4: HTML Rendering Boundary Fixes</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Remove or isolate reported HTML injection sites without changing user-visible content.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/Admin/leadgen/*</code>, <code>frontend/src/components/pm/RichTextEditor.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3</dd></div>
+          <div><dt>Verify</dt><dd><code>npm --prefix frontend run build</code> and convention check</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled checked> <code>npm run check:conventions -- --strict</code> has no hard backend violations caused by this remediation.</li>
+        <li><input type="checkbox" disabled checked> <code>npx tsc --noEmit</code> passes or only reports unrelated pre-existing errors.</li>
+        <li><input type="checkbox" disabled checked> Relevant automated tests pass.</li>
+        <li><input type="checkbox" disabled checked> <code>npm --prefix frontend run build</code> passes.</li>
+      </ul>
+    </section>
+    <section class="spec-card" id="verification">
+      <h2>Verification</h2>
+      <ul>
+        <li><code>npm run check:conventions -- --strict</code> passed with zero hard backend violations and zero finite frontend/Tier A advisory hits for the remediated checks. The tenant-scope model heuristic remains advisory and requires manual review.</li>
+        <li><code>npx tsc --noEmit</code> passed.</li>
+        <li><code>npm test</code> passed: 14 test files, 69 tests.</li>
+        <li><code>npm --prefix frontend run build</code> passed with existing Vite chunk-size and dynamic-import warnings.</li>
+        <li><code>npm run lint -- --quiet</code> and <code>npm --prefix frontend run lint -- --quiet</code> passed with no errors.</li>
+        <li><code>npm run depcruise</code> passed with 32 existing architecture warnings after removing the <code>src/app.ts</code> database-layer warning.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

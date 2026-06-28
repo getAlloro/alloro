@@ -13,8 +13,14 @@ import type { PatientJourneyResponse } from "../types/patientJourney";
 
 export interface GetPatientJourneyParams {
   locationId: number;
-  /** Optional reporting period (first day of month, YYYY-MM-01). */
+  /** Optional reporting month (YYYY-MM or first day of month, YYYY-MM-01). */
   period?: string;
+}
+
+function monthQueryValue(period?: string): string | null {
+  if (!period) return null;
+  const match = /^(\d{4}-\d{2})(?:-\d{2})?$/.exec(period);
+  return match?.[1] ?? null;
 }
 
 export async function getPatientJourney(
@@ -22,7 +28,8 @@ export async function getPatientJourney(
 ): Promise<PatientJourneyResponse> {
   const search = new URLSearchParams();
   search.set("locationId", String(params.locationId));
-  if (params.period) search.set("period", params.period);
+  const month = monthQueryValue(params.period);
+  if (month) search.set("month", month);
   const query = search.toString();
   return apiGet({
     path: `/patient-journey${query ? `?${query}` : ""}`,

@@ -1,0 +1,102 @@
+{
+  "plan": "plans/06262026-market-intelligence-backend-foundation",
+  "generatedAt": "2026-06-29",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "GSC enrichment stores raw query signal as candidate evidence",
+      "surface": "cli",
+      "precondition": "Repo checkout after Rev 2 candidate-flow change",
+      "steps": [
+        "1. Run npm test -- --run src/__tests__/market-intelligence.*.test.ts",
+        "2. Inspect GSC enrichment behavior"
+      ],
+      "expected": "New GSC rows are saved as candidate rows, duplicates refresh last_seen_at, and raw GSC rows are not harvestable unless bootstrap approves them",
+      "status": "pass",
+      "evidence": "Focused market-intelligence tests passed: 6 files / 12 tests.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Bootstrap owns AI approval and archives stale generated keywords",
+      "surface": "cli",
+      "precondition": "Local development database on localhost/appdb",
+      "steps": [
+        "1. Run GSC enrichment, bootstrap, and DataForSEO harvest for orgs 5, 8, and 39",
+        "2. Query market_keywords by status/source"
+      ],
+      "expected": "Approved rows are only the latest AI-denoised market_intelligence_agent rows; raw GSC rows remain candidate; stale generated rows are archived",
+      "status": "pass",
+      "evidence": "Final source/status counts: Garrison 185 approved / 1034 GSC candidates / 46 archived; Artful 195 approved / 608 GSC candidates / 84 archived; One Endodontics 892 approved / 2317 GSC candidates / 378 archived.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "DataForSEO harvest uses local provider locations and avoids rate-limit failures",
+      "surface": "cli",
+      "precondition": "DATAFORSEO credentials configured in local development env",
+      "steps": [
+        "1. Run harvestMarketSearchVolumeForOrganization for orgs 5, 8, and 39 with reportMonth 2026-06-01",
+        "2. Query approved keyword rows and joined June volume rows"
+      ],
+      "expected": "Every approved keyword has a June volume row, no batch fails, and no approved row uses United States as the provider location when a local market is available",
+      "status": "pass",
+      "evidence": "Final rerun: Garrison 185/185 rows, Artful 195/195 rows, One Endodontics 892/892 rows, 0 failed batches. approved_united_states_rows = 0.",
+      "notes": "Added DataForSEO batch throttling after a local rerun hit provider task code 40202.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Final local first-card values are queryable for June 2026",
+      "surface": "cli",
+      "precondition": "Final local harvest completed for reportMonth 2026-06-01",
+      "steps": [
+        "1. Query approved market keywords joined to market_keyword_search_volume for report_month 2026-06-01",
+        "2. Sum search_volume per organization and location"
+      ],
+      "expected": "The Patient Journey first card can read the local June market opportunity totals",
+      "status": "pass",
+      "evidence": "Org totals: Garrison 720, Artful 540, One Endodontics 1370. One Endodontics location totals: Falls Church 220, Gainesville 180, Fredericksburg 430, Sterling 280, Woodbridge 260.",
+      "notes": "Values are DataForSEO monthly local-market estimates, not month-to-date observed searches.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Backend build, tests, lint, and constitution checks pass",
+      "surface": "cli",
+      "precondition": "Repo checkout after implementation and local rerun",
+      "steps": [
+        "1. Run npx tsc --noEmit",
+        "2. Run npm test",
+        "3. Run npm run check:conventions -- --strict",
+        "4. Run npm run lint"
+      ],
+      "expected": "TypeScript and tests pass; convention strict has no hard violations; lint has no errors",
+      "status": "pass",
+      "evidence": "npx tsc --noEmit passed. npm test -- --run passed 17 files / 83 tests. check:conventions --strict passed with 0 clear structural violations. npm run lint exited 0 with existing warnings only.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T10",
+      "title": "Legacy rank-keyword search-volume job is retired",
+      "surface": "cli",
+      "precondition": "Rev 6 cleanup task is implemented after Search Opportunity has moved to market_keyword_search_volume",
+      "steps": [
+        "1. Inspect src/workers/worker.ts for harvest-search-volume worker registration and monthly-search-volume-harvest schedule registration",
+        "2. Confirm the existing BullMQ repeatable key for monthly-search-volume-harvest is removed or covered by a startup cleanup/script",
+        "3. Confirm monthly-market-intelligence-refresh remains scheduled",
+        "4. Run npx tsc --noEmit",
+        "5. Run npm run check:conventions -- --strict"
+      ],
+      "expected": "The legacy harvest-search-volume worker path no longer runs DataForSEO calls, no stale repeatable job remains in Redis, and the new market-intelligence monthly refresh remains active",
+      "status": "pass",
+      "evidence": "worker.ts no longer imports, registers, handles, closes, or schedules the legacy harvest-search-volume worker. src/workers/processors/searchVolumeHarvest.processor.ts was deleted. Local Redis cleanup check returned before=0, removed=0, remainingLegacy=0. npx tsc --noEmit passed. Targeted market-intelligence and Patient Journey tests passed: 7 files / 24 tests. npm run check:conventions -- --strict passed with 0 clear structural violations.",
+      "notes": "The remaining monthly DataForSEO path is monthly-market-intelligence-refresh on harvest-market-intelligence. Historical keyword_search_volume rows, model, and adapter remain intact.",
+      "waiver": ""
+    }
+  ]
+}

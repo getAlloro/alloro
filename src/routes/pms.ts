@@ -1,6 +1,7 @@
 import express from "express";
 import * as controller from "../controllers/pms/PmsController";
 import * as fileManagerController from "../controllers/pms/PmsFileManagerController";
+import * as mappingController from "../controllers/pms/PmsMappingController";
 import { upload } from "../controllers/pms/pms-utils/file-upload.config";
 import { authenticateToken } from "../middleware/auth";
 import {
@@ -38,10 +39,10 @@ pmsRoutes.post("/summary", authenticateToken, rbacMiddleware, controller.getPmsS
 
 // Column-mapping endpoints
 // (See plan: 04272026-no-ticket-pms-column-mapping-ai-inference)
-pmsRoutes.post("/preview-mapping", ...canManagePmsFiles, controller.previewResetMapping);
-pmsRoutes.post("/upload-with-mapping", ...canManagePmsFiles, controller.uploadWithMapping);
-pmsRoutes.post("/jobs/:id/reprocess", ...canManagePmsFiles, controller.reprocessJobMapping);
-pmsRoutes.get("/mappings/cache", authenticateToken, rbacMiddleware, controller.getCachedMapping);
+pmsRoutes.post("/preview-mapping", ...canManagePmsFiles, mappingController.previewResetMapping);
+pmsRoutes.post("/upload-with-mapping", ...canManagePmsFiles, mappingController.uploadWithMapping);
+pmsRoutes.post("/jobs/:id/reprocess", ...canManagePmsFiles, mappingController.reprocessJobMapping);
+pmsRoutes.get("/mappings/cache", authenticateToken, rbacMiddleware, mappingController.getCachedMapping);
 
 // Data Retrieval
 pmsRoutes.get("/keyData", authenticateToken, rbacMiddleware, controller.getKeyData);

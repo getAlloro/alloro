@@ -20,19 +20,17 @@
  */
 
 import * as Sentry from "@sentry/node";
-import express from "express";
+import express, { Router, raw as expressRaw } from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { pinoHttp } from "pino-http";
 import path from "path";
-
-import { Router } from "express";
 
 import logger from "./lib/logger";
 
 import gbpRoutes from "./routes/gbp";
 import gbpAutomationRoutes from "./routes/gbpAutomation";
 import patientJourneyRoutes from "./routes/patient-journey";
-import { healthCheck } from "./database/connection";
+import { getDatabaseHealth } from "./models/DatabaseHealthModel";
 import clarityRoutes from "./routes/clarity";
 import taskRoutes from "./routes/tasks";
 import authRoutes from "./routes/auth";
@@ -173,7 +171,7 @@ app.use((req, res, next) => {
 });
 
 // Stripe webhook needs raw body for signature verification — mount BEFORE JSON parser
-app.use("/api/billing/webhook", express.raw({ type: "application/json" }));
+app.use("/api/billing/webhook", expressRaw({ type: "application/json" }));
 
 // Add JSON body parser middleware with increased limit for large PMS data
 app.use(express.json({ limit: "50mb" }));
@@ -181,7 +179,7 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // Database health check endpoint
 app.get("/api/health/db", async (req, res) => {
-  const health = await healthCheck();
+  const health = await getDatabaseHealth();
   res.status(health.status === "healthy" ? 200 : 500).json(health);
 });
 

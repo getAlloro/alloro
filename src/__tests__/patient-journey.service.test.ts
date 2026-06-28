@@ -7,14 +7,14 @@
  * the funnel-assembly *contract*, not any single source:
  *
  *   • response shape — location/period/stages/conversions/leak/revenue/context/
- *     headline, with the five funnel stages in journey order.
+ *     headline, with the four monitored lead-generation stages in journey order.
  *   • per-stage empty path — an unavailable reader yields value:null /
  *     available:false (an honest "not connected" stage), never a fake zero, and
  *     conversions touching it are null.
  *   • leak selection — the single smallest non-null step is flagged isLeak and
  *     drives leakStageKey + the descriptive (never predictive) headline.
- *   • org-type wording — a generic org says "customers", a health org "patients"
- *     (no hardcoding the clinical word).
+ *   • org-type context — generic orgs keep generic metadata without creating a
+ *     clinical patient-conversion stage.
  *   • multi-location labelling — shared traffic stages get the whole-practice note.
  *   • tenant scope (§5.5/§11.7/§20.2) — a location that belongs to another org
  *     is rejected (PatientJourneyNotFoundError); the service never crosses tenants.
@@ -23,7 +23,12 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { StageRead, PmsRead, RankRead, ReviewsRead } from "../controllers/patient-journey/feature-services/stageReaders";
+import type {
+  StageRead,
+  PmsRead,
+  RankRead,
+  ReviewsRead,
+} from "../controllers/patient-journey/feature-services/stageReaders";
 
 // ── Entity-resolution seam ────────────────────────────────────────────────
 const findLocationById = vi.fn();
@@ -41,7 +46,9 @@ vi.mock("../models/OrganizationModel", () => ({
   OrganizationModel: { findById: (...a: unknown[]) => findOrgById(...a) },
 }));
 vi.mock("../models/website-builder/ProjectModel", () => ({
-  ProjectModel: { findByOrganizationId: (...a: unknown[]) => findProjectByOrg(...a) },
+  ProjectModel: {
+    findByOrganizationId: (...a: unknown[]) => findProjectByOrg(...a),
+  },
 }));
 
 // ── Per-stage reader seam ─────────────────────────────────────────────────
@@ -64,7 +71,9 @@ vi.mock("../controllers/patient-journey/feature-services/stageReaders", () => ({
 }));
 
 // Keep the Pino logger inert (no transport noise during the assertion).
-vi.mock("../lib/logger", () => ({ default: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
+vi.mock("../lib/logger", () => ({
+  default: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
 
 import {
   assemblePatientJourney,
@@ -75,17 +84,28 @@ const ORG = 7;
 const LOCATION = 42;
 const MONTH = "2026-06-01";
 
-const stage = (value: number | null, available: boolean): StageRead => ({
+const stage = (
+  value: number | null,
+  available: boolean,
+  metadata?: StageRead["metadata"],
+  note?: string,
+): StageRead => ({
   value,
   available,
   asOf: available ? "2026-06-28" : null,
+  metadata,
+  note,
 });
 
 const FULL_PMS: PmsRead = {
   patients: stage(50, true),
   revenue: { value: 120000, available: true },
 };
-const FULL_RANK: RankRead = { position: 2, totalCompetitors: 9, available: true };
+const FULL_RANK: RankRead = {
+  position: 2,
+  totalCompetitors: 9,
+  available: true,
+};
 const FULL_REVIEWS: ReviewsRead = {
   rating: 4.8,
   count: 210,
@@ -96,12 +116,35 @@ const FULL_REVIEWS: ReviewsRead = {
 
 /** Default = single-location health org, project present, every stage live. */
 function seedHappyPath(): void {
-  findLocationById.mockResolvedValue({ id: LOCATION, name: "Main St", organization_id: ORG });
+  findLocationById.mockResolvedValue({
+    id: LOCATION,
+    name: "Main St",
+    organization_id: ORG,
+  });
   findOrgById.mockResolvedValue({ id: ORG, organization_type: "health" });
   countLocations.mockResolvedValue({ count: 1 });
   findProjectByOrg.mockResolvedValue({ id: "proj-1" });
 
-  readMarketDemand.mockResolvedValue(stage(10000, true));
+  readMarketDemand.mockResolvedValue(stage(10000, true, {
+    scope: "organization",
+    keywordCount: 240,
+    clusterCount: 12,
+    nullVolumeCount: 0,
+    sourceBreakdown: [],
+    clusterBreakdown: [],
+    coverage: {
+      trackedKeywords: 240,
+      uniqueGscQueries: 1200,
+      matchedQueries: 480,
+      unmatchedQueries: 720,
+      matchedImpressions: 9000,
+      unmatchedImpressions: 1000,
+      queryCoveragePct: 40,
+      impressionCoveragePct: 90,
+    },
+    confidence: "high",
+    warnings: [],
+  }, "All-location estimated monthly searches."));
   readImpressions.mockResolvedValue(stage(4000, true));
   readVisits.mockResolvedValue(stage(800, true));
   readLeads.mockResolvedValue(stage(120, true));
@@ -116,62 +159,117 @@ beforeEach(() => {
 });
 
 describe("assemblePatientJourney — contract shape", () => {
-  it("returns the full contract with the five stages in journey order", async () => {
-    const result = await assemblePatientJourney({ organizationId: ORG, locationId: LOCATION, reportMonth: MONTH });
+  it("returns the full contract with the four monitored stages in journey order", async () => {
+    const result = await assemblePatientJourney({
+      organizationId: ORG,
+      locationId: LOCATION,
+      reportMonth: MONTH,
+    });
 
-    expect(result.location).toMatchObject({ id: LOCATION, organizationId: ORG, orgType: "health", isMultiLocation: false });
-    expect(result.period).toMatchObject({ label: "June 2026", startDate: MONTH });
+    expect(result.location).toMatchObject({
+      id: LOCATION,
+      organizationId: ORG,
+      orgType: "health",
+      isMultiLocation: false,
+    });
+    expect(result.period).toMatchObject({
+      label: "June 2026",
+      startDate: MONTH,
+    });
     expect(result.stages.map((s) => s.key)).toEqual([
       "market_demand",
       "impressions",
       "visits",
       "leads",
-      "patients",
     ]);
-    // One conversion per adjacent pair (5 stages → 4 steps).
-    expect(result.conversions).toHaveLength(4);
+    // One conversion per adjacent pair (4 stages → 3 steps).
+    expect(result.conversions).toHaveLength(3);
     expect(result.revenue).toEqual({ value: 120000, available: true });
-    expect(result.context.rank).toEqual({ position: 2, totalCompetitors: 9, available: true });
-    expect(result.context.reviews).toMatchObject({ rating: 4.8, count: 210, available: true });
+    expect(result.stages.find((s) => s.key === "patients")).toBeUndefined();
+    expect(result.context.rank).toEqual({
+      position: 2,
+      totalCompetitors: 9,
+      available: true,
+    });
+    expect(result.context.reviews).toMatchObject({
+      rating: 4.8,
+      count: 210,
+      available: true,
+    });
     expect(typeof result.headline.text).toBe("string");
+    expect(result.stages[0]).toMatchObject({
+      label: "Search Opportunity",
+      metaLabel: "Estimated monthly searches",
+      source: "Market Intelligence + DataForSEO",
+      shared: true,
+    });
+    expect(result.stages[0].metadata).toMatchObject({
+      scope: "organization",
+      keywordCount: 240,
+      confidence: "high",
+    });
   });
 
-  it("computes per-step conversion percentages from the stage values", async () => {
-    const result = await assemblePatientJourney({ organizationId: ORG, locationId: LOCATION, reportMonth: MONTH });
+  it("computes per-step conversion percentages from trusted count stages only", async () => {
+    const result = await assemblePatientJourney({
+      organizationId: ORG,
+      locationId: LOCATION,
+      reportMonth: MONTH,
+    });
 
-    const byStep = Object.fromEntries(result.conversions.map((c) => [`${c.fromKey}>${c.toKey}`, c.pct]));
+    const byStep = Object.fromEntries(
+      result.conversions.map((c) => [`${c.fromKey}>${c.toKey}`, c.pct]),
+    );
     // impressions 4000 → visits 800 = 20.0 %
     expect(byStep["impressions>visits"]).toBe(20);
     // visits 800 → leads 120 = 15.0 %
     expect(byStep["visits>leads"]).toBe(15);
+    expect(byStep["leads>patients"]).toBeUndefined();
   });
 });
 
 describe("assemblePatientJourney — empty / not-connected paths", () => {
-  it("propagates an unavailable PMS stage as value:null / available:false (no fake zero)", async () => {
-    readPms.mockResolvedValue({ patients: stage(null, false), revenue: { value: null, available: false } });
+  it("does not create a patient-conversion stage from unavailable PMS data", async () => {
+    readPms.mockResolvedValue({
+      patients: stage(null, false),
+      revenue: { value: null, available: false },
+    });
 
-    const result = await assemblePatientJourney({ organizationId: ORG, locationId: LOCATION, reportMonth: MONTH });
+    const result = await assemblePatientJourney({
+      organizationId: ORG,
+      locationId: LOCATION,
+      reportMonth: MONTH,
+    });
 
-    const patients = result.stages.find((s) => s.key === "patients");
-    expect(patients).toMatchObject({ value: null, available: false });
+    expect(result.stages.find((s) => s.key === "patients")).toBeUndefined();
     expect(result.revenue).toEqual({ value: null, available: false });
-    // The leads → patients step cannot be computed → null (never a real 0%).
-    const lastStep = result.conversions.find((c) => c.toKey === "patients");
-    expect(lastStep?.pct).toBeNull();
+    expect(
+      result.conversions.find((c) => c.toKey === "patients"),
+    ).toBeUndefined();
   });
 
   it("renders honest empty stages (and a guidance headline) when no project / no sources are connected", async () => {
     findProjectByOrg.mockResolvedValue(null); // no website → traffic stages empty
     readMarketDemand.mockResolvedValue(stage(null, false));
-    readPms.mockResolvedValue({ patients: stage(null, false), revenue: { value: null, available: false } });
+    readPms.mockResolvedValue({
+      patients: stage(null, false),
+      revenue: { value: null, available: false },
+    });
 
-    const result = await assemblePatientJourney({ organizationId: ORG, locationId: LOCATION, reportMonth: MONTH });
+    const result = await assemblePatientJourney({
+      organizationId: ORG,
+      locationId: LOCATION,
+      reportMonth: MONTH,
+    });
 
-    expect(result.stages.every((s) => s.available === false && s.value === null)).toBe(true);
-    expect(result.conversions.every((c) => c.pct === null && c.isLeak === false)).toBe(true);
+    expect(
+      result.stages.every((s) => s.available === false && s.value === null),
+    ).toBe(true);
+    expect(
+      result.conversions.every((c) => c.pct === null && c.isLeak === false),
+    ).toBe(true);
     expect(result.leakStageKey).toBeNull();
-    expect(result.headline.text).toMatch(/connect more of your data/i);
+    expect(result.headline.text).toMatch(/which growth gate needs attention/i);
   });
 });
 
@@ -182,36 +280,75 @@ describe("assemblePatientJourney — leak selection", () => {
     readImpressions.mockResolvedValue(stage(8000, true)); // 80%
     readVisits.mockResolvedValue(stage(4000, true)); // 50%
     readLeads.mockResolvedValue(stage(200, true)); // 5%  ← leak
-    readPms.mockResolvedValue({ patients: stage(100, true), revenue: { value: 1, available: true } }); // 50%
+    readPms.mockResolvedValue({
+      patients: stage(100, true),
+      revenue: { value: 1, available: true },
+    }); // 50%
 
-    const result = await assemblePatientJourney({ organizationId: ORG, locationId: LOCATION, reportMonth: MONTH });
+    const result = await assemblePatientJourney({
+      organizationId: ORG,
+      locationId: LOCATION,
+      reportMonth: MONTH,
+    });
 
     const leakSteps = result.conversions.filter((c) => c.isLeak);
     expect(leakSteps).toHaveLength(1);
     expect(leakSteps[0]).toMatchObject({ fromKey: "visits", toKey: "leads" });
     expect(result.leakStageKey).toBe("leads");
     expect(result.headline.leakStageKey).toBe("leads");
-    expect(result.headline.text).toMatch(/Visited your site.*Reached out/);
+    expect(result.headline.text).toMatch(/Website Visitors.*Website Leads/);
+  });
+
+  it("does not let PMS revenue or patient records create a production/patient stage", async () => {
+    readPms.mockResolvedValue({
+      patients: stage(100, true),
+      revenue: { value: 80000, available: true },
+    });
+
+    const result = await assemblePatientJourney({
+      organizationId: ORG,
+      locationId: LOCATION,
+      reportMonth: MONTH,
+    });
+
+    expect(result.stages.find((s) => s.key === "patients")).toBeUndefined();
+    expect(
+      result.conversions.find((c) => c.toKey === "patients"),
+    ).toBeUndefined();
+    expect(result.leakStageKey).not.toBe("patients");
+    expect(result.revenue).toEqual({ value: 80000, available: true });
   });
 });
 
 describe("assemblePatientJourney — org-type wording", () => {
-  it("uses health wording (patients) for a health org", async () => {
-    const result = await assemblePatientJourney({ organizationId: ORG, locationId: LOCATION, reportMonth: MONTH });
-    const patients = result.stages.find((s) => s.key === "patients");
-    expect(patients?.label).toBe("Became patients");
-    expect(patients?.metaLabel).toBe("New patients");
+  it("ends the health pipeline at website leads, not patients", async () => {
+    const result = await assemblePatientJourney({
+      organizationId: ORG,
+      locationId: LOCATION,
+      reportMonth: MONTH,
+    });
+    const lastStage = result.stages[result.stages.length - 1];
+    expect(lastStage?.key).toBe("leads");
+    expect(lastStage?.label).toBe("Website Leads");
   });
 
-  it("uses generic wording (customers) for a generic org — no hardcoded clinical word", async () => {
+  it("preserves generic org type without adding a clinical conversion stage", async () => {
     findOrgById.mockResolvedValue({ id: ORG, organization_type: "generic" });
 
-    const result = await assemblePatientJourney({ organizationId: ORG, locationId: LOCATION, reportMonth: MONTH });
+    const result = await assemblePatientJourney({
+      organizationId: ORG,
+      locationId: LOCATION,
+      reportMonth: MONTH,
+    });
 
     expect(result.location.orgType).toBe("generic");
-    const patients = result.stages.find((s) => s.key === "patients");
-    expect(patients?.label).toBe("Became customers");
-    expect(patients?.metaLabel).toBe("New customers");
+    expect(result.stages.find((s) => s.key === "patients")).toBeUndefined();
+    expect(result.stages.map((s) => s.label)).toEqual([
+      "Search Opportunity",
+      "Google Visibility",
+      "Website Visitors",
+      "Website Leads",
+    ]);
   });
 });
 
@@ -219,7 +356,11 @@ describe("assemblePatientJourney — multi-location labelling", () => {
   it("flags shared website-traffic stages as whole-practice for a multi-location org", async () => {
     countLocations.mockResolvedValue({ count: 3 });
 
-    const result = await assemblePatientJourney({ organizationId: ORG, locationId: LOCATION, reportMonth: MONTH });
+    const result = await assemblePatientJourney({
+      organizationId: ORG,
+      locationId: LOCATION,
+      reportMonth: MONTH,
+    });
 
     expect(result.location.isMultiLocation).toBe(true);
     const impressions = result.stages.find((s) => s.key === "impressions");
@@ -227,19 +368,28 @@ describe("assemblePatientJourney — multi-location labelling", () => {
     expect(impressions?.shared).toBe(true);
     expect(impressions?.note).toMatch(/whole-practice/i);
     expect(leads?.note).toMatch(/whole-practice/i);
-    // A per-location stage is NOT labelled whole-practice.
+    // The market stage is org-wide, but it is not a website total.
     const marketDemand = result.stages.find((s) => s.key === "market_demand");
-    expect(marketDemand?.shared).toBe(false);
-    expect(marketDemand?.note ?? "").not.toMatch(/whole-practice/i);
+    expect(marketDemand?.shared).toBe(true);
+    expect(marketDemand?.note ?? "").toMatch(/all-location/i);
+    expect(marketDemand?.note ?? "").not.toMatch(/website total/i);
   });
 });
 
 describe("assemblePatientJourney — tenant scope (§5.5/§11.7)", () => {
   it("rejects a location that belongs to a different organization", async () => {
-    findLocationById.mockResolvedValue({ id: LOCATION, name: "Main St", organization_id: 999 });
+    findLocationById.mockResolvedValue({
+      id: LOCATION,
+      name: "Main St",
+      organization_id: 999,
+    });
 
     await expect(
-      assemblePatientJourney({ organizationId: ORG, locationId: LOCATION, reportMonth: MONTH })
+      assemblePatientJourney({
+        organizationId: ORG,
+        locationId: LOCATION,
+        reportMonth: MONTH,
+      }),
     ).rejects.toBeInstanceOf(PatientJourneyNotFoundError);
   });
 
@@ -247,12 +397,20 @@ describe("assemblePatientJourney — tenant scope (§5.5/§11.7)", () => {
     findLocationById.mockResolvedValue(undefined);
 
     await expect(
-      assemblePatientJourney({ organizationId: ORG, locationId: LOCATION, reportMonth: MONTH })
+      assemblePatientJourney({
+        organizationId: ORG,
+        locationId: LOCATION,
+        reportMonth: MONTH,
+      }),
     ).rejects.toBeInstanceOf(PatientJourneyNotFoundError);
   });
 
   it("passes the server-supplied org/location into the per-location readers unchanged", async () => {
-    await assemblePatientJourney({ organizationId: ORG, locationId: LOCATION, reportMonth: MONTH });
+    await assemblePatientJourney({
+      organizationId: ORG,
+      locationId: LOCATION,
+      reportMonth: MONTH,
+    });
 
     expect(readMarketDemand).toHaveBeenCalledWith(ORG, LOCATION, MONTH);
     expect(readPms).toHaveBeenCalledWith(ORG, LOCATION);

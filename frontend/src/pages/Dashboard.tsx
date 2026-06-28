@@ -25,6 +25,7 @@ import { OnboardingContainer } from "../components/onboarding/OnboardingContaine
 import { useIsWizardActive, useIsWizardLoading, useRecheckWizardStatus } from "../contexts/OnboardingWizardContext";
 import { useLocationContext } from "../contexts/locationContext";
 import { logger } from "../lib/logger";
+import { isPilotSession } from "../api";
 
 export default function Dashboard() {
   // Domain selection and auth hooks - now includes centralized onboarding state
@@ -101,11 +102,15 @@ export default function Dashboard() {
     // Mark onboarding as complete immediately so the Dashboard renders
     // (not null — null would fall through to the onboarding fallback)
     setOnboardingCompleted(true);
-    localStorage.setItem("onboardingCompleted", "true");
+    if (!isPilotSession()) {
+      localStorage.setItem("onboardingCompleted", "true");
+    }
 
     // After simplified onboarding, properties are NOT connected yet
     setHasProperties(false);
-    localStorage.setItem("hasProperties", "false");
+    if (!isPilotSession()) {
+      localStorage.setItem("hasProperties", "false");
+    }
 
     // Prevent empty state flash while wizard loads
     setIsTransitioningToWizard(true);

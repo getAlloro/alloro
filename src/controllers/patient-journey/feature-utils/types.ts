@@ -13,7 +13,11 @@
  * multi-location practices.
  */
 
-/** Funnel stage keys, ordered top → bottom of the journey. */
+/**
+ * Funnel stage keys. The current monitored pipeline emits
+ * market_demand → impressions → visits → leads; `patients` is reserved until
+ * converted-patient data is trustworthy enough to reintroduce.
+ */
 export type PatientJourneyStageKey =
   | "market_demand"
   | "impressions"
@@ -42,7 +46,7 @@ export interface PatientJourneyPeriod {
 
 export interface PatientJourneyStage {
   key: PatientJourneyStageKey;
-  /** Org-type-neutral stage label, e.g. "Reached out". */
+  /** Org-type-neutral stage label, e.g. "Website Leads". */
   label: string;
   /** Metric descriptor under the label, e.g. "Search impressions". */
   metaLabel: string;
@@ -58,6 +62,8 @@ export interface PatientJourneyStage {
   shared: boolean;
   /** Optional caveat shown next to the stage (e.g. all-channel visits). */
   note?: string;
+  /** Optional source-specific metadata for detail views and QA visibility. */
+  metadata?: Record<string, unknown>;
 }
 
 export interface PatientJourneyConversion {
@@ -65,9 +71,9 @@ export interface PatientJourneyConversion {
   toKey: PatientJourneyStageKey;
   /** Step conversion percent (to / from * 100), null if either side is null. */
   pct: number | null;
-  /** Step label, e.g. "Saw → Visited". */
+  /** Step label, e.g. "Google Visibility → Website Visitors". */
   label: string;
-  /** True when this step is the funnel's biggest leak. */
+  /** True when this step is the lowest measured conversion rate. */
   isLeak: boolean;
 }
 

@@ -1,3 +1,5 @@
+import { getEmbeddedPilotStorageItem } from "../utils/embeddedPilotSession";
+
 export function getItem(key: string): string | null {
   if (typeof window !== "undefined" && window.localStorage) {
     return window.localStorage.getItem(key);
@@ -11,6 +13,11 @@ export function getItem(key: string): string | null {
  */
 export function getPriorityItem(key: string): string | null {
   if (typeof window === "undefined") return null;
+
+  const embeddedPilotValue = getEmbeddedPilotStorageItem(key);
+  if (embeddedPilotValue !== null) {
+    return embeddedPilotValue;
+  }
 
   // Check sessionStorage first (pilot mode)
   const sessionValue = window.sessionStorage?.getItem(key);

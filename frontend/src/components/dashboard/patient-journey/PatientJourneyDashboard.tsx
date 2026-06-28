@@ -1,13 +1,13 @@
 /**
  * PatientJourneyDashboard — the Patient Journey Insights surface.
  *
- * Renders the validated horizontal funnel (cards + arrows), the headline,
- * rank/reviews context, and the "one thing that matters" action, all from the
- * typed `usePatientJourney()` payload. Title and journey wording come from
- * `useLabels()` so a `generic`-type org reads "Customer Journey Insights"
- * end-to-end. Mirrors RankingsDashboard's props + loading/error/empty
- * structure. Per-stage empty states live inside the pipeline cards; this file
- * owns the whole-screen loading / error / no-data states.
+ * Renders the validated horizontal funnel (cards + arrows), the advisor
+ * summary, and rank/reviews context from the typed `usePatientJourney()`
+ * payload. Title and journey wording come from `useLabels()` so a
+ * `generic`-type org reads "Customer Journey Insights" end-to-end. Mirrors
+ * RankingsDashboard's props + loading/error/empty structure. Per-stage empty
+ * states live inside the pipeline cards; this file owns the whole-screen
+ * loading / error / no-data states.
  *
  * Spec: plans/06242026-patient-journey-insights/spec.html (T7)
  */
@@ -19,8 +19,7 @@ import { useLabels } from "../../../hooks/useLabels";
 import { useLocationContext } from "../../../contexts/locationContext";
 import { PatientJourneyPipeline } from "./PatientJourneyPipeline";
 import { PatientJourneyContextCards } from "./PatientJourneyContextCards";
-import { PatientJourneyAction } from "./PatientJourneyAction";
-import { buildPipelineSubline, formatRevenue } from "./patientJourney.utils";
+import { formatPrecisePct } from "./patientJourney.utils";
 
 interface PatientJourneyDashboardProps {
   organizationId: number | null;
@@ -52,6 +51,16 @@ function CenteredCard({ children }: { children: ReactNode }) {
       </div>
     </div>
   );
+}
+
+function advisorBannerText(
+  conversions: Array<{ toKey: string; pct: number | null }>,
+): string {
+  const leadConversion = conversions.find((conversion) => conversion.toKey === "leads");
+  if (leadConversion?.pct === null || leadConversion?.pct === undefined) {
+    return "Your lead pipeline is ready. Review each step to see where visibility, visits, and leads are moving.";
+  }
+  return `Your visibility is strong. Your website conversion is your largest opportunity. Only ${formatPrecisePct(leadConversion.pct)} of website visitors contacted your practice this month.`;
 }
 
 export function PatientJourneyDashboard({
@@ -112,29 +121,26 @@ export function PatientJourneyDashboard({
     );
   }
 
-  const subline = buildPipelineSubline(data);
-  const revenueChip = formatRevenue(data.revenue.value);
-
   return (
-    <div className="min-h-screen bg-alloro-bg pb-32 font-body text-alloro-navy">
+    <div className="min-h-screen bg-alloro-bg pb-14 font-body text-alloro-navy">
       <main className="mx-auto w-full max-w-[1040px] space-y-6 px-4 py-10 sm:px-8">
         <header>
           <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-alloro-navy/45">
-            Where your {labels.revenueNoun} leaks
+            Lead pipeline overview
           </div>
           <h1 className="font-display text-[28px] font-medium tracking-tight text-alloro-navy">
             {labels.journeyInsights}
           </h1>
           <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-alloro-navy/55">
-            Every step from a search in your market to a booked {labels.customer}
-            , and where you&rsquo;re losing them.
+            Four gates from search demand to website leads, with source details
+            one click away.
           </p>
         </header>
 
-        {/* Headline — descriptive only, never a prediction. */}
+        {/* Advisor summary — descriptive only, never a prediction. */}
         <div className="rounded-[16px] border border-cream-line bg-cream px-7 py-5 shadow-premium sm:px-8 sm:py-6">
           <p className="max-w-[860px] font-display text-[16.5px] leading-[1.55] text-alloro-navy sm:text-[18px]">
-            {data.headline.text}
+            {advisorBannerText(data.conversions)}
           </p>
         </div>
 
@@ -142,42 +148,22 @@ export function PatientJourneyDashboard({
         <section className="rounded-[14px] border border-line-soft bg-white px-6 pb-7 pt-6 shadow-premium">
           <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-muted">
-              Your {labels.customer} pipeline{" "}
+              Your Lead Pipeline{" "}
               <span className="font-medium text-ink-muted/60">
                 &middot; {data.period.label}
               </span>
             </p>
-            {revenueChip ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-line-soft bg-alloro-bg px-3 py-1.5 text-[12px] font-semibold tabular-nums text-alloro-navy">
-                {revenueChip}
-              </span>
-            ) : null}
           </div>
 
           <PatientJourneyPipeline journey={data} />
 
-          {subline ? (
-            <p className="mt-1 text-center text-[12px] tabular-nums text-ink-muted">
-              {subline.entry.toLocaleString()} searches in{" "}
-              <span className="text-alloro-navy">&rarr;</span>{" "}
-              {subline.exit.toLocaleString()} booked {labels.customers}. Only{" "}
-              <span className="font-semibold text-alloro-navy">
-                {subline.throughputPct.toFixed(2)}%
-              </span>{" "}
-              reach {labels.revenueNoun}.
-            </p>
-          ) : null}
-
           <div className="mt-6 border-t border-line-soft pt-5">
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">
-              What&rsquo;s shaping your funnel
+              What&rsquo;s influencing your leads
             </p>
             <PatientJourneyContextCards context={data.context} />
           </div>
         </section>
-
-        {/* One thing that matters — descriptive headline, links to the leak. */}
-        <PatientJourneyAction headline={data.headline} />
       </main>
     </div>
   );

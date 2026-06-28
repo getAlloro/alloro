@@ -12,7 +12,11 @@
 /** Org wording driver — "health" → "Patient", "generic" → "Customer". */
 export type PatientJourneyOrgType = "health" | "generic";
 
-/** Stable identifiers for the six funnel stages, in funnel order. */
+/**
+ * Stable stage identifiers. The current monitored pipeline emits
+ * market_demand → impressions → visits → leads; `patients` is reserved until
+ * converted-patient data is trustworthy enough to reintroduce.
+ */
 export type PatientJourneyStageKey =
   | "market_demand"
   | "impressions"
@@ -34,6 +38,87 @@ export interface PatientJourneyPeriod {
   endDate: string;
 }
 
+export type MarketOpportunityConfidence = "high" | "medium" | "low";
+
+export interface PatientJourneyCoverageMetadata {
+  trackedKeywords: number;
+  uniqueGscQueries: number;
+  matchedQueries: number;
+  unmatchedQueries: number;
+  matchedImpressions: number;
+  unmatchedImpressions: number;
+  queryCoveragePct: number | null;
+  impressionCoveragePct: number | null;
+}
+
+export interface PatientJourneySourceBreakdown {
+  source: string;
+  keywordCount: number;
+  volume: number;
+  nullVolumeCount: number;
+}
+
+export interface PatientJourneyClusterBreakdown {
+  cluster: string;
+  keywordCount: number;
+  volume: number;
+  nullVolumeCount: number;
+}
+
+export interface PatientJourneyTopKeyword {
+  keyword: string;
+  normalizedKeyword: string;
+  volume: number;
+  nullVolumeCount: number;
+  locationCount: number;
+}
+
+export interface PatientJourneyGscMetricRow {
+  key: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+}
+
+export interface PatientJourneyGscMetadata {
+  clicks: number;
+  ctr: number;
+  position: number;
+  topQueries: PatientJourneyGscMetricRow[];
+  topPages: PatientJourneyGscMetricRow[];
+  top10QueryCount: number;
+  top3QueryCount: number;
+}
+
+export interface PatientJourneyRybbitMetadata {
+  sessions: number;
+  pageviews: number;
+  bounceRate: number;
+  pagesPerSession: number;
+  sessionDuration: number;
+}
+
+export interface PatientJourneyLeadsMetadata {
+  verified: number;
+}
+
+export interface PatientJourneyStageMetadata {
+  scope?: "organization" | "location" | "website";
+  keywordCount?: number;
+  clusterCount?: number;
+  nullVolumeCount?: number;
+  sourceBreakdown?: PatientJourneySourceBreakdown[];
+  clusterBreakdown?: PatientJourneyClusterBreakdown[];
+  topKeywords?: PatientJourneyTopKeyword[];
+  coverage?: PatientJourneyCoverageMetadata;
+  confidence?: MarketOpportunityConfidence;
+  warnings?: string[];
+  gsc?: PatientJourneyGscMetadata;
+  rybbit?: PatientJourneyRybbitMetadata;
+  leads?: PatientJourneyLeadsMetadata;
+}
+
 /**
  * One funnel stage. `value: null` + `available: false` => render the honest
  * empty state. `shared: true` marks the website-traffic stages
@@ -50,6 +135,7 @@ export interface PatientJourneyStage {
   asOf: string | null;
   shared: boolean;
   note?: string;
+  metadata?: PatientJourneyStageMetadata;
 }
 
 export interface PatientJourneyConversion {
@@ -57,6 +143,7 @@ export interface PatientJourneyConversion {
   toKey: string;
   pct: number | null;
   label: string;
+  /** True when this step is the lowest measured conversion rate. */
   isLeak: boolean;
 }
 

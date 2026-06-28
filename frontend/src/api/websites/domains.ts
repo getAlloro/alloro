@@ -84,12 +84,10 @@ export const linkWebsiteToOrganization = async (
   projectId: string,
   organizationId: number | null,
 ): Promise<{ success: boolean; data: WebsiteProject }> => {
-  const token = localStorage.getItem("auth_token");
   const response = await adminFetch(`${API_BASE}/${projectId}/link-organization`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ organizationId }),
   });

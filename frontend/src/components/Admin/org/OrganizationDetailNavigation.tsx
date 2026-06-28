@@ -5,6 +5,7 @@ import {
   Crown,
   FileCode,
   Globe,
+  MonitorPlay,
   MessageSquare,
   Settings,
   Users,
@@ -25,6 +26,7 @@ const SECTION_CONFIG: Record<
 > = {
   subscription: { label: "Subscription", icon: <Crown className="h-4 w-4" /> },
   users: { label: "Users & Roles", icon: <Users className="h-4 w-4" /> },
+  pilot: { label: "Pilot", icon: <MonitorPlay className="h-4 w-4" /> },
   connections: { label: "Connections", icon: <Globe className="h-4 w-4" /> },
   website: { label: "Website", icon: <FileCode className="h-4 w-4" /> },
   gbpAutomation: {

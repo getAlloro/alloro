@@ -15,17 +15,67 @@ import { WebsiteIntegrationModel } from "../../../models/website-builder/Website
 import { ProjectModel } from "../../../models/website-builder/ProjectModel";
 import { ReviewModel } from "../../../models/website-builder/ReviewModel";
 import { PracticeRankingModel } from "../../../models/PracticeRankingModel";
-import { KeywordSearchVolumeModel } from "../../../models/KeywordSearchVolumeModel";
 import { aggregatePmsData } from "../../../utils/pms/pmsAggregator";
 import { fetchRybbitOverview } from "../../admin-websites/feature-services/service.rybbit-performance";
 import { resolveRybbitTimeZone } from "../../../utils/rybbit/rybbit-time-zone";
+import { getMarketOpportunitySummary } from "../../market-intelligence/feature-services/MarketOpportunitySummaryService";
+import type { MarketIntelligenceSummary } from "../../market-intelligence/feature-utils/types";
 import logger from "../../../lib/logger";
+
+export type StageReadMetadata = Partial<
+  Pick<
+    MarketIntelligenceSummary,
+    | "keywordCount"
+    | "clusterCount"
+    | "nullVolumeCount"
+    | "sourceBreakdown"
+    | "clusterBreakdown"
+    | "topKeywords"
+    | "coverage"
+    | "confidence"
+    | "warnings"
+  >
+> & {
+  scope?: "organization" | "location" | "website";
+  gsc?: {
+    clicks: number;
+    ctr: number;
+    position: number;
+    topQueries: Array<{
+      key: string;
+      clicks: number;
+      impressions: number;
+      ctr: number;
+      position: number;
+    }>;
+    topPages: Array<{
+      key: string;
+      clicks: number;
+      impressions: number;
+      ctr: number;
+      position: number;
+    }>;
+    top10QueryCount: number;
+    top3QueryCount: number;
+  };
+  rybbit?: {
+    sessions: number;
+    pageviews: number;
+    bounceRate: number;
+    pagesPerSession: number;
+    sessionDuration: number;
+  };
+  leads?: {
+    verified: number;
+  };
+};
 
 export interface StageRead {
   value: number | null;
   available: boolean;
   asOf: string | null;
   note?: string;
+  metadata?: StageReadMetadata;
 }
 
 function emptyRead(): StageRead {
@@ -43,6 +93,107 @@ function isoDate(value: string | Date | null | undefined): string | null {
 }
 
 type GscDayPayload = Record<string, unknown> & { schemaVersion?: unknown; summary?: { rows?: unknown } };
+type GscMetricAccumulator = {
+  clicks: number;
+  impressions: number;
+  weightedPosition: number;
+};
+type GscDimensionMetric = {
+  key: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+};
+
+function gscRows(payload: unknown): Array<Record<string, unknown>> {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return [];
+  const rows = (payload as { rows?: unknown }).rows;
+  return Array.isArray(rows)
+    ? rows.filter((row): row is Record<string, unknown> => {
+        return !!row && typeof row === "object" && !Array.isArray(row);
+      })
+    : [];
+}
+
+function isVersionedGscPayload(data: GscDayPayload): boolean {
+  const schemaVersion = Number(data.schemaVersion);
+  return Number.isFinite(schemaVersion) && schemaVersion >= 2;
+}
+
+function summaryRows(data: GscDayPayload): Array<Record<string, unknown>> {
+  return isVersionedGscPayload(data)
+    ? gscRows(data.summary)
+    : gscRows(data);
+}
+
+function dimensionRows(
+  data: GscDayPayload,
+  dimension: "queries" | "pages",
+): Array<Record<string, unknown>> {
+  return isVersionedGscPayload(data)
+    ? gscRows((data as Record<string, unknown>)[dimension])
+    : gscRows(data);
+}
+
+function gscKey(row: Record<string, unknown>, index: number): string | null {
+  const keys = row.keys;
+  if (!Array.isArray(keys)) return null;
+  const key = keys[index];
+  return typeof key === "string" && key.trim() ? key : null;
+}
+
+function emptyGscAccumulator(): GscMetricAccumulator {
+  return { clicks: 0, impressions: 0, weightedPosition: 0 };
+}
+
+function addGscMetrics(
+  accumulator: GscMetricAccumulator,
+  row: Record<string, unknown>,
+): void {
+  const clicks = readNumber(row.clicks);
+  const impressions = readNumber(row.impressions);
+  const position = readNumber(row.position);
+  accumulator.clicks += clicks;
+  accumulator.impressions += impressions;
+  accumulator.weightedPosition += position * impressions;
+}
+
+function summarizeGsc(
+  accumulator: GscMetricAccumulator,
+): Omit<GscDimensionMetric, "key"> {
+  return {
+    clicks: Math.round(accumulator.clicks),
+    impressions: Math.round(accumulator.impressions),
+    ctr:
+      accumulator.impressions > 0
+        ? accumulator.clicks / accumulator.impressions
+        : 0,
+    position:
+      accumulator.impressions > 0
+        ? accumulator.weightedPosition / accumulator.impressions
+        : 0,
+  };
+}
+
+function addGscDimension(
+  map: Map<string, GscMetricAccumulator>,
+  key: string | null,
+  row: Record<string, unknown>,
+): void {
+  if (!key) return;
+  const accumulator = map.get(key) ?? emptyGscAccumulator();
+  addGscMetrics(accumulator, row);
+  map.set(key, accumulator);
+}
+
+function buildGscDimensions(
+  map: Map<string, GscMetricAccumulator>,
+): GscDimensionMetric[] {
+  return Array.from(map.entries())
+    .map(([key, accumulator]) => ({ key, ...summarizeGsc(accumulator) }))
+    .sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions);
+}
 
 /** Sum GSC `summary[].impressions` for a project over [startDate, endDate]. */
 export async function readImpressions(
@@ -53,23 +204,50 @@ export async function readImpressions(
   try {
     const rows = await GscDataModel.findByProjectAndDateRange(projectId, startDate, endDate);
     if (!rows.length) return emptyRead();
-    let impressions = 0;
+    const totals = emptyGscAccumulator();
+    const queryMap = new Map<string, GscMetricAccumulator>();
+    const pageMap = new Map<string, GscMetricAccumulator>();
     let latest: string | null = null;
     for (const day of rows) {
       const data = day.data as GscDayPayload;
-      const versioned = Number(data.schemaVersion) >= 2;
-      const summaryRows = versioned
-        ? Array.isArray(data.summary?.rows) ? (data.summary?.rows as unknown[]) : []
-        : Array.isArray((data as { rows?: unknown }).rows) ? ((data as { rows?: unknown }).rows as unknown[]) : [];
-      for (const row of summaryRows) {
-        if (row && typeof row === "object") {
-          impressions += readNumber((row as Record<string, unknown>).impressions);
-        }
+      for (const row of summaryRows(data)) {
+        addGscMetrics(totals, row);
+      }
+      for (const row of dimensionRows(data, "queries")) {
+        addGscDimension(queryMap, gscKey(row, 0), row);
+      }
+      for (const row of dimensionRows(data, "pages")) {
+        addGscDimension(
+          pageMap,
+          isVersionedGscPayload(data) ? gscKey(row, 0) : gscKey(row, 1),
+          row,
+        );
       }
       const day8 = isoDate(day.report_date);
       if (day8 && (!latest || day8 > latest)) latest = day8;
     }
-    return { value: Math.round(impressions), available: true, asOf: latest };
+    const totalsSummary = summarizeGsc(totals);
+    const topQueries = buildGscDimensions(queryMap);
+    return {
+      value: totalsSummary.impressions,
+      available: true,
+      asOf: latest,
+      metadata: {
+        gsc: {
+          clicks: totalsSummary.clicks,
+          ctr: totalsSummary.ctr,
+          position: totalsSummary.position,
+          topQueries: topQueries.slice(0, 3),
+          topPages: buildGscDimensions(pageMap).slice(0, 3),
+          top10QueryCount: topQueries.filter(
+            (query) => query.position > 0 && query.position <= 10,
+          ).length,
+          top3QueryCount: topQueries.filter(
+            (query) => query.position > 0 && query.position <= 3,
+          ).length,
+        },
+      },
+    };
   } catch (err) {
     logger.warn({ err, projectId }, "[patient-journey] impressions read failed");
     return emptyRead();
@@ -93,6 +271,15 @@ export async function readVisits(
       available: true,
       asOf: endDate,
       note: "All-channel visits (search + direct + social), best-effort bot-filtered.",
+      metadata: {
+        rybbit: {
+          sessions: readNumber(overview.sessions),
+          pageviews: readNumber(overview.pageviews),
+          bounceRate: readNumber(overview.bounceRate),
+          pagesPerSession: readNumber(overview.pagesPerSession),
+          sessionDuration: readNumber(overview.sessionDuration),
+        },
+      },
     };
   } catch (err) {
     logger.warn({ err, projectId }, "[patient-journey] visits read failed");
@@ -113,9 +300,22 @@ export async function readLeads(
     const row = stats.find((entry) => entry.month === monthKey);
     if (!row) {
       // The project has form data but none in this month — that's a real zero.
-      return stats.length ? { value: 0, available: true, asOf: isoDate(monthEnd) } : emptyRead();
+      return stats.length
+        ? {
+            value: 0,
+            available: true,
+            asOf: isoDate(monthEnd),
+            metadata: { leads: { verified: 0 } },
+          }
+        : emptyRead();
     }
-    return { value: Number(row.verified) || 0, available: true, asOf: isoDate(monthEnd) };
+    const verified = Number(row.verified) || 0;
+    return {
+      value: verified,
+      available: true,
+      asOf: isoDate(monthEnd),
+      metadata: { leads: { verified } },
+    };
   } catch (err) {
     logger.warn({ err, projectId }, "[patient-journey] leads read failed");
     return emptyRead();
@@ -153,22 +353,38 @@ export async function readPms(organizationId: number, locationId: number): Promi
   }
 }
 
-/** Market demand = summed search volume for the location's keywords this month. */
+/** Market demand = organization-wide estimated search opportunity for all locations. */
 export async function readMarketDemand(
   organizationId: number,
-  locationId: number,
+  _locationId: number,
   reportMonth: string
 ): Promise<StageRead> {
   try {
-    const summary = await KeywordSearchVolumeModel.getMarketVolumeForLocation(
+    const summary = await getMarketOpportunitySummary(
       organizationId,
-      locationId,
       reportMonth
     );
     if (summary.keywordCount === 0) return emptyRead();
-    return { value: summary.totalVolume, available: true, asOf: isoDate(reportMonth) };
+    return {
+      value: summary.estimatedSearchOpportunity,
+      available: true,
+      asOf: summary.latestUpdatedAt ? isoDate(summary.latestUpdatedAt) : isoDate(reportMonth),
+      note: "All-location estimated monthly searches.",
+      metadata: {
+        scope: "organization",
+        keywordCount: summary.keywordCount,
+        clusterCount: summary.clusterCount,
+        nullVolumeCount: summary.nullVolumeCount,
+        sourceBreakdown: summary.sourceBreakdown,
+        clusterBreakdown: summary.clusterBreakdown,
+        topKeywords: summary.topKeywords,
+        coverage: summary.coverage,
+        confidence: summary.confidence,
+        warnings: summary.warnings,
+      },
+    };
   } catch (err) {
-    logger.warn({ err, organizationId, locationId }, "[patient-journey] market-demand read failed");
+    logger.warn({ err, organizationId }, "[patient-journey] market-demand read failed");
     return emptyRead();
   }
 }

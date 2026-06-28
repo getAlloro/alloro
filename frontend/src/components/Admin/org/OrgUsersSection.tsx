@@ -7,12 +7,13 @@ import {
   Loader2,
   Check,
   Copy,
+  LogIn,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
 import { isAxiosError } from "../../../api";
 import { getErrorMessage } from "../../../lib/errorMessage";
 import {
-  adminStartPilotSession,
   adminSetUserPassword,
   type AdminOrganizationDetail,
   type AdminUser,
@@ -26,8 +27,10 @@ interface OrgUsersSectionProps {
 
 export function OrgUsersSection({
   org,
+  orgId,
   onRefresh,
 }: OrgUsersSectionProps) {
+  const navigate = useNavigate();
   const [passwordModalUser, setPasswordModalUser] = useState<AdminUser | null>(
     null,
   );
@@ -77,42 +80,8 @@ export function OrgUsersSection({
     }
   };
 
-  const handlePilotSession = async (
-    userId: number,
-    userName: string,
-    userRole: string,
-  ) => {
-    try {
-      toast.loading(`Starting pilot session for ${userName}...`);
-      const response = await adminStartPilotSession(userId);
-
-      if (response.success) {
-        toast.dismiss();
-        toast.success("Pilot session started!");
-
-        let pilotUrl = `/?pilot_token=${response.token}`;
-        if (response.googleAccountId) {
-          pilotUrl += `&organization_id=${response.googleAccountId}`;
-        }
-        pilotUrl += `&user_role=${userRole}`;
-
-        const width = 1280;
-        const height = 800;
-        const left = (window.screen.width - width) / 2;
-        const top = (window.screen.height - height) / 2;
-
-        window.open(
-          pilotUrl,
-          "Pilot",
-          `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no`,
-        );
-      }
-    } catch (error) {
-      toast.dismiss();
-      const message =
-        error instanceof Error ? getErrorMessage(error) : "Unknown error";
-      toast.error(`Pilot failed: ${message}`);
-    }
+  const handlePilotSession = (userId: number) => {
+    navigate(`/admin/organizations/${orgId}?section=pilot&userId=${userId}`);
   };
 
   return (
@@ -172,13 +141,12 @@ export function OrgUsersSection({
                   <Key className="h-4 w-4" />
                 </button>
                 <button
-                  onClick={() =>
-                    handlePilotSession(user.id, user.name, user.role)
-                  }
+                  type="button"
+                  onClick={() => handlePilotSession(user.id)}
                   className="p-2 text-gray-400 hover:text-alloro-orange hover:bg-alloro-orange/10 rounded-lg transition-colors"
                   title="Pilot as this user"
                 >
-                  →
+                  <LogIn className="h-4 w-4" />
                 </button>
               </div>
             </div>

@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Feature Friyay - 06-22-2026</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="hero" aria-labelledby="page-title">
+        <div>
+          <div class="brand-mark">
+            <span class="brand-dot"></span> Alloro Feature Friyay
+          </div>
+          <h1 id="page-title">Lead pipeline clarity and safer admin Pilot</h1>
+          <p>
+            Coverage window: Monday, June 22, 2026 through Sunday, June 28,
+            2026. This package tracks a clearer Patient Journey lead pipeline
+            for client dashboards and a safer embedded Pilot workflow for
+            Alloro admins.
+          </p>
+        </div>
+        <aside class="hero-panel" aria-label="Release state summary">
+          <p class="eyebrow">06-22-2026 edition</p>
+          <div class="status-stack">
+            <span class="tag good">Ready for review</span>
+            <span class="tag">1 client-view item</span>
+            <span class="tag">1 admin/operator item</span>
+            <span class="tag good">Customer email drafted</span>
+          </div>
+        </aside>
+      </section>
+
+      <section class="section" aria-labelledby="client-view-updates">
+        <p class="eyebrow">Client-facing and client-view updates</p>
+        <h2 id="client-view-updates">Patient Journey is easier to explain</h2>
+        <div class="grid">
+          <article class="highlight-card">
+            <h3>Lead pipeline gates</h3>
+            <p>
+              The Patient Journey dashboard now separates estimated search
+              demand from observed Google visibility, website visitors, and
+              website leads. The cards use clearer names, simpler modals, and
+              short help tooltips that explain why the numbers do not always
+              behave like a strict one-to-one funnel.
+            </p>
+            <div class="meta">
+              <span class="tag good">Implemented locally</span>
+              <span class="tag">Client dashboard</span>
+              <span class="tag">Plans: 06262026</span>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="admin-operator-updates">
+        <p class="eyebrow">Admin and operator updates</p>
+        <h2 id="admin-operator-updates">Organization Pilot is now contained</h2>
+        <div class="grid">
+          <article class="highlight-card">
+            <h3>Same-tab Pilot launch</h3>
+            <p>
+              Mission Control and Users &amp; Roles now route Pilot actions into
+              the organization's Pilot tab instead of opening a separate popout
+              window. The embedded dashboard uses a same-origin iframe, keeps
+              the pilot token out of URLs and browser storage, and leaves the
+              admin session intact when the iframe logs out. The frame now
+              opens directly into the client dashboard without a separate
+              piloted-user header or live indicator.
+            </p>
+            <div class="meta">
+              <span class="tag good">User-verified locally</span>
+              <span class="tag">Admin/operator</span>
+              <span class="tag">Plan: 06272026</span>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="operations-updates">
+        <p class="eyebrow">Operations and reliability updates</p>
+        <h2 id="operations-updates">Search Opportunity now has its own data path</h2>
+        <p class="section-subtitle">
+          Search Opportunity now comes from a dedicated Market Intelligence
+          keyword system with GSC enrichment, AI denoise/approval, DataForSEO
+          volume harvests, and a retired legacy rank-keyword search-volume job.
+          The Pilot safety work also remains part of the admin feature itself:
+          memory-only pilot auth inside the frame, no pilot token in URLs or
+          storage, and browser evidence that iframe logout does not sign out the
+          parent admin tab.
+        </p>
+      </section>
+
+      <section class="section" aria-labelledby="inventory">
+        <p class="eyebrow">Feature inventory</p>
+        <h2 id="inventory">Tracked items</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Bucket</th>
+                <th>Feature</th>
+                <th>Audience</th>
+                <th>State</th>
+                <th>Email?</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Client dashboard</td>
+                <td>Patient Journey Lead Pipeline + Search Opportunity</td>
+                <td>Client users reviewing lead generation performance</td>
+                <td>Implemented locally</td>
+                <td>Drafted</td>
+                <td>
+                  Acceptance passed across
+                  <code>plans/06262026-market-intelligence-backend-foundation/test-results.json</code>,
+                  <code>plans/06262026-market-intelligence-patient-journey-api/test-results.json</code>,
+                  <code>plans/06262026-market-intelligence-dashboard-ui/test-results.json</code>,
+                  and
+                  <code>plans/06262026-market-intelligence-enrichment-ops/test-results.json</code>.
+                  Not yet marked deployed.
+                </td>
+              </tr>
+              <tr>
+                <td>Admin/operator</td>
+                <td>Embedded Organization Pilot Tab</td>
+                <td>Alloro admins and support operators</td>
+                <td>User-verified locally</td>
+                <td>No</td>
+                <td>
+                  Acceptance passed in
+                  <code>plans/06272026-embedded-organization-pilot-tab/test-results.json</code>.
+                  Latest Rev 5 screenshot verifies the larger scale and removed
+                  embedded-frame header. Not yet marked deployed.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="email-draft">
+        <p class="eyebrow">Email draft</p>
+        <h2 id="email-draft">Customer email draft included</h2>
+        <p class="section-subtitle">
+          Open <a href="./email.html">email.html</a> for the customer-ready
+          draft focused on the Patient Journey clarity update. The embedded
+          Pilot item remains internal-only.
+        </p>
+      </section>
+
+      <section class="section" aria-labelledby="checklist">
+        <p class="eyebrow">Ship checklist</p>
+        <h2 id="checklist">Package checklist</h2>
+        <ul class="checklist">
+          <li>
+            <span class="box done">✓</span>
+            <span>Each item is classified by audience bucket.</span>
+          </li>
+          <li>
+            <span class="box done">✓</span>
+            <span>Each row has an explicit release state.</span>
+          </li>
+          <li>
+            <span class="box done">✓</span>
+            <span>Customer email copy covers the client-view Patient Journey update only.</span>
+          </li>
+          <li>
+            <span class="box done">✓</span>
+            <span>Admin/operator update remains separate from client-view updates.</span>
+          </li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

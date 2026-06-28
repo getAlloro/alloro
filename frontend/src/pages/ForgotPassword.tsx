@@ -12,6 +12,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import authPassword from "../api/auth-password";
+import { setAuthSession } from "../api";
 
 type Step = "email" | "reset";
 
@@ -121,10 +122,7 @@ export default function ForgotPassword() {
         localStorage.removeItem("onboardingCompleted");
         localStorage.removeItem("hasProperties");
 
-        localStorage.setItem("auth_token", response.token);
-        if (response.user?.role) {
-          localStorage.setItem("user_role", response.user.role);
-        }
+        setAuthSession({ token: response.token, role: response.user?.role });
 
         setMessage("Password reset! Redirecting...");
         setTimeout(() => {

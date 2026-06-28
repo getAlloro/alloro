@@ -5,7 +5,7 @@ import Underline from "@tiptap/extension-underline";
 import Link from "@tiptap/extension-link";
 import DOMPurify from "dompurify";
 import { Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Code, Link as LinkIcon, Heading2 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 interface RichTextEditorProps {
   value: string;
@@ -124,16 +124,26 @@ export function RichTextEditor({ value, onChange, placeholder = "Write something
 }
 
 export function RichTextPreview({ html, className = "" }: { html: string | null; className?: string }) {
+  const previewRef = useRef<HTMLDivElement | null>(null);
+  const clean = html
+    ? DOMPurify.sanitize(html, {
+        ALLOWED_TAGS: ["p", "strong", "em", "u", "h2", "h3", "ul", "ol", "li", "a", "code", "pre", "br"],
+        ALLOWED_ATTR: ["href", "target", "rel"],
+      })
+    : "";
+
+  useEffect(() => {
+    if (previewRef.current) {
+      previewRef.current.innerHTML = clean;
+    }
+  }, [clean]);
+
   if (!html) return null;
-  const clean = DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ["p", "strong", "em", "u", "h2", "h3", "ul", "ol", "li", "a", "code", "pre", "br"],
-    ALLOWED_ATTR: ["href", "target", "rel"],
-  });
 
   return (
     <div
+      ref={previewRef}
       className={`pm-richtext-preview ${className}`}
-      dangerouslySetInnerHTML={{ __html: clean }}
     />
   );
 }

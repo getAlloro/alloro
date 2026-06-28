@@ -1,6 +1,7 @@
 export type OrganizationDetailSectionKey =
   | "subscription"
   | "users"
+  | "pilot"
   | "connections"
   | "website"
   | "gbpAutomation"
@@ -10,6 +11,7 @@ export type OrganizationDetailSectionKey =
 export const ORGANIZATION_DETAIL_SECTION_KEYS: OrganizationDetailSectionKey[] = [
   "subscription",
   "users",
+  "pilot",
   "connections",
   "website",
   "gbpAutomation",

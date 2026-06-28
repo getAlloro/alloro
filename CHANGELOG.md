@@ -2,6 +2,51 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.137] - June 2026
+
+### Market Intelligence Search Opportunity + Lead Pipeline Gates
+
+Patient Journey now separates estimated market demand from observed Google and website activity. The first card uses the new Market Intelligence keyword system instead of legacy ranking keywords, and the dashboard now reads as a lead pipeline with clearer labels, source-backed modals, and plain tooltips for why the numbers do not always move like a strict funnel.
+
+**Key Changes:**
+- Added a Market Intelligence backend foundation with market keywords, AI denoise/approval, GSC enrichment, DataForSEO volume harvests, and keyword-level storage separate from legacy `keyword_search_volume`.
+- Switched the Patient Journey first stage to org-level Search Opportunity totals aggregated across active locations, while keeping selected-location context cards local.
+- Reframed the dashboard stages as Search Opportunity, Google Visibility, Website Visitors, and Website Leads with clearer arrow labels and source explanations.
+- Simplified the stage modals so users see only understandable, source-backed details, including the top tracked keyword estimates for Search Opportunity.
+- Added help tooltips explaining Search Opportunity versus Google Visibility, visitors versus sessions, and why Google clicks may not exactly match recorded website visitors.
+- Retired the old monthly `harvest-search-volume` worker path and startup-cleans its old BullMQ repeatable key; historical legacy rows remain untouched.
+- Checked Alloro Docs parity. No active Patient Journey docs page exists to update.
+
+**Verification:** Market Intelligence acceptance artifacts roll up to Passed across backend foundation, Patient Journey API, dashboard UI, enrichment ops, and code-constitution remediation. `npx tsc --noEmit`, `npm test -- --run` (17 files / 83 tests), targeted market-intelligence tests (7 files / 24 tests), `npm run check:conventions -- --strict`, `npm run lint`, and `git diff --check` passed during final verification.
+
+**Commits:**
+- `src/agents/marketIntelligence/`, `src/controllers/market-intelligence/`, `src/models/MarketKeyword*.ts`, `src/database/migrations/20260626000000_create_market_intelligence_tables.ts` - new Market Intelligence keyword, enrichment, summary, and search-volume storage foundation.
+- `src/controllers/patient-journey/feature-services/*`, `src/controllers/patient-journey/feature-utils/*`, `src/__tests__/patient-journey.service.test.ts` - Patient Journey API now reads org-level Search Opportunity data and exposes clearer stage metadata.
+- `frontend/src/components/dashboard/patient-journey/*`, `frontend/src/types/patientJourney.ts`, `frontend/src/api/patientJourney.ts` - lead-pipeline UI labels, detail deck, tooltip help, and decluttered modals.
+- `src/workers/worker.ts`, `src/workers/processors/marketIntelligence.processor.ts`, removed `src/workers/processors/searchVolumeHarvest.processor.ts` - market-intelligence worker registration and legacy search-volume job retirement.
+- `plans/06262026-market-intelligence-*/`, `plans/06262026-code-constitution-remediation/` - completed specs, acceptance checklists, and passing test results.
+
+## [0.0.136] - June 2026
+
+### Embedded Organization Pilot Tab
+
+Pilot now lives inside the organization detail page as a contained tab instead of opening a separate browser window. Admins can launch a client-level dashboard from Mission Control or Users & Roles and stay in the same admin tab.
+
+**Key Changes:**
+- Added a top-level Pilot tab on organization details with a contained, scaled same-origin iframe.
+- Routed Mission Control and Users & Roles pilot actions into the organization Pilot tab with the selected user preloaded.
+- Kept the pilot token out of URLs and browser storage by handing it to the iframe through a same-origin message and memory-only auth state.
+- Preserved the parent admin session when the embedded client frame logs out, and kept the pilot frame alive while switching organization tabs.
+- Removed noisy pilot-helper copy, the embedded frame's piloted-user header, and the frame live indicator; tuned the embedded dashboard to a larger contained scale without extra parent scrollbars.
+
+**Verification:** `test-results.json` rolls up to Passed with authenticated browser evidence for One Endodontics pilot routing, tab persistence, token isolation, admin-session safety, frame-header removal, and visual containment. `npm run build`, `cd frontend && npm run build`, `npm run check:all`, targeted ESLint, `git diff --check`, and `npx vitest run src/utils/embeddedPilotSession.test.ts` passed during execution.
+
+**Commits:**
+- `frontend/src/components/Admin/org/*Pilot*.tsx` — new organization Pilot tab, controls, body, and embedded iframe shell.
+- `frontend/src/api/index.ts`, `frontend/src/api/admin-mission-control.ts`, `frontend/src/components/Admin/org/OrgUsersSection.tsx`, `frontend/src/components/Admin/org/OrganizationDetailNavigation.tsx` — same-tab pilot routing and organization navigation wiring.
+- `frontend/src/utils/embeddedPilotSession.ts`, `frontend/src/utils/embeddedPilotSession.test.ts` — memory-only embedded pilot auth/session helpers and coverage.
+- `plans/06272026-embedded-organization-pilot-tab/` — completed spec, acceptance checklist, results JSON, and browser evidence screenshots.
+
 ## [0.0.135] - June 2026
 
 ### AI Command Bulk Editor — Edits Now Persist (and Status Tells the Truth)

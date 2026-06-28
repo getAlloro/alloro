@@ -2,6 +2,11 @@ import React, { useCallback, useMemo, type ReactNode } from "react";
 import { SessionContext } from "./sessionContext";
 import { getPriorityItem } from "../hooks/useLocalStorage";
 import { queryClient } from "../lib/queryClient";
+import {
+  clearEmbeddedPilotSession,
+  isEmbeddedPilotSession,
+  PILOT_EMBED_LOGOUT_MESSAGE,
+} from "../utils/embeddedPilotSession";
 
 interface SessionProviderProps {
   children: ReactNode;
@@ -18,6 +23,15 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({
   const isAuthenticated = !!authToken || !!token;
 
   const disconnect = useCallback(() => {
+    if (isEmbeddedPilotSession()) {
+      clearEmbeddedPilotSession();
+      window.parent.postMessage(
+        { type: PILOT_EMBED_LOGOUT_MESSAGE },
+        window.location.origin
+      );
+      return;
+    }
+
     localStorage.removeItem("auth_token");
     localStorage.removeItem("user_role");
     localStorage.removeItem("onboardingCompleted");

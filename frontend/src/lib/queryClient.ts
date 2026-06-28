@@ -2,20 +2,23 @@ import { QueryClient } from "@tanstack/react-query";
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 
 // ─── QueryClient ─────────────────────────────────────────────────
-export const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 0, // Always stale — show cached instantly, refetch silently in background
-      gcTime: 24 * 60 * 60 * 1000, // 24 hours — cache retention
-      refetchOnWindowFocus: false,
-      refetchOnMount: true, // silent background refetch on every mount
-      refetchOnReconnect: true, // refetch when network reconnects
-      retry: 1,
-      retryDelay: 1000,
-      placeholderData: (previousData: unknown) => previousData, // show previous data while refetching
+export const createAlloroQueryClient = (): QueryClient =>
+  new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 0, // Always stale — show cached instantly, refetch silently in background
+        gcTime: 24 * 60 * 60 * 1000, // 24 hours — cache retention
+        refetchOnWindowFocus: false,
+        refetchOnMount: true, // silent background refetch on every mount
+        refetchOnReconnect: true, // refetch when network reconnects
+        retry: 1,
+        retryDelay: 1000,
+        placeholderData: (previousData: unknown) => previousData, // show previous data while refetching
+      },
     },
-  },
-});
+  });
+
+export const queryClient = createAlloroQueryClient();
 
 // ─── LocalStorage Persister ──────────────────────────────────────
 export const persister = createSyncStoragePersister({

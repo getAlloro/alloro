@@ -12,6 +12,7 @@ import { XCircle, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import onboarding from "../api/onboarding";
 import { getErrorMessage } from "../lib/errorMessage";
+import { isPilotSession } from "../api";
 
 export default function OnboardingPaymentCancelled() {
   const navigate = useNavigate();
@@ -27,7 +28,9 @@ export default function OnboardingPaymentCancelled() {
     setIsSkipping(true);
     try {
       await onboarding.completeOnboarding();
-      localStorage.setItem("onboardingCompleted", "true");
+      if (!isPilotSession()) {
+        localStorage.setItem("onboardingCompleted", "true");
+      }
       window.location.href = "/dashboard";
     } catch (err) {
       setSkipError(

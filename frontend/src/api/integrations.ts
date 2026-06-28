@@ -1,4 +1,7 @@
 import { adminFetch, apiGet, apiPost } from "./index";
+import type { IntegrationPlatform } from "../types/integrations";
+
+export type { IntegrationPlatform } from "../types/integrations";
 
 /**
  * Website Integrations API — admin portal client for per-website connectors.
@@ -12,7 +15,6 @@ import { adminFetch, apiGet, apiPost } from "./index";
 
 export type IntegrationStatus = "active" | "revoked" | "broken";
 export type IntegrationType = "crm_push" | "script_injection" | "data_harvest" | "hybrid";
-export type IntegrationPlatform = "hubspot" | "rybbit" | "clarity" | "gsc";
 export type MappingStatus = "active" | "broken";
 export type CrmSyncOutcome = "success" | "skipped_flagged" | "failed" | "no_mapping";
 export type HarvestOutcome = "success" | "failed";

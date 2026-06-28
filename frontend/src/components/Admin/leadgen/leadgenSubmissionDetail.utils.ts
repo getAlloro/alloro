@@ -154,7 +154,7 @@ export type JsonToken = { text: string; cls: string | null };
 
 /**
  * Tokenize a JSON.stringify output into colored spans without resorting
- * to dangerouslySetInnerHTML. Uses `String.matchAll` so whitespace,
+ * to an HTML injection prop. Uses `String.matchAll` so whitespace,
  * braces, brackets, and commas survive verbatim between matches.
  */
 export function tokenizeJson(obj: unknown): JsonToken[] {

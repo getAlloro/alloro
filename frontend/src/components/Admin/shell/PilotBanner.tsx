@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { X } from "lucide-react";
+import { isPilotSession } from "../../../api";
 
 export function PilotBanner() {
   const [isDismissed, setIsDismissed] = useState(false);
-  const isPilotMode =
-    typeof window !== "undefined" &&
-    sessionStorage.getItem("pilot_mode") === "true";
+  const isPilotMode = isPilotSession();
 
   if (!isPilotMode || isDismissed) return null;
 

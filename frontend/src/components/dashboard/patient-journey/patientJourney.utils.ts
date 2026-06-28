@@ -10,7 +10,6 @@
  */
 
 import type {
-  PatientJourney,
   PatientJourneyConversion,
   PatientJourneyStage,
   PatientJourneyStageKey,
@@ -46,6 +45,13 @@ export function formatPct(pct: number | null): string {
   return `${Math.round(pct)}%`;
 }
 
+/** Format a percentage with one decimal only when it matters. */
+export function formatPrecisePct(pct: number | null): string {
+  if (pct === null) return "—";
+  const rounded = Math.round(pct * 10) / 10;
+  return `${rounded.toFixed(Number.isInteger(rounded) ? 0 : 1)}%`;
+}
+
 /** Format an ISO-ish "as of" date into a short, human "as of" caption. */
 export function formatAsOf(asOf: string | null): string | null {
   if (!asOf) return null;
@@ -71,6 +77,64 @@ export function resolveStageKind(
   return "flow";
 }
 
+const GATE_LABELS: Partial<Record<PatientJourneyStageKey, string>> = {
+  market_demand: "Search Opportunity",
+  impressions: "Google Visibility",
+  visits: "Website Visitors",
+  leads: "Website Leads",
+  patients: "New Patients",
+};
+
+export function stageGateLabel(stage: PatientJourneyStage): string {
+  return GATE_LABELS[stage.key] ?? stage.label;
+}
+
+export function stageGateSubtext(stage: PatientJourneyStage): string {
+  switch (stage.key) {
+    case "market_demand":
+      return "Estimated monthly searches";
+    case "impressions":
+      return "Google search impressions";
+    case "visits":
+      return stage.metadata?.rybbit
+        ? "Rybbit website visitors"
+        : "Website visitors";
+    case "leads":
+      return "Verified submissions";
+    case "patients":
+      return "Booked patients";
+    default:
+      return stage.metaLabel;
+  }
+}
+
+/**
+ * Friendly arrow caption for a conversion, keyed by the stage it flows INTO.
+ * The first connector asks the visibility question instead of showing a huge
+ * opportunity-to-impression percentage.
+ */
+const STEP_CAPTIONS: Record<string, string> = {
+  impressions: "How visible are you?",
+  visits: "Clicked through",
+  leads: "Converted",
+  patients: "Became patients",
+};
+export function conversionCaption(toKey: string): string {
+  return STEP_CAPTIONS[toKey] ?? "";
+}
+
+const STEP_HELP_TEXT: Record<string, string> = {
+  impressions:
+    "Estimate vs. impressions. One search can show you more than once.",
+};
+export function conversionHelpText(toKey: string): string | null {
+  return STEP_HELP_TEXT[toKey] ?? null;
+}
+
+export function shouldShowConversionPct(toKey: string): boolean {
+  return toKey !== "impressions";
+}
+
 /** Find the conversion that feeds INTO a stage key (its inbound step). */
 export function conversionInto(
   conversions: PatientJourneyConversion[],
@@ -88,38 +152,10 @@ export function isWholePracticeStage(
   stage: PatientJourneyStage,
   isMultiLocation: boolean,
 ): boolean {
-  return stage.shared && isMultiLocation;
+  return stage.shared && isMultiLocation && stage.metadata?.scope !== "organization";
 }
 
 /** Tooltip body for a stage — its source note, falling back to its source. */
 export function stageTooltip(stage: PatientJourneyStage): string {
   return stage.note?.trim() || stage.source || "";
-}
-
-/**
- * Compute the screen subline ("N searches in → M booked. Only X% reach
- * revenue.") from the first and last stages, when both numbers are available.
- * Returns null when either end is missing so the caller can hide the line
- * rather than print a misleading zero.
- */
-export function buildPipelineSubline(
-  journey: PatientJourney,
-): { entry: number; exit: number; throughputPct: number } | null {
-  const stages = journey.stages;
-  if (stages.length < 2) return null;
-  const first = stages[0];
-  const last = stages[stages.length - 1];
-  if (
-    first.value === null ||
-    last.value === null ||
-    first.value <= 0 ||
-    last.value < 0
-  ) {
-    return null;
-  }
-  return {
-    entry: first.value,
-    exit: last.value,
-    throughputPct: (last.value / first.value) * 100,
-  };
 }

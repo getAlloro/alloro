@@ -3,6 +3,7 @@ import { useNavigate, useLocation, useSearchParams, Link } from "react-router-do
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, CheckCircle2 } from "lucide-react";
 import authPassword from "../api/auth-password";
+import { setAuthSession } from "../api";
 
 export default function VerifyEmail() {
   const navigate = useNavigate();
@@ -87,10 +88,7 @@ export default function VerifyEmail() {
         // a different account/session later.
         localStorage.removeItem("leadgen_session_id");
 
-        localStorage.setItem("auth_token", response.token);
-        if (response.user?.role) {
-          localStorage.setItem("user_role", response.user.role);
-        }
+        setAuthSession({ token: response.token, role: response.user?.role });
 
         setMessage("Success! Redirecting...");
         setTimeout(() => {

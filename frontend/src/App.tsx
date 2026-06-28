@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -7,9 +7,14 @@ import {
   Outlet,
 } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { queryClient, persistOptions } from "./lib/queryClient";
+import {
+  createAlloroQueryClient,
+  queryClient,
+  persistOptions,
+} from "./lib/queryClient";
 import SignIn from "./pages/Signin";
 import Signup from "./pages/Signup";
 import VerifyEmail from "./pages/VerifyEmail";
@@ -45,13 +50,13 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { PublicRoute } from "./components/PublicRoute";
 import { ConfirmProvider } from "./components/ui/ConfirmModal";
 import { DFYRoute } from "./components/DFYRoute";
-import { PilotHandler } from "./components/PilotHandler";
 import { PilotBanner } from "./components/Admin/shell/PilotBanner";
 import { SessionExpiredModal } from "./components/SessionExpiredModal";
 import { GlobalSupportAction } from "./components/support/GlobalSupportAction";
 import { SupportQuickActionProvider } from "./contexts/SupportQuickActionContext";
 import LocationCompetitorOnboarding from "./pages/competitor-onboarding/LocationCompetitorOnboarding";
 import { AppTelemetryTracker } from "./components/telemetry/AppTelemetryTracker";
+import { PilotEmbed } from "./pages/PilotEmbed";
 
 void _SetupProgressWizard;
 
@@ -93,13 +98,16 @@ function AdminLayout() {
 }
 
 function App() {
+  if (window.location.pathname === "/pilot-embed") {
+    return <PilotEmbedApp />;
+  }
+
   return (
     <PersistQueryClientProvider
       client={queryClient}
       persistOptions={persistOptions}
     >
       <BrowserRouter>
-        <PilotHandler />
         <AuthProvider>
           <AppTelemetryTracker />
           <SupportQuickActionProvider>
@@ -227,6 +235,17 @@ function App() {
       </BrowserRouter>
       <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-left" />
     </PersistQueryClientProvider>
+  );
+}
+
+function PilotEmbedApp() {
+  const [pilotQueryClient] = useState(createAlloroQueryClient);
+
+  return (
+    <QueryClientProvider client={pilotQueryClient}>
+      <PilotEmbed />
+      <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-left" />
+    </QueryClientProvider>
   );
 }
 

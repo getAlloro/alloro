@@ -53,22 +53,29 @@ interface ResolvedEntities {
 }
 
 /** Resolve org/location/project context + org-type + multi-location flag. */
-async function resolveEntities(input: PatientJourneyInput): Promise<ResolvedEntities> {
+async function resolveEntities(
+  input: PatientJourneyInput,
+): Promise<ResolvedEntities> {
   const location = await LocationModel.findById(input.locationId);
   if (!location || location.organization_id !== input.organizationId) {
     throw new PatientJourneyNotFoundError(
-      `Location ${input.locationId} not found for organization ${input.organizationId}`
+      `Location ${input.locationId} not found for organization ${input.organizationId}`,
     );
   }
   const organization = await OrganizationModel.findById(input.organizationId);
   if (!organization) {
-    throw new PatientJourneyNotFoundError(`Organization ${input.organizationId} not found`);
+    throw new PatientJourneyNotFoundError(
+      `Organization ${input.organizationId} not found`,
+    );
   }
 
-  const countRow = await LocationModel.countByOrganizationId(input.organizationId);
+  const countRow = await LocationModel.countByOrganizationId(
+    input.organizationId,
+  );
   const locationCount = Number(countRow?.count ?? 0);
   const project = await ProjectModel.findByOrganizationId(input.organizationId);
-  const orgType: OrgType = organization.organization_type === "generic" ? "generic" : "health";
+  const orgType: OrgType =
+    organization.organization_type === "generic" ? "generic" : "health";
 
   return {
     location: {
@@ -89,7 +96,7 @@ function toStage(
   source: string,
   read: StageRead,
   shared: boolean,
-  isMultiLocation: boolean
+  isMultiLocation: boolean,
 ): PatientJourneyStage {
   const stage: PatientJourneyStage = {
     key,
@@ -102,7 +109,9 @@ function toStage(
     shared,
   };
   if (read.note) stage.note = read.note;
-  if (shared && isMultiLocation) {
+  if (read.metadata) stage.metadata = read.metadata;
+  const isOrganizationScoped = read.metadata?.scope === "organization";
+  if (shared && isMultiLocation && !isOrganizationScoped) {
     const wholePractice = "Whole-practice website total.";
     stage.note = stage.note ? `${stage.note} ${wholePractice}` : wholePractice;
   }
@@ -111,76 +120,73 @@ function toStage(
 
 /** Assemble the full Patient Journey response for a location + month. */
 export async function assemblePatientJourney(
-  input: PatientJourneyInput
+  input: PatientJourneyInput,
 ): Promise<PatientJourney> {
   const { location, projectId } = await resolveEntities(input);
   const period = buildPeriod(input.reportMonth);
   const { start: monthStart, end: monthEnd } = monthBounds(input.reportMonth);
   const isMulti = location.isMultiLocation;
-  const patientWord = location.orgType === "generic" ? "customers" : "patients";
 
   const emptyRead: StageRead = { value: null, available: false, asOf: null };
 
   // Website-traffic stages need a project; per-location stages do not.
-  const [impressions, visits, leads, pms, marketDemand, rank, reviews] = await Promise.all([
-    projectId
-      ? readImpressions(projectId, period.startDate, period.endDate)
-      : Promise.resolve(emptyRead),
-    projectId
-      ? readVisits(projectId, period.startDate, period.endDate)
-      : Promise.resolve(emptyRead),
-    projectId ? readLeads(projectId, monthStart, monthEnd) : Promise.resolve(emptyRead),
-    readPms(input.organizationId, input.locationId),
-    readMarketDemand(input.organizationId, input.locationId, input.reportMonth),
-    readRank(input.organizationId, input.locationId),
-    readReviews(input.locationId, monthStart, monthEnd),
-  ]);
+  const [impressions, visits, leads, pms, marketDemand, rank, reviews] =
+    await Promise.all([
+      projectId
+        ? readImpressions(projectId, period.startDate, period.endDate)
+        : Promise.resolve(emptyRead),
+      projectId
+        ? readVisits(projectId, period.startDate, period.endDate)
+        : Promise.resolve(emptyRead),
+      projectId
+        ? readLeads(projectId, monthStart, monthEnd)
+        : Promise.resolve(emptyRead),
+      readPms(input.organizationId, input.locationId),
+      readMarketDemand(
+        input.organizationId,
+        input.locationId,
+        input.reportMonth,
+      ),
+      readRank(input.organizationId, input.locationId),
+      readReviews(input.locationId, monthStart, monthEnd),
+    ]);
 
   const stages: PatientJourneyStage[] = [
     toStage(
       "market_demand",
-      "Searching your market",
-      "Market search volume / month",
-      "DataForSEO search volume",
+      "Search Opportunity",
+      "Estimated monthly searches",
+      "Market Intelligence + DataForSEO",
       marketDemand,
-      false,
-      isMulti
+      true,
+      isMulti,
     ),
     toStage(
       "impressions",
-      "Saw your listing",
-      "Search impressions",
+      "Google Visibility",
+      "Google search impressions",
       "Google Search Console",
       impressions,
       true,
-      isMulti
+      isMulti,
     ),
     toStage(
       "visits",
-      "Visited your site",
-      "Visits (all channels)",
+      "Website Visitors",
+      "Website visitors",
       "Rybbit analytics",
       visits,
       true,
-      isMulti
+      isMulti,
     ),
     toStage(
       "leads",
-      "Reached out",
-      "Leads (form submissions)",
+      "Website Leads",
+      "Verified submissions",
       "Website form submissions",
       leads,
       true,
-      isMulti
-    ),
-    toStage(
-      "patients",
-      `Became ${patientWord}`,
-      `New ${patientWord}`,
-      "Practice management system",
-      pms.patients,
-      false,
-      isMulti
+      isMulti,
     ),
   ];
 
@@ -193,9 +199,11 @@ export async function assemblePatientJourney(
       locationId: input.locationId,
       reportMonth: input.reportMonth,
       leakStageKey,
-      availableStages: stages.filter((stage) => stage.available).map((stage) => stage.key),
+      availableStages: stages
+        .filter((stage) => stage.available)
+        .map((stage) => stage.key),
     },
-    "[patient-journey] assembled funnel"
+    "[patient-journey] assembled funnel",
   );
 
   return {

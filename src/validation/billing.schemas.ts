@@ -2,7 +2,7 @@
  * Billing route schemas (src/routes/billing.ts) — NON-WEBHOOK bodies only.
  *
  * The Stripe webhook (POST /api/billing/webhook) is DELIBERATELY EXCLUDED: it
- * uses express.raw() so its body is a signature-verified Buffer, not JSON, and
+ * uses the Express raw body parser so its body is a signature-verified Buffer, not JSON, and
  * must never be reshaped. The GET endpoints (/status, /details) and /portal
  * take no client body (org comes from the authed RBAC context). That leaves
  * /checkout as the only body-bearing, validatable route here.

@@ -1,5 +1,5 @@
 import { apiGet, apiPost } from "./index";
-import type { ActiveIntegration } from "../components/Admin/integrations/ActiveIntegrationLogos";
+import type { ActiveIntegration } from "../types/integrations";
 
 export type StripeFreshness = "fresh" | "unavailable";
 

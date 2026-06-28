@@ -7,6 +7,7 @@ import { Step0UserInfo } from "./Step0_UserInfo";
 import { Step1PracticeInfo } from "./Step1_PracticeInfo";
 import { Step2DomainInfo } from "./Step2_DomainInfo";
 import { Step3PlanChooser } from "./Step3_PlanChooser";
+import { isPilotSession } from "../../api";
 
 interface OnboardingContainerProps {
   onComplete?: () => void;
@@ -55,7 +56,9 @@ export const OnboardingContainer: React.FC<OnboardingContainerProps> = () => {
     setIsSkipping(true);
     const ok = await completeOnboarding();
     if (ok) {
-      localStorage.setItem("onboardingCompleted", "true");
+      if (!isPilotSession()) {
+        localStorage.setItem("onboardingCompleted", "true");
+      }
       window.location.href = "/dashboard";
     } else {
       setSkipError("Something went wrong. Please try again.");

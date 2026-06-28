@@ -1,12 +1,11 @@
 /**
  * PatientJourneyStageCard — one funnel stage card.
  *
- * Ports the `.pl-card` visual from the validated mock: stage count, optional
- * revenue chip, label, and the leak / goal / flow treatments. Adds an honest
+ * Ports the `.pl-card` visual from the validated mock: stage count, label,
+ * and the leak / goal / flow treatments. Adds an honest
  * per-stage empty state for `value === null || !available` ("not connected
- * yet") and a count-up entrance that respects reduced-motion. Hover is driven
- * by the parent pipeline (active/dim classes) so the tooltip can be positioned
- * once at the row level.
+ * yet") and a count-up entrance that respects reduced-motion. Click selection
+ * is driven by the parent pipeline so the detail popover can stay row-level.
  *
  * Spec: plans/06242026-patient-journey-insights/spec.html (T7)
  */
@@ -14,9 +13,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { PatientJourneyStage } from "../../../types/patientJourney";
 import {
-  formatRevenue,
-  isWholePracticeStage,
   resolveStageKind,
+  stageGateLabel,
+  stageGateSubtext,
   type StageKind,
 } from "./patientJourney.utils";
 
@@ -63,9 +62,9 @@ function useCountUp(target: number | null, enabled: boolean): string {
 }
 
 const KIND_CLASSES: Record<StageKind, string> = {
-  flow: "border-line-soft bg-white",
-  leak: "border-[1.5px] border-[#B7831F] bg-[rgba(217,164,65,0.14)]",
-  goal: "border-[#212D40] bg-[#212D40]",
+  flow: "border-line-soft bg-white shadow-[0_12px_28px_rgba(17,21,28,0.07)]",
+  leak: "border-[1.5px] border-[#B7831F] bg-[rgba(217,164,65,0.14)] shadow-[0_12px_28px_rgba(183,131,31,0.13)]",
+  goal: "border-[#212D40] bg-[#212D40] shadow-[0_14px_30px_rgba(17,21,28,0.2)]",
 };
 
 interface PatientJourneyStageCardProps {
@@ -75,11 +74,7 @@ interface PatientJourneyStageCardProps {
   isLeak: boolean;
   isActive: boolean;
   animate: boolean;
-  isMultiLocation: boolean;
-  /** Revenue value to show as a chip on the goal stage; null hides it. */
-  revenueValue?: number | null;
-  onHoverStart: (el: HTMLElement, index: number) => void;
-  onHoverEnd: () => void;
+  onSelect: () => void;
 }
 
 export function PatientJourneyStageCard({
@@ -89,57 +84,51 @@ export function PatientJourneyStageCard({
   isLeak,
   isActive,
   animate,
-  isMultiLocation,
-  revenueValue = null,
-  onHoverStart,
-  onHoverEnd,
+  onSelect,
 }: PatientJourneyStageCardProps) {
-  const cardRef = useRef<HTMLDivElement | null>(null);
+  const cardRef = useRef<HTMLButtonElement | null>(null);
   const available = stage.available && stage.value !== null;
   const kind = resolveStageKind(index, total, isLeak);
   const count = useCountUp(available ? stage.value : null, animate);
-  const revenue = formatRevenue(revenueValue);
-  const wholePractice = isWholePracticeStage(stage, isMultiLocation);
   const isGoal = kind === "goal";
+  const label = stageGateLabel(stage);
+  const subtext = stageGateSubtext(stage);
 
   const countColor = isGoal ? "text-white" : "text-alloro-navy";
-  const labelColor = isGoal ? "text-white/70" : "text-alloro-navy/70";
-  const metaColor = isGoal
-    ? "text-white/45"
-    : kind === "leak"
-      ? "text-[#946514]"
-      : "text-ink-muted";
+  const labelColor = isGoal ? "text-white/85" : "text-alloro-navy/75";
+  const mutedColor = isGoal ? "text-white/55" : "text-ink-muted";
 
   return (
-    <div
+    <button
+      type="button"
       ref={cardRef}
-      onMouseEnter={() => {
-        if (cardRef.current) onHoverStart(cardRef.current, index);
-      }}
-      onMouseLeave={onHoverEnd}
+      onClick={onSelect}
+      aria-pressed={isActive}
+      aria-expanded={isActive}
+      aria-controls={isActive ? "patient-journey-detail-popover" : undefined}
+      aria-label={`Show details for ${label}`}
       className={[
-        "relative flex flex-1 flex-col gap-[5px] rounded-[14px] border px-[15px] py-4",
-        "min-w-[122px] cursor-pointer transition-all duration-200",
+        "relative flex flex-1 appearance-none flex-col items-center justify-center gap-[6px] rounded-[14px] border px-3 py-[15px] text-center",
+        "min-w-[116px] cursor-pointer transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-alloro-orange/20",
         KIND_CLASSES[kind],
-        isActive ? "-translate-y-[3px] shadow-[0_6px_18px_rgba(17,21,28,0.15)] z-[3]" : "",
-        animate ? "motion-safe:animate-[plpop_0.5s_cubic-bezier(.2,.7,.2,1)_forwards] motion-safe:opacity-0" : "",
+        isActive
+          ? "-translate-y-[3px] shadow-[0_16px_34px_rgba(17,21,28,0.18)] z-[3]"
+          : "",
+        animate
+          ? "motion-safe:animate-[plpop_0.5s_cubic-bezier(.2,.7,.2,1)_forwards] motion-safe:opacity-0"
+          : "",
       ].join(" ")}
     >
       {available ? (
-        <div className="flex items-baseline gap-[7px]">
+        <div className="flex items-baseline justify-center gap-[7px]">
           <span
             className={`font-display text-[27px] font-semibold leading-none tabular-nums ${countColor}`}
           >
             {count}
           </span>
-          {revenue ? (
-            <span className="font-display text-[15px] font-semibold text-alloro-orange">
-              {revenue}
-            </span>
-          ) : null}
         </div>
       ) : (
-        <div className="flex items-baseline gap-[7px]">
+        <div className="flex items-baseline justify-center gap-[7px]">
           <span
             className={`font-display text-[27px] font-semibold leading-none ${isGoal ? "text-white/40" : "text-alloro-navy/30"}`}
           >
@@ -148,26 +137,23 @@ export function PatientJourneyStageCard({
         </div>
       )}
 
-      <div className={`text-[12.5px] font-semibold ${labelColor}`}>
-        {stage.label}
+      <div className={`text-center text-[12.5px] font-semibold ${labelColor}`}>
+        {label}
       </div>
 
-      {available ? (
-        <div className={`text-[10.5px] font-medium leading-tight ${metaColor}`}>
-          {stage.metaLabel}
-          {wholePractice ? (
-            <span className="mt-0.5 block text-[10px] font-semibold text-[#946514]">
-              whole-practice website
-            </span>
-          ) : null}
-        </div>
-      ) : (
+      <div
+        className={`text-center text-[10px] font-medium leading-tight ${mutedColor}`}
+      >
+        {subtext}
+      </div>
+
+      {!available ? (
         <div
-          className={`text-[10.5px] font-medium leading-tight ${isGoal ? "text-white/55" : "text-ink-muted"}`}
+          className={`text-center text-[10.5px] font-medium leading-tight ${mutedColor}`}
         >
           Not connected yet
         </div>
-      )}
-    </div>
+      ) : null}
+    </button>
   );
 }

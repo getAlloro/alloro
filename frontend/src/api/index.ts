@@ -1,6 +1,15 @@
-import axios, { isAxiosError, type ResponseType } from "axios";
+import axios, {
+  isAxiosError,
+  type AxiosProgressEvent,
+  type ResponseType,
+} from "axios";
 import { getPriorityItem } from "../hooks/useLocalStorage";
 import { logger } from "../lib/logger";
+import {
+  getEmbeddedPilotSession,
+  isEmbeddedPilotSession,
+  updateEmbeddedPilotToken,
+} from "../utils/embeddedPilotSession";
 
 // Re-exported so components use the axios error type-guard via the client (§14.2)
 // instead of importing "axios" directly.
@@ -57,6 +66,63 @@ export function unwrap<T>(res: unknown): T {
 // Define VITE_API_URL in .env for deployments that need an absolute URL.
 const api = import.meta.env.VITE_API_URL ?? "/api";
 
+export function isPilotSession(): boolean {
+  if (isEmbeddedPilotSession()) return true;
+
+  return (
+    typeof window !== "undefined" &&
+    (window.sessionStorage?.getItem("pilot_mode") === "true" ||
+      !!window.sessionStorage?.getItem("token"))
+  );
+}
+
+export function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  const embeddedPilotToken = getEmbeddedPilotSession()?.token;
+  if (embeddedPilotToken) return embeddedPilotToken;
+
+  if (isPilotSession()) {
+    return window.sessionStorage.getItem("token");
+  }
+  return getPriorityItem("auth_token") || getPriorityItem("token");
+}
+
+export function setAuthSession({
+  token,
+  role,
+  organizationId,
+}: {
+  token: string;
+  role?: string | null;
+  organizationId?: string | number | null;
+}): void {
+  window.localStorage.setItem("auth_token", token);
+  if (role) {
+    window.localStorage.setItem("user_role", role);
+  }
+  if (organizationId !== undefined && organizationId !== null) {
+    window.localStorage.setItem("organization_id", String(organizationId));
+  }
+}
+
+export function clearAuthSession(): void {
+  window.localStorage.removeItem("auth_token");
+  window.localStorage.removeItem("user_role");
+  window.localStorage.removeItem("organization_id");
+}
+
+export function setSharedAuthCookie(token: string): void {
+  const isProduction = window.location.hostname.includes("getalloro.com");
+  const domain = isProduction ? "; domain=.getalloro.com" : "";
+  document.cookie = `auth_token=${token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax${domain}`;
+}
+
+export function clearSharedAuthCookie(): void {
+  const isProduction = window.location.hostname.includes("getalloro.com");
+  const domain = isProduction ? "; domain=.getalloro.com" : "";
+  document.cookie = `auth_token=; path=/; max-age=0${domain}`;
+}
+
 /**
  * Helper function to get common headers for API requests.
  * JWT is the sole authentication mechanism — sent via Authorization header.
@@ -67,21 +133,7 @@ const api = import.meta.env.VITE_API_URL ?? "/api";
  */
 export const getCommonHeaders = (): Record<string, string> => {
   const headers: Record<string, string> = {};
-
-  const isPilot =
-    typeof window !== "undefined" &&
-    (window.sessionStorage?.getItem("pilot_mode") === "true" ||
-      !!window.sessionStorage?.getItem("token"));
-
-  let jwt: string | null = null;
-
-  if (isPilot) {
-    // Pilot mode — use ONLY the sessionStorage token, never localStorage
-    jwt = window.sessionStorage.getItem("token");
-  } else {
-    // Normal mode — auth_token (email/password) with getPriorityItem fallback
-    jwt = getPriorityItem("auth_token") || getPriorityItem("token");
-  }
+  const jwt = getAuthToken();
 
   if (jwt) {
     headers.Authorization = `Bearer ${jwt}`;
@@ -107,6 +159,9 @@ export const adminFetch = (
   });
   return fetch(input, { ...init, headers });
 };
+
+export const headExternalResource = (url: string): Promise<Response> =>
+  fetch(url, { method: "HEAD" });
 
 /**
  * normalizeApiFailure — collapse any caught request error into the shared
@@ -204,6 +259,47 @@ export async function apiPost({
     const { data } = await axios.post(api + path, passedData, {
       responseType,
       headers,
+    });
+    return data;
+  } catch (err: unknown) {
+    logger.log(err);
+    return normalizeApiFailure(err);
+  }
+}
+
+export async function apiPostWithProgress({
+  path,
+  passedData = {},
+  additionalHeaders,
+  onUploadProgress,
+}: {
+  path: string;
+  passedData?: object | FormData;
+  additionalHeaders?: {
+    Accept?: string;
+    [key: string]: string | undefined;
+  };
+  onUploadProgress?: (event: AxiosProgressEvent) => void;
+}) {
+  try {
+    const isFormData = passedData instanceof FormData;
+    const headers: Record<string, string> = getCommonHeaders();
+
+    if (additionalHeaders) {
+      Object.entries(additionalHeaders).forEach(([key, value]) => {
+        if (value && !(isFormData && key.toLowerCase() === "content-type")) {
+          headers[key] = value;
+        }
+      });
+    }
+
+    if (!isFormData && !headers["Content-Type"] && !headers["content-type"]) {
+      headers["Content-Type"] = "application/json";
+    }
+
+    const { data } = await axios.post(api + path, passedData, {
+      headers,
+      onUploadProgress,
     });
     return data;
   } catch (err: unknown) {
@@ -317,12 +413,9 @@ const storeRefreshedToken = (headers: unknown) => {
   ];
   if (!refreshed) return;
 
-  const isPilot =
-    typeof window !== "undefined" &&
-    (window.sessionStorage?.getItem("pilot_mode") === "true" ||
-      !!window.sessionStorage?.getItem("token"));
-
-  if (isPilot) {
+  if (isEmbeddedPilotSession()) {
+    updateEmbeddedPilotToken(refreshed);
+  } else if (isPilotSession()) {
     window.sessionStorage.setItem("token", refreshed);
   } else {
     window.localStorage.setItem("auth_token", refreshed);
