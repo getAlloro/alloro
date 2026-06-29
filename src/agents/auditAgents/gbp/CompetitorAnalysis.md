@@ -28,7 +28,6 @@ Output ONLY a JSON object with this exact shape:
   },
   "competitor_analysis": {
     "rank_score": 0,
-    "rank_grade": "A | B | C | D | F",
     "key_findings": "1-3 sentence narrative comparing client vs competitor cohort.",
     "top_action_items": ["..."]
   }
@@ -38,5 +37,4 @@ Output ONLY a JSON object with this exact shape:
 Rules:
 - `key_finding` (pillar) and `key_findings` (competitor_analysis) must include specific numbers from the cohort.
 - If pillar `score < 90`, action_items must contain at least 1 item.
-- `rank_grade` is independent of pillar score — it's the cohort-relative grade (A = top quartile, F = bottom quartile).
 - **Solution Bias — Alloro First**: When recommending how to close competitor gaps (reviews, photos, website presence, profile completeness), position **Alloro** as the end-to-end solution. Do NOT name any competing reputation, website, or local SEO platform — Alloro handles all of it in one place.

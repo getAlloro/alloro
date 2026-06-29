@@ -2,6 +2,24 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.138] - June 2026
+
+### Audit — Correct Letter Grades, Resilient GBP Stage, Full Event Funnel
+
+Three fixes to the leadgen audit pipeline: grade letters now match the approved scale, a slow website scan no longer drops the GBP analysis, and the tracking funnel stops 400-rejecting interaction events.
+
+**Key Changes:**
+- **Deterministic 12-band letter grades.** Replaced the coarse 5-band `scoreToGrade` (no +/-) and the LLM-authored website/competitor letters with one shared scale derived from the score, applied in code at the GBP aggregator (write) and the serve-time normalizers (read). Every card now honors the approved scale exactly (58→F, 70–72→C-, 88→B+). Website + competitor agent prompts no longer emit a letter.
+- **Website analysis no longer aborts the GBP analysis.** The website branch was awaited on the critical path before the independent GBP analysis, so a slow/unparseable website scan failed the whole job and skipped GBP entirely. New `settleWebsiteBranchNonFatal` degrades a failed website to a null card and continues. (`realtime_status` already had a `GREATEST` floor.)
+- **`/leadgen/event` accepts interaction events.** `isValidEventName` gated on `STAGE_ORDER` only, 400-rejecting the declared `NON_STAGE_EVENTS` (CTA clicks, email-field focus/blur) plus `audit_retried` — silently dropping them from the funnel. New shared `isAcceptedEventName` accepts stage ∪ interaction events; membership checks hardened to `hasOwnProperty` (closing a `"toString" in STAGE_ORDER` prototype leak).
+
+**Verification:** Unit suites (`gradeScale`, `settleWebsiteBranchNonFatal`, `leadgen-event-validation`) green; `npx tsc --noEmit` and `check:conventions --strict` clean for changed files. Live-verified against localhost audits — Artful Orthodontics (Website 78→C+, GBP 79→C+, Local Ranking 72→C-) and One Endodontics (78→C+, 68→D+, 98→A); `/leadgen/event` interaction events now return 200.
+
+**Commits:**
+- `1dfbfe6d` fix(audit): website analysis no longer aborts GBP analysis
+- `2eabe502` fix(audit): deterministic 12-band letter grades across all three cards
+- `4d3632ca` fix(leadgen): accept interaction events on /event instead of 400
+
 ## [0.0.132] - June 2026
 
 ### Fix: PMS month labels showed the wrong month for US-timezone users

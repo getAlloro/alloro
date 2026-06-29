@@ -24,7 +24,6 @@ import {
   FinalStage,
   ILeadgenSession,
   LeadgenSessionModel,
-  STAGE_ORDER,
 } from "../../models/LeadgenSessionModel";
 import { LeadgenEventModel } from "../../models/LeadgenEventModel";
 import {
@@ -32,6 +31,7 @@ import {
   shouldSetAbandoned,
   shouldRecordStageEvent,
   isProgressionStage,
+  isAcceptedEventName,
 } from "./feature-utils/util.event-ordering";
 import { parseUserAgent } from "../../lib/userAgent";
 import { enqueueEmailNotification } from "./feature-services/service.email-notification-queue";
@@ -42,13 +42,6 @@ const UUID_REGEX =
 
 function isValidUuid(value: unknown): value is string {
   return typeof value === "string" && UUID_REGEX.test(value);
-}
-
-function isValidEventName(value: unknown): value is FinalStage {
-  return (
-    typeof value === "string" &&
-    Object.prototype.hasOwnProperty.call(STAGE_ORDER, value)
-  );
 }
 
 /**
@@ -276,7 +269,7 @@ async function ingestEvent(body: unknown): Promise<{
   if (!isValidUuid(session_id)) {
     return { status: 400, body: { ok: false, error: "invalid_session_id" } };
   }
-  if (!isValidEventName(event_name)) {
+  if (!isAcceptedEventName(event_name)) {
     return { status: 400, body: { ok: false, error: "invalid_event_name" } };
   }
 
@@ -361,16 +354,20 @@ async function ingestEvent(body: unknown): Promise<{
   // abandoned (ordinal 99) and every later real-progression event would be
   // rejected as a downgrade, leaving the session stuck at "Abandoned" even
   // after the user completes the flow.
-  if (event_name !== "abandoned" && isLaterStage(event_name, session.final_stage)) {
-    patch.final_stage = event_name;
-  } else if (
-    event_name !== "abandoned" &&
-    session.final_stage === "abandoned" &&
-    isLaterStage(event_name, "landed")
-  ) {
-    // Recovery path: session is marked final_stage='abandoned' from legacy
-    // data — any real progression event should pull it back to real.
-    patch.final_stage = event_name;
+  // Only progression stages can move final_stage. isProgressionStage narrows
+  // event_name to FinalStage (interaction events + "abandoned" return false),
+  // so the ordinal comparisons and the assignment stay correctly typed.
+  if (isProgressionStage(event_name)) {
+    if (isLaterStage(event_name, session.final_stage)) {
+      patch.final_stage = event_name;
+    } else if (
+      session.final_stage === "abandoned" &&
+      isLaterStage(event_name, "landed")
+    ) {
+      // Recovery path: session is marked final_stage='abandoned' from legacy
+      // data — any real progression event should pull it back to real.
+      patch.final_stage = event_name;
+    }
   }
 
   if (event_name === "results_viewed") {

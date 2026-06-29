@@ -41,6 +41,7 @@ import {
 import { runAgent } from "../../agents/service.llm-runner";
 import { loadPrompt } from "../../agents/service.prompt-loader";
 import { stripMarkupForLLM } from "../../controllers/audit/audit-utils/markupStripper";
+import { settleWebsiteBranchNonFatal } from "../../controllers/audit/audit-utils/settleWebsiteBranchNonFatal";
 import {
   condenseGbp,
   condenseCompetitors,
@@ -394,9 +395,19 @@ export async function processAuditLeadgen(
 
     stage = "fan-out";
     const [, branchCResult] = await Promise.all([branchA, branchC]);
-    if (branchAResult.bPromise) {
-      await branchAResult.bPromise;
-    }
+
+    // Website analysis (Branch B) is independent of the GBP analysis below,
+    // which consumes only Branch C's self-GBP + competitor data. A slow or
+    // unparseable website analysis must NOT abort the GBP side — otherwise a
+    // heavy/slow site throws here and the whole audit fails with no GBP
+    // analysis at all. Settle it non-fatally: on failure, null the website
+    // card (the frontend greys it out, identical to the no-website path) and
+    // continue to the GBP analysis.
+    await settleWebsiteBranchNonFatal(branchAResult.bPromise, {
+      onFailure: () =>
+        updateAuditFields(auditId, { step_website_analysis: null }),
+      logError: logErr,
+    });
 
     await job.updateProgress(80);
 

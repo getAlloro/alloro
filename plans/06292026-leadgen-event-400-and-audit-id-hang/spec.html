@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Leadgen Event 400 + Audit-ID Route Hang Spec</title>
+  <style>
+    :root { color-scheme: light; --paper:#fff; --ink:#080808; --muted:#5f5f5f; --line:#d8d8d8; --soft:#f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.5; }
+    .spec-shell { width:min(1120px,calc(100% - 32px)); margin:0 auto; padding:48px 0; }
+    .spec-hero,.spec-card,.task-card { border:1px solid var(--line); border-radius:8px; background:var(--paper); }
+    .spec-hero { border-color:var(--ink); padding:32px; margin-bottom:20px; }
+    .hero-topline { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+    .spec-card { padding:28px; margin-top:16px; }
+    .task-card { padding:20px; background:var(--soft); margin-top:14px; }
+    .eyebrow,dt { color:var(--muted); font-size:.78rem; font-weight:700; text-transform:uppercase; }
+    .eyebrow { margin:0; }
+    .status-pill { display:inline-flex; align-items:center; min-height:34px; padding:0 12px; border:1px solid var(--ink); border-radius:999px; background:var(--ink); color:var(--paper); font-size:.78rem; font-weight:800; text-transform:uppercase; }
+    .status-card { border-color:var(--ink); }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { max-width:880px; margin-bottom:24px; font-size:clamp(2rem,5vw,3.6rem); line-height:.97; }
+    h2 { font-size:1.35rem; } h3 { font-size:1rem; }
+    code { padding:.1rem .3rem; border:1px solid var(--line); border-radius:4px; background:var(--soft); font-size:.92em; }
+    pre { overflow-x:auto; padding:14px 16px; border:1px solid var(--line); border-radius:8px; background:var(--soft); font-size:.84rem; }
+    pre code { border:0; padding:0; background:none; }
+    .meta-grid,.split-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+    .meta-grid { margin:0; }
+    .meta-grid div,.split-grid > div { border:1px solid var(--line); border-radius:8px; padding:16px; }
+    dd { margin:4px 0 0; font-weight:700; }
+    table { width:100%; border-collapse:collapse; margin:8px 0; font-size:.9rem; }
+    th,td { border:1px solid var(--line); padding:6px 10px; text-align:left; vertical-align:top; }
+    th { background:var(--soft); text-transform:uppercase; font-size:.72rem; }
+    .tag { display:inline-block; font-size:.66rem; font-weight:800; text-transform:uppercase; border:1px solid var(--ink); border-radius:999px; padding:1px 8px; }
+    .checklist { list-style:none; padding-left:0; }
+    .checklist li { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); }
+    @media (max-width:640px){ .spec-shell{width:min(100% - 20px,1120px);padding:24px 0;} .spec-hero,.spec-card{padding:20px;} }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">In Progress</span>
+      </div>
+      <h1>Leadgen Event 400 + Audit-ID Route Hang</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>In Progress — B1 fixed, B2 = test artifact</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06292026-leadgen-event-400-and-audit-id-hang</dd></div>
+        <div><dt>Size</dt><dd>Small–Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 2 — Concern</dd></div>
+        <div><dt>Repos</dt><dd>~/Desktop/alloro + ~/Desktop/alloro-leadgen-tool</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Two issues surfaced while verifying the audit work. One is a confirmed funnel-analytics bug; the other is a suspected route hang that needs a clean repro.</p>
+      <h3>B1 — <code>/api/leadgen/event</code> returns 400 for 5 event types (CONFIRMED)</h3>
+      <p>The backend gate <code>isValidEventName</code> accepts only keys in <code>STAGE_ORDER</code>. The frontend fires five names that aren't there, so each is rejected with <code>400 invalid_event_name</code> and never recorded:</p>
+      <pre><code>email_field_focused        ← in NON_STAGE_EVENTS, but isValidEventName ignores that set
+email_field_blurred_empty  ← same
+cta_clicked_create_account ← same
+cta_clicked_strategy_call  ← same
+audit_retried              ← in NO backend set at all (pure FE/BE drift)</code></pre>
+      <p>The first four are <em>already</em> declared as legitimate interaction events in <code>util.event-ordering.ts</code> (<code>NON_STAGE_EVENTS</code>, with a "keep in sync with the leadgen-tool union" comment) — the validator just never consults that set. Net effect: every CTA click, email-field focus/blur, and audit retry is dropped from the funnel.</p>
+      <h3>B2 — Cold <code>?audit_id=</code> load appears to hang (SUSPECTED)</h3>
+      <p>A fresh browser navigation to <code>localhost:3002/?audit_id=&lt;completed-audit&gt;</code> timed out in Playwright (navigate + snapshot), while the dev server returned 200 in ~25ms. Reading the mount path (<code>App.tsx</code> effects at 136/173/221) shows no synchronous loop — a cold completed-audit load routes <code>input → dashboard</code> cleanly. The likely cause is a heavy first paint (Google Maps iframe + many <code>repeat:Infinity</code> framer-motion animations) and/or accumulated headless-browser state — i.e. possibly a test artifact, not a product hang. This must be reproduced in a clean browser before any fix.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <ul>
+        <li><strong>B1:</strong> <code>isValidEventName</code> accepts stage events <strong>and</strong> the declared interaction events; <code>audit_retried</code> is registered (as a non-stage interaction event). The five event types record again; no event 400s for being unknown.</li>
+        <li><strong>B2:</strong> Reproduce in a clean browser session. If a real hang: isolate it (bisect the dashboard — Maps iframe, infinite animations, an effect) and fix. If a test artifact: document it and close, with any cheap hardening (e.g. lazy-mount the map) noted.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><strong>B1</strong> — <code>~/alloro/src/controllers/leadgen-tracking/LeadgenTrackingController.ts</code> (<code>isValidEventName</code> :47, the 400 at :279), <code>feature-utils/util.event-ordering.ts</code> (<code>NON_STAGE_EVENTS</code> :25, <code>isProgressionStage</code> :38), <code>~/alloro/src/models/LeadgenSessionModel.ts</code> (<code>STAGE_ORDER</code>, <code>FinalStage</code>). Frontend union: <code>~/alloro-leadgen-tool/src/lib/tracking.ts</code>.</li>
+        <li><strong>B2</strong> — <code>~/alloro-leadgen-tool/App.tsx</code> (mount effects 136–344), <code>src/components/stages/DashboardStage.tsx</code>, <code>src/components/stages/CompetitorMapStage.tsx</code> (Maps iframe), <code>src/hooks/useAuditPolling.ts</code>.</li>
+      </ul>
+      <h3>Patterns To Follow (Code Constitution)</h3>
+      <ul>
+        <li><strong>§11.2</strong> — validation lives at the boundary; B1 fixes an over-strict boundary check. <strong>§8.1/§8.4</strong> — keep the existing <code>{ ok, error }</code> response shape and 400-vs-401 split. Reference analog <strong>§6.1</strong> <code>gbp-automation/</code>.</li>
+        <li><strong>§4.3</strong> — the accepted-event set must be one source of truth shared by <code>isValidEventName</code> and <code>isProgressionStage</code>, not a second copy.</li>
+        <li><strong>§20.1/§20.2</strong> — B1 ships a test: each of the 5 names is accepted (200) and the interaction ones are stored as non-stage events; an unknown name still 400s.</li>
+        <li><strong>§13.2 / §16.x</strong> — any B2 frontend fix keeps the component lean and never swallows errors silently.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>B1: still reject genuinely-unknown event names with 400 (don't open the gate to anything).</li>
+            <li>B1: interaction events stay non-progression (no dedup/ordering, don't advance <code>final_stage</code>).</li>
+            <li>B1: keep the FE <code>LeadgenEventName</code> union and the BE accepted-set in sync (the existing comment's intent).</li>
+            <li>B2: confirm real-vs-artifact in a clean browser before writing any fix.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Don't make <code>audit_retried</code> a funnel stage if it isn't one (it's an action, treat as interaction).</li>
+            <li>Don't change the 400/401 contract or the tracking-key gate.</li>
+            <li>B2: don't "fix" a hang that's only a headless artifact — verify first.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Rotating the placeholder <code>LEADGEN_TRACKING_KEY</code> (tracked separately).</li>
+        <li>Broader funnel/event redesign.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level 2 — Concern.</strong> B1 is a small, well-understood backend validation fix (high analytics value, low blast radius). B2 is an investigation with unknown scope until reproduced.</p>
+      <h3>Risks &amp; Mitigations</h3>
+      <ul>
+        <li><strong>B1 over-permissive fix.</strong> Accepting the wrong set could let junk events in. <strong>Mitigation:</strong> accept exactly <code>STAGE_ORDER ∪ NON_STAGE_EVENTS</code> (+ <code>audit_retried</code> added to the interaction set); everything else still 400s. Unit-test both directions.</li>
+        <li><strong>B1 silent drift recurs.</strong> <strong>Mitigation:</strong> a single shared accepted-set + a test asserting the FE union ⊆ BE accepted-set, so the next added event fails CI rather than prod.</li>
+        <li><strong>B2 unknown root cause.</strong> <strong>Mitigation:</strong> time-boxed bisection (toggle the Maps iframe, then the infinite animations, then effects); if it only repros in headless with accumulated state, classify as artifact and stop.</li>
+      </ul>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Ship B1 on its own — it's a confirmed funnel leak with a one-file fix and a clean test. Don't let it wait on B2's open-ended investigation.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Accept interaction events in <code>isValidEventName</code> <span class="tag">B1 · backend</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Make the event-name gate accept <code>STAGE_ORDER ∪ NON_STAGE_EVENTS</code>. Add <code>audit_retried</code> to <code>NON_STAGE_EVENTS</code> (interaction, non-progression) and to the FE union comment. Expose one shared <code>isAcceptedEventName</code> used by the controller, so the validator and the ordering util agree.</dd></div>
+          <div><dt>Files</dt><dd><code>util.event-ordering.ts</code>, <code>LeadgenTrackingController.ts</code>, possibly <code>LeadgenSessionModel.ts</code>; test in <code>src/__tests__/</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Unit: all 5 names → accepted/stored (interaction ones as non-stage, not advancing <code>final_stage</code>); an unknown name → 400. Manual: run an audit, focus the email field + click a CTA → no 400 in console.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Reproduce + classify the <code>?audit_id=</code> hang <span class="tag">B2 · investigate</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Fresh browser context → load a known completed <code>?audit_id=</code> link. If it hangs a real browser: bisect (disable the Maps iframe; then the <code>repeat:Infinity</code> animations; then mount effects) to isolate. If it only hangs headless/with accumulated state: classify as a test artifact and record findings.</dd></div>
+          <div><dt>Files</dt><dd>(investigation) <code>App.tsx</code>, <code>DashboardStage.tsx</code>, <code>CompetitorMapStage.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>A clean-browser cold load of <code>?audit_id=</code> reaches the dashboard within a few seconds (or the hang is documented as headless-only).</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: Fix the hang (CONDITIONAL on T2) <span class="tag">B2 · frontend</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Only if T2 finds a real hang: apply the isolated fix (e.g. lazy-mount/defer the Maps iframe, gate infinite animations off-screen, or correct the offending effect). Scope finalized by T2's findings.</dd></div>
+          <div><dt>Files</dt><dd>TBD by T2</dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>Cold <code>?audit_id=</code> load is responsive; no regression to the normal audit flow.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> T1: all 5 event names accepted; interaction events stored as non-stage; unknown names still 400 (tested)</li>
+        <li><input type="checkbox" disabled> T1: a live audit fires CTA + email-field events with zero <code>/leadgen/event</code> 400s</li>
+        <li><input type="checkbox" disabled> T1: a test asserts the FE event union ⊆ BE accepted-set (drift guard)</li>
+        <li><input type="checkbox" disabled> T2: hang reproduced-or-refuted in a clean browser; findings recorded</li>
+        <li><input type="checkbox" disabled> T3 (if real): cold <code>?audit_id=</code> load responsive; flow unregressed</li>
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> clean; <code>npm test</code> green; <code>check:conventions --strict</code> cites no changed files</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 — 2026-06-29 (execution)</h3>
+        <p><strong>T1 (B1) — done &amp; committed</strong> (<code>4d3632ca</code>). Added a shared <code>isAcceptedEventName</code> (STAGE_ORDER ∪ NON_STAGE_EVENTS) used by the <code>/event</code> gate; registered <code>audit_retried</code> as an interaction event; made <code>isProgressionStage</code> a type guard and hardened both membership checks to <code>hasOwnProperty</code> (closing a <code>"toString" in STAGE_ORDER</code> prototype leak). Interaction events now record without advancing <code>final_stage</code>. 7/7 unit tests pass; tsc + conventions clean. <strong>Live-verified</strong> against localhost:3000: <code>cta_clicked_create_account</code>, <code>audit_retried</code>, <code>email_field_focused</code> → 200 (were 400); <code>bogus_event_xyz</code> and <code>toString</code> → 400.</p>
+        <p><strong>T2 (B2) — classified as a TEST ARTIFACT; no fix needed (T3 dropped).</strong> On a clean browser session, a cold load of <code>?audit_id=&lt;completed-audit&gt;</code> rendered the full dashboard with no hang. The earlier timeout was accumulated headless-browser state after many heavy audits (Google Maps iframe + many <code>repeat:Infinity</code> animations), not a product defect — the cold-mount code path has no synchronous loop. Soft note: the dashboard is animation/iframe-heavy; lazy-mounting the map is a possible future perf nicety for low-end devices, not a bug. Bonus: this run live-confirmed the cohort caveat ("Ranked against 2 nearby competitors / Limited local cohort") and the correct grades (C+/D+/A).</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

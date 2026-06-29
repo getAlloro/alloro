@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Audit Grade Scale — Deterministic Mapping Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    pre { overflow-x: auto; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); font-size: 0.86rem; }
+    pre code { border: 0; padding: 0; background: none; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 0.9rem; }
+    th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+    th { background: var(--soft); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.02em; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .tag { display: inline-block; font-size: 0.68rem; font-weight: 800; text-transform: uppercase; border: 1px solid var(--ink); border-radius: 999px; padding: 1px 8px; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">In Progress</span>
+      </div>
+      <h1>Audit Grade Scale — Deterministic Letter Mapping</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>In Progress</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06292026-audit-grade-scale-deterministic</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 2 — Concern</dd></div>
+        <div><dt>Repo</dt><dd>~/Desktop/alloro (backend)</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The audit tool (<code>audit.getalloro.com</code>) shows letter grades that do not match the approved scale. Grades are inflated and inconsistent: a 58% has shown as <strong>C</strong> (should be <strong>F</strong>), a 72% as <strong>B</strong> or <strong>C+</strong> (should be <strong>C-</strong>), a 68% as <strong>B</strong> (should be <strong>D+</strong>). Jo flagged this on June 17 and documented the full scope in a reference sheet. It is a blocking trust issue for using the audit as a sales asset — every prospect who received a report has an inflated grade on it.</p>
+      <p>Root cause, confirmed in code: the three grade cards are produced <strong>three different ways</strong>, and two of them let the LLM freehand the letter instead of deriving it from the score.</p>
+      <table>
+        <tr><th>Card</th><th>Field</th><th>Today's source</th><th>Defect</th></tr>
+        <tr><td>GBP Readiness</td><td><code>gbp_grade</code></td><td><code>scoreToGrade()</code> in <code>gbpAnalysisAggregator.ts</code></td><td>Deterministic but a coarse 5-band scale (A/B/C/D/F, no +/-). 88→B, 77→C.</td></tr>
+        <tr><td>Website Performance</td><td><code>overall_grade</code></td><td>LLM output (<code>WebsiteAnalysis.md</code>), passed through</td><td>Letter never derived from score. 72→"C+", 76→"C+".</td></tr>
+        <tr><td>Local Ranking</td><td><code>rank_grade</code></td><td>LLM output (<code>gbp/CompetitorAnalysis.md</code>), passed through</td><td>Cohort-relative letter, untethered from score. 72→"B", 68→"B", 62→"C".</td></tr>
+      </table>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Make the letter grade a pure, deterministic function of the percentage score, applied uniformly to all three cards, using the approved 12-band scale. The LLM stops emitting letters; code owns the mapping.</p>
+      <p><strong>Approved scale (implement exactly):</strong></p>
+      <table>
+        <tr><th>Letter</th><th>Range</th><th>Letter</th><th>Range</th></tr>
+        <tr><td>A</td><td>93–100</td><td>C</td><td>73–76</td></tr>
+        <tr><td>A-</td><td>90–92</td><td>C-</td><td>70–72</td></tr>
+        <tr><td>B+</td><td>87–89</td><td>D+</td><td>67–69</td></tr>
+        <tr><td>B</td><td>83–86</td><td>D</td><td>63–66</td></tr>
+        <tr><td>B-</td><td>80–82</td><td>D-</td><td>60–62</td></tr>
+        <tr><td>C+</td><td>77–79</td><td>F</td><td>0–59</td></tr>
+      </table>
+      <p><strong>Done when:</strong> for every card, the letter shown matches this table for the displayed percentage. No score 0–59 shows anything but F. No score 70–72 shows anything but C-. Jo re-runs ≥2 documented audits and confirms.</p>
+      <p><strong>Decisions locked with the user:</strong> (1) <strong>Fix-forward</strong> — no historical backfill script / no DB rows rewritten. (2) <strong>Also update the prompts</strong> — the website and competitor agents stop emitting a letter grade.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files (all under <code>~/Desktop/alloro/src</code>)</h3>
+      <ul>
+        <li><code>controllers/audit/audit-utils/gbpAnalysisAggregator.ts</code> — owns the local 5-band <code>scoreToGrade()</code> (line 57) and computes <code>gbp_grade</code> at write time (line 101). Also assembles <code>competitor_analysis</code> (carries <code>rank_score</code> + <code>rank_grade</code>).</li>
+        <li><code>controllers/audit/audit-utils/normalizationUtils.ts</code> — the <strong>serve boundary</strong>. <code>normalizeWebsiteAnalysis</code> / <code>normalizeGBPAnalysis</code> run on every <code>GET /audit/:id/status</code> read (via <code>audit-services/auditRetrievalService.ts:31,37</code>). Today they pass the stored letters through.</li>
+        <li><code>agents/auditAgents/WebsiteAnalysis.md</code> — website agent prompt; output schema includes <code>"overall_grade"</code> (line 30).</li>
+        <li><code>agents/auditAgents/gbp/CompetitorAnalysis.md</code> — competitor pillar prompt; output schema includes <code>"rank_grade"</code> (line 31) and the cohort-relative rule (line 41).</li>
+        <li><code>workers/processors/auditLeadgen.processor.ts</code> — the live pipeline. Loads <code>WebsiteAnalysis</code> + the five <code>gbp/*</code> pillars; calls <code>aggregateGbpAnalysis</code> (line 558). Logs <code>gbp_grade</code> (line 584).</li>
+        <li><code>__tests__/</code> — vitest harness; <code>include: ["src/__tests__/**/*.{test,spec}.ts"]</code>. New unit test goes here.</li>
+      </ul>
+      <h3>Confirmed not in scope / not affected</h3>
+      <ul>
+        <li><code>agents/auditAgents/GBPAnalysis.md</code> — legacy single-call prompt, <strong>not loaded</strong> by the active processor (the 5-pillar path replaced it). Leave untouched.</li>
+        <li>No email template renders a letter grade (<code>src/emails</code> has zero grade references). The alloro admin <code>frontend/</code> does not consume these fields. Only direct readers besides the serve path are two debug log lines (processor 584, <code>scripts/admin-audit.ts</code>).</li>
+      </ul>
+      <h3>Patterns To Follow (Code Constitution)</h3>
+      <ul>
+        <li><strong>§6.3</strong> — domain helpers live under the domain's own helper folder; the new util belongs in <code>controllers/audit/audit-utils/</code>, not top-level <code>utils/</code>. <strong>Reference analog:</strong> the existing <code>audit-utils/</code> helpers (<code>gbpAnalysisAggregator.ts</code>, <code>normalizationUtils.ts</code>) and, per <strong>§6.1</strong>, the certified-clean <code>controllers/gbp-automation/feature-utils/</code> for shape.</li>
+        <li><strong>§4.3</strong> — one genuinely-shared concept (score→letter) used by three call sites: extract once, import everywhere. Do not copy the band ladder into multiple files.</li>
+        <li><strong>§2.1 / §2.2 / §4.2</strong> — single-responsibility file, function under ~50 lines, the bands are the named contract (no stray magic numbers elsewhere).</li>
+        <li><strong>§20.1 / §20.2</strong> — a pure function ships with a mirrored unit test covering the band boundaries and the failure path (non-numeric input).</li>
+        <li><strong>§4.5 / §17.2</strong> — no <code>any</code>; coerce <code>string | number</code> scores through <code>Number()</code> with a finite-guard.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Single shared <code>scoreToGrade()</code> in <code>audit-utils/</code>, imported by every consumer (§4.3, §6.3).</li>
+            <li>Derive the letter from the <strong>rounded</strong> score (<code>Math.round</code>), so the letter matches the integer the UI displays.</li>
+            <li>Guard non-finite input: if a score is missing/NaN, fall back to the stored letter — never blank or mislabel (§3.x).</li>
+            <li>Keep the served response shape identical (frontend contract unchanged: <code>overall_grade</code> / <code>gbp_grade</code> / <code>rank_grade</code> still strings).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No new dependencies. No DB migration. No backfill script (fix-forward only).</li>
+            <li>Do not touch <code>GBPAnalysis.md</code> (legacy/dead) or the four non-competitor GBP pillar prompts.</li>
+            <li>Do not change the numeric scores or the scoring prompts' scoring logic — only the letter.</li>
+            <li>No drive-by refactor of the aggregator beyond swapping the grade function.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Rewriting historical <code>audit_processes</code> rows (declined).</li>
+        <li>The <code>practice-ranking</code> / Journey Insights feature, which has its own separate <code>rank_score</code> logic (§4.3 — different domain, not the same concept).</li>
+        <li>The leadgen frontend's mock-data fallback leak and dead <code>/checkup</code> flow — tracked separately.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 — Concern. Contained logic change, blast radius fully mapped, no schema/auth change. Elevated above Level 1 only because it touches the sales-critical audit pipeline and changes a grade's meaning.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>rank_grade semantic change.</strong> <code>CompetitorAnalysis.md:41</code> intentionally makes <code>rank_grade</code> cohort-relative (A = top quartile), independent of the score. Deriving it from <code>rank_score</code> abandons that intent. <strong>Mitigation:</strong> <code>rank_score</code> is already a 0–100 cohort score (top 25% ⇒ 90+, bottom 25% ⇒ &lt;40), so the letter stays cohort-meaningful and now matches the displayed %. This is exactly what Jo's card requires and makes all three cards consistent. Proceed.</li>
+        <li><strong>Serve-time derivation also corrects historical links.</strong> Deriving in the normalize (serve) layer means old audit links render corrected letters too — without rewriting any DB row. This is a superset of "fix-forward," not the backfill script that was declined (no writes, no migration). <strong>Mitigation / decision needed:</strong> recommended, because the old inflated letters are the problem. If you instead want historical links frozen at their original letters, we fix write-time only and leave the serve path passing stored letters through — flag it and the spec adjusts.</li>
+        <li><strong>Prompt field removal vs. output validator.</strong> Removing <code>overall_grade</code> / <code>rank_grade</code> from the two prompt schemas could break a parser/validator that hard-requires them. <strong>Mitigation:</strong> T4 verifies <code>audit-utils/validationUtils.ts</code> and <code>agents/service.llm-runner.ts</code> tolerate the absent field before the prompts ship; code populates the letter regardless.</li>
+        <li><strong>Rounding edge.</strong> A raw 72.6 displays "73" but must grade as the band for its rounded value. <strong>Mitigation:</strong> round once, derive from the rounded integer; unit-tested at boundaries (59/60, 69/70, 72/73, 92/93).</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>gbpAnalysisAggregator.ts</code> (gbp_grade write + log line at processor 584), <code>normalizationUtils.ts</code> (serve path → leadgen frontend), the two prompt files, <code>scripts/admin-audit.ts</code> log. No email, no admin frontend, no other API consumer.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>The real lesson is architectural: a 12-band rubric is a lookup table; an LLM will never honor it by hand. Even after this fix, keep the rule "the letter is always <code>scoreToGrade(score)</code>" — never re-introduce an LLM-authored grade. The migration notes' "≥80% grade parity" tolerance was the original mistake; this replaces tolerance with determinism.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Shared <code>scoreToGrade</code> util + unit test <span class="tag">no deps</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create <code>scoreToGrade(score: number): string</code> implementing the 12-band approved scale. Round internally (<code>Math.round</code>), clamp to [0,100]. Export it. Write the mirrored test covering every band boundary and the two Definition-of-Done invariants.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/audit/audit-utils/gradeScale.ts</code> (new), <code>src/__tests__/gradeScale.test.ts</code> (new)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npm test</code> — boundaries 59→F, 60→D-, 69→D+, 70→C-, 72→C-, 73→C, 89→B+, 92→A-, 93→A, 100→A; 0→F.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Write boundary — aggregator uses the shared util <span class="tag">needs T1</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Delete the local 5-band <code>scoreToGrade</code> (line 57). Import the shared one. Compute <code>gbp_grade</code> and <code>rank_grade</code> from their rounded scores via the shared util, so stored data + the processor/admin log lines are correct for new audits.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/audit/audit-utils/gbpAnalysisAggregator.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>; processor log (line 584) prints a 12-band grade on a fresh run.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Serve boundary — derive all three letters on read <span class="tag">needs T1</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a small <code>deriveGrade(score, fallback)</code> helper: <code>Number.isFinite(round(Number(score))) ? scoreToGrade(...) : fallback</code>. In <code>normalizeWebsiteAnalysis</code> set <code>overall_grade</code> from <code>overall_score</code>; in <code>normalizeGBPAnalysis</code> set <code>gbp_grade</code> from <code>gbp_readiness_score</code> and <code>competitor_analysis.rank_grade</code> from <code>rank_score</code>. This is the authoritative display source.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/audit/audit-utils/normalizationUtils.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>; <code>GET /api/audit/:id/status</code> returns letters matching the table for all three cards.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Stop the LLM emitting letters (prompts) <span class="tag">coordinate w/ T3</span></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Remove <code>"overall_grade"</code> from the <code>WebsiteAnalysis.md</code> output schema. Remove <code>"rank_grade"</code> from the <code>CompetitorAnalysis.md</code> schema and delete the cohort-relative <code>rank_grade</code> rule (line 41). First confirm <code>validationUtils.ts</code> / <code>service.llm-runner.ts</code> don't hard-require those fields; if they do, relax the schema there in the same task.</dd></div>
+          <div><dt>Files</dt><dd><code>src/agents/auditAgents/WebsiteAnalysis.md</code>, <code>src/agents/auditAgents/gbp/CompetitorAnalysis.md</code> (+ validator if required)</dd></div>
+          <div><dt>Depends on</dt><dd>T3 (derivation must be live before the LLM stops supplying the field)</dd></div>
+          <div><dt>Verify</dt><dd>Run a real audit; parse succeeds, no validation error; all three letters populate from derivation.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npm test</code> passes, including the new <code>gradeScale.test.ts</code> boundary suite</li>
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> — zero errors from these changes</li>
+        <li><input type="checkbox" disabled> <code>npm run check:conventions --strict</code> — no new backend violations</li>
+        <li><input type="checkbox" disabled> Invariant: no score 0–59 renders anything but <strong>F</strong> on any card</li>
+        <li><input type="checkbox" disabled> Invariant: no score 70–72 renders anything but <strong>C-</strong> on any card</li>
+        <li><input type="checkbox" disabled> Manual: a fresh audit shows letters matching the approved table on all three cards (e.g. 88→B+, 72→C-, 58→F)</li>
+        <li><input type="checkbox" disabled> Jo re-runs ≥2 documented examples and confirms the letters</li>
+        <li><input type="checkbox" disabled> No regression in the processor/admin-audit grade log lines</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 — 2026-06-29</h3>
+        <p><strong>Change:</strong> Executed T1–T4. Added the shared <code>scoreToGrade</code>/<code>deriveGrade</code> util + mirrored unit test; the aggregator (write) and the serve-time normalizers now derive all three letters from their scores via the approved 12-band scale; the website and competitor prompts no longer emit a letter.</p>
+        <p><strong>Reason:</strong> Execution deviation — the first <code>deriveGrade</code> failed its own unit test: <code>Number(null)</code> and <code>Number("")</code> coerce to <code>0</code> (finite), which mislabeled an absent score as <strong>F</strong> instead of falling back. Added an explicit null/undefined/"" guard before coercion. Caught and fixed during the run; no scope change.</p>
+        <p><strong>Verification:</strong> 31/31 unit tests pass; <code>tsc --noEmit</code> clean for the changed files; <code>check:conventions --strict</code> cites none of them. Layer-2 acceptance (T2–T7) pending a live audit run + Jo sign-off.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
