@@ -60,28 +60,33 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
-        <span class="status-pill status-pending">In Progress</span>
+        <span class="status-pill status-pending">Superseded</span>
       </div>
       <h1>Patient Journey Insights</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>In Progress</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>Superseded</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/06242026-patient-journey-insights</dd></div>
         <div><dt>Size</dt><dd>Large</dd></div>
         <div><dt>Risk</dt><dd>Level 4</dd></div>
       </dl>
     </header>
 
+    <section class="spec-card" id="superseded-note">
+      <h2>Superseded</h2>
+      <p>This original Patient Journey plan was replaced by the later Market Intelligence plan set from June 26, 2026. Its acceptance checklist remains <code>Not Run</code> because validation moved to the newer specs: <code>plans/06262026-market-intelligence-backend-foundation</code>, <code>plans/06262026-market-intelligence-patient-journey-api</code>, <code>plans/06262026-market-intelligence-dashboard-ui</code>, and <code>plans/06262026-market-intelligence-enrichment-ops</code>.</p>
+    </section>
+
     <section class="spec-card" id="why">
       <h2>Why</h2>
-      <p>Corey wants one owner-facing screen that shows the whole buyer journey as a funnel &mdash; from market demand down to a booked, paying patient &mdash; and makes the single biggest leak obvious. It is the Alloro translation of the TrainerRoad "Career" dashboard concept reviewed on the 6/15 Weekly Reset. Today this insight is scattered across Rankings, Reviews, Submissions, and Referrals; no screen tells the doctor "you are losing people <em>here</em>, and that is where the next dollar is."</p>
-      <p>The two mock concepts (<code>~/Desktop/alloro-owner-dashboard/funnel-flow.html</code> vertical, <code>funnel-pipeline.html</code> horizontal) are validated. Decision locked: build the <strong>horizontal card + arrow pipeline</strong> as the entire content of the screen, <strong>all six stages</strong>.</p>
+      <p>Corey wants one owner-facing screen that shows the monitored lead-generation journey as a funnel &mdash; from market demand down to website leads &mdash; and makes the single biggest leak obvious. It is the Alloro translation of the TrainerRoad "Career" dashboard concept reviewed on the 6/15 Weekly Reset. Today this insight is scattered across Rankings, Reviews, Submissions, and Referrals; no screen tells the doctor "you are losing people <em>here</em>."</p>
+      <p>The two mock concepts (<code>~/Desktop/alloro-owner-dashboard/funnel-flow.html</code> vertical, <code>funnel-pipeline.html</code> horizontal) are validated. Decision locked: build the <strong>horizontal card + arrow pipeline</strong> as the entire content of the screen, ending at <strong>website leads</strong>. Production/revenue is intentionally excluded from the pipeline until Alloro has fresh, attributable conversion data.</p>
     </section>
 
     <section class="spec-card" id="what">
       <h2>What</h2>
-      <p>A new <strong>Patient Journey Insights</strong> dashboard at the existing <code>/patientJourneyInsights</code> route (currently a placeholder), rendering a six-stage funnel as horizontal cards joined by arrow connectors, plus rank/reviews context cards and a "one thing that matters" action. It is powered by a new backend funnel-assembly endpoint that stitches together existing data (GSC, form submissions, PMS, rankings, reviews) and one net-new source (market search volume). A compact summary card linking to the screen is added to the Practice Hub.</p>
-      <p><strong>Done when:</strong> a real pilot organization loads the screen and sees its six stages with live numbers (or honest "not connected yet" states), correct conversion %s and a highlighted biggest-leak, org-type-correct wording ("Patient" vs "Customer"), and a working summary card on Practice Hub &mdash; with no tenant-data leakage and all Constitution gates green.</p>
-      <h3>The six stages and their real data sources (verified against the codebase)</h3>
+      <p>A new <strong>Patient Journey Insights</strong> dashboard at the existing <code>/patientJourneyInsights</code> route (currently a placeholder), rendering a four-stage lead-generation funnel as horizontal cards joined by arrow connectors, plus rank/reviews context cards and a "one thing that matters" action. Clicking one of the four pipeline cards opens a compact slideable detail deck that explains where that number came from, using the existing stage value/source/as-of/conversion data. It is powered by a new backend funnel-assembly endpoint that stitches together existing data (GSC, form submissions, rankings, reviews) and one net-new source (market search volume). A compact summary card linking to the screen is added to the Practice Hub.</p>
+      <p><strong>Done when:</strong> a real pilot organization loads the screen and sees the monitored lead-generation stages with live numbers (or honest "not connected yet" states), correct conversion %s and a highlighted biggest-leak, and a working summary card on Practice Hub &mdash; with no tenant-data leakage and all Constitution gates green.</p>
+      <h3>The monitored stages and their real data sources (verified against the codebase)</h3>
       <table class="stages">
         <thead><tr><th>Stage (label)</th><th>Metric</th><th>Source &amp; model</th><th>Scope</th><th>State</th></tr></thead>
         <tbody>
@@ -89,12 +94,11 @@
           <tr><td>Saw your listing</td><td>Search impressions</td><td>GSC <code>gsc_data</code> &middot; <code>GscDataModel.findByProjectAndDateRange()</code> &rarr; sum <code>summary[].impressions</code></td><td>Website (location-exact if single-location)</td><td>Live (4-day lag)</td></tr>
           <tr><td>Visited your site</td><td>Visits (all channels)</td><td>Rybbit <code>rybbit_data</code> + <code>fetchRybbitOverview()</code> (Rybbit <code>blockBots</code> + edge-block; GSC clicks kept as the search-specific cut)</td><td>Website (location-exact if single-location)</td><td>Live (3-day lag; residual bot risk)</td></tr>
           <tr><td>Reached out</td><td>Leads</td><td><code>form_submissions</code> &middot; <code>FormSubmissionModel</code> count by <code>project_id</code> + date, exclude <code>is_flagged</code></td><td>Website (location-exact if single-location)</td><td>Live</td></tr>
-          <tr><td>Became patients</td><td>New patients + revenue</td><td><code>pms_jobs</code> &middot; <code>aggregatePmsData()</code> monthly rollup (production_total, referrals)</td><td>Location (selected)</td><td>Live but sparse &rarr; empty state</td></tr>
           <tr><td>Context: rank</td><td>#N of M locally</td><td><code>practice_rankings</code> &middot; <code>rank_position</code>, <code>total_competitors</code></td><td>Location (selected)</td><td>Live</td></tr>
           <tr><td>Context: reviews</td><td>Rating, count, new, reply rate</td><td><code>reviews</code> + GBP API &middot; <code>extractReviewSummary()</code></td><td>Location (selected)</td><td>Live</td></tr>
         </tbody>
       </table>
-      <p style="margin-top:12px"><strong>Conversion chain:</strong> volume &rarr; impressions &rarr; visits &rarr; leads &rarr; patients. "Saw your listing" is GSC search impressions; "Visited your site" is Rybbit visits across <em>all</em> channels (search + direct + social), so "Saw &rarr; Visited" is a directional relationship, <strong>not a strict search CTR</strong> &mdash; the GSC click number is kept as the search-specific cut and the step is labelled "visits". The "Searching &rarr; Saw" step is a directional <em>visibility share</em> (impressions &divide; market volume); impressions count appearances, not unique searchers, so it is indicative, not exact. <strong>Scope:</strong> every stage scopes to the selected location; for single-location practices this is exact, and for multi-location practices the shared website-traffic stages (impressions / visits / leads) show whole-practice totals, labelled.</p>
+      <p style="margin-top:12px"><strong>Conversion chain:</strong> volume &rarr; impressions &rarr; visits &rarr; leads. "Saw your listing" is GSC search impressions; "Visited your site" is Rybbit visits across <em>all</em> channels (search + direct + social), so "Saw &rarr; Visited" is a directional relationship, <strong>not a strict search CTR</strong> &mdash; the GSC click number is kept as the search-specific cut and the step is labelled "visits". The "Searching &rarr; Saw" step is a directional <em>visibility share</em> (impressions &divide; market volume); impressions count appearances, not unique searchers, so it is indicative, not exact. <strong>Scope:</strong> every stage scopes to the selected location; for single-location practices this is exact, and for multi-location practices the shared website-traffic stages (impressions / visits / leads) show whole-practice totals, labelled. <strong>Production:</strong> intentionally excluded from the pipeline because PMS production can lag the 30-day lead-generation window and cannot be attributed only to website leads.</p>
     </section>
 
     <section class="spec-card" id="context">
@@ -162,20 +166,20 @@
 
     <section class="spec-card" id="risk">
       <h2>Risk</h2>
-      <p><strong>Level:</strong> 4 (new external paid data pipeline + cross-cutting new screen + multi-source aggregation). Recommend a build that ships the five existing-data stages first and lands the paid stage behind its gate.</p>
+      <p><strong>Level:</strong> 4 (new external paid data pipeline + cross-cutting new screen + multi-source aggregation). Build ships the monitored lead-generation pipeline only; production/revenue remains outside the Journey pipeline until attribution and freshness are trustworthy.</p>
       <h3>Risks Identified</h3>
       <ul>
         <li><strong>Search-volume provider cost &mdash; RESOLVED (Rev 2).</strong> Pilot measured <strong>$0.075/practice/refresh, ~$0.82/month fleet-wide (~$10/year)</strong> on DataForSEO. Negligible; the stage is un-gated. Residual build care: metro-level geo + a curated patient-intent keyword set + null handling so "your market" is an honest local estimate (see Rev 2).</li>
-        <li><strong>PMS revenue stage is empty for most clients</strong> (manual, sparse upload). <strong>Mitigation:</strong> detect <code>approvedJobs.length === 0</code> and render "connect your PMS to see revenue", never a zero. Reuse the existing <code>insightsStale</code> nudge.</li>
+        <li><strong>Production attribution is not trustworthy as a funnel stage</strong> (PMS data can lag the 30-day lead-generation window and is not caused only by website leads). <strong>Mitigation:</strong> exclude production/revenue from the Journey pipeline; show it only in separate PMS/production surfaces where period and attribution caveats are explicit.</li>
         <li><strong>Visitor analytics carry bot risk</strong> (owner chose Rybbit for "Visited"; ~10% repeat-visitor inflation when summing daily rows, plus datacenter-bot surges like One Endo). <strong>Mitigation:</strong> rely on Rybbit <code>blockBots</code> + the deployed renderer edge-block, prefer <code>fetchRybbitOverview()</code> deduped totals over summed daily rows, and label it all-channel visits; residual bot inflation is a flagged limitation &mdash; a dedicated in-app bot-filter is not v1 scope.</li>
         <li><strong>Entity scope</strong> &mdash; website-traffic stages come from one shared website per org; rank/reviews/PMS/search-volume are per-location. <strong>Mitigation:</strong> funnel scopes to the selected location &mdash; exact for single-location practices (the common case); for multi-location practices the per-location stages stay location-specific while the shared website-traffic stages show whole-practice totals, clearly labelled, with true per-location attribution deferred to a fast-follow.</li>
-        <li><strong>Visibility-share % is directional</strong> (impressions &ne; unique searchers). <strong>Mitigation:</strong> label "Searching &rarr; Saw" as an estimate; tooltip explains it.</li>
+        <li><strong>Visibility-share % is directional</strong> (impressions &ne; unique searchers). <strong>Mitigation:</strong> label "Searching &rarr; Saw" as an estimate; the stage detail deck explains it.</li>
         <li><strong>Freshness mismatch</strong> across sources. <strong>Mitigation:</strong> per-stage "as of" date; single window with caveats, never one global "as of".</li>
       </ul>
       <p><strong>Blast radius:</strong> new backend domain <code>controllers/patient-journey/</code> + route + new migration(s) + new worker adapter; frontend new <code>api/patientJourney.ts</code>, hook, surface component, and edits to <code>Dashboard.tsx</code> (tab renderer), <code>Sidebar.tsx</code> + <code>MobileBottomNav.tsx</code> (nav), and <code>DashboardOverview.tsx</code> (Practice Hub card). Existing consumers of those three frontend files must keep working &mdash; additive edits only.</p>
       <h3>Pushback</h3>
       <ul>
-        <li>"Full six stages now" commits to recurring search-volume spend before we know the per-client cost. Recommended alternative: ship stages 2&ndash;6 first (all on data we already harvest), turn on stage 1 the moment budget is signed off &mdash; same screen, no rework, no blank launch. The spec is structured so this sequencing is free.</li>
+        <li>Including production in the same card-and-arrow sequence would imply website leads solely caused that production. Recommended alternative: keep Journey focused on lead generation and show production only in separate period-aware PMS/production views.</li>
       </ul>
     </section>
 
@@ -216,7 +220,7 @@
       <article class="task-card">
         <h3>T4: Funnel-assembly service</h3>
         <dl>
-          <div><dt>Do</dt><dd>In <code>feature-services/</code>, assemble the six stages for the <strong>selected location</strong>: GSC impressions ("Saw"), <strong>Rybbit visits via deduped <code>fetchRybbitOverview()</code></strong> ("Visited", labelled all-channel), form-submission leads, PMS patients/revenue, rankings, reviews, and search volume (T3). Scope each stage to the location: per-location stages (search volume / rank / reviews / PMS) use the location directly; shared website-traffic stages (impressions / visits / leads) are location-exact for single-location orgs and whole-practice (flagged) for multi-location orgs. Compute per-step conversion %, the biggest-leak stage, per-stage freshness/"as of", and per-stage availability flags (empty states). No DB calls here &mdash; only model calls (&sect;7.3/&sect;7.4). Trends computed live from existing date-series (this period vs prior).</dd></div>
+          <div><dt>Do</dt><dd>In <code>feature-services/</code>, assemble the four monitored lead-generation stages for the <strong>selected location</strong>: search volume (T3), GSC impressions ("Saw"), <strong>Rybbit visits via deduped <code>fetchRybbitOverview()</code></strong> ("Visited", labelled all-channel), and form-submission leads. Production/PMS data is not a pipeline stage in v1. Scope each stage to the location: search volume is location-keyed; shared website-traffic stages (impressions / visits / leads) are location-exact for single-location orgs and whole-practice (flagged) for multi-location orgs. Compute per-step conversion %, the biggest-leak stage, per-stage freshness/"as of", and per-stage availability flags (empty states). No DB calls here &mdash; only model calls (&sect;7.3/&sect;7.4). Trends computed live from existing date-series (this period vs prior).</dd></div>
           <div><dt>Files</dt><dd><code>src/controllers/patient-journey/feature-services/PatientJourneyService.ts</code> (+ helpers under &sim;50 lines, &sect;2.2)</dd></div>
           <div><dt>Depends on</dt><dd>T3 (and existing models)</dd></div>
           <div><dt>Verify</dt><dd>Unit tests: contract shape, each stage's empty path, leak selection, tenant scope (&sect;20.2)</dd></div>
@@ -248,7 +252,7 @@
       <article class="task-card">
         <h3>T7: PatientJourneyDashboard surface (the pipeline visual)</h3>
         <dl>
-          <div><dt>Do</dt><dd>Port the validated <code>funnel-pipeline.html</code> visual into a React component (cards + arrow connectors, leak emphasis, entrance/count-up/hover-tooltip animations, per-stage empty states, freshness). Replace the <code>VitalSignsCards</code> placeholder at the route; mount via <code>Dashboard.tsx</code> tab renderer. Use <code>useLabels()</code> for title ("Patient Journey Insights" / "Customer Journey Insights") and stage wording. Reflect the selected location (LocationContext); render the all-channel "visits" wording and per-stage "as of" freshness, and for multi-location practices show the "whole-practice website" label on the shared traffic stages. Mirror <code>RankingsDashboard</code> structure; respect &sect;13.1 size (split into child components + <code>*.utils.ts</code>).</dd></div>
+          <div><dt>Do</dt><dd>Port the validated <code>funnel-pipeline.html</code> visual into a React component (cards + arrow connectors, leak emphasis, entrance/count-up animations, per-stage empty states, freshness). Replace the <code>VitalSignsCards</code> placeholder at the route; mount via <code>Dashboard.tsx</code> tab renderer. Use <code>useLabels()</code> for title ("Patient Journey Insights" / "Customer Journey Insights") and stage wording. Reflect the selected location (LocationContext); render the all-channel "visits" wording and per-stage "as of" freshness, for multi-location practices show the "whole-practice website" label on shared traffic stages, and keep production/revenue out of the pipeline. Mirror <code>RankingsDashboard</code> structure; respect &sect;13.1 size (split into child components + <code>*.utils.ts</code>). Rev 7 replaces the hover-only detail tooltip with a click-open slideable source deck.</dd></div>
           <div><dt>Files</dt><dd><code>frontend/src/components/dashboard/patient-journey/*</code>, edit <code>frontend/src/pages/Dashboard.tsx</code></dd></div>
           <div><dt>Depends on</dt><dd>T6</dd></div>
           <div><dt>Verify</dt><dd>Browser: renders for a pilot org; empty states for missing GSC/PMS; reduced-motion respected</dd></div>
@@ -287,6 +291,46 @@
         </dl>
       </article>
 
+      <article class="task-card">
+        <h3>T11 (Rev 4): Correct unavailable-stage conversion handling</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Fix conversion math so an unavailable stage is treated as null even when a reader carries a numeric zero, and align the frontend query string with the backend's canonical <code>month</code> parameter.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/patient-journey/feature-utils/funnelMath.ts</code>, <code>src/__tests__/patient-journey.service.test.ts</code>, <code>frontend/src/api/patientJourney.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T4, T6</dd></div>
+          <div><dt>Verify</dt><dd><code>npm test -- patient-journey.service</code>; <code>npx tsc --noEmit</code>; <code>cd frontend &amp;&amp; npx tsc -p tsconfig.app.json --noEmit</code></dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T12 (Rev 4): Center pipeline connector indicators</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Make the arrow indicator wrapper fill the stage-card row height so the percent, arrow, and caption sit at the vertical midpoint of the neighboring cards.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/dashboard/patient-journey/PatientJourneyPipeline.tsx</code>, <code>frontend/src/components/dashboard/patient-journey/PatientJourneyArrow.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T7</dd></div>
+          <div><dt>Verify</dt><dd>Manual visual QA: connector indicators are centered vertically against card height on <code>/patientJourneyInsights</code>.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T13 (Rev 5): Center stage card contents</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Center-align and vertically justify the metric, label, and empty-state copy inside every stage card so card contents sit in the middle of the card body.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/dashboard/patient-journey/PatientJourneyStageCard.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T7, T12</dd></div>
+          <div><dt>Verify</dt><dd>Manual visual QA: stage-card contents are centered horizontally and vertically on <code>/patientJourneyInsights</code>.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T14 (Rev 7): Click-open slideable stage detail deck</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Replace the dark hover-only tooltip as the primary detail surface. Make only the four pipeline stage cards open a full viewport-centered floating card deck on click / keyboard activation. The popover renders through a portal, darkens and blurs the page behind it, removes the large container background, and uses bigger cards / bigger type so source text does not feel cramped. The center card shows full details for the selected stage; the left and right cards show adjacent-stage summaries. Left/right arrow controls sit at the sides of the deck, dot indicators show deck position, and the close icon stays bare without a white button background. Use the existing payload only: <code>stage.value</code>, <code>stage.source</code>, <code>stage.asOf</code>, <code>stage.metaLabel</code>, <code>stage.note</code>, <code>stage.shared</code>, <code>journey.period</code>, and inbound <code>conversions</code>. Do not add backend fields for v1. Content stays simple: DataForSEO market search volume; Google Search Console impressions; Rybbit all-channel visits with bot-filter caveat; website form submissions with "website leads only"; plus prior-step carry-through where applicable.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/dashboard/patient-journey/PatientJourneyPipeline.tsx</code>, <code>frontend/src/components/dashboard/patient-journey/PatientJourneyStageCard.tsx</code>, new child component(s) such as <code>PatientJourneyDetailDeck.tsx</code>, and optional pure helpers in <code>patientJourney.utils.ts</code> or a sibling <code>*.utils.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T7, T13, Rev 6 production-removal decision</dd></div>
+          <div><dt>Verify</dt><dd>Manual: clicking each of the four pipeline cards opens the deck with the clicked card centered; arrow controls animate left/right and update detail content; context cards do not open the deck; no hover-only dark tooltip remains as the main details UI; keyboard Enter/Space works for stage cards.</dd></div>
+        </dl>
+      </article>
+
       <p style="margin-top:14px"><strong>Parallelization:</strong> T1&rarr;T3&rarr;T4&rarr;T5 is the backend spine; T2 is gated and can land last without blocking the screen. T6&rarr;T7&rarr;T8 and T9 are the frontend track (start once T5 returns a stub contract). T2/T3 (search volume) run independently of the GSC/forms/PMS wiring. Dispatch backend-spine and frontend-track as two sub-agent groups (see Parallel Sub-Agent Orchestration).</p>
     </section>
 
@@ -296,10 +340,16 @@
         <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> (backend) and <code>tsc -p tsconfig.app.json</code> (frontend) &mdash; zero errors</li>
         <li><input type="checkbox" disabled> <code>npm run check:all</code> &mdash; backend <code>check:conventions --strict</code> passes; no new violations</li>
         <li><input type="checkbox" disabled> <code>npm test</code> &mdash; model + service tests pass, including tenant-isolation (&sect;20.2)</li>
-        <li><input type="checkbox" disabled> Manual: a pilot org loads <code>/patientJourneyInsights</code> and sees all six stages with live numbers or honest empty states</li>
+        <li><input type="checkbox" disabled> Manual: a pilot org loads <code>/patientJourneyInsights</code> and sees the monitored lead-generation stages through website leads, with live numbers or honest empty states</li>
         <li><input type="checkbox" disabled> Manual: funnel scopes to the selected location &mdash; single-location practice is exact; multi-location practice shows the shared traffic stages labelled "whole-practice website"</li>
         <li><input type="checkbox" disabled> Manual: "Visited" uses Rybbit (deduped, <code>blockBots</code> + edge-block), shown as all-channel visits and not read as a strict CTR</li>
         <li><input type="checkbox" disabled> Manual: conversion %s and biggest-leak are correct; per-stage "as of" shown</li>
+        <li><input type="checkbox" disabled> Code: unavailable stages, including PMS zero-with-unavailable states, produce null conversions and are skipped by biggest-leak selection</li>
+        <li><input type="checkbox" disabled> Manual: pipeline connector indicators are vertically centered against the card row</li>
+        <li><input type="checkbox" disabled> Manual: stage-card contents are horizontally centered and vertically justified in the card body</li>
+        <li><input type="checkbox" disabled> Manual: production/revenue is not rendered as a pipeline stage or implied to be caused by website leads</li>
+        <li><input type="checkbox" disabled> Manual: clicking any of the four pipeline cards opens a wide viewport-centered floating card deck; the page behind is darkened and blurred; the clicked card is centered with larger full source details and adjacent cards show larger summaries</li>
+        <li><input type="checkbox" disabled> Manual: side arrow controls and dot indicators animate between stages and update the centered detail content; the close icon has no white button background; only the four pipeline cards trigger the popover</li>
         <li><input type="checkbox" disabled> Manual: a <code>generic</code>-type org shows "Customer Journey Insights" wording end-to-end</li>
         <li><input type="checkbox" disabled> Manual: Practice Hub summary card renders and links through</li>
         <li><input type="checkbox" disabled> Manual: no tenant-data leakage (cross-org request returns 403 / no rows)</li>
@@ -327,6 +377,60 @@
         <p><strong>Change:</strong> Executed the full remaining build (T2, T4, T5, T6, T7, T8, T9, T10) via orchestrated sub-agents. <strong>All code-level gates green:</strong> backend <code>tsc</code> 0 errors, frontend <code>tsc -p tsconfig.app.json</code> 0 errors, 20/20 unit tests pass, FE&harr;BE response contract aligned field-for-field, zero new mechanized convention violations (db() outside models = 0, no new 800-line files, no console in new files; the 3 strict-gate failures are all pre-existing, none mine). Notable code-grounded deviations: (a) <code>keyword_search_volume</code> table in the <strong>public</strong> schema (location-keyed like practice_rankings), not website_builder; (b) reviews context reads a new stored-rows <code>ReviewModel.getReviewSummaryForLocation</code> (tenant-scoped, no external OAuth call) instead of the live-GBP <code>extractReviewSummary</code> &mdash; v1 reflects synced/stored reviews, honest + cheap; (c) the DataForSEO harvest uses a <code>location_name</code> string (City,State,US with geo fallback), not a numeric location_code; (d) search-volume runs as a standalone <strong>monthly</strong> worker job (cron <code>0 6 1 * *</code>), not in the per-project harvest-registry. ~30 files created/edited across src/ + frontend/src/.</p>
         <p><strong>Reason:</strong> Execution deviation: code-grounded refinements during the <code>-x</code> build; owner directed "execute all in order, test each".</p>
         <p><strong>Updated Done criteria:</strong> code-level gates all green. <strong>Not yet done:</strong> migration not applied to any DB; DataForSEO harvest not run (search-volume stage shows its empty state until the monthly job / a manual trigger); behavioral/runtime validation pending &mdash; runs on dev after deploy (which applies the migration) via the acceptance checklist (<code>test.html</code> / <code>test-results.json</code>, 13 items pending). Docs parity (alloro-docs) still required at <code>-d</code>.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 4 - 2026-06-25</h3>
+        <p><strong>Change:</strong> Added a QA fix round for three issues: conversion math now requires both stages to be available before computing a percentage or choosing a biggest-leak step; the frontend API client sends the backend's canonical <code>month</code> query parameter; and the pipeline connector wrapper fills the stage-card row height so the percent/arrow/caption indicator centers vertically between cards.</p>
+        <p><strong>Reason:</strong> User QA: PMS patient count can be unavailable while revenue exists, the API month parameter was mismatched, and the screenshot showed connector indicators sitting too high relative to the card row.</p>
+        <p><strong>Updated Done criteria:</strong> unavailable stages produce null conversions and are skipped by leak selection; frontend period requests use <code>month=YYYY-MM</code>; connector indicators are vertically centered against the cards.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 5 - 2026-06-25</h3>
+        <p><strong>Change:</strong> Center-aligned and vertically justified the contents inside each Patient Journey stage card, including metric values, stage labels, and "Not connected yet" empty-state text.</p>
+        <p><strong>Reason:</strong> User QA: the card bodies still read as top-left aligned after the connector-centering pass; the intended visual is centered content within each card.</p>
+        <p><strong>Updated Done criteria:</strong> stage-card contents are horizontally centered and vertically justified in the card body on <code>/patientJourneyInsights</code>.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 6 - 2026-06-25</h3>
+        <p><strong>Change:</strong> Removed production/revenue and patient conversion from the Journey pipeline. The monitored pipeline now ends at <em>Reached out</em> (website leads). PMS production can exist elsewhere in Alloro, but it is not rendered as a pipeline stage or connected by an arrow from leads.</p>
+        <p><strong>Reason:</strong> User QA: production is stale relative to the 30-day lead-generation stages and cannot honestly be attributed only to website leads. The Journey pipeline should represent what Alloro can monitor and influence today: lead generation.</p>
+        <p><strong>Updated Done criteria:</strong> the pipeline shows market demand &rarr; impressions &rarr; visits &rarr; leads only; production/revenue is not rendered as a pipeline stage or implied to be caused by website leads.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 7 - 2026-06-25</h3>
+        <p><strong>Change:</strong> Added a planned click interaction for the four pipeline stage cards: clicking a card opens a compact slideable detail deck. The centered card shows the selected stage's source details, while adjacent left/right cards show summaries; arrow controls animate between stages. The detail content uses the existing patient-journey payload only and stays intentionally simple: source, date/freshness, stage explanation, caveat, and prior-step carry-through where applicable.</p>
+        <p><strong>Reason:</strong> Scope addition: user wants the cards to explain where each number comes from without expanding into heavier source drilldowns, top keywords, channel mixes, or form-submission row data.</p>
+        <p><strong>Updated Done criteria:</strong> clicking any of the four pipeline cards opens the deck with the clicked item centered; left/right arrows animate between stages and update the center detail; only pipeline cards trigger the deck; the old hover-only dark tooltip is no longer the primary details UI.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 8 - 2026-06-25</h3>
+        <p><strong>Change:</strong> Converted the click-open detail deck from an in-flow panel into a non-modal popover anchored to the pipeline row. The detail surface now overlays lower content, supports Escape / outside-click close, and keeps the slideable center-plus-adjacent-card behavior from Rev 7.</p>
+        <p><strong>Reason:</strong> User QA: the Rev 7 deck rendered as a large in-flow section and pushed the "What's shaping your funnel" content down; the intended interaction is a popover.</p>
+        <p><strong>Updated Done criteria:</strong> the detail deck opens as an elevated popover and does not consume document height or reflow the lower funnel context section.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 9 - 2026-06-25</h3>
+        <p><strong>Change:</strong> Upgraded the detail surface to a full viewport-centered popover rendered through a portal. The background now darkens and blurs behind the popover, the panel is wider, and page scrolling is locked while the popover is open.</p>
+        <p><strong>Reason:</strong> User QA: the anchored popover still looked cramped and visually competed with the page content behind it.</p>
+        <p><strong>Updated Done criteria:</strong> the detail popover is centered in the viewport, uses a wide panel that prevents cramped source text, darkens/blurs the dashboard behind it, and closes via Escape, close button, or backdrop click.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 10 - 2026-06-25</h3>
+        <p><strong>Change:</strong> Removed the popover's large panel background and restyled the detail surface as a floating card deck. The stage cards and text are larger, arrows sit on the left/right edges, dot indicators show the selected stage, and the close icon is a bare floating control.</p>
+        <p><strong>Reason:</strong> User QA: the previous wide popover still felt like a contained modal and the card/text scale was too small for the desired floating deck feel.</p>
+        <p><strong>Updated Done criteria:</strong> the detail surface reads as a floating card deck with no outer panel background, larger cards/type, side arrows, dot indicators, and a bare close icon.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 11 - 2026-06-25</h3>
+        <p><strong>Change:</strong> Reduced the typography inside the floating deck while keeping the card sizes unchanged. This lowers the metric, headline, explanation, detail-block, note, and adjacent-summary text sizes.</p>
+        <p><strong>Reason:</strong> User QA: the Rev 10 cards were the right size, but the text was still wrapping down too aggressively inside the source detail blocks.</p>
+        <p><strong>Updated Done criteria:</strong> floating deck component dimensions remain unchanged while the text reads smaller and avoids awkward wrapping where practical.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 12 - 2026-06-29</h3>
+        <p><strong>Change:</strong> Marked this legacy Patient Journey plan as superseded by the June 26 Market Intelligence plan set.</p>
+        <p><strong>Reason:</strong> Finalization cleanup: the current shipped work was executed and accepted under the newer Market Intelligence backend, Patient Journey API, dashboard UI, and enrichment specs. This older checklist was not run and should not be treated as the active acceptance gate.</p>
+        <p><strong>Updated Done criteria:</strong> none. The active acceptance criteria live in the newer Market Intelligence plan folders.</p>
       </article>
     </section>
   </main>
