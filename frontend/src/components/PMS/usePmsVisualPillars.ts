@@ -11,6 +11,7 @@ import type { ReferralEngineData } from "./ReferralMatrices";
 import { useLocationContext } from "../../contexts/locationContext";
 import { apiGet, adminFetch } from "../../api";
 import { logger } from "../../lib/logger";
+import { usePmsCopy } from "./pmsCopy";
 
 interface UsePmsVisualPillarsParams {
   domain?: string;
@@ -32,6 +33,7 @@ export function usePmsVisualPillars({
   isWizardActive,
 }: UsePmsVisualPillarsParams) {
   const { signalContentReady } = useLocationContext();
+  const copy = usePmsCopy();
 
   // Connection status state - track if GBP is connected
   const [connectionStatus, setConnectionStatus] = useState<{
@@ -98,9 +100,7 @@ export function usePmsVisualPillars({
         } else {
           setKeyData(null);
           setError(
-            response?.error ||
-              response?.message ||
-              "Unable to load PMS visual pillars.",
+            response?.error || response?.message || copy.retrieveErrorTitle,
           );
         }
       } catch (err) {
@@ -110,9 +110,7 @@ export function usePmsVisualPillars({
 
         setKeyData(null);
         const message =
-          err instanceof Error
-            ? err.message
-            : "Failed to load PMS visual pillars.";
+          err instanceof Error ? err.message : copy.retrieveErrorTitle;
         setError(message);
       } finally {
         if (isMountedRef.current && !silent) {
@@ -122,7 +120,13 @@ export function usePmsVisualPillars({
         signalContentReady();
       }
     },
-    [organizationId, locationId, isWizardActive],
+    [
+      organizationId,
+      locationId,
+      isWizardActive,
+      copy.retrieveErrorTitle,
+      signalContentReady,
+    ],
   );
 
   useEffect(() => {
@@ -325,7 +329,10 @@ export function usePmsVisualPillars({
       }
 
       try {
-        const response = await fetchActiveAutomationJobs(organizationId, locationId);
+        const response = await fetchActiveAutomationJobs(
+          organizationId,
+          locationId,
+        );
 
         if (response.success && response.data?.jobs?.length) {
           const activeJob = response.data.jobs[0];
@@ -370,7 +377,10 @@ export function usePmsVisualPillars({
     }
 
     try {
-      const response = await fetchActiveAutomationJobs(organizationId, locationId);
+      const response = await fetchActiveAutomationJobs(
+        organizationId,
+        locationId,
+      );
 
       if (response.success && response.data?.jobs?.length) {
         // Get the most recent active job for this domain
@@ -410,7 +420,14 @@ export function usePmsVisualPillars({
       logger.error("Failed to fetch automation status:", err);
       setAutomationStatus(null);
     }
-  }, [domain, organizationId, locationId, loadReferralData, loadKeyData, isWizardActive]);
+  }, [
+    domain,
+    organizationId,
+    locationId,
+    loadReferralData,
+    loadKeyData,
+    isWizardActive,
+  ]);
 
   // Poll for automation status when referralPending is true OR when there's an active automation
   // This ensures real-time updates regardless of how the user got to this page
@@ -468,7 +485,13 @@ export function usePmsVisualPillars({
         clearTimeout(timeoutId);
       }
     };
-  }, [domain, referralPending, automationStatus?.status, loadAutomationStatus, isWizardActive]);
+  }, [
+    domain,
+    referralPending,
+    automationStatus?.status,
+    loadAutomationStatus,
+    isWizardActive,
+  ]);
 
   // Background polling: Check for new automation jobs periodically
   // This catches cases where automation starts from admin panel while user is viewing page
@@ -484,7 +507,10 @@ export function usePmsVisualPillars({
       if (isCancelled) return;
 
       try {
-        const response = await fetchActiveAutomationJobs(organizationId, locationId);
+        const response = await fetchActiveAutomationJobs(
+          organizationId,
+          locationId,
+        );
 
         if (response.success && response.data?.jobs?.length) {
           const activeJob = response.data.jobs[0];

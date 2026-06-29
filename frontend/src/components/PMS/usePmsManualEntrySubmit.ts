@@ -9,6 +9,7 @@ import {
 } from "../../api/pms";
 import type { MonthBucket } from "./types";
 import { formatMonthLabel } from "./pmsManualEntryModal.utils";
+import type { PmsCopy } from "./pmsCopy";
 
 /**
  * Dependencies the submit handler closes over. These are the exact reactive
@@ -19,6 +20,7 @@ import { formatMonthLabel } from "./pmsManualEntryModal.utils";
  * hook-call sequence.
  */
 interface PmsManualEntrySubmitDeps {
+  copy: PmsCopy;
   selectedUploadFile: File | null;
   getSubmitMonths: () => ManualMonthEntry[];
   targetMonth?: string | null;
@@ -35,6 +37,7 @@ interface PmsManualEntrySubmitDeps {
 }
 
 export function createPmsManualEntrySubmit({
+  copy,
   selectedUploadFile,
   getSubmitMonths,
   targetMonth,
@@ -59,11 +62,11 @@ export function createPmsManualEntrySubmit({
         if (
           targetMonth &&
           !backendData.some(
-            (month) => month.month === targetMonth && month.sources.length > 0
+            (month) => month.month === targetMonth && month.sources.length > 0,
           )
         ) {
           throw new Error(
-            `Add data for ${formatMonthLabel(targetMonth)} before uploading.`
+            `Add data for ${formatMonthLabel(targetMonth)} before uploading.`,
           );
         }
         const result = await uploadPMSData({
@@ -77,8 +80,8 @@ export function createPmsManualEntrySubmit({
         if (result.success) {
           setSubmitStatus("success");
           showUploadToast(
-            "PMS file received!",
-            "Processing your insights now..."
+            copy.toastDataReceivedTitle,
+            copy.processingInsightsMessage,
           );
 
           if (typeof window !== "undefined") {
@@ -121,8 +124,8 @@ export function createPmsManualEntrySubmit({
         if (result.success) {
           setSubmitStatus("success");
           showUploadToast(
-            "Data received!",
-            "Processing your insights now..."
+            copy.toastReceivedTitle,
+            copy.processingInsightsMessage,
           );
 
           if (typeof window !== "undefined") {
@@ -155,13 +158,12 @@ export function createPmsManualEntrySubmit({
     const allRows = months.flatMap((m) => m.rows);
     const validRows = allRows.filter(
       (r) =>
-        r.source.trim() && (Number(r.referrals) > 0 || Number(r.production) > 0)
+        r.source.trim() &&
+        (Number(r.referrals) > 0 || Number(r.production) > 0),
     );
 
     if (validRows.length === 0) {
-      setError(
-        "Please add at least one source with referrals or production data"
-      );
+      setError(copy.validationMissingSourceData);
       return;
     }
 
@@ -169,7 +171,7 @@ export function createPmsManualEntrySubmit({
     const emptySourceRows = allRows.filter(
       (r) =>
         !r.source.trim() &&
-        (Number(r.referrals) > 0 || Number(r.production) > 0)
+        (Number(r.referrals) > 0 || Number(r.production) > 0),
     );
     if (emptySourceRows.length > 0) {
       setError("All sources must have a name");
@@ -184,11 +186,11 @@ export function createPmsManualEntrySubmit({
       if (
         targetMonth &&
         !backendData.some(
-          (month) => month.month === targetMonth && month.sources.length > 0
+          (month) => month.month === targetMonth && month.sources.length > 0,
         )
       ) {
         throw new Error(
-          `Add data for ${formatMonthLabel(targetMonth)} before submitting.`
+          `Add data for ${formatMonthLabel(targetMonth)} before submitting.`,
         );
       }
 
@@ -202,7 +204,10 @@ export function createPmsManualEntrySubmit({
         setSubmitStatus("success");
 
         // Show toast notification
-        showUploadToast("Data received!", "Processing your insights now...");
+        showUploadToast(
+          copy.toastDataReceivedTitle,
+          copy.processingInsightsMessage,
+        );
 
         // Dispatch event for other components
         if (typeof window !== "undefined") {

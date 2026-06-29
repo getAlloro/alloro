@@ -12,6 +12,7 @@ import { FocusTrendChart, type FocusTrendDatum } from "./FocusTrendChart";
 import { parseYM } from "../../PMS/dashboard/pmsPeriod";
 import { InsightCue } from "../InsightCue";
 import { TONE_COLOR } from "./statusRules";
+import { usePmsCopy } from "../../PMS/pmsCopy";
 
 /**
  * ProductionPanel — the single year-to-date production chart that anchors
@@ -106,6 +107,7 @@ export function ProductionPanel() {
   const wizard = useWizardDemoData();
   const { userProfile } = useAuth();
   const labels = useLabels();
+  const copy = usePmsCopy();
   const { selectedLocation } = useLocationContext();
   const orgId = userProfile?.organizationId ?? null;
   const locationId = selectedLocation?.id ?? null;
@@ -145,7 +147,7 @@ export function ProductionPanel() {
         <EmptyState>
           {months.length > 0
             ? `No ${currentYear} data yet — your year-to-date trend starts with your first ${currentYear} upload.`
-            : `Upload PMS data to see your ${labels.revenueNoun} trend.`}
+            : `${copy.uploadDataCta} to see your ${copy.moneyLower} trend.`}
         </EmptyState>
       </Shell>
     );
@@ -159,7 +161,7 @@ export function ProductionPanel() {
     label: monthShort(m.month),
     tooltipLabel: monthShort(m.month),
     value: Number(m.productionTotal) || 0,
-    detail: `${m.totalReferrals} ${labels.referralsShort.toLowerCase()}`,
+    detail: `${m.totalReferrals} ${copy.countPlural}`,
   }));
 
   return (

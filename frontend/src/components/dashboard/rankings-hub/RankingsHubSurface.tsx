@@ -12,6 +12,9 @@ import { StatBox } from "../StatBox";
 import { TONE_COLOR } from "../focus/statusRules";
 import { RankingsMapCard } from "./RankingsMapCard";
 import type { RankingResult } from "../RankingsDashboard";
+import { useLabels } from "../../../hooks/useLabels";
+import { useAuth } from "../../../hooks/useAuth";
+import { formatGeneratedCopyForOrg } from "../../../utils/generatedCopy";
 
 /**
  * RankingsHubSurface — simplified Local Rankings surface (redesign).
@@ -48,6 +51,8 @@ export function RankingsHubSurface({
   locationId: number | null;
 }) {
   const navigate = useNavigate();
+  const labels = useLabels();
+  const { userProfile } = useAuth();
 
   const status = result.searchStatus ?? "ok";
   const rank = result.searchPosition;
@@ -92,8 +97,11 @@ export function RankingsHubSurface({
 
   const comparisonInsight = useMemo(() => {
     const rows = buildCompetitorComparisonRows(result);
-    return getComparisonInsight(rows, "mapsPosition");
-  }, [result]);
+    return formatGeneratedCopyForOrg(
+      getComparisonInsight(rows, "mapsPosition"),
+      userProfile?.organizationType,
+    );
+  }, [result, userProfile?.organizationType]);
 
   const rankColorClass =
     rank !== null && rank <= 3
@@ -150,7 +158,7 @@ export function RankingsHubSurface({
                 {status === "not_in_top_20"
                   ? "Not ranked in top 20"
                   : status === "bias_unavailable"
-                    ? "Couldn't locate your practice on Google"
+                    ? `Couldn't locate your ${labels.orgNoun} on Google`
                     : status === "api_error"
                       ? "Google search temporarily unavailable"
                       : "Local search estimate pending"}

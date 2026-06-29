@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { PmsFileManagerFile } from "../../../api/pms";
+import { usePmsCopy } from "../pmsCopy";
 
 export type PmsFileListProps = {
   files: PmsFileManagerFile[];
@@ -42,14 +43,16 @@ export function PmsFileList({
   onConfirmDelete,
   onCancelDelete,
 }: PmsFileListProps) {
+  const copy = usePmsCopy();
+
   if (files.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-line-soft bg-white p-5 text-center">
         <FileSpreadsheet className="mx-auto h-7 w-7 text-alloro-orange" />
         <p className="mt-3 text-sm font-bold text-alloro-navy">
           {selectedMonth
-            ? `No PMS data saved for ${formatMonth(selectedMonth)}`
-            : "No PMS files saved yet"}
+            ? `${copy.fileListEmptyMonthPrefix} ${formatMonth(selectedMonth)}`
+            : copy.fileListEmptyFallback}
         </p>
       </div>
     );
@@ -147,6 +150,7 @@ function RowActionsMenu({
   onConfirmDelete: (jobId: number) => void;
   onCancelDelete: () => void;
 }) {
+  const copy = usePmsCopy();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -182,7 +186,9 @@ function RowActionsMenu({
     onClick: () => void;
   }> = [
     {
-      label: updateMonth ? `Update ${formatMonth(updateMonth)}` : "Edit current data",
+      label: updateMonth
+        ? `Update ${formatMonth(updateMonth)}`
+        : "Edit current data",
       icon: <Pencil className="h-3.5 w-3.5" />,
       disabled: !canMutate,
       onClick: () => onEdit(file.id),
@@ -260,7 +266,7 @@ function RowActionsMenu({
             Confirm delete
           </p>
           <p className="mt-1 text-xs font-semibold leading-5 text-alloro-navy">
-            Remove this PMS file from active reporting?
+            {copy.fileDeleteConfirm}
           </p>
           <div className="mt-3 flex gap-2">
             <button
@@ -289,12 +295,24 @@ function RowActionsMenu({
 
 function StatusPill({ file }: { file: PmsFileManagerFile }) {
   if (file.is_deleted) {
-    return <span className="rounded-full bg-red-50 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-red-700">Deleted</span>;
+    return (
+      <span className="rounded-full bg-red-50 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-red-700">
+        Deleted
+      </span>
+    );
   }
   if (file.active_months.length === 0) {
-    return <span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-amber-700">Superseded</span>;
+    return (
+      <span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-amber-700">
+        Superseded
+      </span>
+    );
   }
-  return <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-emerald-700">Active</span>;
+  return (
+    <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-emerald-700">
+      Active
+    </span>
+  );
 }
 
 function formatMonths(months: string[]) {
@@ -305,11 +323,18 @@ function formatMonths(months: string[]) {
 function formatMonth(month: string) {
   const parsed = new Date(`${month}-01T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return month;
-  return parsed.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  return parsed.toLocaleDateString("en-US", {
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function formatDate(value: string) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "Unknown date";
-  return parsed.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return parsed.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }

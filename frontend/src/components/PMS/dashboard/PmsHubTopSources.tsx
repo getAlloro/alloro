@@ -4,7 +4,7 @@ import { PmsCardShell } from "./primitives";
 import type { PmsDashboardSurfaceProps } from "./PmsDashboardSurface";
 import type { SourceDetail, SourceTrend } from "./sourceTrend";
 import { formatCompactCurrency } from "./utils";
-import { useLabels } from "../../../hooks/useLabels";
+import { usePmsCopy } from "../pmsCopy";
 
 /**
  * PmsHubTopSources — the Referrals Hub Top-Sources list with click-in
@@ -28,7 +28,9 @@ function DetailStat({ label, value }: { label: string; value: string }) {
       <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-ink-muted">
         {label}
       </div>
-      <div className="mt-0.5 text-sm font-semibold text-alloro-navy tabular-nums">{value}</div>
+      <div className="mt-0.5 text-sm font-semibold text-alloro-navy tabular-nums">
+        {value}
+      </div>
     </div>
   );
 }
@@ -37,14 +39,18 @@ function pct(value: number | null): string {
   return value == null ? "—" : `${Math.round(value)}%`;
 }
 
-export function PmsHubTopSources({ sources, trendFor, detailFor }: PmsHubTopSourcesProps) {
-  const labels = useLabels();
+export function PmsHubTopSources({
+  sources,
+  trendFor,
+  detailFor,
+}: PmsHubTopSourcesProps) {
+  const copy = usePmsCopy();
   const [expandedRank, setExpandedRank] = useState<number | null>(null);
 
   if (sources.length === 0) return null;
 
   return (
-    <PmsCardShell eyebrow="Top sources">
+    <PmsCardShell eyebrow={copy.topSourcesEyebrow}>
       <div className="divide-y divide-line-soft">
         {sources.map((s) => {
           const trend = trendFor(s.name);
@@ -65,11 +71,16 @@ export function PmsHubTopSources({ sources, trendFor, detailFor }: PmsHubTopSour
                 >
                   {s.rank}
                 </span>
-                <span className="flex-1 truncate font-semibold text-alloro-navy">{s.name}</span>
-                <span className="text-sm font-semibold tabular-nums text-ink-muted">
-                  {s.referrals} · {s.percentage}%
+                <span className="flex-1 truncate font-semibold text-alloro-navy">
+                  {s.name}
                 </span>
-                <span className="w-4 text-center font-bold" style={{ color: trend.color }}>
+                <span className="text-sm font-semibold tabular-nums text-ink-muted">
+                  {s.referrals} {copy.sourceCountAbbrev} · {s.percentage}%
+                </span>
+                <span
+                  className="w-4 text-center font-bold"
+                  style={{ color: trend.color }}
+                >
                   {trend.arrow}
                 </span>
                 <ChevronDown
@@ -87,7 +98,7 @@ export function PmsHubTopSources({ sources, trendFor, detailFor }: PmsHubTopSour
                     <>
                       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                         <DetailStat
-                          label={labels.production}
+                          label={copy.moneyLabel}
                           value={
                             detail.netProduction == null
                               ? "—"
@@ -95,15 +106,21 @@ export function PmsHubTopSources({ sources, trendFor, detailFor }: PmsHubTopSour
                           }
                         />
                         <DetailStat
-                          label="Avg / referral"
+                          label={`Avg / ${copy.countSingular}`}
                           value={
                             detail.avgPerReferral == null
                               ? "—"
                               : formatCompactCurrency(detail.avgPerReferral)
                           }
                         />
-                        <DetailStat label="Scheduled" value={pct(detail.pctScheduled)} />
-                        <DetailStat label="Started" value={pct(detail.pctStarted)} />
+                        <DetailStat
+                          label="Scheduled"
+                          value={pct(detail.pctScheduled)}
+                        />
+                        <DetailStat
+                          label="Started"
+                          value={pct(detail.pctStarted)}
+                        />
                       </div>
                       {detail.notes && (
                         <p className="mt-3 text-[13px] leading-relaxed text-alloro-navy">
@@ -113,7 +130,7 @@ export function PmsHubTopSources({ sources, trendFor, detailFor }: PmsHubTopSour
                     </>
                   ) : (
                     <p className="text-[13px] font-medium text-ink-muted">
-                      Detail arrives with the next referral analysis.
+                      Detail arrives with the next analysis.
                     </p>
                   )}
                 </div>

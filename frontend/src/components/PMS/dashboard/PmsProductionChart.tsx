@@ -15,7 +15,7 @@ import { formatCurrency, getLatestMonth } from "./utils";
 import { PmsCardShell, PmsEyebrow } from "./primitives";
 import { PmsVelocityCard } from "./PmsVelocityCard";
 import { DetailsModal } from "../../dashboard/shared/DetailsModal";
-import { useLabels } from "../../../hooks/useLabels";
+import { usePmsCopy } from "../pmsCopy";
 
 export type PmsProductionChartProps = {
   months: PmsDashboardMonth[];
@@ -35,7 +35,7 @@ export function PmsProductionChart({
   months,
   isProcessingInsights,
 }: PmsProductionChartProps) {
-  const labels = useLabels();
+  const copy = usePmsCopy();
   const gradientId = useId().replaceAll(":", "");
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [isPaceOpen, setIsPaceOpen] = useState(false);
@@ -65,7 +65,9 @@ export function PmsProductionChart({
   const middleLabel = months[Math.floor(months.length / 2)]?.month ?? "—";
   const lastLabel = latest?.month ?? "—";
 
-  const handleChartHover = (state?: { activeTooltipIndex?: number | string | null }) => {
+  const handleChartHover = (state?: {
+    activeTooltipIndex?: number | string | null;
+  }) => {
     const nextIndex = Number(state?.activeTooltipIndex);
     if (Number.isInteger(nextIndex)) {
       setHoverIndex(nextIndex);
@@ -76,7 +78,7 @@ export function PmsProductionChart({
     <PmsCardShell>
       <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <PmsEyebrow>{labels.production} trend</PmsEyebrow>
+          <PmsEyebrow>{copy.trendEyebrow}</PmsEyebrow>
           <div className="mt-2 flex flex-wrap items-baseline gap-2">
             <span className="font-display text-4xl font-medium leading-none tracking-tight text-alloro-navy tabular-nums">
               {formatCurrency(activeMonth?.productionTotal ?? 0)}
@@ -87,19 +89,21 @@ export function PmsProductionChart({
           </div>
           {activeMonth && (
             <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-[color:var(--color-pm-text-secondary)]">
-              {activeMonth.totalReferrals} {labels.referralsShort.toLowerCase()} ·{" "}
-              {activeMonth.doctorReferrals} {labels.doctorShort.toLowerCase()} · {activeMonth.selfReferrals} self
+              {activeMonth.totalReferrals} {copy.countShort} ·{" "}
+              {activeMonth.doctorReferrals}{" "}
+              {copy.partnerLegendLabel.toLowerCase()} ·{" "}
+              {activeMonth.selfReferrals} {copy.directLegendLabel.toLowerCase()}
             </p>
           )}
         </div>
         <div className="flex gap-4 text-[10px] font-bold uppercase tracking-widest text-[color:var(--color-pm-text-secondary)]">
           <span className="inline-flex items-center gap-2">
             <span className="h-1 w-4 rounded-full bg-alloro-orange" />
-            {labels.production}
+            {copy.moneyLabel}
           </span>
           <span className="inline-flex items-center gap-2">
             <span className="h-1 w-4 rounded-full bg-green-700" />
-            {labels.referralsShort}
+            {copy.countSummaryLabel}
           </span>
         </div>
       </div>
@@ -116,17 +120,38 @@ export function PmsProductionChart({
               >
                 <defs>
                   <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--color-alloro-orange)" stopOpacity={0.2} />
-                    <stop offset="100%" stopColor="var(--color-alloro-orange)" stopOpacity={0} />
+                    <stop
+                      offset="0%"
+                      stopColor="var(--color-alloro-orange)"
+                      stopOpacity={0.2}
+                    />
+                    <stop
+                      offset="100%"
+                      stopColor="var(--color-alloro-orange)"
+                      stopOpacity={0}
+                    />
                   </linearGradient>
                 </defs>
-                <CartesianGrid vertical={false} stroke="var(--color-pm-border-subtle)" strokeDasharray="3 5" />
-                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={false} height={4} />
+                <CartesianGrid
+                  vertical={false}
+                  stroke="var(--color-pm-border-subtle)"
+                  strokeDasharray="3 5"
+                />
+                <XAxis
+                  dataKey="label"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={false}
+                  height={4}
+                />
                 <YAxis yAxisId="production" hide domain={productionDomain} />
                 <YAxis yAxisId="referrals" hide domain={referralDomain} />
                 <Tooltip
                   content={() => null}
-                  cursor={{ stroke: "var(--color-pm-border)", strokeDasharray: "4 4" }}
+                  cursor={{
+                    stroke: "var(--color-pm-border)",
+                    strokeDasharray: "4 4",
+                  }}
                 />
                 <Area
                   yAxisId="production"
@@ -144,8 +169,18 @@ export function PmsProductionChart({
                   dataKey="production"
                   stroke="var(--color-alloro-orange)"
                   strokeWidth={3}
-                  dot={{ r: 4, fill: "var(--color-alloro-orange)", stroke: "var(--color-pm-bg-secondary)", strokeWidth: 2 }}
-                  activeDot={{ r: 5, fill: "var(--color-alloro-orange)", stroke: "var(--color-pm-bg-secondary)", strokeWidth: 2 }}
+                  dot={{
+                    r: 4,
+                    fill: "var(--color-alloro-orange)",
+                    stroke: "var(--color-pm-bg-secondary)",
+                    strokeWidth: 2,
+                  }}
+                  activeDot={{
+                    r: 5,
+                    fill: "var(--color-alloro-orange)",
+                    stroke: "var(--color-pm-bg-secondary)",
+                    strokeWidth: 2,
+                  }}
                   isAnimationActive
                   animationDuration={700}
                   animationEasing="ease-out"
@@ -156,8 +191,18 @@ export function PmsProductionChart({
                   dataKey="referrals"
                   stroke="var(--color-pm-success)"
                   strokeWidth={2.5}
-                  dot={{ r: 3.5, fill: "var(--color-pm-success)", stroke: "var(--color-pm-bg-secondary)", strokeWidth: 2 }}
-                  activeDot={{ r: 4.5, fill: "var(--color-pm-success)", stroke: "var(--color-pm-bg-secondary)", strokeWidth: 2 }}
+                  dot={{
+                    r: 3.5,
+                    fill: "var(--color-pm-success)",
+                    stroke: "var(--color-pm-bg-secondary)",
+                    strokeWidth: 2,
+                  }}
+                  activeDot={{
+                    r: 4.5,
+                    fill: "var(--color-pm-success)",
+                    stroke: "var(--color-pm-bg-secondary)",
+                    strokeWidth: 2,
+                  }}
                   isAnimationActive
                   animationDuration={700}
                   animationBegin={120}
@@ -185,19 +230,20 @@ export function PmsProductionChart({
         </>
       ) : (
         <div className="rounded-[14px] border border-dashed border-line-soft bg-[#FCFAED] p-10 text-center text-sm font-semibold text-[color:var(--color-pm-text-secondary)]">
-          {isProcessingInsights
-            ? "Your production trend will appear once PMS processing finishes."
-            : "Upload PMS data to see production trends."}
+          {isProcessingInsights ? copy.trendEmptyProcessing : copy.trendEmpty}
         </div>
       )}
 
       <DetailsModal
         open={isPaceOpen}
-        title="Monthly referral pace"
-        eyebrow={`${labels.referralVelocity} · Last 6 months`}
+        title={copy.paceTitle}
+        eyebrow={`${copy.paceTitle} · Last 6 months`}
         onClose={() => setIsPaceOpen(false)}
       >
-        <PmsVelocityCard months={months} isProcessingInsights={isProcessingInsights} />
+        <PmsVelocityCard
+          months={months}
+          isProcessingInsights={isProcessingInsights}
+        />
       </DetailsModal>
     </PmsCardShell>
   );

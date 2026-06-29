@@ -26,6 +26,7 @@ import { useIsWizardActive, useIsWizardLoading, useRecheckWizardStatus } from ".
 import { useLocationContext } from "../contexts/locationContext";
 import { logger } from "../lib/logger";
 import { isPilotSession } from "../api";
+import { usePmsCopy } from "../components/PMS/pmsCopy";
 
 export default function Dashboard() {
   // Domain selection and auth hooks - now includes centralized onboarding state
@@ -39,6 +40,7 @@ export default function Dashboard() {
     setHasProperties,
     isLoadingUserProperties,
   } = useAuth();
+  const pmsCopy = usePmsCopy();
   const isWizardActive = useIsWizardActive();
   const isWizardLoading = useIsWizardLoading();
   const recheckWizardStatus = useRecheckWizardStatus();
@@ -232,7 +234,7 @@ export default function Dashboard() {
                   Let's Set Up Your Dashboard
                 </h1>
                 <p className="text-lg text-slate-500 font-medium">
-                  Complete these two steps to unlock your practice insights
+                  {pmsCopy.setupSubtitle}
                 </p>
               </div>
 
@@ -284,14 +286,14 @@ export default function Dashboard() {
                     {/* Content */}
                     <div className="flex-1 text-left min-w-0">
                       <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
-                        <h3 className="text-base sm:text-xl font-black text-slate-400 tracking-tight leading-snug">Upload Your PMS Data</h3>
+                        <h3 className="text-base sm:text-xl font-black text-slate-400 tracking-tight leading-snug">{pmsCopy.setupUploadTitle}</h3>
                         <span className="px-2 py-1 bg-slate-200 text-slate-400 text-[10px] font-black uppercase tracking-wider rounded-lg flex items-center gap-1">
                           <Lock className="w-3 h-3" />
                           Locked
                         </span>
                       </div>
                       <p className="text-sm sm:text-base text-slate-400 font-medium leading-relaxed">
-                        Once properties are connected, upload your practice management data to see referral analytics and revenue attribution.
+                        {pmsCopy.setupUploadDescription}
                       </p>
                     </div>
                   </div>

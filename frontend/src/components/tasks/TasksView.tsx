@@ -20,6 +20,7 @@ import { getPriorityItem } from "../../hooks/useLocalStorage";
 import { logger } from "../../lib/logger";
 import { pulseAnimationStyle } from "./tasksView.utils";
 import TaskCard from "./TasksView/TaskCard";
+import { useLabels } from "../../hooks/useLabels";
 
 interface TasksViewProps {
   organizationId: number | null;
@@ -28,6 +29,7 @@ interface TasksViewProps {
 
 export function TasksView({ organizationId, locationId }: TasksViewProps) {
   const location = useLocation();
+  const labels = useLabels();
   const isWizardActive = useIsWizardActive();
   const wizardDemoData = useWizardDemoData();
   const { signalContentReady } = useLocationContext();
@@ -319,6 +321,10 @@ export function TasksView({ organizationId, locationId }: TasksViewProps) {
 
   const alloroTasks = tasks?.ALLORO || [];
   const userTasks = tasks?.USER || [];
+  const teamTasksSubtitle =
+    labels.orgNoun === "practice"
+      ? "Action items for practice staff"
+      : "Action items for your team";
 
   // Skeleton card component for loading state
   const SkeletonCard = () => (
@@ -404,7 +410,7 @@ export function TasksView({ organizationId, locationId }: TasksViewProps) {
                   Team Tasks
                 </h2>
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1.5">
-                  Action items for practice staff
+                  {teamTasksSubtitle}
                 </p>
               </div>
             </div>

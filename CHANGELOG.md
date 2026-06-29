@@ -2,6 +2,25 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.139] - June 2026
+
+### Generic Revenue Data + Agent Verbiage Completion
+
+Generic organizations now get a clean non-healthcare Revenue Hub experience, and the agent prompt layer now uses org-type vocabulary before new AI output is generated. Healthcare organizations keep the existing PMS, referral, patient, doctor, and production wording.
+
+**Key Changes:**
+- Generic PMS/Revenue Hub surfaces now say revenue data, records, customers, revenue sources, and source/channel instead of PMS, referral source, patients, and production.
+- Existing generic dashboard empty states, upload prompts, setup copy, task cards, stale generated action text, and shared alerts now use generic wording at display time.
+- Backend prompt vocabulary now covers monthly agents, Proofline, PMS column mapping, paste sanitization, GBP review replies, and local posts.
+- Prompt callers with organization context now resolve org type server-side before invoking the LLM.
+- Parser schema keys and legacy role enum values stay unchanged so ingestion contracts remain stable.
+- Alloro Docs parity was updated for Referrals Hub and Integrations wording so the docs explain the healthcare/generic wording split.
+
+**Verification:** `test-results.json` rolls up to Passed for both `plans/06292026-generic-revenue-data-verbiage` and `plans/06292026-agent-org-type-prompt-verbiage`. Focused frontend/backend Vitest suites passed, `npx tsc --noEmit`, backend and frontend builds, `npm run check:all`, and `git diff --check` passed with only existing advisory warnings. Authenticated Pilot checks verified generic labels on Alloro Team's Organization and health wording on One Endodontics.
+
+**Commits:**
+- PMS/Revenue Hub UI, generic display-copy fallback, prompt vocabulary, prompt caller plumbing, docs parity, Friyay package, and acceptance artifacts.
+
 ## [0.0.138] - June 2026
 
 ### Audit — Correct Letter Grades, Resilient GBP Stage, Full Event Funnel

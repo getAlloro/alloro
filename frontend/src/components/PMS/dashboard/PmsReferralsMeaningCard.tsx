@@ -11,7 +11,7 @@ import {
   getPreviousMonth,
   getPercentChange,
 } from "./utils";
-import { useLabels } from "../../../hooks/useLabels";
+import { usePmsCopy } from "../pmsCopy";
 
 export type PmsReferralsMeaningCardProps = {
   months: PmsDashboardMonth[];
@@ -63,7 +63,9 @@ function MeaningMetric({
 }
 
 function SkeletonBlock({ className }: { className: string }) {
-  return <div className={`animate-pulse rounded-lg bg-[#EDE5C0]/60 ${className}`} />;
+  return (
+    <div className={`animate-pulse rounded-lg bg-[#EDE5C0]/60 ${className}`} />
+  );
 }
 
 export function PmsReferralsMeaningCard({
@@ -77,7 +79,7 @@ export function PmsReferralsMeaningCard({
   onOpenSources,
   onOpenTrends,
 }: PmsReferralsMeaningCardProps) {
-  const labels = useLabels();
+  const copy = usePmsCopy();
   const latest = getLatestMonth(months);
   const previous = getPreviousMonth(months);
   const hasMonthData = months.length > 0;
@@ -97,7 +99,7 @@ export function PmsReferralsMeaningCard({
 
   const actions = [
     { label: "See all sources ranked", onClick: onOpenSources },
-    { label: `View ${labels.referralTrends.toLowerCase()}`, onClick: onOpenTrends },
+    { label: `View ${copy.trendEyebrow.toLowerCase()}`, onClick: onOpenTrends },
   ];
 
   return (
@@ -133,8 +135,8 @@ export function PmsReferralsMeaningCard({
                 </p>
               ) : (
                 <p className="font-display text-[16px] font-medium leading-[1.4] tracking-tight text-[#6F664A]/60 md:text-[19px]">
-                  Referral intelligence will appear after PMS data has been
-                  approved and processed.
+                  {copy.dashboardTitle} will appear after {copy.dataNameLower}{" "}
+                  has been approved and processed.
                 </p>
               )}
             </div>
@@ -144,7 +146,10 @@ export function PmsReferralsMeaningCard({
               {isProcessingInsights ? (
                 <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
                   {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="space-y-3 rounded-xl border border-[#EDE5C0]/70 bg-white/70 p-4">
+                    <div
+                      key={i}
+                      className="space-y-3 rounded-xl border border-[#EDE5C0]/70 bg-white/70 p-4"
+                    >
                       <SkeletonBlock className="h-3 w-20" />
                       <SkeletonBlock className="h-9 w-28" />
                       <SkeletonBlock className="h-3 w-28" />
@@ -154,7 +159,7 @@ export function PmsReferralsMeaningCard({
               ) : (
                 <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
                   <MeaningMetric
-                    label={`${labels.production} this month`}
+                    label={`${copy.moneyLabel} this month`}
                     value={
                       hasMonthData
                         ? formatCurrency(latest?.productionTotal ?? 0)
@@ -164,24 +169,20 @@ export function PmsReferralsMeaningCard({
                     isAccent
                   />
                   <MeaningMetric
-                    label={labels.totalReferrals}
+                    label={copy.countSummaryLabel}
                     value={
-                      hasMonthData
-                        ? String(latest?.totalReferrals ?? 0)
-                        : "—"
+                      hasMonthData ? String(latest?.totalReferrals ?? 0) : "—"
                     }
                     sub={
                       hasMonthData
-                        ? `${latest?.doctorReferrals ?? 0} ${labels.doctorShort.toLowerCase()} · ${latest?.selfReferrals ?? 0} self`
+                        ? `${latest?.doctorReferrals ?? 0} ${copy.partnerLegendLabel.toLowerCase()} · ${latest?.selfReferrals ?? 0} ${copy.directLegendLabel.toLowerCase()}`
                         : undefined
                     }
                     change={hasMonthData ? referralChange : undefined}
                   />
                   <MeaningMetric
                     label="Unique sources"
-                    value={
-                      hasSourceData ? String(topSources.length) : "—"
-                    }
+                    value={hasSourceData ? String(topSources.length) : "—"}
                     sub={
                       hasSourceData
                         ? `${months.length} months tracked`
@@ -189,7 +190,7 @@ export function PmsReferralsMeaningCard({
                     }
                   />
                   <MeaningMetric
-                    label={`YTD ${labels.revenueNoun}`}
+                    label={`YTD ${copy.moneyLabel}`}
                     value={
                       totalProduction > 0
                         ? formatCompactCurrency(totalProduction)
@@ -197,7 +198,7 @@ export function PmsReferralsMeaningCard({
                     }
                     sub={
                       totalReferrals > 0
-                        ? `${totalReferrals} ${labels.totalReferrals.toLowerCase()}`
+                        ? `${totalReferrals} ${copy.countSummaryLabel.toLowerCase()}`
                         : undefined
                     }
                   />
@@ -207,7 +208,10 @@ export function PmsReferralsMeaningCard({
           </div>
 
           {/* Right column */}
-          <div data-wizard-target="pms-insights" className="flex flex-col gap-4">
+          <div
+            data-wizard-target="pms-insights"
+            className="flex flex-col gap-4"
+          >
             {/* Top source highlight */}
             <div className="flex min-h-[180px] flex-col justify-center rounded-[14px] border border-[#EDE5C0] bg-white/70 px-5 py-5">
               <span className="mb-3 font-mono-display text-[10px] font-bold uppercase tracking-[0.18em] text-[#6F664A]">
@@ -224,24 +228,29 @@ export function PmsReferralsMeaningCard({
                     {topSource.name}
                   </h3>
                   <p className="mt-2 text-[13px] font-semibold leading-relaxed text-[#6F664A]/70">
-                    {topSource.referrals} {labels.referralsShort.toLowerCase()} &middot;{" "}
-                    {topSource.percentage}% of {labels.revenueNoun}
+                    {topSource.referrals} {copy.countShort} &middot;{" "}
+                    {topSource.percentage}% of {copy.moneyLower}
                   </p>
                   {hasMonthData && (
                     <p className="mt-1.5 text-[12px] font-semibold text-[#6F664A]/50">
-                      {doctorPercentage}% {labels.doctorShort.toLowerCase()} &middot; {selfPercentage}% self
+                      {doctorPercentage}%{" "}
+                      {copy.partnerLegendLabel.toLowerCase()} &middot;{" "}
+                      {selfPercentage}% {copy.directLegendLabel.toLowerCase()}
                     </p>
                   )}
                 </>
               ) : (
                 <p className="text-[13px] font-medium text-[#6F664A]/50">
-                  Upload PMS data to rank {labels.referralSources.toLowerCase()}.
+                  {copy.topSourcesEmpty}
                 </p>
               )}
             </div>
 
             {/* CTA buttons */}
-            <div data-wizard-target="pms-velocity" className="rounded-[14px] border border-[#EDE5C0] bg-white/75 p-5">
+            <div
+              data-wizard-target="pms-velocity"
+              className="rounded-[14px] border border-[#EDE5C0] bg-white/75 p-5"
+            >
               <div className="grid grid-cols-1 gap-2">
                 {actions.map((action) => (
                   <motion.button

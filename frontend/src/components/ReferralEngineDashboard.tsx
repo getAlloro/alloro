@@ -1,8 +1,3 @@
-/**
- * Revenue Attribution Dashboard (PMS Statistics)
- * Redesigned to match newdesign PMSStatistics.tsx
- */
-
 import { useEffect, useState, useRef } from "react";
 import {
   Upload,
@@ -21,11 +16,15 @@ import { adminFetch } from "../api";
 import { showUploadToast } from "../lib/toast";
 import { useLocationContext } from "../contexts/locationContext";
 import { useLabels } from "../hooks/useLabels";
+import { useAuth } from "../hooks/useAuth";
 import {
   useIsWizardActive,
   useWizardDemoData,
 } from "../contexts/OnboardingWizardContext";
 import { logger } from "../lib/logger";
+import { usePmsCopy } from "./PMS/pmsCopy";
+import { resolveOrgType } from "../constants/orgLabels";
+import { formatGeneratedCopyForOrg } from "../utils/generatedCopy";
 import type {
   ReferralEngineData,
   ReferralEngineDashboardProps,
@@ -37,12 +36,12 @@ import { CompactTag } from "./ReferralEngineDashboard/CompactTag";
 import { LoadingState } from "./ReferralEngineDashboard/LoadingState";
 import { ErrorState } from "./ReferralEngineDashboard/ErrorState";
 
-// ============================================================================
-// MAIN COMPONENT: Revenue Attribution Dashboard
-// ============================================================================
-
 export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
   const labels = useLabels();
+  const pmsCopy = usePmsCopy();
+  const { userProfile } = useAuth();
+  const orgType = resolveOrgType(userProfile?.organizationType);
+  const isGeneric = orgType === "generic";
   const { signalContentReady } = useLocationContext();
   const isWizardActive = useIsWizardActive();
   const wizardDemoData = useWizardDemoData();
@@ -54,7 +53,6 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
   const [activeFilter, setActiveFilter] = useState("All");
   const [isExporting, setIsExporting] = useState(false);
 
-  // File upload state
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<
@@ -63,7 +61,6 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
   const [uploadMessage, setUploadMessage] = useState<string>("");
   const [isDragOver, setIsDragOver] = useState(false);
 
-  // Fetch data from API when organizationId is provided (skip in wizard mode)
   useEffect(() => {
     const fetchReferralEngineData = async () => {
       if (isWizardActive) {
@@ -120,16 +117,13 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
     fetchReferralEngineData();
   }, [props.organizationId, props.locationId, isWizardActive]);
 
-  // Effective data: wizard demo data takes priority when active
   const data = isWizardActive
     ? (wizardDemoData?.referralEngineData as ReferralEngineData | undefined) ?? props.data ?? fetchedData
     : props.data ?? fetchedData;
 
-  // File upload handlers
   const handleFileSelect = async (file: File) => {
     if (!file) return;
 
-    // Validate file type
     const validTypes = [".csv", ".xlsx", ".xls", ".txt"];
     const fileExtension = "." + file.name.split(".").pop()?.toLowerCase();
     if (!validTypes.includes(fileExtension)) {
@@ -143,7 +137,6 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
     setUploadMessage("");
 
     try {
-      // Get domain from the domain or organizationId
       const domain = props.organizationId?.toString() || "default-domain";
 
       const result = await uploadPMSData({
@@ -155,16 +148,14 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
       if (result.success) {
         setUploadStatus("success");
         setUploadMessage(
-          "We're processing your PMS data now. We'll notify you once it's ready."
+          pmsCopy.processingMessage
         );
 
-        // Show toast notification
         showUploadToast(
-          "PMS export received!",
+          pmsCopy.toastReceivedTitle,
           "We'll notify when ready for checking"
         );
 
-        // Dispatch event for other components
         if (typeof window !== "undefined") {
           const event = new CustomEvent("pms:job-uploaded", {
             detail: { clientId: domain },
@@ -172,7 +163,6 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
           window.dispatchEvent(event);
         }
 
-        // Reset after 3 seconds
         setTimeout(() => {
           setUploadStatus("idle");
           setUploadMessage("");
@@ -231,7 +221,6 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
     setTimeout(() => setIsExporting(false), 1500);
   };
 
-  // Calculate metrics from data
   const calculateMetrics = () => {
     if (!data) {
       return {
@@ -280,10 +269,7 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
 
   const metrics = calculateMetrics();
 
-  // Generate trend data for chart
   const generateTrendData = (): PMSTrendMonth[] => {
-    // If we have real data, we could calculate trends
-    // For now, use sample data similar to newdesign
     return [
       {
         month: "Jul",
@@ -331,8 +317,24 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
   };
 
   const trendData = generateTrendData();
+  const partnerLabel = pmsCopy.partnerLegendLabel;
+  const partnerPlural = isGeneric ? "Partners" : "Doctors";
+  const avgPerUnitLabel = isGeneric ? "Avg / Record" : "Avg / Ref";
+  const velocityTitle = isGeneric
+    ? "Record Pace Pipeline"
+    : "Referral Velocity Pipeline";
+  const displayCategory = (category: string) => {
+    if (category === "Doctor") return partnerLabel;
+    if (category === "Insurance" && isGeneric) return "Other";
+    return category;
+  };
+  const displayFilter = (filter: string) => {
+    if (filter === "Doctor") return partnerLabel;
+    return filter;
+  };
+  const formatGenerated = (value: string) =>
+    formatGeneratedCopyForOrg(value, userProfile?.organizationType);
 
-  // Combine and filter sources for table
   const getAllSources = () => {
     const sources: Array<{
       id: string;
@@ -344,7 +346,6 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
       notes: string;
     }> = [];
 
-    // Add doctor referrals
     data?.doctor_referral_matrix?.forEach((doc, idx) => {
       sources.push({
         id: `doc-${idx}`,
@@ -353,13 +354,15 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
         count: doc.referred || 0,
         avgPerReferral: doc.avg_production_per_referral ?? null,
         production: doc.net_production || 0,
-        notes:
+        notes: formatGenerated(
           doc.notes ||
-          "Critical peer relationship requires active stewardship.",
+          (isGeneric
+            ? "Partner source requires active follow-up."
+            : "Critical peer relationship requires active stewardship.")
+        ),
       });
     });
 
-    // Add non-doctor referrals
     data?.non_doctor_referral_matrix?.forEach((source, idx) => {
       sources.push({
         id: `mkt-${idx}`,
@@ -368,13 +371,15 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
         count: source.referred || 0,
         avgPerReferral: source.avg_production_per_referral ?? null,
         production: source.net_production || 0,
-        notes:
+        notes: formatGenerated(
           source.notes ||
-          "Dominant digital channel. High-value intake noted via GMB.",
+          (isGeneric
+            ? "Primary source with a useful revenue signal."
+            : "Dominant digital channel. High-value intake noted via GMB.")
+        ),
       });
     });
 
-    // Filter based on active filter
     if (activeFilter === "Doctor") {
       return sources.filter((s) => s.category === "Doctor");
     } else if (activeFilter === "Marketing") {
@@ -386,30 +391,26 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
 
   const filteredSources = getAllSources();
 
-  // Show loading state
   if (loading) {
     return <LoadingState />;
   }
 
-  // Show error state
   if (error) {
     return <ErrorState error={error} />;
   }
 
   return (
     <div className="min-h-screen bg-alloro-bg font-body text-alloro-textDark pb-32 selection:bg-alloro-orange selection:text-white">
-      {/* Minimized Alert Bar when data is missing */}
       {!data && (
         <div className="bg-alloro-orange text-white text-[10px] font-black uppercase tracking-widest py-3 px-4 text-center border-b border-white/10 flex items-center justify-center gap-2 shadow-sm relative z-[60]">
           <TrendingDown size={14} className="text-white" />
           <span>
             Revenue attribution analysis has not been run yet. Please upload
-            your latest PMS exports to begin the analysis.
+            your latest {pmsCopy.exportName} to begin the analysis.
           </span>
         </div>
       )}
       <div className="max-w-[1400px] mx-auto relative flex flex-col">
-        {/* Header - matches newdesign */}
         <header className="glass-header border-b border-black/5 lg:sticky lg:top-0 z-40">
           <div className="max-w-[1100px] mx-auto px-6 lg:px-10 py-6 flex items-center justify-between">
             <div className="flex items-center gap-5">
@@ -441,7 +442,6 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
         </header>
 
         <main className="w-full max-w-[1100px] mx-auto px-6 lg:px-10 py-10 lg:py-16 space-y-12 lg:space-y-20">
-          {/* Hero Section - matches newdesign */}
           <section className="animate-in fade-in slide-in-from-bottom-2 duration-700 text-left pt-2">
             <div className="flex items-center gap-4 mb-3">
               <div className="px-3 py-1.5 bg-green-50 rounded-lg text-green-600 text-[10px] font-black uppercase tracking-widest border border-green-100 flex items-center gap-2">
@@ -455,13 +455,12 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
             <p className="text-base lg:text-lg text-slate-500 font-medium tracking-tight leading-relaxed max-w-3xl">
               See which{" "}
               <span className="text-alloro-orange underline underline-offset-4 font-semibold">
-                Marketing or Doctors
+                Marketing or {partnerPlural}
               </span>{" "}
               are sending you the most work.
             </p>
           </section>
 
-          {/* Monthly Totals - matches newdesign */}
           <section className="space-y-6">
             <div className="flex items-center gap-4 px-1">
               <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-alloro-textDark/40 whitespace-nowrap">
@@ -471,18 +470,18 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
               <MetricCard
-                label={`MKT ${labels.production}`}
+                label={`Marketing ${pmsCopy.moneyLabel}`}
                 value={metrics.mktProduction}
                 trend={metrics.mktTrend}
                 isHighlighted
               />
               <MetricCard
-                label={`Doc ${labels.production}`}
+                label={`${partnerLabel} ${pmsCopy.moneyLabel}`}
                 value={metrics.docProduction}
                 trend={metrics.docTrend}
               />
               <MetricCard
-                label="Total Starts"
+                label={pmsCopy.countSummaryLabel}
                 value={metrics.totalStarts}
                 trend={metrics.startsTrend}
               />
@@ -494,7 +493,6 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
             </div>
           </section>
 
-          {/* Referral Velocity Pipeline - matches newdesign */}
           <section className="bg-white rounded-3xl border border-black/5 shadow-premium overflow-hidden group">
             <div className="px-10 py-8 border-b border-black/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div className="flex items-center gap-4">
@@ -503,7 +501,7 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
                 </div>
                 <div className="text-left">
                   <h2 className="text-xl font-black font-heading text-alloro-navy tracking-tight leading-none">
-                    Referral Velocity Pipeline
+                    {velocityTitle}
                   </h2>
                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1.5">
                     Trailing 6-month Synced Analysis
@@ -520,7 +518,7 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
                 <div className="flex items-center gap-2.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-alloro-navy"></div>
                   <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                    Doctor
+                    {partnerLabel}
                   </span>
                 </div>
               </div>
@@ -568,7 +566,6 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
             </div>
           </section>
 
-          {/* Attribution Master Matrix - matches newdesign */}
           <section data-wizard-target="re-matrix" className="bg-white rounded-3xl border border-black/5 shadow-premium overflow-hidden">
             <div className="px-10 py-8 border-b border-black/5 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
               <div className="text-left">
@@ -576,7 +573,7 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
                   Attribution Master Matrix
                 </h2>
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1.5">
-                  Direct Production Sync
+                  Direct {pmsCopy.moneyLabel} Sync
                 </p>
               </div>
               <div className="flex p-1.5 bg-slate-50 border border-black/5 rounded-2xl overflow-x-auto w-full lg:w-auto">
@@ -590,7 +587,7 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
                         : "text-slate-400 hover:text-alloro-navy"
                     }`}
                   >
-                    {filter}
+                    {displayFilter(filter)}
                   </button>
                 ))}
               </div>
@@ -601,8 +598,8 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
                   <tr>
                     <th className="px-10 py-5 w-[25%]">Ledger Source</th>
                     <th className="px-4 py-5 text-center w-[12%]">Volume</th>
-                    <th className="px-4 py-5 text-right w-[15%]">Avg / Ref</th>
-                    <th className="px-4 py-5 text-right w-[18%]">{labels.production}</th>
+                    <th className="px-4 py-5 text-right w-[15%]">{avgPerUnitLabel}</th>
+                    <th className="px-4 py-5 text-right w-[18%]">{pmsCopy.moneyLabel}</th>
                     <th className="px-10 py-5 w-[30%]">Intelligence Note</th>
                   </tr>
                 </thead>
@@ -618,7 +615,7 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
                             <span className="font-black text-alloro-navy text-[15px] leading-tight tracking-tight group-hover:text-alloro-orange transition-colors">
                               {source.name}
                             </span>
-                            <CompactTag status={source.category} />
+                            <CompactTag status={displayCategory(source.category)} />
                           </div>
                         </td>
                         <td className="px-4 py-7 text-center font-black text-alloro-navy text-xl font-sans tabular-nums">
@@ -654,7 +651,6 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
             </div>
           </section>
 
-          {/* Upload Section - matches newdesign */}
           <section className="bg-white rounded-3xl border border-black/5 shadow-premium p-10 lg:p-16 flex flex-col md:flex-row items-center justify-between gap-12 relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-96 h-96 bg-alloro-orange/[0.03] rounded-full blur-3xl -mr-48 -mt-48 pointer-events-none group-hover:bg-alloro-orange/[0.06] transition-all duration-700"></div>
 
@@ -668,21 +664,21 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
                     Ledger Ingestion
                   </span>
                   <h3 className="text-3xl font-black font-heading text-alloro-navy tracking-tight mt-1">
-                    Sync your practice.
+                    Sync your {labels.orgNoun}.
                   </h3>
                 </div>
               </div>
               <p className="text-lg text-slate-500 font-medium tracking-tight leading-relaxed max-w-lg">
-                Upload your latest exports from{" "}
+                Upload your latest{" "}
                 <span className="text-alloro-navy font-black">
-                  Cloud9, Dolphin, or Gaidge
+                  {pmsCopy.exportName}
                 </span>{" "}
                 to refresh all intelligence models instantly.
               </p>
               <div className="flex flex-wrap items-center gap-8 pt-4">
                 <div className="flex items-center gap-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  <ShieldCheck size={16} className="text-green-500" /> 100%
-                  HIPAA SECURE
+                  <ShieldCheck size={16} className="text-green-500" />
+                  {pmsCopy.secureBadge}
                 </div>
                 <div className="flex items-center gap-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                   <Lock size={16} className="text-alloro-orange" /> AES-256
@@ -761,7 +757,7 @@ export function ReferralEngineDashboard(props: ReferralEngineDashboardProps) {
                     <Upload size={28} />
                   </div>
                   <span className="text-base font-black text-alloro-navy font-heading">
-                    {isDragOver ? "Drop file here" : "Drop Revenue CSV Export"}
+                    {isDragOver ? "Drop file here" : `Drop ${pmsCopy.exportName}`}
                   </span>
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-3">
                     Max Ingestion: 50MB

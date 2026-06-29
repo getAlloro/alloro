@@ -1,8 +1,16 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Check, Info, FileText, ShieldCheck, UserCheck, Sparkles } from "lucide-react";
+import {
+  Check,
+  Info,
+  FileText,
+  ShieldCheck,
+  UserCheck,
+  Sparkles,
+} from "lucide-react";
 import type { AutomationStatusDetail, StepKey } from "../../api/pms";
 import type { LucideIcon } from "lucide-react";
+import { usePmsCopy, type PmsCopy } from "./pmsCopy";
 
 /**
  * Client-facing step configuration
@@ -16,42 +24,45 @@ interface ClientStep {
   backendSteps: StepKey[]; // Which backend steps this client step represents
 }
 
-const CLIENT_STEPS: ClientStep[] = [
-  {
-    id: "data_entry",
-    label: "Enter your PMS Data",
-    description: "Upload your PMS export file or enter data manually",
-    icon: FileText,
-    backendSteps: ["file_upload"],
-  },
-  {
-    id: "validation",
-    label: "Validating your data",
-    description: "Alloro is parsing and reviewing your data for accuracy",
-    icon: ShieldCheck,
-    backendSteps: ["pms_parser", "admin_approval"],
-  },
-  {
-    id: "confirmation",
-    label: "Your confirmation",
-    description: "Click to review and confirm",
-    icon: UserCheck,
-    backendSteps: ["client_approval"],
-  },
-  {
-    id: "agents",
-    label: "Alloro Insights",
-    description: "Alloro is analyzing your data to generate actionable insights",
-    icon: Sparkles,
-    backendSteps: ["monthly_agents", "task_creation", "complete"],
-  },
-];
+function buildClientSteps(copy: PmsCopy): ClientStep[] {
+  return [
+    {
+      id: "data_entry",
+      label: `Enter your ${copy.dataName}`,
+      description: `Upload your ${copy.exportName} or enter data manually`,
+      icon: FileText,
+      backendSteps: ["file_upload"],
+    },
+    {
+      id: "validation",
+      label: "Validating your data",
+      description: "Alloro is parsing and reviewing your data for accuracy",
+      icon: ShieldCheck,
+      backendSteps: ["pms_parser", "admin_approval"],
+    },
+    {
+      id: "confirmation",
+      label: "Your confirmation",
+      description: "Click to review and confirm",
+      icon: UserCheck,
+      backendSteps: ["client_approval"],
+    },
+    {
+      id: "agents",
+      label: "Alloro Insights",
+      description:
+        "Alloro is analyzing your data to generate actionable insights",
+      icon: Sparkles,
+      backendSteps: ["monthly_agents", "task_creation", "complete"],
+    },
+  ];
+}
 
 type StepState = "completed" | "current" | "pending";
 
 function getStepState(
   clientStep: ClientStep,
-  automationStatus: AutomationStatusDetail | null
+  automationStatus: AutomationStatusDetail | null,
 ): StepState {
   if (!automationStatus) {
     // No status yet - first step is current
@@ -103,7 +114,7 @@ function getStepState(
  * Check if any steps were skipped (indicates manual entry)
  */
 function hasSkippedSteps(
-  automationStatus: AutomationStatusDetail | null
+  automationStatus: AutomationStatusDetail | null,
 ): boolean {
   if (!automationStatus) return false;
 
@@ -132,6 +143,8 @@ export const ClientProgressTimeline: React.FC<ClientProgressTimelineProps> = ({
   showNotStarted = false,
   onConfirmationClick,
 }) => {
+  const copy = usePmsCopy();
+  const clientSteps = useMemo(() => buildClientSteps(copy), [copy]);
   const isManualEntry = hasSkippedSteps(automationStatus);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
@@ -145,12 +158,12 @@ export const ClientProgressTimeline: React.FC<ClientProgressTimelineProps> = ({
 
   // Get current step index for progress calculation
   const getCurrentStepIndex = (): number => {
-    for (let i = 0; i < CLIENT_STEPS.length; i++) {
-      const state = getEffectiveState(CLIENT_STEPS[i]);
+    for (let i = 0; i < clientSteps.length; i++) {
+      const state = getEffectiveState(clientSteps[i]);
       if (state === "current") return i;
       if (state === "pending") return Math.max(0, i - 1);
     }
-    return CLIENT_STEPS.length - 1; // All completed
+    return clientSteps.length - 1; // All completed
   };
 
   const currentStepIndex = getCurrentStepIndex();
@@ -159,40 +172,54 @@ export const ClientProgressTimeline: React.FC<ClientProgressTimelineProps> = ({
     <div className={`w-full ${className}`}>
       {/* Mobile/Compact View (Vertical) */}
       <div className="md:hidden flex flex-col space-y-3 px-4">
-        {CLIENT_STEPS.map((step, index) => {
+        {clientSteps.map((step, index) => {
           const state = getEffectiveState(step);
           const Icon = step.icon;
-          const isClickable = step.id === "confirmation" && state === "current" && onConfirmationClick;
+          const isClickable =
+            step.id === "confirmation" &&
+            state === "current" &&
+            onConfirmationClick;
 
           return (
             <motion.div
               key={step.id}
               className={`flex items-start space-x-3 p-3 rounded-2xl transition-all duration-300 ${
-                state === "current" ? "bg-white shadow-lg border border-alloro-orange/20 p-4" : ""
+                state === "current"
+                  ? "bg-white shadow-lg border border-alloro-orange/20 p-4"
+                  : ""
               }`}
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.1 }}
               onClick={isClickable ? onConfirmationClick : undefined}
             >
-              <div className={`
+              <div
+                className={`
                 relative z-10 flex shrink-0 items-center justify-center rounded-full border-2 transition-all duration-300
                 ${state === "current" ? "h-10 w-10 border-alloro-orange bg-white text-alloro-orange scale-110" : "h-8 w-8"}
                 ${state === "completed" ? "border-alloro-orange bg-alloro-orange text-white" : ""}
                 ${state === "pending" ? "border-gray-200 bg-white text-gray-300" : ""}
                 ${isClickable ? "cursor-pointer hover:scale-115" : ""}
-              `}>
+              `}
+              >
                 {state === "completed" ? (
                   <Check className="h-4 w-4" />
                 ) : (
-                  <Icon className={state === "current" ? "h-5 w-5" : "h-4 w-4"} />
+                  <Icon
+                    className={state === "current" ? "h-5 w-5" : "h-4 w-4"}
+                  />
                 )}
               </div>
               <div className="flex flex-col pt-0.5">
-                <span className={`transition-colors duration-300 ${
-                  state === "current" ? "text-base font-bold text-alloro-navy" :
-                  state === "completed" ? "text-sm font-medium text-alloro-orange" : "text-sm font-medium text-gray-400"
-                } ${isClickable ? "cursor-pointer" : ""}`}>
+                <span
+                  className={`transition-colors duration-300 ${
+                    state === "current"
+                      ? "text-base font-bold text-alloro-navy"
+                      : state === "completed"
+                        ? "text-sm font-medium text-alloro-orange"
+                        : "text-sm font-medium text-gray-400"
+                  } ${isClickable ? "cursor-pointer" : ""}`}
+                >
                   {step.label}
                 </span>
                 {state === "current" && (
@@ -223,7 +250,7 @@ export const ClientProgressTimeline: React.FC<ClientProgressTimelineProps> = ({
               className="h-full bg-gradient-to-r from-alloro-orange/60 via-alloro-orange to-alloro-orange"
               initial={{ width: "0%" }}
               animate={{
-                width: `${(currentStepIndex / (CLIENT_STEPS.length - 1)) * 100}%`,
+                width: `${(currentStepIndex / (clientSteps.length - 1)) * 100}%`,
               }}
               transition={{ duration: 0.8, ease: "easeInOut" }}
             />
@@ -232,12 +259,15 @@ export const ClientProgressTimeline: React.FC<ClientProgressTimelineProps> = ({
 
         {/* Steps Container */}
         <div className="relative z-10 flex justify-between items-start w-full">
-          {CLIENT_STEPS.map((step, index) => {
+          {clientSteps.map((step, index) => {
             const state = getEffectiveState(step);
             const Icon = step.icon;
             const isHovered = hoveredIndex === index;
             const isExpanded = state === "current" || isHovered;
-            const isClickable = step.id === "confirmation" && state === "current" && onConfirmationClick;
+            const isClickable =
+              step.id === "confirmation" &&
+              state === "current" &&
+              onConfirmationClick;
 
             return (
               <div
@@ -250,14 +280,18 @@ export const ClientProgressTimeline: React.FC<ClientProgressTimelineProps> = ({
               >
                 {/* Node Container */}
                 <div className="relative flex items-center justify-center h-20 w-20 shrink-0">
-
                   {/* Active State Animated Border Overlay */}
                   {state === "current" && (
                     <div className="absolute inset-0 z-0">
-                      <svg className="w-full h-full text-alloro-orange drop-shadow-[0_4px_10px_rgba(214,104,83,0.3)]" viewBox="0 0 100 100">
+                      <svg
+                        className="w-full h-full text-alloro-orange drop-shadow-[0_4px_10px_rgba(214,104,83,0.3)]"
+                        viewBox="0 0 100 100"
+                      >
                         {/* Track Path */}
                         <circle
-                          cx="50" cy="50" r="44"
+                          cx="50"
+                          cy="50"
+                          r="44"
                           fill="none"
                           stroke="currentColor"
                           strokeOpacity="0.1"
@@ -265,7 +299,9 @@ export const ClientProgressTimeline: React.FC<ClientProgressTimelineProps> = ({
                         />
                         {/* Rotating Dash Animation */}
                         <motion.circle
-                          cx="50" cy="50" r="44"
+                          cx="50"
+                          cy="50"
+                          r="44"
                           fill="none"
                           stroke="currentColor"
                           strokeWidth="3"
@@ -276,12 +312,14 @@ export const ClientProgressTimeline: React.FC<ClientProgressTimelineProps> = ({
                           transition={{
                             duration: 2,
                             repeat: Infinity,
-                            ease: "easeInOut"
+                            ease: "easeInOut",
                           }}
                           style={{ transformOrigin: "center" }}
                         />
                         <motion.circle
-                          cx="50" cy="50" r="38"
+                          cx="50"
+                          cy="50"
+                          r="38"
                           fill="none"
                           stroke="currentColor"
                           strokeWidth="1"
@@ -293,7 +331,7 @@ export const ClientProgressTimeline: React.FC<ClientProgressTimelineProps> = ({
                           transition={{
                             duration: 2.5,
                             repeat: Infinity,
-                            ease: "linear"
+                            ease: "linear",
                           }}
                           style={{ transformOrigin: "center" }}
                         />
@@ -316,8 +354,14 @@ export const ClientProgressTimeline: React.FC<ClientProgressTimelineProps> = ({
                     animate={{
                       width: isExpanded ? 64 : 44,
                       height: isExpanded ? 64 : 44,
-                      backgroundColor: state === "completed" ? "#D66853" : "#ffffff",
-                      borderColor: state === "completed" ? "#D66853" : (isExpanded ? "#D66853" : "#e2e8f0"),
+                      backgroundColor:
+                        state === "completed" ? "#D66853" : "#ffffff",
+                      borderColor:
+                        state === "completed"
+                          ? "#D66853"
+                          : isExpanded
+                            ? "#D66853"
+                            : "#e2e8f0",
                     }}
                     transition={{ type: "spring", stiffness: 300, damping: 25 }}
                     className={`
@@ -334,13 +378,17 @@ export const ClientProgressTimeline: React.FC<ClientProgressTimelineProps> = ({
                         animate={{ scale: isExpanded ? 1.2 : 1, opacity: 1 }}
                         transition={{ duration: 0.3 }}
                       >
-                        <Check className={`stroke-[3] ${isExpanded ? "h-7 w-7" : "h-5 w-5"}`} />
+                        <Check
+                          className={`stroke-[3] ${isExpanded ? "h-7 w-7" : "h-5 w-5"}`}
+                        />
                       </motion.div>
                     ) : (
-                      <Icon className={`
+                      <Icon
+                        className={`
                         transition-all duration-300
                         ${isExpanded ? "w-7 h-7 stroke-[2]" : "w-5 h-5 stroke-2"}
-                      `} />
+                      `}
+                      />
                     )}
                   </motion.div>
                 </div>
@@ -350,9 +398,14 @@ export const ClientProgressTimeline: React.FC<ClientProgressTimelineProps> = ({
                   <motion.span
                     animate={{
                       scale: state === "current" ? 1.05 : 0.9,
-                      color: state === "current" ? "#1e3a5f" : (state === "completed" ? "#D66853" : "#94a3b8"),
+                      color:
+                        state === "current"
+                          ? "#1e3a5f"
+                          : state === "completed"
+                            ? "#D66853"
+                            : "#94a3b8",
                       fontWeight: state === "current" ? 700 : 500,
-                      y: state === "current" ? 0 : 4
+                      y: state === "current" ? 0 : 4,
                     }}
                     className={`transition-colors mb-2 block ${state === "current" ? "text-sm" : "text-xs"}`}
                   >
@@ -365,16 +418,18 @@ export const ClientProgressTimeline: React.FC<ClientProgressTimelineProps> = ({
                     animate={{
                       opacity: isExpanded ? 1 : 0,
                       height: isExpanded ? "auto" : 0,
-                      y: isExpanded ? 0 : -10
+                      y: isExpanded ? 0 : -10,
                     }}
                     className="overflow-hidden px-2"
                   >
-                    <p className={`
+                    <p
+                      className={`
                       font-medium leading-relaxed py-1 px-3 rounded-lg border backdrop-blur-sm
                       ${state === "current" ? "text-xs bg-white/80 text-alloro-orange/80 border-alloro-orange/20 shadow-sm" : ""}
                       ${state === "completed" ? "text-[10px] bg-alloro-orange/5 text-alloro-orange/70 border-alloro-orange/10" : ""}
                       ${state === "pending" ? "text-[10px] bg-gray-50 text-gray-400 border-gray-100" : ""}
-                    `}>
+                    `}
+                    >
                       {step.description}
                     </p>
                   </motion.div>
@@ -390,8 +445,8 @@ export const ClientProgressTimeline: React.FC<ClientProgressTimelineProps> = ({
         <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
           <Info className="w-4 h-4 text-slate-400 flex-shrink-0" />
           <span>
-            PMS file parsing, validation and admin confirmation are skipped for
-            manual entries
+            {copy.fileNoun} parsing, validation and admin confirmation are
+            skipped for manual entries
           </span>
         </div>
       )}

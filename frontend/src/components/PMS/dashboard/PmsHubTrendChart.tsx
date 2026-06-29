@@ -11,7 +11,7 @@ import {
 } from "recharts";
 import { PmsCardShell, PmsEyebrow } from "./primitives";
 import type { HubTrendDatum } from "./pmsPeriod";
-import { useLabels } from "../../../hooks/useLabels";
+import { usePmsCopy } from "../pmsCopy";
 
 /**
  * PmsHubTrendChart — lean dual-line (production + referrals) chart for the
@@ -46,7 +46,7 @@ export function PmsHubTrendChart({
   periodLabel,
   onHoverChange,
 }: PmsHubTrendChartProps) {
-  const labels = useLabels();
+  const copy = usePmsCopy();
   const gradientId = useId().replaceAll(":", "");
   const productionDomain = getAxisDomain(data.map((d) => d.production));
   const referralDomain = getAxisDomain(data.map((d) => d.referrals));
@@ -62,15 +62,17 @@ export function PmsHubTrendChart({
   return (
     <PmsCardShell>
       <div className="mb-5 flex items-center justify-between gap-3">
-        <PmsEyebrow>{labels.production} &amp; {labels.referralsShort.toLowerCase()} · {periodLabel}</PmsEyebrow>
+        <PmsEyebrow>
+          {copy.moneyLabel} &amp; {copy.countPlural} · {periodLabel}
+        </PmsEyebrow>
         <div className="flex gap-4 text-[10px] font-bold uppercase tracking-widest text-[color:var(--color-pm-text-secondary)]">
           <span className="inline-flex items-center gap-2">
             <span className="h-1 w-4 rounded-full bg-alloro-orange" />
-            {labels.production}
+            {copy.moneyLabel}
           </span>
           <span className="inline-flex items-center gap-2">
             <span className="h-1 w-4 rounded-full bg-green-700" />
-            {labels.referralsShort}
+            {copy.countSummaryLabel}
           </span>
         </div>
       </div>
@@ -86,21 +88,43 @@ export function PmsHubTrendChart({
             >
               <defs>
                 <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--color-alloro-orange)" stopOpacity={0.2} />
-                  <stop offset="100%" stopColor="var(--color-alloro-orange)" stopOpacity={0} />
+                  <stop
+                    offset="0%"
+                    stopColor="var(--color-alloro-orange)"
+                    stopOpacity={0.2}
+                  />
+                  <stop
+                    offset="100%"
+                    stopColor="var(--color-alloro-orange)"
+                    stopOpacity={0}
+                  />
                 </linearGradient>
               </defs>
-              <CartesianGrid vertical={false} stroke="var(--color-pm-border-subtle)" strokeDasharray="3 5" />
+              <CartesianGrid
+                vertical={false}
+                stroke="var(--color-pm-border-subtle)"
+                strokeDasharray="3 5"
+              />
               <XAxis
                 dataKey="label"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: "var(--color-pm-text-secondary)", fontSize: 10, fontWeight: 700 }}
+                tick={{
+                  fill: "var(--color-pm-text-secondary)",
+                  fontSize: 10,
+                  fontWeight: 700,
+                }}
                 minTickGap={12}
               />
               <YAxis yAxisId="production" hide domain={productionDomain} />
               <YAxis yAxisId="referrals" hide domain={referralDomain} />
-              <Tooltip content={() => null} cursor={{ stroke: "var(--color-pm-border)", strokeDasharray: "4 4" }} />
+              <Tooltip
+                content={() => null}
+                cursor={{
+                  stroke: "var(--color-pm-border)",
+                  strokeDasharray: "4 4",
+                }}
+              />
               <Area
                 yAxisId="production"
                 type="monotone"
@@ -117,8 +141,18 @@ export function PmsHubTrendChart({
                 dataKey="production"
                 stroke="var(--color-alloro-orange)"
                 strokeWidth={3}
-                dot={{ r: 3.5, fill: "var(--color-alloro-orange)", stroke: "var(--color-pm-bg-secondary)", strokeWidth: 2 }}
-                activeDot={{ r: 5, fill: "var(--color-alloro-orange)", stroke: "var(--color-pm-bg-secondary)", strokeWidth: 2 }}
+                dot={{
+                  r: 3.5,
+                  fill: "var(--color-alloro-orange)",
+                  stroke: "var(--color-pm-bg-secondary)",
+                  strokeWidth: 2,
+                }}
+                activeDot={{
+                  r: 5,
+                  fill: "var(--color-alloro-orange)",
+                  stroke: "var(--color-pm-bg-secondary)",
+                  strokeWidth: 2,
+                }}
                 isAnimationActive
                 animationDuration={700}
                 animationEasing="ease-out"
@@ -129,8 +163,18 @@ export function PmsHubTrendChart({
                 dataKey="referrals"
                 stroke="var(--color-pm-success)"
                 strokeWidth={2.5}
-                dot={{ r: 3, fill: "var(--color-pm-success)", stroke: "var(--color-pm-bg-secondary)", strokeWidth: 2 }}
-                activeDot={{ r: 4.5, fill: "var(--color-pm-success)", stroke: "var(--color-pm-bg-secondary)", strokeWidth: 2 }}
+                dot={{
+                  r: 3,
+                  fill: "var(--color-pm-success)",
+                  stroke: "var(--color-pm-bg-secondary)",
+                  strokeWidth: 2,
+                }}
+                activeDot={{
+                  r: 4.5,
+                  fill: "var(--color-pm-success)",
+                  stroke: "var(--color-pm-bg-secondary)",
+                  strokeWidth: 2,
+                }}
                 isAnimationActive
                 animationDuration={700}
                 animationBegin={120}
@@ -141,7 +185,7 @@ export function PmsHubTrendChart({
         </div>
       ) : (
         <div className="rounded-[14px] border border-dashed border-line-soft bg-[#FCFAED] p-10 text-center text-sm font-semibold text-[color:var(--color-pm-text-secondary)]">
-          Upload PMS data to see {labels.production.toLowerCase()} &amp; {labels.referralsShort.toLowerCase()}.
+          {copy.trendEmpty}
         </div>
       )}
     </PmsCardShell>

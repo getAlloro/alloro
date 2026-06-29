@@ -1,10 +1,10 @@
 import { motion } from "framer-motion";
-import { Calendar, DollarSign, Stethoscope, User } from "lucide-react";
+import { Calendar, DollarSign, Handshake, User } from "lucide-react";
 
 import type { MonthBucket, MonthSummary } from "../types";
 import { Odometer } from "./Odometer";
 import { formatDataMonthShort } from "../../../utils/timeframe";
-import { useLabels } from "../../../hooks/useLabels";
+import { usePmsCopy } from "../pmsCopy";
 
 interface SummaryCardsProps {
   activeMonth: MonthBucket | undefined;
@@ -19,7 +19,7 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({
   openMonthPicker,
   totals,
 }) => {
-  const labels = useLabels();
+  const copy = usePmsCopy();
   return (
     <>
       {activeMonth && (
@@ -45,25 +45,25 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({
 
           {[
             {
-              label: labels.selfReferrals,
+              label: copy.directSummaryLabel,
               value: totals.selfReferrals,
               icon: User,
               tint: "#C9765E22",
             },
             {
-              label: labels.doctorReferrals,
+              label: copy.partnerSummaryLabel,
               value: totals.doctorReferrals,
-              icon: Stethoscope,
+              icon: Handshake,
               tint: "#C9765E11",
             },
             {
-              label: labels.totalReferrals,
+              label: copy.countSummaryLabel,
               value: totals.totalReferrals,
               icon: User,
               tint: "#C9765E18",
             },
             {
-              label: labels.production,
+              label: copy.moneyLabel,
               value: totals.productionTotal.toLocaleString(),
               icon: DollarSign,
               tint: "#34D39922",

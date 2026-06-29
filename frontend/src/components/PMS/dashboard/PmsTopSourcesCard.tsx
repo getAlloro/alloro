@@ -4,7 +4,7 @@ import type { PmsKeyDataSource } from "../../../api/pms";
 import { DetailsModal } from "../../dashboard/shared/DetailsModal";
 import { PmsCardShell } from "./primitives";
 import { formatCurrency } from "./utils";
-import { useLabels } from "../../../hooks/useLabels";
+import { usePmsCopy, type PmsCopy } from "../pmsCopy";
 
 export type PmsTopSourcesCardProps = {
   sources: PmsKeyDataSource[];
@@ -20,9 +20,11 @@ export type PmsTopSourcesCardProps = {
 function SourceRow({
   source,
   maxPercentage,
+  copy,
 }: {
   source: PmsKeyDataSource;
   maxPercentage: number;
+  copy: PmsCopy;
 }) {
   const barWidth = Math.max((source.percentage / maxPercentage) * 100, 8);
   return (
@@ -46,11 +48,22 @@ function SourceRow({
             className="h-1 w-24 rounded-full"
             preserveAspectRatio="none"
           >
-            <rect width="100" height="4" rx="2" fill="var(--color-pm-border-subtle)" />
-            <rect width={barWidth} height="4" rx="2" fill="var(--color-alloro-orange)" />
+            <rect
+              width="100"
+              height="4"
+              rx="2"
+              fill="var(--color-pm-border-subtle)"
+            />
+            <rect
+              width={barWidth}
+              height="4"
+              rx="2"
+              fill="var(--color-alloro-orange)"
+            />
           </svg>
           <span className="text-[11px] font-semibold text-[color:var(--color-pm-text-secondary)]">
-            {source.percentage}% of production
+            {source.percentage}
+            {copy.sourcePercentageLabel}
           </span>
         </div>
       </div>
@@ -59,7 +72,7 @@ function SourceRow({
           {formatCurrency(source.production)}
         </div>
         <div className="mt-1 font-mono text-[11px] font-semibold text-slate-500 tabular-nums">
-          {source.referrals} refs
+          {source.referrals} {copy.sourceCountAbbrev}
         </div>
       </div>
     </div>
@@ -71,7 +84,7 @@ export function PmsTopSourcesCard({
   isProcessingInsights,
   expanded = false,
 }: PmsTopSourcesCardProps) {
-  const labels = useLabels();
+  const copy = usePmsCopy();
   const [showAll, setShowAll] = useState(false);
   const [query, setQuery] = useState("");
 
@@ -96,8 +109,8 @@ export function PmsTopSourcesCard({
   return (
     <>
       <PmsCardShell
-        eyebrow={labels.referralSources}
-        title="Ranked by production"
+        eyebrow={copy.topSourcesEyebrow}
+        title={copy.topSourcesTitle}
         action={
           <span className="rounded-full border border-line-soft bg-[#FCFAED] px-3 py-1 text-xs font-bold text-alloro-navy tabular-nums">
             {sources.length} sources
@@ -116,7 +129,7 @@ export function PmsTopSourcesCard({
                   type="text"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search sources…"
+                  placeholder={copy.sourceSearchPlaceholder}
                   className="w-full rounded-[10px] border border-line-soft bg-[#FCFAED] py-2.5 pl-9 pr-3 text-sm font-medium text-alloro-navy placeholder:text-[color:var(--color-pm-text-secondary)] focus:outline-none focus:ring-2 focus:ring-alloro-orange/30"
                 />
               </div>
@@ -128,6 +141,7 @@ export function PmsTopSourcesCard({
                     key={`${source.rank}-${source.name}`}
                     source={source}
                     maxPercentage={maxPercentage}
+                    copy={copy}
                   />
                 ))}
               </div>
@@ -149,8 +163,8 @@ export function PmsTopSourcesCard({
         ) : (
           <div className="py-10 text-center text-sm font-semibold text-[color:var(--color-pm-text-secondary)]">
             {isProcessingInsights
-              ? "Your ranked referral sources will appear once PMS processing finishes."
-              : "Upload PMS data to rank referral sources."}
+              ? copy.topSourcesEmptyProcessing
+              : copy.topSourcesEmpty}
           </div>
         )}
       </PmsCardShell>
@@ -159,8 +173,8 @@ export function PmsTopSourcesCard({
         <DetailsModal
           open={showAll}
           onClose={() => setShowAll(false)}
-          eyebrow={`${labels.referralSources} · All time`}
-          title="All referral sources"
+          eyebrow={`${copy.sourcesLabel} · All time`}
+          title={copy.allSourcesTitle}
         >
           <div className="divide-y divide-line-soft">
             {rankedSources.map((source) => (
@@ -168,6 +182,7 @@ export function PmsTopSourcesCard({
                 key={`${source.rank}-${source.name}`}
                 source={source}
                 maxPercentage={maxPercentage}
+                copy={copy}
               />
             ))}
           </div>

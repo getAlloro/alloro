@@ -55,26 +55,36 @@ export const PMS_DATA_TREND_GRAPH = {
 
 export type PmsDataTrendValueKey = "productionTotal" | "totalReferrals";
 
-export type PmsDataTrendValueMonth = Record<PmsDataTrendValueKey, number | null>;
+export type PmsDataTrendValueMonth = Record<
+  PmsDataTrendValueKey,
+  number | null
+>;
 
 export function getDataTrendGraphX(index: number, count: number) {
   const { width, padX } = PMS_DATA_TREND_GRAPH;
-  return count <= 1 ? width / 2 : padX + (index / (count - 1)) * (width - 2 * padX);
+  return count <= 1
+    ? width / 2
+    : padX + (index / (count - 1)) * (width - 2 * padX);
 }
 
 export function getDataTrendGraphY(value: number | null, max: number) {
   const { height, padY } = PMS_DATA_TREND_GRAPH;
-  return padY + (1 - (value ?? 0) / Math.max(max * 1.15, 1)) * (height - 2 * padY);
+  return (
+    padY + (1 - (value ?? 0) / Math.max(max * 1.15, 1)) * (height - 2 * padY)
+  );
 }
 
 export function getMaxNullableValue(values: Array<number | null>) {
-  return Math.max(...values.filter((value): value is number => value !== null), 0);
+  return Math.max(
+    ...values.filter((value): value is number => value !== null),
+    0,
+  );
 }
 
 export function buildDataTrendGraphSegments<T extends PmsDataTrendValueMonth>(
   months: T[],
   key: PmsDataTrendValueKey,
-  max: number
+  max: number,
 ) {
   const segments: string[] = [];
   let current: string[] = [];
@@ -82,7 +92,9 @@ export function buildDataTrendGraphSegments<T extends PmsDataTrendValueMonth>(
   months.forEach((month, index) => {
     const value = month[key];
     if (value !== null && value > 0) {
-      current.push(`${getDataTrendGraphX(index, months.length)},${getDataTrendGraphY(value, max)}`);
+      current.push(
+        `${getDataTrendGraphX(index, months.length)},${getDataTrendGraphY(value, max)}`,
+      );
     } else if (current.length > 0) {
       segments.push(current.join(" "));
       current = [];
@@ -93,10 +105,20 @@ export function buildDataTrendGraphSegments<T extends PmsDataTrendValueMonth>(
   return segments;
 }
 
-export function formatDataTrendProduction(value: number | null) {
-  return value === null ? "no production saved" : `${formatCurrency(value)} production`;
+export function formatDataTrendProduction(
+  value: number | null,
+  moneyLower = "production",
+) {
+  return value === null
+    ? `no ${moneyLower} saved`
+    : `${formatCurrency(value)} ${moneyLower}`;
 }
 
-export function formatDataTrendReferrals(value: number | null) {
-  return value === null ? "no referrals saved" : `${value.toLocaleString("en-US")} referrals`;
+export function formatDataTrendReferrals(
+  value: number | null,
+  countPlural = "referrals",
+) {
+  return value === null
+    ? `no ${countPlural} saved`
+    : `${value.toLocaleString("en-US")} ${countPlural}`;
 }

@@ -40,6 +40,7 @@ import { OneThingBanner } from "./focus/OneThingBanner";
 import { PatientJourneyCard } from "./focus/PatientJourneyCard";
 import { StatCardRow } from "./focus/StatCardRow";
 import { useIsWizardActive } from "../../contexts/OnboardingWizardContext";
+import { usePmsCopy } from "../PMS/pmsCopy";
 
 interface DashboardOverviewProps {
   // Legacy props — kept for backward compatibility with Dashboard.tsx tab
@@ -90,6 +91,8 @@ export function DashboardOverview(props: DashboardOverviewProps) {
   const isWizardActive = useIsWizardActive();
   const navigate = useNavigate();
   const { userProfile, onboardingCompleted } = useAuth();
+  const labels = useLabels();
+  const pmsCopy = usePmsCopy();
   const { selectedLocation } = useLocationContext();
   const organizationId =
     props.organizationId ?? userProfile?.organizationId ?? null;
@@ -97,6 +100,7 @@ export function DashboardOverview(props: DashboardOverviewProps) {
   const { period, insightsStale } = usePmsFocusPeriod(
     organizationId,
     locationId,
+    pmsCopy,
   );
   const rerunInsights = useRerunPmsInsights(organizationId, locationId);
 
@@ -132,6 +136,7 @@ export function DashboardOverview(props: DashboardOverviewProps) {
     insightsStale,
     focusPeriod: period,
     isOnboardingIncomplete: onboardingCompleted === false,
+    copy: { ...pmsCopy, orgNoun: labels.orgNoun },
     actions: {
       // Stale + upload alerts are suppressed during the onboarding wizard.
       getUpdatedInsights: isWizardActive

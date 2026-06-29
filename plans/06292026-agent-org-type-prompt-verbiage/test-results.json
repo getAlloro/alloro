@@ -1,0 +1,102 @@
+{
+  "plan": "plans/06292026-agent-org-type-prompt-verbiage",
+  "generatedAt": "2026-06-29",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Rendered active prompts resolve for health and generic org types",
+      "surface": "cli",
+      "precondition": "Repository checkout with the agent prompt changes applied.",
+      "steps": [
+        "1. Run npx vitest run src/__tests__/orgLabels.test.ts src/__tests__/agentPromptOrgType.test.ts.",
+        "2. Confirm every active in-scope prompt renders for health and generic without unresolved placeholders.",
+        "3. Confirm generic rendered prompts reject banned healthcare examples outside allowlisted schema-key context."
+      ],
+      "expected": "The focused Vitest suite passes.",
+      "status": "pass",
+      "evidence": "PASS: 2 test files, 14 tests. The only warning was the intentional unknown-placeholder orgLabels test.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Prompt callers use org-type substitution before LLM execution",
+      "surface": "cli",
+      "precondition": "Prompt caller files are present in src/controllers and src/utils.",
+      "steps": [
+        "1. Search prompt callers for loadPrompt and substitutePromptPlaceholders.",
+        "2. Confirm Proofline, PMS column mapping, PMS paste sanitizer, monthly agent, ranking, and GBP prompt paths substitute resolved org labels."
+      ],
+      "expected": "Every in-scope prompt caller with organization context resolves org type server-side and calls substitutePromptPlaceholders before runAgent or AI completion.",
+      "status": "pass",
+      "evidence": "PASS: rg found substitution in service.monthly-agent-runner-core.ts, service.daily-agent-processor.ts, columnMappingInference.ts, pms-paste-analysis.service.ts, service.webhook-orchestrator.ts, GbpDraftGenerationService.ts, and GbpLocalPostDraftService.ts.",
+      "notes": "External N8N and public audit prompts are out of scope for this plan.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Parser contracts and legacy schema keys stay stable",
+      "surface": "cli",
+      "precondition": "Prompt markdown and parser caller changes are applied.",
+      "steps": [
+        "1. Inspect the PMS mapping and sanitizer prompt diffs.",
+        "2. Confirm role enum values and output schema names remain unchanged.",
+        "3. Run TypeScript to catch caller signature drift."
+      ],
+      "expected": "Legacy values such as patient, referring_doctor, production_total, and doctor_referral_matrix remain as schema keys or role enums only.",
+      "status": "pass",
+      "evidence": "PASS: npx tsc --noEmit exited 0. Prompt tests allow legacy schema keys while blocking generic freeform healthcare prose.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "No live agent run or client task creation occurred during execution",
+      "surface": "cli",
+      "precondition": "Execution is limited to code, prompt, and test changes.",
+      "steps": [
+        "1. Review executed commands.",
+        "2. Confirm no monthly, daily, GBP, PMS ingestion, or task-generation endpoint was invoked."
+      ],
+      "expected": "The execution creates no live client-facing agent rows or tasks.",
+      "status": "pass",
+      "evidence": "PASS: Only static source reads, Vitest, TypeScript, convention checks, git diff checks, and an admin login-page navigation were run.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Verification gates pass",
+      "surface": "cli",
+      "precondition": "All source changes are present.",
+      "steps": [
+        "1. Run npx tsc --noEmit.",
+        "2. Run npm run check:conventions -- --strict.",
+        "3. Run git diff --check.",
+        "4. Run npm run check:all."
+      ],
+      "expected": "Hard gates pass. check:all may report existing warning backlog only.",
+      "status": "pass",
+      "evidence": "PASS: TypeScript exited 0, check:conventions --strict exited 0, git diff --check exited 0, and check:all exited 0 with existing advisory warnings.",
+      "notes": "check:all still prints existing ESLint/dependency-cruiser warnings outside this plan.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Pilot-mode browser review of existing generic agent-output surfaces",
+      "surface": "ui",
+      "precondition": "Authenticated admin session in the available browser, then Pilot into a generic organization and a healthcare organization.",
+      "steps": [
+        "1. Open http://localhost:3000/admin.",
+        "2. Use the admin organization view Pilot feature to enter a generic organization.",
+        "3. Inspect existing generated output surfaces for stale healthcare wording."
+      ],
+      "expected": "Existing displayed generic surfaces remain covered by display-time translation, while new prompt output is guarded by the rendered-prompt tests.",
+      "status": "pass",
+      "evidence": "PASS: authenticated Pilot into org 45 Alloro Team's Organization (generic) showed Business Hub, Revenue Hub, Customer Journey Insights, Upload revenue data, Leads, customers, and no client-frame healthcare labels. Pilot into org 39 One Endodontics (health) showed Practice Hub, Referrals Hub, Patient Journey Insights, Upload PMS data, patients, doctor referral source, and production.",
+      "notes": "The only active generic org had 0 agent_results, 0 tasks, 0 pms_jobs, and 0 notifications, so this browser pass verified visible generic labels and empty states rather than historical generated output rows. A raw generic snapshot match for 'practice' came from the admin sidebar URL /admin/practice-ranking outside the embedded client frame.",
+      "waiver": ""
+    }
+  ]
+}

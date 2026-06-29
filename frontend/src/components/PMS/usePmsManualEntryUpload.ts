@@ -16,6 +16,7 @@ import {
   monthlyRollupToBuckets,
   type PmsUploadPreviewData,
 } from "./pmsManualEntryModal.utils";
+import type { PmsCopy } from "./pmsCopy";
 
 /**
  * Upload-and-file domain of usePmsManualEntry: clear/reset, month-mismatch
@@ -27,6 +28,7 @@ import {
  * upstream values/refs/setters these handlers closed over are passed in.
  */
 interface UsePmsManualEntryUploadParams {
+  copy: PmsCopy;
   targetMonth?: string | null;
   locationId?: number | null;
   createEmptyMonthBucket: (month: string) => MonthBucket;
@@ -57,6 +59,7 @@ interface UsePmsManualEntryUploadParams {
 }
 
 export function usePmsManualEntryUpload({
+  copy,
   targetMonth,
   locationId,
   createEmptyMonthBucket,
@@ -91,7 +94,16 @@ export function usePmsManualEntryUpload({
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
-  }, [createEmptyMonthBucket, targetMonth, setMonths, setActiveMonthId, setError, setSelectedUploadFile, setUploadPreview, fileInputRef]);
+  }, [
+    createEmptyMonthBucket,
+    targetMonth,
+    setMonths,
+    setActiveMonthId,
+    setError,
+    setSelectedUploadFile,
+    setUploadPreview,
+    fileInputRef,
+  ]);
 
   // Month-mismatch resolutions: both clear the flagged batch; re-upload
   // additionally reopens the file picker for the corrected file.
@@ -116,7 +128,7 @@ export function usePmsManualEntryUpload({
         setMonths([emptyTarget]);
         setActiveMonthId(emptyTarget.id);
         setError(
-          `This file does not include ${formatMonthLabel(targetMonth)}. Choose a file with that month or enter it manually.`
+          `This file does not include ${formatMonthLabel(targetMonth)}. Choose a file with that month or enter it manually.`,
         );
         return;
       }
@@ -124,25 +136,32 @@ export function usePmsManualEntryUpload({
       setMonths(buckets);
       setActiveMonthId(buckets[0]?.id ?? null);
     },
-    [createEmptyMonthBucket, scopeMonthsToTarget, targetMonth, setMonths, setActiveMonthId, setError]
+    [
+      createEmptyMonthBucket,
+      scopeMonthsToTarget,
+      targetMonth,
+      setMonths,
+      setActiveMonthId,
+      setError,
+    ],
   );
 
   const handleSelectedUploadFile = useCallback(
     async (file: File) => {
       const validExts = [".csv", ".xls", ".xlsx"];
       const isValid = validExts.some((ext) =>
-        file.name.toLowerCase().endsWith(ext)
+        file.name.toLowerCase().endsWith(ext),
       );
 
       if (!isValid) {
         setError(
-          `"${file.name}" is not supported. Please choose a CSV, XLS, or XLSX file.`
+          `"${file.name}" is not supported. Please choose a CSV, XLS, or XLSX file.`,
         );
         return;
       }
 
       if (!locationId) {
-        setError("Choose a location before uploading PMS data.");
+        setError(copy.previewLocationRequired);
         return;
       }
 
@@ -160,7 +179,9 @@ export function usePmsManualEntryUpload({
       try {
         const response = await previewPmsUploadFile(file, locationId);
         if (!response.success || !response.data) {
-          throw new Error(response.error || "Could not preview this PMS file.");
+          throw new Error(
+            response.error || `Could not preview this ${copy.fileNounLower}.`,
+          );
         }
 
         // Month-selected mode: a file carrying any other month is flagged,
@@ -170,15 +191,17 @@ export function usePmsManualEntryUpload({
 
         const scopedRollup = targetMonth
           ? response.data.monthlyRollup.filter(
-              (month) => month.month === targetMonth
+              (month) => month.month === targetMonth,
             )
           : response.data.monthlyRollup;
         const scopedIncomingMonths = targetMonth
-          ? response.data.incomingMonths.filter((month) => month === targetMonth)
+          ? response.data.incomingMonths.filter(
+              (month) => month === targetMonth,
+            )
           : response.data.incomingMonths;
         const scopedSupersededMonths = targetMonth
           ? response.data.supersededMonths.filter(
-              (month) => month.month === targetMonth
+              (month) => month.month === targetMonth,
             )
           : response.data.supersededMonths;
         setUploadPreview({
@@ -189,25 +212,45 @@ export function usePmsManualEntryUpload({
         });
         replaceMonthsFromRollup(scopedRollup);
         showUploadToast(
-          "PMS file parsed",
+          copy.toastParsedTitle,
           scopedSupersededMonths.length > 0
             ? `${scopedSupersededMonths.length} month(s) will be overwritten.`
             : targetMonth
               ? `Only ${formatMonthLabel(targetMonth)} will be uploaded.`
-              : "No saved months will be overwritten."
+              : "No saved months will be overwritten.",
         );
       } catch (err) {
         setSelectedUploadFile(null);
         setUploadPreview(null);
         setDroppedFileName(null);
         setError(
-          err instanceof Error ? err.message : "Could not preview this PMS file."
+          err instanceof Error
+            ? err.message
+            : `Could not preview this ${copy.fileNounLower}.`,
         );
       } finally {
         setIsPreviewingUpload(false);
       }
     },
-    [flagOffsetMonths, locationId, replaceMonthsFromRollup, targetMonth, setError, setDroppedFileName, setSelectedUploadFile, setUploadPreview, setIsPreviewingUpload, setCurrentMapping, setMappingSource, setMappingAllRows, setParsedPreview, setDrawerOpen]
+    [
+      copy.fileNounLower,
+      copy.previewLocationRequired,
+      copy.toastParsedTitle,
+      flagOffsetMonths,
+      locationId,
+      replaceMonthsFromRollup,
+      targetMonth,
+      setError,
+      setDroppedFileName,
+      setSelectedUploadFile,
+      setUploadPreview,
+      setIsPreviewingUpload,
+      setCurrentMapping,
+      setMappingSource,
+      setMappingAllRows,
+      setParsedPreview,
+      setDrawerOpen,
+    ],
   );
 
   const handleFileInputChange = useCallback(
@@ -215,27 +258,33 @@ export function usePmsManualEntryUpload({
       const file = event.target.files?.[0];
       if (file) void handleSelectedUploadFile(file);
     },
-    [handleSelectedUploadFile]
+    [handleSelectedUploadFile],
   );
 
-  // Drag & drop handlers for PMS files
-  const handleDragEnter = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounter.current += 1;
-    if (e.dataTransfer.types.includes("Files")) {
-      setIsDragging(true);
-    }
-  }, [dragCounter, setIsDragging]);
+  // Drag & drop handlers for uploaded data files
+  const handleDragEnter = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter.current += 1;
+      if (e.dataTransfer.types.includes("Files")) {
+        setIsDragging(true);
+      }
+    },
+    [dragCounter, setIsDragging],
+  );
 
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounter.current -= 1;
-    if (dragCounter.current === 0) {
-      setIsDragging(false);
-    }
-  }, [dragCounter, setIsDragging]);
+  const handleDragLeave = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter.current -= 1;
+      if (dragCounter.current === 0) {
+        setIsDragging(false);
+      }
+    },
+    [dragCounter, setIsDragging],
+  );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -253,28 +302,32 @@ export function usePmsManualEntryUpload({
       if (files.length === 0) return;
 
       if (files.length > 1) {
-        setError("Upload one PMS file at a time so overwrite checks stay clear.");
+        setError(copy.previewUploadOneFile);
         return;
       }
 
       void handleSelectedUploadFile(files[0]);
     },
-    [handleSelectedUploadFile, dragCounter, setIsDragging, setError]
+    [
+      copy.previewUploadOneFile,
+      handleSelectedUploadFile,
+      dragCounter,
+      setIsDragging,
+      setError,
+    ],
   );
 
   // Download CSV template with the expected headers
   const downloadTemplate = useCallback(() => {
-    const headers = "Treatment Date,Source,Type,Production";
-    const example = "01/15/2025,Google,self,1500";
-    const csv = `${headers}\n${example}\n`;
+    const csv = `${copy.templateHeaders}\n${copy.templateExample}\n`;
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "pms-template.csv";
+    a.download = copy.templateDownloadName;
     a.click();
     URL.revokeObjectURL(url);
-  }, []);
+  }, [copy.templateDownloadName, copy.templateExample, copy.templateHeaders]);
 
   return {
     clearAllData,

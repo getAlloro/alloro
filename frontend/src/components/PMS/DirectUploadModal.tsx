@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { uploadPMSData } from "../../api/pms";
 import { logger } from "../../lib/logger";
+import { usePmsCopy } from "./pmsCopy";
 
 interface DirectUploadModalProps {
   isOpen: boolean;
@@ -31,6 +32,7 @@ export const DirectUploadModal: React.FC<DirectUploadModalProps> = ({
   locationId,
   onSuccess,
 }) => {
+  const copy = usePmsCopy();
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>("idle");
@@ -40,7 +42,7 @@ export const DirectUploadModal: React.FC<DirectUploadModalProps> = ({
 
   const processingStorageKey = useMemo(
     () => `pmsProcessing:${clientId || "artfulorthodontics.com"}`,
-    [clientId]
+    [clientId],
   );
 
   const handleFileSelect = useCallback((selectedFile: File) => {
@@ -56,7 +58,7 @@ export const DirectUploadModal: React.FC<DirectUploadModalProps> = ({
         handleFileSelect(selectedFile);
       }
     },
-    [handleFileSelect]
+    [handleFileSelect],
   );
 
   const handleDrop = useCallback(
@@ -68,7 +70,7 @@ export const DirectUploadModal: React.FC<DirectUploadModalProps> = ({
         handleFileSelect(droppedFile);
       }
     },
-    [handleFileSelect]
+    [handleFileSelect],
   );
 
   const handleDragOver = useCallback(
@@ -76,7 +78,7 @@ export const DirectUploadModal: React.FC<DirectUploadModalProps> = ({
       event.preventDefault();
       setIsDragOver(true);
     },
-    []
+    [],
   );
 
   const handleDragLeave = useCallback(
@@ -84,7 +86,7 @@ export const DirectUploadModal: React.FC<DirectUploadModalProps> = ({
       event.preventDefault();
       setIsDragOver(false);
     },
-    []
+    [],
   );
 
   const handleUpload = async () => {
@@ -103,20 +105,18 @@ export const DirectUploadModal: React.FC<DirectUploadModalProps> = ({
 
       if (result.success) {
         setUploadStatus("success");
-        setMessage(
-          "We're processing your PMS data now. We'll notify you once it's ready."
-        );
+        setMessage(copy.processingMessage);
 
         showUploadToast(
-          "PMS export received!",
-          "We'll notify when ready for checking"
+          copy.toastReceivedTitle,
+          copy.processingInsightsMessage,
         );
 
         if (typeof window !== "undefined") {
           try {
             window.localStorage.setItem(
               processingStorageKey,
-              String(Date.now())
+              String(Date.now()),
             );
             const event = new CustomEvent("pms:job-uploaded", {
               detail: { clientId },
@@ -124,8 +124,8 @@ export const DirectUploadModal: React.FC<DirectUploadModalProps> = ({
             window.dispatchEvent(event);
           } catch (storageError) {
             logger.warn(
-              "Unable to persist PMS processing flag:",
-              storageError
+              "Unable to persist data processing flag:",
+              storageError,
             );
           }
         }
@@ -182,10 +182,10 @@ export const DirectUploadModal: React.FC<DirectUploadModalProps> = ({
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">
-                  Direct Upload
+                  {copy.directUploadTitle}
                 </h2>
                 <p className="text-sm text-slate-500 mt-0.5">
-                  Upload your PMS export directly
+                  {copy.directUploadSubtitle}
                 </p>
               </div>
               <button
@@ -210,8 +210,8 @@ export const DirectUploadModal: React.FC<DirectUploadModalProps> = ({
                       isDragOver
                         ? "border-emerald-400 bg-emerald-50/50"
                         : file
-                        ? "border-emerald-300 bg-emerald-50/30"
-                        : "border-slate-200 bg-slate-50/50 hover:border-slate-300 hover:bg-white"
+                          ? "border-emerald-300 bg-emerald-50/30"
+                          : "border-slate-200 bg-slate-50/50 hover:border-slate-300 hover:bg-white"
                     }`}
                     onDrop={handleDrop}
                     onDragOver={handleDragOver}
@@ -227,10 +227,18 @@ export const DirectUploadModal: React.FC<DirectUploadModalProps> = ({
                     />
 
                     <motion.div
-                      animate={isDragOver ? { scale: 1.1, y: -5 } : { scale: 1, y: 0 }}
-                      transition={{ type: "spring", damping: 15, stiffness: 300 }}
+                      animate={
+                        isDragOver ? { scale: 1.1, y: -5 } : { scale: 1, y: 0 }
+                      }
+                      transition={{
+                        type: "spring",
+                        damping: 15,
+                        stiffness: 300,
+                      }}
                       className={`w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center ${
-                        file ? "bg-emerald-100" : "bg-white shadow-sm border border-slate-100"
+                        file
+                          ? "bg-emerald-100"
+                          : "bg-white shadow-sm border border-slate-100"
                       }`}
                     >
                       <FileText
@@ -261,7 +269,8 @@ export const DirectUploadModal: React.FC<DirectUploadModalProps> = ({
                       <button
                         onClick={() => {
                           setFile(null);
-                          if (fileInputRef.current) fileInputRef.current.value = "";
+                          if (fileInputRef.current)
+                            fileInputRef.current.value = "";
                         }}
                         className="flex-1 px-4 py-3 text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors font-medium"
                       >
@@ -321,7 +330,9 @@ export const DirectUploadModal: React.FC<DirectUploadModalProps> = ({
                   <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
                     <AlertCircle className="w-10 h-10 text-red-600" />
                   </div>
-                  <h4 className="text-xl font-bold text-slate-900 mb-2">Upload Failed</h4>
+                  <h4 className="text-xl font-bold text-slate-900 mb-2">
+                    Upload Failed
+                  </h4>
                   <p className="text-red-600 mb-4">{message}</p>
                   <button
                     onClick={() => setUploadStatus("idle")}

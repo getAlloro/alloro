@@ -2,6 +2,8 @@ import React from "react";
 import { motion } from "framer-motion";
 import { Sparkles, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useLabels } from "../../hooks/useLabels";
+import { usePmsCopy } from "../PMS/pmsCopy";
 
 interface PMSUploadBannerProps {
   onNavigate?: () => void;
@@ -11,6 +13,8 @@ export const PMSUploadBanner: React.FC<PMSUploadBannerProps> = ({
   onNavigate,
 }) => {
   const navigate = useNavigate();
+  const labels = useLabels();
+  const copy = usePmsCopy();
 
   const handleGoToReferralsHub = () => {
     // Store flag to trigger scroll + highlight on Referrals Hub page
@@ -39,8 +43,8 @@ export const PMSUploadBanner: React.FC<PMSUploadBannerProps> = ({
               You're All Set!
             </h3>
             <p className="text-green-700 text-sm mt-1">
-              Upload your first PMS data to start receiving personalized
-              insights and action items for your practice.
+              Upload your first {copy.dataNameLower} to start receiving
+              personalized insights and action items for your {labels.orgNoun}.
             </p>
           </div>
         </div>
@@ -48,7 +52,7 @@ export const PMSUploadBanner: React.FC<PMSUploadBannerProps> = ({
           onClick={handleGoToReferralsHub}
           className="flex items-center justify-center gap-2 px-5 py-3 text-sm font-bold text-white bg-green-600 hover:bg-green-700 rounded-xl transition-all shadow-lg shadow-green-600/20 whitespace-nowrap shrink-0"
         >
-          Go to Referrals Hub
+          Go to {labels.hubReferrals}
           <ArrowRight size={16} />
         </button>
       </div>

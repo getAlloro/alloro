@@ -50,24 +50,6 @@ export interface ColumnMapping {
 export type MappingSource = "org-cache" | "global-library" | "ai-inference";
 
 /**
- * Doctor-readable label map for column roles (used in mapping drawer dropdowns).
- */
-export const ROLE_LABELS: Record<ColumnRole, string> = {
-  date: "Date of Visit",
-  source: "Referral Source",
-  referring_practice: "Referring Practice / Doctor",
-  referring_doctor: "Referring Doctor (extra)",
-  patient: "Patient ID or Name",
-  type: "Referral Type",
-  status: "Visit Status",
-  production_gross: "Amount Billed",
-  production_net: "Amount Collected",
-  production_total: "Production (already summed)",
-  writeoffs: "Writeoffs / Adjustments",
-  ignore: "(Don't use this column)",
-};
-
-/**
  * Per-source aggregated production within a month.
  * Mirrors backend MonthlyRollup row shape.
  */
@@ -160,7 +142,7 @@ export interface UploadWithMappingResponse {
 }
 
 /**
- * Upload PMS data using a resolved (and possibly user-edited) column mapping.
+ * Upload data using a resolved (and possibly user-edited) column mapping.
  * Skips n8n; runs parsing inline. Clones the mapping into the org cache on success.
  */
 export async function uploadWithMapping(payload: {
@@ -185,7 +167,7 @@ export async function uploadWithMapping(payload: {
     logger.error("PMS uploadWithMapping API error:", error);
     return {
       success: false,
-      error: "Failed to upload PMS data. Please try again.",
+      error: "Failed to upload data. Please try again.",
     };
   }
 }
@@ -207,7 +189,7 @@ export interface ReprocessJobResponse {
  */
 export async function reprocessJob(
   jobId: number,
-  mapping: ColumnMapping
+  mapping: ColumnMapping,
 ): Promise<ReprocessJobResponse> {
   try {
     const result = await apiPost({
@@ -240,7 +222,7 @@ export interface CachedMappingResponse {
  * Returns null when no cache entry exists.
  */
 export async function getCachedMapping(
-  signature: string
+  signature: string,
 ): Promise<CachedMappingResponse> {
   return apiGet({
     path: `/pms/mappings/cache?signature=${encodeURIComponent(signature)}`,

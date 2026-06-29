@@ -16,10 +16,8 @@ import {
 import type { PmsFileManagerFile } from "../../../api/pms";
 import { PmsFileHistoryPanel } from "./PmsFileHistoryPanel";
 import { PmsFileList } from "./PmsFileList";
-import {
-  PmsMonthSlotGrid,
-  type PmsCalendarMonth,
-} from "./PmsMonthSlotGrid";
+import { PmsMonthSlotGrid, type PmsCalendarMonth } from "./PmsMonthSlotGrid";
+import { usePmsCopy } from "../pmsCopy";
 
 export type PmsFileManagerProps = {
   organizationId: number | null;
@@ -48,6 +46,7 @@ export function PmsFileManager({
   onUploadClick,
   onDataChanged,
 }: PmsFileManagerProps) {
+  const copy = usePmsCopy();
   const [editorJobId, setEditorJobId] = useState<number | null>(null);
   const [editorMode, setEditorMode] = useState<PmsJobDataEditorMode>("current");
   const [historyJobId, setHistoryJobId] = useState<number | null>(null);
@@ -62,11 +61,11 @@ export function PmsFileManager({
   const files = useMemo(() => managerData?.files ?? [], [managerData?.files]);
   const slots = useMemo(
     () => managerData?.monthSlots ?? [],
-    [managerData?.monthSlots]
+    [managerData?.monthSlots],
   );
   const calendarMonths = useMemo(
     () => buildCalendarMonths(files, slots, windowEndMonth),
-    [files, slots, windowEndMonth]
+    [files, slots, windowEndMonth],
   );
   // Per-location run sequence: "Analysis #1" = this location's first batch
   // run, chronologically. Computed over the FULL list (including deleted
@@ -85,7 +84,7 @@ export function PmsFileManager({
 
   const filteredFiles = useMemo(
     () => filterFilesByMonth(files, selectedMonth),
-    [files, selectedMonth]
+    [files, selectedMonth],
   );
   const detailJobId = editorJobId ?? historyJobId;
   const detailQuery = usePmsFileDetail(organizationId, locationId, detailJobId);
@@ -99,7 +98,7 @@ export function PmsFileManager({
         const status = file.automation_status_detail?.status;
         return status ? ACTIVE_STATUSES.has(status) : false;
       }),
-    [files]
+    [files],
   );
   const actionsBlocked = isProcessing || hasRunningJob;
   const selectedFile = detailQuery.data?.data?.file ?? null;
@@ -118,7 +117,8 @@ export function PmsFileManager({
       appliedInitialMonthRef.current = null;
       return;
     }
-    if (!initialMonth || appliedInitialMonthRef.current === initialMonth) return;
+    if (!initialMonth || appliedInitialMonthRef.current === initialMonth)
+      return;
     if (!calendarMonths.some((month) => month.month === initialMonth)) {
       setWindowEndMonth(initialMonth);
       return;
@@ -137,7 +137,10 @@ export function PmsFileManager({
     ) {
       return;
     }
-    if (selectedMonth && calendarMonths.some((m) => m.month === selectedMonth)) {
+    if (
+      selectedMonth &&
+      calendarMonths.some((m) => m.month === selectedMonth)
+    ) {
       return;
     }
     setSelectedMonth(calendarMonths[calendarMonths.length - 1]?.month ?? null);
@@ -197,9 +200,11 @@ export function PmsFileManager({
       responseLog,
     });
     if (!response.success) {
-      throw new Error(response.error || "Failed to update PMS file.");
+      throw new Error(
+        response.error || `Failed to update ${copy.fileNounLower}.`,
+      );
     }
-    // The editor (PMSDataViewer) shows its own "saved" confirmation. We no
+    // The editor shows its own "saved" confirmation. We no
     // longer claim the agent is rerunning — edits surface a stale-data alert.
     onDataChanged?.();
   };
@@ -207,21 +212,24 @@ export function PmsFileManager({
   const handleDelete = async (jobId: number) => {
     const response = await deleteMutation.mutateAsync(jobId);
     if (!response.success) {
-      showErrorToast("Delete blocked", response.error || "Unable to delete this file.");
+      showErrorToast(
+        "Delete blocked",
+        response.error || "Unable to delete this file.",
+      );
       return;
     }
     setPendingDeleteId(null);
-    showSuccessToast(
-      "PMS file deleted",
-      "Removed from active reporting. Use Get updated insights to refresh."
-    );
+    showSuccessToast(copy.fileDeletedTitle, copy.fileDeletedBody);
     onDataChanged?.();
   };
 
   const handleDownload = async (jobId: number) => {
     const response = await downloadMutation.mutateAsync(jobId);
     if (!response.success || !response.data?.url) {
-      showErrorToast("Download unavailable", response.error || "No original file is saved.");
+      showErrorToast(
+        "Download unavailable",
+        response.error || "No original file is saved.",
+      );
       return;
     }
     window.location.assign(response.data.url);
@@ -233,7 +241,7 @@ export function PmsFileManager({
         <div className="fixed inset-0 z-[70]">
           <motion.button
             type="button"
-            aria-label="Close revenue manager"
+            aria-label={`Close ${copy.managerAriaLabel}`}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -246,22 +254,24 @@ export function PmsFileManager({
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 32, stiffness: 280 }}
             className="absolute bottom-0 right-0 top-0 flex w-full flex-col border-l border-line-soft bg-white shadow-2xl sm:w-[min(92vw,620px)]"
-            aria-label="Revenue manager"
+            aria-label={copy.managerAriaLabel}
           >
             <div className="flex items-start justify-between gap-4 border-b border-line-soft bg-white px-5 py-4 sm:px-6">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.24em] text-alloro-orange">
-                  Revenue Manager
+                  {copy.managerEyebrow}
                 </p>
                 <h2 className="mt-1 font-display text-xl font-medium tracking-tight text-alloro-navy sm:text-2xl">
-                  {locationName ? `${locationName} Revenue References` : "Revenue References"}
+                  {locationName
+                    ? `${locationName} ${copy.managerTitleSuffix}`
+                    : copy.managerTitleFallback}
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={onClose}
                 className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line-soft bg-white text-alloro-navy transition-all hover:scale-[1.02] hover:border-alloro-orange/40 hover:bg-alloro-orange/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-alloro-orange/25"
-                aria-label="Close revenue manager"
+                aria-label={`Close ${copy.managerAriaLabel}`}
               >
                 <X className="h-5 w-5" />
               </button>
@@ -269,13 +279,14 @@ export function PmsFileManager({
 
             <div className="flex-1 overflow-y-auto bg-slate-50/80 px-5 py-5 sm:px-6">
               <p className="max-w-xl text-sm font-semibold leading-6 text-[color:var(--color-pm-text-secondary)]">
-                Pick a month to review data, then choose whether to upload or edit.
+                Pick a month to review {copy.dataNameLower}, then choose whether
+                to upload or edit.
               </p>
 
               {actionsBlocked && (
                 <div className="mt-5 flex items-center gap-3 rounded-xl border border-alloro-orange/20 bg-alloro-orange/10 p-4 text-sm font-bold text-alloro-navy">
                   <Loader2 className="h-4 w-4 animate-spin text-alloro-orange" />
-                  PMS processing is running for this location. File edits are paused until it finishes.
+                  {copy.managerProcessingCopy}
                 </div>
               )}
 
@@ -293,7 +304,8 @@ export function PmsFileManager({
                 {selectedMonth &&
                   (() => {
                     const selectedSlot =
-                      calendarMonths.find((m) => m.month === selectedMonth) ?? null;
+                      calendarMonths.find((m) => m.month === selectedMonth) ??
+                      null;
                     return (
                       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line-soft bg-white px-4 py-3">
                         <div>
@@ -322,7 +334,9 @@ export function PmsFileManager({
                               className="inline-flex items-center gap-1.5 rounded-lg bg-alloro-orange px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white transition hover:brightness-110"
                             >
                               <Upload className="h-3 w-3" />
-                              {selectedSlot.status === "active" ? "Overwrite data" : "Upload data"}
+                              {selectedSlot.status === "active"
+                                ? "Overwrite data"
+                                : "Upload data"}
                             </button>
                           </div>
                         )}
@@ -373,7 +387,7 @@ export function PmsFileManager({
 
 function filterFilesByMonth(
   files: PmsFileManagerFile[],
-  selectedMonth: string | null
+  selectedMonth: string | null,
 ) {
   if (!selectedMonth) return files;
   return files.filter((file) =>
@@ -382,7 +396,7 @@ function filterFilesByMonth(
       ...file.original_months,
       ...file.active_months,
       ...file.superseded_months,
-    ].includes(selectedMonth)
+    ].includes(selectedMonth),
   );
 }
 
@@ -394,9 +408,12 @@ function buildCalendarMonths(
     jobId: number | null;
     fileName: string | null;
   }>,
-  windowEndMonth: string
+  windowEndMonth: string,
 ): PmsCalendarMonth[] {
-  const activeByMonth = new Map<string, { jobId: number; fileName: string | null }>();
+  const activeByMonth = new Map<
+    string,
+    { jobId: number; fileName: string | null }
+  >();
 
   for (const slot of slots) {
     if (slot.status === "active" && slot.jobId) {
@@ -423,7 +440,11 @@ function buildCalendarMonths(
   const firstMonth = addMonths(latestMonth, -11);
 
   const calendar: PmsCalendarMonth[] = [];
-  for (let month = firstMonth; month <= latestMonth; month = addMonths(month, 1)) {
+  for (
+    let month = firstMonth;
+    month <= latestMonth;
+    month = addMonths(month, 1)
+  ) {
     const owner = activeByMonth.get(month);
     const isLatest = month === actualLatestMonth;
     calendar.push({

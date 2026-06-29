@@ -43,10 +43,10 @@ const LocalPostOutputSchema = z.object({
 type LocalPostOutput = z.infer<typeof LocalPostOutputSchema>;
 
 const LOCAL_POST_VARIATION_INSTRUCTIONS = [
-  "Write a public practice update about the general experience theme, not a reply to the reviewer.",
-  "Use a different opening and focus on the team's communication, comfort, or office experience without clinical specifics.",
-  "Make the post feel local and useful while avoiding second-person patient language.",
-  "Summarize a broad practice strength in a fresh structure with no treatment, billing, or appointment details.",
+  "Write a public business update about the general experience theme, not a reply to the reviewer.",
+  "Use a different opening and focus on the team's communication, trust, or service experience without private specifics.",
+  "Make the post feel local and useful while avoiding second-person customer-relationship language.",
+  "Summarize a broad business strength in a fresh structure with no private account, payment, service, or record details.",
 ];
 
 function actorMetadata(actorEmail?: string | null): Record<string, unknown> {
@@ -117,12 +117,16 @@ function isSameAsPreviousDraft(
   );
 }
 
-function safetyRepairInstruction(reasons: string[]): string {
+function safetyRepairInstruction(reasons: string[], orgType: ReturnType<typeof resolveOrgType>): string {
+  const privateDetails =
+    orgType === "generic"
+      ? "private service details, account details, payment details, records, source details, cases, or a customer relationship"
+      : "treatment, appointments, procedures, diagnosis, records, referrals, insurance, billing, cases, symptoms, or a patient relationship";
   return [
     `The previous post draft failed safety checks: ${reasons.join("; ")}.`,
     "Rewrite it as a new public Google Business Profile local post, not a review reply.",
-    "Do not mention treatment, appointments, procedures, diagnosis, records, referrals, insurance, billing, cases, symptoms, or a patient relationship.",
-    "Avoid second-person clinical wording. Use broad public wording such as team, office, communication, comfort, visitors, and experience.",
+    `Do not mention ${privateDetails}.`,
+    "Avoid second-person private-detail wording. Use broad public wording such as team, communication, visitors, and experience.",
   ].join(" ");
 }
 
@@ -175,6 +179,7 @@ async function generateDistinctLocalPost(
 async function generateSafeLocalPost(
   systemPrompt: string,
   generationInput: Record<string, unknown>,
+  orgType: ReturnType<typeof resolveOrgType>,
   featuredImageUrl: string | null,
   previousDraftContent?: string | null
 ): Promise<LocalPostOutput> {
@@ -194,7 +199,7 @@ async function generateSafeLocalPost(
     generationInput.unsafeDraftContent = draft.summary;
     generationInput.safetyRepairReasons = safety.reasons;
     generationInput.safetyRepairAttempt = attempt;
-    generationInput.variationInstruction = safetyRepairInstruction(safety.reasons);
+    generationInput.variationInstruction = safetyRepairInstruction(safety.reasons, orgType);
     generationInput.variationSeed = randomUUID();
     draft = await generateDistinctLocalPost(
       systemPrompt,
@@ -234,9 +239,10 @@ export class GbpLocalPostDraftService {
   }> {
     const insight = GbpReviewInsightService.classify(params.review);
     const promptKey = "gbpAgents/LocalPost";
+    const orgType = resolveOrgType(params.organization.organization_type);
     const systemPrompt = substitutePromptPlaceholders(
       loadPrompt(promptKey),
-      resolveOrgType(params.organization.organization_type)
+      orgType
     );
     const customizations =
       sanitizeGbpText(
@@ -276,6 +282,7 @@ export class GbpLocalPostDraftService {
       generated = await generateSafeLocalPost(
         systemPrompt,
         generationInput,
+        orgType,
         params.featuredImageUrl,
         params.previousDraftContent
       );

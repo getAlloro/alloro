@@ -4,6 +4,7 @@ import { QUERY_KEYS } from "../../lib/queryClient";
 import {
   derivePmsFocusPeriod,
   type PmsFocusPeriod,
+  type PmsFocusPeriodCopy,
 } from "../../utils/pmsFocusPeriod";
 
 type PmsKeyData = NonNullable<PmsKeyDataResponse["data"]>;
@@ -20,6 +21,7 @@ async function fetchPmsFocusKeyData(
 export function usePmsFocusPeriod(
   orgId: number | null,
   locationId: number | null,
+  copy?: PmsFocusPeriodCopy,
 ): {
   period: PmsFocusPeriod;
   /** Server-computed: PMS data was edited/deleted after the last completed run. */
@@ -36,7 +38,7 @@ export function usePmsFocusPeriod(
   });
 
   const currentDate = new Date();
-  const period = derivePmsFocusPeriod(query.data?.months, currentDate);
+  const period = derivePmsFocusPeriod(query.data?.months, currentDate, copy);
 
   return {
     period,

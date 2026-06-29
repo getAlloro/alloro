@@ -14,6 +14,7 @@ import {
 import { uploadPMSData } from "../../api/pms";
 import { PMSManualEntryModal } from "./PMSManualEntryModal";
 import { logger } from "../../lib/logger";
+import { usePmsCopy } from "./pmsCopy";
 
 interface PMSUploadWizardModalProps {
   isOpen: boolean;
@@ -28,14 +29,6 @@ type UploadStatus = "idle" | "success" | "error";
 
 const ALORO_ORANGE = "#C9765E";
 
-// Sample data for the example table
-const SAMPLE_DATA = [
-  { date: "1/1/26", practice: "Sample Medical Practice", source: "Dr. Sarah Lewis", production: "$180" },
-  { date: "1/2/26", practice: "Self Referral", source: "Google", production: "$220" },
-  { date: "1/3/26", practice: "Self Referral", source: "Website", production: "$150" },
-  { date: "1/4/26", practice: "Sample Medical Practice", source: "Dr. James Patel", production: "$190" },
-];
-
 export const PMSUploadWizardModal: React.FC<PMSUploadWizardModalProps> = ({
   isOpen,
   onClose,
@@ -43,6 +36,7 @@ export const PMSUploadWizardModal: React.FC<PMSUploadWizardModalProps> = ({
   locationId,
   onSuccess,
 }) => {
+  const copy = usePmsCopy();
   const [step, setStep] = useState<WizardStep>("gate");
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -54,7 +48,7 @@ export const PMSUploadWizardModal: React.FC<PMSUploadWizardModalProps> = ({
 
   const processingStorageKey = useMemo(
     () => `pmsProcessing:${clientId || "artfulorthodontics.com"}`,
-    [clientId]
+    [clientId],
   );
 
   const handleFileSelect = useCallback((selectedFile: File) => {
@@ -70,7 +64,7 @@ export const PMSUploadWizardModal: React.FC<PMSUploadWizardModalProps> = ({
         handleFileSelect(selectedFile);
       }
     },
-    [handleFileSelect]
+    [handleFileSelect],
   );
 
   const handleDrop = useCallback(
@@ -82,7 +76,7 @@ export const PMSUploadWizardModal: React.FC<PMSUploadWizardModalProps> = ({
         handleFileSelect(droppedFile);
       }
     },
-    [handleFileSelect]
+    [handleFileSelect],
   );
 
   const handleDragOver = useCallback(
@@ -90,7 +84,7 @@ export const PMSUploadWizardModal: React.FC<PMSUploadWizardModalProps> = ({
       event.preventDefault();
       setIsDragOver(true);
     },
-    []
+    [],
   );
 
   const handleDragLeave = useCallback(
@@ -98,7 +92,7 @@ export const PMSUploadWizardModal: React.FC<PMSUploadWizardModalProps> = ({
       event.preventDefault();
       setIsDragOver(false);
     },
-    []
+    [],
   );
 
   const handleUpload = async () => {
@@ -117,20 +111,18 @@ export const PMSUploadWizardModal: React.FC<PMSUploadWizardModalProps> = ({
 
       if (result.success) {
         setUploadStatus("success");
-        setMessage(
-          "We're processing your PMS data now. We'll notify you once it's ready."
-        );
+        setMessage(copy.processingMessage);
 
         showUploadToast(
-          "PMS export received!",
-          "We'll notify when ready for checking"
+          copy.toastReceivedTitle,
+          copy.processingInsightsMessage,
         );
 
         if (typeof window !== "undefined") {
           try {
             window.localStorage.setItem(
               processingStorageKey,
-              String(Date.now())
+              String(Date.now()),
             );
             const event = new CustomEvent("pms:job-uploaded", {
               detail: { clientId },
@@ -138,8 +130,8 @@ export const PMSUploadWizardModal: React.FC<PMSUploadWizardModalProps> = ({
             window.dispatchEvent(event);
           } catch (storageError) {
             logger.warn(
-              "Unable to persist PMS processing flag:",
-              storageError
+              "Unable to persist data processing flag:",
+              storageError,
             );
           }
         }
@@ -195,7 +187,13 @@ export const PMSUploadWizardModal: React.FC<PMSUploadWizardModalProps> = ({
   }
 
   // Shared upload zone component
-  const UploadZone = ({ showBack = false, onBack }: { showBack?: boolean; onBack?: () => void }) => (
+  const UploadZone = ({
+    showBack = false,
+    onBack,
+  }: {
+    showBack?: boolean;
+    onBack?: () => void;
+  }) => (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
@@ -221,8 +219,8 @@ export const PMSUploadWizardModal: React.FC<PMSUploadWizardModalProps> = ({
               isDragOver
                 ? "border-emerald-400 bg-emerald-50/50"
                 : file
-                ? "border-emerald-300 bg-emerald-50/30"
-                : "border-slate-200 bg-slate-50/50 hover:border-slate-300 hover:bg-white"
+                  ? "border-emerald-300 bg-emerald-50/30"
+                  : "border-slate-200 bg-slate-50/50 hover:border-slate-300 hover:bg-white"
             }`}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
@@ -241,7 +239,9 @@ export const PMSUploadWizardModal: React.FC<PMSUploadWizardModalProps> = ({
               animate={isDragOver ? { scale: 1.1, y: -5 } : { scale: 1, y: 0 }}
               transition={{ type: "spring", damping: 15, stiffness: 300 }}
               className={`w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center ${
-                file ? "bg-emerald-100" : "bg-white shadow-sm border border-slate-100"
+                file
+                  ? "bg-emerald-100"
+                  : "bg-white shadow-sm border border-slate-100"
               }`}
             >
               <FileText
@@ -332,7 +332,9 @@ export const PMSUploadWizardModal: React.FC<PMSUploadWizardModalProps> = ({
           <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
             <AlertCircle className="w-10 h-10 text-red-600" />
           </div>
-          <h4 className="text-xl font-bold text-slate-900 mb-2">Upload Failed</h4>
+          <h4 className="text-xl font-bold text-slate-900 mb-2">
+            Upload Failed
+          </h4>
           <p className="text-red-600 mb-4">{message}</p>
           <button
             onClick={() => setUploadStatus("idle")}
@@ -349,25 +351,39 @@ export const PMSUploadWizardModal: React.FC<PMSUploadWizardModalProps> = ({
   const ExampleTable = () => (
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
       <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-200">
-        <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">Example Report Format</p>
+        <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">
+          {copy.sampleReportLabel}
+        </p>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
             <tr className="bg-slate-50/50">
-              <th className="px-2 py-1.5 text-left text-[10px] font-semibold text-slate-600 uppercase tracking-wide">Referral Date</th>
-              <th className="px-2 py-1.5 text-left text-[10px] font-semibold text-slate-600 uppercase tracking-wide">Referring Practice</th>
-              <th className="px-2 py-1.5 text-left text-[10px] font-semibold text-slate-600 uppercase tracking-wide">Referring Source</th>
-              <th className="px-2 py-1.5 text-right text-[10px] font-semibold text-slate-600 uppercase tracking-wide">Production</th>
+              <th className="px-2 py-1.5 text-left text-[10px] font-semibold text-slate-600 uppercase tracking-wide">
+                {copy.sampleHeaders.date}
+              </th>
+              <th className="px-2 py-1.5 text-left text-[10px] font-semibold text-slate-600 uppercase tracking-wide">
+                {copy.sampleHeaders.group}
+              </th>
+              <th className="px-2 py-1.5 text-left text-[10px] font-semibold text-slate-600 uppercase tracking-wide">
+                {copy.sampleHeaders.source}
+              </th>
+              <th className="px-2 py-1.5 text-right text-[10px] font-semibold text-slate-600 uppercase tracking-wide">
+                {copy.sampleHeaders.amount}
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {SAMPLE_DATA.map((row, i) => (
+            {copy.sampleRows.map((row, i) => (
               <tr key={i} className="hover:bg-slate-50/50">
                 <td className="px-2 py-1.5 text-slate-600">{row.date}</td>
-                <td className="px-2 py-1.5 text-slate-600">{row.practice}</td>
-                <td className="px-2 py-1.5 text-slate-900 font-medium">{row.source}</td>
-                <td className="px-2 py-1.5 text-right text-emerald-600 font-medium">{row.production}</td>
+                <td className="px-2 py-1.5 text-slate-600">{row.group}</td>
+                <td className="px-2 py-1.5 text-slate-900 font-medium">
+                  {row.source}
+                </td>
+                <td className="px-2 py-1.5 text-right text-emerald-600 font-medium">
+                  {row.amount}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -403,16 +419,21 @@ export const PMSUploadWizardModal: React.FC<PMSUploadWizardModalProps> = ({
                 className="flex-1"
               >
                 <h2 className="text-xl font-bold text-slate-900">
-                  {step === "gate" && "Upload Referral Report"}
+                  {step === "gate" && `Upload ${copy.reportName}`}
                   {step === "direct-upload" && "Upload Your Report"}
                   {step === "alternatives" && "Alternative Options"}
-                  {step === "template-upload" && "Upload Completed Template"}
+                  {step === "template-upload" &&
+                    copy.uploadCompletedTemplateTitle}
                 </h2>
                 <p className="text-sm text-slate-500 mt-0.5">
-                  {step === "gate" && "Check if your PMS can export the required data"}
-                  {step === "direct-upload" && "Download the report from your PMS and upload it"}
-                  {step === "alternatives" && "Choose how you'd like to provide your data"}
-                  {step === "template-upload" && "Upload the filled-in template"}
+                  {step === "gate" &&
+                    `Check if your ${copy.systemName} can export the required data`}
+                  {step === "direct-upload" &&
+                    `Download the report from your ${copy.systemName} and upload it`}
+                  {step === "alternatives" &&
+                    "Choose how you'd like to provide your data"}
+                  {step === "template-upload" &&
+                    "Upload the filled-in template"}
                 </p>
               </motion.div>
               <button
@@ -437,7 +458,8 @@ export const PMSUploadWizardModal: React.FC<PMSUploadWizardModalProps> = ({
                     className="space-y-5"
                   >
                     <p className="text-slate-600">
-                      Does your PMS allow you to export a report with these fields?
+                      Does your {copy.systemName} allow you to export a report
+                      with these fields?
                     </p>
 
                     {/* Example Table */}
@@ -458,7 +480,10 @@ export const PMSUploadWizardModal: React.FC<PMSUploadWizardModalProps> = ({
                         whileTap={{ scale: 0.98 }}
                         onClick={() => setStep("direct-upload")}
                         className="flex-1 py-4 px-6 rounded-xl font-semibold text-white transition-all hover:brightness-110 shadow-lg"
-                        style={{ backgroundColor: ALORO_ORANGE, boxShadow: `0 4px 14px ${ALORO_ORANGE}40` }}
+                        style={{
+                          backgroundColor: ALORO_ORANGE,
+                          boxShadow: `0 4px 14px ${ALORO_ORANGE}40`,
+                        }}
                       >
                         Yes, I can export this
                       </motion.button>
@@ -558,14 +583,18 @@ export const PMSUploadWizardModal: React.FC<PMSUploadWizardModalProps> = ({
                           className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
                           style={{ backgroundColor: `${ALORO_ORANGE}15` }}
                         >
-                          <PenLine className="w-5 h-5" style={{ color: ALORO_ORANGE }} />
+                          <PenLine
+                            className="w-5 h-5"
+                            style={{ color: ALORO_ORANGE }}
+                          />
                         </div>
                         <div className="flex-1">
                           <h3 className="font-semibold text-slate-900 mb-1">
                             Enter data manually
                           </h3>
                           <p className="text-sm text-slate-500 mb-4">
-                            Type in your referral data directly in Alloro.
+                            Type in your {copy.dataNameLower} directly in
+                            Alloro.
                           </p>
                           <button
                             onClick={() => setShowManualEntry(true)}
@@ -595,7 +624,7 @@ export const PMSUploadWizardModal: React.FC<PMSUploadWizardModalProps> = ({
                             Need help?
                           </h3>
                           <p className="text-sm text-slate-500 mb-4">
-                            We can help you get the right report from your PMS.
+                            We can help you get the right report from your data source.
                           </p>
                           <a
                             href="mailto:support@getalloro.com"

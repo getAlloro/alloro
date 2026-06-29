@@ -4,10 +4,10 @@ import {
   AlertCircle,
   Calendar,
   DollarSign,
+  Handshake,
   Loader2,
   Plus,
   Save,
-  Stethoscope,
   Trash2,
   User,
   X,
@@ -23,7 +23,6 @@ import {
   addMonths,
 } from "./pmsDataTransform";
 import type { MonthBucket, SourceRow } from "./types";
-import { useLabels } from "../../hooks/useLabels";
 import { logger } from "../../lib/logger";
 import {
   ALORO_ORANGE,
@@ -33,6 +32,7 @@ import {
 import { Odometer } from "./PMSLatestJobEditor/Odometer";
 import { MonthYearPickerModal } from "./PMSLatestJobEditor/MonthYearPickerModal";
 import { SourceRowItem } from "./PMSLatestJobEditor/SourceRowItem";
+import { usePmsCopy } from "./pmsCopy";
 
 interface PMSLatestJobEditorProps {
   isOpen: boolean;
@@ -51,7 +51,7 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
   onSaved,
   onConfirmApproval,
 }) => {
-  const labels = useLabels();
+  const copy = usePmsCopy();
   // ==================== STATE ====================
   const [months, setMonths] = useState<MonthBucket[]>([]);
   const [activeMonthId, setActiveMonthId] = useState<number | null>(null);
@@ -66,7 +66,7 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
 
   // Confirmation dialogs
   const [confirmDeleteRowId, setConfirmDeleteRowId] = useState<number | null>(
-    null
+    null,
   );
   const [confirmDeleteMonthId, setConfirmDeleteMonthId] = useState<
     number | null
@@ -111,7 +111,7 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
   // ==================== DERIVED STATE (MEMOIZED) ====================
   const sortedMonths = useMemo(
     () => [...months].sort((a, b) => a.month.localeCompare(b.month)),
-    [months]
+    [months],
   );
 
   const activeMonth = useMemo(() => {
@@ -136,7 +136,7 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
   // ==================== MONTH MANAGEMENT ====================
   const updateActiveMonth = (patch: Partial<MonthBucket>) => {
     setMonths((prev) =>
-      prev.map((m) => (m.id === activeMonth?.id ? { ...m, ...patch } : m))
+      prev.map((m) => (m.id === activeMonth?.id ? { ...m, ...patch } : m)),
     );
   };
 
@@ -182,8 +182,8 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
   const updateMonthRows = (updater: (rows: SourceRow[]) => SourceRow[]) => {
     setMonths((prev) =>
       prev.map((m) =>
-        m.id === activeMonth?.id ? { ...m, rows: updater(m.rows) } : m
-      )
+        m.id === activeMonth?.id ? { ...m, rows: updater(m.rows) } : m,
+      ),
     );
   };
 
@@ -202,7 +202,7 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
 
   const updateRow = (id: number, field: keyof SourceRow, value: string) => {
     updateMonthRows((rows) =>
-      rows.map((row) => (row.id === id ? { ...row, [field]: value } : row))
+      rows.map((row) => (row.id === id ? { ...row, [field]: value } : row)),
     );
   };
 
@@ -230,7 +230,7 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
   const incrementField = (
     rowId: number,
     field: "referrals" | "production",
-    delta: number
+    delta: number,
   ) => {
     updateMonthRows((rows) =>
       rows.map((row) => {
@@ -240,7 +240,7 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
           return { ...row, [field]: String(newValue) };
         }
         return row;
-      })
+      }),
     );
   };
 
@@ -280,13 +280,15 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
     for (const month of months) {
       for (const row of month.rows) {
         if (!row.source?.trim()) {
-          setError("All source names are required");
+          setError(
+            `All ${copy.sourceFieldLabel.toLowerCase()} names are required`,
+          );
           setErrorMonthId(month.id);
           setActiveMonthId(month.id);
           return;
         }
         if (!row.referrals || Number(row.referrals) === 0) {
-          setError("All referral counts must be greater than 0");
+          setError(`All ${copy.countPlural} must be greater than 0`);
           setErrorMonthId(month.id);
           setActiveMonthId(month.id);
           return;
@@ -312,7 +314,9 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
 
       if (!response?.success) {
         throw new Error(
-          response?.error || response?.message || "Failed to update PMS data"
+          response?.error ||
+            response?.message ||
+            `Failed to update ${copy.dataNameLower}`,
         );
       }
 
@@ -356,7 +360,7 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">
-                  Review Latest PMS Data
+                  Review Latest {copy.dataName}
                 </h2>
                 <p className="text-xs uppercase tracking-wide text-gray-400">
                   Job #{jobId}
@@ -375,7 +379,7 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
             <div className="flex-1 overflow-y-auto px-6 py-4">
               {months.length === 0 || !activeMonth ? (
                 <div className="flex h-full items-center justify-center text-sm text-gray-500">
-                  No PMS records were found in the latest job.
+                  {copy.noRecordsFound}
                 </div>
               ) : (
                 <div className="space-y-8">
@@ -496,25 +500,25 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
                     {/* Summary cards */}
                     {[
                       {
-                        label: labels.selfReferrals,
+                        label: copy.directSummaryLabel,
                         value: totals.selfReferrals,
                         icon: User,
                         tint: "#C9765E22",
                       },
                       {
-                        label: labels.doctorReferrals,
+                        label: copy.partnerSummaryLabel,
                         value: totals.doctorReferrals,
-                        icon: Stethoscope,
+                        icon: Handshake,
                         tint: "#C9765E11",
                       },
                       {
-                        label: labels.totalReferrals,
+                        label: copy.countSummaryLabel,
                         value: totals.totalReferrals,
                         icon: User,
                         tint: "#C9765E18",
                       },
                       {
-                        label: labels.production,
+                        label: copy.moneyLabel,
                         value: totals.productionTotal.toLocaleString(),
                         icon: DollarSign,
                         tint: "#34D39922",
@@ -553,10 +557,10 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
 
                   {/* ===== TABLE HEADER ===== */}
                   <div className="grid grid-cols-13 gap-4 mb-3 px-2 text-[11px] font-bold text-gray-400 uppercase">
-                    <div className="col-span-3">Source</div>
-                    <div className="col-span-2">Type</div>
-                    <div className="col-span-3">{labels.referralsShort} Count</div>
-                    <div className="col-span-4">{labels.production}</div>
+                    <div className="col-span-3">{copy.sourceFieldLabel}</div>
+                    <div className="col-span-2">{copy.sourceTypeLabel}</div>
+                    <div className="col-span-3">{copy.sourceCountLabel}</div>
+                    <div className="col-span-4">{copy.moneyLabel}</div>
                     <div className="col-span-1" />
                   </div>
 
@@ -587,7 +591,7 @@ export const PMSLatestJobEditor: React.FC<PMSLatestJobEditorProps> = ({
                       style={{ color: ALORO_ORANGE }}
                     >
                       <Plus size={16} />
-                      <span>Add Source</span>
+                      <span>Add {copy.sourceFieldLabel}</span>
                     </button>
                   </div>
                 </div>

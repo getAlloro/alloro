@@ -4,6 +4,22 @@ import type {
 } from "../components/dashboard/alerts/types";
 import type { PmsFocusPeriod } from "./pmsFocusPeriod";
 
+export type DashboardAlertCopy = {
+  dataNameLower: string;
+  uploadDataCta: string;
+  insightsSubject: string;
+  moneyLower: string;
+  orgNoun?: string;
+};
+
+const DEFAULT_ALERT_COPY: DashboardAlertCopy = {
+  dataNameLower: "PMS data",
+  uploadDataCta: "Upload PMS data",
+  insightsSubject: "referral",
+  moneyLower: "production",
+  orgNoun: "practice",
+};
+
 export type DashboardAlertInputs = {
   /** Server-computed: PMS data changed after the last completed run. */
   insightsStale: boolean;
@@ -16,6 +32,7 @@ export type DashboardAlertInputs = {
     uploadData?: Omit<DashboardAlertAction, "label">;
     continueSetup?: Omit<DashboardAlertAction, "label">;
   };
+  copy?: DashboardAlertCopy;
 };
 
 /**
@@ -30,8 +47,10 @@ export function buildDashboardAlerts({
   focusPeriod,
   isOnboardingIncomplete = false,
   actions,
+  copy = DEFAULT_ALERT_COPY,
 }: DashboardAlertInputs): DashboardAlertModel[] {
   const alerts: DashboardAlertModel[] = [];
+  const orgNoun = copy.orgNoun ?? DEFAULT_ALERT_COPY.orgNoun;
 
   if (insightsStale && actions.getUpdatedInsights) {
     alerts.push({
@@ -40,7 +59,7 @@ export function buildDashboardAlerts({
       variant: "stale",
       eyebrow: "Updated data detected",
       title: "Your insights are out of date",
-      body: "PMS data was edited or removed since the last analysis. Re-run it to refresh your referral and production insights.",
+      body: `${copy.dataNameLower} was edited or removed since the last analysis. Re-run it to refresh your ${copy.insightsSubject} and ${copy.moneyLower} insights.`,
       action: { label: "Get updated insights", ...actions.getUpdatedInsights },
     });
   }
@@ -53,7 +72,7 @@ export function buildDashboardAlerts({
       eyebrow: "Ready for the next focus?",
       title: focusPeriod.nudgeTitle,
       body: focusPeriod.nudgeBody,
-      action: { label: "Upload PMS data", ...actions.uploadData },
+      action: { label: copy.uploadDataCta, ...actions.uploadData },
     });
   }
 
@@ -63,7 +82,7 @@ export function buildDashboardAlerts({
       priority: 10,
       variant: "setup",
       eyebrow: "Finish setup",
-      title: "Finish setting up your practice",
+      title: `Finish setting up your ${orgNoun}`,
       body: "Complete onboarding to unlock your full dashboard.",
       action: { label: "Continue setup", ...actions.continueSetup },
     });

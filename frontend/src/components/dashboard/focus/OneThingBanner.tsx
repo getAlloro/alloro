@@ -10,6 +10,7 @@ import {
   ActionBannerEyebrow,
   ActionBannerShell,
 } from "../ActionBanner";
+import { formatGeneratedCopyForOrg } from "../../../utils/generatedCopy";
 
 /**
  * OneThingBanner — the "1 thing that matters" strip for the simplified
@@ -62,8 +63,14 @@ export function OneThingBanner() {
     <ActionBanner
       hub="practice-hub"
       eyebrow="This month · 1 thing that matters"
-      title={action.title}
-      description={action.rationale}
+      title={formatGeneratedCopyForOrg(
+        action.title,
+        userProfile?.organizationType,
+      )}
+      description={formatGeneratedCopyForOrg(
+        action.rationale,
+        userProfile?.organizationType,
+      )}
       wizardTarget="dashboard-hero"
     />
   );

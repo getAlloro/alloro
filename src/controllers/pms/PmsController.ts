@@ -560,7 +560,9 @@ export async function sanitizePaste(req: Request, res: Response) {
       });
     }
 
-    const result = await sanitizationService.sanitizeParsedData(rows);
+    const rbacReq = req as RBACRequest;
+    const orgId = rbacReq.organizationId ?? null;
+    const result = await sanitizationService.sanitizeParsedData(rows, orgId);
 
     return res.json({
       success: true,

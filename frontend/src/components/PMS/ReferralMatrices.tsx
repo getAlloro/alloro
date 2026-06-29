@@ -4,33 +4,38 @@ import Lottie from "lottie-react";
 import cogitatingSpinner from "../../assets/cogitating-spinner.json";
 import { ClientProgressTimeline } from "./ClientProgressTimeline";
 import type { AutomationStatusDetail } from "../../api/pms";
-import { useLabels } from "../../hooks/useLabels";
+import { usePmsCopy, type PmsCopy } from "./pmsCopy";
 
-const COGITATING_PHRASES = [
-  "Mapping your referral sources",
-  "Ranking top referrers",
-  "Tracing production per source",
-  "Comparing month over month",
-  "Spotting dormant referrers",
-  "Flagging new sources",
-  "Calculating revenue per referral",
-  "Analyzing referral trends",
-  "Building your attribution matrix",
-  "Detecting duplicate sources",
-  "Measuring referral concentration",
-  "Identifying growth opportunities",
-  "Scoring referral efficiency",
-  "Tracking doctor referrals",
-  "Surfacing declining sources",
-  "Prioritizing action items",
-  "Grounding insights to your data",
-  "Matching sources to production",
-  "Preparing your action plan",
-];
+function buildCogitatingPhrases(copy: PmsCopy) {
+  return [
+    `Mapping your ${copy.sourcesLabel.toLowerCase()}`,
+    `Ranking top ${copy.sourcesLabel.toLowerCase()}`,
+    `Tracing ${copy.moneyLower} per source`,
+    "Comparing month over month",
+    "Spotting dormant sources",
+    "Flagging new sources",
+    `Calculating ${copy.moneyLower} per ${copy.countSingular}`,
+    `Analyzing ${copy.sourcesLabel.toLowerCase()} trends`,
+    "Building your attribution matrix",
+    "Detecting duplicate sources",
+    "Measuring source concentration",
+    "Identifying growth opportunities",
+    "Scoring source efficiency",
+    `Tracking ${copy.partnerSummaryLabel.toLowerCase()}`,
+    "Surfacing declining sources",
+    "Prioritizing action items",
+    "Grounding insights to your data",
+    `Matching sources to ${copy.moneyLower}`,
+    "Preparing your action plan",
+  ];
+}
 
 function CogitatingTitle() {
-  const [targetPhrase, setTargetPhrase] = useState(() =>
-    COGITATING_PHRASES[Math.floor(Math.random() * COGITATING_PHRASES.length)]
+  const copy = usePmsCopy();
+  const cogitatingPhrases = useMemo(() => buildCogitatingPhrases(copy), [copy]);
+  const [targetPhrase, setTargetPhrase] = useState(
+    () =>
+      cogitatingPhrases[Math.floor(Math.random() * cogitatingPhrases.length)],
   );
   const [displayed, setDisplayed] = useState("");
   const [isTyping, setIsTyping] = useState(true);
@@ -40,7 +45,7 @@ function CogitatingTitle() {
       if (displayed.length < targetPhrase.length) {
         const t = setTimeout(
           () => setDisplayed(targetPhrase.slice(0, displayed.length + 1)),
-          35
+          35,
         );
         return () => clearTimeout(t);
       }
@@ -51,23 +56,29 @@ function CogitatingTitle() {
       let next: string;
       do {
         next =
-          COGITATING_PHRASES[
-            Math.floor(Math.random() * COGITATING_PHRASES.length)
+          cogitatingPhrases[
+            Math.floor(Math.random() * cogitatingPhrases.length)
           ];
       } while (next === prev);
       return next;
     });
     setDisplayed("");
     setIsTyping(true);
-  }, [displayed, isTyping, targetPhrase]);
+  }, [cogitatingPhrases, displayed, isTyping, targetPhrase]);
 
   return (
     <h3 className="text-lg font-bold font-display mb-3">
       <span className="cogitating-gradient">{displayed}</span>
       <span className="inline-flex w-[1.5em] justify-start ml-[1px]">
-        <span className="cogitating-dot" style={{ animationDelay: "0s" }}>.</span>
-        <span className="cogitating-dot" style={{ animationDelay: "0.15s" }}>.</span>
-        <span className="cogitating-dot" style={{ animationDelay: "0.3s" }}>.</span>
+        <span className="cogitating-dot" style={{ animationDelay: "0s" }}>
+          .
+        </span>
+        <span className="cogitating-dot" style={{ animationDelay: "0.15s" }}>
+          .
+        </span>
+        <span className="cogitating-dot" style={{ animationDelay: "0.3s" }}>
+          .
+        </span>
       </span>
     </h3>
   );
@@ -187,6 +198,7 @@ const CompactTag = ({ status }: { status: string }) => {
 };
 
 const TypeBadge = ({ type }: { type: "doctor" | "marketing" }) => {
+  const copy = usePmsCopy();
   const isDoctor = type === "doctor";
   return (
     <span
@@ -196,7 +208,7 @@ const TypeBadge = ({ type }: { type: "doctor" | "marketing" }) => {
           : "text-orange-700 bg-orange-50 border-orange-100"
       }`}
     >
-      {isDoctor ? "Doctor" : "Marketing"}
+      {isDoctor ? copy.partnerLegendLabel : copy.directLegendLabel}
     </span>
   );
 };
@@ -210,23 +222,27 @@ const formatCurrency = (value: number | null | undefined): string => {
 };
 
 // Empty State Component - Shows "not started" timeline with all steps greyed out
-const MatricesEmptyState = () => (
-  <div className="bg-white rounded-2xl border border-slate-100 shadow-premium p-8 sm:p-12">
-    <div className="text-center mb-8">
-      <h3 className="text-lg font-bold text-alloro-navy mb-2">
-        No source data available
-      </h3>
-      <p className="text-sm text-slate-500 font-medium">
-        Upload PMS data to see attribution
-      </p>
-    </div>
+const MatricesEmptyState = () => {
+  const copy = usePmsCopy();
 
-    {/* Progress Timeline - Not Started State (all greyed out) */}
-    <div className="border-t border-slate-100 pt-8">
-      <ClientProgressTimeline automationStatus={null} showNotStarted={true} />
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-premium p-8 sm:p-12">
+      <div className="text-center mb-8">
+        <h3 className="text-lg font-bold text-alloro-navy mb-2">
+          No source data available
+        </h3>
+        <p className="text-sm text-slate-500 font-medium">
+          {copy.topSourcesEmpty}
+        </p>
+      </div>
+
+      {/* Progress Timeline - Not Started State (all greyed out) */}
+      <div className="border-t border-slate-100 pt-8">
+        <ClientProgressTimeline automationStatus={null} showNotStarted={true} />
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // Loading Skeleton - Detailed table skeleton with gradient animation
 const MatricesLoadingSkeleton = () => (
@@ -327,6 +343,7 @@ const MatricesProcessingState: React.FC<MatricesProcessingStateProps> = ({
   automationStatus,
   onConfirmationClick,
 }) => {
+  const copy = usePmsCopy();
   const isAwaitingClientApproval =
     automationStatus?.status === "awaiting_approval" &&
     automationStatus?.currentStep === "client_approval";
@@ -336,7 +353,7 @@ const MatricesProcessingState: React.FC<MatricesProcessingStateProps> = ({
       <div className="bg-white rounded-2xl border border-slate-100 shadow-premium p-8 sm:p-12">
         <div className="text-center mb-8">
           <h3 className="text-lg font-bold text-alloro-navy mb-2">
-            Your PMS Data is Ready for Review
+            Your {copy.dataName} is Ready for Review
           </h3>
           <p className="text-sm text-slate-500 font-medium">
             Please review your data and confirm using the banner above
@@ -356,7 +373,10 @@ const MatricesProcessingState: React.FC<MatricesProcessingStateProps> = ({
     <div className="bg-white rounded-2xl border border-slate-100 shadow-premium p-8 sm:p-12">
       <div className="flex flex-col items-center justify-center py-8">
         <div className="relative flex items-center justify-center h-16 w-16 mb-6">
-          <div className="absolute inset-0 animate-spin rounded-full border-[3px] border-alloro-orange/15 border-t-alloro-orange" style={{ animationDuration: "1.2s" }} />
+          <div
+            className="absolute inset-0 animate-spin rounded-full border-[3px] border-alloro-orange/15 border-t-alloro-orange"
+            style={{ animationDuration: "1.2s" }}
+          />
           <Lottie
             animationData={cogitatingSpinner}
             loop
@@ -369,9 +389,7 @@ const MatricesProcessingState: React.FC<MatricesProcessingStateProps> = ({
         <p className="text-sm text-gray-900 mb-4">
           Alloro is analyzing your data to generate actionable insights
         </p>
-        <p className="text-xs text-slate-400">
-          Estimated time: ~3–4 minutes
-        </p>
+        <p className="text-xs text-slate-400">Estimated time: ~3–4 minutes</p>
       </div>
     </div>
   );
@@ -392,7 +410,7 @@ export const ReferralMatrices: React.FC<ReferralMatricesProps> = ({
   automationStatus = null,
   onConfirmationClick,
 }) => {
-  const labels = useLabels();
+  const copy = usePmsCopy();
   const [activeFilter, setActiveFilter] = useState<FilterType>("all");
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
 
@@ -441,20 +459,21 @@ export const ReferralMatrices: React.FC<ReferralMatricesProps> = ({
             type: "marketing",
             referred: source.referred || 0,
             net_production: source.net_production ?? null,
-            avg_production_per_referral: source.avg_production_per_referral ?? null,
+            avg_production_per_referral:
+              source.avg_production_per_referral ?? null,
             trend_label: source.trend_label,
             notes:
               source.notes ||
               (source.source_type === "digital"
                 ? "High-intent digital lead. Focus on GBP visibility."
-                : "Key peer-to-peer referral source."),
+                : "Key partner source."),
           });
         });
     }
 
-    // Sort by production (highest first)
+    // Sort by dollar amount (highest first)
     return rows.sort(
-      (a, b) => (b.net_production || 0) - (a.net_production || 0)
+      (a, b) => (b.net_production || 0) - (a.net_production || 0),
     );
   }, [referralData]);
 
@@ -477,7 +496,8 @@ export const ReferralMatrices: React.FC<ReferralMatricesProps> = ({
 
   // Show processing state when automation is active (but NOT completed) OR monthly agents are running
   // Don't show processing state if automation has completed - let the matrix display
-  const isAutomationActive = automationStatus && automationStatus.status !== "completed";
+  const isAutomationActive =
+    automationStatus && automationStatus.status !== "completed";
 
   // If isPending is true but we have no automationStatus, show loading skeleton
   // This happens when we're waiting for referral data after automation completed
@@ -505,10 +525,11 @@ export const ReferralMatrices: React.FC<ReferralMatricesProps> = ({
       <div className="px-6 py-6 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white">
         <div>
           <h2 className="text-xl font-black font-heading text-alloro-navy tracking-tight">
-            See What Referrals Are Giving You the Most Value
+            See Which Sources Are Giving You the Most Value
           </h2>
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-            Combined Doctor & Marketing Sources
+            Combined {copy.partnerLegendLabel} & {copy.directLegendLabel}{" "}
+            Sources
           </p>
         </div>
 
@@ -536,7 +557,7 @@ export const ReferralMatrices: React.FC<ReferralMatricesProps> = ({
                   : "text-slate-400 hover:text-slate-600"
               }`}
             >
-              {labels.doctorShort}
+              {copy.partnerLegendLabel}
               <span className="ml-1.5 text-[9px] opacity-60">
                 ({counts.doctor})
               </span>
@@ -549,7 +570,7 @@ export const ReferralMatrices: React.FC<ReferralMatricesProps> = ({
                   : "text-slate-400 hover:text-slate-600"
               }`}
             >
-              Marketing
+              {copy.directLegendLabel}
               <span className="ml-1.5 text-[9px] opacity-60">
                 ({counts.marketing})
               </span>
@@ -565,9 +586,15 @@ export const ReferralMatrices: React.FC<ReferralMatricesProps> = ({
             <tr>
               <th className="px-6 py-4 w-[20%]">Source</th>
               <th className="px-2 py-4 text-center w-[8%]">Type</th>
-              <th className="px-2 py-4 text-center w-[7%]">Ref</th>
-              <th className="px-4 py-4 text-right w-[13%]">{labels.production}</th>
-              <th className="px-4 py-4 text-right w-[13%]">Avg / Ref</th>
+              <th className="px-2 py-4 text-center w-[7%]">
+                {copy.countShort}
+              </th>
+              <th className="px-4 py-4 text-right w-[13%]">
+                {copy.moneyLabel}
+              </th>
+              <th className="px-4 py-4 text-right w-[13%]">
+                Avg / {copy.countSingular}
+              </th>
               <th className="px-6 py-4 w-[25%]">Note</th>
             </tr>
           </thead>
@@ -634,7 +661,11 @@ export const ReferralMatrices: React.FC<ReferralMatricesProps> = ({
       {filteredRows.length === 0 && (
         <div className="p-12 text-center">
           <p className="text-slate-400 text-sm font-medium">
-            No {activeFilter === "doctor" ? "doctor" : "marketing"} referrals
+            No{" "}
+            {activeFilter === "doctor"
+              ? copy.partnerLegendLabel.toLowerCase()
+              : copy.directLegendLabel.toLowerCase()}{" "}
+            {copy.countPlural}
             found.
           </p>
         </div>

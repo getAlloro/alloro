@@ -28,7 +28,7 @@ import {
   type ProductionFormula,
 } from "../../api/pms";
 import { ProductionFormulaBuilder } from "./ProductionFormulaBuilder";
-import { useLabels } from "../../hooks/useLabels";
+import { usePmsCopy } from "./pmsCopy";
 
 interface ColumnMappingDrawerProps {
   isOpen: boolean;
@@ -57,7 +57,10 @@ interface BannerSpec {
  * - ai-inference + any confidence > 0 → amber: "New structure detected..."
  * - ai-inference + all confidences 0 → red: "Could not auto-map..."
  */
-function computeBanner(mapping: ColumnMapping, source: MappingSource): BannerSpec {
+function computeBanner(
+  mapping: ColumnMapping,
+  source: MappingSource,
+): BannerSpec {
   if (source === "org-cache") {
     return { tone: "none", title: "", body: "" };
   }
@@ -156,14 +159,17 @@ export const ColumnMappingDrawer: React.FC<ColumnMappingDrawerProps> = ({
   onReprocess,
   onClose,
 }) => {
-  const labels = useLabels();
-  const banner = useMemo(() => computeBanner(mapping, source), [mapping, source]);
+  const copy = usePmsCopy();
+  const banner = useMemo(
+    () => computeBanner(mapping, source),
+    [mapping, source],
+  );
 
   // Snapshot the mapping each time the drawer opens fresh, so we can tell
   // whether the user has actually edited anything. The "Re-process and save"
   // button is disabled until isDirty becomes true.
   const [baselineMappingJson, setBaselineMappingJson] = useState<string>(() =>
-    JSON.stringify(mapping)
+    JSON.stringify(mapping),
   );
   useEffect(() => {
     if (isOpen) {
@@ -176,7 +182,7 @@ export const ColumnMappingDrawer: React.FC<ColumnMappingDrawerProps> = ({
   const isDirty = JSON.stringify(mapping) !== baselineMappingJson;
 
   // Advanced collapsible section. Patient + status filter live here so the
-  // primary view stays focused on Date / Source / Production.
+  // primary view stays focused on Date / Source / dollar amount.
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
   // Slot helpers — translate "this user-friendly field" to assignments.
@@ -203,7 +209,7 @@ export const ColumnMappingDrawer: React.FC<ColumnMappingDrawerProps> = ({
   // backend dispatcher routes to the right adapter; the user is just picking
   // a column, not changing the dispatch decision.
   const sourceAssignment = mapping.assignments.find(
-    (a) => a.role === "source" || a.role === "referring_practice"
+    (a) => a.role === "source" || a.role === "referring_practice",
   );
   const sourceHeader = sourceAssignment?.header ?? null;
   const sourceRole: "source" | "referring_practice" =
@@ -217,9 +223,9 @@ export const ColumnMappingDrawer: React.FC<ColumnMappingDrawerProps> = ({
   const patientHeader = getHeaderForRole("patient");
 
   // Count of columns from the file we're NOT using — surfaced as a hint so
-  // doctors aren't confused that we're "ignoring" most of their data.
+  // users aren't confused that we're "ignoring" most of their data.
   const ignoredCount = mapping.assignments.filter(
-    (a) => a.role === "ignore"
+    (a) => a.role === "ignore",
   ).length;
 
   const updateFormula = (next: ProductionFormula | undefined) => {
@@ -291,7 +297,9 @@ export const ColumnMappingDrawer: React.FC<ColumnMappingDrawerProps> = ({
           {/* Header */}
           <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 bg-white">
             <div>
-              <h3 className="text-sm font-bold text-gray-900">Column mapping</h3>
+              <h3 className="text-sm font-bold text-gray-900">
+                Column mapping
+              </h3>
               <p className="text-[11px] text-gray-500 mt-0.5">
                 Match each column from your file to what it represents.
               </p>
@@ -330,30 +338,31 @@ export const ColumnMappingDrawer: React.FC<ColumnMappingDrawerProps> = ({
             {/* Date — required */}
             <SlotField
               label="Date"
-              helpText={`Which column has the visit or ${labels.serviceEvent} date?`}
+              helpText={copy.dateHelpText}
               value={dateHeader}
               options={headers}
               onChange={(h) => setSlotHeader("date", h)}
               required
             />
 
-            {/* Source — required (procedure-log: practice/doctor; template: source) */}
+            {/* Source — required (procedure-log: grouped source; template: source) */}
             <SlotField
-              label="Source"
-              helpText={`Which column shows where each ${labels.customer} came from? (referring ${labels.orgNoun}, ${labels.doctorShort.toLowerCase()}, or marketing channel)`}
+              label={copy.sourceFieldLabel}
+              helpText={copy.sourceHelpText}
               value={sourceHeader}
               options={headers}
               onChange={setSourceHeader}
               required
             />
 
-            {/* Production — required (formula builder) */}
+            {/* Dollar amount — required (formula builder) */}
             <div className="rounded-xl border border-gray-200 bg-white p-3 space-y-2">
               <div>
-                <p className="text-xs font-semibold text-gray-900">{labels.production}</p>
+                <p className="text-xs font-semibold text-gray-900">
+                  {copy.moneyLabel}
+                </p>
                 <p className="text-[11px] text-gray-500 leading-relaxed mt-0.5">
-                  How should we calculate the dollar amount per row? Pick one
-                  column or build a formula by adding/subtracting columns.
+                  {copy.moneyHelpText}
                 </p>
               </div>
               <ProductionFormulaBuilder
@@ -390,8 +399,8 @@ export const ColumnMappingDrawer: React.FC<ColumnMappingDrawerProps> = ({
             {advancedOpen && (
               <div className="space-y-3 rounded-xl border border-dashed border-gray-300 bg-white/60 p-3">
                 <SlotField
-                  label={`${labels.customer.charAt(0).toUpperCase()}${labels.customer.slice(1)} ID column (optional)`}
-                  helpText={`When provided, multiple procedures for the same ${labels.customer} on the same day count as ONE referral. Leave empty if your data is already at one-row-per-referral.`}
+                  label={copy.customerIdColumnLabel}
+                  helpText={copy.customerIdHelpText}
                   value={patientHeader}
                   options={headers}
                   onChange={(h) => setSlotHeader("patient", h)}

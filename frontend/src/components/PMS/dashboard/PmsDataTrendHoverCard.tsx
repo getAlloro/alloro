@@ -4,6 +4,7 @@ import {
   formatDataTrendProduction,
   formatDataTrendReferrals,
 } from "./utils";
+import { usePmsCopy } from "../pmsCopy";
 
 export type PmsDataTrendHoverCardProps = {
   month: PmsDataTrendMonth;
@@ -16,11 +17,16 @@ export function PmsDataTrendHoverCard({
   x,
   count,
 }: PmsDataTrendHoverCardProps) {
+  const copy = usePmsCopy();
   const { width, height, padY } = PMS_DATA_TREND_GRAPH;
   const tooltipWidth = 152;
   const tooltipHeight = 60;
-  const tooltipX = Math.min(Math.max(x - tooltipWidth / 2, 8), width - tooltipWidth - 8);
-  const action = month.status === "active" ? "Click to edit" : "Click to upload";
+  const tooltipX = Math.min(
+    Math.max(x - tooltipWidth / 2, 8),
+    width - tooltipWidth - 8,
+  );
+  const action =
+    month.status === "active" ? "Click to edit" : "Click to upload";
 
   return (
     <g className="pointer-events-none">
@@ -40,16 +46,33 @@ export function PmsDataTrendHoverCard({
         rx="10"
         className="fill-white stroke-line-soft drop-shadow-sm"
       />
-      <text x={tooltipX + 12} y="22" className="fill-alloro-navy text-[10px] font-black uppercase tracking-widest">
+      <text
+        x={tooltipX + 12}
+        y="22"
+        className="fill-alloro-navy text-[10px] font-black uppercase tracking-widest"
+      >
         {month.label}
       </text>
-      <text x={tooltipX + 12} y="39" className="fill-alloro-orange text-[11px] font-bold">
-        {formatDataTrendProduction(month.productionTotal)}
+      <text
+        x={tooltipX + 12}
+        y="39"
+        className="fill-alloro-orange text-[11px] font-bold"
+      >
+        {formatDataTrendProduction(month.productionTotal, copy.moneyLower)}
       </text>
-      <text x={tooltipX + 12} y="54" className="fill-emerald-700 text-[11px] font-bold">
-        {formatDataTrendReferrals(month.totalReferrals)}
+      <text
+        x={tooltipX + 12}
+        y="54"
+        className="fill-emerald-700 text-[11px] font-bold"
+      >
+        {formatDataTrendReferrals(month.totalReferrals, copy.countPlural)}
       </text>
-      <text x={tooltipX + tooltipWidth - 10} y="22" textAnchor="end" className="fill-alloro-navy/40 text-[8px] font-black uppercase tracking-widest">
+      <text
+        x={tooltipX + tooltipWidth - 10}
+        y="22"
+        textAnchor="end"
+        className="fill-alloro-navy/40 text-[8px] font-black uppercase tracking-widest"
+      >
         {action}
       </text>
       <circle
