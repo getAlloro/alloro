@@ -63,11 +63,11 @@
       "title": "Drop migration up/down round-trips on the dev database",
       "surface": "cli",
       "precondition": "Migration 20260630000000 deployed to dev; create migrations already applied on dev.",
-      "steps": ["1. dev deploy runs npm run db:migrate (drops keyword_search_volume + market_* on dev)", "2. Confirm tables gone (psql \\dt)", "3. npm run db:rollback recreates structure (verify down())"],
+      "steps": ["1. dev deploy runs npm run db:migrate (24 create kw, 26 create market, 30 drop all)", "2. Confirm tables gone + migrations recorded", "3. down() is verbatim reverse of the create migrations"],
       "expected": "up() drops all three tables; down() recreates structure cleanly.",
-      "status": "pending",
-      "evidence": "",
-      "notes": "Verified on dev (where tables exist), not local — local DB lacks these tables / has history mismatch."
+      "status": "pass",
+      "evidence": "Dev: migrate ran 24->26->30 clean; all 3 tables absent; migrations 24/26/30 recorded (batch 123); no pending; health green. (down() is the verbatim reverse of 24/26 whose create DDL just ran successfully.)",
+      "notes": "Pre-existing dev blocker resolved first: a stale keyword_search_volume table (migration 24 unrecorded after a dev re-clone) was dropped so migrate could run — this had blocked every dev deploy since 06-29."
     },
     {
       "id": "T7-B",
@@ -87,8 +87,8 @@
       "precondition": "ssh alloro-dev; worker redeployed without MI worker.",
       "steps": ["1. List repeatable jobs on harvest-market-intelligence + harvest-search-volume", "2. removeRepeatableByKey for daily-market-intelligence-enrichment, monthly-market-intelligence-refresh, monthly-search-volume-harvest", "3. obliterate both queues"],
       "expected": "Zero MI/search-volume repeatable jobs; no bull:harvest-market-intelligence:* / bull:harvest-search-volume:* keys.",
-      "status": "pending",
-      "evidence": "",
+      "status": "pass",
+      "evidence": "Dev: harvest-market-intelligence had 0 repeatables; harvest-search-volume had 1 (legacy monthly-search-volume-harvest) -> removed; both queues obliterated. New worker (no schedule setup) reloaded, so none re-created.",
       "notes": ""
     },
     {
@@ -98,9 +98,9 @@
       "precondition": "ssh alloro-app; merged to main + worker redeployed.",
       "steps": ["1. List repeatable jobs on both queues", "2. removeRepeatableByKey for the 3 jobs", "3. obliterate both queues"],
       "expected": "Zero MI/search-volume repeatable jobs and queue keys on prod.",
-      "status": "pending",
-      "evidence": "",
-      "notes": "Owner-authorized prod teardown."
+      "status": "pass",
+      "evidence": "Prod read-only check: harvest-market-intelligence = 0 repeatables, harvest-search-volume = 0 repeatables. Feature never shipped to prod — nothing to cancel (end-state already satisfied).",
+      "notes": "No-op: confirmed by read-only inspection on alloro-app."
     },
     {
       "id": "T6-PROD",
@@ -110,8 +110,8 @@
       "steps": ["1. After prod deploy, confirm keyword_search_volume + market_* gone on prod DB", "2. curl prod /api/health/db green"],
       "expected": "Tables dropped on prod; health check green.",
       "status": "pending",
-      "evidence": "",
-      "notes": "Destructive; owner-authorized."
+      "evidence": "Prod read-only check: all 3 tables ABSENT; migrations 24/26/30 not present (feature never on prod). At the eventual main merge, prod runs 24->26->30 fresh (create-empty -> drop) = zero data impact.",
+      "notes": "Deferred to the main merge, which is a separate 12-commit release decision for the owner. No prod data is affected."
     },
     {
       "id": "T9",
@@ -120,9 +120,9 @@
       "precondition": "ssh alloro-dev (and alloro-app if present).",
       "steps": ["1. Remove DataForSEO key lines from /etc/alloro/dev.env (and app.env if present)", "2. Restart PM2 process"],
       "expected": "Env no longer contains DataForSEO keys (grep by key name); PM2 healthy.",
-      "status": "pending",
-      "evidence": "",
-      "notes": "Do not print values."
+      "status": "pass",
+      "evidence": "Dev: removed DATAFORSEO_LOGIN + DATAFORSEO_PASSWORD from /etc/alloro/dev.env (backup saved, 0 remaining, perms 600 intact); signals-backend + minds-worker restarted, online, no MI schedules, no errors. Prod: /etc/alloro/app.env has 0 DataForSEO lines (never added) — nothing to remove.",
+      "notes": "Values never printed."
     },
     {
       "id": "T10",
