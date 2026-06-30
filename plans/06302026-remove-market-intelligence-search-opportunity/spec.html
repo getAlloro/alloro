@@ -61,11 +61,11 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
-        <span class="status-pill">In Progress</span>
+        <span class="status-pill">Completed</span>
       </div>
       <h1>Remove Market Intelligence &amp; Search Opportunity</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>In Progress</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>Completed (prod promotion held by owner)</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/06302026-remove-market-intelligence-search-opportunity</dd></div>
         <div><dt>Size</dt><dd>Large</dd></div>
         <div><dt>Risk</dt><dd>Level 4</dd></div>
@@ -359,6 +359,12 @@
         <p><strong>Change:</strong> Committed <code>fe9b038e</code> on <code>dev/dave</code>, pushed, deployed to dev. Resolved a <strong>pre-existing dev blocker</strong>: a stale <code>keyword_search_volume</code> table (migration <code>20260624000000</code> unrecorded after a dev re-clone) made knex try to re-create an existing table and fail — this had broken every dev deploy since 06-29. Dropped the orphan table, re-ran the deploy → migrate ran <code>24 → 26 → 30</code> clean (all 3 tables dropped, recorded batch 123, no pending, health green). <strong>T8 dev:</strong> obliterated <code>harvest-market-intelligence</code> + <code>harvest-search-volume</code> queues and removed the legacy <code>monthly-search-volume-harvest</code> repeatable. <strong>T9 dev:</strong> removed <code>DATAFORSEO_LOGIN</code>/<code>DATAFORSEO_PASSWORD</code> from <code>/etc/alloro/dev.env</code> (backup saved), restarted <code>signals-backend</code> + <code>minds-worker</code> (online, no MI schedules, no errors). <strong>Prod (read-only):</strong> feature NEVER on prod — 0 tables, migrations 24/26/30 absent, 0 Redis jobs, 0 env creds.</p>
         <p><strong>Reason:</strong> Execution deviation — the pre-existing dev migration-history mismatch blocked the deploy; resolved by dropping the orphan table (the exact table the migration removes; dev data is disposable). Prod finding — the prod teardown is a confirmed no-op; the only route to prod is a <strong>12-commit <code>dev/dave → main</code> release</strong>, which is an owner decision (it would also ship the patient-journey build, lead pipeline + pilot, generic verbiage, and audit fixes).</p>
         <p><strong>Updated Done criteria:</strong> Dev fully torn down + verified (tables, jobs, creds, worker). Prod items (T6-PROD/T8-PROD) are no-ops, deferred to the eventual main merge with zero prod data impact. Remaining: owner visual check of the dev funnel (T7-B), and CHANGELOG at <code>-d</code>.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-07-01</h3>
+        <p><strong>Change:</strong> Finalized (<code>-d</code>). Owner verified the dev funnel screen ("all good") — 3 cards, no Search Opportunity card. Acceptance artifact rolls up to <strong>Passed</strong> (all items pass; the prod migration item is recorded as a verified no-op since the feature was never on prod). CHANGELOG <code>0.0.140</code> added. Docs parity checked — no <code>alloro-docs</code> update required (the Patient Journey doc page was already removed previously and the feature never shipped to prod). Prod promotion deliberately held by the owner: <code>dev/dave</code> stays 12 commits ahead of <code>main</code>; no merge performed.</p>
+        <p><strong>Reason:</strong> User QA: owner confirmed the dev screen and requested finalize. Prod held by explicit owner decision (promoting the backlog is a separate release).</p>
+        <p><strong>Updated Done criteria:</strong> Feature removal complete and verified on dev (the only environment it ever reached). Status → Completed. Prod remains a no-op until a future deliberate <code>dev/dave → main</code> release, at which point the drop migration runs with zero data impact.</p>
       </article>
     </section>
   </main>

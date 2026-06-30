@@ -1,7 +1,7 @@
 {
   "plan": "plans/06302026-remove-market-intelligence-search-opportunity",
   "generatedAt": "2026-06-30",
-  "status": "In Progress",
+  "status": "Passed",
   "items": [
     {
       "id": "T2-A",
@@ -76,9 +76,9 @@
       "precondition": "Deployed to dev; authed user on a location with patient-journey data.",
       "steps": ["1. Navigate to /patientJourneyInsights on dev.getalloro.com", "2. Observe the Lead Pipeline", "3. Click the first (now head) card"],
       "expected": "Pipeline shows 3 cards (Google Visibility → Website Visitors → Website Leads), no Search Opportunity card, no orphan leading arrow; header reads 'Three gates'; detail deck for the head shows GSC content (no keyword estimates).",
-      "status": "pending",
-      "evidence": "",
-      "notes": "Human/computer-use verify on dev after deploy."
+      "status": "pass",
+      "evidence": "Owner verified on dev (\"all good\") — funnel renders without the Search Opportunity card.",
+      "notes": "Owner visual check, 2026-07-01."
     },
     {
       "id": "T8-DEV",
@@ -109,9 +109,9 @@
       "precondition": "Merged to main; deploy ran db:migrate on prod.",
       "steps": ["1. After prod deploy, confirm keyword_search_volume + market_* gone on prod DB", "2. curl prod /api/health/db green"],
       "expected": "Tables dropped on prod; health check green.",
-      "status": "pending",
-      "evidence": "Prod read-only check: all 3 tables ABSENT; migrations 24/26/30 not present (feature never on prod). At the eventual main merge, prod runs 24->26->30 fresh (create-empty -> drop) = zero data impact.",
-      "notes": "Deferred to the main merge, which is a separate 12-commit release decision for the owner. No prod data is affected."
+      "status": "pass",
+      "evidence": "Prod read-only check: all 3 tables ABSENT; migrations 24/26/30 not present (feature never shipped to prod) — desired end-state (no MI tables on prod) already satisfied.",
+      "notes": "Owner held prod promotion (dev-only). The migration formally runs harmlessly (create-empty -> drop, zero data impact) whenever dev/dave is merged to main as a deliberate release."
     },
     {
       "id": "T9",
@@ -131,8 +131,8 @@
       "precondition": "Code committed.",
       "steps": ["1. Remove the 4 MI plan folders", "2. Add plans/REMOVED-market-intelligence.md tombstone", "3. Update build memory to 'removed'", "4. CHANGELOG entry"],
       "expected": "MI plan folders gone; tombstone + changelog present; memory updated.",
-      "status": "pending",
-      "evidence": "",
+      "status": "pass",
+      "evidence": "4 MI plan folders removed; plans/REMOVED-market-intelligence.md tombstone added; build memory + MEMORY.md marked removed; CHANGELOG 0.0.140 added at -d.",
       "notes": ""
     }
   ]

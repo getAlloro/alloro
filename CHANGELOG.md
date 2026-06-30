@@ -2,6 +2,26 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.140] - July 2026
+
+### Removed Market Intelligence + Search Opportunity
+
+The DataForSEO-backed Market Intelligence engine and the "Search Opportunity" first stage of the Patient Journey funnel were retired (recurring per-client cost; the search-volume numbers were directional at best). The funnel now runs Google Visibility → Website Visitors → Website Leads, with "Google Visibility" as the head.
+
+**Key Changes:**
+- Removed the entire Market Intelligence module, the DataForSEO integration, and both generations of the search-volume system (current + legacy), including their background worker and scheduled jobs.
+- Patient Journey funnel re-anchored to three stages (impressions → visits → leads); the Search Opportunity card and its detail content are gone, and the dashboard now reads "Three gates."
+- Reversible drop migration removes the `keyword_search_volume`, `market_keywords`, and `market_keyword_search_volume` tables.
+- Dev: tables dropped, Redis queues obliterated (plus the legacy monthly harvest job), DataForSEO credentials removed from the server env, and the worker reloaded clean. Production was never affected — the feature never shipped to prod.
+- Also fixed a pre-existing dev deploy blocker: a stale `keyword_search_volume` table left by a dev re-clone had been failing every dev deploy since late June; clearing it unblocked the dev pipeline.
+
+**Verification:** `test-results.json` rolls up to Passed for `plans/06302026-remove-market-intelligence-search-opportunity`. Backend + frontend `tsc` 0 errors, patient-journey unit suite 12/12, `npm run check:conventions --strict` 0 backend violations, residual grep clean (migration history only), dev deploy green with health check healthy, and the owner verified the dev funnel screen.
+
+**Commits:**
+- Backend module/model/worker/migration removal + patient-journey funnel rewire; frontend Search Opportunity card removal + dead help-mechanism cleanup; plan-artifact cleanup + tombstone; acceptance + spec records.
+
+**Note:** Prod promotion is held by the owner (dev-only for now); `dev/dave` remains ahead of `main`. The drop migration runs harmlessly (create-empty → drop, zero data impact) whenever a deliberate `main` release happens.
+
 ## [0.0.139] - June 2026
 
 ### Generic Revenue Data + Agent Verbiage Completion
