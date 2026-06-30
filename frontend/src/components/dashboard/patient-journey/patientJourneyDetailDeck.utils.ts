@@ -47,16 +47,6 @@ function formatSeconds(seconds: number | undefined): string {
   return `${minutes}m ${String(remainingSeconds).padStart(2, "0")}s`;
 }
 
-function topTrackedKeywords(stage: PatientJourneyStage): GateDetailInsight[] {
-  return (stage.metadata?.topKeywords ?? [])
-    .sort((a, b) => b.volume - a.volume)
-    .slice(0, 10)
-    .map((keyword) => ({
-      label: keyword.keyword,
-      value: `${keyword.volume.toLocaleString()} est./mo`,
-    }));
-}
-
 function topGscQueries(stage: PatientJourneyStage): GateDetailInsight[] {
   return (stage.metadata?.gsc?.topQueries ?? []).slice(0, 3).map((query) => ({
     label: titleCase(query.key),
@@ -90,30 +80,6 @@ export function buildGateDetailContent(
   const title = stageGateLabel(stage);
 
   switch (stage.key) {
-    case "market_demand": {
-      const insights = topTrackedKeywords(stage);
-      return {
-        title,
-        description:
-          "Estimated monthly searches for the services you offer in your local market.",
-        summary: [
-          metric(
-            "Estimated monthly searches",
-            formatStageValue(stage.value),
-            "A rounded monthly search-volume estimate for tracked service keywords. It is not an exact people count.",
-          ),
-          metric(
-            "Tracked keywords",
-            stage.metadata?.keywordCount,
-            "Approved keywords Alloro uses to estimate local search demand.",
-          ),
-        ],
-        insightsTitle: "Top tracked keyword estimates",
-        insights,
-        footer:
-          "Keyword numbers are rounded monthly search-volume estimates, not exact people counts.",
-      };
-    }
     case "impressions": {
       return {
         title,

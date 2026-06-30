@@ -32,7 +32,7 @@ function LoadingState() {
       <div className="mb-6 h-8 w-64 animate-pulse rounded-full bg-slate-100" />
       <div className="mb-6 h-24 animate-pulse rounded-[16px] bg-slate-100" />
       <div className="flex gap-4">
-        {[...Array(5)].map((_, i) => (
+        {[...Array(3)].map((_, i) => (
           <div
             key={i}
             className="h-32 flex-1 animate-pulse rounded-[14px] bg-slate-100"
@@ -132,8 +132,8 @@ export function PatientJourneyDashboard({
             {labels.journeyInsights}
           </h1>
           <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-alloro-navy/55">
-            Four gates from search demand to website leads, with source details
-            one click away.
+            Three gates from Google visibility to website leads, with source
+            details one click away.
           </p>
         </header>
 

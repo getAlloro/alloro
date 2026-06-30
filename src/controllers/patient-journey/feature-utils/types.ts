@@ -15,11 +15,10 @@
 
 /**
  * Funnel stage keys. The current monitored pipeline emits
- * market_demand → impressions → visits → leads; `patients` is reserved until
- * converted-patient data is trustworthy enough to reintroduce.
+ * impressions → visits → leads; `patients` is reserved until converted-patient
+ * data is trustworthy enough to reintroduce.
  */
 export type PatientJourneyStageKey =
-  | "market_demand"
   | "impressions"
   | "visits"
   | "leads"

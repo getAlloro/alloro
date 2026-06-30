@@ -15,7 +15,6 @@ import type {
 
 /** Step labels for each adjacent stage transition. */
 const STEP_LABELS: Record<string, string> = {
-  "market_demand>impressions": "Search Opportunity → Google Visibility",
   "impressions>visits": "Google Visibility → Website Visitors",
   "visits>leads": "Website Visitors → Website Leads",
 };

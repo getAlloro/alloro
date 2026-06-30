@@ -19,11 +19,7 @@ import type { PatientJourney } from "../../../types/patientJourney";
 import { PatientJourneyStageCard } from "./PatientJourneyStageCard";
 import { PatientJourneyArrow } from "./PatientJourneyArrow";
 import { PatientJourneyDetailDeck } from "./PatientJourneyDetailDeck";
-import {
-  conversionCaption,
-  conversionHelpText,
-  shouldShowConversionPct,
-} from "./patientJourney.utils";
+import { conversionCaption } from "./patientJourney.utils";
 
 interface PatientJourneyPipelineProps {
   journey: PatientJourney;
@@ -80,10 +76,8 @@ export function PatientJourneyPipeline({
                   <PatientJourneyArrow
                     pct={conv.pct}
                     caption={conversionCaption(conv.toKey)}
-                    isLeak={conv.isLeak && shouldShowConversionPct(conv.toKey)}
+                    isLeak={conv.isLeak}
                     animate={animate}
-                    showPct={shouldShowConversionPct(conv.toKey)}
-                    helpText={conversionHelpText(conv.toKey)}
                   />
                 </div>
               ) : null}

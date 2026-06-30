@@ -30,7 +30,6 @@ import { processPostImport } from "./processors/postImporter.processor";
 import { processCrmPush } from "./processors/crmPush.processor";
 import { processCrmMappingValidation } from "./processors/crmMappingValidation.processor";
 import { processDataHarvest } from "./processors/dataHarvest.processor";
-import { processMarketIntelligence } from "./processors/marketIntelligence.processor";
 import { processGbpAutomationJob } from "./processors/gbpAutomation.processor";
 import { getMindsQueue, getCrmQueue, getHarvestQueue, getGbpAutomationQueue } from "./queues";
 import { closeWbQueues } from "./wb-queues";
@@ -38,7 +37,6 @@ import logger from "../lib/logger";
 
 const REDIS_HOST = process.env.REDIS_HOST || "127.0.0.1";
 const REDIS_PORT = parseInt(process.env.REDIS_PORT || "6379", 10);
-const LEGACY_SEARCH_VOLUME_JOB_NAME = "monthly-search-volume-harvest";
 
 logger.info("[MINDS-WORKER] Starting Minds worker process...");
 logger.info(`[MINDS-WORKER] Connecting to Redis at ${REDIS_HOST}:${REDIS_PORT}`);
@@ -447,23 +445,6 @@ const dataHarvestWorker = new Worker(
   }
 );
 
-// Market Intelligence worker — keyword discovery, GSC keyword enrichment, and
-// DataForSEO volume pulls for the organization-wide search-opportunity stage.
-const marketIntelligenceWorker = new Worker(
-  "harvest-market-intelligence",
-  async (job) => {
-    await processMarketIntelligence(job);
-  },
-  {
-    connection: makeConnection(),
-    concurrency: 1,
-    lockDuration: 3600000, // 60 min — can run the full org fleet plus DataForSEO batches
-    prefix: '{harvest}',
-    removeOnComplete: { count: 30 },
-    removeOnFail: { count: 30 },
-  }
-);
-
 const gbpAutomationWorker = new Worker(
   "gbp-automation-deployment",
   async (job) => {
@@ -480,7 +461,7 @@ const gbpAutomationWorker = new Worker(
 );
 
 // Event handlers
-for (const worker of [scrapeCompareWorker, compilePublishWorker, discoveryWorker, skillTriggerWorker, worksDigestWorker, seoBulkGenerateWorker, reviewSyncWorker, schedulerWorker, scheduleExecWorker, wbBackupWorker, wbRestoreWorker, wbIdentityWarmupWorker, wbAiSeoAuditWorker, wbLayoutsWorker, wbProjectScrapeWorker, wbPageGenerateWorker, wbPostImportWorker, auditLeadgenWorker, crmHubspotPushWorker, crmMappingValidationWorker, dataHarvestWorker, marketIntelligenceWorker, gbpAutomationWorker]) {
+for (const worker of [scrapeCompareWorker, compilePublishWorker, discoveryWorker, skillTriggerWorker, worksDigestWorker, seoBulkGenerateWorker, reviewSyncWorker, schedulerWorker, scheduleExecWorker, wbBackupWorker, wbRestoreWorker, wbIdentityWarmupWorker, wbAiSeoAuditWorker, wbLayoutsWorker, wbProjectScrapeWorker, wbPageGenerateWorker, wbPostImportWorker, auditLeadgenWorker, crmHubspotPushWorker, crmMappingValidationWorker, dataHarvestWorker, gbpAutomationWorker]) {
   worker.on("completed", (job) => {
     logger.info(`[MINDS-WORKER] Job ${job?.id} completed on queue ${worker.name}`);
   });
@@ -517,7 +498,6 @@ async function shutdown(): Promise<void> {
   await auditLeadgenWorker.close();
   await crmHubspotPushWorker.close();
   await crmMappingValidationWorker.close();
-  await marketIntelligenceWorker.close();
   await closeWbQueues();
   await gbpAutomationWorker.close();
   await Promise.all(connections.map((c) => c.quit()));
@@ -654,76 +634,6 @@ async function setupDataHarvestSchedule(): Promise<void> {
   }
 }
 
-// Retire legacy rank-keyword DataForSEO schedule. The current Search Opportunity
-// stage uses harvest-market-intelligence and market_keyword_search_volume.
-async function removeLegacySearchVolumeHarvestSchedule(): Promise<void> {
-  try {
-    const queue = getHarvestQueue("search-volume");
-    const repeatableJobs = await queue.getRepeatableJobs();
-    const legacyJobs = repeatableJobs.filter(
-      (job) =>
-        job.name === LEGACY_SEARCH_VOLUME_JOB_NAME ||
-        job.id === LEGACY_SEARCH_VOLUME_JOB_NAME ||
-        job.key.includes(LEGACY_SEARCH_VOLUME_JOB_NAME),
-    );
-    for (const job of legacyJobs) {
-      await queue.removeRepeatableByKey(job.key);
-    }
-    logger.info(
-      {
-        removed: legacyJobs.length,
-        queue: "harvest-search-volume",
-        jobName: LEGACY_SEARCH_VOLUME_JOB_NAME,
-      },
-      "[MINDS-WORKER] Legacy search-volume harvest schedule retired",
-    );
-  } catch (err: unknown) {
-    logger.error({ err }, "[MINDS-WORKER] Failed to retire legacy search-volume harvest schedule:");
-  }
-}
-
-// Set up daily market keyword enrichment from GSC queries (5:30 AM UTC).
-async function setupMarketIntelligenceEnrichmentSchedule(): Promise<void> {
-  try {
-    const queue = getHarvestQueue("market-intelligence");
-    await queue.add(
-      "daily-market-intelligence-enrichment",
-      { mode: "enrich-gsc" },
-      {
-        repeat: {
-          pattern: "30 5 * * *", // 5:30 AM UTC daily, after GSC harvest
-          tz: "UTC",
-        },
-        jobId: "daily-market-intelligence-enrichment",
-      }
-    );
-    logger.info("[MINDS-WORKER] Daily market-intelligence enrichment scheduled (5:30 AM UTC)");
-  } catch (err: any) {
-    logger.error({ err: err }, "[MINDS-WORKER] Failed to set up market-intelligence enrichment schedule:");
-  }
-}
-
-// Set up monthly full market-intelligence refresh (1st of the month, 6:30 AM UTC).
-async function setupMarketIntelligenceMonthlySchedule(): Promise<void> {
-  try {
-    const queue = getHarvestQueue("market-intelligence");
-    await queue.add(
-      "monthly-market-intelligence-refresh",
-      { mode: "full", fetchFreshGbp: true },
-      {
-        repeat: {
-          pattern: "30 6 1 * *", // 6:30 AM UTC on the 1st of every month
-          tz: "UTC",
-        },
-        jobId: "monthly-market-intelligence-refresh",
-      }
-    );
-    logger.info("[MINDS-WORKER] Monthly market-intelligence refresh scheduled (6:30 AM UTC, 1st of month)");
-  } catch (err: any) {
-    logger.error({ err: err }, "[MINDS-WORKER] Failed to set up market-intelligence monthly schedule:");
-  }
-}
-
 // Set up GBP local post draft schedule scan (hourly)
 async function setupGbpLocalPostGenerationSchedule(): Promise<void> {
   try {
@@ -752,9 +662,6 @@ setupReviewSyncSchedule();
 setupSchedulerTick();
 setupCrmMappingValidationSchedule();
 setupDataHarvestSchedule();
-removeLegacySearchVolumeHarvestSchedule();
-setupMarketIntelligenceEnrichmentSchedule();
-setupMarketIntelligenceMonthlySchedule();
 setupGbpLocalPostGenerationSchedule();
 setupGbpLocalPostSyncSchedule();
 

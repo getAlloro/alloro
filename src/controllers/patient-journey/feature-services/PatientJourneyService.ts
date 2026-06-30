@@ -34,7 +34,6 @@ import {
   readVisits,
   readLeads,
   readPms,
-  readMarketDemand,
   readRank,
   readReviews,
   type StageRead,
@@ -110,8 +109,7 @@ function toStage(
   };
   if (read.note) stage.note = read.note;
   if (read.metadata) stage.metadata = read.metadata;
-  const isOrganizationScoped = read.metadata?.scope === "organization";
-  if (shared && isMultiLocation && !isOrganizationScoped) {
+  if (shared && isMultiLocation) {
     const wholePractice = "Whole-practice website total.";
     stage.note = stage.note ? `${stage.note} ${wholePractice}` : wholePractice;
   }
@@ -130,7 +128,7 @@ export async function assemblePatientJourney(
   const emptyRead: StageRead = { value: null, available: false, asOf: null };
 
   // Website-traffic stages need a project; per-location stages do not.
-  const [impressions, visits, leads, pms, marketDemand, rank, reviews] =
+  const [impressions, visits, leads, pms, rank, reviews] =
     await Promise.all([
       projectId
         ? readImpressions(projectId, period.startDate, period.endDate)
@@ -142,25 +140,11 @@ export async function assemblePatientJourney(
         ? readLeads(projectId, monthStart, monthEnd)
         : Promise.resolve(emptyRead),
       readPms(input.organizationId, input.locationId),
-      readMarketDemand(
-        input.organizationId,
-        input.locationId,
-        input.reportMonth,
-      ),
       readRank(input.organizationId, input.locationId),
       readReviews(input.locationId, monthStart, monthEnd),
     ]);
 
   const stages: PatientJourneyStage[] = [
-    toStage(
-      "market_demand",
-      "Search Opportunity",
-      "Estimated monthly searches",
-      "Market Intelligence + DataForSEO",
-      marketDemand,
-      true,
-      isMulti,
-    ),
     toStage(
       "impressions",
       "Google Visibility",

@@ -7,7 +7,7 @@
  * the funnel-assembly *contract*, not any single source:
  *
  *   • response shape — location/period/stages/conversions/leak/revenue/context/
- *     headline, with the four monitored lead-generation stages in journey order.
+ *     headline, with the three monitored lead-generation stages in journey order.
  *   • per-stage empty path — an unavailable reader yields value:null /
  *     available:false (an honest "not connected" stage), never a fake zero, and
  *     conversions touching it are null.
@@ -56,7 +56,6 @@ const readImpressions = vi.fn();
 const readVisits = vi.fn();
 const readLeads = vi.fn();
 const readPms = vi.fn();
-const readMarketDemand = vi.fn();
 const readRank = vi.fn();
 const readReviews = vi.fn();
 
@@ -65,7 +64,6 @@ vi.mock("../controllers/patient-journey/feature-services/stageReaders", () => ({
   readVisits: (...a: unknown[]) => readVisits(...a),
   readLeads: (...a: unknown[]) => readLeads(...a),
   readPms: (...a: unknown[]) => readPms(...a),
-  readMarketDemand: (...a: unknown[]) => readMarketDemand(...a),
   readRank: (...a: unknown[]) => readRank(...a),
   readReviews: (...a: unknown[]) => readReviews(...a),
 }));
@@ -125,26 +123,6 @@ function seedHappyPath(): void {
   countLocations.mockResolvedValue({ count: 1 });
   findProjectByOrg.mockResolvedValue({ id: "proj-1" });
 
-  readMarketDemand.mockResolvedValue(stage(10000, true, {
-    scope: "organization",
-    keywordCount: 240,
-    clusterCount: 12,
-    nullVolumeCount: 0,
-    sourceBreakdown: [],
-    clusterBreakdown: [],
-    coverage: {
-      trackedKeywords: 240,
-      uniqueGscQueries: 1200,
-      matchedQueries: 480,
-      unmatchedQueries: 720,
-      matchedImpressions: 9000,
-      unmatchedImpressions: 1000,
-      queryCoveragePct: 40,
-      impressionCoveragePct: 90,
-    },
-    confidence: "high",
-    warnings: [],
-  }, "All-location estimated monthly searches."));
   readImpressions.mockResolvedValue(stage(4000, true));
   readVisits.mockResolvedValue(stage(800, true));
   readLeads.mockResolvedValue(stage(120, true));
@@ -159,7 +137,7 @@ beforeEach(() => {
 });
 
 describe("assemblePatientJourney — contract shape", () => {
-  it("returns the full contract with the four monitored stages in journey order", async () => {
+  it("returns the full contract with the three monitored stages in journey order", async () => {
     const result = await assemblePatientJourney({
       organizationId: ORG,
       locationId: LOCATION,
@@ -177,13 +155,12 @@ describe("assemblePatientJourney — contract shape", () => {
       startDate: MONTH,
     });
     expect(result.stages.map((s) => s.key)).toEqual([
-      "market_demand",
       "impressions",
       "visits",
       "leads",
     ]);
-    // One conversion per adjacent pair (4 stages → 3 steps).
-    expect(result.conversions).toHaveLength(3);
+    // One conversion per adjacent pair (3 stages → 2 steps).
+    expect(result.conversions).toHaveLength(2);
     expect(result.revenue).toEqual({ value: 120000, available: true });
     expect(result.stages.find((s) => s.key === "patients")).toBeUndefined();
     expect(result.context.rank).toEqual({
@@ -198,15 +175,11 @@ describe("assemblePatientJourney — contract shape", () => {
     });
     expect(typeof result.headline.text).toBe("string");
     expect(result.stages[0]).toMatchObject({
-      label: "Search Opportunity",
-      metaLabel: "Estimated monthly searches",
-      source: "Market Intelligence + DataForSEO",
+      key: "impressions",
+      label: "Google Visibility",
+      metaLabel: "Google search impressions",
+      source: "Google Search Console",
       shared: true,
-    });
-    expect(result.stages[0].metadata).toMatchObject({
-      scope: "organization",
-      keywordCount: 240,
-      confidence: "high",
     });
   });
 
@@ -250,7 +223,6 @@ describe("assemblePatientJourney — empty / not-connected paths", () => {
 
   it("renders honest empty stages (and a guidance headline) when no project / no sources are connected", async () => {
     findProjectByOrg.mockResolvedValue(null); // no website → traffic stages empty
-    readMarketDemand.mockResolvedValue(stage(null, false));
     readPms.mockResolvedValue({
       patients: stage(null, false),
       revenue: { value: null, available: false },
@@ -275,15 +247,14 @@ describe("assemblePatientJourney — empty / not-connected paths", () => {
 
 describe("assemblePatientJourney — leak selection", () => {
   it("flags the single smallest non-null step as the biggest leak and names it in the headline", async () => {
-    // Make visits → leads the worst step (5%), others healthier.
-    readMarketDemand.mockResolvedValue(stage(10000, true));
-    readImpressions.mockResolvedValue(stage(8000, true)); // 80%
-    readVisits.mockResolvedValue(stage(4000, true)); // 50%
-    readLeads.mockResolvedValue(stage(200, true)); // 5%  ← leak
+    // Make visits → leads the worst step (5%), impressions → visits healthier.
+    readImpressions.mockResolvedValue(stage(8000, true)); // funnel head
+    readVisits.mockResolvedValue(stage(4000, true)); // impressions→visits = 50%
+    readLeads.mockResolvedValue(stage(200, true)); // visits→leads = 5%  ← leak
     readPms.mockResolvedValue({
       patients: stage(100, true),
       revenue: { value: 1, available: true },
-    }); // 50%
+    });
 
     const result = await assemblePatientJourney({
       organizationId: ORG,
@@ -344,7 +315,6 @@ describe("assemblePatientJourney — org-type wording", () => {
     expect(result.location.orgType).toBe("generic");
     expect(result.stages.find((s) => s.key === "patients")).toBeUndefined();
     expect(result.stages.map((s) => s.label)).toEqual([
-      "Search Opportunity",
       "Google Visibility",
       "Website Visitors",
       "Website Leads",
@@ -368,11 +338,6 @@ describe("assemblePatientJourney — multi-location labelling", () => {
     expect(impressions?.shared).toBe(true);
     expect(impressions?.note).toMatch(/whole-practice/i);
     expect(leads?.note).toMatch(/whole-practice/i);
-    // The market stage is org-wide, but it is not a website total.
-    const marketDemand = result.stages.find((s) => s.key === "market_demand");
-    expect(marketDemand?.shared).toBe(true);
-    expect(marketDemand?.note ?? "").toMatch(/all-location/i);
-    expect(marketDemand?.note ?? "").not.toMatch(/website total/i);
   });
 });
 
@@ -412,7 +377,6 @@ describe("assemblePatientJourney — tenant scope (§5.5/§11.7)", () => {
       reportMonth: MONTH,
     });
 
-    expect(readMarketDemand).toHaveBeenCalledWith(ORG, LOCATION, MONTH);
     expect(readPms).toHaveBeenCalledWith(ORG, LOCATION);
     expect(readRank).toHaveBeenCalledWith(ORG, LOCATION);
   });

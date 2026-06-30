@@ -14,11 +14,10 @@ export type PatientJourneyOrgType = "health" | "generic";
 
 /**
  * Stable stage identifiers. The current monitored pipeline emits
- * market_demand → impressions → visits → leads; `patients` is reserved until
- * converted-patient data is trustworthy enough to reintroduce.
+ * impressions → visits → leads; `patients` is reserved until converted-patient
+ * data is trustworthy enough to reintroduce.
  */
 export type PatientJourneyStageKey =
-  | "market_demand"
   | "impressions"
   | "visits"
   | "leads"
@@ -36,41 +35,6 @@ export interface PatientJourneyPeriod {
   label: string;
   startDate: string;
   endDate: string;
-}
-
-export type MarketOpportunityConfidence = "high" | "medium" | "low";
-
-export interface PatientJourneyCoverageMetadata {
-  trackedKeywords: number;
-  uniqueGscQueries: number;
-  matchedQueries: number;
-  unmatchedQueries: number;
-  matchedImpressions: number;
-  unmatchedImpressions: number;
-  queryCoveragePct: number | null;
-  impressionCoveragePct: number | null;
-}
-
-export interface PatientJourneySourceBreakdown {
-  source: string;
-  keywordCount: number;
-  volume: number;
-  nullVolumeCount: number;
-}
-
-export interface PatientJourneyClusterBreakdown {
-  cluster: string;
-  keywordCount: number;
-  volume: number;
-  nullVolumeCount: number;
-}
-
-export interface PatientJourneyTopKeyword {
-  keyword: string;
-  normalizedKeyword: string;
-  volume: number;
-  nullVolumeCount: number;
-  locationCount: number;
 }
 
 export interface PatientJourneyGscMetricRow {
@@ -104,16 +68,6 @@ export interface PatientJourneyLeadsMetadata {
 }
 
 export interface PatientJourneyStageMetadata {
-  scope?: "organization" | "location" | "website";
-  keywordCount?: number;
-  clusterCount?: number;
-  nullVolumeCount?: number;
-  sourceBreakdown?: PatientJourneySourceBreakdown[];
-  clusterBreakdown?: PatientJourneyClusterBreakdown[];
-  topKeywords?: PatientJourneyTopKeyword[];
-  coverage?: PatientJourneyCoverageMetadata;
-  confidence?: MarketOpportunityConfidence;
-  warnings?: string[];
   gsc?: PatientJourneyGscMetadata;
   rybbit?: PatientJourneyRybbitMetadata;
   leads?: PatientJourneyLeadsMetadata;

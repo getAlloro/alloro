@@ -1,0 +1,139 @@
+{
+  "plan": "plans/06302026-remove-market-intelligence-search-opportunity",
+  "generatedAt": "2026-06-30",
+  "status": "In Progress",
+  "items": [
+    {
+      "id": "T2-A",
+      "title": "Backend type-check passes after rewire + deletions",
+      "surface": "cli",
+      "precondition": "Repo read access restored; all backend edits + deletions applied.",
+      "steps": ["1. cd /Users/rustinedave/Desktop/alloro", "2. npx tsc --noEmit"],
+      "expected": "Exit 0, zero errors.",
+      "status": "pass",
+      "evidence": "tsc EXIT:0, 0 errors (after StageReadMetadata type-alias fix).",
+      "notes": ""
+    },
+    {
+      "id": "T7-A",
+      "title": "Frontend type-check passes after card removal",
+      "surface": "cli",
+      "precondition": "All frontend edits applied; PatientJourneyArrowHelp deleted.",
+      "steps": ["1. cd /Users/rustinedave/Desktop/alloro/frontend", "2. npx tsc -p tsconfig.app.json --noEmit"],
+      "expected": "Exit 0, zero errors.",
+      "status": "pass",
+      "evidence": "FE tsc EXIT:0, 0 errors.",
+      "notes": ""
+    },
+    {
+      "id": "T2-B",
+      "title": "Patient-journey service test passes with 3-stage funnel",
+      "surface": "cli",
+      "precondition": "patient-journey.service.test.ts updated to drop market_demand.",
+      "steps": ["1. npx vitest run src/__tests__/patient-journey.service.test.ts"],
+      "expected": "All tests pass; stage order is impressions/visits/leads.",
+      "status": "pass",
+      "evidence": "12/12 passed.",
+      "notes": ""
+    },
+    {
+      "id": "T11-A",
+      "title": "No residual feature references in application code",
+      "surface": "cli",
+      "precondition": "All deletions + edits applied.",
+      "steps": ["1. grep -rIn -E 'dataforseo|market[-_]?intelligence|MarketKeyword|keyword_search_volume|market_demand|searchOpportunity|search_volume' src frontend/src"],
+      "expected": "Only migration-history files match (create + drop migrations); zero application-code hits.",
+      "status": "pass",
+      "evidence": "Hits confined to src/database/migrations/* (20260624, 20260626 history + 20260630 drop).",
+      "notes": ""
+    },
+    {
+      "id": "T11-B",
+      "title": "Backend convention strict gate clean",
+      "surface": "cli",
+      "precondition": "All edits applied.",
+      "steps": ["1. npm run check:conventions --strict"],
+      "expected": "Exit 0; 0 backend structural violations from this change.",
+      "status": "pass",
+      "evidence": "EXIT 0; CLEAR structural violations: 0.",
+      "notes": "§11.7 heuristic (84) is pre-existing/advisory; this change only removes models."
+    },
+    {
+      "id": "T6",
+      "title": "Drop migration up/down round-trips on the dev database",
+      "surface": "cli",
+      "precondition": "Migration 20260630000000 deployed to dev; create migrations already applied on dev.",
+      "steps": ["1. dev deploy runs npm run db:migrate (drops keyword_search_volume + market_* on dev)", "2. Confirm tables gone (psql \\dt)", "3. npm run db:rollback recreates structure (verify down())"],
+      "expected": "up() drops all three tables; down() recreates structure cleanly.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Verified on dev (where tables exist), not local — local DB lacks these tables / has history mismatch."
+    },
+    {
+      "id": "T7-B",
+      "title": "Funnel screen renders without the Search Opportunity card",
+      "surface": "ui",
+      "precondition": "Deployed to dev; authed user on a location with patient-journey data.",
+      "steps": ["1. Navigate to /patientJourneyInsights on dev.getalloro.com", "2. Observe the Lead Pipeline", "3. Click the first (now head) card"],
+      "expected": "Pipeline shows 3 cards (Google Visibility → Website Visitors → Website Leads), no Search Opportunity card, no orphan leading arrow; header reads 'Three gates'; detail deck for the head shows GSC content (no keyword estimates).",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Human/computer-use verify on dev after deploy."
+    },
+    {
+      "id": "T8-DEV",
+      "title": "Dev Redis: market-intelligence / search-volume jobs + queues cleared",
+      "surface": "cli",
+      "precondition": "ssh alloro-dev; worker redeployed without MI worker.",
+      "steps": ["1. List repeatable jobs on harvest-market-intelligence + harvest-search-volume", "2. removeRepeatableByKey for daily-market-intelligence-enrichment, monthly-market-intelligence-refresh, monthly-search-volume-harvest", "3. obliterate both queues"],
+      "expected": "Zero MI/search-volume repeatable jobs; no bull:harvest-market-intelligence:* / bull:harvest-search-volume:* keys.",
+      "status": "pending",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "T8-PROD",
+      "title": "Prod Redis: market-intelligence / search-volume jobs + queues cleared",
+      "surface": "cli",
+      "precondition": "ssh alloro-app; merged to main + worker redeployed.",
+      "steps": ["1. List repeatable jobs on both queues", "2. removeRepeatableByKey for the 3 jobs", "3. obliterate both queues"],
+      "expected": "Zero MI/search-volume repeatable jobs and queue keys on prod.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Owner-authorized prod teardown."
+    },
+    {
+      "id": "T6-PROD",
+      "title": "Prod tables dropped at main deploy",
+      "surface": "cli",
+      "precondition": "Merged to main; deploy ran db:migrate on prod.",
+      "steps": ["1. After prod deploy, confirm keyword_search_volume + market_* gone on prod DB", "2. curl prod /api/health/db green"],
+      "expected": "Tables dropped on prod; health check green.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Destructive; owner-authorized."
+    },
+    {
+      "id": "T9",
+      "title": "DataForSEO credentials removed from server env",
+      "surface": "cli",
+      "precondition": "ssh alloro-dev (and alloro-app if present).",
+      "steps": ["1. Remove DataForSEO key lines from /etc/alloro/dev.env (and app.env if present)", "2. Restart PM2 process"],
+      "expected": "Env no longer contains DataForSEO keys (grep by key name); PM2 healthy.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Do not print values."
+    },
+    {
+      "id": "T10",
+      "title": "Plan + memory artifacts removed, tombstone left",
+      "surface": "none",
+      "precondition": "Code committed.",
+      "steps": ["1. Remove the 4 MI plan folders", "2. Add plans/REMOVED-market-intelligence.md tombstone", "3. Update build memory to 'removed'", "4. CHANGELOG entry"],
+      "expected": "MI plan folders gone; tombstone + changelog present; memory updated.",
+      "status": "pending",
+      "evidence": "",
+      "notes": ""
+    }
+  ]
+}

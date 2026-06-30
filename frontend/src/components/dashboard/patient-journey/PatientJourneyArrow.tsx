@@ -8,7 +8,6 @@
  * Spec: plans/06242026-patient-journey-insights/spec.html (T7)
  */
 
-import { PatientJourneyArrowHelp } from "./PatientJourneyArrowHelp";
 import { formatPct } from "./patientJourney.utils";
 
 interface PatientJourneyArrowProps {
@@ -16,8 +15,6 @@ interface PatientJourneyArrowProps {
   caption: string;
   isLeak: boolean;
   animate: boolean;
-  showPct?: boolean;
-  helpText?: string | null;
 }
 
 export function PatientJourneyArrow({
@@ -25,8 +22,6 @@ export function PatientJourneyArrow({
   caption,
   isLeak,
   animate,
-  showPct = true,
-  helpText = null,
 }: PatientJourneyArrowProps) {
   const color = isLeak ? "text-[#B7831F]" : "text-[#c9c1b4]";
   const pctColor = isLeak ? "text-[#B7831F]" : "text-alloro-navy";
@@ -44,15 +39,11 @@ export function PatientJourneyArrow({
       ].join(" ")}
     >
       <div className="flex h-full w-full flex-col items-center justify-center gap-[3px] text-center">
-        {helpText ? (
-          <PatientJourneyArrowHelp caption={caption} helpText={helpText} />
-        ) : showPct ? (
-          <div
-            className={`tabular-nums font-bold ${isLeak ? "text-[13px]" : "text-[12px]"} ${pctColor}`}
-          >
-            {formatPct(pct)}
-          </div>
-        ) : null}
+        <div
+          className={`tabular-nums font-bold ${isLeak ? "text-[13px]" : "text-[12px]"} ${pctColor}`}
+        >
+          {formatPct(pct)}
+        </div>
         <svg
           viewBox="0 0 40 16"
           width="40"

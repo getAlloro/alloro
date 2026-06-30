@@ -78,7 +78,6 @@ export function resolveStageKind(
 }
 
 const GATE_LABELS: Partial<Record<PatientJourneyStageKey, string>> = {
-  market_demand: "Search Opportunity",
   impressions: "Google Visibility",
   visits: "Website Visitors",
   leads: "Website Leads",
@@ -91,8 +90,6 @@ export function stageGateLabel(stage: PatientJourneyStage): string {
 
 export function stageGateSubtext(stage: PatientJourneyStage): string {
   switch (stage.key) {
-    case "market_demand":
-      return "Estimated monthly searches";
     case "impressions":
       return "Google search impressions";
     case "visits":
@@ -110,29 +107,14 @@ export function stageGateSubtext(stage: PatientJourneyStage): string {
 
 /**
  * Friendly arrow caption for a conversion, keyed by the stage it flows INTO.
- * The first connector asks the visibility question instead of showing a huge
- * opportunity-to-impression percentage.
  */
 const STEP_CAPTIONS: Record<string, string> = {
-  impressions: "How visible are you?",
   visits: "Clicked through",
   leads: "Converted",
   patients: "Became patients",
 };
 export function conversionCaption(toKey: string): string {
   return STEP_CAPTIONS[toKey] ?? "";
-}
-
-const STEP_HELP_TEXT: Record<string, string> = {
-  impressions:
-    "Estimate vs. impressions. One search can show you more than once.",
-};
-export function conversionHelpText(toKey: string): string | null {
-  return STEP_HELP_TEXT[toKey] ?? null;
-}
-
-export function shouldShowConversionPct(toKey: string): boolean {
-  return toKey !== "impressions";
 }
 
 /** Find the conversion that feeds INTO a stage key (its inbound step). */
@@ -152,7 +134,7 @@ export function isWholePracticeStage(
   stage: PatientJourneyStage,
   isMultiLocation: boolean,
 ): boolean {
-  return stage.shared && isMultiLocation && stage.metadata?.scope !== "organization";
+  return stage.shared && isMultiLocation;
 }
 
 /** Tooltip body for a stage — its source note, falling back to its source. */

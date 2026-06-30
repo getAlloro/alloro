@@ -18,25 +18,9 @@ import { PracticeRankingModel } from "../../../models/PracticeRankingModel";
 import { aggregatePmsData } from "../../../utils/pms/pmsAggregator";
 import { fetchRybbitOverview } from "../../admin-websites/feature-services/service.rybbit-performance";
 import { resolveRybbitTimeZone } from "../../../utils/rybbit/rybbit-time-zone";
-import { getMarketOpportunitySummary } from "../../market-intelligence/feature-services/MarketOpportunitySummaryService";
-import type { MarketIntelligenceSummary } from "../../market-intelligence/feature-utils/types";
 import logger from "../../../lib/logger";
 
-export type StageReadMetadata = Partial<
-  Pick<
-    MarketIntelligenceSummary,
-    | "keywordCount"
-    | "clusterCount"
-    | "nullVolumeCount"
-    | "sourceBreakdown"
-    | "clusterBreakdown"
-    | "topKeywords"
-    | "coverage"
-    | "confidence"
-    | "warnings"
-  >
-> & {
-  scope?: "organization" | "location" | "website";
+export type StageReadMetadata = {
   gsc?: {
     clicks: number;
     ctr: number;
@@ -350,42 +334,6 @@ export async function readPms(organizationId: number, locationId: number): Promi
   } catch (err) {
     logger.warn({ err, organizationId, locationId }, "[patient-journey] PMS read failed");
     return { patients: emptyRead(), revenue: { value: null, available: false } };
-  }
-}
-
-/** Market demand = organization-wide estimated search opportunity for all locations. */
-export async function readMarketDemand(
-  organizationId: number,
-  _locationId: number,
-  reportMonth: string
-): Promise<StageRead> {
-  try {
-    const summary = await getMarketOpportunitySummary(
-      organizationId,
-      reportMonth
-    );
-    if (summary.keywordCount === 0) return emptyRead();
-    return {
-      value: summary.estimatedSearchOpportunity,
-      available: true,
-      asOf: summary.latestUpdatedAt ? isoDate(summary.latestUpdatedAt) : isoDate(reportMonth),
-      note: "All-location estimated monthly searches.",
-      metadata: {
-        scope: "organization",
-        keywordCount: summary.keywordCount,
-        clusterCount: summary.clusterCount,
-        nullVolumeCount: summary.nullVolumeCount,
-        sourceBreakdown: summary.sourceBreakdown,
-        clusterBreakdown: summary.clusterBreakdown,
-        topKeywords: summary.topKeywords,
-        coverage: summary.coverage,
-        confidence: summary.confidence,
-        warnings: summary.warnings,
-      },
-    };
-  } catch (err) {
-    logger.warn({ err, organizationId }, "[patient-journey] market-demand read failed");
-    return emptyRead();
   }
 }
 
