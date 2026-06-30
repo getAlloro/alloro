@@ -110,8 +110,8 @@
       "steps": ["1. After prod deploy, confirm keyword_search_volume + market_* gone on prod DB", "2. curl prod /api/health/db green"],
       "expected": "Tables dropped on prod; health check green.",
       "status": "pass",
-      "evidence": "Prod read-only check: all 3 tables ABSENT; migrations 24/26/30 not present (feature never shipped to prod) — desired end-state (no MI tables on prod) already satisfied.",
-      "notes": "Owner held prod promotion (dev-only). The migration formally runs harmlessly (create-empty -> drop, zero data impact) whenever dev/dave is merged to main as a deliberate release."
+      "evidence": "Shipped to prod 2026-07-01 via PR #138 (dev/dave->main, merge 4ed17126). Prod deploy green; migration 24->26->30 ran clean (create-empty -> drop); verified prod: all 3 tables absent, migrations 24/26/30 recorded, no pending, health healthy. Zero prod data impact.",
+      "notes": "Owner reversed the earlier hold and merged the full backlog."
     },
     {
       "id": "T9",
