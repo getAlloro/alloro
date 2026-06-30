@@ -10,7 +10,7 @@ import { tokenizeJson } from "../leadgenSubmissionDetail.utils";
  * viewport). Framer-motion handles the slide-up animation.
  *
  * JSON is colorized by tokenizing the string and rendering each token as
- * its own <span>. No dangerouslySetInnerHTML, no new dependency, no XSS
+ * its own <span>. No HTML injection prop, no new dependency, no XSS
  * surface even if a step payload contains raw HTML-looking text.
  */
 export default function AuditPayloadSheet({

@@ -5,6 +5,7 @@ import {
   Activity,
   Trophy,
   Sparkles,
+  Funnel,
   LogOut,
   ChevronRight,
   AlertTriangle,
@@ -210,6 +211,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: labels.hubReferrals,
       icon: <Activity size={18} />,
       path: "/pmsStatistics",
+      showDuringOnboarding: false,
+    },
+    {
+      label: labels.journeyInsights,
+      icon: <Funnel size={18} />,
+      path: "/patientJourneyInsights",
       showDuringOnboarding: false,
     },
     {

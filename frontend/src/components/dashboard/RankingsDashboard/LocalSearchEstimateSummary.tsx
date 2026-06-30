@@ -3,6 +3,7 @@ import { InfoTip } from "../shared/InfoTip";
 import type { RankingResult } from "../rankingsDashboard.types";
 import { StarIcon } from "./StarIcon";
 import { Metric } from "./Metric";
+import { useLabels } from "../../../hooks/useLabels";
 
 export function LocalSearchEstimateSummary({
   result,
@@ -11,6 +12,7 @@ export function LocalSearchEstimateSummary({
   result: RankingResult;
   marketAvgRating: number;
 }) {
+  const labels = useLabels();
   const status = result.searchStatus ?? "ok";
   const rank = result.searchPosition;
   const accent = "#D66853";
@@ -59,7 +61,7 @@ export function LocalSearchEstimateSummary({
                 </span>
               </p>
               <p className="mt-1 text-[12px] font-semibold leading-relaxed text-alloro-navy/45">
-                This is the position patients are most likely to notice first.
+                This is the position {labels.customers} are most likely to notice first.
               </p>
             </div>
           </div>
@@ -98,7 +100,7 @@ export function LocalSearchEstimateSummary({
       {status === "bias_unavailable" && (
         <div className="flex flex-col gap-2 py-2">
           <span className="font-display text-3xl font-medium tracking-tight text-alloro-navy/50 lg:text-4xl">
-            Couldn't locate your practice on Google
+            Couldn't locate your {labels.orgNoun} on Google
           </span>
           <p className="max-w-[48ch] text-sm font-medium leading-relaxed text-alloro-navy/65">
             Check that your Google profile is connected and has a valid address.{" "}

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { uploadPMSData } from "../../api/pms";
 import { logger } from "../../lib/logger";
+import { usePmsCopy } from "./pmsCopy";
 
 interface TemplateUploadModalProps {
   isOpen: boolean;
@@ -32,6 +33,7 @@ export const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({
   locationId,
   onSuccess,
 }) => {
+  const copy = usePmsCopy();
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>("idle");
@@ -41,7 +43,7 @@ export const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({
 
   const processingStorageKey = useMemo(
     () => `pmsProcessing:${clientId || "artfulorthodontics.com"}`,
-    [clientId]
+    [clientId],
   );
 
   const handleFileSelect = useCallback((selectedFile: File) => {
@@ -57,7 +59,7 @@ export const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({
         handleFileSelect(selectedFile);
       }
     },
-    [handleFileSelect]
+    [handleFileSelect],
   );
 
   const handleDrop = useCallback(
@@ -69,7 +71,7 @@ export const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({
         handleFileSelect(droppedFile);
       }
     },
-    [handleFileSelect]
+    [handleFileSelect],
   );
 
   const handleDragOver = useCallback(
@@ -77,7 +79,7 @@ export const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({
       event.preventDefault();
       setIsDragOver(true);
     },
-    []
+    [],
   );
 
   const handleDragLeave = useCallback(
@@ -85,7 +87,7 @@ export const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({
       event.preventDefault();
       setIsDragOver(false);
     },
-    []
+    [],
   );
 
   const handleUpload = async () => {
@@ -104,20 +106,18 @@ export const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({
 
       if (result.success) {
         setUploadStatus("success");
-        setMessage(
-          "We're processing your PMS data now. We'll notify you once it's ready."
-        );
+        setMessage(copy.processingMessage);
 
         showUploadToast(
-          "PMS export received!",
-          "We'll notify when ready for checking"
+          copy.toastReceivedTitle,
+          copy.processingInsightsMessage,
         );
 
         if (typeof window !== "undefined") {
           try {
             window.localStorage.setItem(
               processingStorageKey,
-              String(Date.now())
+              String(Date.now()),
             );
             const event = new CustomEvent("pms:job-uploaded", {
               detail: { clientId },
@@ -125,8 +125,8 @@ export const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({
             window.dispatchEvent(event);
           } catch (storageError) {
             logger.warn(
-              "Unable to persist PMS processing flag:",
-              storageError
+              "Unable to persist data processing flag:",
+              storageError,
             );
           }
         }
@@ -160,6 +160,17 @@ export const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({
     resetModal();
     onClose();
   };
+
+  const downloadTemplate = useCallback(() => {
+    const csv = `${copy.templateHeaders}\n${copy.templateExample}\n`;
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = copy.templateDownloadName;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [copy.templateDownloadName, copy.templateExample, copy.templateHeaders]);
 
   return (
     <AnimatePresence>
@@ -214,14 +225,14 @@ export const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({
                       <h3 className="font-semibold text-slate-900 mb-2">
                         Download and fill out the template
                       </h3>
-                      <a
-                        href="/report_template.csv"
-                        download="referral_report_template.csv"
+                      <button
+                        type="button"
+                        onClick={downloadTemplate}
                         className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors text-sm font-medium"
                       >
                         <Download className="w-4 h-4" />
                         Download CSV Template
-                      </a>
+                      </button>
                     </div>
                   </motion.div>
 
@@ -249,8 +260,8 @@ export const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({
                           isDragOver
                             ? "border-emerald-400 bg-emerald-50/50"
                             : file
-                            ? "border-emerald-300 bg-emerald-50/30"
-                            : "border-slate-200 bg-slate-50/50 hover:border-slate-300 hover:bg-white"
+                              ? "border-emerald-300 bg-emerald-50/30"
+                              : "border-slate-200 bg-slate-50/50 hover:border-slate-300 hover:bg-white"
                         }`}
                         onDrop={handleDrop}
                         onDragOver={handleDragOver}
@@ -266,10 +277,20 @@ export const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({
                         />
 
                         <motion.div
-                          animate={isDragOver ? { scale: 1.1, y: -5 } : { scale: 1, y: 0 }}
-                          transition={{ type: "spring", damping: 15, stiffness: 300 }}
+                          animate={
+                            isDragOver
+                              ? { scale: 1.1, y: -5 }
+                              : { scale: 1, y: 0 }
+                          }
+                          transition={{
+                            type: "spring",
+                            damping: 15,
+                            stiffness: 300,
+                          }}
                           className={`w-14 h-14 mx-auto mb-3 rounded-2xl flex items-center justify-center ${
-                            file ? "bg-emerald-100" : "bg-white shadow-sm border border-slate-100"
+                            file
+                              ? "bg-emerald-100"
+                              : "bg-white shadow-sm border border-slate-100"
                           }`}
                         >
                           <FileText
@@ -294,7 +315,8 @@ export const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({
                           <button
                             onClick={() => {
                               setFile(null);
-                              if (fileInputRef.current) fileInputRef.current.value = "";
+                              if (fileInputRef.current)
+                                fileInputRef.current.value = "";
                             }}
                             className="flex-1 px-4 py-3 text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors font-medium"
                           >
@@ -356,7 +378,9 @@ export const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({
                   <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
                     <AlertCircle className="w-10 h-10 text-red-600" />
                   </div>
-                  <h4 className="text-xl font-bold text-slate-900 mb-2">Upload Failed</h4>
+                  <h4 className="text-xl font-bold text-slate-900 mb-2">
+                    Upload Failed
+                  </h4>
                   <p className="text-red-600 mb-4">{message}</p>
                   <button
                     onClick={() => setUploadStatus("idle")}

@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Generic Revenue Data Verbiage Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 860px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 4.75rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.9rem; }
+    th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { background: var(--soft); color: var(--muted); font-size: 0.76rem; font-weight: 800; text-transform: uppercase; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .note { border-left: 3px solid var(--ink); background: var(--soft); padding: 12px 14px; border-radius: 0 6px 6px 0; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+      table { font-size: 0.82rem; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Completed</span>
+      </div>
+      <h1>Generic Revenue Data Verbiage</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06292026-generic-revenue-data-verbiage</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The generic org-type work is not complete in the PMS surface. Generic accounts still see health-specific copy such as <code>PMS</code>, <code>practice management</code>, <code>Referral Source</code>, <code>Doctor referrals</code>, <code>Patient ID</code>, and <code>Production</code>.</p>
+      <p>For generic organizations, this surface should read as a revenue-data workflow. It should ask users to upload revenue data, group revenue by neutral sources or channels, and avoid referral-source framing because generic businesses do not directly manage healthcare referrals.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Add PMS-specific label coverage on top of the existing org-type label system. Health organizations keep the current PMS/referral wording. Generic organizations see <code>Revenue data</code>, <code>Revenue Hub</code>, <code>Revenue source</code> or <code>Source / Channel</code>, <code>records</code>, <code>customers</code>, and <code>revenue</code> across upload, mapping, review, dashboard, processing, file-manager, shared alert, setup, and AI action states.</p>
+      <p>This is primarily a display-layer change. It must not rename PMS routes, API payload fields, database columns, monthly rollup keys, or agent data contracts. Rev 1 expands the scope only where Pilot QA proved it is necessary: shared dashboard alerts, setup copy, generated monthly-agent prompts, and a narrow generic display fallback for stale freeform AI copy already stored before prompts are clean.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Related Plans Reviewed</h3>
+      <ul>
+        <li><code>plans/06232026-org-type-generic-verbiage/spec.html</code> - completed the base org-type resolver and broad label map, but its acceptance notes left PMS mapping labels and onboarding copy as follow-up.</li>
+        <li><code>plans/06232026-org-type-generic-verbiage/test-results.json</code> - passed with a waiver for Jo copy review and explicitly noted unswapped PMS/mapping phrases.</li>
+        <li><code>plans/06022026-pms-file-manager/spec.html</code> - defines the PMS File Manager as the customer-facing data-management surface inside <code>/pmsStatistics</code>.</li>
+        <li><code>plans/06222026-pms-month-label-timezone-fix/spec.html</code> - shows PMS labels span many review/editor files and should be handled with scoped utilities, not blind search-replace.</li>
+        <li><code>plans/06242026-patient-journey-insights/spec.html</code> - confirms Journey should use <code>useLabels()</code> for health/generic wording and keep production/revenue out of unrelated lead-generation pipeline copy.</li>
+      </ul>
+      <h3>Relevant App Files</h3>
+      <ul>
+        <li><code>frontend/src/constants/orgLabels.ts</code> - current frontend source of truth for health/generic labels.</li>
+        <li><code>frontend/src/hooks/useLabels.ts</code> - resolves labels from authenticated org type.</li>
+        <li><code>frontend/src/api/pms/mapping.ts</code> - currently carries display labels such as <code>Referral Source</code>, <code>Patient ID or Name</code>, and <code>Production (already summed)</code>.</li>
+        <li><code>frontend/src/components/PMS/ColumnMappingDrawer.tsx</code> - shows Date, Source, Patient ID, and production-mapping help text.</li>
+        <li><code>frontend/src/components/PMS/PMSUploadWizardModal.tsx</code>, <code>DirectUploadModal.tsx</code>, <code>TemplateUploadModal.tsx</code> - upload copy, success toasts, sample report headings, and manual-entry prompts.</li>
+        <li><code>frontend/src/components/PMS/PMSManualEntryModal.tsx</code>, <code>PMSLatestJobEditor.tsx</code>, <code>PMSDataViewer.tsx</code>, and their <code>SourceRowItem</code>/<code>SummaryCards</code> children - manual entry, review, edit, and row-level labels.</li>
+        <li><code>frontend/src/components/PMS/PMSVisualPillars/</code> and <code>frontend/src/components/PMS/dashboard/</code> - setup, empty, processing, trend, source, mix, velocity, and ingestion states.</li>
+        <li><code>frontend/src/components/PMS/file-manager/</code> and <code>frontend/src/components/PMS/PmsJobDataEditorModal.tsx</code> - saved-file management and parsed-data editor copy.</li>
+        <li><code>frontend/src/utils/dashboardAlerts.ts</code> and <code>frontend/src/utils/pmsFocusPeriod.ts</code> - shared Practice Hub / Revenue Hub alert copy that still says <code>PMS data</code>, <code>referral</code>, and <code>production</code> in generic accounts.</li>
+        <li><code>frontend/src/components/dashboard/focus/ProductionPanel.tsx</code>, <code>frontend/src/components/settings/PMSUploadBanner.tsx</code>, <code>frontend/src/components/SetupProgressWizard/SetupProgressWizard.tsx</code>, and <code>frontend/src/pages/Dashboard.tsx</code> - setup, empty, and upload-nudge copy outside the PMS feature folder.</li>
+        <li><code>frontend/src/components/dashboard/focus/OneThingBanner.tsx</code>, <code>frontend/src/hooks/queries/useTopAction.ts</code>, and <code>frontend/src/components/PMS/dashboard/PmsHubSurface.tsx</code> - render freeform Summary / Referral Engine action text that may have been generated before generic prompts were clean.</li>
+        <li><code>src/config/orgLabels.ts</code>, <code>src/agents/monthlyAgents/ReferralEngineAnalysis.md</code>, and <code>src/agents/monthlyAgents/Summary.md</code> - backend prompt vocabulary and monthly-agent prose that still hardcodes PMS/referral/doctor wording in non-schema prose.</li>
+      </ul>
+      <h3>Docs Parity Files</h3>
+      <ul>
+        <li><code>/Users/rustinedave/Desktop/alloro-docs/src/components/replicas/ReferralsHubReplica.tsx</code> - static replica of the current PMS/Referrals Hub surface.</li>
+        <li><code>/Users/rustinedave/Desktop/alloro-docs/src/data/pages/referrals-hub.ts</code> and <code>src/data/pages.ts</code> - docs title, description, walkthrough, and registry copy.</li>
+        <li><code>/Users/rustinedave/Desktop/alloro-docs/src/components/replicas/IntegrationsReplica.tsx</code> and <code>src/data/pages/settings-integrations.ts</code> - PMS-upload prompt documentation.</li>
+      </ul>
+      <h3>Code Constitution Articles</h3>
+      <ul>
+        <li><strong>§4.2</strong> - client-visible strings should be named labels, not scattered magic strings.</li>
+        <li><strong>§12.1</strong> and <strong>§14.1</strong> - keep API files thin; do not put React/hook state into <code>api/</code>.</li>
+        <li><strong>§12.2</strong> and <strong>§12.3</strong> - new copy helpers belong in constants or the PMS feature folder, not random component files.</li>
+        <li><strong>§13.1</strong>, <strong>§13.2</strong>, and <strong>§13.3</strong> - avoid making already-large PMS components larger with inline copy branching.</li>
+        <li><strong>§15.2</strong> - org type remains cross-cutting UI state resolved through context via <code>useLabels()</code>.</li>
+        <li><strong>§17.2</strong> - label helpers and tests must stay typed, no <code>any</code>.</li>
+        <li><strong>§6.2</strong> - backend prompt vocabulary belongs in <code>src/config/</code>; prompt substitution remains in <code>src/agents/</code>.</li>
+        <li><strong>§20.1</strong> and <strong>§20.2</strong> - tests must cover label/prompt helper contracts and the failure path found by Pilot QA.</li>
+        <li><strong>§20.5</strong> - execution must produce passing <code>test.html</code> and <code>test-results.json</code>.</li>
+      </ul>
+      <p><strong>Reference analog:</strong> frontend <strong>§12.1</strong> <code>frontend/src/api/</code> plus React Query plus feature-folder triad. For this work, the closest local analog is the existing <code>frontend/src/constants/orgLabels.ts</code> + <code>frontend/src/hooks/useLabels.ts</code> pattern from the completed org-type plan.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>For health orgs, preserve current wording: <code>PMS</code>, <code>Practice Management System</code>, <code>Referral Source</code>, <code>Patient ID</code>, <code>Doctor referrals</code>, <code>Self referrals</code>, and <code>Production</code>.</li>
+            <li>For generic orgs, visible PMS-surface copy must use revenue-data language and must not show <code>PMS</code>, <code>Practice Management System</code>, <code>Referral Source</code>, <code>Doctor referrals</code>, <code>Patient ID</code>, or <code>Production</code>.</li>
+            <li>Keep the source concept where the workflow needs it, but name it neutrally for generic orgs: <code>Revenue source</code> or <code>Source / Channel</code>, not <code>Referral Source</code>.</li>
+            <li>Use label helpers so components consume resolved strings, not explicit org-type checks sprinkled through JSX.</li>
+            <li>For generic orgs, shared dashboard alerts and setup states must use revenue-data language. The failed strings are <code>May 2026 PMS data ready?</code>, <code>Upload PMS data</code>, and <code>referral and production insights</code>.</li>
+            <li>For generic orgs, freeform AI/action text rendered in Practice Hub and Revenue Hub must not show healthcare words such as <code>patients</code>, <code>doctor referral source</code>, <code>referrals</code>, or <code>production</code>.</li>
+            <li>Existing stored agent output must be handled without rewriting historical database rows. Either translate only freeform display text for generic orgs or suppress stale healthcare copy until a clean generic rerun exists.</li>
+            <li>Update Alloro Docs parity because this changes dashboard labels, copy, walkthrough wording, and upload guidance.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not rename <code>PMS*</code> component names, route paths, API functions, database tables, or response keys.</li>
+            <li>Do not change ingestion behavior, monthly rollup math, source classification, file parsing, or agent trigger logic.</li>
+            <li>Do not broaden this into N8N workflow edits. In-repo monthly-agent prompt clean-up is now in scope only because Pilot QA proved AI action text is visible in generic accounts.</li>
+            <li>Do not run the monthly agent pipeline during planning or execution unless explicitly needed for verification and confirmed email-safe. Prompt tests and stored-output display checks come first.</li>
+            <li>Do not use a global blind find-replace. Some terms are internal code/data names and must stay stable.</li>
+            <li>Do not touch unrelated dirty work in Patient Journey, Market Intelligence, embedded pilot, billing, or admin shell files.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Assumptions</h3>
+      <ul>
+        <li>The generic PMS surface should say <code>Revenue data</code>, not <code>Lead data</code>. This is stricter than the earlier broad generic map because the user specifically said generic organizations do not directly manage referrals in this context.</li>
+        <li>The generic mapping flow may still ask for a source/channel column because revenue attribution still needs grouping. The banned wording is referral-source framing, not the source grouping itself.</li>
+        <li>Direct/partner split values may remain in the data model as <code>self</code>/<code>doctor</code>. Generic UI labels should render them as neutral source categories or hide the healthcare-specific explanation.</li>
+      </ul>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Backend schema changes, org-type setup changes, Stripe pricing, N8N workflow prompt edits, and generic data-pipeline redesign.</li>
+        <li>Rewriting historical stored agent result rows in the database. The UI may transform or suppress stale freeform generated prose at render time, but the stored audit trail remains unchanged.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3. The behavior is display-layer only, but the blast radius is large across PMS upload, dashboards, file management, and docs.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Data-model drift.</strong> Renaming internal PMS/referral keys would break parsers, rollups, and existing API consumers. <strong>Mitigation:</strong> copy changes stop at render labels and helper functions; data keys stay unchanged.</li>
+        <li><strong>Inconsistent generic language.</strong> Some components currently use global <code>Lead</code> labels while PMS needs <code>Revenue data</code>. <strong>Mitigation:</strong> add PMS-specific labels instead of overloading the app-wide <code>referralsShort</code> keys.</li>
+        <li><strong>File size creep.</strong> PMS components are already broad. <strong>Mitigation:</strong> compose labels in a typed helper or nested label object, then keep JSX edits small.</li>
+        <li><strong>Docs drift.</strong> The docs app has hardcoded Referrals Hub and PMS-upload copy. <strong>Mitigation:</strong> execute docs parity in the same plan and verify the docs build separately.</li>
+        <li><strong>False product promise.</strong> Calling it revenue data does not make the ingestion engine truly generic. <strong>Mitigation:</strong> avoid claims that Alloro can ingest arbitrary revenue systems; copy should say upload revenue data in the supported report shape.</li>
+        <li><strong>Stale generated copy.</strong> Existing Summary / Referral Engine outputs were generated under older healthcare-heavy prompts, so generic org-type switching can still render old prose. <strong>Mitigation:</strong> clean in-repo prompts for future runs and add a narrow generic display fallback or suppression rule for freeform action text only.</li>
+        <li><strong>Over-sanitizing real data.</strong> Source names, organization names, and location names can legitimately contain words that look medical or dental. <strong>Mitigation:</strong> do not rewrite raw entity names; only translate Alloro-authored labels and freeform generated prose fields such as action title/rationale/description.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>frontend/src/constants/orgLabels.ts</code>, PMS upload/modals/dashboard/file-manager components, shared dashboard alert utilities, setup/upload banners, Summary/Referral Engine action rendering, monthly-agent prompt files, Alloro Docs Referrals Hub and Integrations docs, and tests added for label/prompt resolution.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>This should not be treated as "finish all generic verticalization." It is a PMS-surface vocabulary correction. N8N prompts, external workflow payloads, and real generic ingestion semantics still need their own audit.</li>
+        <li>The better product name may eventually be <code>Revenue Hub</code> with no internal "PMS" concept at all. Future-us will hate a half-rename. For this plan, keep code identifiers stable and fix the user-visible layer only.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="dictionary">
+      <h2>PMS Copy Contract</h2>
+      <table>
+        <thead>
+          <tr><th>Concept</th><th>Health wording</th><th>Generic wording</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Data product</td><td>PMS data / practice management data</td><td>Revenue data</td></tr>
+          <tr><td>Upload CTA</td><td>Upload PMS data</td><td>Upload revenue data</td></tr>
+          <tr><td>Hub title</td><td>Referrals Hub / Referral Intelligence</td><td>Revenue Hub / Revenue Intelligence</td></tr>
+          <tr><td>Money metric</td><td>Production</td><td>Revenue</td></tr>
+          <tr><td>Volume metric</td><td>Referrals</td><td>Records</td></tr>
+          <tr><td>Source label</td><td>Referral Source</td><td>Source / Channel or Revenue Source</td></tr>
+          <tr><td>Source list</td><td>Referral Sources</td><td>Revenue Sources</td></tr>
+          <tr><td>External split</td><td>Doctor referrals</td><td>Partner-sourced records</td></tr>
+          <tr><td>Direct split</td><td>Self referrals / Self / walk-in</td><td>Direct records / Direct</td></tr>
+          <tr><td>Person ID</td><td>Patient ID or Name</td><td>Customer ID or Name</td></tr>
+          <tr><td>Type field</td><td>Referral Type</td><td>Source Type</td></tr>
+          <tr><td>Security badge</td><td>HIPAA secure</td><td>Secure upload</td></tr>
+        </tbody>
+      </table>
+      <p class="note">The exact key names can be adjusted during execution, but the contract above is the source of truth for visible behavior.</p>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: PMS Label Contract</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Extend <code>OrgLabels</code> with PMS-specific labels or add a typed PMS copy helper that consumes <code>OrgLabels</code>. Health values must reproduce current copy. Generic values must use the PMS copy contract above. Add frontend unit coverage for health/generic resolution.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/constants/orgLabels.ts</code>, optional <code>frontend/src/components/PMS/pmsCopy.ts</code>, optional <code>frontend/src/constants/orgLabels.test.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>cd frontend &amp;&amp; npx vitest run src/constants/orgLabels.test.ts</code></dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Upload And Mapping Copy</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Replace visible upload wizard, direct upload, template upload, sample report, toast, mapping drawer, and role-label copy with resolved PMS labels. Move or wrap <code>ROLE_LABELS</code> so it can render health/generic labels without importing React hooks into <code>api/</code>. Generic mapping must not show <code>Referral Source</code>, <code>Patient ID</code>, <code>Production</code>, <code>PMS</code>, or <code>practice management</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/api/pms/mapping.ts</code>, <code>frontend/src/components/PMS/ColumnMappingDrawer.tsx</code>, <code>frontend/src/components/PMS/PMSUploadWizardModal.tsx</code>, <code>frontend/src/components/PMS/DirectUploadModal.tsx</code>, <code>frontend/src/components/PMS/TemplateUploadModal.tsx</code>, <code>frontend/src/components/PMS/usePmsManualEntryUpload.ts</code>, <code>frontend/src/components/PMS/usePmsManualEntrySubmit.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Manual browser: generic upload and mapping flow shows revenue-data/source-channel copy; health still shows PMS/referral copy.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Manual Entry, Review, And File Management Copy</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Update manual entry titles, grid headers, row placeholders, summary cards, success/error states, latest-job review, data viewer, job editor modal, file-list empty states, delete confirmations, and file-manager labels. Generic labels should say records/revenue/customers/source-channel instead of referrals/production/patients/PMS.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/PMS/PMSManualEntryModal.tsx</code>, <code>frontend/src/components/PMS/PMSManualEntryModal/SummaryCards.tsx</code>, <code>frontend/src/components/PMS/PMSManualEntryModal/SourceRowItem.tsx</code>, <code>frontend/src/components/PMS/PMSLatestJobEditor.tsx</code>, <code>frontend/src/components/PMS/PMSLatestJobEditor/SourceRowItem.tsx</code>, <code>frontend/src/components/PMS/PMSDataViewer.tsx</code>, <code>frontend/src/components/PMS/PmsJobDataEditorModal.tsx</code>, <code>frontend/src/components/PMS/file-manager/PmsFileList.tsx</code>, <code>frontend/src/components/PMS/file-manager/PmsFileManager.tsx</code>, <code>frontend/src/components/PMS/file-manager/PmsFileHistoryPanel.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Manual browser: open generic Revenue Hub, upload/manage data, edit parsed data, and confirm no banned health terms appear in the visible modal/file-manager UI.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Dashboard, Empty, Processing, And Source Cards</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Update the Revenue Hub dashboard surface: hero, empty state, ingestion card, setup-required state, processing card, production/trend chart, source ranking, source mix, velocity, meaning card, top-source details, and helper aria labels. Generic should show revenue/records/source-channel language; health should remain referrals/production/PMS.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/PMS/PMSVisualPillars/PMSVisualPillarsSetupRequired.tsx</code>, <code>frontend/src/components/PMS/PMSVisualPillars/PMSVisualPillarsContent.tsx</code>, <code>frontend/src/components/PMS/dashboard/PmsDashboardHero.tsx</code>, <code>frontend/src/components/PMS/dashboard/PmsEmptyDashboardState.tsx</code>, <code>frontend/src/components/PMS/dashboard/PmsIngestionCard.tsx</code>, <code>frontend/src/components/PMS/dashboard/PmsProductionChart.tsx</code>, <code>frontend/src/components/PMS/dashboard/PmsReferralMixCard.tsx</code>, <code>frontend/src/components/PMS/dashboard/PmsTopSourcesCard.tsx</code>, <code>frontend/src/components/PMS/dashboard/PmsHubTrendChart.tsx</code>, <code>frontend/src/components/PMS/dashboard/PmsVelocityCard.tsx</code>, <code>frontend/src/components/PMS/dashboard/PmsProcessingStatusCard.tsx</code>, <code>frontend/src/components/PMS/dashboard/PmsReferralsMeaningCard.tsx</code>, <code>frontend/src/components/PMS/dashboard/PmsHubTopSources.tsx</code>, <code>frontend/src/components/PMS/dashboard/PmsDataTrendGraph.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Manual browser: generic Revenue Hub loaded, empty, and processing states show no <code>PMS</code>, <code>Referral Source</code>, <code>Doctor referrals</code>, <code>Self referrals</code>, <code>Production</code>, or <code>Patient</code>.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: PMS Verbiage Audit Guard</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add or document a targeted audit command for client-visible PMS strings. Use it after implementation to catch remaining banned generic terms in JSX text, labels, toast strings, and docs copy. Internal comments/types may remain if not visible, but visible strings must route through labels.</dd></div>
+          <div><dt>Files</dt><dd>Optional <code>frontend/src/components/PMS/pmsCopy.test.ts</code> or documented commands in this plan's acceptance artifact</dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3, T4</dd></div>
+          <div><dt>Verify</dt><dd><code>rg -n "Referral Source|Doctor referrals|Self referrals|Patient ID|Practice Management|Upload PMS|PMS data|Production" frontend/src/components/PMS frontend/src/api/pms</code> then classify every hit as internal-only or fixed.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Alloro Docs Parity</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Update Alloro Docs to match the new health/generic wording expectations. At minimum, the Referrals Hub docs should describe the org-type wording behavior and avoid claiming generic orgs manage referral sources. Update Integrations PMS-upload guidance if the app now says revenue data for generic orgs.</dd></div>
+          <div><dt>Files</dt><dd><code>/Users/rustinedave/Desktop/alloro-docs/src/components/replicas/ReferralsHubReplica.tsx</code>, <code>/Users/rustinedave/Desktop/alloro-docs/src/data/pages/referrals-hub.ts</code>, <code>/Users/rustinedave/Desktop/alloro-docs/src/data/pages.ts</code>, <code>/Users/rustinedave/Desktop/alloro-docs/src/components/replicas/IntegrationsReplica.tsx</code>, <code>/Users/rustinedave/Desktop/alloro-docs/src/data/pages/settings-integrations.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3, T4</dd></div>
+          <div><dt>Verify</dt><dd><code>cd /Users/rustinedave/Desktop/alloro-docs &amp;&amp; npx tsc --noEmit</code></dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: Verification And Acceptance Artifact</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Run TypeScript, relevant unit tests, convention checks, browser QA for one generic org and one health org, and generate <code>test.html</code> plus <code>test-results.json</code> in this plan folder. Record any waived items explicitly.</dd></div>
+          <div><dt>Files</dt><dd><code>plans/06292026-generic-revenue-data-verbiage/test.html</code>, <code>plans/06292026-generic-revenue-data-verbiage/test-results.json</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2, T3, T4, T5, T6, T8, T9, T10</dd></div>
+          <div><dt>Verify</dt><dd><code>cd frontend &amp;&amp; npx tsc -p tsconfig.app.json --noEmit</code>, relevant Vitest command, <code>npm run check:all</code>, docs TypeScript, browser QA.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T8 (Rev 1): Shared Alert, Setup, And Empty-State Copy</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Make shared dashboard alerts, focus-period nudges, setup banners, and empty states consume PMS copy or org labels. Generic must render <code>revenue data</code>, <code>revenue insights</code>, <code>source</code>, <code>records</code>, and <code>business</code>; health must keep <code>PMS data</code>, <code>referral</code>, <code>production</code>, and <code>practice</code>. Include the exact failures from Pilot QA: <code>May 2026 PMS data ready?</code>, <code>Upload PMS data</code>, <code>referral and production insights</code>, and <code>Upload PMS data to see your revenue trend</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/utils/dashboardAlerts.ts</code>, <code>frontend/src/utils/pmsFocusPeriod.ts</code>, <code>frontend/src/components/dashboard/DashboardOverview.tsx</code>, <code>frontend/src/components/PMS/PMSVisualPillars.tsx</code>, <code>frontend/src/components/dashboard/focus/ProductionPanel.tsx</code>, <code>frontend/src/components/settings/PMSUploadBanner.tsx</code>, <code>frontend/src/components/SetupProgressWizard/SetupProgressWizard.tsx</code>, <code>frontend/src/pages/Dashboard.tsx</code>, optional <code>frontend/src/components/onboarding-wizard/wizardConfig.ts</code> and <code>wizardDemoData.ts</code> if those tour strings render for generic accounts.</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Manual browser: Pilot into Alloro Team generic and One Endodontics switched generic; dashboard alerts and empty/setup states contain no <code>PMS</code>, <code>referral</code>, <code>production</code>, <code>patient</code>, or <code>practice management</code> unless it is raw customer data.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T9 (Rev 1): Generic Monthly-Agent Prompt And Stale Output Handling</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Extend backend prompt placeholders for PMS/revenue-data concepts and replace remaining hardcoded monthly-agent prose in <code>ReferralEngineAnalysis.md</code> and <code>Summary.md</code>. Fix generic prompt values that still say <code>referral partner</code> when the directive says <code>partner</code>. Add tests proving generic prompt substitution produces no banned healthcare prose outside JSON schema keys. For existing stored outputs, add a narrow frontend display helper for generic orgs that translates or suppresses freeform action text fields only (<code>title</code>, <code>rationale</code>, <code>description</code>, <code>detail</code>), without mutating source names, organization names, location names, or stored database rows.</dd></div>
+          <div><dt>Files</dt><dd><code>src/config/orgLabels.ts</code>, <code>src/__tests__/orgLabels.test.ts</code>, <code>src/agents/monthlyAgents/ReferralEngineAnalysis.md</code>, <code>src/agents/monthlyAgents/Summary.md</code>, <code>frontend/src/hooks/queries/useTopAction.ts</code>, <code>frontend/src/components/dashboard/focus/OneThingBanner.tsx</code>, <code>frontend/src/components/PMS/dashboard/PmsHubSurface.tsx</code>, optional new typed helper under <code>frontend/src/utils/</code> or <code>frontend/src/components/PMS/</code> for generic generated-copy display.</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Unit: substituted generic monthly prompts and display helper contain no banned healthcare words in freeform prose. Manual browser: One Endodontics switched generic no longer shows <code>patients</code>, <code>doctor referral source</code>, <code>referrals</code>, or <code>production</code> in the Practice Hub or Revenue Hub action cards.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T10 (Rev 1): Multi-Account Pilot Acceptance Matrix</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Repeat the failed Pilot QA matrix after implementation. Test existing-data health, existing-data generic, type-switched generic, type-switched health, and generic no-data accounts. Restore all switched org types after the run and record concrete evidence in <code>test-results.json</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>plans/06292026-generic-revenue-data-verbiage/test-results.json</code>, <code>plans/06292026-generic-revenue-data-verbiage/test.html</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3, T4, T8, T9</dd></div>
+          <div><dt>Verify</dt><dd>Manual/browser script: One Endodontics health baseline, One Endodontics switched generic, DentalEMR generic baseline, DentalEMR switched health, Alloro Team generic no-data. Generic surfaces must be clean across labels, alerts, empty states, file manager, manual entry, and action cards; health must remain health.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T11 (Rev 2): Edge Route Verbiage Hardening</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Fix the generic-only failures found by the stricter edge scan: the standalone <code>/referralEngine</code> route must use revenue/record/partner/business copy instead of referral/doctor/PMS/HIPAA/practice copy, <code>/tasks</code> must translate stored generated task titles/descriptions plus its team-task subtitle for generic orgs, and <code>/rankings</code> empty/competitor copy must say business/customer instead of practice/patient.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/ReferralEngineDashboard.tsx</code>, <code>frontend/src/components/tasks/TasksView.tsx</code>, <code>frontend/src/components/tasks/TasksView/TaskCard.tsx</code>, <code>frontend/src/components/dashboard/rankings-hub/RankingsHubSurface.tsx</code>, <code>frontend/src/components/dashboard/RankingsDashboard/LocalSearchEstimateSummary.tsx</code>, <code>frontend/src/components/dashboard/RankingsDashboard/SearchPositionSection.tsx</code>, <code>frontend/src/utils/generatedCopy.test.ts</code>, <code>plans/06292026-generic-revenue-data-verbiage/test-results.json</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1, T9</dd></div>
+          <div><dt>Verify</dt><dd>Browser script: DentalEMR generic and Alloro Team generic no-data pass <code>/referralEngine</code>, <code>/tasks</code>, and app-authored <code>/rankings</code> copy; One Endodontics health still shows health vocabulary.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> Generic org upload wizard says <code>Revenue data</code> and never says <code>PMS</code> or <code>Practice Management System</code>.</li>
+        <li><input type="checkbox" disabled> Generic column mapping says <code>Source / Channel</code> or <code>Revenue Source</code>, not <code>Referral Source</code>; customer labels replace patient labels.</li>
+        <li><input type="checkbox" disabled> Generic dashboard/review/file-manager surfaces contain no visible <code>Referral Source</code>, <code>Doctor referrals</code>, <code>Self referrals</code>, <code>Patient ID</code>, or <code>Production</code>.</li>
+        <li><input type="checkbox" disabled> Generic Practice Hub and Revenue Hub alert copy says <code>revenue data</code> / <code>revenue insights</code>, never <code>PMS data</code>, <code>referral and production insights</code>, or <code>Upload PMS data</code>.</li>
+        <li><input type="checkbox" disabled> Generic no-data and setup states, including Alloro Team generic no-data, do not show <code>Upload PMS data to see your revenue trend</code> or other PMS/practice-management phrasing.</li>
+        <li><input type="checkbox" disabled> Generic AI/action cards do not show healthcare freeform copy such as <code>patients</code>, <code>doctor referral source</code>, <code>referrals</code>, or <code>production</code>; existing stored output is translated or suppressed at display time without rewriting database rows.</li>
+        <li><input type="checkbox" disabled> Generic <code>/referralEngine</code>, <code>/tasks</code>, and app-authored <code>/rankings</code> edge-route copy do not show app-authored <code>PMS</code>, <code>Referral</code>, <code>doctor</code>, <code>production</code>, <code>HIPAA</code>, <code>Sync your practice</code>, <code>Avg / Ref</code>, <code>practice staff</code>, or healthcare <code>practice</code>/<code>patient</code> wording; raw entity names remain untouched.</li>
+        <li><input type="checkbox" disabled> Generic monthly-agent prompts substitute all PMS/revenue-data prose placeholders and tests prove generic prompt prose avoids banned healthcare terms while preserving schema keys.</li>
+        <li><input type="checkbox" disabled> Pilot acceptance matrix rerun covers One Endodontics health, One Endodontics switched generic, DentalEMR generic, DentalEMR switched health, and Alloro Team generic; switched org types are restored afterward.</li>
+        <li><input type="checkbox" disabled> Health org PMS wording remains unchanged.</li>
+        <li><input type="checkbox" disabled> Data/API/DB/internal PMS identifiers are unchanged.</li>
+        <li><input type="checkbox" disabled> Alloro Docs parity checked and updated or explicitly waived with reason.</li>
+        <li><input type="checkbox" disabled> <code>cd frontend &amp;&amp; npx tsc -p tsconfig.app.json --noEmit</code> passes or only pre-existing unrelated errors are documented.</li>
+        <li><input type="checkbox" disabled> Relevant Vitest coverage for label resolution passes.</li>
+        <li><input type="checkbox" disabled> <code>npm run check:all</code> run; new violations fixed; pre-existing violations classified.</li>
+        <li><input type="checkbox" disabled> <code>test-results.json</code> rolls up to <code>Passed</code> before <code>-d</code>.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-06-29</h3>
+        <p><strong>Change:</strong> Added continuation scope for the failed multi-account Pilot QA: shared dashboard alerts, setup/empty states, monthly-agent prompt prose, and stale generated action-card display handling. Added tasks T8, T9, and T10, plus matching Done criteria.</p>
+        <p><strong>Reason:</strong> User QA: generic account testing proved the first PMS-label pass was incomplete. One Endodontics switched to generic still showed <code>PMS data</code>, <code>referral and production insights</code>, <code>patients</code>, <code>doctor referral source</code>, and <code>production</code>. Alloro Team generic no-data still showed <code>Upload PMS data to see your revenue trend</code>. DentalEMR generic passed the rendered hub wording, so the issue is not org-type switching itself; it is uncovered shared copy and generated/stale action prose.</p>
+        <p><strong>Updated Done criteria:</strong> Generic alerts, setup states, no-data states, and AI/action cards must be free of healthcare vocabulary; generic monthly-agent prompt prose must be parameterized; the multi-account Pilot matrix must be rerun and recorded in <code>test-results.json</code> with switched orgs restored afterward.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-06-29</h3>
+        <p><strong>Change:</strong> Added T11 for the stricter edge scan failures on <code>/referralEngine</code>, <code>/tasks</code>, and <code>/rankings</code>. The fix keeps raw entity/source names intact while translating Alloro-authored labels and stored generated task prose for generic orgs.</p>
+        <p><strong>Reason:</strong> Execution deviation: after the completed acceptance pass, an additional browser text scan found generic DentalEMR and Alloro Team still saw <code>Referral Velocity Pipeline</code>, <code>Doctors</code>, <code>PMS exports</code>, <code>HIPAA secure</code>, <code>Sync your practice</code>, <code>Avg / Ref</code>, and <code>practice staff</code> on edge routes outside the original PMS hub click path. The same scan also exposed app-authored rankings copy saying <code>Couldn't locate your practice on Google</code>.</p>
+        <p><strong>Updated Done criteria:</strong> Generic <code>/referralEngine</code>, <code>/tasks</code>, and app-authored <code>/rankings</code> copy must pass the edge browser scan; health pages must keep health wording; raw source, organization, and location names are not rewritten.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

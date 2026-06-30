@@ -19,12 +19,15 @@ import {
 import { log, logError, isValidAgentOutput, logAgentOutput } from "../feature-utils/agentLogger";
 import { getDailyDates } from "../feature-utils/dateHelpers";
 import { loadPrompt } from "../../../agents/service.prompt-loader";
+import { substitutePromptPlaceholders } from "../../../agents/service.prompt-substituter";
+import { resolveOrgType } from "../../../config/orgLabels";
 import { runAgent } from "../../../agents/service.llm-runner";
 import {
   buildProoflinePayload,
   flattenDailyGbpData,
 } from "./service.agent-input-builder";
 import { GooglePropertyModel } from "../../../models/GooglePropertyModel";
+import { OrganizationModel } from "../../../models/OrganizationModel";
 import { fetchRybbitDailyComparison } from "../../../utils/rybbit/service.rybbit-data";
 
 /**
@@ -121,7 +124,13 @@ export async function processDailyAgent(
     });
 
     log(`  [DAILY] Running Proofline agent via Claude directly`);
-    const systemPrompt = loadPrompt("dailyAgents/Proofline");
+    const orgType = resolveOrgType(
+      (await OrganizationModel.findById(organizationId))?.organization_type
+    );
+    const systemPrompt = substitutePromptPlaceholders(
+      loadPrompt("dailyAgents/Proofline"),
+      orgType
+    );
     const userMessage = JSON.stringify(payload, null, 2);
 
     const result = await runAgent({

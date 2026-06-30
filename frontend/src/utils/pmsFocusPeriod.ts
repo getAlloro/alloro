@@ -12,6 +12,18 @@ export type PmsFocusPeriod = {
   nudgeBody: string;
 };
 
+export type PmsFocusPeriodCopy = {
+  dataNameLower: string;
+  insightsSubject: string;
+  moneyLower: string;
+};
+
+const DEFAULT_FOCUS_COPY: PmsFocusPeriodCopy = {
+  dataNameLower: "PMS data",
+  insightsSubject: "referral",
+  moneyLower: "production",
+};
+
 const MONTH_PATTERN = /^(\d{4})-(\d{2})/;
 
 function monthKeyFromDate(date: Date): string {
@@ -63,6 +75,7 @@ function nextMonth(date: Date): Date {
 function buildNudge(
   latestMonthKeyValue: string | null,
   currentDate: Date,
+  copy: PmsFocusPeriodCopy,
 ): Pick<
   PmsFocusPeriod,
   "uploadMonthLabel" | "nudgeTitle" | "nudgeBody"
@@ -73,18 +86,19 @@ function buildNudge(
   const uploadMonthLabel = formatMonthYear(uploadDate);
   return {
     uploadMonthLabel,
-    nudgeTitle: `${uploadMonthLabel} PMS data ready?`,
+    nudgeTitle: `${uploadMonthLabel} ${copy.dataNameLower} ready?`,
     nudgeBody:
-      `Upload ${uploadMonthLabel} PMS data to refresh the focus card with the newest referral and production insights.`,
+      `Upload ${uploadMonthLabel} ${copy.dataNameLower} to refresh the focus card with the newest ${copy.insightsSubject} and ${copy.moneyLower} insights.`,
   };
 }
 
 export function derivePmsFocusPeriod(
   months: PmsKeyDataMonth[] | undefined,
   currentDate = new Date(),
+  copy: PmsFocusPeriodCopy = DEFAULT_FOCUS_COPY,
 ): PmsFocusPeriod {
   const latestKey = latestMonthKey(months);
-  const nudge = buildNudge(latestKey, currentDate);
+  const nudge = buildNudge(latestKey, currentDate, copy);
 
   if (!latestKey) {
     return {

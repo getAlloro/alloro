@@ -22,6 +22,7 @@ import { PMSVisualPillarsLoadingState } from "./PMSVisualPillars/PMSVisualPillar
 import { PMSVisualPillarsSetupRequired } from "./PMSVisualPillars/PMSVisualPillarsSetupRequired";
 import { PMSVisualPillarsContent } from "./PMSVisualPillars/PMSVisualPillarsContent";
 import { PMSVisualPillarsModals } from "./PMSVisualPillars/PMSVisualPillarsModals";
+import { usePmsCopy } from "./pmsCopy";
 
 // Removed DEFAULT_DOMAIN - domain should always be provided by parent component
 // to prevent race condition where wrong domain is used on initial render
@@ -46,6 +47,7 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
   hasProperties = true,
 }) => {
   const navigate = useNavigate();
+  const copy = usePmsCopy();
 
   // Wizard state
   const isWizardActive = useIsWizardActive();
@@ -115,12 +117,54 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
     if (!demoData) {
       // Fallback demo data
       return [
-        { month: "Jan", selfReferrals: 12, doctorReferrals: 8, total: 20, totalReferrals: 20, productionTotal: 24000 },
-        { month: "Feb", selfReferrals: 15, doctorReferrals: 10, total: 25, totalReferrals: 25, productionTotal: 30000 },
-        { month: "Mar", selfReferrals: 18, doctorReferrals: 12, total: 30, totalReferrals: 30, productionTotal: 36000 },
-        { month: "Apr", selfReferrals: 14, doctorReferrals: 11, total: 25, totalReferrals: 25, productionTotal: 30000 },
-        { month: "May", selfReferrals: 20, doctorReferrals: 14, total: 34, totalReferrals: 34, productionTotal: 40000 },
-        { month: "Jun", selfReferrals: 22, doctorReferrals: 13, total: 35, totalReferrals: 35, productionTotal: 42000 },
+        {
+          month: "Jan",
+          selfReferrals: 12,
+          doctorReferrals: 8,
+          total: 20,
+          totalReferrals: 20,
+          productionTotal: 24000,
+        },
+        {
+          month: "Feb",
+          selfReferrals: 15,
+          doctorReferrals: 10,
+          total: 25,
+          totalReferrals: 25,
+          productionTotal: 30000,
+        },
+        {
+          month: "Mar",
+          selfReferrals: 18,
+          doctorReferrals: 12,
+          total: 30,
+          totalReferrals: 30,
+          productionTotal: 36000,
+        },
+        {
+          month: "Apr",
+          selfReferrals: 14,
+          doctorReferrals: 11,
+          total: 25,
+          totalReferrals: 25,
+          productionTotal: 30000,
+        },
+        {
+          month: "May",
+          selfReferrals: 20,
+          doctorReferrals: 14,
+          total: 34,
+          totalReferrals: 34,
+          productionTotal: 40000,
+        },
+        {
+          month: "Jun",
+          selfReferrals: 22,
+          doctorReferrals: 13,
+          total: 35,
+          totalReferrals: 35,
+          productionTotal: 42000,
+        },
       ];
     }
     return demoData.map((m) => ({
@@ -140,33 +184,93 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
         start_date: "2025-01-01",
         end_date: "2025-06-30",
       },
-      executive_summary: [
-        "Marketing referrals show strong growth trajectory",
-        "Doctor referral network expanding steadily",
-        "Overall conversion rates above industry average",
-      ],
+      executive_summary: copy.demoExecutiveSummary,
       doctor_referral_matrix: [
-        { referrer_name: "Dr. Sarah Johnson", referred: 12, pct_scheduled: 92, pct_examined: 85, pct_started: 75, net_production: 18500, trend_label: "increasing" },
-        { referrer_name: "Dr. Michael Chen", referred: 8, pct_scheduled: 88, pct_examined: 80, pct_started: 70, net_production: 12000, trend_label: "stable" },
-        { referrer_name: "Dr. Emily Davis", referred: 6, pct_scheduled: 95, pct_examined: 90, pct_started: 82, net_production: 10800, trend_label: "new" },
-        { referrer_name: "Dr. Robert Wilson", referred: 5, pct_scheduled: 80, pct_examined: 75, pct_started: 65, net_production: 7500, trend_label: "decreasing" },
+        {
+          referrer_name: copy.demoPartnerSourceNames[0],
+          referred: 12,
+          pct_scheduled: 92,
+          pct_examined: 85,
+          pct_started: 75,
+          net_production: 18500,
+          trend_label: "increasing",
+        },
+        {
+          referrer_name: copy.demoPartnerSourceNames[1],
+          referred: 8,
+          pct_scheduled: 88,
+          pct_examined: 80,
+          pct_started: 70,
+          net_production: 12000,
+          trend_label: "stable",
+        },
+        {
+          referrer_name: copy.demoPartnerSourceNames[2],
+          referred: 6,
+          pct_scheduled: 95,
+          pct_examined: 90,
+          pct_started: 82,
+          net_production: 10800,
+          trend_label: "new",
+        },
+        {
+          referrer_name: copy.demoPartnerSourceNames[3],
+          referred: 5,
+          pct_scheduled: 80,
+          pct_examined: 75,
+          pct_started: 65,
+          net_production: 7500,
+          trend_label: "decreasing",
+        },
       ],
       non_doctor_referral_matrix: [
-        { source_label: "Google Search", source_type: "digital", referred: 35, pct_scheduled: 78, pct_examined: 70, pct_started: 58, net_production: 42000, trend_label: "increasing" },
-        { source_label: "Patient Referral", source_type: "patient", referred: 28, pct_scheduled: 95, pct_examined: 90, pct_started: 85, net_production: 52000, trend_label: "increasing" },
-        { source_label: "Facebook Ads", source_type: "digital", referred: 18, pct_scheduled: 65, pct_examined: 55, pct_started: 45, net_production: 18000, trend_label: "stable" },
-        { source_label: "Website Direct", source_type: "digital", referred: 14, pct_scheduled: 72, pct_examined: 65, pct_started: 55, net_production: 16800, trend_label: "new" },
+        {
+          source_label: "Google Search",
+          source_type: "digital",
+          referred: 35,
+          pct_scheduled: 78,
+          pct_examined: 70,
+          pct_started: 58,
+          net_production: 42000,
+          trend_label: "increasing",
+        },
+        {
+          source_label: copy.demoDirectCustomerSource,
+          source_type: "patient",
+          referred: 28,
+          pct_scheduled: 95,
+          pct_examined: 90,
+          pct_started: 85,
+          net_production: 52000,
+          trend_label: "increasing",
+        },
+        {
+          source_label: "Facebook Ads",
+          source_type: "digital",
+          referred: 18,
+          pct_scheduled: 65,
+          pct_examined: 55,
+          pct_started: 45,
+          net_production: 18000,
+          trend_label: "stable",
+        },
+        {
+          source_label: "Website Direct",
+          source_type: "digital",
+          referred: 14,
+          pct_scheduled: 72,
+          pct_examined: 65,
+          pct_started: 55,
+          net_production: 16800,
+          trend_label: "new",
+        },
       ],
       growth_opportunity_summary: {
-        top_three_fixes: [
-          "Increase follow-up on Google Search leads to improve conversion",
-          "Implement patient referral program incentives",
-          "Optimize Facebook ad targeting for higher quality leads",
-        ],
+        top_three_fixes: copy.demoTopFixes,
         estimated_additional_annual_revenue: 45000,
       },
     };
-  }, []);
+  }, [copy]);
 
   const monthlyData = useMemo(() => {
     // Use wizard demo data if wizard is active and no real data
@@ -183,10 +287,10 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
       const doctorReferrals = Number(month.doctorReferrals ?? 0);
       const totalReferrals = Number(month.totalReferrals ?? 0);
       const productionTotal = Number(
-        month.actualProductionTotal ?? month.productionTotal ?? 0
+        month.actualProductionTotal ?? month.productionTotal ?? 0,
       );
       const attributedProductionTotal = Number(
-        month.attributedProductionTotal ?? month.productionTotal ?? 0
+        month.attributedProductionTotal ?? month.productionTotal ?? 0,
       );
 
       return {
@@ -215,16 +319,20 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
 
   // Calculate total production from sources
   // Use wizard demo data for topSources when wizard is active and no real source data
-  const topSources = (keyData?.sources?.length ? keyData.sources : null)
-    ?? (isWizardActive ? wizardDemoData?.pmsTopSources ?? [] : []);
+  const topSources =
+    (keyData?.sources?.length ? keyData.sources : null) ??
+    (isWizardActive ? (wizardDemoData?.pmsTopSources ?? []) : []);
 
   const focusPeriod = useMemo(
-    () => derivePmsFocusPeriod(keyData?.months, new Date()),
-    [keyData?.months],
+    () => derivePmsFocusPeriod(keyData?.months, new Date(), copy),
+    [keyData?.months, copy],
   );
 
   const totalProduction = useMemo(() => {
-    const realProduction = topSources.reduce((sum, s) => sum + (s.production || 0), 0);
+    const realProduction = topSources.reduce(
+      (sum, s) => sum + (s.production || 0),
+      0,
+    );
     // Use wizard demo data if wizard is active and no real production data
     if (isWizardActive && realProduction === 0) {
       return wizardDemoData?.referralData?.keyData?.mktProduction ?? 89000;
@@ -259,7 +367,8 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
     if (isWizardActive) {
       const demoKeyData = wizardDemoData?.referralData?.keyData;
       if (demoKeyData) {
-        const total = (demoKeyData.mktProduction ?? 0) + (demoKeyData.docProduction ?? 0);
+        const total =
+          (demoKeyData.mktProduction ?? 0) + (demoKeyData.docProduction ?? 0);
         if (total > 0) {
           return Math.round(((demoKeyData.docProduction ?? 0) / total) * 100);
         }
@@ -345,7 +454,7 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
       const message =
         err instanceof Error
           ? err.message
-          : "Unable to confirm PMS data approval.";
+          : `Unable to confirm ${copy.dataNameLower} approval.`;
       setBannerError(message);
       // Reset pending state on error
       setReferralPending(false);
@@ -358,6 +467,7 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
     storageKey,
     setReferralPending,
     setReferralData,
+    copy.dataNameLower,
   ]);
 
   const handleEditorSaved = useCallback(async () => {
@@ -482,6 +592,7 @@ export const PMSVisualPillars: React.FC<PMSVisualPillarsProps> = ({
     // Hidden while a run is processing — the processing card owns that state.
     insightsStale: insightsStale && !showDashboardProcessingStatus,
     focusPeriod,
+    copy,
     actions: {
       getUpdatedInsights: {
         onClick: handleGetUpdatedInsights,

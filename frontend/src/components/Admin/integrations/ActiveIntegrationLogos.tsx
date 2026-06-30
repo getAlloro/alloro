@@ -1,13 +1,7 @@
 import type { ReactNode } from "react";
 
+import type { ActiveIntegration, IntegrationPlatform } from "../../../types/integrations";
 import { ClarityLogo, GoogleLogo, HubSpotLogo, RybbitLogo } from "./integrationLogos";
-
-export type IntegrationPlatform = "hubspot" | "rybbit" | "clarity" | "gsc";
-
-export type ActiveIntegration = {
-  platform: IntegrationPlatform;
-  status: string;
-};
 
 const INTEGRATION_ORDER: IntegrationPlatform[] = ["hubspot", "rybbit", "clarity", "gsc"];
 

@@ -1,6 +1,6 @@
 import { UsersRound } from "lucide-react";
 import { PmsCardShell } from "./primitives";
-import { useLabels } from "../../../hooks/useLabels";
+import { usePmsCopy } from "../pmsCopy";
 
 export type PmsReferralMixCardProps = {
   doctorPercentage: number;
@@ -24,7 +24,7 @@ export function PmsReferralMixCard({
   totalReferrals,
   isProcessingInsights,
 }: PmsReferralMixCardProps) {
-  const labels = useLabels();
+  const copy = usePmsCopy();
   const hasReferralMix = totalReferrals > 0;
   const doctorPct = hasReferralMix ? Math.round(doctorPercentage) : 0;
   const selfPct = hasReferralMix ? Math.max(100 - doctorPct, 0) : 0;
@@ -33,8 +33,8 @@ export function PmsReferralMixCard({
 
   return (
     <PmsCardShell
-      eyebrow={labels.referralMix}
-      title={`Where your ${labels.referralsShort.toLowerCase()} come from`}
+      eyebrow={copy.mixEyebrow}
+      title={copy.mixTitle}
       action={
         <span className="inline-flex items-center justify-center rounded-xl bg-alloro-orange/10 p-2.5 text-alloro-orange">
           <UsersRound className="h-5 w-5" />
@@ -44,7 +44,8 @@ export function PmsReferralMixCard({
       {hasReferralMix ? (
         <>
           <p className="-mt-1 mb-5 text-xs font-semibold uppercase tracking-wider text-[color:var(--color-pm-text-secondary)]">
-            All-time · {totalReferrals.toLocaleString("en-US")} {labels.referralsShort.toLowerCase()} observed
+            All-time · {totalReferrals.toLocaleString("en-US")}{" "}
+            {copy.mixObservedLabel}
           </p>
 
           <div className="grid grid-cols-2 gap-5">
@@ -53,7 +54,7 @@ export function PmsReferralMixCard({
                 {selfPct}%
               </div>
               <p className="mt-1 text-xs font-bold uppercase tracking-wider text-[color:var(--color-pm-text-secondary)]">
-                Self / walk-in
+                {copy.directLegendLabel}
               </p>
               <p className="mt-2 text-2xl font-black text-alloro-navy tabular-nums">
                 {selfCount.toLocaleString("en-US")}
@@ -64,7 +65,7 @@ export function PmsReferralMixCard({
                 {doctorPct}%
               </div>
               <p className="mt-1 text-xs font-bold uppercase tracking-wider text-[color:var(--color-pm-text-secondary)]">
-                Doctor referrals
+                {copy.partnerSummaryLabel}
               </p>
               <p className="mt-2 text-2xl font-black text-alloro-navy tabular-nums">
                 {doctorCount.toLocaleString("en-US")}
@@ -78,25 +79,37 @@ export function PmsReferralMixCard({
             preserveAspectRatio="none"
           >
             <rect width="100" height="8" rx="4" fill="var(--color-line-soft)" />
-            <rect width={selfPct} height="8" rx="4" fill="var(--color-pm-border-hover)" />
-            <rect x={selfPct} width={doctorPct} height="8" rx="4" fill="var(--color-alloro-orange)" />
+            <rect
+              width={selfPct}
+              height="8"
+              rx="4"
+              fill="var(--color-pm-border-hover)"
+            />
+            <rect
+              x={selfPct}
+              width={doctorPct}
+              height="8"
+              rx="4"
+              fill="var(--color-alloro-orange)"
+            />
           </svg>
           <div className="mt-3 flex gap-5 text-[10px] font-black uppercase tracking-widest text-[color:var(--color-pm-text-secondary)]">
             <span className="inline-flex items-center gap-2">
-              <span className="h-2 w-2 rounded-sm" style={{ background: "var(--color-pm-border-hover)" }} />
-              Self
+              <span
+                className="h-2 w-2 rounded-sm"
+                style={{ background: "var(--color-pm-border-hover)" }}
+              />
+              {copy.directLegendLabel}
             </span>
             <span className="inline-flex items-center gap-2">
               <span className="h-2 w-2 rounded-sm bg-alloro-orange" />
-              Doctor
+              {copy.partnerLegendLabel}
             </span>
           </div>
         </>
       ) : (
         <div className="rounded-xl border border-dashed border-line-soft bg-[#F7F5F3] p-6 text-sm font-medium leading-6 text-[color:var(--color-pm-text-secondary)]">
-          {isProcessingInsights
-            ? `Your ${labels.referralMix.toLowerCase()} will appear here once PMS processing finishes.`
-            : `Your ${labels.referralMix.toLowerCase()} will appear here after PMS data is uploaded.`}
+          {isProcessingInsights ? copy.mixEmptyProcessing : copy.mixEmpty}
         </div>
       )}
     </PmsCardShell>

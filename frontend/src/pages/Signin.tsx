@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff, Loader2, LogIn } from "lucide-react";
 import authPassword from "../api/auth-password";
+import { setAuthSession } from "../api";
 
 export default function SignIn() {
   const navigate = useNavigate();
@@ -29,10 +30,7 @@ export default function SignIn() {
         localStorage.removeItem("onboardingCompleted");
         localStorage.removeItem("hasProperties");
 
-        localStorage.setItem("auth_token", response.token);
-        if (response.user?.role) {
-          localStorage.setItem("user_role", response.user.role);
-        }
+        setAuthSession({ token: response.token, role: response.user?.role });
 
         setMessage("Success! Redirecting...");
         setTimeout(() => {

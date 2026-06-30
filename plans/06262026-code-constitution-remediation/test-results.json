@@ -1,0 +1,65 @@
+{
+  "plan": "plans/06262026-code-constitution-remediation",
+  "generatedAt": "2026-06-26",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Convention runner strict gate passes",
+      "surface": "cli",
+      "precondition": "Run from /Users/rustinedave/Desktop/alloro after remediation changes are applied.",
+      "steps": [
+        "1. Run npm run check:conventions -- --strict"
+      ],
+      "expected": "The command exits 0 with no runtime files over 800 lines, no backend console.* files, no db() outside models, no frontend raw fetch/axios bypasses, no dangerouslySetInnerHTML, no JWT/token reads outside the API client, no knex .raw( outside models, and no frontend import-boundary breaches.",
+      "status": "pass",
+      "evidence": "Passed locally on 2026-06-26. Remaining §11.7 tenant-scope model rows are heuristic/manual-review advisory items.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Backend TypeScript and tests pass",
+      "surface": "cli",
+      "precondition": "Run from /Users/rustinedave/Desktop/alloro.",
+      "steps": [
+        "1. Run npx tsc --noEmit",
+        "2. Run npm test"
+      ],
+      "expected": "TypeScript exits 0 and Vitest passes.",
+      "status": "pass",
+      "evidence": "npx tsc --noEmit exited 0. npm test passed 14 files and 69 tests.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Frontend build and quiet lint pass",
+      "surface": "cli",
+      "precondition": "Run from /Users/rustinedave/Desktop/alloro.",
+      "steps": [
+        "1. Run npm --prefix frontend run build",
+        "2. Run npm --prefix frontend run lint -- --quiet"
+      ],
+      "expected": "The frontend production build exits 0 and quiet lint exits 0.",
+      "status": "pass",
+      "evidence": "Frontend build passed with existing Vite warnings. Quiet frontend lint exited 0.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Dependency cruise has no new app database-layer warning",
+      "surface": "cli",
+      "precondition": "Run from /Users/rustinedave/Desktop/alloro.",
+      "steps": [
+        "1. Run npm run depcruise"
+      ],
+      "expected": "The command exits 0. The prior src/app.ts -> src/database/connection.ts warning is gone.",
+      "status": "pass",
+      "evidence": "npm run depcruise exited 0 with 32 remaining existing warnings; src/app.ts no longer appears in the warning list.",
+      "notes": "",
+      "waiver": ""
+    }
+  ]
+}

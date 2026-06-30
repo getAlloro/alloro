@@ -1,5 +1,9 @@
 import { Clock3, History } from "lucide-react";
-import type { PmsFileManagerFileDetail, PmsFileManagerEvent } from "../../../api/pms";
+import type {
+  PmsFileManagerFileDetail,
+  PmsFileManagerEvent,
+} from "../../../api/pms";
+import { usePmsCopy } from "../pmsCopy";
 
 export type PmsFileHistoryPanelProps = {
   file: PmsFileManagerFileDetail | null;
@@ -12,6 +16,8 @@ export function PmsFileHistoryPanel({
   isLoading,
   onClose,
 }: PmsFileHistoryPanelProps) {
+  const copy = usePmsCopy();
+
   if (!file && !isLoading) return null;
 
   return (
@@ -22,7 +28,7 @@ export function PmsFileHistoryPanel({
             Edit History
           </p>
           <h3 className="mt-1 font-display text-xl font-semibold text-alloro-navy">
-            {file?.original_file_name ?? "PMS file"}
+            {file?.original_file_name ?? copy.historyFallbackFile}
           </h3>
         </div>
         <button
@@ -76,8 +82,12 @@ function describeEvent(event: PmsFileManagerEvent) {
     : [];
 
   if (changes.length > 0) {
-    const months = [...new Set(changes.map((change) => change.month).filter(Boolean))];
-    const fields = [...new Set(changes.map((change) => change.field).filter(Boolean))];
+    const months = [
+      ...new Set(changes.map((change) => change.month).filter(Boolean)),
+    ];
+    const fields = [
+      ...new Set(changes.map((change) => change.field).filter(Boolean)),
+    ];
     return `${changes.length} field change${changes.length === 1 ? "" : "s"} across ${formatList(months)}: ${formatList(fields.map(formatField))}.`;
   }
 
@@ -121,7 +131,10 @@ function formatField(value: string | undefined) {
 function formatMonth(month: string) {
   const parsed = new Date(`${month}-01T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return month;
-  return parsed.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  return parsed.toLocaleDateString("en-US", {
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function formatList(values: Array<string | undefined>) {

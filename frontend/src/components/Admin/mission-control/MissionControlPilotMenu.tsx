@@ -1,37 +1,27 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, Loader2, LogIn, UserRound } from "lucide-react";
-import { toast } from "react-hot-toast";
+import { ChevronDown, LogIn, UserRound } from "lucide-react";
 import type { MissionControlAdminUser } from "../../../api/admin-mission-control";
-import { useAdminMissionControlPilotSession } from "../../../hooks/queries/useAdminMissionControlQueries";
 
 export type MissionControlPilotMenuProps = {
+  organizationId: number;
   users: MissionControlAdminUser[];
   organizationName: string;
 };
 
 export function MissionControlPilotMenu({
+  organizationId,
   users,
   organizationName,
 }: MissionControlPilotMenuProps) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const pilotMutation = useAdminMissionControlPilotSession();
   const hasUsers = users.length > 0;
 
-  const handlePilot = async (user: MissionControlAdminUser) => {
-    try {
-      const response = await pilotMutation.mutateAsync(user.id);
-      if (!response.success) {
-        toast.error("Pilot session failed");
-        return;
-      }
-
-      openPilotWindow(response.token, response.googleAccountId, user.role);
-      toast.success(`Piloting as ${user.name}`);
-      setOpen(false);
-    } catch (error: unknown) {
-      toast.error(getPilotErrorMessage(error));
-    }
+  const handlePilot = (user: MissionControlAdminUser) => {
+    navigate(`/admin/organizations/${organizationId}?section=pilot&userId=${user.id}`);
+    setOpen(false);
   };
 
   return (
@@ -43,16 +33,12 @@ export function MissionControlPilotMenu({
       <button
         type="button"
         onClick={() => hasUsers && setOpen((value) => !value)}
-        disabled={!hasUsers || pilotMutation.isPending}
+        disabled={!hasUsers}
         className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs font-bold text-alloro-navy transition-all hover:border-alloro-orange/30 hover:bg-alloro-orange/10 disabled:cursor-not-allowed disabled:opacity-45"
         aria-label={`Pilot ${organizationName}`}
         aria-expanded={open}
       >
-        {pilotMutation.isPending ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        ) : (
-          <LogIn className="h-3.5 w-3.5" />
-        )}
+        <LogIn className="h-3.5 w-3.5" />
         Pilot
         <ChevronDown
           className={`h-3.5 w-3.5 transition-transform ${
@@ -99,31 +85,4 @@ export function MissionControlPilotMenu({
       </AnimatePresence>
     </div>
   );
-}
-
-function openPilotWindow(
-  token: string,
-  googleAccountId: number | null,
-  role: string,
-) {
-  let pilotUrl = `/?pilot_token=${encodeURIComponent(token)}`;
-  if (googleAccountId) {
-    pilotUrl += `&organization_id=${encodeURIComponent(String(googleAccountId))}`;
-  }
-  pilotUrl += `&user_role=${encodeURIComponent(role)}`;
-
-  const width = 1280;
-  const height = 800;
-  const left = (window.screen.width - width) / 2;
-  const top = (window.screen.height - height) / 2;
-
-  window.open(
-    pilotUrl,
-    "Pilot",
-    `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no`,
-  );
-}
-
-function getPilotErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Pilot session failed";
 }

@@ -9,14 +9,19 @@ import {
 import onboarding from "../api/onboarding";
 import { getBillingStatus } from "../api/billing";
 import { logger } from "../lib/logger";
+import { isPilotSession } from "../api";
+import {
+  isEmbeddedPilotSession,
+  updateEmbeddedPilotRole,
+} from "../utils/embeddedPilotSession";
 
 interface AuthProviderProps {
   children: ReactNode;
 }
 
-// Helper to detect pilot mode - checks sessionStorage for pilot session indicators
-function isPilotSession(): boolean {
-  return sessionStorage.getItem("pilot_mode") === "true" || !!sessionStorage.getItem("token");
+function persistClientStorageItem(key: string, value: string): void {
+  if (isPilotSession()) return;
+  localStorage.setItem(key, value);
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
@@ -39,6 +44,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return cached === "true" ? true : cached === "false" ? false : null;
   });
   const [hasProperties, setHasProperties] = useState<boolean>(() => {
+    if (isPilotSession()) return true;
+
     const cached = localStorage.getItem("hasProperties");
     return cached !== "false"; // Default to true unless explicitly false
   });
@@ -59,7 +66,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const isCompleted = status.success === true && status.onboardingCompleted === true;
       setOnboardingCompleted((prev) => (prev === true && !isCompleted) ? true : isCompleted);
       if (isCompleted && !isPilotSession()) {
-        localStorage.setItem("onboardingCompleted", "true");
+        persistClientStorageItem("onboardingCompleted", "true");
       }
 
       // Track Google connection status
@@ -67,8 +74,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Keep user_role in localStorage in sync with the backend
       if (status.role) {
-        const storage = isPilotSession() ? sessionStorage : localStorage;
-        storage.setItem("user_role", status.role);
+        if (isEmbeddedPilotSession()) {
+          updateEmbeddedPilotRole(status.role);
+        } else {
+          const storage = isPilotSession() ? sessionStorage : localStorage;
+          storage.setItem("user_role", status.role);
+        }
       }
 
       if (status.success) {
@@ -103,10 +114,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               status.propertyIds.gbp && status.propertyIds.gbp.length > 0
             );
             setHasProperties(hasProps);
-            localStorage.setItem("hasProperties", String(hasProps));
+            persistClientStorageItem("hasProperties", String(hasProps));
           } else {
             setHasProperties(false);
-            localStorage.setItem("hasProperties", "false");
+            persistClientStorageItem("hasProperties", "false");
           }
         } else {
           setSelectedDomain(null);
@@ -143,7 +154,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Match the old success:false path: only persist the downgrade when the
       // user wasn't already onboarded (don't clobber a true cache on a blip).
       if (!isPilotSession() && onboardingCompleted !== true) {
-        localStorage.setItem("onboardingCompleted", "false");
+        persistClientStorageItem("onboardingCompleted", "false");
       }
     } finally {
       setIsLoadingUserProperties(false);

@@ -15,7 +15,7 @@ import { CogitatingLoader } from "../components/ui/CogitatingLoader";
 // Integration Modal Components
 import { GBPIntegrationModal } from "../components/GBPIntegrationModal";
 import { ClarityIntegrationModal } from "../components/ClarityIntegrationModal";
-import { VitalSignsCards } from "@/components/VitalSignsCards/VitalSignsCards";
+import { PatientJourneyDashboard } from "../components/dashboard/patient-journey/PatientJourneyDashboard";
 import { TasksView } from "../components/tasks/TasksView";
 import { AnimatePresence, motion } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -25,6 +25,8 @@ import { OnboardingContainer } from "../components/onboarding/OnboardingContaine
 import { useIsWizardActive, useIsWizardLoading, useRecheckWizardStatus } from "../contexts/OnboardingWizardContext";
 import { useLocationContext } from "../contexts/locationContext";
 import { logger } from "../lib/logger";
+import { isPilotSession } from "../api";
+import { usePmsCopy } from "../components/PMS/pmsCopy";
 
 export default function Dashboard() {
   // Domain selection and auth hooks - now includes centralized onboarding state
@@ -38,6 +40,7 @@ export default function Dashboard() {
     setHasProperties,
     isLoadingUserProperties,
   } = useAuth();
+  const pmsCopy = usePmsCopy();
   const isWizardActive = useIsWizardActive();
   const isWizardLoading = useIsWizardLoading();
   const recheckWizardStatus = useRecheckWizardStatus();
@@ -101,11 +104,15 @@ export default function Dashboard() {
     // Mark onboarding as complete immediately so the Dashboard renders
     // (not null — null would fall through to the onboarding fallback)
     setOnboardingCompleted(true);
-    localStorage.setItem("onboardingCompleted", "true");
+    if (!isPilotSession()) {
+      localStorage.setItem("onboardingCompleted", "true");
+    }
 
     // After simplified onboarding, properties are NOT connected yet
     setHasProperties(false);
-    localStorage.setItem("hasProperties", "false");
+    if (!isPilotSession()) {
+      localStorage.setItem("hasProperties", "false");
+    }
 
     // Prevent empty state flash while wizard loads
     setIsTransitioningToWizard(true);
@@ -227,7 +234,7 @@ export default function Dashboard() {
                   Let's Set Up Your Dashboard
                 </h1>
                 <p className="text-lg text-slate-500 font-medium">
-                  Complete these two steps to unlock your practice insights
+                  {pmsCopy.setupSubtitle}
                 </p>
               </div>
 
@@ -279,14 +286,14 @@ export default function Dashboard() {
                     {/* Content */}
                     <div className="flex-1 text-left min-w-0">
                       <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
-                        <h3 className="text-base sm:text-xl font-black text-slate-400 tracking-tight leading-snug">Upload Your PMS Data</h3>
+                        <h3 className="text-base sm:text-xl font-black text-slate-400 tracking-tight leading-snug">{pmsCopy.setupUploadTitle}</h3>
                         <span className="px-2 py-1 bg-slate-200 text-slate-400 text-[10px] font-black uppercase tracking-wider rounded-lg flex items-center gap-1">
                           <Lock className="w-3 h-3" />
                           Locked
                         </span>
                       </div>
                       <p className="text-sm sm:text-base text-slate-400 font-medium leading-relaxed">
-                        Once properties are connected, upload your practice management data to see referral analytics and revenue attribution.
+                        {pmsCopy.setupUploadDescription}
                       </p>
                     </div>
                   </div>
@@ -319,7 +326,10 @@ export default function Dashboard() {
                   )}
 
                   {activeTab === "Patient Journey Insights" && (
-                    <VitalSignsCards />
+                    <PatientJourneyDashboard
+                      organizationId={userProfile?.organizationId ?? null}
+                      locationId={locationId}
+                    />
                   )}
 
                   {activeTab === "PMS Statistics" && (

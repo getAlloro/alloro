@@ -2,6 +2,11 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { LogOut } from "lucide-react";
 import { queryClient } from "../lib/queryClient";
+import {
+  clearEmbeddedPilotSession,
+  isEmbeddedPilotSession,
+  PILOT_EMBED_EXPIRED_MESSAGE,
+} from "../utils/embeddedPilotSession";
 
 /**
  * SessionExpiredModal
@@ -23,6 +28,16 @@ export function SessionExpiredModal() {
   }, []);
 
   const handleSignIn = useCallback(() => {
+    if (isEmbeddedPilotSession()) {
+      clearEmbeddedPilotSession();
+      window.parent.postMessage(
+        { type: PILOT_EMBED_EXPIRED_MESSAGE },
+        window.location.origin
+      );
+      setVisible(false);
+      return;
+    }
+
     // Clear auth tokens
     localStorage.removeItem("auth_token");
     localStorage.removeItem("token");
@@ -87,11 +102,12 @@ export function SessionExpiredModal() {
               </div>
               <div className="min-w-0 flex-1">
                 <h3 className="text-base font-semibold text-[#eaeaea] leading-snug">
-                  Session Expired
+                  {isEmbeddedPilotSession() ? "Pilot Session Expired" : "Session Expired"}
                 </h3>
                 <p className="mt-2 text-sm text-[#6a6a75] leading-relaxed">
-                  Your session has expired. Please sign in again to continue
-                  using Alloro.
+                  {isEmbeddedPilotSession()
+                    ? "This pilot session has expired. Return to the organization Pilot tab to start a new one."
+                    : "Your session has expired. Please sign in again to continue using Alloro."}
                 </p>
               </div>
             </div>
@@ -103,7 +119,7 @@ export function SessionExpiredModal() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
-                Sign In
+                {isEmbeddedPilotSession() ? "Close Pilot" : "Sign In"}
               </motion.button>
             </div>
           </motion.div>

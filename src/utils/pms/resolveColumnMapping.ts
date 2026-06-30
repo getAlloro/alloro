@@ -1,7 +1,9 @@
 import { PmsColumnMappingModel } from "../../models/PmsColumnMappingModel";
+import { OrganizationModel } from "../../models/OrganizationModel";
 import type { ColumnMapping } from "../../types/pmsMapping";
 import { inferColumnMapping } from "./columnMappingInference";
 import { signHeaders } from "./headerSignature";
+import { resolveOrgType, type OrgType } from "../../config/orgLabels";
 import logger from "../../lib/logger";
 
 /**
@@ -82,6 +84,12 @@ function logResolution(args: {
         }) }, "[pms-mapping]");
 }
 
+async function resolveMappingOrgType(orgId: number): Promise<OrgType> {
+  if (orgId <= 0) return "health";
+  const org = await OrganizationModel.findById(orgId);
+  return resolveOrgType(org?.organization_type);
+}
+
 /**
  * Resolve a mapping for a given org + file shape.
  *
@@ -96,6 +104,7 @@ export async function resolveMapping(
   sampleRows: Record<string, unknown>[]
 ): Promise<ResolveResult> {
   const signature = signHeaders(headers);
+  const orgType = await resolveMappingOrgType(orgId);
 
   // Tier 1: org cache.
   const orgCached = await PmsColumnMappingModel.findByOrgAndSignature(
@@ -158,7 +167,7 @@ export async function resolveMapping(
   }
 
   // Tier 3: AI inference.
-  const inferred = await inferColumnMapping(headers, sampleRows);
+  const inferred = await inferColumnMapping(headers, sampleRows, orgType);
 
   if (inferred === null) {
     logResolution({

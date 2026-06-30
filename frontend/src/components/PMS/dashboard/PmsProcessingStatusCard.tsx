@@ -1,29 +1,39 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import Lottie from "lottie-react";
 import cogitatingSpinner from "../../../assets/cogitating-spinner.json";
+import { usePmsCopy, type PmsCopy } from "../pmsCopy";
 
-const PROCESSING_MESSAGES = [
-  "Mapping referral sources",
-  "Ranking top referrers",
-  "Tracing production per source",
-  "Comparing month over month",
-  "Calculating revenue per referral",
-  "Identifying growth opportunities",
-  "Grounding insights to your data",
-  "Preparing your action plan",
-];
+function buildProcessingMessages(copy: PmsCopy) {
+  return [
+    `Mapping ${copy.sourcesLabel.toLowerCase()}`,
+    `Ranking top ${copy.sourcesLabel.toLowerCase()}`,
+    `Tracing ${copy.moneyLower} per source`,
+    "Comparing month over month",
+    `Calculating ${copy.moneyLower} per ${copy.countSingular}`,
+    "Identifying growth opportunities",
+    "Grounding insights to your data",
+    "Preparing your action plan",
+  ];
+}
 
 export function PmsProcessingStatusCard() {
+  const copy = usePmsCopy();
+  const processingMessages = useMemo(
+    () => buildProcessingMessages(copy),
+    [copy],
+  );
   const [messageIndex, setMessageIndex] = useState(0);
   const [displayedMessage, setDisplayedMessage] = useState("");
 
   useEffect(() => {
-    const targetMessage = PROCESSING_MESSAGES[messageIndex];
+    const targetMessage = processingMessages[messageIndex];
 
     if (displayedMessage.length < targetMessage.length) {
       const typingTimeoutId = window.setTimeout(() => {
-        setDisplayedMessage(targetMessage.slice(0, displayedMessage.length + 1));
+        setDisplayedMessage(
+          targetMessage.slice(0, displayedMessage.length + 1),
+        );
       }, 35);
 
       return () => window.clearTimeout(typingTimeoutId);
@@ -31,13 +41,13 @@ export function PmsProcessingStatusCard() {
 
     const holdTimeoutId = window.setTimeout(() => {
       setDisplayedMessage("");
-      setMessageIndex((currentIndex) =>
-        (currentIndex + 1) % PROCESSING_MESSAGES.length
+      setMessageIndex(
+        (currentIndex) => (currentIndex + 1) % processingMessages.length,
       );
     }, 1600);
 
     return () => window.clearTimeout(holdTimeoutId);
-  }, [displayedMessage, messageIndex]);
+  }, [displayedMessage, messageIndex, processingMessages]);
 
   return (
     <motion.section
@@ -66,7 +76,7 @@ export function PmsProcessingStatusCard() {
             Est. 3-5 minutes
           </p>
           <h2 className="mt-2 font-display text-2xl font-medium tracking-tight text-alloro-navy">
-            Alloro is analyzing your latest PMS data
+            Alloro is analyzing your latest {copy.dataNameLower}
           </h2>
           <p className="mt-2 min-h-6 max-w-2xl text-sm font-normal leading-6">
             <span className="cogitating-gradient">{displayedMessage}</span>

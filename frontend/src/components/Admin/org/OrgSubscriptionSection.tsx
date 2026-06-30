@@ -211,7 +211,7 @@ export function OrgSubscriptionSection({
     const confirmed = await confirm({
       title: `Set organization type to "${label}"?`,
       message:
-        "Organization type controls the vocabulary shown across the app (healthcare vs. generic) and the Stripe pricing used for this account.",
+        "Organization type controls the vocabulary shown across the app (healthcare vs. generic).",
       confirmLabel: `Set to ${label}`,
       variant: "danger",
     });

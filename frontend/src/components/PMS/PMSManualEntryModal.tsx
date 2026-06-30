@@ -8,23 +8,12 @@
 
 import React from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import {
-  AlertCircle,
-  Loader2,
-  Plus,
-  Save,
-  Upload,
-  X,
-} from "lucide-react";
+import { AlertCircle, Loader2, Plus, Save, Upload, X } from "lucide-react";
 
 import { PasteConfirmDialog } from "./PasteConfirmDialog";
 import { ColumnMappingDrawer } from "./ColumnMappingDrawer";
-import {
-  ALORO_ORANGE,
-  formatMonthLabel,
-} from "./pmsManualEntryModal.utils";
+import { ALORO_ORANGE, formatMonthLabel } from "./pmsManualEntryModal.utils";
 import { usePmsManualEntry } from "./usePmsManualEntry";
-import { useLabels } from "../../hooks/useLabels";
 import { MonthConflictDialog } from "./PMSManualEntryModal/MonthConflictDialog";
 import { MonthYearPickerModal } from "./PMSManualEntryModal/MonthYearPickerModal";
 import { MonthTabs } from "./PMSManualEntryModal/MonthTabs";
@@ -33,6 +22,7 @@ import { SelectedFilePanel } from "./PMSManualEntryModal/SelectedFilePanel";
 import { SummaryCards } from "./PMSManualEntryModal/SummaryCards";
 import { SourceRowItem } from "./PMSManualEntryModal/SourceRowItem";
 import { EmptyStateActions } from "./PMSManualEntryModal/EmptyStateActions";
+import { usePmsCopy } from "./pmsCopy";
 
 interface PMSManualEntryModalProps {
   isOpen: boolean;
@@ -53,7 +43,7 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
   targetMonth,
   onSuccess,
 }) => {
-  const labels = useLabels();
+  const copy = usePmsCopy();
   const {
     months,
     activeMonthId,
@@ -168,11 +158,17 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 className="absolute inset-0 z-50 flex items-center justify-center rounded-2xl"
-                style={{ backgroundColor: "rgba(201,118,94,0.08)", border: `2px dashed ${ALORO_ORANGE}` }}
+                style={{
+                  backgroundColor: "rgba(201,118,94,0.08)",
+                  border: `2px dashed ${ALORO_ORANGE}`,
+                }}
               >
                 <div className="flex flex-col items-center gap-2">
                   <Upload size={32} style={{ color: ALORO_ORANGE }} />
-                  <span className="text-sm font-medium" style={{ color: ALORO_ORANGE }}>
+                  <span
+                    className="text-sm font-medium"
+                    style={{ color: ALORO_ORANGE }}
+                  >
                     Drop your CSV, XLS, or XLSX file here
                   </span>
                 </div>
@@ -185,18 +181,18 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
               <h2 className="text-xl font-bold text-gray-900">
                 {targetMonth
                   ? `${locationName ? `${locationName} — ` : ""}${formatMonthLabel(targetMonth)}`
-                  : `Enter PMS Data${locationName ? ` for ${locationName}` : ""}`}
+                  : `${copy.manualEntryTitle}${locationName ? ` for ${locationName}` : ""}`}
               </h2>
               {!targetMonth && (
                 <p className="text-xs text-gray-500 mt-1">
-                  Add your referral and production data for {clientId}
+                  {copy.manualEntrySubtitle} for {clientId}
                 </p>
               )}
             </div>
             <div className="flex items-center gap-2">
               {/* Mapping settings link — visible whenever a mapping has been
-                  resolved, even silently from org-cache, so doctors can audit
-                  what was applied. */}
+	                  resolved, even silently from org-cache, so users can audit
+	                  what was applied. */}
               {currentMapping && !drawerOpen && (
                 <button
                   type="button"
@@ -321,10 +317,10 @@ export const PMSManualEntryModal: React.FC<PMSManualEntryModalProps> = ({
                 {/* Table Header — only meaningful once rows exist */}
                 {rows.length > 0 && (
                   <div className="grid grid-cols-13 gap-4 px-2 text-[11px] font-bold text-gray-400 uppercase">
-                    <div className="col-span-3">Source</div>
-                    <div className="col-span-2">Type</div>
-                    <div className="col-span-3">{labels.referralsShort} Count</div>
-                    <div className="col-span-4">{labels.production}</div>
+                    <div className="col-span-3">{copy.sourceFieldLabel}</div>
+                    <div className="col-span-2">{copy.sourceTypeLabel}</div>
+                    <div className="col-span-3">{copy.sourceCountLabel}</div>
+                    <div className="col-span-4">{copy.moneyLabel}</div>
                     <div className="col-span-1" />
                   </div>
                 )}

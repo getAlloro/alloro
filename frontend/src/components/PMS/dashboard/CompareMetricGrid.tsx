@@ -2,7 +2,7 @@ import type { PmsKeyDataMonth } from "../../../api/pms";
 import { formatCompactCurrency } from "./utils";
 import { pctChange } from "./compareMonths.utils";
 import { PmsEyebrow } from "./primitives";
-import { useLabels } from "../../../hooks/useLabels";
+import { usePmsCopy } from "../pmsCopy";
 
 /**
  * CompareMetricGrid — the headline metric comparison for two months.
@@ -20,11 +20,21 @@ type Metric = {
 
 const formatNumber = (n: number): string => n.toLocaleString("en-US");
 
-function ChangeBadge({ current, baseline }: { current: number; baseline: number }) {
+function ChangeBadge({
+  current,
+  baseline,
+}: {
+  current: number;
+  baseline: number;
+}) {
   const delta = current - baseline;
   const pct = pctChange(current, baseline);
   const tone =
-    delta > 0 ? "text-emerald-600" : delta < 0 ? "text-red-600" : "text-ink-muted";
+    delta > 0
+      ? "text-emerald-600"
+      : delta < 0
+        ? "text-red-600"
+        : "text-ink-muted";
   const arrow = delta > 0 ? "▲" : delta < 0 ? "▼" : "—";
   return (
     <span className={`text-sm font-semibold tabular-nums ${tone}`}>
@@ -62,32 +72,32 @@ export function CompareMetricGrid({
   labelA: string;
   labelB: string;
 }) {
-  const labels = useLabels();
+  const copy = usePmsCopy();
   const metrics: Metric[] = [
     {
       key: "production",
-      label: labels.production,
+      label: copy.moneyLabel,
       valueA: monthA.productionTotal,
       valueB: monthB.productionTotal,
       format: formatCompactCurrency,
     },
     {
       key: "total",
-      label: labels.totalReferrals,
+      label: copy.countSummaryLabel,
       valueA: monthA.totalReferrals,
       valueB: monthB.totalReferrals,
       format: formatNumber,
     },
     {
       key: "doctor",
-      label: labels.doctorReferrals,
+      label: copy.partnerSummaryLabel,
       valueA: monthA.doctorReferrals,
       valueB: monthB.doctorReferrals,
       format: formatNumber,
     },
     {
       key: "self",
-      label: labels.selfReferrals,
+      label: copy.directSummaryLabel,
       valueA: monthA.selfReferrals,
       valueB: monthB.selfReferrals,
       format: formatNumber,

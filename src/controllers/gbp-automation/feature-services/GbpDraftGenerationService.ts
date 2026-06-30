@@ -30,9 +30,9 @@ const ReviewReplyOutputSchema = z.object({
 
 const VARIATION_INSTRUCTIONS = [
   "Lead with a direct thank-you and mention the overall experience in a natural way.",
-  "Lead with appreciation for their trust, then reference the positive sentiment without clinical details.",
+  "Lead with appreciation for their trust, then reference the positive sentiment without private details.",
   "Use a concise, friendly tone with a different opening than the previous draft.",
-  "Make the reply feel local and human while staying careful about healthcare privacy.",
+  "Make the reply feel local and human while staying careful about privacy.",
 ];
 
 export interface GbpDraftGenerationResult {
@@ -69,12 +69,16 @@ function isSameAsPreviousDraft(
   );
 }
 
-function safetyRepairInstruction(reasons: string[]): string {
+function safetyRepairInstruction(reasons: string[], orgType: ReturnType<typeof resolveOrgType>): string {
+  const privateDetails =
+    orgType === "generic"
+      ? "private service details, account details, payment details, records, source details, or a private customer relationship"
+      : "treatment, appointments, procedures, diagnosis, records, insurance, billing, cases, or a patient relationship";
   return [
     `The previous draft failed safety checks: ${reasons.join("; ")}.`,
     "Rewrite it as a new, safe public Google review reply.",
-    "Do not mention treatment, appointments, procedures, diagnosis, records, insurance, billing, cases, or a patient relationship.",
-    "Use broad public wording such as feedback, review, experience, team, or office.",
+    `Do not mention ${privateDetails}.`,
+    "Use broad public wording such as feedback, review, experience, team, or service.",
   ].join(" ");
 }
 
@@ -129,6 +133,7 @@ async function generateDistinctDraft(
 async function generateSafeDraft(
   systemPrompt: string,
   generationInput: Record<string, unknown>,
+  orgType: ReturnType<typeof resolveOrgType>,
   previousDraftContent?: string | null
 ): Promise<string> {
   let draftContent = await generateDistinctDraft(
@@ -144,7 +149,7 @@ async function generateSafeDraft(
     generationInput.unsafeDraftContent = draftContent;
     generationInput.safetyRepairReasons = safety.reasons;
     generationInput.safetyRepairAttempt = attempt;
-    generationInput.variationInstruction = safetyRepairInstruction(safety.reasons);
+    generationInput.variationInstruction = safetyRepairInstruction(safety.reasons, orgType);
     generationInput.variationSeed = randomUUID();
     draftContent = await generateDistinctDraft(
       systemPrompt,
@@ -172,9 +177,10 @@ export class GbpDraftGenerationService {
     }
   ): Promise<GbpDraftGenerationResult> {
     const promptKey = "gbpAgents/ReviewReply";
+    const orgType = resolveOrgType(params.organization.organization_type);
     const systemPrompt = substitutePromptPlaceholders(
       loadPrompt(promptKey),
-      resolveOrgType(params.organization.organization_type)
+      orgType
     );
     const variationInstruction = pickVariationInstruction();
     const customizations =
@@ -217,6 +223,7 @@ export class GbpDraftGenerationService {
       draftContent = await generateSafeDraft(
         systemPrompt,
         generationInput,
+        orgType,
         params.previousDraftContent
       );
     } catch (error) {

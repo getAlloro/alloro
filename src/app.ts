@@ -20,18 +20,17 @@
  */
 
 import * as Sentry from "@sentry/node";
-import express from "express";
+import express, { Router, raw as expressRaw } from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { pinoHttp } from "pino-http";
 import path from "path";
-
-import { Router } from "express";
 
 import logger from "./lib/logger";
 
 import gbpRoutes from "./routes/gbp";
 import gbpAutomationRoutes from "./routes/gbpAutomation";
-import { healthCheck } from "./database/connection";
+import patientJourneyRoutes from "./routes/patient-journey";
+import { getDatabaseHealth } from "./models/DatabaseHealthModel";
 import clarityRoutes from "./routes/clarity";
 import taskRoutes from "./routes/tasks";
 import authRoutes from "./routes/auth";
@@ -90,8 +89,26 @@ const router = Router();
 // single shared `logger` instance, so its `redact` config scrubs Authorization
 // / Cookie headers and other secrets out of the auto-logged req/res. Disabled
 // under test (VITEST) to keep the smoke-suite output clean and hermetic.
+//
+// In dev, every non-/api request is proxied to Vite (see the dev proxy at the
+// bottom of this file), which serves the frontend one source module at a time —
+// logging each one floods the console with hundreds of `/src/**.tsx` lines.
+// So in dev we skip auto-logging those proxied requests and keep only `/api/*`.
+// In prod the frontend is bundled and served statically (no per-module flood),
+// so every request is logged as before. Same isProd switch the proxy uses.
 if (process.env.VITEST !== "true") {
-  app.use(pinoHttp({ logger }));
+  app.use(
+    pinoHttp(
+      isProd
+        ? { logger }
+        : {
+            logger,
+            autoLogging: {
+              ignore: (req) => !(req.url || "").startsWith("/api"),
+            },
+          },
+    ),
+  );
 }
 
 // CORS middleware for development
@@ -154,7 +171,7 @@ app.use((req, res, next) => {
 });
 
 // Stripe webhook needs raw body for signature verification — mount BEFORE JSON parser
-app.use("/api/billing/webhook", express.raw({ type: "application/json" }));
+app.use("/api/billing/webhook", expressRaw({ type: "application/json" }));
 
 // Add JSON body parser middleware with increased limit for large PMS data
 app.use(express.json({ limit: "50mb" }));
@@ -162,7 +179,7 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // Database health check endpoint
 app.get("/api/health/db", async (req, res) => {
-  const health = await healthCheck();
+  const health = await getDatabaseHealth();
   res.status(health.status === "healthy" ? 200 : 500).json(health);
 });
 
@@ -187,6 +204,7 @@ app.use(requireAuthUnlessPublic);
 app.use(router);
 app.use("/api/gbp", gbpRoutes);
 app.use("/api/gbp-automation", gbpAutomationRoutes);
+app.use("/api/patient-journey", patientJourneyRoutes);
 app.use("/api/clarity", clarityRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/auth", authRoutes);

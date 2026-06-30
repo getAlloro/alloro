@@ -20,11 +20,11 @@ import {
   ArrowUp,
   Calendar,
   DollarSign,
+  Handshake,
   Loader2,
   Plus,
   RefreshCw,
   Save,
-  Stethoscope,
   Trash2,
   User,
   X,
@@ -39,8 +39,8 @@ import {
   type MonthEntryForm,
 } from "./pmsDataTransform";
 import { normaliseMonthEntries } from "./pmsDataViewer.utils";
-import { useLabels } from "../../hooks/useLabels";
 import type { MonthBucket, SourceRow } from "./types";
+import { formatPmsSourceType, usePmsCopy } from "./pmsCopy";
 
 interface PMSDataViewerProps {
   isOpen: boolean;
@@ -107,8 +107,8 @@ const Odometer = ({ value }: { value: string | number }) => {
 export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
   isOpen,
   jobId,
-  title = "View PMS Data",
-  subtitle = "Review referral and production data",
+  title,
+  subtitle,
   hideSubtitle = false,
   initialData,
   initialMonth,
@@ -117,14 +117,16 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
   onSave,
   readOnly = false,
 }) => {
-  const labels = useLabels();
+  const copy = usePmsCopy();
+  const displayTitle = title ?? copy.viewerTitle;
+  const displaySubtitle = subtitle ?? copy.viewerSubtitle;
   const [months, setMonths] = useState<MonthBucket[]>([]);
   const [activeMonthId, setActiveMonthId] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [confirmDeleteRowId, setConfirmDeleteRowId] = useState<number | null>(
-    null
+    null,
   );
   const [confirmDeleteMonthId, setConfirmDeleteMonthId] = useState<
     number | null
@@ -135,7 +137,7 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
     if (isOpen && months.length === 0) {
       const normalized = initialMonth
         ? normaliseMonthEntries(initialData).filter(
-            (entry) => entry.month === initialMonth
+            (entry) => entry.month === initialMonth,
           )
         : normaliseMonthEntries(initialData);
       const uiMonths = transformBackendToUI(normalized);
@@ -155,7 +157,7 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
 
   const sortedMonths = useMemo(
     () => [...months].sort((a, b) => a.month.localeCompare(b.month)),
-    [months]
+    [months],
   );
 
   const activeMonth = useMemo(() => {
@@ -180,8 +182,8 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
     if (readOnly) return;
     setMonths((prev) =>
       prev.map((m) =>
-        m.id === activeMonth?.id ? { ...m, rows: updater(m.rows) } : m
-      )
+        m.id === activeMonth?.id ? { ...m, rows: updater(m.rows) } : m,
+      ),
     );
   };
 
@@ -200,7 +202,7 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
 
   const updateRow = (id: number, field: keyof SourceRow, value: string) => {
     updateMonthRows((rows) =>
-      rows.map((row) => (row.id === id ? { ...row, [field]: value } : row))
+      rows.map((row) => (row.id === id ? { ...row, [field]: value } : row)),
     );
   };
 
@@ -241,7 +243,7 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
   const incrementField = (
     rowId: number,
     field: "referrals" | "production",
-    delta: number
+    delta: number,
   ) => {
     updateMonthRows((rows) =>
       rows.map((row) => {
@@ -250,7 +252,7 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
           return { ...row, [field]: String(Math.max(0, current + delta)) };
         }
         return row;
-      })
+      }),
     );
   };
 
@@ -302,10 +304,12 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
           {/* Header */}
           <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+              <h2 className="text-lg font-semibold text-gray-900">
+                {displayTitle}
+              </h2>
               {!hideSubtitle && (
                 <p className="text-xs uppercase tracking-wide text-gray-400">
-                  {subtitle} • Job #{jobId}
+                  {displaySubtitle} • Job #{jobId}
                 </p>
               )}
             </div>
@@ -322,7 +326,7 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
           <div className="flex-1 overflow-y-auto px-6 py-4">
             {months.length === 0 || !activeMonth ? (
               <div className="flex h-full items-center justify-center text-sm text-gray-500">
-                No PMS records found.
+                {copy.noRecordsFound}
               </div>
             ) : (
               <div className="space-y-8">
@@ -330,79 +334,83 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
                     data is pre-filtered, so the pill (and its delete) would
                     be a dead/dangerous control. */}
                 {!initialMonth && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  {sortedMonths.map((m) => {
-                    const isActive = m.id === activeMonthId;
-                    return (
-                      <div key={m.id} className="relative">
-                        <motion.button
-                          onClick={() => setActiveMonthId(m.id)}
-                          className="px-4 py-2 rounded-full text-xs border pr-9"
-                          style={{
-                            backgroundColor: isActive
-                              ? ALORO_ORANGE
-                              : "transparent",
-                            color: isActive ? "white" : undefined,
-                          }}
-                        >
-                          {formatDataMonthShort(m.month)}
-                        </motion.button>
-
-                        {/* delete icon per tab */}
-                        {!readOnly && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              requestDeleteMonth(m.id);
-                            }}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full"
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {sortedMonths.map((m) => {
+                      const isActive = m.id === activeMonthId;
+                      return (
+                        <div key={m.id} className="relative">
+                          <motion.button
+                            onClick={() => setActiveMonthId(m.id)}
+                            className="px-4 py-2 rounded-full text-xs border pr-9"
                             style={{
                               backgroundColor: isActive
-                                ? "rgba(255,255,255,0.22)"
-                                : "rgba(0,0,0,0.04)",
-                              color: isActive ? "white" : "#ef4444",
+                                ? ALORO_ORANGE
+                                : "transparent",
+                              color: isActive ? "white" : undefined,
                             }}
-                            title="Delete month"
                           >
-                            <Trash2 size={12} />
-                          </button>
-                        )}
+                            {formatDataMonthShort(m.month)}
+                          </motion.button>
 
-                        {/* confirm tooltip (month) */}
-                        <AnimatePresence>
-                          {confirmDeleteMonthId === m.id && (
-                            <motion.div
-                              initial={{ opacity: 0, scale: 0.95, y: -6 }}
-                              animate={{ opacity: 1, scale: 1, y: 0 }}
-                              exit={{ opacity: 0, scale: 0.95, y: -6 }}
-                              className="absolute left-1/2 -translate-x-1/2 top-12 bg-white border rounded-xl shadow-lg p-3 z-20 w-56"
-                              onClick={(e) => e.stopPropagation()}
+                          {/* delete icon per tab */}
+                          {!readOnly && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                requestDeleteMonth(m.id);
+                              }}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full"
+                              style={{
+                                backgroundColor: isActive
+                                  ? "rgba(255,255,255,0.22)"
+                                  : "rgba(0,0,0,0.04)",
+                                color: isActive ? "white" : "#ef4444",
+                              }}
+                              title="Delete month"
                             >
-                              <div className="text-xs mb-2 text-gray-700">
-                                Delete this month?
-                              </div>
-                              <div className="flex gap-2 justify-end">
-                                <button
-                                  onClick={() => deleteMonth(m.id)}
-                                  className="text-xs px-3 py-1 rounded-lg text-white"
-                                  style={{ backgroundColor: ALORO_ORANGE_DARK }}
-                                >
-                                  Delete
-                                </button>
-                                <button
-                                  onClick={() => setConfirmDeleteMonthId(null)}
-                                  className="text-xs px-3 py-1 rounded-lg border border-red-200 text-red-500 hover:bg-red-50"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </motion.div>
+                              <Trash2 size={12} />
+                            </button>
                           )}
-                        </AnimatePresence>
-                      </div>
-                    );
-                  })}
-                </div>
+
+                          {/* confirm tooltip (month) */}
+                          <AnimatePresence>
+                            {confirmDeleteMonthId === m.id && (
+                              <motion.div
+                                initial={{ opacity: 0, scale: 0.95, y: -6 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: -6 }}
+                                className="absolute left-1/2 -translate-x-1/2 top-12 bg-white border rounded-xl shadow-lg p-3 z-20 w-56"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div className="text-xs mb-2 text-gray-700">
+                                  Delete this month?
+                                </div>
+                                <div className="flex gap-2 justify-end">
+                                  <button
+                                    onClick={() => deleteMonth(m.id)}
+                                    className="text-xs px-3 py-1 rounded-lg text-white"
+                                    style={{
+                                      backgroundColor: ALORO_ORANGE_DARK,
+                                    }}
+                                  >
+                                    Delete
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      setConfirmDeleteMonthId(null)
+                                    }
+                                    className="text-xs px-3 py-1 rounded-lg border border-red-200 text-red-500 hover:bg-red-50"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
 
                 {/* Summary Cards */}
@@ -422,25 +430,25 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
 
                   {[
                     {
-                      label: labels.selfReferrals,
+                      label: copy.directSummaryLabel,
                       value: totals.selfReferrals,
                       icon: User,
                       tint: "#C9765E22",
                     },
                     {
-                      label: labels.doctorReferrals,
+                      label: copy.partnerSummaryLabel,
                       value: totals.doctorReferrals,
-                      icon: Stethoscope,
+                      icon: Handshake,
                       tint: "#C9765E11",
                     },
                     {
-                      label: labels.totalReferrals,
+                      label: copy.countSummaryLabel,
                       value: totals.totalReferrals,
                       icon: User,
                       tint: "#C9765E18",
                     },
                     {
-                      label: labels.production,
+                      label: copy.moneyLabel,
                       value: totals.productionTotal.toLocaleString(),
                       icon: DollarSign,
                       tint: "#34D39922",
@@ -467,10 +475,10 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
 
                 {/* Table Header */}
                 <div className="grid grid-cols-13 gap-4 mb-3 px-2 text-[11px] font-bold text-gray-400 uppercase">
-                  <div className="col-span-3">Source</div>
-                  <div className="col-span-2">Type</div>
-                  <div className="col-span-3">{labels.referralsShort} Count</div>
-                  <div className="col-span-4">{labels.production}</div>
+                  <div className="col-span-3">{copy.sourceFieldLabel}</div>
+                  <div className="col-span-2">{copy.sourceTypeLabel}</div>
+                  <div className="col-span-3">{copy.sourceCountLabel}</div>
+                  <div className="col-span-4">{copy.moneyLabel}</div>
                   <div className="col-span-1" />
                 </div>
 
@@ -498,6 +506,7 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
                             updateRow(row.id, "source", e.target.value)
                           }
                           className="pl-9 w-full border rounded-xl px-4 py-3 text-sm disabled:bg-gray-50 disabled:cursor-not-allowed"
+                          placeholder={copy.sourcePlaceholder}
                         />
                       </div>
 
@@ -512,12 +521,12 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
                               row.type === "self" ? "#C9765E11" : "#C9765E22",
                           }}
                         >
-                          <span>{row.type}</span>
+                          <span>{formatPmsSourceType(copy, row.type)}</span>
                           <RefreshCw size={14} className="text-gray-400" />
                         </button>
                       </div>
 
-                      {/* Referrals */}
+                      {/* Count */}
                       <div
                         className="col-span-3 relative rounded-xl"
                         style={{
@@ -537,7 +546,7 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
                             updateRow(
                               row.id,
                               "referrals",
-                              sanitizeNumber(e.target.value)
+                              sanitizeNumber(e.target.value),
                             )
                           }
                           className="pl-9 pr-12 w-full border rounded-xl px-4 py-3 text-sm bg-transparent disabled:bg-gray-50 disabled:cursor-not-allowed"
@@ -564,7 +573,7 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
                         )}
                       </div>
 
-                      {/* Production */}
+                      {/* Dollar amount */}
                       <div
                         className="col-span-4 relative rounded-xl"
                         style={{
@@ -584,7 +593,7 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
                             updateRow(
                               row.id,
                               "production",
-                              sanitizeNumber(e.target.value)
+                              sanitizeNumber(e.target.value),
                             )
                           }
                           className="pl-9 pr-12 w-full border rounded-xl px-4 py-3 text-sm bg-transparent disabled:bg-gray-50 disabled:cursor-not-allowed"
@@ -674,7 +683,7 @@ export const PMSDataViewer: React.FC<PMSDataViewerProps> = ({
                       style={{ color: ALORO_ORANGE }}
                     >
                       <Plus size={16} />
-                      <span>Add Source</span>
+                      <span>Add {copy.sourceFieldLabel}</span>
                     </button>
                   </div>
                 )}

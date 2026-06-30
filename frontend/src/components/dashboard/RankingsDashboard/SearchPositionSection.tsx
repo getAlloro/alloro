@@ -12,9 +12,14 @@ import {
   type ComparisonSortKey,
 } from "../rankings/competitorComparison";
 import type { RankingResult } from "../rankingsDashboard.types";
+import { useLabels } from "../../../hooks/useLabels";
+import { useAuth } from "../../../hooks/useAuth";
+import { formatGeneratedCopyForOrg } from "../../../utils/generatedCopy";
 
 export function SearchPositionSection({ result }: { result: RankingResult }) {
   const navigate = useNavigate();
+  const labels = useLabels();
+  const { userProfile } = useAuth();
   const [sortKey, setSortKey] = useState<ComparisonSortKey>("mapsPosition");
   const rows = useMemo(() => buildCompetitorComparisonRows(result), [result]);
   const sortedRows = useMemo(
@@ -22,8 +27,12 @@ export function SearchPositionSection({ result }: { result: RankingResult }) {
     [rows, sortKey],
   );
   const insight = useMemo(
-    () => getComparisonInsight(rows, sortKey),
-    [rows, sortKey],
+    () =>
+      formatGeneratedCopyForOrg(
+        getComparisonInsight(rows, sortKey),
+        userProfile?.organizationType,
+      ),
+    [rows, sortKey, userProfile?.organizationType],
   );
   const accent = "#D66853";
 
@@ -44,7 +53,7 @@ export function SearchPositionSection({ result }: { result: RankingResult }) {
                 Your competitors on Local Search
               </SectionTitle>
               <InfoTip
-                content="These are the competitors in your saved comparison set, shown with their latest sampled local search position when available. Your practice is included so the table can be sorted against the same metrics."
+                content={`These are the competitors in your saved comparison set, shown with their latest sampled local search position when available. Your ${labels.orgNoun} is included so the table can be sorted against the same metrics.`}
               />
             </div>
           </div>

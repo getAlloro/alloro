@@ -179,6 +179,23 @@ h1, h2, h3, h4, h5, h6, .font-heading {
   100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+/* Patient Journey pipeline (funnel surface) — card pop-in, arrow fade-in,
+   and the leak arrow's repeating nudge. Referenced by the patient-journey
+   components via Tailwind arbitrary `animate-[...]` utilities.
+   plans/06242026-patient-journey-insights (T7). */
+@keyframes plpop {
+  from { opacity: 0; transform: scale(.96); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes plfade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes plnudge {
+  0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(3px); }
+}
+
 /* Glass glare spot for cards */
 .glare-spot {
   background: radial-gradient(ellipse at 30% 30%, rgba(255,255,255,.9), rgba(255,255,255,.25) 45%, rgba(255,255,255,0) 70%);

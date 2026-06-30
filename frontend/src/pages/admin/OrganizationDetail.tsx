@@ -18,6 +18,7 @@ import { OrgNotificationsTab } from "../../components/Admin/org/OrgNotifications
 import { OrgGbpAutomationTab } from "../../components/Admin/org/OrgGbpAutomationTab";
 import { OrgSubscriptionSection } from "../../components/Admin/org/OrgSubscriptionSection";
 import { OrgUsersSection } from "../../components/Admin/org/OrgUsersSection";
+import { OrgPilotSection } from "../../components/Admin/org/OrgPilotSection";
 import { OrgConnectionsSection } from "../../components/Admin/org/OrgConnectionsSection";
 import { OrgSettingsSection } from "../../components/Admin/org/OrgSettingsSection";
 import { OrganizationDetailNavigation } from "../../components/Admin/org/OrganizationDetailNavigation";
@@ -55,9 +56,15 @@ export default function OrganizationDetail() {
   // URL-driven state
   const rawSection = searchParams.get("section");
   const rawTab = searchParams.get("tab");
+  const rawPilotUserId = searchParams.get("userId");
   const activeSection = (
     isOrganizationDetailSectionKey(rawSection) ? rawSection : "subscription"
   ) as OrganizationDetailSectionKey;
+  const parsedPilotUserId = rawPilotUserId ? parseInt(rawPilotUserId, 10) : null;
+  const routePilotUserId =
+    parsedPilotUserId && Number.isFinite(parsedPilotUserId)
+      ? parsedPilotUserId
+      : null;
   const activeAgentTab = (
     activeSection === "agent" && isOrganizationDetailAgentTabKey(rawTab)
       ? rawTab
@@ -80,6 +87,8 @@ export default function OrganizationDetail() {
 
   const [selectedLocation, setSelectedLocation] =
     useState<AdminLocation | null>(null);
+  const [selectedPilotUserId, setSelectedPilotUserId] =
+    useState<number | null>(routePilotUserId);
 
   useEffect(() => {
     if (!orgId) {
@@ -104,6 +113,12 @@ export default function OrganizationDetail() {
     }
   }, [rawSection, rawTab, setSearchParams]);
 
+  useEffect(() => {
+    if (routePilotUserId) {
+      setSelectedPilotUserId(routePilotUserId);
+    }
+  }, [routePilotUserId]);
+
   const setSection = (section: OrganizationDetailSectionKey, tab?: string) => {
     const params: Record<string, string> = { section };
     if (tab) params.tab = tab;
@@ -125,6 +140,13 @@ export default function OrganizationDetail() {
 
   const setGbpTab = (tab: OrganizationDetailGbpTabKey) => {
     setSearchParams({ section: "gbpAutomation", tab });
+  };
+
+  const setPilotUser = (userId: number | null) => {
+    setSelectedPilotUserId(userId);
+    const params: Record<string, string> = { section: "pilot" };
+    if (userId) params.userId = String(userId);
+    setSearchParams(params);
   };
 
   const handleRefresh = async () => {
@@ -244,6 +266,18 @@ export default function OrganizationDetail() {
               onRefresh={handleRefresh}
             />
           )}
+
+          <div
+            aria-hidden={activeSection !== "pilot"}
+            className={activeSection === "pilot" ? "block" : "hidden"}
+          >
+            <OrgPilotSection
+              isActive={activeSection === "pilot"}
+              org={org}
+              selectedUserId={selectedPilotUserId}
+              onUserSelect={setPilotUser}
+            />
+          </div>
 
           {activeSection === "connections" && (
             <OrgConnectionsSection org={org} />

@@ -4,7 +4,6 @@ import {
   adminGetMissionControlInsight,
   type MissionControlData,
 } from "../../api/admin-mission-control";
-import { adminStartPilotSession } from "../../api/admin-organizations";
 import { QUERY_KEYS } from "../../lib/queryClient";
 
 export function useAdminMissionControl() {
@@ -34,11 +33,5 @@ export function useAdminMissionControlInsight() {
   return useMutation({
     mutationKey: QUERY_KEYS.adminMissionControlInsight,
     mutationFn: adminGetMissionControlInsight,
-  });
-}
-
-export function useAdminMissionControlPilotSession() {
-  return useMutation({
-    mutationFn: (userId: number) => adminStartPilotSession(userId),
   });
 }

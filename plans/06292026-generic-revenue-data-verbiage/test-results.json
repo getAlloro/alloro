@@ -1,0 +1,132 @@
+{
+  "plan": "plans/06292026-generic-revenue-data-verbiage",
+  "generatedAt": "2026-06-29",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "PMS copy contract resolves healthcare and generic labels",
+      "surface": "cli",
+      "precondition": "Run from /Users/rustinedave/Desktop/alloro/frontend.",
+      "steps": [
+        "1. Run npm run test -- src/components/PMS/pmsCopy.test.ts."
+      ],
+      "expected": "Healthcare labels keep PMS/referral/production language; generic labels contain no banned healthcare PMS terms.",
+      "status": "pass",
+      "evidence": "npm run test -- src/components/PMS/pmsCopy.test.ts: 4 tests passed.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Generic upload and mapping flow uses revenue wording",
+      "surface": "ui",
+      "precondition": "Login to a generic organization with a location available, then open the data upload flow.",
+      "steps": [
+        "1. Open the dashboard surface that contains the upload CTA.",
+        "2. Open upload, direct upload, template upload, and column mapping.",
+        "3. Inspect titles, table examples, mapping role labels, helper text, validation text, and toasts."
+      ],
+      "expected": "The flow says revenue data, source/channel, records, customers, and revenue. It does not show PMS, practice management, Referral Source, Patient ID, production, Doctor referrals, or Self referrals.",
+      "status": "pass",
+      "evidence": "Pilot QA using the same PilotSessionService behind the admin Pilot tab. One Endodontics was switched health -> generic with existing data, then restored to health. Generic dashboard and Revenue Hub rendered \"May 2026 revenue data ready?\", \"records and revenue insights\", \"UPLOAD REVENUE DATA\", \"REVENUE INTELLIGENCE\", \"TOTAL RECORDS\", and \"REVENUE SOURCES\" with no banned PMS/referral-source/production terms in visible text.",
+      "notes": "Original org types restored after the matrix: One Endodontics health, DentalEMR generic, Alloro Team generic.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Generic review, manual entry, and file manager use revenue wording",
+      "surface": "ui",
+      "precondition": "Login to a generic organization with uploaded or sample revenue data.",
+      "steps": [
+        "1. Open manual entry.",
+        "2. Review latest uploaded data.",
+        "3. Open Manage Data and inspect the file list, history panel, edit modal, empty states, and delete copy."
+      ],
+      "expected": "All visible copy uses generic revenue/source wording and never names PMS files, referral sources, patients, production, or doctor/self referrals.",
+      "status": "pass",
+      "evidence": "Pilot QA verified One Endodontics generic existing-data screens and Alloro Team generic no-data Business Hub. Visible copy now says revenue data, records, customers, source/channel, and revenue. Alloro Team no-data state now says \"Upload revenue data to see your revenue trend.\"",
+      "notes": "The generic checks scanned visible dashboard/hub text for PMS, practice management, referral source, doctor referral, self referral, Patient ID, patients, and production.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Generic dashboard cards and insights use revenue wording",
+      "surface": "ui",
+      "precondition": "Login to a generic organization with dashboard revenue data or wizard demo data.",
+      "steps": [
+        "1. Open the revenue intelligence dashboard.",
+        "2. Inspect hero, empty state, ingestion card, processing card, trend charts, mix card, top sources, source detail cards, and demo-mode content.",
+        "3. Trigger hover/detail states where available."
+      ],
+      "expected": "Dashboard copy says revenue, records, source/channel, direct, and partner. Generic demo data does not show doctor or patient-referral sample names.",
+      "status": "pass",
+      "evidence": "Pilot QA across five cases passed: One Endodontics health baseline, One Endodontics switched generic with existing data, DentalEMR generic baseline, DentalEMR switched health, and Alloro Team generic no-data. Generic One Endodontics showed Business Hub, Revenue Hub, revenue data, records, customers, partner source, and revenue. Health cases still showed Practice Hub, Referrals Hub, PMS/production/referrals where expected.",
+      "notes": "Stale AI action prose is translated at display time for generic orgs; historical database rows were not rewritten. Additional headed Chrome edge pass on 2026-06-29 covered One Endodontics generic desktop/mobile, DentalEMR generic, Alloro Team generic no-data, settings/integrations, and the Upload New Data/Revenue Manager interaction. Screenshots saved under plans/06292026-generic-revenue-data-verbiage/evidence/.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Hardcoded visible PMS/referral strings are contained",
+      "surface": "cli",
+      "precondition": "Run from /Users/rustinedave/Desktop/alloro.",
+      "steps": [
+        "1. Run the targeted rg sweep for visible PMS/referral/production strings outside pmsCopy.ts and pmsCopy.test.ts.",
+        "2. Review pmsCopy.ts generic branch and pmsCopy.test.ts banned-term coverage."
+      ],
+      "expected": "No client-visible healthcare strings remain outside the healthcare copy branch, internal identifiers, developer logs, or tests.",
+      "status": "pass",
+      "evidence": "Targeted rg sweep found no JSX text matches outside pmsCopy.ts/pmsCopy.test.ts; pmsCopy generic banned-term test passed.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Alloro Docs documents org-type wording behavior",
+      "surface": "cli",
+      "precondition": "Run from /Users/rustinedave/Desktop/alloro-docs.",
+      "steps": [
+        "1. Review Referrals Hub and Integrations docs copy for health/generic wording guidance.",
+        "2. Run npx tsc --noEmit."
+      ],
+      "expected": "Docs no longer imply generic organizations upload PMS exports or manage referral sources, and docs TypeScript passes.",
+      "status": "pass",
+      "evidence": "npx tsc --noEmit passed in /Users/rustinedave/Desktop/alloro-docs.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "Automated app verification passes",
+      "surface": "cli",
+      "precondition": "Run from /Users/rustinedave/Desktop/alloro.",
+      "steps": [
+        "1. Run cd frontend && npx tsc -p tsconfig.app.json --noEmit.",
+        "2. Run cd frontend && npm run test -- src/components/PMS/pmsCopy.test.ts.",
+        "3. Run npm run check:all."
+      ],
+      "expected": "TypeScript and focused tests pass. check:all exits 0; any warnings are pre-existing advisory backlog.",
+      "status": "pass",
+      "evidence": "Backend npm run build passed; frontend npm run build passed; focused frontend Vitest passed for pmsCopy, dashboardAlerts, and generatedCopy; backend orgLabels Vitest passed; npm run check:all exited 0 with existing warnings only; git diff --check passed.",
+      "notes": "check:all still reports the repo's existing advisory warning backlog, but no errors or hard constitution failures. Additional headed Chrome edge pass returned ok=true with no failures and restored org types to DentalEMR generic, One Endodontics health, and Alloro Team generic.",
+      "waiver": ""
+    },
+    {
+      "id": "T8",
+      "title": "Rev 2 edge routes pass generic and health browser scan",
+      "surface": "ui",
+      "precondition": "Local app server is running at http://localhost:3000 with DB_HOST=localhost. Pilot-mode tokens are generated with the same JWT shape as the admin Pilot tab.",
+      "steps": [
+        "1. Pilot DentalEMR generic and scan /dashboard, /pmsStatistics, /referralEngine, /tasks, /patientJourneyInsights, /rankings, and /settings/integrations.",
+        "2. Pilot Alloro Team generic no-data and scan /dashboard, /pmsStatistics, /referralEngine, and /tasks.",
+        "3. Pilot One Endodontics health and scan /dashboard, /pmsStatistics, /referralEngine, and /tasks.",
+        "4. Fail generic pages on app-authored PMS, Referral Engine, referrals, production, doctor, patient, HIPAA, practice staff, Sync your practice, Avg / Ref, or healthcare practice wording; classify raw entity/source names separately."
+      ],
+      "expected": "All app-authored generic route copy is clean, health route copy remains health, and raw customer/source names are not rewritten.",
+      "status": "pass",
+      "evidence": "Final Playwright edge scan passed for all app-authored copy. Evidence screenshots for raw-data-only hits are saved under plans/06292026-generic-revenue-data-verbiage/evidence/edge-scan-final/.",
+      "notes": "Raw data hits were intentionally not rewritten: DentalEMR's GBP/business name contains \"ENDODONTIC PMS, EMR & EHR SOFTWARE\" on /rankings, and a stored revenue source name is \"Sample Medical Practice\" on /referralEngine. Both are entity/source names, not Alloro labels or generated prose.",
+      "waiver": ""
+    }
+  ]
+}

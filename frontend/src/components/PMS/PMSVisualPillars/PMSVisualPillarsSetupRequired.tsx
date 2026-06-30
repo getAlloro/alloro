@@ -1,4 +1,5 @@
 import { ChevronDown, ChevronRight, Lock, Settings } from "lucide-react";
+import { usePmsCopy } from "../pmsCopy";
 
 interface PMSVisualPillarsSetupRequiredProps {
   gbpConnected: boolean;
@@ -9,6 +10,7 @@ export function PMSVisualPillarsSetupRequired({
   gbpConnected,
   onNavigateToIntegrations,
 }: PMSVisualPillarsSetupRequiredProps) {
+  const copy = usePmsCopy();
   const disconnectedServices = [];
   if (!gbpConnected) disconnectedServices.push("Business Profile");
 
@@ -27,7 +29,7 @@ export function PMSVisualPillarsSetupRequired({
             Let's Set Up Your Dashboard
           </h1>
           <p className="text-lg text-slate-500 font-medium">
-            Complete these two steps to unlock your practice insights
+            {copy.setupSubtitle}
           </p>
         </div>
 
@@ -56,7 +58,8 @@ export function PMSVisualPillarsSetupRequired({
                   </span>
                 </div>
                 <p className="text-slate-500 font-medium leading-relaxed mb-3">
-                  Link your Google Business Profile to enable tracking and insights.
+                  Link your Google Business Profile to enable tracking and
+                  insights.
                 </p>
                 <p className="text-sm text-amber-600 font-semibold">
                   Missing: {disconnectedServices.join(", ")}
@@ -74,7 +77,7 @@ export function PMSVisualPillarsSetupRequired({
             </div>
           </div>
 
-          {/* Step 2 - PMS Data (Locked) */}
+          {/* Step 2 - Data upload (Locked) */}
           <div className="relative bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200 p-8 opacity-60">
             <div className="flex items-start gap-6">
               {/* Step number */}
@@ -87,7 +90,7 @@ export function PMSVisualPillarsSetupRequired({
               <div className="flex-1 text-left">
                 <div className="flex items-center gap-3 mb-2">
                   <h3 className="text-xl font-black text-slate-400 tracking-tight">
-                    Upload Your PMS Data
+                    {copy.setupUploadTitle}
                   </h3>
                   <span className="px-2 py-1 bg-slate-200 text-slate-400 text-[10px] font-black uppercase tracking-wider rounded-lg flex items-center gap-1">
                     <Lock className="w-3 h-3" />
@@ -95,8 +98,7 @@ export function PMSVisualPillarsSetupRequired({
                   </span>
                 </div>
                 <p className="text-slate-400 font-medium leading-relaxed">
-                  Once properties are connected, upload your practice management
-                  data to see referral analytics and revenue attribution.
+                  {copy.setupUploadDescription}
                 </p>
               </div>
             </div>

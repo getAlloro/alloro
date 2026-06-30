@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { queryClient } from "../../../lib/queryClient";
 import { toast } from "react-hot-toast";
+import { clearAuthSession, clearSharedAuthCookie, getAuthToken } from "../../../api";
 
 // eslint-disable-next-line react-refresh/only-export-components
 export function useIsPmRoute() {
@@ -27,7 +28,7 @@ export function useIsSupportRoute() {
 
 function getAdminDisplayName(): string {
   try {
-    const token = localStorage.getItem("auth_token");
+    const token = getAuthToken();
     if (!token) return "Admin Account";
     const payload = JSON.parse(atob(token.split(".")[1]));
     const email: string = payload.email || "";
@@ -57,14 +58,8 @@ export function AdminTopBar() {
   };
 
   const handleLogout = () => {
-    // Clear admin authentication tokens
-    localStorage.removeItem("auth_token");
-    localStorage.removeItem("user_role");
-
-    // Clear cookie with shared domain for cross-app auth sync
-    const isProduction = window.location.hostname.includes("getalloro.com");
-    const domain = isProduction ? "; domain=.getalloro.com" : "";
-    document.cookie = `auth_token=; path=/; max-age=0${domain}`;
+    clearAuthSession();
+    clearSharedAuthCookie();
 
     // Broadcast logout event to other tabs (same-origin only, but shared cookie handles cross-domain)
     try {

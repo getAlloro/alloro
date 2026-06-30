@@ -59,6 +59,20 @@ export interface ReviewMonthBucket {
   count: number;
 }
 
+/**
+ * Stored-review summary for one location, computed from `website_builder.reviews`
+ * rows (no OAuth/GBP API call). Powers the Patient Journey reviews-context card:
+ * average rating, total stored review count, count created in a calendar month,
+ * and reply-rate across stored reviews. `rating`/`count` are null when no rows
+ * exist so callers can render an honest "not connected" state.
+ */
+export interface ReviewSummaryForLocation {
+  rating: number | null;
+  count: number | null;
+  newThisMonth: number;
+  replyRatePct: number | null;
+}
+
 export interface ProjectReviewListFilters {
   locationIds: number[];
   placeIds: string[];
@@ -393,6 +407,55 @@ export class ReviewModel extends BaseModel {
       medianReplyDays,
       replyCoveragePercent:
         totalOauthReviews > 0 ? Math.round((totalReplied / totalOauthReviews) * 100) : 0,
+    };
+  }
+
+  /**
+   * Reviews-context summary for one location, derived from stored rows only.
+   * `monthStart`/`monthEnd` bound the "new this month" window (half-open
+   * [start, end)). Visible (non-hidden) rows only. Rating is the mean of stored
+   * `stars`; reply rate is has_reply / total. Returns nulls for rating/count
+   * when the location has no stored reviews.
+   */
+  static async getReviewSummaryForLocation(
+    locationId: number,
+    monthStart: Date,
+    monthEnd: Date,
+    trx?: QueryContext
+  ): Promise<ReviewSummaryForLocation> {
+    const row = await this.table(trx)
+      .where({ location_id: locationId, hidden: false })
+      .select<
+        {
+          count: string | number;
+          avg_stars: string | number | null;
+          replied: string | number;
+          new_this_month: string | number;
+        }[]
+      >(
+        db.raw("COUNT(*)::int as count"),
+        db.raw("AVG(stars)::float as avg_stars"),
+        db.raw("COUNT(*) FILTER (WHERE has_reply = true)::int as replied"),
+        db.raw(
+          "COUNT(*) FILTER (WHERE review_created_at >= ? AND review_created_at < ?)::int as new_this_month",
+          [monthStart, monthEnd]
+        )
+      )
+      .first();
+
+    const count = Number(row?.count ?? 0);
+    if (count === 0) {
+      return { rating: null, count: null, newThisMonth: 0, replyRatePct: null };
+    }
+    const replied = Number(row?.replied ?? 0);
+    const avg = row?.avg_stars === null || row?.avg_stars === undefined
+      ? null
+      : Number(row.avg_stars);
+    return {
+      rating: avg === null ? null : Number(avg.toFixed(2)),
+      count,
+      newThisMonth: Number(row?.new_this_month ?? 0),
+      replyRatePct: Math.round((replied / count) * 100),
     };
   }
 

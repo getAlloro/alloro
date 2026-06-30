@@ -1,0 +1,170 @@
+{
+  "plan": "plans/06272026-embedded-organization-pilot-tab",
+  "generatedAt": "2026-06-28",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Mission Control Pilot routes into the organization Pilot tab",
+      "surface": "ui",
+      "precondition": "Admin is signed in and Mission Control has an organization card with at least one admin user.",
+      "steps": [
+        "1. Open Mission Control.",
+        "2. Open an organization's Pilot menu.",
+        "3. Select a user."
+      ],
+      "expected": "The same tab navigates to /admin/organizations/:id?section=pilot&userId=:userId. No popup opens and the URL contains no pilot token.",
+      "status": "pass",
+      "evidence": "Chrome UI: Mission Control > One Endodontics > Pilot menu > dr.alhassany routed same tab to localhost:3000/admin/organizations/39?section=pilot&userId=60; no popup opened; live embedded frame shown. Screenshot: plans/06272026-embedded-organization-pilot-tab/evidence/mission-control-pilot-route-live.png.",
+      "notes": "Verified in the signed-in Chrome admin session on localhost:3000/admin.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Organization Users pilot action routes into the contained Pilot tab",
+      "surface": "ui",
+      "precondition": "Admin is signed in and viewing /admin/organizations/:id?section=users.",
+      "steps": [
+        "1. Click the Pilot action on an organization user card.",
+        "2. Confirm the Pilot tab opens for that same organization.",
+        "3. Confirm the selected user is preselected."
+      ],
+      "expected": "The route changes to /admin/organizations/:id?section=pilot&userId=:userId and the Pilot tab starts the contained session flow.",
+      "status": "pass",
+      "evidence": "Chrome UI: Organization Users & Roles > kuda > Pilot as this user routed same tab to localhost:3000/admin/organizations/39?section=pilot&userId=56 with kuda preselected and the contained iframe live. Screenshot: plans/06272026-embedded-organization-pilot-tab/evidence/users-roles-pilot-route-live.png.",
+      "notes": "Verified in the signed-in Chrome admin session on localhost:3000/admin.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Embedded pilot token stays out of URL and browser storage",
+      "surface": "cli",
+      "precondition": "Frontend dev server is running.",
+      "steps": [
+        "1. Run the Playwright smoke check against /pilot-embed.",
+        "2. Send a same-origin pilot-token message to the iframe.",
+        "3. Inspect parent localStorage and sessionStorage."
+      ],
+      "expected": "The iframe URL remains /pilot-embed and token values are null in localStorage and sessionStorage.",
+      "status": "pass",
+      "evidence": "Playwright smoke: frameUrl=http://127.0.0.1:5174/pilot-embed; localToken=null; localAuthToken=null; sessionToken=null; sessionPilotMode=null.",
+      "notes": "The smoke used a fake token, so backend 401/403 responses were expected.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Memory-only pilot session helper is covered by unit tests",
+      "surface": "cli",
+      "precondition": "Frontend dependencies are installed.",
+      "steps": [
+        "1. Run npx vitest run src/utils/embeddedPilotSession.test.ts from frontend/."
+      ],
+      "expected": "The helper exposes token and role to app code without writing token to localStorage or sessionStorage.",
+      "status": "pass",
+      "evidence": "2 tests passed in frontend/src/utils/embeddedPilotSession.test.ts.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Pilot iframe logout or expiry does not clear parent admin auth",
+      "surface": "ui",
+      "precondition": "Admin is signed in, a real contained pilot session is running, and parent auth is active.",
+      "steps": [
+        "1. Start a contained pilot session from the organization Pilot tab.",
+        "2. Trigger logout or let the pilot iframe report session expiry.",
+        "3. Confirm the iframe closes or resets.",
+        "4. Refresh the parent admin tab."
+      ],
+      "expected": "The parent admin session remains signed in and admin localStorage/cookie auth is not cleared by iframe logout or expiry.",
+      "status": "pass",
+      "evidence": "Chrome UI: clicked Log out inside the embedded pilot iframe, parent admin shell stayed signed in as Dave, then refreshing localhost:3000/admin/organizations/39?section=pilot&userId=60 returned to the admin organization Pilot tab instead of login. Screenshot: plans/06272026-embedded-organization-pilot-tab/evidence/iframe-logout-parent-admin-survives-refresh.png.",
+      "notes": "The userId URL auto-started a fresh pilot session after refresh; this confirms parent admin auth survived iframe logout.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Pilot frame stays mounted across organization tab switches",
+      "surface": "ui",
+      "precondition": "Admin is signed in and a real contained pilot session is running in the organization Pilot tab.",
+      "steps": [
+        "1. Start a contained pilot session from the organization Pilot tab.",
+        "2. Switch to another organization tab such as Subscription or Users & Roles.",
+        "3. Return to the Pilot tab."
+      ],
+      "expected": "The same pilot iframe remains live after tab switching. It only resets after page refresh, explicit restart, logout, or session expiry.",
+      "status": "pass",
+      "evidence": "Chrome UI: started a contained kuda session, switched to Subscription, returned to Pilot, and the selected user plus LIVE embedded iframe remained visible. Screenshot: plans/06272026-embedded-organization-pilot-tab/evidence/pilot-tab-switch-return-live.png.",
+      "notes": "Verified using One Endodontics on localhost:3000/admin.",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "Embedded pilot frame has no duplicate outer scrollbar",
+      "surface": "ui",
+      "precondition": "Admin is signed in and a contained pilot session is visible.",
+      "steps": [
+        "1. Open the organization Pilot tab with an active contained session.",
+        "2. Inspect the frame container.",
+        "3. Scroll the client app inside the iframe."
+      ],
+      "expected": "Only the client app iframe scroll remains. The frame container does not add a second vertical scrollbar or a horizontal scrollbar.",
+      "status": "pass",
+      "evidence": "Visual Chrome check: embedded pilot frame displayed one contained client iframe scroll region without a second parent-frame scrollbar or horizontal scrollbar. Screenshot: plans/06272026-embedded-organization-pilot-tab/evidence/pilot-live-one-endo-kuda.png.",
+      "notes": "Verified at Chrome zoom 90% in the signed-in admin browser.",
+      "waiver": ""
+    },
+    {
+      "id": "T8",
+      "title": "Embedded pilot frame fills available container width",
+      "surface": "ui",
+      "precondition": "Admin is signed in and a contained pilot session is visible.",
+      "steps": [
+        "1. Open the organization Pilot tab with an active contained session.",
+        "2. Inspect the right edge of the pilot frame.",
+        "3. Confirm the client dashboard content uses the available frame width."
+      ],
+      "expected": "The scaled iframe content reaches the right side of the pilot frame without leaving a large blank column and without adding a parent horizontal scrollbar.",
+      "status": "pass",
+      "evidence": "Visual Chrome check: scaled iframe content filled the available pilot frame width, with no large blank right column and no parent horizontal overflow. Screenshot: plans/06272026-embedded-organization-pilot-tab/evidence/pilot-live-one-endo-kuda.png.",
+      "notes": "Verified at Chrome zoom 90% in the signed-in admin browser.",
+      "waiver": ""
+    },
+    {
+      "id": "T9",
+      "title": "Pilot frame copy is reduced and dashboard scale is increased",
+      "surface": "ui",
+      "precondition": "Admin is signed in and a contained pilot session is visible.",
+      "steps": [
+        "1. Open the organization Pilot tab.",
+        "2. Confirm the Pilot controls no longer show the removed helper sentence.",
+        "3. Start or view an active contained pilot session.",
+        "4. Confirm the iframe footer no longer shows the removed token note.",
+        "5. Inspect the embedded dashboard scale and frame overflow."
+      ],
+      "expected": "The removed copy is absent, the embedded dashboard appears slightly larger than the previous 0.7 scale, and the parent frame still has no horizontal overflow.",
+      "status": "pass",
+      "evidence": "Chrome UI/accessibility check: Pilot controls no longer showed \"Start a contained client dashboard session...\" copy, iframe footer no longer showed \"This frame receives the pilot token...\" copy, and the 0.75-scaled dashboard was visibly larger while remaining contained. Screenshot: plans/06272026-embedded-organization-pilot-tab/evidence/pilot-live-one-endo-kuda.png.",
+      "notes": "Verified in the signed-in Chrome admin session on localhost:3000/admin.",
+      "waiver": ""
+    },
+    {
+      "id": "T10",
+      "title": "Embedded frame header is removed and dashboard scale is increased again",
+      "surface": "ui",
+      "precondition": "Admin is signed in and a contained pilot session is visible.",
+      "steps": [
+        "1. Open the organization Pilot tab with an active contained session.",
+        "2. Confirm the embedded frame does not show the piloted-email header.",
+        "3. Confirm the embedded frame does not show the old contained-dashboard subtitle.",
+        "4. Confirm the embedded frame does not show the Live or Loading status pill.",
+        "5. Inspect the embedded dashboard scale and frame overflow."
+      ],
+      "expected": "The embedded client dashboard starts directly below the Pilot controls, no frame header text or live/loading pill is visible, the iframe uses the increased 0.82 scale, and the parent frame still has no horizontal overflow.",
+      "status": "pass",
+      "evidence": "Chrome visual check after reload at localhost:3000/admin/organizations/39?section=pilot&userId=60: the embedded frame header text and live indicator are absent, and the dashboard is larger while remaining contained. Screenshot: plans/06272026-embedded-organization-pilot-tab/evidence/pilot-rev5-scale-header-removed.png.",
+      "notes": "Chrome blocks JavaScript from Apple Events on this machine, so this Rev 5 acceptance was verified by visible browser screenshot evidence.",
+      "waiver": ""
+    }
+  ]
+}

@@ -4,12 +4,14 @@ import {
   type AppTelemetryEvent,
   recordAppTelemetryEvents,
 } from "../api/app-telemetry";
-import { getCommonHeaders } from "../api";
+import { getCommonHeaders, isPilotSession } from "../api";
 import { useAuth } from "./useAuth";
 import { getRouteTelemetryDescriptor } from "../utils/telemetry/routeTelemetry";
+import { isEmbeddedPilotSession } from "../utils/embeddedPilotSession";
 
 const SESSION_KEY = "alloro_app_telemetry_session_id";
 const HEARTBEAT_INTERVAL_MS = 30_000;
+let embeddedTelemetrySessionId: string | null = null;
 
 type CurrentRoute = {
   routeTemplate: string | null;
@@ -122,6 +124,11 @@ function buildEvent(
 }
 
 function getTelemetrySessionId(): string {
+  if (isEmbeddedPilotSession()) {
+    embeddedTelemetrySessionId ??= createUuid();
+    return embeddedTelemetrySessionId;
+  }
+
   const existing = window.sessionStorage.getItem(SESSION_KEY);
   if (existing) return existing;
   const next = createUuid();
@@ -137,13 +144,6 @@ function createUuid(): string {
       (window.crypto.getRandomValues(new Uint8Array(1))[0] &
         (15 >> (Number(char) / 4)))
     ).toString(16),
-  );
-}
-
-function isPilotSession(): boolean {
-  return (
-    window.sessionStorage.getItem("pilot_mode") === "true" ||
-    Boolean(window.sessionStorage.getItem("token"))
   );
 }
 

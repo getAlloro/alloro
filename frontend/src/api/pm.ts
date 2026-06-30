@@ -1,6 +1,4 @@
-import axios from "axios";
-import { apiGet, apiPost, apiPut, apiDelete } from "./index";
-import { getPriorityItem } from "../hooks/useLocalStorage";
+import { apiGet, apiPost, apiPut, apiDelete, apiPostWithProgress } from "./index";
 import type {
   PmProject,
   PmProjectDetail,
@@ -21,21 +19,6 @@ import type {
   PmBacklogProjectGroup,
   PmUser,
 } from "../types/pm";
-
-const API_BASE =
-  (import.meta as unknown as { env?: { VITE_API_URL?: string } })?.env
-    ?.VITE_API_URL ?? "/api";
-
-function getAuthHeader(): Record<string, string> {
-  const isPilot =
-    typeof window !== "undefined" &&
-    (window.sessionStorage?.getItem("pilot_mode") === "true" ||
-      !!window.sessionStorage?.getItem("token"));
-  const jwt = isPilot
-    ? window.sessionStorage.getItem("token")
-    : getPriorityItem("auth_token") || getPriorityItem("token");
-  return jwt ? { Authorization: `Bearer ${jwt}` } : {};
-}
 
 // Guards against silent-HTML failures: apiGet swallows errors and returns
 // non-JSON bodies verbatim, so unvalidated `res.data` reads can produce
@@ -400,7 +383,7 @@ export async function listAttachments(
 /**
  * Upload a single file to a task.
  *
- * Uses axios directly (bypassing apiPost) so callers can observe upload
+ * Uses the shared API client progress helper so callers can observe upload
  * progress via `onProgress(0..1)` for large files.
  */
 export async function uploadAttachment(
@@ -411,21 +394,18 @@ export async function uploadAttachment(
   const formData = new FormData();
   formData.append("file", file);
 
-  const { data } = await axios.post(
-    `${API_BASE}/pm/tasks/${taskId}/attachments`,
-    formData,
-    {
-      headers: getAuthHeader(),
-      onUploadProgress: (evt) => {
-        if (!onProgress) return;
-        const total = evt.total ?? file.size;
-        if (!total) return;
-        const pct = Math.min(1, (evt.loaded || 0) / total);
-        onProgress(pct);
-      },
-    }
-  );
-  return data.data as PmTaskAttachment;
+  const res = await apiPostWithProgress({
+    path: `/pm/tasks/${taskId}/attachments`,
+    passedData: formData,
+    onUploadProgress: (evt) => {
+      if (!onProgress) return;
+      const total = evt.total ?? file.size;
+      if (!total) return;
+      const pct = Math.min(1, (evt.loaded || 0) / total);
+      onProgress(pct);
+    },
+  });
+  return unwrapPmEnvelope(res);
 }
 
 export async function getAttachmentDownloadUrl(

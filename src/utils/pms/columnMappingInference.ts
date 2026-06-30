@@ -1,5 +1,7 @@
 import { runAgent } from "../../agents/service.llm-runner";
 import { loadPrompt } from "../../agents/service.prompt-loader";
+import { substitutePromptPlaceholders } from "../../agents/service.prompt-substituter";
+import type { OrgType } from "../../config/orgLabels";
 import {
   ColumnMappingResponseSchema,
   type ColumnMappingResponse,
@@ -32,9 +34,13 @@ const DEFAULT_MAPPER_MODEL = "claude-haiku-4-5-20251001";
 
 export async function inferColumnMapping(
   headers: string[],
-  sampleRows: Record<string, unknown>[]
+  sampleRows: Record<string, unknown>[],
+  orgType: OrgType = "health"
 ): Promise<ColumnMappingResponse | null> {
-  const systemPrompt = loadPrompt("monthlyAgents/PmsColumnMapper");
+  const systemPrompt = substitutePromptPlaceholders(
+    loadPrompt("monthlyAgents/PmsColumnMapper"),
+    orgType
+  );
   const model = process.env.AGENTS_LLM_MAPPER_MODEL ?? DEFAULT_MAPPER_MODEL;
 
   const userPayload = {

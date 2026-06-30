@@ -2,6 +2,45 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.140] - July 2026
+
+### Removed Market Intelligence + Search Opportunity
+
+The DataForSEO-backed Market Intelligence engine and the "Search Opportunity" first stage of the Patient Journey funnel were retired (recurring per-client cost; the search-volume numbers were directional at best). The funnel now runs Google Visibility → Website Visitors → Website Leads, with "Google Visibility" as the head.
+
+**Key Changes:**
+- Removed the entire Market Intelligence module, the DataForSEO integration, and both generations of the search-volume system (current + legacy), including their background worker and scheduled jobs.
+- Patient Journey funnel re-anchored to three stages (impressions → visits → leads); the Search Opportunity card and its detail content are gone, and the dashboard now reads "Three gates."
+- Reversible drop migration removes the `keyword_search_volume`, `market_keywords`, and `market_keyword_search_volume` tables.
+- Dev: tables dropped, Redis queues obliterated (plus the legacy monthly harvest job), DataForSEO credentials removed from the server env, and the worker reloaded clean. Production was never affected — the feature never shipped to prod.
+- Also fixed a pre-existing dev deploy blocker: a stale `keyword_search_volume` table left by a dev re-clone had been failing every dev deploy since late June; clearing it unblocked the dev pipeline.
+
+**Verification:** `test-results.json` rolls up to Passed for `plans/06302026-remove-market-intelligence-search-opportunity`. Backend + frontend `tsc` 0 errors, patient-journey unit suite 12/12, `npm run check:conventions --strict` 0 backend violations, residual grep clean (migration history only), dev deploy green with health check healthy, and the owner verified the dev funnel screen.
+
+**Commits:**
+- Backend module/model/worker/migration removal + patient-journey funnel rewire; frontend Search Opportunity card removal + dead help-mechanism cleanup; plan-artifact cleanup + tombstone; acceptance + spec records.
+
+**Note:** Prod promotion is held by the owner (dev-only for now); `dev/dave` remains ahead of `main`. The drop migration runs harmlessly (create-empty → drop, zero data impact) whenever a deliberate `main` release happens.
+
+## [0.0.139] - June 2026
+
+### Generic Revenue Data + Agent Verbiage Completion
+
+Generic organizations now get a clean non-healthcare Revenue Hub experience, and the agent prompt layer now uses org-type vocabulary before new AI output is generated. Healthcare organizations keep the existing PMS, referral, patient, doctor, and production wording.
+
+**Key Changes:**
+- Generic PMS/Revenue Hub surfaces now say revenue data, records, customers, revenue sources, and source/channel instead of PMS, referral source, patients, and production.
+- Existing generic dashboard empty states, upload prompts, setup copy, task cards, stale generated action text, and shared alerts now use generic wording at display time.
+- Backend prompt vocabulary now covers monthly agents, Proofline, PMS column mapping, paste sanitization, GBP review replies, and local posts.
+- Prompt callers with organization context now resolve org type server-side before invoking the LLM.
+- Parser schema keys and legacy role enum values stay unchanged so ingestion contracts remain stable.
+- Alloro Docs parity was updated for Referrals Hub and Integrations wording so the docs explain the healthcare/generic wording split.
+
+**Verification:** `test-results.json` rolls up to Passed for both `plans/06292026-generic-revenue-data-verbiage` and `plans/06292026-agent-org-type-prompt-verbiage`. Focused frontend/backend Vitest suites passed, `npx tsc --noEmit`, backend and frontend builds, `npm run check:all`, and `git diff --check` passed with only existing advisory warnings. Authenticated Pilot checks verified generic labels on Alloro Team's Organization and health wording on One Endodontics.
+
+**Commits:**
+- PMS/Revenue Hub UI, generic display-copy fallback, prompt vocabulary, prompt caller plumbing, docs parity, Friyay package, and acceptance artifacts.
+
 ## [0.0.138] - June 2026
 
 ### Audit — Correct Letter Grades, Resilient GBP Stage, Full Event Funnel
@@ -19,6 +58,112 @@ Three fixes to the leadgen audit pipeline: grade letters now match the approved 
 - `1dfbfe6d` fix(audit): website analysis no longer aborts GBP analysis
 - `2eabe502` fix(audit): deterministic 12-band letter grades across all three cards
 - `4d3632ca` fix(leadgen): accept interaction events on /event instead of 400
+
+## [0.0.137] - June 2026
+
+### Market Intelligence Search Opportunity + Lead Pipeline Gates
+
+Patient Journey now separates estimated market demand from observed Google and website activity. The first card uses the new Market Intelligence keyword system instead of legacy ranking keywords, and the dashboard now reads as a lead pipeline with clearer labels, source-backed modals, and plain tooltips for why the numbers do not always move like a strict funnel.
+
+**Key Changes:**
+- Added a Market Intelligence backend foundation with market keywords, AI denoise/approval, GSC enrichment, DataForSEO volume harvests, and keyword-level storage separate from legacy `keyword_search_volume`.
+- Switched the Patient Journey first stage to org-level Search Opportunity totals aggregated across active locations, while keeping selected-location context cards local.
+- Reframed the dashboard stages as Search Opportunity, Google Visibility, Website Visitors, and Website Leads with clearer arrow labels and source explanations.
+- Simplified the stage modals so users see only understandable, source-backed details, including the top tracked keyword estimates for Search Opportunity.
+- Added help tooltips explaining Search Opportunity versus Google Visibility, visitors versus sessions, and why Google clicks may not exactly match recorded website visitors.
+- Retired the old monthly `harvest-search-volume` worker path and startup-cleans its old BullMQ repeatable key; historical legacy rows remain untouched.
+- Checked Alloro Docs parity. No active Patient Journey docs page exists to update.
+
+**Verification:** Market Intelligence acceptance artifacts roll up to Passed across backend foundation, Patient Journey API, dashboard UI, enrichment ops, and code-constitution remediation. `npx tsc --noEmit`, `npm test -- --run` (17 files / 83 tests), targeted market-intelligence tests (7 files / 24 tests), `npm run check:conventions -- --strict`, `npm run lint`, and `git diff --check` passed during final verification.
+
+**Commits:**
+- `src/agents/marketIntelligence/`, `src/controllers/market-intelligence/`, `src/models/MarketKeyword*.ts`, `src/database/migrations/20260626000000_create_market_intelligence_tables.ts` - new Market Intelligence keyword, enrichment, summary, and search-volume storage foundation.
+- `src/controllers/patient-journey/feature-services/*`, `src/controllers/patient-journey/feature-utils/*`, `src/__tests__/patient-journey.service.test.ts` - Patient Journey API now reads org-level Search Opportunity data and exposes clearer stage metadata.
+- `frontend/src/components/dashboard/patient-journey/*`, `frontend/src/types/patientJourney.ts`, `frontend/src/api/patientJourney.ts` - lead-pipeline UI labels, detail deck, tooltip help, and decluttered modals.
+- `src/workers/worker.ts`, `src/workers/processors/marketIntelligence.processor.ts`, removed `src/workers/processors/searchVolumeHarvest.processor.ts` - market-intelligence worker registration and legacy search-volume job retirement.
+- `plans/06262026-market-intelligence-*/`, `plans/06262026-code-constitution-remediation/` - completed specs, acceptance checklists, and passing test results.
+
+## [0.0.136] - June 2026
+
+### Embedded Organization Pilot Tab
+
+Pilot now lives inside the organization detail page as a contained tab instead of opening a separate browser window. Admins can launch a client-level dashboard from Mission Control or Users & Roles and stay in the same admin tab.
+
+**Key Changes:**
+- Added a top-level Pilot tab on organization details with a contained, scaled same-origin iframe.
+- Routed Mission Control and Users & Roles pilot actions into the organization Pilot tab with the selected user preloaded.
+- Kept the pilot token out of URLs and browser storage by handing it to the iframe through a same-origin message and memory-only auth state.
+- Preserved the parent admin session when the embedded client frame logs out, and kept the pilot frame alive while switching organization tabs.
+- Removed noisy pilot-helper copy, the embedded frame's piloted-user header, and the frame live indicator; tuned the embedded dashboard to a larger contained scale without extra parent scrollbars.
+
+**Verification:** `test-results.json` rolls up to Passed with authenticated browser evidence for One Endodontics pilot routing, tab persistence, token isolation, admin-session safety, frame-header removal, and visual containment. `npm run build`, `cd frontend && npm run build`, `npm run check:all`, targeted ESLint, `git diff --check`, and `npx vitest run src/utils/embeddedPilotSession.test.ts` passed during execution.
+
+**Commits:**
+- `frontend/src/components/Admin/org/*Pilot*.tsx` — new organization Pilot tab, controls, body, and embedded iframe shell.
+- `frontend/src/api/index.ts`, `frontend/src/api/admin-mission-control.ts`, `frontend/src/components/Admin/org/OrgUsersSection.tsx`, `frontend/src/components/Admin/org/OrganizationDetailNavigation.tsx` — same-tab pilot routing and organization navigation wiring.
+- `frontend/src/utils/embeddedPilotSession.ts`, `frontend/src/utils/embeddedPilotSession.test.ts` — memory-only embedded pilot auth/session helpers and coverage.
+- `plans/06272026-embedded-organization-pilot-tab/` — completed spec, acceptance checklist, results JSON, and browser evidence screenshots.
+
+## [0.0.135] - June 2026
+
+### AI Command Bulk Editor — Edits Now Persist (and Status Tells the Truth)
+
+Fixes a bug where the website AI Command bulk editor reported edits as "executed" but silently dropped them. A run that asked to "replace all cal.com links with /book-a-demo" reported 38/38 executed, yet the published pages were unchanged.
+
+**Root cause:** when several recommendations in one batch touched the same page section, the executor read the section from one draft row and wrote it to another, so each edit was computed from a stale snapshot and overwrote the previous one — only the last write per section survived. The status was set on "the LLM returned HTML," never on "the change reached the published page," so it reported success regardless.
+
+**Key Changes:**
+- `fix:` the executor now pins a single draft per page for the whole batch, used by both the read (`getCurrentHtml`) and the write (`saveEditedHtml`), so edits to the same section stack instead of clobbering each other.
+- `feat:` a post-publish verification pass re-reads the published content for every "executed" edit and confirms the change actually landed; anything that didn't is downgraded to `failed` with a reason, so the batch stats stop lying. The check is conservative — it only fails an edit when the change is provably absent.
+- `test:` added unit coverage for the draft-pinning (read+write share one row, idempotent) and the verify net (flags an absent change, confirms a present one).
+
+**Verification:** `npx tsc --noEmit` clean (0 errors from changed files); `npm run check:conventions --strict` 0 new backend violations; `npx vitest run` 83/83 pass (10 new). Behavioral UI re-run on dev deferred to post-deploy owner verification.
+
+**Commits:**
+- `src/controllers/admin-websites/feature-services/service.ai-command-execute.ts` — pin one draft per page across read + write; call the verify pass after publishing.
+- `src/controllers/admin-websites/feature-utils/util.ai-command-shared.ts` — add `resolvePageDraftId` (the per-path pinned-draft resolver).
+- `src/controllers/admin-websites/feature-utils/util.ai-command-verify.ts` — new post-publish verifier (`extractAddedTokens`, `changeIsPresent`, `verifyBatchEdits`).
+- `src/__tests__/ai-command-execute.test.ts` — new unit tests.
+
+## [0.0.134] - June 2026
+
+### Dev API Boot Fix + Quieter Proxied Request Logs
+
+Fixes the local backend failing to start under `express-rate-limit` v8, and removes the request-log flood you see when browsing the app on `localhost:3000` in dev.
+
+**Key Changes:**
+- `fix:` the `authLimiter` rate limiter built its key from the client IP directly, which `express-rate-limit` v8 rejects for IPv6 safety (`ERR_ERL_KEY_GEN_IPV6`). It threw at module load, before `app.listen`, so the API never bound port 3000. The IP is now wrapped with the library's `ipKeyGenerator` helper (normalizes IPv6 to a /64 subnet), so the limiter is IPv6-safe and the server boots.
+- `chore:` in dev, `pino-http` no longer auto-logs the requests proxied to Vite (the per-module `/src/**.tsx` fetches). Browsing on `:3000` previously logged hundreds of lines per page load. `/api/*` requests still log fully; production logging is unchanged (the frontend is bundled there, so there is no per-module flood).
+
+**Verification:** `npx tsc --noEmit` passes (0 errors). Confirmed the API binds port 3000 after the fix and that the dev console shows only `/api/*` request logs.
+
+**Commits:**
+- `src/middleware/publicRateLimiter.ts` — import `ipKeyGenerator`; wrap the IP in `authLimiter`'s `keyGenerator`.
+- `src/app.ts` — dev-only `pino-http` `autoLogging.ignore` for non-`/api` (proxied) requests; same `isProd` switch the Vite dev proxy already uses.
+
+## [0.0.133] - June 2026
+
+### Organization Type — Generic (non-healthcare) Verbiage
+
+Alloro can now serve a non-healthcare "generic" experience alongside the existing healthcare one, driven by a single per-organization type. Existing clients are unaffected — every organization is `health` and renders byte-identical to before. A `generic` organization shows business vocabulary across the dashboard and AI output: Practice Hub → Business Hub, Referrals Hub → Revenue Hub, patients → customers, referrals → leads, production → revenue, and "the doctor" → second-person "you". Type is chosen when an admin creates the org and is editable afterward.
+
+**Key Changes:**
+- Org-type value `saas` renamed to `generic`; `health` is the default — `null` resolves to health and a migration backfills existing rows, so current accounts are untouched.
+- One label config + `useLabels()` hook (frontend) and a prompt placeholder substituter (backend) resolve vocabulary per org type at runtime — the same components and prompts serve both verticals.
+- Client-facing agent prompts (monthly Summary / ReferralEngine / Opportunity, GBP review-reply + local-post) carry an org-type vocabulary directive so generic AI output reads non-healthcare; JSON schema keys and GBP safety rules are left intact.
+- Local Rankings specialty detection generalizes by org type (a plumber is identified as "plumber", not "orthodontist").
+- Org-type selector added to the admin Create-Organization popup; the once-immutable type is now editable.
+- ~40 frontend display strings routed through the label map (nav, hubs, PMS cards, dashboard panels, Customer Journey card).
+
+**Verification:** backend + frontend type-checks, 9/9 new unit tests, and `check:conventions --strict` all pass. Local browser + generation QA confirmed a generic org renders business vocabulary on the dashboard and Revenue Hub, generic agent output reads non-healthcare, and a health org is unchanged. Acceptance checklist rolls up to Passed (Jo's staging copy review waived to pre-rollout — no client is affected by this code-only finalization).
+
+**Commits:**
+- `47e4446c` — backend: config/orgLabels + resolveOrgType, saas→generic, relaxed immutability + write-type-at-creation, organizationType on /onboarding/status, prompt substituter + 4 seams, tokenized prompts, ranking generalization, backfill migration, unit tests.
+- `9cdab7a3` — frontend: label map + useLabels + auth-context wiring + create-popup selector + ~22 display swaps + acceptance artifact.
+- `c9572995` — browser-QA fixes: {{vocab_directive}} for generic agent output, ProductionPanel, ~15 undercounted Revenue-Hub/PMS labels.
+- `c246f07c`, `f04dc0cc` — QA results + spec revisions (Rev 2, Rev 3).
+
+**Pending rollout (not part of this finalization):** push `dev/dave` to deploy and run the migration on dev/prod; Jo copy review in staging; generic-variant Alloro Docs (the existing docs describe the unchanged health experience and remain accurate); a few deferred follow-up swaps (onboarding wizard copy, loading phrases, `mapping.ts` defaults).
 
 ## [0.0.132] - June 2026
 

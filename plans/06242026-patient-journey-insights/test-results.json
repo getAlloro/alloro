@@ -1,0 +1,288 @@
+{
+  "plan": "plans/06242026-patient-journey-insights",
+  "generatedAt": "2026-06-25",
+  "status": "Not Run",
+  "supersededBy": [
+    "plans/06262026-market-intelligence-backend-foundation",
+    "plans/06262026-market-intelligence-patient-journey-api",
+    "plans/06262026-market-intelligence-dashboard-ui",
+    "plans/06262026-market-intelligence-enrichment-ops"
+  ],
+  "notes": "This legacy Patient Journey checklist was not executed. The active acceptance gate moved to the June 26 Market Intelligence plan set, whose test-results.json files roll up to Passed.",
+  "items": [
+    {
+      "id": "A1",
+      "title": "Endpoint returns the funnel contract for an authorized org",
+      "surface": "api",
+      "precondition": "A valid JWT for a user in a pilot org with at least one location (see reference_auth_testing). Backend running.",
+      "steps": [
+        "1. GET /api/patient-journey with the Authorization: Bearer <token> header.",
+        "2. (optional) add ?month=2026-06 to pin the report month.",
+        "3. Inspect the JSON body."
+      ],
+      "expected": "200 with { success: true, data: { location, period, stages[4], conversions[3], leakStageKey, revenue, context:{rank,reviews}, headline } }. stage keys are market_demand, impressions, visits, leads in that order. Revenue may exist in the payload but is not a pipeline stage.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "A2",
+      "title": "Endpoint requires authentication",
+      "surface": "api",
+      "precondition": "Backend running.",
+      "steps": ["1. GET /api/patient-journey with NO Authorization header."],
+      "expected": "401 with the { success:false, error } envelope — the default-deny auth guard blocks the request before any data read.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "A3",
+      "title": "Cross-tenant location request is denied",
+      "surface": "api",
+      "precondition": "A valid JWT for org A; a locationId that belongs to org B.",
+      "steps": [
+        "1. GET /api/patient-journey?locationId=<org-B-location-id> with org A's token."
+      ],
+      "expected": "403 LOCATION_ACCESS_DENIED (no rows from org B leak); the requested locationId must match the middleware-authorized location.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "U1",
+      "title": "Patient Journey screen renders the lead-generation pipeline",
+      "surface": "ui",
+      "precondition": "Logged in as a pilot org user (LocationContext resolved to a real location).",
+      "steps": [
+        "1. Navigate to /patientJourneyInsights (or click the Patient Journey nav item).",
+        "2. Observe the horizontal card + arrow pipeline."
+      ],
+      "expected": "Four monitored stages render as cards joined by arrows (Searching your market → Saw your listing → Visited your site → Reached out), plus rank/reviews context and a one-thing headline. Live numbers where sources are connected.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "U2",
+      "title": "Honest empty states for unconnected sources",
+      "surface": "ui",
+      "precondition": "A pilot org with at least one missing monitored source (e.g. search volume not harvested yet).",
+      "steps": [
+        "1. Open /patientJourneyInsights for that org.",
+        "2. Look at the monitored stage whose source is missing (for example, Searching your market with no search volume)."
+      ],
+      "expected": "That stage shows a 'not connected yet' empty state — never a misleading zero. The rest of the funnel still renders (graceful per-stage degradation).",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "U3",
+      "title": "Biggest-leak emphasis and per-step conversion %",
+      "surface": "ui",
+      "precondition": "A pilot org with at least two connected adjacent stages.",
+      "steps": [
+        "1. Open /patientJourneyInsights.",
+        "2. Read the conversion % on each arrow and the highlighted leak step + headline."
+      ],
+      "expected": "Per-step conversion %s shown; the single smallest non-null step is visually emphasized as the biggest leak, and the descriptive headline (not a prediction) names that step.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "U4",
+      "title": "Visits is labelled all-channel, not a strict click-through",
+      "surface": "ui",
+      "precondition": "A pilot org with Rybbit connected.",
+      "steps": [
+        "1. Open /patientJourneyInsights.",
+        "2. Read the 'Visited your site' stage label/tooltip and the Saw → Visited step."
+      ],
+      "expected": "'Visited your site' uses Rybbit visits, labelled all-channel (search + direct + social, best-effort bot-filtered); the Saw → Visited step is presented as a visit count, not a strict search CTR.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "U5",
+      "title": "Per-stage freshness ('as of') is shown",
+      "surface": "ui",
+      "precondition": "A pilot org with connected sources of differing lag.",
+      "steps": [
+        "1. Open /patientJourneyInsights.",
+        "2. Look for the per-stage 'as of' date on each stage."
+      ],
+      "expected": "Each connected stage shows its own freshness date; there is no single misleading global 'as of'.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "U6",
+      "title": "Org-type wording resolves without adding a patient conversion stage",
+      "surface": "ui",
+      "precondition": "Access to a health-type org and a generic-type org.",
+      "steps": [
+        "1. Open /patientJourneyInsights as a health-type org — read the title and final stage.",
+        "2. Open it as a generic-type org — read the title and final stage."
+      ],
+      "expected": "Health org shows 'Patient Journey Insights'; generic org shows 'Customer Journey Insights'. Both pipelines end at Reached out, not Became patients/customers.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "U7",
+      "title": "Multi-location practice labels shared traffic stages",
+      "surface": "ui",
+      "precondition": "A multi-location pilot org (2+ locations).",
+      "steps": [
+        "1. Open /patientJourneyInsights for the multi-location org.",
+        "2. Read the shared website-traffic stages (Saw / Visited / Reached out)."
+      ],
+      "expected": "The shared website-traffic stages carry a 'whole-practice website' label; the per-location context/stages (search volume / rank / reviews) stay location-specific.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "U8",
+      "title": "Navigation item appears and routes correctly",
+      "surface": "ui",
+      "precondition": "Logged in pilot org user, desktop and mobile widths.",
+      "steps": [
+        "1. On desktop, find the Patient Journey item in the sidebar; click it.",
+        "2. Resize to mobile; confirm it appears in the bottom nav and routes."
+      ],
+      "expected": "Nav item is visible on desktop sidebar and mobile bottom nav, routes to /patientJourneyInsights, and shows the active state when on that screen.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "U9",
+      "title": "Practice Hub summary card renders and links through",
+      "surface": "ui",
+      "precondition": "Logged in pilot org user.",
+      "steps": [
+        "1. Open the Practice Hub (/dashboard).",
+        "2. Find the Patient Journey summary card (after the One Thing banner).",
+        "3. Click its link."
+      ],
+      "expected": "A compact Patient Journey card renders with a headline/biggest-leak one-liner (honest state when data is sparse) and links to /patientJourneyInsights.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "U10",
+      "title": "Reduced-motion is respected",
+      "surface": "ui",
+      "precondition": "OS 'reduce motion' setting enabled.",
+      "steps": [
+        "1. Enable prefers-reduced-motion.",
+        "2. Open /patientJourneyInsights."
+      ],
+      "expected": "Entrance / count-up / hover animations are suppressed or minimized; the screen is fully usable with no motion.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "U11",
+      "title": "Pipeline connector indicators are vertically centered",
+      "surface": "ui",
+      "precondition": "Logged in pilot org user at desktop width.",
+      "steps": [
+        "1. Open /patientJourneyInsights.",
+        "2. Compare each connector's percent, arrow, and caption against the neighboring card height."
+      ],
+      "expected": "Each connector indicator sits at the vertical midpoint of the card row, not top-aligned near the card number or label.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "U12",
+      "title": "Stage card contents are centered",
+      "surface": "ui",
+      "precondition": "Logged in pilot org user at desktop width.",
+      "steps": [
+        "1. Open /patientJourneyInsights.",
+        "2. Inspect each stage card's metric, label, and empty-state copy."
+      ],
+      "expected": "Each stage card's contents are horizontally centered and vertically justified in the card body, including cards with values and cards showing 'Not connected yet'.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "U13",
+      "title": "Production is not rendered as a pipeline stage",
+      "surface": "ui",
+      "precondition": "Logged in pilot org user with PMS production data available.",
+      "steps": [
+        "1. Open /patientJourneyInsights.",
+        "2. Inspect the pipeline cards and connector captions."
+      ],
+      "expected": "No card or connector displays production/revenue, Became patients, or a leads-to-production implication. Production can exist elsewhere in Alloro but is not part of this Journey pipeline.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "U14",
+      "title": "Pipeline cards open the floating source detail deck",
+      "surface": "ui",
+      "precondition": "Logged in pilot org user at desktop width.",
+      "steps": [
+        "1. Open /patientJourneyInsights.",
+        "2. Click each of the four pipeline cards: Searching your market, Saw your listing, Visited your site, Reached out.",
+        "3. For each click, inspect the floating card deck, backdrop, and lower funnel-context section."
+      ],
+      "expected": "Clicking a pipeline card opens a wide viewport-centered floating card deck with that stage centered. The dashboard behind it is darkened and blurred. There is no large outer panel background. The card sizes stay large, but the internal text is scaled down enough to avoid awkward wrapping where practical. Adjacent cards show summary-only previous/next stages.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "U15",
+      "title": "Detail deck navigation and keyboard behavior work",
+      "surface": "ui",
+      "precondition": "Logged in pilot org user with the detail deck open.",
+      "steps": [
+        "1. Use the side left/right arrow controls.",
+        "2. Confirm the centered stage changes with animation and the source details update.",
+        "3. Use the dot indicators and confirm the selected stage changes.",
+        "4. Tab to a stage card and press Enter or Space.",
+        "5. Press Escape and confirm the deck closes.",
+        "6. Reopen the deck, click the darkened backdrop, and confirm it closes.",
+        "7. Confirm the context cards below the pipeline do not open the deck."
+      ],
+      "expected": "Side arrows and dot indicators animate between stages and update the center detail. Pipeline stage cards are keyboard-activatable. Escape, the bare close icon, and backdrop click dismiss the deck. Only the four pipeline cards trigger it.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    }
+  ]
+}

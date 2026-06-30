@@ -1,4 +1,5 @@
 import { BarChart3, Lock, PenLine, ShieldCheck, Sparkles } from "lucide-react";
+import { usePmsCopy } from "../pmsCopy";
 
 export type PmsEmptyDashboardStateProps = {
   canUploadPMS: boolean;
@@ -19,10 +20,11 @@ export function PmsEmptyDashboardState({
   onOpenManualEntry,
   onOpenSettings,
 }: PmsEmptyDashboardStateProps) {
+  const copy = usePmsCopy();
   const needsProperties = !hasProperties && !isWizardActive;
   const primaryCopy = isProcessingInsights
-    ? "Your first PMS dataset is being processed. The dashboard will populate automatically when Alloro finishes analysis."
-    : "Upload your first PMS dataset and Alloro will turn it into production trends, referral mix, source rankings, and growth actions.";
+    ? copy.emptyProcessingCopy
+    : copy.emptyReadyCopy;
 
   return (
     <section
@@ -42,7 +44,7 @@ export function PmsEmptyDashboardState({
             Empty Dashboard
           </div>
           <h2 className="font-display text-3xl font-medium tracking-tight text-alloro-navy sm:text-4xl">
-            Your PMS intelligence will live here
+            {copy.emptyTitle}
           </h2>
           <p className="mt-4 max-w-2xl text-base font-medium leading-7 text-[color:var(--color-pm-text-secondary)]">
             {primaryCopy}
@@ -54,12 +56,14 @@ export function PmsEmptyDashboardState({
             <BarChart3 className="h-6 w-6" />
           </div>
           <h3 className="text-lg font-black text-alloro-navy">
-            {isProcessingInsights ? "Processing is underway" : "Start with PMS data"}
+            {isProcessingInsights
+              ? "Processing is underway"
+              : copy.emptyStartTitle}
           </h3>
           <p className="mt-2 text-sm font-medium leading-6 text-[color:var(--color-pm-text-secondary)]">
             {needsProperties
-              ? "Connect your Google Business Profile before uploading PMS data."
-              : "The existing PMS upload and manual entry flow stays unchanged."}
+              ? copy.emptyNeedsPropertiesCopy
+              : copy.emptyFlowCopy}
           </p>
 
           <button
@@ -68,14 +72,18 @@ export function PmsEmptyDashboardState({
             disabled={!canUploadPMS && !needsProperties}
             className="mt-5 inline-flex w-full items-center justify-center gap-3 rounded-2xl bg-alloro-orange px-5 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-alloro-orange/20 transition-all duration-200 hover:scale-[1.02] hover:brightness-110 focus:outline-none focus:ring-4 focus:ring-alloro-teal/30 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {needsProperties ? <Lock className="h-4 w-4" /> : <PenLine className="h-4 w-4" />}
-            {needsProperties ? "Go to settings" : "Upload PMS data"}
+            {needsProperties ? (
+              <Lock className="h-4 w-4" />
+            ) : (
+              <PenLine className="h-4 w-4" />
+            )}
+            {needsProperties ? "Go to settings" : copy.uploadDataCta}
           </button>
 
           <div className="mt-4 flex flex-wrap justify-center gap-4 text-[9px] font-black uppercase tracking-widest text-[color:var(--color-pm-text-secondary)]">
             <span className="inline-flex items-center gap-2">
               <Lock className="h-3.5 w-3.5" />
-              HIPAA secure
+              {copy.secureBadge}
             </span>
             <span className="inline-flex items-center gap-2">
               <ShieldCheck className="h-3.5 w-3.5 text-green-600" />

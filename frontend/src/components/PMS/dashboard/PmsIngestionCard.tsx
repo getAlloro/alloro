@@ -1,10 +1,6 @@
-import {
-  AlertCircle,
-  Database,
-  Lock,
-  PenLine,
-} from "lucide-react";
+import { AlertCircle, Database, Lock, PenLine } from "lucide-react";
 import { PmsDataTrendGraph } from "./PmsDataTrendGraph";
+import { usePmsCopy } from "../pmsCopy";
 
 export type PmsDataAvailabilityMonth = {
   month: string;
@@ -40,6 +36,7 @@ export function PmsIngestionCard({
   onSelectDataMonth,
   onOpenSettings,
 }: PmsIngestionCardProps) {
+  const copy = usePmsCopy();
   const needsProperties = !hasProperties && !isWizardActive;
 
   return (
@@ -62,11 +59,10 @@ export function PmsIngestionCard({
               Data Ingestion
             </p>
             <h2 className="mt-2 font-display text-3xl font-medium tracking-tight text-alloro-navy">
-              Update your referral data
+              {copy.ingestionTitle}
             </h2>
             <p className="mt-3 text-base font-medium leading-7 text-[color:var(--color-pm-text-secondary)]">
-              Upload your latest month’s referral and production numbers. Re-upload
-              a month you’ve already saved to overwrite its existing entry.
+              {copy.ingestionBody}
             </p>
           </div>
 
@@ -78,7 +74,7 @@ export function PmsIngestionCard({
                 className="inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-alloro-orange px-5 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-alloro-orange/20 transition-all duration-200 hover:scale-[1.02] hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-alloro-orange/30"
               >
                 <PenLine className="h-4 w-4" />
-                Upload New Data
+                {copy.uploadNewDataCta}
               </button>
               {canOpenDataManager && onOpenDataManager && (
                 <button
@@ -103,16 +99,22 @@ export function PmsIngestionCard({
       ) : (
         <div className="flex flex-col items-center gap-5 text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
-            {needsProperties ? <Lock className="h-7 w-7" /> : <AlertCircle className="h-7 w-7" />}
+            {needsProperties ? (
+              <Lock className="h-7 w-7" />
+            ) : (
+              <AlertCircle className="h-7 w-7" />
+            )}
           </div>
           <div>
             <h2 className="font-display text-2xl font-medium tracking-tight text-alloro-navy">
-              {needsProperties ? "Connect properties first" : "Upload restricted"}
+              {needsProperties
+                ? "Connect properties first"
+                : "Upload restricted"}
             </h2>
             <p className="mt-2 max-w-md text-sm font-medium leading-6 text-[color:var(--color-pm-text-secondary)]">
               {needsProperties
-                ? "Connect your Google Business Profile before updating PMS data."
-                : "Only admins and managers can upload PMS data."}
+                ? copy.restrictedNeedsPropertiesCopy
+                : copy.restrictedRoleCopy}
             </p>
           </div>
           {needsProperties && (

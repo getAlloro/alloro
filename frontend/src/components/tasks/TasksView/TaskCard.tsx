@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import type { ActionItem } from "../../../types/tasks";
 import { parseHighlightTags } from "../../../utils/textFormatting";
+import { formatGeneratedCopyForOrg } from "../../../utils/generatedCopy";
+import { useAuth } from "../../../hooks/useAuth";
 
 interface TaskCardProps {
   task: ActionItem;
@@ -39,6 +41,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
   descriptionRef,
   isPulsing,
 }) => {
+  const { userProfile } = useAuth();
   const [showHelp, setShowHelp] = useState(false);
   const [comment, setComment] = useState("");
   const [sent, setSent] = useState(false);
@@ -67,6 +70,18 @@ const TaskCard: React.FC<TaskCardProps> = ({
 
   const priority = getPriority();
   const isHighPriority = priority === "Immediate" || priority === "High";
+  const displayTitle = formatGeneratedCopyForOrg(
+    task.title,
+    userProfile?.organizationType
+  );
+  const displayDescription = formatGeneratedCopyForOrg(
+    task.description,
+    userProfile?.organizationType
+  );
+  const displayCategory = formatGeneratedCopyForOrg(
+    task.category,
+    userProfile?.organizationType
+  );
 
   // Handle checkbox click - this is the only way to toggle task status
   const handleCheckboxClick = (e: React.MouseEvent) => {
@@ -139,7 +154,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
                   isDone ? "line-through opacity-30" : ""
                 }`}
               >
-                {parseHighlightTags(task.title, "underline")}
+                {parseHighlightTags(displayTitle, "underline")}
               </h3>
               {isHighPriority && !isDone && (
                 <span className="px-3 py-1 bg-red-50 text-red-600 text-[9px] font-black uppercase tracking-widest rounded-lg border border-red-100 leading-none">
@@ -191,7 +206,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
             </div>
           ) : (
             <>
-              {task.description && (
+              {displayDescription && (
                 <div>
                   <p
                     ref={descriptionRef}
@@ -205,7 +220,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
                       if (isClamped && onExpand) onExpand();
                     }}
                   >
-                    {parseHighlightTags(task.description, "underline")}
+                    {parseHighlightTags(displayDescription, "underline")}
                   </p>
                   {isClamped && (
                     <button
@@ -236,7 +251,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
                 </span>
                 <div className="flex items-center gap-2">
                   <Layout size={14} className="opacity-40" />
-                  <span className="text-slate-500">{task.category}</span>
+                  <span className="text-slate-500">{displayCategory}</span>
                 </div>
               </div>
             </>

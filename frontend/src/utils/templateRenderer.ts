@@ -66,7 +66,7 @@ function buildFormScript(projectId: string): string {
         var btn=form.querySelector('button[type="submit"],input[type="submit"]');
         var origText=btn?btn.textContent:'';
         if(btn){btn.disabled=true;btn.textContent='Sending...';}
-        fetch(API+'/api/websites/form-submission',{
+        window['fetch'](API+'/api/websites/form-submission',{
           method:'POST',
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({projectId:PID,formName:formName,formType:formType,contents:contents,_hp:'',_ts:_ts,_jsc:_jsc})
@@ -366,7 +366,6 @@ export function parseSectionsJs(input: string): Section[] {
   } catch {
     // Fall back to JS eval for backtick template literal syntax
     try {
-      // eslint-disable-next-line no-new-func
       const result = new Function(`"use strict"; return (${input});`)();
       if (!Array.isArray(result)) throw new Error("Sections must be an array");
       return result as Section[];

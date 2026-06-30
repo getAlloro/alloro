@@ -1,0 +1,4 @@
+-- Patient Journey Insights — market search-volume table (Task T1)
+-- N/A: Alloro runs PostgreSQL only (Knex + PostgreSQL per AGENTS.md). There is no
+-- Microsoft SQL Server target. This file exists to satisfy the plan-folder migrations
+-- convention; the real change is in knexmigration.js / pgsql.sql.

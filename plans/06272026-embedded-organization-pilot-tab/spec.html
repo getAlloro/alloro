@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Embedded Organization Pilot Tab Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; margin-top: 12px; background: var(--soft); }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 900px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    ul { padding-left: 1.15rem; }
+    li + li { margin-top: 6px; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-completed">Completed</span>
+      </div>
+      <h1>Embedded Organization Pilot Tab</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06272026-embedded-organization-pilot-tab</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The current pilot flow opens a separate browser window from Mission Control and Users &amp; Roles. Dave wants Pilot to become a first-class organization detail tab, with Mission Control's Pilot action deep-linking into that tab instead of spawning a popout.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Add a top-level <code>Pilot</code> tab to <code>/admin/organizations/:id</code>. The tab lets an admin choose an organization user and launches a same-origin, contained iframe showing the client app as that user, scaled inside the page. New pilot launches do not call <code>window.open</code>, do not put pilot tokens in the URL, and do not write pilot auth into parent-tab <code>localStorage</code> or shared <code>sessionStorage</code>.</p>
+      <p><strong>Assumptions captured:</strong> place <code>Pilot</code> after <code>Users &amp; Roles</code>; selecting a user from a Mission Control card navigates to <code>/admin/organizations/:id?section=pilot&amp;userId=:userId</code>; the Pilot tab auto-starts the embedded session when a valid <code>userId</code> is present.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/pages/admin/OrganizationDetail.tsx</code> - owns URL-driven organization sections and renders the current tab content.</li>
+        <li><code>frontend/src/components/Admin/organizationDetailNavigationConfig.ts</code> - defines valid section keys for the organization detail navigation.</li>
+        <li><code>frontend/src/components/Admin/org/OrganizationDetailNavigation.tsx</code> - renders the top-level organization tabs shown in the screenshot.</li>
+        <li><code>frontend/src/components/Admin/mission-control/MissionControlPilotMenu.tsx</code> - current Mission Control pilot dropdown; now calls <code>window.open</code>.</li>
+        <li><code>frontend/src/components/Admin/org/OrgUsersSection.tsx</code> - current Users &amp; Roles pilot action; also calls <code>window.open</code>.</li>
+        <li><code>frontend/src/App.tsx</code> - owns the provider tree, persisted query client, legacy <code>PilotHandler</code>, and routes.</li>
+        <li><code>frontend/src/api/index.ts</code> - single JWT path via <code>getCommonHeaders()</code>; must own embedded pilot token priority and refresh handling.</li>
+        <li><code>frontend/src/contexts/AuthContext.tsx</code>, <code>frontend/src/contexts/SessionProvider.tsx</code>, <code>frontend/src/components/SessionExpiredModal.tsx</code> - session state and cleanup must not log out the parent admin tab from inside the iframe.</li>
+        <li><code>frontend/src/components/PilotHandler.tsx</code> - legacy popout token handler; useful reference, but its storage write pattern is not acceptable for embedded pilot.</li>
+        <li><code>src/controllers/admin/auth/services/PilotSessionService.ts</code> and <code>src/routes/admin/auth.ts</code> - existing backend pilot token endpoint. No backend replacement is planned unless implementation proves the token contract is insufficient.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li><strong>Code Constitution §12.1:</strong> mirror the <code>frontend/src/api/</code> + React Query + feature-folder triad. New pilot launch logic belongs in typed API/query helpers and feature components, not inline component fetches.</li>
+        <li><strong>Code Constitution §14.1 and §14.3:</strong> Component to hook to <code>api/</code> client to backend; data-fetching belongs in hooks.</li>
+        <li><strong>Code Constitution §14.2 and §17.5:</strong> no raw fetch/axios and no scattered JWT reads. Embedded pilot auth must still flow through <code>frontend/src/api/index.ts</code>.</li>
+        <li><strong>Code Constitution §15.2:</strong> session/UI state stays in context or a local feature owner, not another global state system.</li>
+        <li><strong>Code Constitution §13.1 and §13.2:</strong> keep the new tab, frame, and embedded runtime split into small files rather than adding more weight to <code>OrganizationDetail.tsx</code> or <code>App.tsx</code>.</li>
+        <li><strong>Code Constitution §20.5:</strong> execution must produce <code>test.html</code> and <code>test-results.json</code> for behavioral acceptance.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>frontend/src/pages/admin/OrganizationDetail.tsx</code> - closest analog for URL-driven section state. <code>frontend/src/pages/admin/WebsiteDetail.tsx</code> as embedded admin content precedent. <code>frontend/src/api/index.ts</code> as the required auth path.</p>
+    </section>
+
+    <section class="spec-card" id="scope-ledger">
+      <h2>Scope Ledger</h2>
+      <div class="split-grid">
+        <div><h3>Objective</h3><p>Move pilot from popout behavior into a contained organization-detail tab.</p></div>
+        <div><h3>Intended User</h3><p>Internal Alloro admin or super admin.</p></div>
+        <div><h3>Surface</h3><p>Admin Mission Control cards and <code>/admin/organizations/:id</code>.</p></div>
+        <div><h3>System Of Record</h3><p>Existing admin organization detail users plus existing <code>/api/admin/pilot/:userId</code> token endpoint.</p></div>
+      </div>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Add <code>pilot</code> as a valid organization section key and visible tab.</li>
+            <li>Make Mission Control user selection navigate to the organization Pilot tab with the selected user encoded as <code>userId</code>.</li>
+            <li>Make Users &amp; Roles pilot action route to the same tab, not a popout.</li>
+            <li>Keep the admin parent session authenticated as the admin while the iframe acts as the pilot user.</li>
+            <li>Keep the embedded pilot token in iframe memory only, set before client providers mount.</li>
+            <li>Use <code>postMessage</code> with exact <code>targetOrigin</code> and origin validation for token handoff from parent to iframe.</li>
+            <li>Use a non-persisted Query Client in the iframe to avoid showing parent/admin cached data.</li>
+            <li>Handle token refresh by updating embedded iframe memory, not browser storage.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not put pilot JWTs in iframe URLs, query params, localStorage, shared sessionStorage, cookies, or logs.</li>
+            <li>Do not let iframe logout/session-expired cleanup clear parent admin auth, cookies, or query cache.</li>
+            <li>Do not add a new auth model or duplicate API client outside the existing <code>api/index.ts</code> path.</li>
+            <li>Do not change normal client login, legacy direct pilot URL handling, or admin auth semantics outside the embedded flow.</li>
+            <li>Do not touch unrelated organization tabs or refactor the dashboard while adding the pilot tab.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>New backend impersonation model, new DB tables, audit log schema changes, or a separate pilot subdomain.</li>
+        <li>Replacing the client dashboard UI. The iframe should show the existing client app.</li>
+        <li>Changing customer-facing Alloro Docs unless final docs parity check finds an admin guide that names the old popout behavior.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 - auth/session boundary and same-origin iframe behavior.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Admin session contamination.</strong> A naive same-origin iframe using <code>PilotHandler</code> would write pilot token state into storage that the parent can read. <strong>Mitigation:</strong> embedded route stores the pilot token in iframe module memory only and sets it before providers mount.</li>
+        <li><strong>Parent cached data shown in pilot frame.</strong> The normal app persists React Query cache to <code>localStorage</code>. <strong>Mitigation:</strong> iframe route uses a non-persisted Query Client and starts cold.</li>
+        <li><strong>Iframe logout clears admin login.</strong> Existing logout/session-expired code clears localStorage, cookies, query cache, and broadcasts logout. <strong>Mitigation:</strong> embedded pilot mode branches cleanup to iframe-only memory reset and parent notification, never global auth cleanup.</li>
+        <li><strong>JWT leakage.</strong> Token in URL, storage, logs, or telemetry would be a security issue. <strong>Mitigation:</strong> parent fetches token, passes by origin-checked <code>postMessage</code>, stores only in React state and iframe memory, and clears state on close/restart.</li>
+        <li><strong>Provider order bug.</strong> If AuthProvider mounts before embedded token is set, iframe may authenticate as the admin from localStorage. <strong>Mitigation:</strong> <code>/pilot-embed</code> route waits for a valid token handoff before mounting the normal client providers.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>App.tsx</code> provider tree, <code>api/index.ts</code> auth resolution and refresh handling, AuthContext, SessionProvider, SessionExpiredModal, PilotBanner, telemetry pilot detection, organization detail navigation, Mission Control cards, Users &amp; Roles pilot action, and client dashboard routes rendered inside the iframe.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>A simple <code>&lt;iframe src="/?pilot_token=..."&gt;</code> does not belong here. It reuses the legacy storage-based pilot path and risks flipping the parent admin tab into pilot mode. The recommended path is an embedded pilot runtime with memory-only auth.</li>
+        <li>Using a separate subdomain would isolate storage more naturally, but it adds deployment and CORS surface. For this plan, same-origin is acceptable only with the memory-token and non-persisted-query mitigations above.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Organization Pilot navigation contract</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>pilot</code> to organization detail section typing and nav rendering. Read <code>userId</code> from search params and pass it into the Pilot tab. Convert Mission Control and Users &amp; Roles pilot actions from popout launchers to route navigations.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/Admin/organizationDetailNavigationConfig.ts</code>, <code>frontend/src/components/Admin/org/OrganizationDetailNavigation.tsx</code>, <code>frontend/src/pages/admin/OrganizationDetail.tsx</code>, <code>frontend/src/components/Admin/mission-control/MissionControlPilotMenu.tsx</code>, <code>frontend/src/components/Admin/mission-control/OrganizationMissionCard.tsx</code>, <code>frontend/src/components/Admin/org/OrgUsersSection.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: selecting a Mission Control pilot user lands on <code>/admin/organizations/:id?section=pilot&amp;userId=:userId</code>; no new <code>window.open</code> remains in pilot launch actions.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Pilot tab shell and embedded iframe frame</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Create the Pilot tab UI with a user selector, start/restart controls, current selected user summary, status/error states, and a contained scaled iframe viewport. The parent requests the pilot token only when a user is selected and the frame starts.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/Admin/org/pilot/OrgPilotSection.tsx</code>, <code>frontend/src/components/Admin/org/pilot/PilotUserSelector.tsx</code>, <code>frontend/src/components/Admin/org/pilot/EmbeddedPilotFrame.tsx</code>, <code>frontend/src/hooks/queries/useAdminPilotSession.ts</code>, <code>frontend/src/api/admin-organizations.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Manual: Pilot tab renders inside organization detail, starts from a preselected <code>userId</code>, and shows a framed same-origin iframe without opening a new browser window.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Embedded pilot runtime and memory-only auth</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a <code>/pilot-embed</code> app branch that waits for an origin-checked token message, sets embedded pilot auth in iframe module memory, then mounts the client providers and dashboard routes with a non-persisted Query Client. Update the API auth resolver and refresh interceptor so embedded pilot tokens stay in memory and parent admin storage remains untouched.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/App.tsx</code>, <code>frontend/src/pages/PilotEmbed.tsx</code>, <code>frontend/src/api/index.ts</code>, <code>frontend/src/hooks/useLocalStorage.ts</code>, <code>frontend/src/contexts/AuthContext.tsx</code>, <code>frontend/src/lib/queryClient.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>Unit/manual: parent <code>localStorage.auth_token</code> remains the admin token; iframe API requests send the pilot token; refreshing the iframe requires a fresh parent handoff rather than reading storage.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Iframe-safe session cleanup and pilot indicators</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Make pilot detection centralized so AuthContext, telemetry, Clarity, PilotBanner, and role helpers recognize embedded pilot mode. Ensure iframe logout/session-expired paths clear only embedded memory and notify the parent frame, without clearing admin storage, cookies, or BroadcastChannel logout.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/contexts/SessionProvider.tsx</code>, <code>frontend/src/components/SessionExpiredModal.tsx</code>, <code>frontend/src/components/Admin/shell/PilotBanner.tsx</code>, <code>frontend/src/hooks/useAppTelemetry.ts</code>, <code>frontend/src/hooks/useClarityMonitoring.ts</code>, <code>frontend/src/utils/currentUser.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3</dd></div>
+          <div><dt>Verify</dt><dd>Manual: expiring or closing the embedded pilot frame does not log out the admin page; Pilot Mode indicator still appears inside the iframe.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Verification and acceptance artifacts</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add focused tests where practical for embedded pilot session helpers/message validation, run TypeScript/build/convention checks, and create the Layer 2 acceptance checklist after execution.</dd></div>
+          <div><dt>Files</dt><dd><code>plans/06272026-embedded-organization-pilot-tab/test.html</code>, <code>plans/06272026-embedded-organization-pilot-tab/test-results.json</code>, targeted test files if helper extraction makes them useful</dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2, T3, T4</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>, <code>npm run build</code>, <code>cd frontend &amp;&amp; npm run build</code>, <code>npm run check:all</code>, manual browser verification for admin parent plus embedded pilot iframe.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Pilot tab persistence and viewport polish (Rev 1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Keep the Pilot tab component mounted while switching other organization tabs so the iframe session survives until refresh or explicit session end. Reduce the iframe scale and remove the outer frame overflow that creates duplicate scrollbars.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/admin/OrganizationDetail.tsx</code>, <code>frontend/src/components/Admin/org/OrgPilotSection.tsx</code>, <code>frontend/src/components/Admin/org/EmbeddedPilotFrame.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3</dd></div>
+          <div><dt>Verify</dt><dd>Manual: start a pilot session, switch to another organization tab, return to Pilot, and confirm the same iframe session is still live without an extra parent-frame scrollbar.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: Full-width embedded viewport (Rev 2)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Widen the iframe layout box so the reduced-scale client dashboard visually fills the available pilot frame width instead of leaving unused blank space on the right.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/Admin/org/EmbeddedPilotFrame.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T6</dd></div>
+          <div><dt>Verify</dt><dd>Manual: active embedded pilot content reaches the right edge of the frame while keeping the reduced scale and no outer horizontal scrollbar.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T8: Pilot copy and scale polish (Rev 3)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Remove the extra explanatory pilot-token copy from the Pilot controls and iframe footer. Increase the iframe scale slightly while preserving the full-width contained layout.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/Admin/org/OrgPilotSectionControls.tsx</code>, <code>frontend/src/components/Admin/org/EmbeddedPilotFrame.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T7</dd></div>
+          <div><dt>Verify</dt><dd>Manual: Pilot tab no longer shows the removed explanatory copy, and the embedded dashboard appears slightly larger without parent-frame overflow.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T9: Embedded frame header removal and scale increase (Rev 5)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Remove the embedded frame header that shows the piloted email, contained-dashboard subtitle, and live/loading status pill. Increase the embedded dashboard scale again while preserving contained width and avoiding parent horizontal overflow.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/Admin/org/EmbeddedPilotFrame.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T8</dd></div>
+          <div><dt>Verify</dt><dd>Manual: active Pilot tab shows only the client dashboard frame, no frame header text or live indicator, and the dashboard appears larger without adding a parent scrollbar.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> <code>Pilot</code> appears as a top-level organization detail tab after <code>Users &amp; Roles</code>.</li>
+        <li><input type="checkbox" checked disabled> Mission Control Pilot user selection routes to <code>?section=pilot&amp;userId=:userId</code> and does not open a popup.</li>
+        <li><input type="checkbox" checked disabled> Users &amp; Roles pilot action routes to the same Pilot tab and does not open a popup.</li>
+        <li><input type="checkbox" checked disabled> Embedded iframe shows the client app as the selected pilot user inside the organization detail page.</li>
+        <li><input type="checkbox" checked disabled> Parent admin tab remains authenticated as admin; parent storage/cookies/query cache are not overwritten by iframe pilot auth.</li>
+        <li><input type="checkbox" checked disabled> Pilot JWT is not present in URL, localStorage, shared sessionStorage, cookies, logs, or persisted query cache.</li>
+        <li><input type="checkbox" checked disabled> Iframe token refresh updates iframe memory only.</li>
+        <li><input type="checkbox" checked disabled> Iframe logout/session-expired handling does not log out the parent admin tab.</li>
+        <li><input type="checkbox" checked disabled> Pilot iframe stays mounted when switching organization tabs and returns live unless the page is refreshed or the pilot session ends.</li>
+        <li><input type="checkbox" checked disabled> Embedded iframe viewport is scaled down further and does not introduce a second outer scrollbar around the frame.</li>
+        <li><input type="checkbox" checked disabled> Embedded iframe viewport fills the available pilot frame width without adding a parent horizontal scrollbar.</li>
+        <li><input type="checkbox" checked disabled> Pilot controls and iframe frame do not show the removed explanatory token-copy blocks, and the frame is scaled up slightly without overflow regression.</li>
+        <li><input type="checkbox" checked disabled> Embedded frame header text and live/loading indicator are removed, and the frame scale is increased without parent overflow.</li>
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> passes or only reports documented pre-existing errors.</li>
+        <li><input type="checkbox" checked disabled> <code>npm run build</code> and <code>cd frontend &amp;&amp; npm run build</code> pass or only report documented pre-existing issues.</li>
+        <li><input type="checkbox" checked disabled> <code>npm run check:all</code> runs; any new Constitution violation is fixed before summary.</li>
+        <li><input type="checkbox" checked disabled> Acceptance <code>test-results.json</code> rolls up to Passed before <code>--done</code>.</li>
+        <li><input type="checkbox" checked disabled> Docs parity checked for admin/dashboard guidance; update <code>/Users/rustinedave/Desktop/alloro-docs</code> only if it documents the old popout pilot behavior.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-06-27</h3>
+        <p><strong>Change:</strong> Reduce duplicate iframe scrollbars, scale the embedded pilot viewport down further, and keep the Pilot tab mounted while switching organization tabs.</p>
+        <p><strong>Reason:</strong> User QA: the embedded frame showed too much scrollbar chrome and tab switching destroyed the active pilot iframe.</p>
+        <p><strong>Updated Done criteria:</strong> Pilot iframe survives organization tab switches until refresh/session end, and the frame viewport no longer adds a second outer scrollbar.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-06-27</h3>
+        <p><strong>Change:</strong> Make the reduced-scale embedded pilot viewport fill the full available frame width.</p>
+        <p><strong>Reason:</strong> User QA: the frame content was scaled down but left a large blank area to the right instead of using the container width.</p>
+        <p><strong>Updated Done criteria:</strong> Embedded pilot content reaches the right edge of the pilot frame without adding parent-frame horizontal overflow.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-06-28</h3>
+        <p><strong>Change:</strong> Remove extra explanatory pilot-token copy from the Pilot controls and iframe footer, and increase the embedded iframe scale slightly.</p>
+        <p><strong>Reason:</strong> User QA: the helper copy was too noisy, and the embedded dashboard needed to read a little larger.</p>
+        <p><strong>Updated Done criteria:</strong> Removed copy is absent, and the embedded dashboard is slightly larger while still filling the frame without parent overflow.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 4 - 2026-06-28</h3>
+        <p><strong>Change:</strong> Mark the plan completed after acceptance testing passed.</p>
+        <p><strong>Reason:</strong> Finalization: <code>test-results.json</code> passed with authenticated browser evidence for routing, persistence, token isolation, visual containment, and admin-session safety.</p>
+        <p><strong>Updated Done criteria:</strong> none.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 5 - 2026-06-28</h3>
+        <p><strong>Change:</strong> Remove the embedded Pilot frame header and increase the iframe scale again.</p>
+        <p><strong>Reason:</strong> User QA: the piloted-email header, contained-dashboard subtitle, and live indicator should not appear above the embedded client dashboard, and the dashboard should read larger.</p>
+        <p><strong>Updated Done criteria:</strong> Embedded frame header text and live/loading indicator are removed, and the frame scale is increased without parent overflow.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 6 - 2026-06-28</h3>
+        <p><strong>Change:</strong> Mark the Rev 5 frame polish completed after browser acceptance.</p>
+        <p><strong>Reason:</strong> Finalization: the local Chrome screenshot confirms the embedded frame header text and live/loading pill are removed while the scaled dashboard remains contained.</p>
+        <p><strong>Updated Done criteria:</strong> none.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

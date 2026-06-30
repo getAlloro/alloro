@@ -18,8 +18,10 @@ import {
   type Period,
 } from "./pmsPeriod";
 import { formatCompactCurrency } from "./utils";
-import { useLabels } from "../../../hooks/useLabels";
 import type { PmsDashboardSurfaceProps } from "./PmsDashboardSurface";
+import { usePmsCopy } from "../pmsCopy";
+import { useAuth } from "../../../hooks/useAuth";
+import { formatGeneratedCopyForOrg } from "../../../utils/generatedCopy";
 
 /**
  * PmsHubSurface — simplified Referrals Hub surface (redesign).
@@ -84,7 +86,7 @@ function StatTile({
 
 /**
  * Lean dashed upload CTA — opens the data-manager panel on click. Carries
- * id="data-ingestion-hub" so the alert banner's "Upload PMS data" button can
+ * id="data-ingestion-hub" so the alert banner's upload button can
  * smooth-scroll here; `highlighted` renders the established orange ring pulse.
  */
 function UploadCta({
@@ -94,6 +96,8 @@ function UploadCta({
   onClick: () => void;
   highlighted: boolean;
 }) {
+  const copy = usePmsCopy();
+
   return (
     <button
       type="button"
@@ -110,7 +114,9 @@ function UploadCta({
         <ArrowUp size={18} strokeWidth={2.5} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block font-semibold text-alloro-navy">Upload your latest data</span>
+        <span className="block font-semibold text-alloro-navy">
+          {copy.uploadNewDataCta}
+        </span>
         <span className="block text-sm text-ink-muted">
           Re-upload a month to overwrite it
         </span>
@@ -139,7 +145,8 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
     onOpenSettings,
   } = props;
 
-  const labels = useLabels();
+  const copy = usePmsCopy();
+  const { userProfile } = useAuth();
 
   const [period, setPeriod] = useState<Period>("MONTH");
   // Chart hover scrubbing: while a plot point is hovered, the production +
@@ -172,7 +179,11 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
   // Spelled period label for the production/referrals tiles: MONTH names the
   // month; QTR/YTD use their full to-date wording.
   const periodLabel =
-    period === "MONTH" ? namedMonth || "Latest month" : period === "QTR" ? TO_DATE.QTD.full : TO_DATE.YTD.full;
+    period === "MONTH"
+      ? namedMonth || "Latest month"
+      : period === "QTR"
+        ? TO_DATE.QTD.full
+        : TO_DATE.YTD.full;
 
   const trendFor = buildSourceTrendLookup(referralData);
   const detailFor = buildSourceDetailLookup(referralData);
@@ -180,13 +191,15 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
   const top3 = topSources.slice(0, 3);
   const top2 = topSources.slice(0, 2);
   const top2Refs = top2.reduce((sum, s) => sum + (s.referrals || 0), 0);
-  const top2Pct = totalReferrals > 0 ? Math.round((top2Refs / totalReferrals) * 100) : 0;
+  const top2Pct =
+    totalReferrals > 0 ? Math.round((top2Refs / totalReferrals) * 100) : 0;
 
   // The 1-ACTION banner surfaces the Referral-Engine's recommended action
   // (first growth-opportunity fix — the agent now emits exactly one). The
   // protect-top-sources heuristic is only the fallback for orgs whose RE
   // analysis hasn't produced a fix yet.
-  const rawFix = referralData?.growth_opportunity_summary?.top_three_fixes?.[0] ?? null;
+  const rawFix =
+    referralData?.growth_opportunity_summary?.top_three_fixes?.[0] ?? null;
   const topFix = rawFix
     ? typeof rawFix === "string"
       ? { title: rawFix, description: null }
@@ -213,12 +226,18 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
     {
       slot: "period-production",
       label: hovered ? hovered.fullLabel : periodLabel,
-      value: formatCompactCurrency(hovered ? hovered.production : scoped.production),
-      sub: showYtdSub ? `YTD ${formatCompactCurrency(ytd.production)}` : undefined,
+      value: formatCompactCurrency(
+        hovered ? hovered.production : scoped.production,
+      ),
+      sub: showYtdSub
+        ? `YTD ${formatCompactCurrency(ytd.production)}`
+        : undefined,
     },
     {
       slot: "referrals",
-      label: hovered ? `${labels.referralsShort} · ${hovered.fullLabel}` : `${labels.referralsShort} · ${periodLabel}`,
+      label: hovered
+        ? `${copy.countSummaryLabel} · ${hovered.fullLabel}`
+        : `${copy.countSummaryLabel} · ${periodLabel}`,
       value: String(hovered ? hovered.referrals : scoped.referrals),
     },
     {
@@ -236,7 +255,7 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
     <div className="pm-light mx-auto w-full max-w-[960px] space-y-6">
       <div className="flex items-center justify-between gap-4">
         <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-ink-muted">
-          {labels.hubReferrals}
+          {copy.dashboardTitle}
         </span>
         <div className="flex items-center gap-2">
           {onOpenCompare && monthlyData.length >= 2 && (
@@ -253,7 +272,7 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
             options={PERIOD_OPTIONS}
             active={period}
             onChange={handlePeriodChange}
-            ariaLabel={`${labels.referralsShort} timeframe`}
+            ariaLabel={`${copy.countPlural} timeframe`}
           />
         </div>
       </div>
@@ -278,9 +297,18 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
             onHoverChange={setHovered}
           />
 
-          <div data-wizard-target="pms-vitals" className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div
+            data-wizard-target="pms-vitals"
+            className="grid grid-cols-1 gap-4 sm:grid-cols-3"
+          >
             {tiles.map((t) => (
-              <StatTile key={t.slot} label={t.label} value={t.value} sub={t.sub} isLoading={isLoading} />
+              <StatTile
+                key={t.slot}
+                label={t.label}
+                value={t.value}
+                sub={t.sub}
+                isLoading={isLoading}
+              />
             ))}
           </div>
 
@@ -289,7 +317,11 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
             highlighted={isIngestionHighlighted}
           />
 
-          <PmsHubTopSources sources={top3} trendFor={trendFor} detailFor={detailFor} />
+          <PmsHubTopSources
+            sources={top3}
+            trendFor={trendFor}
+            detailFor={detailFor}
+          />
 
           {(topFix || topSources.length > 0) && (
             <ActionBanner
@@ -297,10 +329,16 @@ export function PmsHubSurface(props: PmsDashboardSurfaceProps) {
               eyebrow="1 Action"
               title={
                 topFix
-                  ? topFix.title
-                  : `Protect your top ${top2.length} ${top2.length === 1 ? "source" : "sources"} — ${top2Pct}% of all referrals`
+                  ? formatGeneratedCopyForOrg(
+                      topFix.title,
+                      userProfile?.organizationType,
+                    )
+                  : `Protect your top ${top2.length} ${top2.length === 1 ? "source" : "sources"} — ${top2Pct}% of all ${copy.countPlural}`
               }
-              description={topFix?.description ?? null}
+              description={formatGeneratedCopyForOrg(
+                topFix?.description ?? null,
+                userProfile?.organizationType,
+              )}
               wizardTarget="pms-insights"
             />
           )}

@@ -14,8 +14,8 @@ import { PmsReferralsMeaningCard } from "./PmsReferralsMeaningCard";
 import { PmsTopSourcesCard } from "./PmsTopSourcesCard";
 import { PmsVelocityCard } from "./PmsVelocityCard";
 import { DetailsModal } from "../../dashboard/shared/DetailsModal";
-import { useLabels } from "../../../hooks/useLabels";
 import type { PmsDashboardData } from "./types";
+import { usePmsCopy } from "../pmsCopy";
 
 type DetailModal = "sources" | "trends" | null;
 
@@ -49,7 +49,7 @@ export function PmsDashboardSurface({
   onSelectDataMonth,
   onOpenSettings,
 }: PmsDashboardSurfaceProps) {
-  const labels = useLabels();
+  const copy = usePmsCopy();
   const [detailModal, setDetailModal] = useState<DetailModal>(null);
   const availabilityMonths = buildAvailabilityMonths(monthlyData);
 
@@ -75,9 +75,7 @@ export function PmsDashboardSurface({
         onOpenDataManager={onOpenDataManager}
       />
 
-      {isProcessingInsights && (
-        <PmsProcessingStatusCard />
-      )}
+      {isProcessingInsights && <PmsProcessingStatusCard />}
 
       {shouldShowUnifiedEmptyState ? (
         <PmsEmptyDashboardState
@@ -124,8 +122,8 @@ export function PmsDashboardSurface({
           exit animations work even when the data section isn't mounted. */}
       <DetailsModal
         open={detailModal === "sources"}
-        title="All sources ranked by production"
-        eyebrow={labels.referralSources}
+        title={copy.allSourcesTitle}
+        eyebrow={copy.topSourcesEyebrow}
         onClose={() => setDetailModal(null)}
       >
         <PmsTopSourcesCard
@@ -137,8 +135,8 @@ export function PmsDashboardSurface({
 
       <DetailsModal
         open={detailModal === "trends"}
-        title={`${labels.production} and ${labels.referralsShort.toLowerCase()} patterns`}
-        eyebrow={labels.referralTrends}
+        title={`${copy.moneyLabel} and ${copy.countPlural} patterns`}
+        eyebrow={copy.trendEyebrow}
         onClose={() => setDetailModal(null)}
       >
         <div className="space-y-5">
@@ -163,9 +161,12 @@ export function PmsDashboardSurface({
 }
 
 function buildAvailabilityMonths(
-  monthlyData: PmsDashboardData["monthlyData"]
+  monthlyData: PmsDashboardData["monthlyData"],
 ): PmsDataAvailabilityMonth[] {
-  const activeMonthData = new Map<string, PmsDashboardData["monthlyData"][number]>();
+  const activeMonthData = new Map<
+    string,
+    PmsDashboardData["monthlyData"][number]
+  >();
   monthlyData.forEach((entry) => {
     const month = normalizeMonthKey(entry.month);
     if (month) activeMonthData.set(month, entry);
@@ -174,7 +175,11 @@ function buildAvailabilityMonths(
   const firstMonth = addMonths(latestMonth, -11);
   const months: PmsDataAvailabilityMonth[] = [];
 
-  for (let month = firstMonth; month <= latestMonth; month = addMonths(month, 1)) {
+  for (
+    let month = firstMonth;
+    month <= latestMonth;
+    month = addMonths(month, 1)
+  ) {
     const activeMonth = activeMonthData.get(month);
     const isActive = Boolean(activeMonth);
     const isLatest = month === latestMonth;

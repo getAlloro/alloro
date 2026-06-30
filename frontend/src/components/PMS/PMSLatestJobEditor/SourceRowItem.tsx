@@ -1,9 +1,17 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowDown, ArrowUp, DollarSign, RefreshCw, Trash2, User } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  DollarSign,
+  RefreshCw,
+  Trash2,
+  User,
+} from "lucide-react";
 
 import { formatMoney } from "../pmsDataTransform";
 import type { SourceRow } from "../types";
 import { ALORO_ORANGE_DARK } from "../pmsLatestJobEditor.utils";
+import { formatPmsSourceType, usePmsCopy } from "../pmsCopy";
 
 interface SourceRowItemProps {
   row: SourceRow;
@@ -15,7 +23,7 @@ interface SourceRowItemProps {
   incrementField: (
     rowId: number,
     field: "referrals" | "production",
-    delta: number
+    delta: number,
   ) => void;
   requestDeleteRow: (id: number) => void;
   deleteRow: (id: number) => void;
@@ -34,6 +42,8 @@ export const SourceRowItem: React.FC<SourceRowItemProps> = ({
   deleteRow,
   setConfirmDeleteRowId,
 }) => {
+  const copy = usePmsCopy();
+
   return (
     <motion.div
       layout
@@ -51,10 +61,8 @@ export const SourceRowItem: React.FC<SourceRowItemProps> = ({
         />
         <input
           value={row.source}
-          onChange={(e) =>
-            handleSourceChange(row.id, e.target.value)
-          }
-          placeholder="e.g., Google Ads"
+          onChange={(e) => handleSourceChange(row.id, e.target.value)}
+          placeholder={copy.sourcePlaceholder}
           className="pl-9 w-full border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-alloro-orange/20 transition-colors"
         />
       </div>
@@ -66,21 +74,19 @@ export const SourceRowItem: React.FC<SourceRowItemProps> = ({
           onClick={() => handleTypeToggle(row.id)}
           className="w-full border rounded-xl px-3 py-3 flex items-center justify-between capitalize text-sm font-semibold transition-colors"
           style={{
-            backgroundColor:
-              row.type === "self" ? "#C9765E11" : "#C9765E22",
+            backgroundColor: row.type === "self" ? "#C9765E11" : "#C9765E22",
           }}
         >
-          <span>{row.type}</span>
+          <span>{formatPmsSourceType(copy, row.type)}</span>
           <RefreshCw size={14} className="text-gray-400" />
         </motion.button>
       </div>
 
-      {/* Referrals (with +/- buttons) */}
+      {/* Count (with +/- buttons) */}
       <div
         className="col-span-3 relative rounded-xl"
         style={{
-          backgroundColor:
-            row.type === "self" ? "#C9765E11" : "#C9765E22",
+          backgroundColor: row.type === "self" ? "#C9765E11" : "#C9765E22",
         }}
       >
         <User
@@ -90,24 +96,18 @@ export const SourceRowItem: React.FC<SourceRowItemProps> = ({
         <input
           type="text"
           value={row.referrals}
-          onChange={(e) =>
-            handleReferralsChange(row.id, e.target.value)
-          }
+          onChange={(e) => handleReferralsChange(row.id, e.target.value)}
           className="pl-9 pr-12 w-full border rounded-xl px-4 py-3 text-sm bg-transparent focus:outline-none focus:ring-2 focus:ring-alloro-orange/20 transition-colors"
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col">
           <button
-            onClick={() =>
-              incrementField(row.id, "referrals", 1)
-            }
+            onClick={() => incrementField(row.id, "referrals", 1)}
             className="p-0.5 text-gray-500 hover:text-gray-700 transition-colors"
           >
             <ArrowUp size={14} />
           </button>
           <button
-            onClick={() =>
-              incrementField(row.id, "referrals", -1)
-            }
+            onClick={() => incrementField(row.id, "referrals", -1)}
             className="p-0.5 text-gray-500 hover:text-gray-700 transition-colors"
           >
             <ArrowDown size={14} />
@@ -115,12 +115,11 @@ export const SourceRowItem: React.FC<SourceRowItemProps> = ({
         </div>
       </div>
 
-      {/* Production (with +/- buttons) */}
+      {/* Dollar amount (with +/- buttons) */}
       <div
         className="col-span-4 relative rounded-xl"
         style={{
-          backgroundColor:
-            row.type === "self" ? "#C9765E11" : "#C9765E22",
+          backgroundColor: row.type === "self" ? "#C9765E11" : "#C9765E22",
         }}
       >
         <DollarSign
@@ -130,24 +129,18 @@ export const SourceRowItem: React.FC<SourceRowItemProps> = ({
         <input
           type="text"
           value={formatMoney(row.production)}
-          onChange={(e) =>
-            handleProductionChange(row.id, e.target.value)
-          }
+          onChange={(e) => handleProductionChange(row.id, e.target.value)}
           className="pl-9 pr-12 w-full border rounded-xl px-4 py-3 text-sm bg-transparent focus:outline-none focus:ring-2 focus:ring-alloro-orange/20 transition-colors"
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col">
           <button
-            onClick={() =>
-              incrementField(row.id, "production", 1)
-            }
+            onClick={() => incrementField(row.id, "production", 1)}
             className="p-0.5 text-gray-500 hover:text-gray-700 transition-colors"
           >
             <ArrowUp size={14} />
           </button>
           <button
-            onClick={() =>
-              incrementField(row.id, "production", -1)
-            }
+            onClick={() => incrementField(row.id, "production", -1)}
             className="p-0.5 text-gray-500 hover:text-gray-700 transition-colors"
           >
             <ArrowDown size={14} />
@@ -189,9 +182,7 @@ export const SourceRowItem: React.FC<SourceRowItemProps> = ({
               }}
               className="absolute right-10 top-1/2 -translate-y-1/2 bg-white border rounded-xl shadow-lg p-3 z-10"
             >
-              <div className="text-xs mb-2">
-                Delete source?
-              </div>
+              <div className="text-xs mb-2">Delete source?</div>
               <div className="flex gap-2">
                 <button
                   onClick={() => deleteRow(row.id)}

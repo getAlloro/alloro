@@ -88,6 +88,7 @@ export function OrganizationMissionCard({
           onKeyDown={(event) => event.stopPropagation()}
         >
           <MissionControlPilotMenu
+            organizationId={organization.id}
             users={organization.adminUsers}
             organizationName={organization.name}
           />

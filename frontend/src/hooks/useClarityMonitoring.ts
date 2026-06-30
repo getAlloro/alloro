@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { getCommonHeaders } from "../api";
+import { getCommonHeaders, isPilotSession } from "../api";
 import { useAuth } from "./useAuth";
 import {
   ensureClarityScript,
@@ -42,11 +42,4 @@ export function useClarityMonitoring(): void {
     location.pathname,
     organizationTag,
   ]);
-}
-
-function isPilotSession(): boolean {
-  return (
-    window.sessionStorage.getItem("pilot_mode") === "true" ||
-    Boolean(window.sessionStorage.getItem("token"))
-  );
 }

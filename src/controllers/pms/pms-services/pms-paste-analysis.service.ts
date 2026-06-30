@@ -11,7 +11,10 @@
  */
 
 import { loadPrompt } from "../../../agents/service.prompt-loader";
+import { substitutePromptPlaceholders } from "../../../agents/service.prompt-substituter";
 import { runAgent } from "../../../agents/service.llm-runner";
+import { resolveOrgType, type OrgType } from "../../../config/orgLabels";
+import { OrganizationModel } from "../../../models/OrganizationModel";
 import { parseAgentJson } from "../pms-utils/agent-json-parse.util";
 import logger from "../../../lib/logger";
 
@@ -265,9 +268,13 @@ interface SanitizationDecision {
  * Sends only distinct names, returns merge/split decisions.
  */
 async function runSanitizationChunk(
-  groups: DuplicateGroup[]
+  groups: DuplicateGroup[],
+  orgType: OrgType
 ): Promise<SanitizationDecision[]> {
-  const systemPrompt = loadPrompt("pmsAgents/PasteSanitizer");
+  const systemPrompt = substitutePromptPlaceholders(
+    loadPrompt("pmsAgents/PasteSanitizer"),
+    orgType
+  );
 
   const payload = groups.map((g) => ({
     groupId: g.groupId,
@@ -307,7 +314,8 @@ async function runSanitizationChunk(
  * Run AI dedup on all fuzzy groups, chunked into batches.
  */
 async function runChunkedSanitization(
-  groups: DuplicateGroup[]
+  groups: DuplicateGroup[],
+  orgType: OrgType
 ): Promise<SanitizationDecision[]> {
   const allDecisions: SanitizationDecision[] = [];
 
@@ -318,11 +326,19 @@ async function runChunkedSanitization(
 
     logger.info(`[PMS-Sanitizer] Processing AI chunk ${chunkIdx}/${totalChunks}...`);
 
-    const decisions = await runSanitizationChunk(chunk);
+    const decisions = await runSanitizationChunk(chunk, orgType);
     allDecisions.push(...decisions);
   }
 
   return allDecisions;
+}
+
+async function resolveSanitizationOrgType(
+  organizationId?: number | null
+): Promise<OrgType> {
+  if (!organizationId || organizationId <= 0) return "health";
+  const org = await OrganizationModel.findById(organizationId);
+  return resolveOrgType(org?.organization_type);
 }
 
 // =====================================================================
@@ -337,7 +353,8 @@ async function runChunkedSanitization(
  * 4. Apply merge decisions
  */
 export async function sanitizeParsedData(
-  allRows: SanitizationRow[]
+  allRows: SanitizationRow[],
+  organizationId?: number | null
 ): Promise<SanitizationResult> {
   if (!allRows || allRows.length === 0) {
     return {
@@ -348,6 +365,8 @@ export async function sanitizeParsedData(
       stats: { totalInputRows: 0, exactGroupsMerged: 0, fuzzyGroupsFound: 0, fuzzyGroupsConfirmed: 0, uniqueSourcesAfter: 0 },
     };
   }
+
+  const orgType = await resolveSanitizationOrgType(organizationId);
 
   logger.info(`[PMS-Sanitizer] Starting sanitization of ${allRows.length} rows`);
 
@@ -396,7 +415,7 @@ export async function sanitizeParsedData(
   }
 
   // Step 3: AI verdict (chunked)
-  const decisions = await runChunkedSanitization(fuzzyGroups);
+  const decisions = await runChunkedSanitization(fuzzyGroups, orgType);
 
   const decisionMap = new Map<number, SanitizationDecision>();
   for (const d of decisions) decisionMap.set(d.groupId, d);

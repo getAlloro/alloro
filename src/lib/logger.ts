@@ -2,20 +2,20 @@
  * Shared application logger (Pino).
  *
  * This is the ONE logging abstraction for the backend. The conventions contract
- * (dimension 10) mandates Pino + pino-http and forbids raw `console.*`; this
+ * (dimension 10) mandates Pino + pino-http and forbids direct runtime logging; this
  * module is that mandate made real. A repo-wide codemod replaced every
- * `console.{log,info,warn,error,debug}` in `src/` with the matching method on
+ * legacy standard-output calls in `src/` with the matching method on
  * this logger, and `pino-http` (sharing this same instance) logs every request
  * — see `src/app.ts`.
  *
- * USAGE — pino's call signature is a superset of console's:
- *   logger.info("plain message")                         // like console.log
+ * USAGE — pino's call signature covers the standard logging cases:
+ *   logger.info("plain message")                         // simple message
  *   logger.info("templated %s", value)                   // printf interpolation
  *   logger.info({ orgId, count }, "structured message")  // merge object first
  *   logger.error({ err }, "failed to do the thing")      // errors go under `err`
  * The leading object is the structured-fields "merge object"; everything after
- * is the message + printf args. The codemod kept console-style calls intact
- * (plain rename) and rewrote the common `console.error(msg, err)` shape to
+ * is the message + printf args. The codemod kept old logging calls intact
+ * (plain rename) and rewrote the common message-plus-error shape to
  * `logger.error({ err }, msg)` so stack traces serialize properly.
  *
  * REDACTION (the security payoff) — `redact.paths` below scrub secrets/PII out

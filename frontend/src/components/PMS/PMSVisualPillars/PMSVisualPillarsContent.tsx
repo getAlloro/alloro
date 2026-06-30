@@ -4,6 +4,7 @@ import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { PmsHubSurface } from "../dashboard/PmsHubSurface";
 import { DashboardAlertStack } from "../../dashboard/alerts/DashboardAlertStack";
 import type { PmsKeyDataResponse } from "../../../api/pms";
+import { usePmsCopy } from "../pmsCopy";
 
 type PmsHubSurfaceProps = React.ComponentProps<typeof PmsHubSurface>;
 type DashboardAlerts = React.ComponentProps<typeof DashboardAlertStack>["alerts"];
@@ -71,6 +72,8 @@ export function PMSVisualPillarsContent({
   setShowCompare,
   navigate,
 }: PMSVisualPillarsContentProps) {
+  const copy = usePmsCopy();
+
   return (
     <main className="mx-auto w-full max-w-[960px] space-y-6 px-4 pb-6 sm:px-6 lg:px-8">
       {/* Cascaded dashboard alerts — stale-data alert (top) + upload nudge.
@@ -92,7 +95,7 @@ export function PMSVisualPillarsContent({
         >
           <div className="flex-1 space-y-1">
             <div className="font-bold text-alloro-navy text-base">
-              Your PMS data is processed.
+              {copy.processedBannerTitle}
             </div>
             <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest">
               Review the latest results and confirm once everything looks
@@ -131,7 +134,7 @@ export function PMSVisualPillarsContent({
           </div>
           <div>
             <p className="font-bold text-red-800">
-              Unable to retrieve PMS data.
+              {copy.retrieveErrorTitle}
             </p>
             <p className="text-[10px] text-red-600 font-semibold uppercase tracking-widest mt-0.5">
               {error}

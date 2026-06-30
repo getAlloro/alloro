@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { AdminLogin } from "../../../pages/admin/AdminLogin";
-import { getItem } from "../../../hooks/useLocalStorage";
-import { apiGet } from "../../../api";
+import { apiGet, getAuthToken } from "../../../api";
 import { logger } from "../../../lib/logger";
+import { AdminLogin } from "./AdminLogin";
 
 interface AdminGuardProps {
   children: React.ReactNode;
@@ -16,7 +15,7 @@ export function AdminGuard({ children }: AdminGuardProps) {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const token = getItem("auth_token");
+      const token = getAuthToken();
       
       if (!token) {
         setIsAuthenticated(false);

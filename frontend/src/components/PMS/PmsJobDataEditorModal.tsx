@@ -1,6 +1,7 @@
 import { PMSDataViewer } from "./PMSDataViewer";
 import type { MonthEntryForm } from "./pmsDataTransform";
 import type { PmsFileManagerFileDetail } from "../../api/pms";
+import { usePmsCopy } from "./pmsCopy";
 
 export type PmsJobDataEditorMode = "current" | "original";
 
@@ -23,6 +24,8 @@ export function PmsJobDataEditorModal({
   onClose,
   onSave,
 }: PmsJobDataEditorModalProps) {
+  const copy = usePmsCopy();
+
   if (!file) return null;
 
   const isOriginal = mode === "original";
@@ -34,13 +37,13 @@ export function PmsJobDataEditorModal({
   // generic multi-month editor keeps the old title + subtitle.
   const isMonthScopedEdit = !isOriginal && Boolean(selectedMonth);
   const title = isOriginal
-    ? "Original Parsed PMS Data"
+    ? copy.editorOriginalTitle
     : isMonthScopedEdit
       ? `Edit ${locationName ? `${locationName} — ` : ""}${formatMonthLabel(selectedMonth as string)}`
-      : "Edit PMS File Data";
+      : copy.editorFileTitle;
   const subtitle = isOriginal
-    ? file.original_file_name ?? "Original parsed snapshot unavailable"
-    : file.original_file_name ?? "Current parsed PMS data";
+    ? (file.original_file_name ?? "Original parsed snapshot unavailable")
+    : (file.original_file_name ?? copy.editorCurrentSubtitle);
 
   return (
     <PMSDataViewer
@@ -59,7 +62,11 @@ export function PmsJobDataEditorModal({
           ? undefined
           : (months) =>
               onSave(
-                buildUpdatedResponseLog(file.response_log, months, selectedMonth)
+                buildUpdatedResponseLog(
+                  file.response_log,
+                  months,
+                  selectedMonth,
+                ),
               )
       }
     />
@@ -81,7 +88,8 @@ function hasMonthData(value: unknown) {
       ? (record.data as Record<string, unknown>)
       : null;
   return (
-    (Array.isArray(record.monthly_rollup) && record.monthly_rollup.length > 0) ||
+    (Array.isArray(record.monthly_rollup) &&
+      record.monthly_rollup.length > 0) ||
     (Array.isArray(record.monthlyRollup) && record.monthlyRollup.length > 0) ||
     (Array.isArray(record.report_data) && record.report_data.length > 0) ||
     (Array.isArray(record.reportData) && record.reportData.length > 0) ||
@@ -97,7 +105,7 @@ function hasMonthData(value: unknown) {
 function buildUpdatedResponseLog(
   responseLog: unknown,
   months: MonthEntryForm[],
-  selectedMonth?: string | null
+  selectedMonth?: string | null,
 ): Record<string, unknown> {
   if (
     responseLog &&
@@ -106,7 +114,7 @@ function buildUpdatedResponseLog(
   ) {
     if (selectedMonth) {
       const existingRollup = Array.isArray(
-        (responseLog as Record<string, unknown>).monthly_rollup
+        (responseLog as Record<string, unknown>).monthly_rollup,
       )
         ? ((responseLog as Record<string, unknown>).monthly_rollup as unknown[])
         : [];

@@ -6,6 +6,7 @@ import {
   Activity,
   Trophy,
   Sparkles,
+  Funnel,
   Settings as SettingsIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -22,6 +23,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Practice Hub", requiresOnboarding: false },
   { to: "/pmsStatistics", icon: Activity, label: "Referrals Hub", requiresOnboarding: true },
+  { to: "/patientJourneyInsights", icon: Funnel, label: "Patient Journey Insights", requiresOnboarding: true },
   { to: "/rankings", icon: Trophy, label: "Local Rankings", requiresOnboarding: true },
   { to: "/gbp-manager", icon: Sparkles, label: "Reviews & Posts", requiresOnboarding: true },
   { to: "/settings", icon: SettingsIcon, label: "Settings", requiresOnboarding: false },
@@ -59,7 +61,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               ? labels.hubHome
               : to === "/pmsStatistics"
                 ? labels.hubReferrals
-                : label;
+                : to === "/patientJourneyInsights"
+                  ? labels.journeyInsights
+                  : label;
           return (
           <NavLink
             key={to}

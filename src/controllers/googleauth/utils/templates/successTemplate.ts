@@ -56,7 +56,7 @@ export const generateSuccessPage = (tokens: Credentials): string => {
                 tokens.refresh_token || "No refresh token received"
               }
             </div>
-            <button class="copy-btn" onclick="copyToClipboard('refreshToken')">Copy to Clipboard</button>
+            <button class="copy-btn" onclick="copyToClipboard(event, 'refreshToken')">Copy to Clipboard</button>
           </div>
 
           <div class="token-section">
@@ -95,11 +95,11 @@ export const generateSuccessPage = (tokens: Credentials): string => {
         </div>
 
         <script>
-          function copyToClipboard(elementId) {
+          function copyToClipboard(evt, elementId) {
             const element = document.getElementById(elementId);
             const text = element.textContent || element.innerText;
             navigator.clipboard.writeText(text).then(function() {
-              const btn = event.target;
+              const btn = evt.currentTarget;
               const originalText = btn.textContent;
               btn.textContent = 'Copied!';
               btn.style.background = '#28a745';
@@ -107,8 +107,10 @@ export const generateSuccessPage = (tokens: Credentials): string => {
                 btn.textContent = originalText;
                 btn.style.background = '#007bff';
               }, 2000);
-            }).catch(function(err) {
-              console.error('Failed to copy text: ', err);
+            }).catch(function() {
+              const btn = evt.currentTarget;
+              btn.textContent = 'Copy failed';
+              btn.style.background = '#dc3545';
             });
           }
         </script>

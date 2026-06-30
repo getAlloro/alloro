@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent Org-Type Prompt Verbiage Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 880px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 4.75rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.9rem; }
+    th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { background: var(--soft); color: var(--muted); font-size: 0.76rem; font-weight: 800; text-transform: uppercase; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .note { border-left: 3px solid var(--ink); background: var(--soft); padding: 12px 14px; border-radius: 0 6px 6px 0; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+      table { font-size: 0.82rem; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-completed">Completed</span>
+      </div>
+      <h1>Agent Org-Type Prompt Verbiage</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/06292026-agent-org-type-prompt-verbiage</dd></div>
+        <div><dt>Size</dt><dd>Large</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The generic org-type feature still has a generation-layer risk. Even after UI labels are fixed, in-repo agent markdown can teach the model healthcare wording and then persist that wording into tasks, summaries, local posts, review replies, or prompt-driven parsing output.</p>
+      <p>The goal is to make agent prompts org-type aware at runtime so generic organizations do not receive medical, dental, patient, doctor, referral, PMS, or production language in human-readable generated output, while health organizations keep the current experience.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Extend the existing backend prompt vocabulary system instead of adding a parallel prompt framework. Every active in-repo markdown prompt that can affect customer-facing output must either receive resolved org-type placeholders before <code>runAgent()</code> or be documented as out of scope because it has no org context or is intentionally vertical-specific website-builder work.</p>
+      <p>Tests must render the generic prompts and fail when generic prose still contains banned healthcare terms outside allowed internal schema keys. Existing JSON field names and database/API contracts stay stable.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Related Plans Reviewed</h3>
+      <ul>
+        <li><code>plans/06232026-org-type-generic-verbiage/spec.html</code> - created the base org-type vocabulary direction.</li>
+        <li><code>plans/06292026-generic-revenue-data-verbiage/spec.html</code> - Rev 1 added monthly-agent prompt clean-up for Summary and Referral Engine; Rev 2 fixed stale generated task display on edge routes.</li>
+        <li><code>plans/06242026-patient-journey-insights/spec.html</code> - confirms Journey and dashboard wording should resolve through org-type labels, not hardcoded healthcare copy.</li>
+      </ul>
+
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/config/orgLabels.ts</code> - current backend source of truth for prompt placeholders and <code>resolveOrgType()</code>.</li>
+        <li><code>src/agents/service.prompt-loader.ts</code> - loads markdown prompt files from <code>src/agents/</code>.</li>
+        <li><code>src/agents/service.prompt-substituter.ts</code> - replaces <code>{{token}}</code> values with org-type vocabulary.</li>
+        <li><code>src/agents/service.llm-runner.ts</code> - current LLM runner. The repo uses Anthropic/Claude here, not Gemini, despite older requirement wording.</li>
+        <li><code>src/controllers/agents/feature-services/service.monthly-agent-runner-core.ts</code> - good existing pattern: fetch org type, substitute prompt, call <code>runAgent()</code>, persist output.</li>
+        <li><code>src/controllers/agents/feature-services/service.daily-agent-processor.ts</code> - Proofline currently loads <code>dailyAgents/Proofline</code> without org-type substitution.</li>
+        <li><code>src/utils/pms/columnMappingInference.ts</code> - column-mapping prompt currently loads <code>monthlyAgents/PmsColumnMapper</code> without org-type substitution.</li>
+        <li><code>src/controllers/pms/pms-services/pms-paste-analysis.service.ts</code> - paste sanitizer loads <code>pmsAgents/PasteSanitizer</code> without org-type substitution.</li>
+        <li><code>src/controllers/gbp-automation/feature-services/GbpDraftGenerationService.ts</code> and <code>GbpLocalPostDraftService.ts</code> - good existing pattern: GBP review replies and local posts already substitute org-type vocabulary, but their prompts still contain health-specific safety examples that should become org-aware.</li>
+        <li><code>src/controllers/agents/feature-services/service.webhook-orchestrator.ts</code> and <code>src/controllers/agents/feature-services/service.ranking-executor.ts</code> - ranking identifier already receives org type and substitutes category vocabulary.</li>
+      </ul>
+
+      <h3>Prompt Files In Scope</h3>
+      <table>
+        <thead>
+          <tr><th>Prompt</th><th>Current issue</th><th>Scope decision</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>src/agents/monthlyAgents/ReferralEngineAnalysis.md</code></td><td>Partly parameterized, but examples and schema-adjacent prose still train referral, doctor, patient, production, and PMS terms.</td><td>In scope.</td></tr>
+          <tr><td><code>src/agents/monthlyAgents/Summary.md</code></td><td>Partly parameterized, but domain labels and examples still carry referral/PMS/patient wording.</td><td>In scope.</td></tr>
+          <tr><td><code>src/agents/dailyAgents/Proofline.md</code></td><td>Hardcodes "doctor" and "practice"; caller does not substitute org-type vocabulary.</td><td>In scope.</td></tr>
+          <tr><td><code>src/agents/monthlyAgents/PmsColumnMapper.md</code></td><td>Internal parser prompt, but it strongly assumes a dental PMS export and can shape generic revenue-data mapping behavior.</td><td>In scope, but role enum and schema keys must not be renamed.</td></tr>
+          <tr><td><code>src/agents/pmsAgents/PasteSanitizer.md</code></td><td>Internal dedupe prompt hardcodes dental/medical referral sources and doctor type language.</td><td>In scope, but output enum values remain stable.</td></tr>
+          <tr><td><code>src/agents/gbpAgents/ReviewReply.md</code> and <code>LocalPost.md</code></td><td>Already substituted, but generic prompt still includes health safety terms such as treatment, appointment, patient relationship, and medical/billing examples.</td><td>In scope for org-aware safety wording.</td></tr>
+          <tr><td><code>src/agents/rankingAgents/Identifier.md</code></td><td>Already uses placeholders for specialty/category.</td><td>Guard with tests, likely no functional edit.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Prompt Files Out Of Scope</h3>
+      <ul>
+        <li><code>src/agents/websiteAgents/**</code> - website-builder prompts are often intentionally dental/medical because they build dental practice websites from identity data. They need a separate plan if generic website generation becomes a requirement.</li>
+        <li><code>src/agents/auditAgents/**</code> - public audit and lead-generation prompts do not consistently have an authenticated organization <code>org_type</code>. They need a separate payload-contract plan if generic audit reports are required.</li>
+        <li><code>src/agents/pmAgents/**</code> and <code>src/agents/marketIntelligence/**</code> - internal/admin generation surfaces, not the generic client-facing dashboard prompt path.</li>
+        <li>External N8N workflow prompts - related to the original requirement but not stored in this repo. This plan should not pretend they are fixed.</li>
+      </ul>
+
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Use <code>src/config/orgLabels.ts</code> as the single vocabulary source. Extend it when a new grammatical role is needed.</li>
+        <li>Use <code>loadPrompt()</code> followed by <code>substitutePromptPlaceholders()</code> before <code>runAgent()</code> when the caller has an organization id or organization row.</li>
+        <li>Keep legacy JSON keys and enum values in schemas. Generic instructions can explain that field names are legacy and must not appear as prose.</li>
+        <li>Add tests against rendered prompts, not just individual placeholder values. A prompt can pass token substitution and still leak "Dr. Joe" in an example.</li>
+      </ul>
+
+      <p><strong>Reference analog:</strong> backend <strong>§6.1</strong> <code>src/controllers/gbp-automation/</code> for prompt call structure and typed service boundaries; <code>src/controllers/agents/feature-services/service.monthly-agent-runner-core.ts</code> for the closest prompt substitution path.</p>
+
+      <h3>Code Constitution Articles</h3>
+      <ul>
+        <li><strong>§4.2</strong> - vocabulary belongs in named config, not hardcoded strings scattered through prompt callers.</li>
+        <li><strong>§6.1</strong> and <strong>§6.2</strong> - backend services and config should mirror the existing clean domain structure.</li>
+        <li><strong>§7.1</strong> - keep caller flow layered; controllers should not own prompt mutation.</li>
+        <li><strong>§9.1</strong> - any new prompt warning or audit logging must use the existing logger, not <code>console</code>.</li>
+        <li><strong>§11.7</strong> and <strong>§5.5</strong> - org type must come from server-side organization/account context, not client input.</li>
+        <li><strong>§20.1</strong>, <strong>§20.2</strong>, and <strong>§20.5</strong> - execution requires automated prompt-contract tests and a passing acceptance artifact.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Generic rendered prompts must instruct generated prose to use customer, business, revenue, lead/source, records, owner/team, visit, and local-service wording.</li>
+            <li>Health rendered prompts must preserve the current healthcare/dental wording.</li>
+            <li>Monthly, daily, GBP automation, PMS column mapping, and PMS sanitizer prompt callers must use the same org-type vocabulary mechanism when an organization context exists.</li>
+            <li>Prompt tests must allow legacy schema keys such as <code>doctor_referral_matrix</code>, <code>patient_records</code>, <code>production_total</code>, and <code>referring_doctor</code>, but fail healthcare words in freeform instruction/example prose for generic prompts.</li>
+            <li>Internal role enums, Zod schemas, database fields, API payload keys, and task persistence columns must stay unchanged.</li>
+            <li>Existing healthcare accounts must be unaffected.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not rename legacy parser roles or agent output schema keys during this work.</li>
+            <li>Do not run live monthly/daily agents or create client tasks during execution unless explicitly approved for a test account.</li>
+            <li>Do not edit external N8N workflows in this plan.</li>
+            <li>Do not broaden into generic website-builder or public audit report verticalization.</li>
+            <li>Do not rewrite existing <code>agent_results</code> or historical task rows.</li>
+            <li>Do not use blind search-replace across <code>src/agents</code>.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>N8N workflow prompt updates.</li>
+        <li>Lead-generation audit report prompt verticalization.</li>
+        <li>Website-builder prompt verticalization.</li>
+        <li>Schema migrations or persisted data rewrites.</li>
+        <li>Changing model vendor from Claude to Gemini. Current code uses <code>runAgent()</code> with Anthropic models.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3. This is not a schema migration, but it changes the instructions that generate client-facing tasks, summaries, review replies, and posts.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Schema breakage.</strong> Prompt cleanup could rename keys that parsers and validators require. <strong>Mitigation:</strong> only change prose and examples; explicitly preserve legacy JSON keys and enums.</li>
+        <li><strong>False confidence from simple tests.</strong> A placeholder unit test can pass while examples still leak "doctor" or "patient". <strong>Mitigation:</strong> add rendered-prompt tests with allowlists for schema keys and strict checks for freeform prose.</li>
+        <li><strong>Overcorrecting safety rules.</strong> Healthcare safety rules are important for health orgs, but generic orgs should not be prompted with clinical terms. <strong>Mitigation:</strong> make the safety vocabulary itself org-aware instead of deleting safety constraints.</li>
+        <li><strong>Missing org context.</strong> Some prompt callers do not receive an organization row today. <strong>Mitigation:</strong> fetch org type server-side from trusted account/job context where available; document callers with no org context as out of scope.</li>
+        <li><strong>Generated output drift remains for old rows.</strong> Prompt fixes affect future runs only. <strong>Mitigation:</strong> rely on the display-time stale-copy handling from <code>plans/06292026-generic-revenue-data-verbiage</code> for old tasks; do not mutate history.</li>
+        <li><strong>Instruction mismatch.</strong> The original requirement mentioned Gemini 2.5-flash, but this repo currently uses Claude via <code>runAgent()</code>. <strong>Mitigation:</strong> implement against the current runner and do not invent a Gemini path.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>src/config/orgLabels.ts</code>, prompt substitution tests, active markdown prompts under <code>src/agents/monthlyAgents/</code>, <code>src/agents/dailyAgents/</code>, <code>src/agents/gbpAgents/</code>, <code>src/agents/pmsAgents/</code>, and prompt callers for monthly agents, Proofline, column mapping, and paste sanitization.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>This should not become a full "make all agents generic" sweep. Some prompt folders are intentionally dental or do not have org context. Forcing generic wording there would create a worse bug.</li>
+        <li>Prompt tests need an allowlist. A hard ban on words like <code>doctor</code> would fail valid schema keys and break the parser contract.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Prompt Surface Audit Guard</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add or extend tests that load active prompt markdown, render generic and health versions through <code>substitutePromptPlaceholders()</code>, and assert the generic freeform prose has no banned healthcare language outside allowed schema keys/code blocks. The test should classify active, inactive, and intentionally out-of-scope prompt files so future prompt additions are visible.</dd></div>
+          <div><dt>Files</dt><dd><code>src/__tests__/orgLabels.test.ts</code>, optional new <code>src/__tests__/agentPromptOrgType.test.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx vitest run src/__tests__/orgLabels.test.ts src/__tests__/agentPromptOrgType.test.ts</code></dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Vocabulary Contract Expansion</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Extend <code>PROMPT_PLACEHOLDERS</code> with missing grammatical roles for generic examples, safety wording, source categories, customer-management software, data-product names, and legacy-schema warnings. Keep health values equivalent to current copy.</dd></div>
+          <div><dt>Files</dt><dd><code>src/config/orgLabels.ts</code>, <code>src/__tests__/orgLabels.test.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Unit tests prove each new token resolves for <code>health</code> and <code>generic</code>.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Monthly Prompt Prose And Examples</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Finish parameterizing <code>ReferralEngineAnalysis.md</code> and <code>Summary.md</code>. Replace healthcare-heavy examples like doctor outreach and patient/referral language with placeholder-driven examples that render correctly for both org types. Preserve all output schema keys exactly.</dd></div>
+          <div><dt>Files</dt><dd><code>src/agents/monthlyAgents/ReferralEngineAnalysis.md</code>, <code>src/agents/monthlyAgents/Summary.md</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>Rendered generic monthly prompts contain revenue/business wording; rendered health prompts preserve existing healthcare wording.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Daily Proofline Org-Type Prompting</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Parameterize <code>Proofline.md</code> and update <code>processDailyAgent()</code> so it resolves org type from the server-side organization/account context before calling <code>runAgent()</code>. Generic proof lines should say business/customer wording, not doctor/practice wording.</dd></div>
+          <div><dt>Files</dt><dd><code>src/agents/dailyAgents/Proofline.md</code>, <code>src/controllers/agents/feature-services/service.daily-agent-processor.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>Unit or focused service test confirms generic Proofline prompt substitution; no live daily agent run required.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: PMS Parser Prompt Org-Type Context</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Make <code>PmsColumnMapper.md</code> and <code>PasteSanitizer.md</code> org-type aware while preserving parser role enums. Update their callers to accept or derive org type from trusted context when available. Generic prompts should explain legacy role names without telling the model the business is dental or medical.</dd></div>
+          <div><dt>Files</dt><dd><code>src/agents/monthlyAgents/PmsColumnMapper.md</code>, <code>src/utils/pms/columnMappingInference.ts</code>, <code>src/agents/pmsAgents/PasteSanitizer.md</code>, <code>src/controllers/pms/pms-services/pms-paste-analysis.service.ts</code>, related call sites that invoke mapping/sanitization</dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>Existing PMS mapping tests still pass; new prompt tests prove generic parser prompts do not describe the file as a dental PMS export.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: GBP Prompt Safety Wording</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Keep GBP review reply and local post safety rules, but parameterize health-specific safety examples. Generic prompts should protect private customer/service details without naming clinical treatment, diagnosis, patient relationships, or medical/billing examples unless the org is health.</dd></div>
+          <div><dt>Files</dt><dd><code>src/agents/gbpAgents/ReviewReply.md</code>, <code>src/agents/gbpAgents/LocalPost.md</code>, optional tests for <code>GbpDraftGenerationService</code> and <code>GbpLocalPostDraftService</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>Rendered generic GBP prompts use local-service privacy wording; rendered health prompts retain healthcare privacy wording.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: Acceptance Artifact And Manual Matrix</h3>
+        <dl>
+          <div><dt>Do</dt><dd>After execution, create <code>test.html</code> and <code>test-results.json</code>. Include checks for rendered prompt tests, no live task creation, and browser review of generic existing agent-output surfaces using Pilot mode. Record that old stored output is handled by display-time translation, while new prompt output is guarded by tests.</dd></div>
+          <div><dt>Files</dt><dd><code>plans/06292026-agent-org-type-prompt-verbiage/test.html</code>, <code>plans/06292026-agent-org-type-prompt-verbiage/test-results.json</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2, T3, T4, T5, T6</dd></div>
+          <div><dt>Verify</dt><dd><code>test-results.json</code> rolls up to <code>Passed</code>.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> Active generic rendered prompts for monthly agents, Proofline, PMS mapping/sanitizer, and GBP automation do not contain banned healthcare prose outside allowlisted schema keys.</li>
+        <li><input type="checkbox" checked disabled> Health rendered prompts preserve current healthcare wording.</li>
+        <li><input type="checkbox" checked disabled> Prompt callers with organization context substitute org-type vocabulary before <code>runAgent()</code>.</li>
+        <li><input type="checkbox" checked disabled> Parser schema keys, role enums, database fields, and API response keys are unchanged.</li>
+        <li><input type="checkbox" checked disabled> <code>npx vitest run src/__tests__/orgLabels.test.ts src/__tests__/agentPromptOrgType.test.ts</code> passes, with the exact test path adjusted if implementation keeps one test file.</li>
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> passes or only reports pre-existing errors unrelated to this execution.</li>
+        <li><input type="checkbox" checked disabled> <code>npm run check:all</code> passes or only reports pre-existing advisory warnings.</li>
+        <li><input type="checkbox" checked disabled> Acceptance artifact exists and <code>test-results.json</code> rolls up to <code>Passed</code>.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

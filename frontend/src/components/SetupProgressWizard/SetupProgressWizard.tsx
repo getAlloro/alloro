@@ -6,6 +6,7 @@ import { useSetupProgressSafe } from "./SetupProgressContext";
 import { useIsWizardActive } from "../../contexts/OnboardingWizardContext";
 import { useAuth } from "../../hooks/useAuth";
 import { useLabels } from "../../hooks/useLabels";
+import { usePmsCopy } from "../PMS/pmsCopy";
 
 export function SetupProgressWizard() {
   const context = useSetupProgressSafe();
@@ -14,6 +15,7 @@ export function SetupProgressWizard() {
   const isOnboardingWizardActive = useIsWizardActive();
   const { onboardingCompleted } = useAuth();
   const labels = useLabels();
+  const copy = usePmsCopy();
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Clear the justCompletedStep after confetti fires (confetti is now handled in context)
@@ -73,7 +75,7 @@ export function SetupProgressWizard() {
     },
     {
       number: 2,
-      title: "Upload your PMS data",
+      title: copy.setupUploadTitle,
       completed: progress.step2_pms_uploaded,
       link: `Go to ${labels.hubReferrals}`,
       onClick: goToReferralsHub,

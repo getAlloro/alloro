@@ -1,5 +1,6 @@
 import { Info } from "lucide-react";
 import type { ReferralEngineData, TopFix } from "../ReferralMatrices";
+import { usePmsCopy } from "../pmsCopy";
 
 export type PmsGrowthOpportunitiesProps = {
   referralData: ReferralEngineData | null;
@@ -46,6 +47,7 @@ function InfoTip({ content }: { content: string }) {
 export function PmsGrowthOpportunities({
   referralData,
 }: PmsGrowthOpportunitiesProps) {
+  const copy = usePmsCopy();
   const fixes = referralData?.growth_opportunity_summary?.top_three_fixes ?? [];
   const visibleFixes = fixes.slice(0, 3);
   const accent = "#D66853";
@@ -61,7 +63,9 @@ export function PmsGrowthOpportunities({
           <h3 className="font-display text-[15px] lg:text-base font-medium text-alloro-navy tracking-tight leading-tight">
             Best next actions
           </h3>
-          <InfoTip content="Highest-impact actions to grow referral production, ordered by priority. These are generated from the referral intelligence analysis." />
+          <InfoTip
+            content={`Highest-impact actions to grow ${copy.moneyLower}, ordered by priority. These are generated from the ${copy.dashboardTitle.toLowerCase()} analysis.`}
+          />
         </div>
         <span className="font-mono-display text-[10px] tracking-widest text-alloro-navy/40 uppercase shrink-0">
           {visibleFixes.length > 0
@@ -112,8 +116,8 @@ export function PmsGrowthOpportunities({
         </ol>
       ) : (
         <div className="rounded-[12px] border border-dashed border-line-soft bg-slate-50 p-5 text-[12.5px] font-medium text-alloro-navy/45">
-          Growth opportunities will appear after referral intelligence has been
-          generated.
+          Growth opportunities will appear after{" "}
+          {copy.dashboardTitle.toLowerCase()} has been generated.
         </div>
       )}
     </section>

@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { showUploadToast } from "../../lib/toast";
 
-import {
-  transformUIToBackend,
-  calculateTotals,
-} from "./pmsDataTransform";
+import { transformUIToBackend, calculateTotals } from "./pmsDataTransform";
 import type { MonthBucket } from "./types";
 import {
   previewMapping,
@@ -24,6 +21,7 @@ import {
 import { createPmsManualEntrySubmit } from "./usePmsManualEntrySubmit";
 import { usePmsManualEntryRows } from "./usePmsManualEntryRows";
 import { usePmsManualEntryUpload } from "./usePmsManualEntryUpload";
+import { usePmsCopy } from "./pmsCopy";
 
 interface UsePmsManualEntryParams {
   isOpen: boolean;
@@ -50,6 +48,8 @@ export function usePmsManualEntry({
   targetMonth,
   onSuccess,
 }: UsePmsManualEntryParams) {
+  const copy = usePmsCopy();
+
   // Initialize with previous month and empty sources
   const [months, setMonths] = useState<MonthBucket[]>(() => [
     {
@@ -72,17 +72,21 @@ export function usePmsManualEntry({
 
   // Confirmation states
   const [confirmDeleteRowId, setConfirmDeleteRowId] = useState<number | null>(
-    null
+    null,
   );
   const [confirmDeleteMonthId, setConfirmDeleteMonthId] = useState<
     number | null
   >(null);
 
   // Month-merge conflict state
-  const [pendingMonths, setPendingMonths] = useState<MonthBucket[] | null>(null);
-  const [monthConflicts, setMonthConflicts] = useState<
-    Array<{ month: string; status: "new" | "conflict"; existingRowCount: number }> | null
-  >(null);
+  const [pendingMonths, setPendingMonths] = useState<MonthBucket[] | null>(
+    null,
+  );
+  const [monthConflicts, setMonthConflicts] = useState<Array<{
+    month: string;
+    status: "new" | "conflict";
+    existingRowCount: number;
+  }> | null>(null);
 
   // Drag & drop state
   const [isDragging, setIsDragging] = useState(false);
@@ -91,7 +95,9 @@ export function usePmsManualEntry({
   // Set when the user dropped a file (vs pasting). Drives the
   // PasteConfirmDialog wording ("File detected" vs "Paste detected").
   const [droppedFileName, setDroppedFileName] = useState<string | null>(null);
-  const [selectedUploadFile, setSelectedUploadFile] = useState<File | null>(null);
+  const [selectedUploadFile, setSelectedUploadFile] = useState<File | null>(
+    null,
+  );
   // Month-selected mode only: months found in the data that are NOT the
   // target month. Non-null blocks the merge until the user discards or
   // re-uploads a corrected file.
@@ -109,12 +115,13 @@ export function usePmsManualEntry({
     Record<string, unknown>[]
   >([]);
   const [currentMapping, setCurrentMapping] = useState<ColumnMapping | null>(
-    null
+    null,
   );
-  const [mappingSource, setMappingSource] = useState<MappingSource | null>(null);
-  const [parsedPreview, setParsedPreview] = useState<MonthlyRollupForJob | null>(
-    null
+  const [mappingSource, setMappingSource] = useState<MappingSource | null>(
+    null,
   );
+  const [parsedPreview, setParsedPreview] =
+    useState<MonthlyRollupForJob | null>(null);
   const [isResolvingMapping, setIsResolvingMapping] = useState(false);
   const [isReprocessing, setIsReprocessing] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -136,7 +143,7 @@ export function usePmsManualEntry({
       month,
       rows: [],
     }),
-    []
+    [],
   );
 
   const scopeMonthsToTarget = useCallback(
@@ -144,7 +151,7 @@ export function usePmsManualEntry({
       if (!targetMonth) return incomingMonths;
       return incomingMonths.filter((month) => month.month === targetMonth);
     },
-    [targetMonth]
+    [targetMonth],
   );
 
   /**
@@ -176,7 +183,7 @@ export function usePmsManualEntry({
       setMonthMismatch(offset);
       return true;
     },
-    [createEmptyMonthBucket, targetMonth]
+    [createEmptyMonthBucket, targetMonth],
   );
 
   const getSubmitMonths = useCallback(() => {
@@ -194,7 +201,7 @@ export function usePmsManualEntry({
         setMonths([emptyTarget]);
         setActiveMonthId(emptyTarget.id);
         setError(
-          `This data does not include ${formatMonthLabel(targetMonth)}. Only that selected month can be uploaded from this slot.`
+          `This data does not include ${formatMonthLabel(targetMonth)}. Only that selected month can be uploaded from this slot.`,
         );
         return;
       }
@@ -205,14 +212,19 @@ export function usePmsManualEntry({
         ...scopedIncoming,
       ]);
       const sorted = [...scopedIncoming].sort((a, b) =>
-        a.month.localeCompare(b.month)
+        a.month.localeCompare(b.month),
       );
       const first = sorted.find((m) => m.rows.length > 0) || sorted[0];
       if (first) setActiveMonthId(first.id);
       setPendingMonths(null);
       setMonthConflicts(null);
     },
-    [createEmptyMonthBucket, flagOffsetMonths, scopeMonthsToTarget, targetMonth]
+    [
+      createEmptyMonthBucket,
+      flagOffsetMonths,
+      scopeMonthsToTarget,
+      targetMonth,
+    ],
   );
 
   const mergeOrConfirm = useCallback(
@@ -224,9 +236,7 @@ export function usePmsManualEntry({
         return;
       }
       const existingMap = new Map(
-        months
-          .filter((m) => m.rows.length > 0)
-          .map((m) => [m.month, m])
+        months.filter((m) => m.rows.length > 0).map((m) => [m.month, m]),
       );
       const conflicts = scopedIncoming.map((incoming) => ({
         month: incoming.month,
@@ -240,14 +250,14 @@ export function usePmsManualEntry({
         applyMerge(scopedIncoming);
         showUploadToast(
           "Data parsed!",
-          `${scopedIncoming.reduce((s, m) => s + m.rows.length, 0)} rows added for ${formatMonthList(scopedIncoming.map((m) => m.month))}.`
+          `${scopedIncoming.reduce((s, m) => s + m.rows.length, 0)} rows added for ${formatMonthList(scopedIncoming.map((m) => m.month))}.`,
         );
       } else {
         setPendingMonths(scopedIncoming);
         setMonthConflicts(conflicts);
       }
     },
-    [applyMerge, flagOffsetMonths, months, scopeMonthsToTarget, targetMonth]
+    [applyMerge, flagOffsetMonths, months, scopeMonthsToTarget, targetMonth],
   );
 
   const confirmMerge = useCallback(() => {
@@ -256,7 +266,7 @@ export function usePmsManualEntry({
       applyMerge(pendingMonths);
       showUploadToast(
         "Data merged!",
-        `${count} rows merged. Conflicting months replaced.`
+        `${count} rows merged. Conflicting months replaced.`,
       );
     }
   }, [pendingMonths, applyMerge]);
@@ -280,7 +290,7 @@ export function usePmsManualEntry({
         pastedRawTextRef.current = "";
       }
     },
-    [mergeOrConfirm]
+    [mergeOrConfirm],
   );
 
   const handlePasteWarnings = useCallback((warnings: string[]) => {
@@ -323,47 +333,44 @@ export function usePmsManualEntry({
    * Declared BEFORE handlePasteEvent so that callback's deps array can
    * reference it without hitting a TDZ.
    */
-  const runMappingPreview = useCallback(
-    async (rawText: string) => {
-      const { headers, rows } = parseTabularToRows(rawText);
-      if (headers.length === 0 || rows.length === 0) return;
+  const runMappingPreview = useCallback(async (rawText: string) => {
+    const { headers, rows } = parseTabularToRows(rawText);
+    if (headers.length === 0 || rows.length === 0) return;
 
-      setMappingHeaders(headers);
-      // Accumulate rows across pastes so multi-paste submissions
-      // include all months. Previous behavior replaced on each paste,
-      // causing only the last paste's rows to reach the backend.
-      setMappingAllRows((prev) => [...prev, ...rows]);
-      // Keep a small sample around for any UI that wants to show example values
-      // (e.g. the production formula preview). The backend always gets ALL
-      // rows so the parsed preview reflects the entire file, not a sample.
-      setMappingSampleRows(rows.slice(0, 5));
-      setIsResolvingMapping(true);
+    setMappingHeaders(headers);
+    // Accumulate rows across pastes so multi-paste submissions
+    // include all months. Previous behavior replaced on each paste,
+    // causing only the last paste's rows to reach the backend.
+    setMappingAllRows((prev) => [...prev, ...rows]);
+    // Keep a small sample around for any UI that wants to show example values
+    // (e.g. the production formula preview). The backend always gets ALL
+    // rows so the parsed preview reflects the entire file, not a sample.
+    setMappingSampleRows(rows.slice(0, 5));
+    setIsResolvingMapping(true);
 
-      try {
-        const resp = await previewMapping({ headers, sampleRows: rows });
-        if (resp.success && resp.data) {
-          setCurrentMapping(resp.data.mapping);
-          setMappingSource(resp.data.source);
-          setParsedPreview(resp.data.parsedPreview);
-          // Open drawer for non-org-cache sources (D6). At this point the
-          // user has already seen parsed data on the left, so the drawer is
-          // a "verify or adjust" prompt, not a blocking question.
-          setDrawerOpen(resp.data.source !== "org-cache");
-        } else {
-          setError(resp.error || "Could not preview this file mapping.");
-        }
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Could not preview this file mapping."
-        );
-      } finally {
-        setIsResolvingMapping(false);
+    try {
+      const resp = await previewMapping({ headers, sampleRows: rows });
+      if (resp.success && resp.data) {
+        setCurrentMapping(resp.data.mapping);
+        setMappingSource(resp.data.source);
+        setParsedPreview(resp.data.parsedPreview);
+        // Open drawer for non-org-cache sources (D6). At this point the
+        // user has already seen parsed data on the left, so the drawer is
+        // a "verify or adjust" prompt, not a blocking question.
+        setDrawerOpen(resp.data.source !== "org-cache");
+      } else {
+        setError(resp.error || "Could not preview this file mapping.");
       }
-    },
-    []
-  );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not preview this file mapping.",
+      );
+    } finally {
+      setIsResolvingMapping(false);
+    }
+  }, []);
 
   // Keep the forward-ref synced so handleParsedPaste can call the latest
   // runMappingPreview without dependency loops.
@@ -394,7 +401,7 @@ export function usePmsManualEntry({
       pastedRawTextRef.current = text;
       legacyHandlePasteEvent(e);
     },
-    [legacyHandlePasteEvent]
+    [legacyHandlePasteEvent],
   );
 
   // Shared by the empty-state action card and the compact "Paste Data" button.
@@ -488,10 +495,9 @@ export function usePmsManualEntry({
       if (resp.success && resp.data) {
         setParsedPreview(resp.data.parsedPreview);
         setDrawerOpen(false);
-        const totalRows = (resp.data.parsedPreview?.monthly_rollup ?? []).reduce(
-          (s, m) => s + (m.sources?.length ?? 0),
-          0
-        );
+        const totalRows = (
+          resp.data.parsedPreview?.monthly_rollup ?? []
+        ).reduce((s, m) => s + (m.sources?.length ?? 0), 0);
         // Adapter-emitted notes — currently the "skipped N zero/negative-
         // production referrals" line. Append to the toast body so it's
         // visible without adding new UI surface.
@@ -501,7 +507,7 @@ export function usePmsManualEntry({
             : "";
         showUploadToast(
           "Mapping saved",
-          `Re-processed ${mappingAllRows.length} rows into ${totalRows} sources.${flagsLine}`
+          `Re-processed ${mappingAllRows.length} rows into ${totalRows} sources.${flagsLine}`,
         );
       } else {
         setError(resp.error || "Re-process failed.");
@@ -528,6 +534,7 @@ export function usePmsManualEntry({
     handleDrop,
     downloadTemplate,
   } = usePmsManualEntryUpload({
+    copy,
     targetMonth,
     locationId,
     createEmptyMonthBucket,
@@ -553,7 +560,7 @@ export function usePmsManualEntry({
 
   const sortedMonths = useMemo(
     () => [...months].sort((a, b) => a.month.localeCompare(b.month)),
-    [months]
+    [months],
   );
 
   const activeMonth = useMemo(() => {
@@ -610,6 +617,7 @@ export function usePmsManualEntry({
   // It was a plain async function (not a hook), so relocating it changes no
   // hook-call order; the closed-over reactive values/setters are passed in.
   const handleSubmit = createPmsManualEntrySubmit({
+    copy,
     selectedUploadFile,
     getSubmitMonths,
     targetMonth,
