@@ -7,6 +7,9 @@
  * stay frozen (estimated_cost_usd is persisted at event time).
  *
  * Sources:
+ *   - Sonnet 5:           $3 / $15 (standard list rate; ignores the $2/$10
+ *                         introductory rate through 2026-08-31 — table has no
+ *                         expiry mechanism, so it stays on the durable price)
  *   - Sonnet 4.x family: $3 / $15 (input / output) per 1M
  *   - Opus 4.x family:   $15 / $75
  *   - Haiku 4.x family:  $0.80 / $4
@@ -36,6 +39,13 @@ export interface ModelRate {
  * `response.model`. Keys without a version suffix act as family fallbacks.
  */
 export const MODEL_PRICING: Record<string, ModelRate> = {
+  // Sonnet 5
+  "claude-sonnet-5": {
+    input: 3.0,
+    output: 15.0,
+    cache_creation: 3.75,
+    cache_read: 0.3,
+  },
   // Sonnet 4.x family
   "claude-sonnet-4-6": {
     input: 3.0,

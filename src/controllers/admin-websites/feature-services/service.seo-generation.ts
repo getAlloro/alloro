@@ -1,9 +1,13 @@
 /**
  * SEO Generation Service
  *
- * AI-powered SEO content generation using Claude Sonnet 4.6.
+ * AI-powered SEO content generation using Claude Sonnet 5.
  * Generates meta tags, descriptions, schema markup section by section.
  * Uses CroSEO mind skills for enhanced context.
+ *
+ * Section execution (tiering, insight scheduling, prompt caching) lives in
+ * feature-utils/util.seo-section-runner.ts, shared with the bulk-generate
+ * worker (workers/processors/seoBulkGenerate.processor.ts).
  */
 
 import { LocationModel } from "../../../models/LocationModel";
@@ -11,20 +15,17 @@ import { OrganizationModel } from "../../../models/OrganizationModel";
 import { ProjectModel } from "../../../models/website-builder/ProjectModel";
 import { loadPrompt } from "../../../agents/service.prompt-loader";
 import { runAgent } from "../../../agents/service.llm-runner";
+import {
+  runGenerateSection,
+  runAllSeoSectionsTiered,
+  type SeoSection,
+} from "../feature-utils/util.seo-section-runner";
 import logger from "../../../lib/logger";
 
-const MODEL = "claude-sonnet-4-6";
-const MAX_TOKENS = 4096;
+const MODEL = "claude-sonnet-5";
 
 const SKILLS_BASE_URL = "https://app.getalloro.com/api/skills";
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
-
-type SeoSection =
-  | "critical"
-  | "high_impact"
-  | "significant"
-  | "moderate"
-  | "negligible";
 
 interface GenerateRequest {
   section: SeoSection;
@@ -173,10 +174,6 @@ export async function generateSeoForSection(
 // Generate ALL sections in one call (fetches shared context once)
 // ---------------------------------------------------------------------------
 
-const ALL_SECTIONS: SeoSection[] = [
-  "critical", "high_impact", "significant", "moderate", "negligible",
-];
-
 interface GenerateAllRequest {
   location_context: string | null;
   page_content: string;
@@ -212,84 +209,17 @@ export async function generateAllSeoSections(
     );
   }
 
-  const results: Array<{ section: string; generated: Record<string, unknown>; insight: string }> = [];
-  let accumulated = { ...(rest.existing_seo_data || {}) };
-
-  for (const section of ALL_SECTIONS) {
-    const result = await runGenerateSection(section, entityType, businessData, creatorContext, validatorContext, {
-      ...rest,
-      existing_seo_data: accumulated,
-    }, projectId, entityId);
-    accumulated = { ...accumulated, ...result.generated };
-    results.push(result);
-  }
-
-  return { results };
-}
-
-// ---------------------------------------------------------------------------
-// Internal: run generation for a single section with pre-fetched context
-// ---------------------------------------------------------------------------
-
-async function runGenerateSection(
-  section: SeoSection,
-  entityType: "page" | "post",
-  businessData: Record<string, unknown>,
-  creatorContext: string,
-  validatorContext: string,
-  data: {
-    page_content: string;
-    homepage_content?: string;
-    header_html?: string;
-    footer_html?: string;
-    wrapper_html?: string;
-    existing_seo_data?: Record<string, unknown>;
-    all_page_titles?: string[];
-    all_page_descriptions?: string[];
-    page_path?: string;
-    post_title?: string;
-  },
-  projectId?: string,
-  entityId?: string
-): Promise<{ section: string; generated: Record<string, unknown>; insight: string }> {
-  const systemPrompt = buildSystemPrompt(section, businessData, creatorContext);
-  const userPrompt = buildUserPrompt(section, { ...data, entityType });
-
-  const result = await runAgent({
-    systemPrompt,
-    userMessage: userPrompt,
-    model: MODEL,
-    maxTokens: MAX_TOKENS,
-    costContext: projectId
-      ? {
-          projectId,
-          eventType: "seo-generation",
-          metadata: {
-            section,
-            entity_type: entityType,
-            entity_id: entityId || null,
-            page_path: data.page_path || null,
-            stage: "generate",
-          },
-        }
-      : undefined,
-  });
-
-  const generated = result.parsed || parseGeneratedSeo(result.raw, section);
-
-  const insight = await generateInsight(
-    section,
-    generated,
+  const results = await runAllSeoSectionsTiered(
+    entityType,
     businessData,
+    creatorContext,
     validatorContext,
-    data.page_path,
-    data.post_title,
+    rest,
     projectId,
-    entityId,
-    entityType
+    entityId
   );
 
-  return { section, generated, insight };
+  return { results };
 }
 
 // ---------------------------------------------------------------------------
@@ -339,6 +269,9 @@ Analyze the "${section}" section's SEO data. Return ONLY valid JSON: { "insight"
 
   const result = await runAgent({
     systemPrompt,
+    // Whole system prompt is stable per page (varies only by businessData/
+    // validatorContext, not per section) — cache it as a single block.
+    cachedSystemBlocks: [],
     userMessage: userPrompt,
     model: MODEL,
     maxTokens: 512,
@@ -361,65 +294,6 @@ Analyze the "${section}" section's SEO data. Return ONLY valid JSON: { "insight"
     section,
     insight: (parsed.insight as string) || "Analysis complete — no specific issues found.",
   };
-}
-
-// ---------------------------------------------------------------------------
-// Insight generation (called after generation)
-// ---------------------------------------------------------------------------
-
-async function generateInsight(
-  section: SeoSection,
-  generated: Record<string, unknown>,
-  businessData: Record<string, unknown>,
-  validatorContext: string,
-  pagePath?: string,
-  postTitle?: string,
-  projectId?: string,
-  entityId?: string,
-  entityType?: "page" | "post"
-): Promise<string> {
-  try {
-    const basePrompt = loadPrompt("websiteAgents/SeoInsight");
-    const systemPrompt = `${basePrompt}
-
-BUSINESS DATA:
-${JSON.stringify(businessData, null, 2)}
-
-${validatorContext ? `SEO VALIDATION CRITERIA (from CroSEO mind):\n${validatorContext}\n` : ""}`;
-
-    const userPrompt = `SECTION: ${section}
-${pagePath ? `PAGE PATH: ${pagePath}\n` : ""}${postTitle ? `POST TITLE: ${postTitle}\n` : ""}
-GENERATED SEO DATA:
-${JSON.stringify(generated, null, 2)}
-
-Provide a brief insight about this generated "${section}" section. Return ONLY valid JSON: { "insight": "..." }`;
-
-    const result = await runAgent({
-      systemPrompt,
-      userMessage: userPrompt,
-      model: MODEL,
-      maxTokens: 256,
-      costContext: projectId
-        ? {
-            projectId,
-            eventType: "seo-generation",
-            metadata: {
-              section,
-              entity_type: entityType || null,
-              entity_id: entityId || null,
-              page_path: pagePath || null,
-              stage: "insight",
-            },
-          }
-        : undefined,
-    });
-
-    const parsed = result.parsed || parseGeneratedSeo(result.raw, section);
-    return (parsed.insight as string) || "";
-  } catch (err) {
-    logger.warn({ err: err }, "[SEO] Failed to generate insight:");
-    return "";
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -492,25 +366,15 @@ export async function generateAllWithSharedContext(
   projectId?: string,
   entityId?: string
 ): Promise<Array<{ section: string; generated: Record<string, unknown>; insight: string }>> {
-  const results: Array<{ section: string; generated: Record<string, unknown>; insight: string }> = [];
-  let accumulated = { ...(data.existing_seo_data || {}) };
-
-  for (const section of ALL_SECTIONS) {
-    const result = await runGenerateSection(
-      section,
-      entityType,
-      ctx.businessData,
-      ctx.creatorContext,
-      ctx.validatorContext,
-      { ...data, existing_seo_data: accumulated },
-      projectId,
-      entityId
-    );
-    accumulated = { ...accumulated, ...result.generated };
-    results.push(result);
-  }
-
-  return results;
+  return runAllSeoSectionsTiered(
+    entityType,
+    ctx.businessData,
+    ctx.creatorContext,
+    ctx.validatorContext,
+    data,
+    projectId,
+    entityId
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -562,86 +426,6 @@ async function fetchBusinessData(
   }
 
   return null;
-}
-
-// ---------------------------------------------------------------------------
-// Prompt builders
-// ---------------------------------------------------------------------------
-
-const SEO_SECTION_FILE_MAP: Record<SeoSection, string> = {
-  critical: "websiteAgents/SeoGeneration.critical",
-  high_impact: "websiteAgents/SeoGeneration.high-impact",
-  significant: "websiteAgents/SeoGeneration.significant",
-  moderate: "websiteAgents/SeoGeneration.moderate",
-  negligible: "websiteAgents/SeoGeneration.negligible",
-};
-
-function buildSystemPrompt(
-  section: SeoSection,
-  businessData: Record<string, unknown>,
-  creatorContext: string = ""
-): string {
-  const base = loadPrompt("websiteAgents/SeoGeneration");
-  const sectionInstructions = loadPrompt(SEO_SECTION_FILE_MAP[section]);
-
-  return `${base}
-
-BUSINESS DATA:
-${JSON.stringify(businessData, null, 2)}
-
-${creatorContext ? `SEO GENERATION CRITERIA (from CroSEO mind):\n${creatorContext}\n` : ""}
-
-${sectionInstructions}`;
-}
-
-function buildUserPrompt(
-  section: SeoSection,
-  data: {
-    page_content: string;
-    homepage_content?: string;
-    header_html?: string;
-    footer_html?: string;
-    wrapper_html?: string;
-    existing_seo_data?: Record<string, unknown>;
-    all_page_titles?: string[];
-    all_page_descriptions?: string[];
-    page_path?: string;
-    post_title?: string;
-    entityType: "page" | "post";
-  }
-): string {
-  let prompt = `ENTITY TYPE: ${data.entityType}\n`;
-
-  if (data.page_path) prompt += `PAGE PATH: ${data.page_path}\n`;
-  if (data.post_title) prompt += `POST TITLE: ${data.post_title}\n`;
-
-  prompt += `\nPAGE CONTENT (the page being optimized):\n${truncate(data.page_content, 8000)}\n`;
-
-  if (data.homepage_content) {
-    prompt += `\nHOMEPAGE CONTENT (for context):\n${truncate(data.homepage_content, 4000)}\n`;
-  }
-  if (data.header_html) {
-    prompt += `\nHEADER HTML:\n${truncate(data.header_html, 2000)}\n`;
-  }
-  if (data.footer_html) {
-    prompt += `\nFOOTER HTML:\n${truncate(data.footer_html, 2000)}\n`;
-  }
-
-  if (data.existing_seo_data && Object.keys(data.existing_seo_data).length > 0) {
-    prompt += `\nEXISTING SEO DATA (for reference, avoid duplicating):\n${JSON.stringify(data.existing_seo_data, null, 2)}\n`;
-  }
-
-  if (data.all_page_titles?.length) {
-    prompt += `\nEXISTING PAGE TITLES (must be unique from these):\n${data.all_page_titles.join("\n")}\n`;
-  }
-
-  if (data.all_page_descriptions?.length) {
-    prompt += `\nEXISTING META DESCRIPTIONS (must be unique from these):\n${data.all_page_descriptions.join("\n")}\n`;
-  }
-
-  prompt += `\nGenerate the SEO data for the "${section}" section. Return ONLY valid JSON.`;
-
-  return prompt;
 }
 
 // ---------------------------------------------------------------------------

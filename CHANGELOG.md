@@ -2,6 +2,28 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.142] - July 2026
+
+### SEO Generation: Sonnet 5 Fix + Speed
+
+Fixed a live regression where AI-powered SEO generation (page/post "Generate SEO" in the website editor) returned a 400 error on every call after an earlier model swap to Claude Sonnet 5, and restructured generation to be meaningfully faster without changing the API contract.
+
+**Key Changes:**
+- Sonnet 5 rejects the `temperature: 0` default `runAgent` sends on every call; `service.llm-runner.ts` now omits sampling params (and applies `output_config.effort`) for the family of models that require it, gated by an explicit model-id list so the other 16 `runAgent` callers (all still on Sonnet 4.6 or older) are unaffected.
+- Extracted the duplicated 5-section sequential generation loop (previously implemented twice — once for the single-entity "Generate All" flow, once for the bulk-generate worker) into one shared helper, `feature-utils/util.seo-section-runner.ts`.
+- Restructured generation into 3 tiers instead of 5 sequential rounds: `critical`/`high_impact`/`significant` run in parallel (no real cross-field dependency between them), then `moderate` (needs the real generated `meta_title`), then `negligible`.
+- Decoupled insight generation from the blocking chain — insight calls no longer gate progression to the next section/tier, just get awaited together at the end. API response shape is unchanged, so no frontend changes were needed.
+- Turned on Claude's prompt caching (`cachedSystemBlocks`, already supported by `runAgent` but previously unused here) on the stable portion of the system prompt (base rules + business data + creator/validator context), shared across all 5 sections of a page and across every page in the same bulk-generate job.
+- Set an explicit `effort: "medium"` on Sonnet 5 SEO calls instead of inheriting Sonnet 5's new silent adaptive-high-by-default thinking behavior.
+
+**Verification:** Live API tests confirmed the Sonnet 5 fix (no more 400) and Sonnet 4.6 callers unaffected; a direct end-to-end run of the new tiered helper against the real API showed all 5 sections correctly populated in ~14s for 10 total calls, with tier-1 calls firing concurrently and insight calls overlapping subsequent tiers. `test-results.json` for `plans/07012026-seo-generation-speed` rolls up to Passed (8/11 verified, 3 waived — bulk-worker live run, prompt-cache-hit confirmation, and manual output-quality comparison all require a dev/prod environment this session didn't have access to; owner to verify post-deploy).
+
+**Commits:**
+- `src/agents/service.llm-runner.ts` — model-aware sampling-param omission + effort passthrough
+- `src/controllers/admin-websites/feature-services/service.seo-generation.ts` — delegates to the new shared helper, removed duplicated loop/prompt-building logic
+- `src/controllers/admin-websites/feature-utils/util.seo-section-runner.ts` (new) — tiered section execution, insight decoupling, prompt caching
+- `src/services/ai-cost/pricing.ts` — added `claude-sonnet-5` pricing entry so SEO generation's AI cost rolls into project totals correctly
+
 ## [0.0.141] - July 2026
 
 ### Footer "Powered by Alloro" Credit Rollout

@@ -16,6 +16,23 @@ import logger from "../lib/logger";
 const DEFAULT_MODEL = process.env.AGENTS_LLM_MODEL || "claude-sonnet-4-6";
 
 /**
+ * Models that reject `temperature`/`top_p`/`top_k` outright (400
+ * invalid_request_error) unless the field is omitted entirely. Add new
+ * model ids here as Anthropic ships them.
+ */
+const SAMPLING_PARAM_FREE_MODELS = new Set([
+  "claude-sonnet-5",
+  "claude-opus-4-7",
+  "claude-opus-4-8",
+  "claude-fable-5",
+  "claude-mythos-5",
+]);
+
+function supportsTemperature(model: string): boolean {
+  return !SAMPLING_PARAM_FREE_MODELS.has(model);
+}
+
+/**
  * Optional cost-accounting context. When provided, the runner fires
  * `safeLogAiCostEvent` after every successful Anthropic call. Nested tool
  * turns inside `runWithTools` chain onto the top-level event via
@@ -49,6 +66,12 @@ export interface LlmRunnerOptions {
   model?: string;
   maxTokens?: number;
   temperature?: number;
+  /**
+   * Optional effort level (sampling-param-free models only — see
+   * SAMPLING_PARAM_FREE_MODELS). Sent as `output_config: { effort }`.
+   * Ignored for models that don't support it.
+   */
+  effort?: "low" | "medium" | "high" | "xhigh" | "max";
   /** Optional assistant prefill to steer output format (e.g. "{" for JSON) */
   prefill?: string;
   /** Optional images to send alongside userMessage (multimodal input) */
@@ -116,6 +139,7 @@ export async function runAgent(
     model = DEFAULT_MODEL,
     maxTokens = 16384,
     temperature = 0,
+    effort,
     prefill,
     images,
     cachedSystemBlocks,
@@ -185,17 +209,23 @@ export async function runAgent(
     systemParam = systemPrompt;
   }
 
+  const requestBody: Record<string, unknown> = {
+    model,
+    max_tokens: maxTokens,
+    system: systemParam,
+    messages,
+  };
+  if (supportsTemperature(model)) {
+    requestBody.temperature = temperature;
+  } else if (effort) {
+    requestBody.output_config = { effort };
+  }
+
   const callStart = Date.now();
   let response: any;
   try {
     response = await (getClient() as any).messages.create(
-      {
-        model,
-        max_tokens: maxTokens,
-        temperature,
-        system: systemParam,
-        messages,
-      },
+      requestBody,
       cachedSystemBlocks !== undefined
         ? { headers: { "anthropic-beta": "prompt-caching-2024-07-31" } }
         : undefined,
@@ -296,17 +326,23 @@ export async function runAgent(
         { role: "user", content: correctiveMessage },
       ];
 
+      const retryRequestBody: Record<string, unknown> = {
+        model,
+        max_tokens: maxTokens,
+        system: systemParam,
+        messages: retryMessages,
+      };
+      if (supportsTemperature(model)) {
+        retryRequestBody.temperature = temperature;
+      } else if (effort) {
+        retryRequestBody.output_config = { effort };
+      }
+
       const retryStart = Date.now();
       let retryResponse: any;
       try {
         retryResponse = await (getClient() as any).messages.create(
-          {
-            model,
-            max_tokens: maxTokens,
-            temperature,
-            system: systemParam,
-            messages: retryMessages,
-          },
+          retryRequestBody,
           cachedSystemBlocks !== undefined
             ? { headers: { "anthropic-beta": "prompt-caching-2024-07-31" } }
             : undefined,
