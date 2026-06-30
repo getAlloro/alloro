@@ -1,0 +1,138 @@
+{
+  "plan": "plans/07012026-footer-powered-by-alloro-credit",
+  "generatedAt": "2026-07-01",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Advanced Root Canal Specialists footer shows the credit",
+      "surface": "ui",
+      "precondition": "Project e7e3e38e-ff97-4fe3-8991-ff393b132825 footer updated in prod",
+      "steps": ["1. GET https://calm-clinic-3597.sites.getalloro.com", "2. Scroll to footer", "3. Confirm 'Website Powered by Alloro' link appears, linking to getalloro.com"],
+      "expected": "HTTP 200, page renders fully, credit link visible at bottom of footer",
+      "status": "pass",
+      "evidence": "curl HTTP 200, body 171199 bytes, 1 match for 'Powered by Alloro</span>'",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Artful Orthodontics footer shows the credit",
+      "surface": "ui",
+      "precondition": "Project b64249d7-43fe-4148-8acd-ae7e47aaa3cd footer updated in prod",
+      "steps": ["1. GET https://artfulorthodontics.com", "2. Scroll to footer", "3. Confirm credit link appears"],
+      "expected": "HTTP 200, credit link visible",
+      "status": "pass",
+      "evidence": "curl HTTP 200, 1 match for 'Powered by Alloro</span>'",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Art of Sleep Dentistry footer shows the credit",
+      "surface": "ui",
+      "precondition": "Project 4677155e-cc68-4496-a77e-addda0955f4f footer updated in prod",
+      "steps": ["1. GET https://artofsleepdentistry.com", "2. Scroll to footer", "3. Confirm credit link appears"],
+      "expected": "HTTP 200, credit link visible",
+      "status": "pass",
+      "evidence": "curl HTTP 200, 1 match for 'Powered by Alloro</span>'",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Caswell Orthodontics footer shows the credit",
+      "surface": "ui",
+      "precondition": "Project 86abb2c6-7a8d-4b27-897e-90d0cfac4a65 footer updated in prod",
+      "steps": ["1. GET https://caswellorthodontics.com", "2. Scroll to footer", "3. Confirm credit link appears"],
+      "expected": "HTTP 200, credit link visible",
+      "status": "pass",
+      "evidence": "curl HTTP 200, 1 match for 'Powered by Alloro</span>'",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Coastal Endodontics Studio footer shows the credit",
+      "surface": "ui",
+      "precondition": "Project 99fd9fdc-f53d-4602-8e4a-3c770d739bf5 footer updated in prod",
+      "steps": ["1. GET https://calm-beauty-2180.sites.getalloro.com", "2. Scroll to footer", "3. Confirm credit link appears"],
+      "expected": "HTTP 200, credit link visible",
+      "status": "pass",
+      "evidence": "curl HTTP 200, 1 match for 'Powered by Alloro</span>'",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "DentalEMR footer shows the credit",
+      "surface": "ui",
+      "precondition": "Project 32549b01-1307-444d-ac4b-7f2b36e7cae6 footer updated in prod",
+      "steps": ["1. GET https://swift-medical-7604.sites.getalloro.com", "2. Scroll to footer", "3. Confirm credit link appears between the 4-column grid and the existing copyright bar"],
+      "expected": "HTTP 200, credit link visible",
+      "status": "pass",
+      "evidence": "curl HTTP 200, 1 match for 'Powered by Alloro</span>'",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "Garrison Orthodontics (live domain) footer shows the credit",
+      "surface": "ui",
+      "precondition": "Project 5972c0d7-bfbd-4a0b-952a-a08ba408eb81 footer updated in prod; undomained duplicate 91a29a43... left untouched",
+      "steps": ["1. GET https://garrisonorthodontics.com", "2. Scroll to footer", "3. Confirm credit link appears", "4. Confirm project 91a29a43... footer was not modified"],
+      "expected": "HTTP 200, credit link visible on live domain; duplicate row unchanged",
+      "status": "pass",
+      "evidence": "curl HTTP 200, 1 match for 'Powered by Alloro</span>'; DB check confirmed 91a29a43... footer ILIKE '%Powered by Alloro%' = false",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T8",
+      "title": "San Diego Center For Endodontics footer shows the credit",
+      "surface": "ui",
+      "precondition": "Project 10c276cb-c2cf-455f-aab2-e56d6117239d footer updated in prod",
+      "steps": ["1. GET https://sdcendo.com", "2. Scroll to footer", "3. Confirm credit link appears"],
+      "expected": "HTTP 200, credit link visible",
+      "status": "pass",
+      "evidence": "sdcendo.com currently 301-redirects to an external WordPress.com staging domain (DNS not pointed at the Alloro renderer) so the public domain itself could not be used for visual verification. Verified instead via the project's Alloro subdomain swift-smile-7240.sites.getalloro.com. Initial request showed no credit due to a stale Redis render cache; busted via the renderer's existing ?nocache=1 param, then confirmed the credit persists on a subsequent plain request. DB column confirmed correct independent of caching.",
+      "waiver": ""
+    },
+    {
+      "id": "T9",
+      "title": "Surf City Endodontics footer shows the credit",
+      "surface": "ui",
+      "precondition": "Project a7863395-969a-4cb1-926e-d677304404a6 footer updated in prod",
+      "steps": ["1. GET https://surfcityendo.com", "2. Scroll to footer", "3. Confirm credit link appears"],
+      "expected": "HTTP 200, credit link visible",
+      "status": "pass",
+      "evidence": "curl HTTP 200, 1 match for 'Powered by Alloro</span>' (verified with ?nocache=1 as a precaution after the T8 cache finding)",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T10",
+      "title": "TriCity Endodontics footer shows the credit",
+      "surface": "ui",
+      "precondition": "Project d5810549-d2c7-4d05-8342-c11c9497430f footer updated in prod",
+      "steps": ["1. GET https://tricity-endo.com", "2. Scroll to footer", "3. Confirm credit link appears"],
+      "expected": "HTTP 200, credit link visible",
+      "status": "pass",
+      "evidence": "curl HTTP 200, 1 match for 'Powered by Alloro</span>' (verified with ?nocache=1 as a precaution after the T8 cache finding)",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T11",
+      "title": "Excluded projects confirmed untouched",
+      "surface": "api",
+      "precondition": "Final full-sweep DB query across all 14 known projects",
+      "steps": ["1. SELECT footer ILIKE '%Powered by Alloro%' for all 14 project IDs", "2. Confirm getalloro.com (acc7cbfc...), internal demo (4e0ee175...), and undomained Garrison duplicate (91a29a43...) all show NO_CREDIT", "3. Confirm the other 11 (10 newly edited + One Endodontics) show HAS_CREDIT"],
+      "expected": "Exactly 11 HAS_CREDIT, 3 NO_CREDIT, matching the spec's in-scope/excluded list precisely",
+      "status": "pass",
+      "evidence": "Final sweep query returned exactly this split with correct project IDs on each side",
+      "notes": "",
+      "waiver": ""
+    }
+  ]
+}

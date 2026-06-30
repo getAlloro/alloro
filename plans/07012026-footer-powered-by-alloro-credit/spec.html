@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Footer "Powered by Alloro" Credit Rollout Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    pre { padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); overflow-x: auto; font-size: 0.82rem; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-top: 10px; }
+    th, td { text-align: left; padding: 8px 10px; border: 1px solid var(--line); vertical-align: top; }
+    th { background: var(--soft); }
+    .warn { border: 1px solid var(--ink); border-radius: 8px; padding: 14px; background: var(--soft); margin-top: 14px; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Completed</span>
+      </div>
+      <h1>Footer "Powered by Alloro" Credit Rollout</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07012026-footer-powered-by-alloro-credit</dd></div>
+        <div><dt>Size</dt><dd>Large (10 independent live-prod content edits)</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Most live Alloro client websites don't credit Alloro in their footer. One site (One Endodontics) already carries a "Website Powered by Alloro" link; the owner wants that same credit rolled out to every other client site, except Alloro's own marketing site (which is itself rendered through this same CMS, on getalloro.com).</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Directly edit the <code>footer</code> column of 10 live <code>website_builder.projects</code> rows in the production database, inserting the same "Website Powered by Alloro" credit block already live on One Endodontics's footer, placed consistently inside each site's existing footer layout. Verify each site renders correctly immediately after its own edit before moving to the next.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Architecture</h3>
+      <p>Footer content is not a repo file — it's stored per-project in the <code>website_builder.projects.footer</code> TEXT column (see <code>src/database/migrations/20260214000000_restructure_templates_to_sections.ts</code> for the column's origin, and <code>src/models/website-builder/ProjectModel.ts</code> for the model). The separate renderer repo (<code>website-builder-rebuild/src/routes/site.ts</code>) assembles the live page from <code>wrapper + header + sections + footer</code> at request time. No application code in this repo (<code>src/</code>) needs to change — this is a content/data operation against production, not a code change, so the Code Constitution skill does not apply here.</p>
+
+      <h3>Reference block (already live, One Endodontics)</h3>
+      <pre>&lt;div class="border-t mt-12 md:mt-16 pt-6 flex items-center" style="border-color:rgba(255,255,255,0.1);"&gt;
+  &lt;a href="https://www.getalloro.com" target="_blank" rel="noopener noreferrer" class="flex gap-2 text-white text-xs" style="opacity:0.6; text-decoration:none;"&gt;
+    &lt;img src="https://app.getalloro.com/logo.png" alt="Alloro" style="height:16px; width:auto;"&gt;
+    &lt;span&gt;Website Powered by Alloro&lt;/span&gt;
+  &lt;/a&gt;
+&lt;/div&gt;</pre>
+      <p>All 10 in-scope footers are dark-themed (<code>bg-primary</code> / custom dark hex backgrounds, <code>text-white</code>, same <code>rgba(255,255,255,0.1)</code> border convention as One Endo), so this exact block transfers without per-site color adjustment.</p>
+
+      <h3>Confirmed prod inventory (read-only queries against the production DB, 2026-07-01)</h3>
+      <table>
+        <thead><tr><th>Project</th><th>Project ID</th><th>Domain</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Advanced Root Canal Specialists</td><td><code>e7e3e38e-ff97-4fe3-8991-ff393b132825</code></td><td>(none)</td><td>In scope</td></tr>
+          <tr><td>Artful Orthodontics</td><td><code>b64249d7-43fe-4148-8acd-ae7e47aaa3cd</code></td><td>artfulorthodontics.com</td><td>In scope</td></tr>
+          <tr><td>Art of Sleep Dentistry</td><td><code>4677155e-cc68-4496-a77e-addda0955f4f</code></td><td>artofsleepdentistry.com</td><td>In scope</td></tr>
+          <tr><td>Caswell Orthodontics</td><td><code>86abb2c6-7a8d-4b27-897e-90d0cfac4a65</code></td><td>caswellorthodontics.com</td><td>In scope</td></tr>
+          <tr><td>Coastal Endodontics Studio</td><td><code>99fd9fdc-f53d-4602-8e4a-3c770d739bf5</code></td><td>(none)</td><td>In scope</td></tr>
+          <tr><td>DentalEMR</td><td><code>32549b01-1307-444d-ac4b-7f2b36e7cae6</code></td><td>(none)</td><td>In scope</td></tr>
+          <tr><td>Garrison Orthodontics (live)</td><td><code>5972c0d7-bfbd-4a0b-952a-a08ba408eb81</code></td><td>garrisonorthodontics.com</td><td>In scope</td></tr>
+          <tr><td>San Diego Center For Endodontics</td><td><code>10c276cb-c2cf-455f-aab2-e56d6117239d</code></td><td>sdcendo.com</td><td>In scope</td></tr>
+          <tr><td>Surf City Endodontics</td><td><code>a7863395-969a-4cb1-926e-d677304404a6</code></td><td>surfcityendo.com</td><td>In scope</td></tr>
+          <tr><td>TriCity Endodontics</td><td><code>d5810549-d2c7-4d05-8342-c11c9497430f</code></td><td>tricity-endo.com</td><td>In scope</td></tr>
+          <tr><td>One Endodontics</td><td><code>0dcad678-2845-4c20-a298-e9c62aed9ebc</code></td><td>1endodontics.com</td><td>Excluded — already has the credit</td></tr>
+          <tr><td>"Alloro Website" (internal demo)</td><td><code>4e0ee175-5044-479a-aa04-dc07c438a3a7</code></td><td>(none)</td><td>Excluded — already has the credit</td></tr>
+          <tr><td>Garrison Orthodontics (undomained duplicate)</td><td><code>91a29a43-6d58-4a0b-a5f0-1a72ade2b1d1</code></td><td>(none)</td><td>Excluded — owner chose to leave the unverified duplicate row alone</td></tr>
+          <tr><td><strong>Alloro (the company's own site)</strong></td><td><code>acc7cbfc-a3fd-4476-abbc-aace3a566fc5</code></td><td><strong>getalloro.com</strong></td><td><strong>Excluded — this is the site we must never self-credit</strong></td></tr>
+        </tbody>
+      </table>
+      <p><strong>getalloro.com verification:</strong> confirmed live via <code>curl https://getalloro.com</code> — the response carries <code>alloro-tpl-v1-release-*</code> template-engine class signatures and the same "Powered by Alloro Protect™" badge script used on client sites, served from the renderer IP (<code>54.159.199.33</code>), the same box that serves <code>1endodontics.com</code>. This confirms getalloro.com is rendered through this same CMS via project <code>acc7cbfc-a3fd-4476-abbc-aace3a566fc5</code>, not a separate marketing-site codebase as initially assumed — so it must be explicitly excluded from this rollout's UPDATE list, not skipped by accident of being "a different system."</p>
+
+      <h3>Insertion rule (confirmed by reading all 10 footers in full)</h3>
+      <p>Every in-scope footer follows the same nesting shape: an outer <code>&lt;section&gt;</code>/<code>&lt;footer&gt;</code> wrapper &rarr; a <code>max-w-7xl mx-auto</code> (or equivalent width-constrained) content wrapper &rarr; a 4-column grid <code>&lt;div&gt;</code> (brand / services / quick-links / team-or-location). The credit block is inserted as a new sibling <code>&lt;div&gt;</code> immediately <strong>after</strong> the grid <code>&lt;div&gt;</code>'s closing tag and <strong>before</strong> its parent width-wrapper's closing tag — exactly where it already sits in One Endo's live footer. Two sites (Surf City, Artful) nest an extra background-color <code>&lt;div&gt;</code> layer around the grid; the rule still applies relative to the grid's own immediate parent.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Reuse the One Endo credit block verbatim (copy, link target, logo image, styling) on all 10 sites for brand consistency.</li>
+            <li>Read each project's current <code>footer</code> value fresh immediately before writing it (Read Before Write) — do not reuse the snapshots captured during planning, since prod data could have changed since.</li>
+            <li>Update one project at a time; verify the live domain renders correctly (HTML still valid, credit visible) before moving to the next project.</li>
+            <li>Run the writes as direct read/write <code>UPDATE</code> statements against the production DB — no schema change, no migration file.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Touch project <code>acc7cbfc-a3fd-4476-abbc-aace3a566fc5</code> (getalloro.com) under any circumstance.</li>
+            <li>Touch the two already-credited projects (One Endodontics, internal demo) or the unverified undomained Garrison duplicate (<code>91a29a43...</code>).</li>
+            <li>Modify any other part of a project's footer (colors, copy, columns) beyond inserting the credit block.</li>
+            <li>Batch all 10 writes before verifying any of them.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>The <code>header_footer_code</code> snippet-injection system — owner explicitly chose direct footer-column edits instead.</li>
+        <li>Resolving whether the undomained Garrison project (<code>91a29a43...</code>) is a stale duplicate, staging copy, or something else — left untouched per owner decision.</li>
+        <li>Any template-level (<code>website_builder.templates</code>) footer change — this rollout only touches per-project overrides, since every in-scope project already carries a fully custom footer.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 — direct writes to 10 live production rows, each rendering a real customer-facing website with no schema/migration safety net, and (per explicit owner decision below) no pre-write backup.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li>A malformed insertion (unbalanced tag, broken nesting) could visually break or fully blank a live practice's website footer, or in the worst case the whole page if a tag imbalance cascades. <strong>Mitigation:</strong> sequential one-at-a-time updates with an immediate live-render check after each write, per owner's chosen verification cadence, so a bad insertion is caught and fixed before the next site is touched.</li>
+        <li>No backup of original footer HTML is being taken before the writes. If an insertion breaks a site and the exact original markup can't be reconstructed from memory/diff, recovery means manually rebuilding that one footer from scratch. <strong>Mitigation offered and declined:</strong> I recommended saving each project's pre-edit footer value to the plan folder before writing (cheap, ~10 SELECT statements). The owner explicitly declined this twice when asked directly. <strong>Accepted as-is per owner instruction</strong> — flagging again here as the standing risk record.</li>
+        <li>Mis-targeting the getalloro.com row would self-credit Alloro's own marketing site, which the owner explicitly asked to avoid. <strong>Mitigation:</strong> the project ID for getalloro.com (<code>acc7cbfc...</code>) is pinned in this spec and excluded by ID, not by guessing from domain pattern-matching at execution time.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> 10 live, publicly-reachable production websites for real dental/orthodontic practices (Advanced Root Canal Specialists, Artful Orthodontics, Art of Sleep Dentistry, Caswell Orthodontics, Coastal Endodontics Studio, DentalEMR, Garrison Orthodontics, San Diego Center For Endodontics, Surf City Endodontics, TriCity Endodontics). No other tables, no schema, no application code.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>I pushed back on skipping the backup (asked twice) given this is an unrecoverable overwrite of live production content with no migration/version history behind it. The owner held the decision both times. Proceeding without a backup is the owner's explicit, informed call — not a default I'm choosing quietly.</li>
+      </ul>
+      <div class="warn">This spec intentionally does not include a rollback artifact. If any site needs to be reverted after execution, recovery will require manually re-authoring that footer's HTML from a fresh read of its current rendered page (or from this spec's recorded full-footer scratch dumps from planning, which are NOT guaranteed current at execution time).</div>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <p>Each task is independent (no shared dependencies between projects), but per the owner's chosen verification cadence, tasks execute <strong>sequentially</strong> — T2 does not start until T1's live render is verified, and so on — rather than in parallel.</p>
+
+      <article class="task-card">
+        <h3>T1: Advanced Root Canal Specialists</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Re-read current <code>footer</code> for project <code>e7e3e38e-ff97-4fe3-8991-ff393b132825</code>; insert the credit block as the new sibling after the 4-column grid <code>&lt;div&gt;</code>'s close, before its <code>max-w-7xl</code> parent's close; <code>UPDATE</code> the row.</dd>
+          <div><dt>Files</dt><dd><code>website_builder.projects</code> row <code>e7e3e38e-ff97-4fe3-8991-ff393b132825</code> (prod DB, not a repo file)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: curl the live domain (no custom domain set — verify via the project's generated hostname/preview path) and confirm the credit link renders and page HTML is intact.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Artful Orthodontics</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Same insertion rule for project <code>b64249d7-43fe-4148-8acd-ae7e47aaa3cd</code> — note the extra background-color <code>&lt;div&gt;</code> band wrapping the grid; insert relative to the grid's immediate parent, not the outer band.</dd></div>
+          <div><dt>Files</dt><dd><code>website_builder.projects</code> row <code>b64249d7-43fe-4148-8acd-ae7e47aaa3cd</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1 (sequential checkpoint)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: curl <code>https://artfulorthodontics.com</code>, confirm credit renders and page intact.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Art of Sleep Dentistry</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Same insertion rule for project <code>4677155e-cc68-4496-a77e-addda0955f4f</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>website_builder.projects</code> row <code>4677155e-cc68-4496-a77e-addda0955f4f</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2 (sequential checkpoint)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: curl <code>https://artofsleepdentistry.com</code>, confirm credit renders and page intact.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Caswell Orthodontics</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Same insertion rule for project <code>86abb2c6-7a8d-4b27-897e-90d0cfac4a65</code> — note the team column has an extra nested staff-list <code>&lt;div&gt;</code>; insert after the grid's own close, not inside the team column.</dd></div>
+          <div><dt>Files</dt><dd><code>website_builder.projects</code> row <code>86abb2c6-7a8d-4b27-897e-90d0cfac4a65</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3 (sequential checkpoint)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: curl <code>https://caswellorthodontics.com</code>, confirm credit renders and page intact.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Coastal Endodontics Studio</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Same insertion rule for project <code>99fd9fdc-f53d-4602-8e4a-3c770d739bf5</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>website_builder.projects</code> row <code>99fd9fdc-f53d-4602-8e4a-3c770d739bf5</code></dd></div>
+          <div><dt>Depends on</dt><dd>T4 (sequential checkpoint)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: curl the project's live hostname (no custom domain), confirm credit renders and page intact.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: DentalEMR</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Same insertion rule for project <code>32549b01-1307-444d-ac4b-7f2b36e7cae6</code> — this one is on the "Alloro SaaS SEO Template" base (not the dental template) but uses the same dark <code>bg-[#171615]</code>/<code>text-white</code> scheme, so the block transfers unchanged. Insert after the 4-column grid's close and before the newsletter-band's footer-bottom <code>&lt;div&gt;</code>, inside the same <code>max-w-7xl</code> wrapper.</dd></div>
+          <div><dt>Files</dt><dd><code>website_builder.projects</code> row <code>32549b01-1307-444d-ac4b-7f2b36e7cae6</code></dd></div>
+          <div><dt>Depends on</dt><dd>T5 (sequential checkpoint)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: curl the project's live hostname (no custom domain), confirm credit renders and page intact.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: Garrison Orthodontics (live domain only)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Same insertion rule for project <code>5972c0d7-bfbd-4a0b-952a-a08ba408eb81</code> only. Do NOT touch the undomained duplicate project <code>91a29a43-6d58-4a0b-a5f0-1a72ade2b1d1</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>website_builder.projects</code> row <code>5972c0d7-bfbd-4a0b-952a-a08ba408eb81</code></dd></div>
+          <div><dt>Depends on</dt><dd>T6 (sequential checkpoint)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: curl <code>https://garrisonorthodontics.com</code>, confirm credit renders and page intact.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T8: San Diego Center For Endodontics</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Same insertion rule for project <code>10c276cb-c2cf-455f-aab2-e56d6117239d</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>website_builder.projects</code> row <code>10c276cb-c2cf-455f-aab2-e56d6117239d</code></dd></div>
+          <div><dt>Depends on</dt><dd>T7 (sequential checkpoint)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: curl <code>https://sdcendo.com</code>, confirm credit renders and page intact.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T9: Surf City Endodontics</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Same insertion rule for project <code>a7863395-969a-4cb1-926e-d677304404a6</code> — note the nested <code>.surf-footer-dark</code> background <code>&lt;div&gt;</code> with negative-margin responsive CSS wrapping the grid; insert relative to the grid's immediate parent.</dd></div>
+          <div><dt>Files</dt><dd><code>website_builder.projects</code> row <code>a7863395-969a-4cb1-926e-d677304404a6</code></dd></div>
+          <div><dt>Depends on</dt><dd>T8 (sequential checkpoint)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: curl <code>https://surfcityendo.com</code>, confirm credit renders and page intact.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T10: TriCity Endodontics</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Same insertion rule for project <code>d5810549-d2c7-4d05-8342-c11c9497430f</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>website_builder.projects</code> row <code>d5810549-d2c7-4d05-8342-c11c9497430f</code></dd></div>
+          <div><dt>Depends on</dt><dd>T9 (sequential checkpoint)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: curl <code>https://tricity-endo.com</code>, confirm credit renders and page intact.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> All 10 in-scope project footers carry the "Website Powered by Alloro" credit block, verified live via curl (with <code>?nocache=1</code> cache-bust) for each domain</li>
+        <li><input type="checkbox" checked disabled> <code>getalloro.com</code> (project <code>acc7cbfc...</code>) confirmed untouched — final DB sweep shows <code>NO_CREDIT</code></li>
+        <li><input type="checkbox" checked disabled> One Endodontics, internal demo project, and the undomained Garrison duplicate confirmed untouched — final DB sweep matches exactly: 11 <code>HAS_CREDIT</code>, 3 <code>NO_CREDIT</code> as expected</li>
+        <li><input type="checkbox" checked disabled> No site shows broken/blank footer rendering after its edit — all 10 returned HTTP 200 with full page bodies post-edit</li>
+        <li><input type="checkbox" checked disabled> Manual: each updated site's footer visually matches One Endo's credit placement and styling (confirmed via context-window diff preview before each commit)</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-01</h3>
+        <p><strong>Change:</strong> All 10 tasks (T1-T10) executed sequentially as specced, via a one-off Node script using a balanced-tag scanner (locate the `grid grid-cols-1` columns container, walk matching `&lt;div&gt;`/`&lt;/div&gt;` pairs to find its true closing tag, insert the credit block as the next sibling). Every insertion previewed and visually diffed before commit, then the live domain curled and grepped for the credit string before moving to the next task. Root cause discovery mid-execution: while verifying T8 (San Diego Center For Endodontics), the live page did not show the credit despite a confirmed-correct DB write (footer column matched expected length and content). Root cause was a Redis-backed render cache in the website-builder-rebuild renderer (`pb:*`/`posts:*`/etc. key patterns) serving a stale pre-edit render. Resolved by hitting the renderer's existing `?nocache=1` cache-bust query param (already wired in `site.ts`, used here for the first time in this workflow), confirmed the credit then appeared and persisted on a follow-up plain request. Re-verified T1-T7 with the same `?nocache=1` pattern as a precaution; all were already clean (no stale cache present on those).</p>
+        <p><strong>Reason:</strong> Execution deviation: an undocumented render-cache layer caused one site (of 10) to serve stale content immediately after a correct DB write, which the spec's verification step did not originally account for.</p>
+        <p><strong>Updated Done criteria:</strong> none — original Done checklist items still apply and all passed. No spec task or scope changed.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

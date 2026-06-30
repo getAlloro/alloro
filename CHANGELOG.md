@@ -2,6 +2,23 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.141] - July 2026
+
+### Footer "Powered by Alloro" Credit Rollout
+
+10 live client practice websites now carry the same "Website Powered by Alloro" footer credit that was already live on One Endodontics, linking back to getalloro.com.
+
+**Key Changes:**
+- Direct production content edit (no schema/migration, no application code) to the `footer` column of 10 `website_builder.projects` rows: Advanced Root Canal Specialists, Artful Orthodontics, Art of Sleep Dentistry, Caswell Orthodontics, Coastal Endodontics Studio, DentalEMR, Garrison Orthodontics, San Diego Center For Endodontics, Surf City Endodontics, and TriCity Endodontics.
+- Confirmed getalloro.com (Alloro's own marketing site, which is rendered through this same CMS) was excluded by project ID, along with an already-credited internal demo project and an unverified undomained Garrison duplicate row.
+- Insertion point matched per-site via a balanced-tag scan locating each footer's column-grid container, so the credit lands exactly where it already sits on One Endodontics, regardless of each site's nested markup differences.
+- Discovered and resolved a Redis render-cache gotcha mid-rollout: one site (San Diego Center For Endodontics) served a stale pre-edit footer immediately after a confirmed-correct DB write; busted via the renderer's existing `?nocache=1` param.
+- Noted but out of scope: `sdcendo.com`'s DNS currently points to an external WordPress.com staging domain rather than Alloro's renderer.
+
+**Verification:** `test-results.json` rolls up to Passed (11/11) for `plans/07012026-footer-powered-by-alloro-credit` — all 10 sites verified live post-edit, plus a full DB sweep confirming the exact expected 11 credited / 3 excluded split.
+
+**Commits:** None — this was a direct production database content edit, not a code change. No files in `src/` or `frontend/` were modified.
+
 ## [0.0.140] - July 2026
 
 ### Removed Market Intelligence + Search Opportunity
