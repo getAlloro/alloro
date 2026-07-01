@@ -105,7 +105,12 @@ export async function getMissionControlTelemetryData(input: {
     includePilot,
     includeAdmin,
     summary,
-    dailyUsage: fillDailyUsage(dailyUsage, params.startDate, params.endDate),
+    dailyUsage: fillDailyUsage(
+      dailyUsage,
+      params.startDate,
+      params.endDate,
+      params.granularity,
+    ),
     surfaceUsage,
     pageUsage,
     organizationUsage: mergeLowEngagementFlag(
@@ -197,7 +202,12 @@ export async function getMissionControlTelemetryOrganizationDetail(input: {
       topSurface: summary.topSurface,
     },
     summary,
-    dailyUsage: fillDailyUsage(dailyUsage, params.startDate, params.endDate),
+    dailyUsage: fillDailyUsage(
+      dailyUsage,
+      params.startDate,
+      params.endDate,
+      params.granularity,
+    ),
     surfaceUsage: surfaceUsage.map((row) => ({
       ...row,
       lastOrganizationId: organization.organizationId,
@@ -295,7 +305,12 @@ export async function getMissionControlTelemetryUserDetail(input: {
       topSurface: user.topSurface,
     },
     user,
-    dailyUsage: fillDailyUsage(dailyUsage, params.startDate, params.endDate),
+    dailyUsage: fillDailyUsage(
+      dailyUsage,
+      params.startDate,
+      params.endDate,
+      params.granularity,
+    ),
     surfaceUsage: surfaceUsage.map((row) => ({
       ...row,
       lastOrganizationId: organization.organizationId,

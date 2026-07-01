@@ -18,7 +18,9 @@ export function MissionControlTelemetryTab() {
   // Pilot support-session telemetry is hard-blocked at ingestion and purged
   // from history — nothing left to toggle. Always false.
   const includePilot = false;
-  const [includeAdmin, setIncludeAdmin] = useState(false);
+  // Admin-surface (Mission Control) activity is never client engagement —
+  // no operator control needed, always excluded.
+  const includeAdmin = false;
   const detailOrganizationId = parseDetailId(searchParams.get("org"));
   const detailUserId = parseDetailId(searchParams.get("user"));
   const [selectedOrganizationId, setSelectedOrganizationId] = useState<
@@ -146,14 +148,12 @@ export function MissionControlTelemetryTab() {
     <div className="space-y-5">
       <TelemetryToolbar
         range={range}
-        includeAdmin={includeAdmin}
         isFetching={
           telemetryQuery.isFetching ||
           detailQuery.isFetching ||
           userDetailQuery.isFetching
         }
         onRangeChange={setRange}
-        onIncludeAdminChange={setIncludeAdmin}
         onRefresh={handleRefreshTelemetry}
       />
 

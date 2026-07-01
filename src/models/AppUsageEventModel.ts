@@ -1,4 +1,5 @@
 import { db } from "../database/connection";
+import { appUsageBucketExpression } from "./appUsageTelemetryQueryHelpers";
 import type { QueryContext } from "./BaseModel";
 
 const TABLE = "app_usage_events";
@@ -23,11 +24,14 @@ export interface AppUsageEventInsert {
   occurred_at: Date;
 }
 
+export type AppUsageBucketGranularity = "day" | "month";
+
 export interface AppUsageRangeParams {
   startDate: Date;
   endDate: Date;
   includePilot: boolean;
   includeAdmin: boolean;
+  granularity: AppUsageBucketGranularity;
 }
 
 export interface AppUsageSummary {
@@ -43,6 +47,8 @@ export interface AppUsageSummary {
 export interface AppUsageDailyPoint {
   date: string;
   activeUsers: number;
+  // Distinct orgs in the bucket — populated by the global aggregate query only.
+  activeOrganizations?: number;
   pageViews: number;
   activeMinutes: number;
 }
@@ -152,9 +158,11 @@ export class AppUsageEventModel {
   static async getDailyUsage(
     params: AppUsageRangeParams,
   ): Promise<AppUsageDailyPoint[]> {
+    const bucket = appUsageBucketExpression(params.granularity);
     const rows = (await this.base(params)
-      .select(db.raw("created_at::date::text as date"))
+      .select(db.raw(`${bucket}::date::text as date`))
       .countDistinct("user_id as active_users")
+      .countDistinct("organization_id as active_organizations")
       .select(
         db.raw(
           "COUNT(*) FILTER (WHERE event_name = ?)::int as page_views",
@@ -162,12 +170,13 @@ export class AppUsageEventModel {
         ),
       )
       .sum("active_seconds as active_seconds")
-      .groupByRaw("created_at::date")
+      .groupByRaw(bucket)
       .orderBy("date", "asc")) as QueryRow[];
 
     return rows.map((row) => ({
       date: row.date,
       activeUsers: Number(row.active_users ?? 0),
+      activeOrganizations: Number(row.active_organizations ?? 0),
       pageViews: Number(row.page_views ?? 0),
       activeMinutes: roundMinutes(Number(row.active_seconds ?? 0)),
     }));

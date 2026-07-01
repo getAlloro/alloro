@@ -1,7 +1,8 @@
-import type {
-  MissionControlTelemetryData,
-  MissionControlTelemetryOrganizationRow,
-  MissionControlTelemetryUserRow,
+import {
+  telemetryRangeGranularity,
+  type MissionControlTelemetryData,
+  type MissionControlTelemetryOrganizationRow,
+  type MissionControlTelemetryUserRow,
 } from "../../../../api/admin-mission-control";
 import { TelemetryOrganizationTable } from "./TelemetryOrganizationTable";
 import { TelemetrySummaryCards } from "./TelemetrySummaryCards";
@@ -34,26 +35,35 @@ export function TelemetryAggregateView({
     <>
       <TelemetrySummaryCards summary={data.summary} />
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <TelemetryTrendChart data={data.dailyUsage} />
-        <TelemetrySurfaceList
-          surfaces={data.surfaceUsage}
-          pages={data.pageUsage}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <TelemetryOrganizationTable
-          organizations={organizations}
-          selectedOrganizationId={selectedOrganizationId}
-          onSelectOrganization={onSelectOrganization}
-        />
-        <TelemetryUserDrilldown
-          organization={selectedOrganization}
-          users={users}
-          isLoading={isUsersLoading}
-          onSelectUser={onSelectUser}
-        />
+      {/* Two independent columns (items-start) — the chart card keeps its
+          content height and Organization Usage stacks directly under it,
+          instead of the grid stretching the chart to match the tall
+          Surfaces & Pages rail. */}
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start">
+        <div className="min-w-0 space-y-5">
+          <TelemetryTrendChart
+            data={data.dailyUsage}
+            variant="aggregate"
+            granularity={telemetryRangeGranularity(data.range)}
+          />
+          <TelemetryOrganizationTable
+            organizations={organizations}
+            selectedOrganizationId={selectedOrganizationId}
+            onSelectOrganization={onSelectOrganization}
+          />
+        </div>
+        <div className="min-w-0 space-y-5">
+          <TelemetrySurfaceList
+            surfaces={data.surfaceUsage}
+            pages={data.pageUsage}
+          />
+          <TelemetryUserDrilldown
+            organization={selectedOrganization}
+            users={users}
+            isLoading={isUsersLoading}
+            onSelectUser={onSelectUser}
+          />
+        </div>
       </div>
     </>
   );

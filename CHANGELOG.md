@@ -2,6 +2,30 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.144] - July 2026
+
+### Telemetry Trust: Idle Detection, Idle-Data Cleanup, and Usage-Trend Revamp
+
+Made Mission Control product telemetry trustworthy as a client-engagement signal: the heartbeat no longer counts idle tab time, the historical idle inflation was surgically removed from both databases, and the telemetry tab's Usage Trend chart now plots view-appropriate series with month-capable time ranges — with the dead-space layout bug fixed.
+
+**Key Changes:**
+- **Idle detection at the source.** The frontend telemetry heartbeat (`useAppTelemetry.ts`) previously counted ~30s of "active" time per tick whenever the tab was merely visible — a parked dashboard recorded unlimited engagement minutes. Passive, throttled interaction listeners (pointer/key/wheel/touch/scroll) now feed a 2-minute idle grace: counting stops after 2 minutes without real input and resumes on the next interaction. Route changes and tab-refocus count as interactions.
+- **One-off idle-data repair (dev + prod).** Historical heartbeat runs were capped at 5 minutes per continuous same-page run (gap >2min = new run) via direct, snapshotted SQL — prod minutes dropped 2,816.5 → 718.1 and dev 2,366.2 → 574.9 with session and page-view counts unchanged (only heartbeat rows were deleted). Full copies retained in `app_usage_events_backup_20260702` on both servers; the rule is idempotent and re-runnable.
+- **Per-view chart series.** Usage Trend now plots what each view is about: aggregate = active organizations + minutes (dual hidden Y-axes so the counts line doesn't flatline against minutes), organization detail = active users + minutes, user detail = minutes only. Tooltips, subtitles, and the active-day chip adapt per view.
+- **Six time ranges with real bucketing.** 7D / 30D (default) / 90D / MTD plot daily; 12M / YTD aggregate by calendar month via a granularity field threaded from `buildRangeParams()` through all three daily-usage queries.
+- **Layout fix.** The chart card no longer stretches to match the tall Surfaces & Pages rail (~a full screen of blank white); independent `items-start` columns stack Organization Usage directly under the chart, with the same fix applied to the org-detail and user-detail views.
+- **Admin toggle removed.** Mission Control telemetry no longer offers an "include admin" toggle — admin-surface activity is excluded unconditionally, matching the Pilot toggle removal.
+
+**Verification:** `test-results.json` rolls up to Passed for both `plans/07022026-telemetry-trend-revamp-idle-cleanup` and `plans/07022026-telemetry-idle-detection`. Cleanup verified with exact preview/delete row matches, unchanged session counts, and a zero re-run check on both databases. All four new ranges verified against the live dev API (30d=30 daily, mtd=1, 12m=12 monthly, ytd=7 monthly buckets); the low-engagement flag correctly surfaced Garrison plus zero-activity orgs the old inner-join query couldn't see. Owner verified the dev UI. One real bug was caught by the live API check and fixed (`c0094dc1`): Postgres rejected the bucketed queries because the parameterized `date_trunc` bound as different placeholders in SELECT vs GROUP BY — now a shared vetted literal via `appUsageBucketExpression()`.
+
+**Migration/deploy note:** no schema migrations in this release. The data repair was a deliberate one-off SQL pass (snapshot first), kept out of migration history by design. Prod continues to run pre-filtering telemetry code until `dev/dave` merges to `main` — idle and internal-user inflation resumes there until that ships; the cleanup is safely re-runnable.
+
+**Commits:**
+- `frontend/src/hooks/useAppTelemetry.ts` — idle grace + interaction listeners (`7ddb6a49`)
+- `src/controllers/admin-mission-control/feature-services/MissionControlTelemetryRangeUtils.ts` — six ranges, granularity, month-capable bucket filling (`f06f0f95`)
+- `src/models/AppUsageEventModel.ts`, `AppUsageOrganizationTelemetryModel.ts`, `AppUsageUserTelemetryModel.ts`, `appUsageTelemetryQueryHelpers.ts` — `date_trunc` bucketing + org-count series (`f06f0f95`, GROUP BY fix `c0094dc1`)
+- `frontend/src/components/Admin/mission-control/telemetry/` — `TelemetryTrendChart` variants, toolbar pills, layout restructure across all three views, Admin toggle removal (`f06f0f95`, `f8930afa`)
+
 ## [0.0.143] - July 2026
 
 ### SEO + GEO Generator Revamp: Source-Traceable Facts, Answer-First Layer, and Live Bulk Progress

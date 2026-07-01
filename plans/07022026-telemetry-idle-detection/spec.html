@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Telemetry Idle Detection Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 12px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>Telemetry Idle Detection</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed — deployed to dev, owner sign-off 2026-07-02</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07022026-telemetry-idle-detection</dd></div>
+        <div><dt>Size</dt><dd>Small (1 file)</dd></div>
+        <div><dt>Risk</dt><dd>Level 2 — Concern</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The product-telemetry heartbeat counts idle time as engagement. <code>frontend/src/hooks/useAppTelemetry.ts:68-100</code> flushes an <code>app.page_active_heartbeat</code> (~30s of <code>active_seconds</code>) every 30 seconds whenever the tab is merely <em>visible</em> — there is no mouse/keyboard/scroll check. A dashboard left open on a second monitor records unlimited "active" minutes, poisoning the CS-outreach signal that the internal-filtering plan (<code>plans/07012026-telemetry-internal-filtering</code>) and the data cleanup (<code>plans/07022026-telemetry-trend-revamp-idle-cleanup</code>) are building toward. The cleanup only patches history — this fix stops the inflation at the source.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>The heartbeat stops counting time once the user has gone <strong>2 minutes without a real interaction</strong> (pointer move, key press, wheel/scroll, pointer down, touch), and resumes counting on the next interaction. Visibility handling stays as-is. No backend or schema change — ingestion's per-event 120s cap (<code>MAX_ACTIVE_SECONDS</code>) is untouched.</p>
+      <p><strong>Rule:</strong> on each 30s tick, count elapsed time only up to <code>lastInteractionAt + IDLE_GRACE_MS</code>. Fully idle ticks report 0 seconds and are not sent at all (the existing <code>activeSeconds === 0</code> early-return). Worst-case idle overcount per parked page: ~2 minutes, well under the 5-minute historical cleanup cap.</p>
+      <p><strong>Assumptions self-resolved (recorded per <code>-i</code>-style autonomy):</strong> idle grace = 2 minutes; interaction sampling throttled to 1s (a timestamp compare, no timers); route changes and tab-refocus count as interactions.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/hooks/useAppTelemetry.ts</code> - the only file changed. <code>flushHeartbeat()</code> (line ~69) computes <code>activeSeconds = now - lastActiveAt</code>; gains the idle clamp. A new <code>lastInteractionAt</code> ref is updated by throttled passive listeners registered in the same effect that owns the interval.</li>
+        <li><code>src/controllers/app-telemetry/feature-services/AppTelemetryIngestionService.ts</code> - context only (not modified): server already caps a single event at 120s.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>§13.2/§13.3 — logic stays in the hook, no new component/state system; refs not state (no re-renders from mousemove).</li>
+        <li>§4.2 — named constants (<code>IDLE_GRACE_MS</code>, <code>INTERACTION_SAMPLE_MS</code>) beside the existing <code>HEARTBEAT_INTERVAL_MS</code>.</li>
+        <li>Listeners are <code>passive</code> and <code>capture</code> (to catch inner scrollables), registered/removed symmetrically in the effect cleanup — same shape as the existing <code>visibilitychange</code>/<code>pagehide</code> wiring.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>frontend/src/hooks/useAppTelemetry.ts</code> itself — the change extends its existing effect structure.</p>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 — Concern</p>
+      <ul>
+        <li><strong>Under-counting passive reading.</strong> A user reading a long page without touching mouse/keyboard for &gt;2min stops accruing time until they interact. Accepted: minutes become a floor of provable activity, matching how the owner wants the metric read. <strong>Mitigation:</strong> threshold is one named constant, trivially tunable.</li>
+        <li><strong>Listener overhead.</strong> <code>pointermove</code> fires constantly. <strong>Mitigation:</strong> handler is two timestamp reads + occasional ref write (throttled to 1/s), passive, no React state.</li>
+        <li><strong>Behavior shift in recorded minutes.</strong> Post-deploy per-user minutes will read lower than the old regime. Communicated together with the data-cleanup baseline change.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> the hook runs app-wide (mounted once); only affects what <code>active_seconds</code> values get sent. No consumer parses heartbeat cadence.</p>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Idle-grace clamp + interaction tracking in useAppTelemetry</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>lastInteractionAt</code> ref + throttled passive interaction listeners (<code>pointermove</code>, <code>pointerdown</code>, <code>keydown</code>, <code>wheel</code>, <code>touchstart</code>, <code>scroll</code>); clamp <code>flushHeartbeat</code>'s counted window to <code>lastInteractionAt + IDLE_GRACE_MS</code>; treat route change and tab-refocus as interactions.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/hooks/useAppTelemetry.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc -p tsconfig.app.json</code>; manual: park a tab &gt;3min, confirm heartbeats stop in the network panel; interact, confirm they resume.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npx tsc -p tsconfig.app.json</code> - zero errors</li>
+        <li><input type="checkbox" disabled> Lint clean on the touched file</li>
+        <li><input type="checkbox" disabled> Manual: parked tab stops emitting heartbeats after ~2min idle; interaction resumes them</li>
+        <li><input type="checkbox" disabled> No regression: route changes and tab switches still record page views and session start</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

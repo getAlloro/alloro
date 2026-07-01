@@ -103,7 +103,22 @@ export type MissionControlInsight = {
   source: "ai" | "deterministic";
 };
 
-export type MissionControlTelemetryRange = "7d" | "30d" | "90d";
+export type MissionControlTelemetryRange =
+  | "7d"
+  | "30d"
+  | "90d"
+  | "mtd"
+  | "12m"
+  | "ytd";
+
+// 12m and ytd aggregate by calendar month; the rest plot daily.
+export type MissionControlTelemetryGranularity = "day" | "month";
+
+export function telemetryRangeGranularity(
+  range: MissionControlTelemetryRange,
+): MissionControlTelemetryGranularity {
+  return range === "12m" || range === "ytd" ? "month" : "day";
+}
 
 export type MissionControlTelemetrySummary = {
   activeOrganizations: number;
@@ -118,6 +133,8 @@ export type MissionControlTelemetrySummary = {
 export type MissionControlTelemetryDailyPoint = {
   date: string;
   activeUsers: number;
+  // Distinct orgs in the bucket — present on the aggregate view's points only.
+  activeOrganizations?: number;
   pageViews: number;
   activeMinutes: number;
 };

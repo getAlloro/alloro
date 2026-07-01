@@ -4,6 +4,7 @@ import {
   APP_USAGE_EVENTS_TABLE,
   APP_USAGE_PAGE_VIEW_EVENT,
   AppUsageQueryRow,
+  appUsageBucketExpression,
   buildOrganizationUserUsageQuery,
   buildPageUsageKey,
   roundUsageMinutes,
@@ -67,8 +68,9 @@ export class AppUsageUserTelemetryModel {
     userId: number,
     params: AppUsageRangeParams,
   ): Promise<AppUsageDailyPoint[]> {
+    const bucket = appUsageBucketExpression(params.granularity);
     const rows = (await this.base(organizationId, userId, params)
-      .select(db.raw("created_at::date::text as date"))
+      .select(db.raw(`${bucket}::date::text as date`))
       .select(db.raw("1::int as active_users"))
       .select(
         db.raw("COUNT(*) FILTER (WHERE event_name = ?)::int as page_views", [
@@ -76,7 +78,7 @@ export class AppUsageUserTelemetryModel {
         ]),
       )
       .sum("active_seconds as active_seconds")
-      .groupByRaw("created_at::date")
+      .groupByRaw(bucket)
       .orderBy("date", "asc")) as AppUsageQueryRow[];
 
     return rows.map((row) => ({

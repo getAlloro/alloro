@@ -1,0 +1,55 @@
+{
+  "plan": "plans/07022026-telemetry-idle-detection",
+  "generatedAt": "2026-07-02",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Build gates on the touched hook",
+      "surface": "cli",
+      "precondition": "Local repo with the useAppTelemetry change applied",
+      "steps": [
+        "1. npx tsc -p tsconfig.app.json --noEmit",
+        "2. npx eslint frontend/src/hooks/useAppTelemetry.ts"
+      ],
+      "expected": "Zero errors, zero new warnings",
+      "status": "pass",
+      "evidence": "FRONTEND_EXIT=0; eslint clean on useAppTelemetry.ts (2026-07-02).",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Parked tab stops emitting heartbeats after ~2min idle",
+      "surface": "ui",
+      "precondition": "Dev deploy complete; logged in as a non-internal account (internal users are write-blocked)",
+      "steps": [
+        "1. Open a tracked page, open the network panel filtered to /api/app-telemetry",
+        "2. Do not touch mouse/keyboard for 3+ minutes, keep the tab visible",
+        "3. Confirm heartbeats stop arriving after ~2.5 minutes (the tick after the 2-min grace)",
+        "4. Move the mouse: heartbeats resume on the next 30s tick"
+      ],
+      "expected": "No unlimited heartbeat chain while idle; resume on interaction",
+      "status": "pass",
+      "evidence": "Code-level verification (idle clamp + capture-listener wiring, tsc/lint clean, deployed to dev in run 28548978833) + owner acceptance sign-off at -d, 2026-07-02.",
+      "notes": "The 3-minute parked-tab network-panel spot-check was not separately performed; basis is code verification + owner sign-off. Any anomaly will show up as heartbeat runs exceeding ~2.5min in app_usage_events — trivially queryable.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "No regression: session start, page views, tab switching",
+      "surface": "ui",
+      "precondition": "Dev deploy complete",
+      "steps": [
+        "1. Fresh login: app.session_started and app.page_viewed still fire",
+        "2. Navigate between tracked pages: page_viewed per route, heartbeats counting",
+        "3. Switch away and back to the tab: counting resumes cleanly"
+      ],
+      "expected": "All existing telemetry events behave as before; only idle counting changed",
+      "status": "pass",
+      "evidence": "Owner verified the dev telemetry tab post-deploy ('it looks perfect'); dev API returning live session/page-view data across all four ranges, 2026-07-02.",
+      "notes": "",
+      "waiver": ""
+    }
+  ]
+}

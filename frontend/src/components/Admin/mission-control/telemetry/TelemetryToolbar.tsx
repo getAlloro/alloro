@@ -1,25 +1,28 @@
-import { RefreshCw, ShieldCheck } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import type { MissionControlTelemetryRange } from "../../../../api/admin-mission-control";
 import { TelemetryClarityLink } from "./TelemetryClarityLink";
-import { TelemetryFilterToggle } from "./TelemetryFilterToggle";
 
-const RANGES: MissionControlTelemetryRange[] = ["7d", "30d", "90d"];
+// 7d/30d/90d/mtd plot daily; 12m/ytd aggregate monthly.
+const RANGES: MissionControlTelemetryRange[] = [
+  "7d",
+  "30d",
+  "90d",
+  "mtd",
+  "12m",
+  "ytd",
+];
 
 type TelemetryToolbarProps = {
   range: MissionControlTelemetryRange;
-  includeAdmin: boolean;
   isFetching: boolean;
   onRangeChange: (range: MissionControlTelemetryRange) => void;
-  onIncludeAdminChange: (checked: boolean) => void;
   onRefresh: () => void;
 };
 
 export function TelemetryToolbar({
   range,
-  includeAdmin,
   isFetching,
   onRangeChange,
-  onIncludeAdminChange,
   onRefresh,
 }: TelemetryToolbarProps) {
   return (
@@ -48,13 +51,6 @@ export function TelemetryToolbar({
             {option}
           </button>
         ))}
-        <TelemetryFilterToggle
-          id="telemetry-include-admin"
-          label="Admin"
-          checked={includeAdmin}
-          onChange={onIncludeAdminChange}
-          icon={ShieldCheck}
-        />
         <button
           type="button"
           onClick={onRefresh}

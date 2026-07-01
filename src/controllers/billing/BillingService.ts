@@ -72,9 +72,12 @@ export interface CheckoutResult {
 // ─── App URL for redirects ───
 
 function getAppUrl(): string {
-  return process.env.NODE_ENV === "production"
-    ? "https://app.getalloro.com"
-    : "http://localhost:5174";
+  return (
+    process.env.APP_URL ||
+    (process.env.NODE_ENV === "production"
+      ? "https://app.getalloro.com"
+      : "http://localhost:5174")
+  );
 }
 
 // ─── Checkout Session ───
