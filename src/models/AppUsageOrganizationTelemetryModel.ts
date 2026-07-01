@@ -122,7 +122,11 @@ export class AppUsageOrganizationTelemetryModel {
     params: AppUsageRangeParams,
   ): Promise<AppUsageOrganizationDailyPoint[]> {
     const rows = (await this.base(organizationId, params)
-      .select(db.raw("created_at::date::text as date"))
+      .select(
+        db.raw("date_trunc(?, created_at)::date::text as date", [
+          params.granularity,
+        ]),
+      )
       .countDistinct("user_id as active_users")
       .select(
         db.raw("COUNT(*) FILTER (WHERE event_name = ?)::int as page_views", [
@@ -130,7 +134,7 @@ export class AppUsageOrganizationTelemetryModel {
         ]),
       )
       .sum("active_seconds as active_seconds")
-      .groupByRaw("created_at::date")
+      .groupByRaw("date_trunc(?, created_at)", [params.granularity])
       .orderBy("date", "asc")) as AppUsageQueryRow[];
 
     return rows.map((row) => ({

@@ -1,9 +1,28 @@
 import {
+  AppUsageBucketGranularity,
   AppUsageDailyPoint,
   AppUsageRangeParams,
 } from "../../../models/AppUsageEventModel";
 
-export type MissionControlTelemetryRange = "7d" | "30d" | "90d";
+export type MissionControlTelemetryRange =
+  | "7d"
+  | "30d"
+  | "90d"
+  | "mtd"
+  | "12m"
+  | "ytd";
+
+const RANGE_VALUES: MissionControlTelemetryRange[] = [
+  "7d",
+  "30d",
+  "90d",
+  "mtd",
+  "12m",
+  "ytd",
+];
+
+// 12m and ytd aggregate by calendar month; the rest plot daily.
+const MONTHLY_RANGES: MissionControlTelemetryRange[] = ["12m", "ytd"];
 
 export function parseOrganizationId(value: unknown): number {
   const organizationId = Number(value);
@@ -27,14 +46,36 @@ export function buildRangeParams(
   includeAdmin: boolean,
 ): AppUsageRangeParams {
   const endDate = new Date();
-  const startDate = new Date(endDate);
-  startDate.setDate(endDate.getDate() - rangeToDays(range) + 1);
+  const startDate = rangeStartDate(range, endDate);
   startDate.setHours(0, 0, 0, 0);
-  return { startDate, endDate, includePilot, includeAdmin };
+  const granularity: AppUsageBucketGranularity = MONTHLY_RANGES.includes(range)
+    ? "month"
+    : "day";
+  return { startDate, endDate, includePilot, includeAdmin, granularity };
 }
 
 export function parseRange(value: unknown): MissionControlTelemetryRange {
-  return value === "7d" || value === "90d" ? value : "30d";
+  return RANGE_VALUES.includes(value as MissionControlTelemetryRange)
+    ? (value as MissionControlTelemetryRange)
+    : "30d";
+}
+
+function rangeStartDate(
+  range: MissionControlTelemetryRange,
+  endDate: Date,
+): Date {
+  if (range === "mtd") {
+    return new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+  }
+  if (range === "12m") {
+    return new Date(endDate.getFullYear(), endDate.getMonth() - 11, 1);
+  }
+  if (range === "ytd") {
+    return new Date(endDate.getFullYear(), 0, 1);
+  }
+  const startDate = new Date(endDate);
+  startDate.setDate(endDate.getDate() - rangeToDays(range) + 1);
+  return startDate;
 }
 
 export function parseBoolean(value: unknown): boolean {
@@ -45,23 +86,33 @@ export function fillDailyUsage(
   rows: AppUsageDailyPoint[],
   startDate: Date,
   endDate: Date,
+  granularity: AppUsageBucketGranularity = "day",
 ): AppUsageDailyPoint[] {
   const byDate = new Map(rows.map((row) => [row.date, row]));
-  const days: AppUsageDailyPoint[] = [];
-  const cursor = new Date(startDate);
+  const buckets: AppUsageDailyPoint[] = [];
+  const cursor =
+    granularity === "month"
+      ? new Date(startDate.getFullYear(), startDate.getMonth(), 1)
+      : new Date(startDate);
   while (cursor <= endDate) {
-    const date = formatLocalDateKey(cursor);
-    days.push(
+    const date = formatLocalDateKey(
+      granularity === "month"
+        ? new Date(cursor.getFullYear(), cursor.getMonth(), 1)
+        : cursor,
+    );
+    buckets.push(
       byDate.get(date) ?? {
         date,
         activeUsers: 0,
+        activeOrganizations: 0,
         pageViews: 0,
         activeMinutes: 0,
       },
     );
-    cursor.setDate(cursor.getDate() + 1);
+    if (granularity === "month") cursor.setMonth(cursor.getMonth() + 1);
+    else cursor.setDate(cursor.getDate() + 1);
   }
-  return days;
+  return buckets;
 }
 
 function rangeToDays(range: MissionControlTelemetryRange): number {

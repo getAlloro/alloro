@@ -1,5 +1,8 @@
 import { ArrowLeft, Loader2, UserRound } from "lucide-react";
-import type { MissionControlTelemetryUserDetailData } from "../../../../api/admin-mission-control";
+import {
+  telemetryRangeGranularity,
+  type MissionControlTelemetryUserDetailData,
+} from "../../../../api/admin-mission-control";
 import { TelemetryActivityTimeline } from "./TelemetryActivityTimeline";
 import { TelemetryBreadcrumb } from "./TelemetryBreadcrumb";
 import { TelemetrySurfaceList } from "./TelemetrySurfaceList";
@@ -76,15 +79,24 @@ export function TelemetryUserDetailView({
 
       <TelemetryUserDetailCards user={data.user} />
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <TelemetryTrendChart data={data.dailyUsage} />
-        <TelemetrySurfaceList
-          surfaces={data.surfaceUsage}
-          pages={data.pageUsage}
-        />
+      {/* Independent columns (items-start) so the chart card keeps its
+          content height instead of stretching to the tall right rail. */}
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start">
+        <div className="min-w-0 space-y-5">
+          <TelemetryTrendChart
+            data={data.dailyUsage}
+            variant="user"
+            granularity={telemetryRangeGranularity(data.range)}
+          />
+          <TelemetryActivityTimeline movements={data.recentMovements} />
+        </div>
+        <div className="min-w-0">
+          <TelemetrySurfaceList
+            surfaces={data.surfaceUsage}
+            pages={data.pageUsage}
+          />
+        </div>
       </div>
-
-      <TelemetryActivityTimeline movements={data.recentMovements} />
     </div>
   );
 }

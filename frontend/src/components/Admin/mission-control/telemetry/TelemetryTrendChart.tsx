@@ -10,41 +10,93 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { MissionControlTelemetryDailyPoint } from "../../../../api/admin-mission-control";
+import type {
+  MissionControlTelemetryDailyPoint,
+  MissionControlTelemetryGranularity,
+} from "../../../../api/admin-mission-control";
+
+export type TelemetryTrendVariant = "aggregate" | "organization" | "user";
 
 export type TelemetryTrendChartProps = {
   data: MissionControlTelemetryDailyPoint[];
+  variant: TelemetryTrendVariant;
+  granularity: MissionControlTelemetryGranularity;
 };
 
 type TrendDatum = MissionControlTelemetryDailyPoint & {
   label: string;
   tooltipLabel: string;
+  primaryValue: number;
 };
 
-export function TelemetryTrendChart({ data }: TelemetryTrendChartProps) {
+type VariantConfig = {
+  subtitle: (bucket: string) => string;
+  primaryKey: "activeOrganizations" | "activeUsers" | "activeMinutes";
+  chip: (datum: TrendDatum) => string;
+  tooltip: (datum: TrendDatum) => string;
+  hasMinutesLine: boolean;
+};
+
+const VARIANT_CONFIG: Record<TelemetryTrendVariant, VariantConfig> = {
+  aggregate: {
+    subtitle: (bucket) => `Active organizations and minutes by ${bucket}.`,
+    primaryKey: "activeOrganizations",
+    chip: (datum) => `${datum.primaryValue} orgs`,
+    tooltip: (datum) => `${datum.primaryValue} orgs · ${datum.activeMinutes}m`,
+    hasMinutesLine: true,
+  },
+  organization: {
+    subtitle: (bucket) => `Active users and minutes by ${bucket}.`,
+    primaryKey: "activeUsers",
+    chip: (datum) => `${datum.primaryValue} users`,
+    tooltip: (datum) => `${datum.primaryValue} users · ${datum.activeMinutes}m`,
+    hasMinutesLine: true,
+  },
+  user: {
+    subtitle: (bucket) => `Active minutes by ${bucket}.`,
+    primaryKey: "activeMinutes",
+    chip: (datum) => `${datum.primaryValue}m`,
+    tooltip: (datum) => `${datum.activeMinutes}m · ${datum.pageViews} views`,
+    hasMinutesLine: false,
+  },
+};
+
+export function TelemetryTrendChart({
+  data,
+  variant,
+  granularity,
+}: TelemetryTrendChartProps) {
   const gradientId = useId().replaceAll(":", "");
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const config = VARIANT_CONFIG[variant];
   const chartData = useMemo(
     () =>
-      data.map((day) => ({
-        ...day,
-        label: formatDate(day.date, { month: "short", day: "numeric" }),
-        tooltipLabel: formatDate(day.date, {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        }),
+      data.map((bucket) => ({
+        ...bucket,
+        label: formatDate(
+          bucket.date,
+          granularity === "month"
+            ? { month: "short", year: "numeric" }
+            : { month: "short", day: "numeric" },
+        ),
+        tooltipLabel: formatDate(
+          bucket.date,
+          granularity === "month"
+            ? { month: "long", year: "numeric" }
+            : { month: "short", day: "numeric", year: "numeric" },
+        ),
+        primaryValue: Number(bucket[config.primaryKey] ?? 0),
       })),
-    [data],
+    [data, granularity, config.primaryKey],
   );
 
   const latestActiveIndex = findLatestActiveIndex(chartData);
   const activeIndex =
     hoverIndex ?? latestActiveIndex ?? Math.max(chartData.length - 1, 0);
-  const activeDay = chartData[activeIndex];
+  const activeBucket = chartData[activeIndex];
 
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+    <section className="self-start rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-alloro-teal/10 text-alloro-teal">
@@ -55,16 +107,16 @@ export function TelemetryTrendChart({ data }: TelemetryTrendChartProps) {
               Usage Trend
             </h2>
             <p className="mt-1 text-xs font-medium text-gray-500">
-              Active users and page views by day.
+              {config.subtitle(granularity === "month" ? "month" : "day")}
             </p>
           </div>
         </div>
         <div className="text-right">
           <p className="text-[10px] font-black uppercase text-gray-400">
-            Active Day
+            {granularity === "month" ? "Active Month" : "Active Day"}
           </p>
           <p className="text-sm font-black tabular-nums text-alloro-navy">
-            {activeDay ? `${activeDay.activeUsers} users` : "-"}
+            {activeBucket ? config.chip(activeBucket) : "-"}
           </p>
         </div>
       </div>
@@ -97,23 +149,36 @@ export function TelemetryTrendChart({ data }: TelemetryTrendChartProps) {
               tickLine={false}
               tick={false}
             />
+            {/* Separate hidden axes: counts (orgs/users) and minutes live on
+                very different scales — one axis would flatline the counts. */}
             <YAxis
+              yAxisId="primary"
               hide
               domain={[0, (max: number) => Math.max(1, Math.ceil(max * 1.2))]}
             />
+            {config.hasMinutesLine && (
+              <YAxis
+                yAxisId="minutes"
+                hide
+                orientation="right"
+                domain={[0, (max: number) => Math.max(1, Math.ceil(max * 1.2))]}
+              />
+            )}
             <Tooltip
               cursor={{ stroke: "#11151c", strokeOpacity: 0.12 }}
-              content={<TrendTooltip />}
+              content={<TrendTooltip render={config.tooltip} />}
             />
             <Area
+              yAxisId="primary"
               type="monotone"
-              dataKey="activeUsers"
+              dataKey="primaryValue"
               stroke="none"
               fill={`url(#${gradientId})`}
             />
             <Line
+              yAxisId="primary"
               type="monotone"
-              dataKey="activeUsers"
+              dataKey="primaryValue"
               stroke="var(--color-alloro-teal)"
               strokeWidth={2.8}
               dot={false}
@@ -123,18 +188,21 @@ export function TelemetryTrendChart({ data }: TelemetryTrendChartProps) {
                 strokeWidth: 0,
               }}
             />
-            <Line
-              type="monotone"
-              dataKey="pageViews"
-              stroke="var(--color-alloro-orange)"
-              strokeWidth={2.2}
-              dot={false}
-              activeDot={{
-                r: 4,
-                fill: "var(--color-alloro-orange)",
-                strokeWidth: 0,
-              }}
-            />
+            {config.hasMinutesLine && (
+              <Line
+                yAxisId="minutes"
+                type="monotone"
+                dataKey="activeMinutes"
+                stroke="var(--color-alloro-orange)"
+                strokeWidth={2.2}
+                dot={false}
+                activeDot={{
+                  r: 4,
+                  fill: "var(--color-alloro-orange)",
+                  strokeWidth: 0,
+                }}
+              />
+            )}
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -145,9 +213,11 @@ export function TelemetryTrendChart({ data }: TelemetryTrendChartProps) {
 function TrendTooltip({
   active,
   payload,
+  render,
 }: {
   active?: boolean;
   payload?: Array<{ payload?: TrendDatum }>;
+  render: (datum: TrendDatum) => string;
 }) {
   const datum = payload?.[0]?.payload;
   if (!active || !datum) return null;
@@ -158,8 +228,7 @@ function TrendTooltip({
         {datum.tooltipLabel}
       </p>
       <p className="mt-1 text-xs font-black tabular-nums text-alloro-navy">
-        {datum.activeUsers} users · {datum.pageViews} views ·{" "}
-        {datum.activeMinutes}m
+        {render(datum)}
       </p>
     </div>
   );
@@ -179,8 +248,8 @@ function parseDateKey(value: string): Date {
 
 function findLatestActiveIndex(data: TrendDatum[]): number | null {
   for (let index = data.length - 1; index >= 0; index -= 1) {
-    const day = data[index];
-    if (day.activeUsers > 0 || day.pageViews > 0 || day.activeMinutes > 0) {
+    const bucket = data[index];
+    if (bucket.primaryValue > 0 || bucket.activeMinutes > 0) {
       return index;
     }
   }

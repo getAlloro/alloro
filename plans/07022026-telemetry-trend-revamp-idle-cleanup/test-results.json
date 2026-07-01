@@ -1,0 +1,100 @@
+{
+  "plan": "plans/07022026-telemetry-trend-revamp-idle-cleanup",
+  "generatedAt": "2026-07-02",
+  "status": "In Progress",
+  "items": [
+    {
+      "id": "T1a",
+      "title": "Dev DB cleanup: snapshot verified, 5-min cap applied, idempotent",
+      "surface": "cli",
+      "precondition": "ssh alloro-dev, node script against /var/www/signals/.env DB",
+      "steps": [
+        "1. Snapshot app_usage_events_backup_20260702, verify counts match",
+        "2. Preview rows beyond 5-min per-run cap",
+        "3. Delete, re-run preview (expect 0), compare per-org before/after"
+      ],
+      "expected": "Backup count = live count; delete count = preview count; recheck 0; sessions unchanged",
+      "status": "pass",
+      "evidence": "Snapshot 5364=5364. Deleted 3592 (exact preview match). Minutes 2366.2 -> 574.9. Sessions 72 -> 72. Recheck deletable = 0. One Endo 114.5m -> 27.8m; Alloro Team 1848.5m -> 343.3m.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T1b",
+      "title": "Prod DB cleanup: snapshot verified, 5-min cap applied, idempotent",
+      "surface": "cli",
+      "precondition": "ssh alloro-app, node script against /var/www/signals/.env DB",
+      "steps": ["Same sequence as T1a on production"],
+      "expected": "Same invariants as T1a",
+      "status": "pass",
+      "evidence": "Snapshot 6385=6385. Deleted 4216 (exact preview match). Minutes 2816.5 -> 718.1. Sessions 85 -> 85. Recheck deletable = 0. One Endo 114.5m -> 27.8m; Artful 1.5m untouched.",
+      "notes": "Run autonomously per user's explicit 'execute autonomously' directive (spec Rev 1). Backup table retained on both servers for recovery.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Build gates: tsc both trees + conventions strict",
+      "surface": "cli",
+      "precondition": "Local repo, all code changes applied",
+      "steps": [
+        "1. npx tsc --noEmit (backend)",
+        "2. npx tsc -p tsconfig.app.json --noEmit (frontend)",
+        "3. npm run check:conventions -- --strict"
+      ],
+      "expected": "All exit 0",
+      "status": "pass",
+      "evidence": "BACKEND_EXIT=0, FRONTEND_EXIT=0, CONV_EXIT=0 (2026-07-02). ESLint on touched files: only pre-existing/advisory warnings (1 pre-existing any in AppUsageEventModel type alias; chart component 145-line function vs 120 advisory baseline).",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Six range pills; 12M/YTD return monthly buckets with month labels",
+      "surface": "ui",
+      "precondition": "Dev deploy complete; admin session in Mission Control telemetry tab",
+      "steps": [
+        "1. Confirm pills: 7D 30D 90D MTD 12M YTD, 30D default",
+        "2. Select 12M: chart shows ~12 month buckets labeled like 'Jun 2026'",
+        "3. Select YTD: buckets from January of current year",
+        "4. Select MTD: daily buckets from the 1st of the current month"
+      ],
+      "expected": "Each range re-queries and plots the right bucket granularity",
+      "status": "pending",
+      "evidence": "",
+      "notes": "User verifies in own browser tab per established workflow.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Per-view chart series (orgs+minutes / users+minutes / minutes)",
+      "surface": "ui",
+      "precondition": "Dev deploy complete",
+      "steps": [
+        "1. Aggregate view: subtitle 'Active organizations and minutes...'; tooltip shows 'N orgs · Nm'",
+        "2. Open an organization: chart shows users + minutes",
+        "3. Open a user: chart shows minutes only; tooltip 'Nm · N views'"
+      ],
+      "expected": "Each view plots its own series per the spec mapping table",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Layout: no stretched dead space; Organization Usage under the chart",
+      "surface": "ui",
+      "precondition": "Dev deploy complete",
+      "steps": [
+        "1. Aggregate view: chart card is content-height; Organization Usage directly below it",
+        "2. Org detail and user detail views: same two-column stacking, no giant blank card",
+        "3. Narrow viewport: single-column stacking still correct"
+      ],
+      "expected": "No screenful of blank white anywhere in the three telemetry views",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Detail-view restructure is a small in-pattern extension recorded in spec Rev 1.",
+      "waiver": ""
+    }
+  ]
+}

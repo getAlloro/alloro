@@ -2,7 +2,15 @@ import { RefreshCw } from "lucide-react";
 import type { MissionControlTelemetryRange } from "../../../../api/admin-mission-control";
 import { TelemetryClarityLink } from "./TelemetryClarityLink";
 
-const RANGES: MissionControlTelemetryRange[] = ["7d", "30d", "90d"];
+// 7d/30d/90d/mtd plot daily; 12m/ytd aggregate monthly.
+const RANGES: MissionControlTelemetryRange[] = [
+  "7d",
+  "30d",
+  "90d",
+  "mtd",
+  "12m",
+  "ytd",
+];
 
 type TelemetryToolbarProps = {
   range: MissionControlTelemetryRange;
