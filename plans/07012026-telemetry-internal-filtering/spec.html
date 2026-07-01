@@ -253,7 +253,18 @@
         <li><input type="checkbox" disabled> Manual: Pilot toggle removed from the telemetry UI; a Pilot support session produces zero new telemetry rows</li>
         <li><input type="checkbox" disabled> Updated telemetry numbers pulled post-deploy and shared with Jo and Corey (post-code-freeze action, tracked here for closure)</li>
         <li><input type="checkbox" disabled> No regressions in other Mission Control telemetry views (surface usage, page usage, daily usage charts)</li>
+        <li><input type="checkbox" disabled> (Rev 1) Admin toggle removed from telemetry toolbar; includeAdmin fixed to false</li>
       </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-01</h3>
+        <p><strong>Change:</strong> Removed the Admin toggle from <code>TelemetryToolbar.tsx</code> (user request, matching a live screenshot of the deployed-to-dev toolbar). <code>includeAdmin</code> is now a fixed <code>false</code> constant in <code>MissionControlTelemetryTab.tsx</code> instead of user-toggleable state — mirrors how the Pilot toggle was already removed in T6. Deleted <code>TelemetryFilterToggle.tsx</code>, which had zero remaining consumers once both toggles were gone.</p>
+        <p><strong>Reason:</strong> Scope addition: user asked to remove the Admin toggle from the live toolbar after seeing it in the deployed dev environment. Admin-surface activity should never count as client engagement regardless of operator preference — same rationale as the original spec's unconditional exclusions, just extended to the last remaining manual override.</p>
+        <p><strong>Updated Done criteria:</strong> Added a Done item confirming the Admin toggle removal and the fixed-false behavior (see checklist above).</p>
+      </article>
     </section>
   </main>
 </body>
