@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SEO Generation Speed Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Completed</span>
+      </div>
+      <h1>SEO Generation Speed</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07012026-seo-generation-speed</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>SEO generation ("Generate All" on a page/post, and the project-wide bulk-generate job) is slow: 10 fully sequential Claude calls per entity today (5 sections &times; generate + insight, each awaited before the next starts), with zero prompt caching despite a naturally cacheable system prompt. Separately, the model swap done earlier this session (<code>claude-sonnet-4-6</code> &rarr; <code>claude-sonnet-5</code>) introduced a live regression &mdash; Sonnet 5 rejects the hardcoded <code>temperature: 0</code> default with a 400, confirmed by a direct API test. That must ship as part of this work since nothing currently using Sonnet 5 in this codepath can succeed until it's fixed.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Four changes, landing together: (1) make the LLM runner omit sampling params for models that reject them, fixing the live Sonnet 5 breakage; (2) restructure section generation from 5 sequential rounds into 3 tiered rounds (3 sections run in parallel, then 1, then 1) via a single shared helper used by both the single-entity and bulk-generate flows; (3) stop blocking each section's progression on its own insight call &mdash; insight promises run concurrently and are awaited once at the end, with the API response shape unchanged so the frontend needs no changes; (4) set an explicit <code>effort: "medium"</code> on Sonnet 5 SEO calls instead of inheriting Sonnet 5's new silent adaptive-high-by-default behavior. Done when: SEO generation completes without erroring on Sonnet 5, "Generate All" for one page/post measurably drops from ~10 sequential round-trips to ~3, the bulk worker inherits the same speedup with no code duplicated, and a manual before/after quality check on a handful of real pages shows no regression in generated field quality.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/agents/service.llm-runner.ts</code> &mdash; <code>runAgent()</code>, the shared LLM call wrapper. Hardcodes <code>temperature = 0</code> as a destructuring default (line 117) and always sends it in the request body (line 194). Used by 17 callers across the codebase; only <code>service.seo-generation.ts</code> currently points at <code>claude-sonnet-5</code> (<code>DEFAULT_MODEL</code> is still <code>claude-sonnet-4-6</code>).</li>
+        <li><code>src/controllers/admin-websites/feature-services/service.seo-generation.ts</code> &mdash; 671 lines. Houses <code>generateAllSeoSections()</code> (single-entity, fetches its own shared context) and <code>generateAllWithSharedContext()</code> (bulk worker, takes pre-fetched context) &mdash; both implement the identical sequential 5-section for-loop independently (real duplication, not coincidental). <code>runGenerateSection()</code> does the actual generate-call-then-insight-call-sequentially work per section. <code>buildSystemPrompt()</code> already orders content cache-friendly (stable base prompt + business data + creator context first, volatile section instructions last) but nothing passes <code>cachedSystemBlocks</code> to <code>runAgent</code>, so zero caching happens today.</li>
+        <li><code>src/workers/processors/seoBulkGenerate.processor.ts</code> &mdash; 237 lines. Calls <code>generateAllWithSharedContext()</code> once per entity inside its own per-entity <code>for</code> loop (project-wide bulk job). Not touched directly &mdash; the speedup lands transparently once the shared helper changes, since this file just calls into it.</li>
+        <li><code>src/agents/websiteAgents/SeoGeneration.moderate.md</code> &mdash; confirms the real dependency: <code>og_title</code> is instructed to "Match or improve on the page meta title," meaning the moderate section genuinely needs <code>critical</code>'s generated <code>meta_title</code> value, not just a styling rule. This is why moderate can't join the first parallel tier.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>New extraction goes in <code>src/controllers/admin-websites/feature-utils/</code>, matching the domain's existing <code>util.&lt;thing&gt;.ts</code> naming convention (e.g. <code>util.identity-context.ts</code>, <code>util.scraper-helpers.ts</code>) &mdash; §6.3.</li>
+        <li><code>runAgent</code>'s existing <code>cachedSystemBlocks</code> parameter (already implemented, just unused by this caller) is the mechanism for prompt caching &mdash; no new caching infrastructure needed.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/controllers/gbp-automation/</code> &mdash; §6.1, the certified-clean domain shape (thin orchestration, business logic in <code>feature-services/</code>, helpers in <code>feature-utils/</code>).</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>The model-aware sampling-param fix in <code>service.llm-runner.ts</code> must be inert for every caller still on Sonnet 4.6 or older &mdash; verified by checking the request body sent is byte-identical to today's for those models.</li>
+            <li>The tiered-execution helper must be used by <strong>both</strong> <code>generateAllSeoSections</code> and <code>generateAllWithSharedContext</code> &mdash; one implementation, not two parallel rewrites (§4.3).</li>
+            <li>API response shape for "Generate All" (array of <code>{ section, generated, insight }</code>) stays unchanged &mdash; no frontend changes required.</li>
+            <li><code>effort</code> level lives as a named constant, not an inline string repeated at call sites (§4.2).</li>
+            <li>Error propagation behavior is preserved: today a single section failure already fails the entire generate-all call (no per-section catch exists) &mdash; <code>Promise.all</code> for the parallel tier preserves this exactly (first rejection propagates).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not change <code>DEFAULT_MODEL</code> or touch any of the other 16 <code>runAgent</code> callers' behavior.</li>
+            <li>Do not defer/remove insight generation from the API response &mdash; keep it synchronous-from-the-caller's-perspective, just unblock the internal await chain.</li>
+            <li>Do not address the <code>og_image_recommendation</code> field-mismatch gap (already tracked separately as <code>task_f5bd36bc</code>) or the missing page-type signal that under-triggers LocalBusiness/Service schema &mdash; both out of scope here.</li>
+            <li>Do not add new database tables/columns &mdash; no schema change is needed for this work.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>The <code>og_image</code>/<code>og_image_recommendation</code> field mismatch (separate background task already flagged).</li>
+        <li>Passing an explicit page-type/category signal into the prompt to fix LocalBusiness/Service schema under-generation (separate, larger scope decision raised earlier in this session &mdash; needs its own <code>-s</code>).</li>
+        <li>Automated test coverage for <code>service.seo-generation.ts</code> (pre-existing gap, not introduced or worsened by this change &mdash; not addressed here per the no-drive-by-cleanup rule).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 &mdash; touches a shared file (<code>service.llm-runner.ts</code>) with 17 callers, and changes core generation behavior for a customer-facing feature.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>SEO generation on Sonnet 5 is currently broken</strong> (confirmed via live API test: <code>temperature: 0</code> &rarr; 400 <code>invalid_request_error</code>). <strong>Mitigation:</strong> T1 below, gated strictly by model name so the other 16 callers (all on Sonnet 4.6 or older, where <code>temperature: 0</code> is valid and may be intentional for determinism) see zero behavior change.</li>
+        <li><strong><code>effort: "medium"</code> is an informed guess, not yet validated against real output.</strong> <strong>Mitigation:</strong> Done checklist requires a manual before/after comparison on real pages before this is considered complete; the override is a single named constant, trivially revertable if quality regresses.</li>
+        <li><strong>Tiered parallelization triples peak concurrent Claude calls per entity</strong> (1 &rarr; 3, for the first tier). <strong>Mitigation:</strong> bounded at 3 regardless of how many pages a bulk job processes (the worker still does one entity at a time, each entity's tier-1 burst is capped at 3) &mdash; well within standard Anthropic rate-limit tiers; no scaling risk with project size.</li>
+        <li><strong>Shared-helper extraction means a bug affects both the single-entity editor flow and the bulk worker simultaneously</strong> (today a bug in one wouldn't necessarily exist in the other, since they currently duplicate the loop independently). <strong>Mitigation:</strong> thorough manual QA on both flows before <code>--done</code>, full TS build gate, and the duplication being removed is itself a net risk reduction going forward (one place to fix bugs, not two that can drift).</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>service.llm-runner.ts</code> &mdash; all 17 current <code>runAgent</code> callers (PM AI synth, GBP draft generation, practice ranking, image processor, slot generator, URL scrape strategies, identity distillation, Mission Control insights, monthly/daily/webhook agent runners, PMS paste analysis/JSON parsing, website contact AI analysis, audit leadgen worker) &mdash; reviewed and confirmed inert for all except SEO generation, since none of the others reference <code>claude-sonnet-5</code> or later models today.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>The bulk worker's per-entity uniqueness tracking (<code>batchTitles</code>/<code>batchDescriptions</code>) inherently caps how parallel bulk-generate can ever get across <em>entities</em> &mdash; entity N+1's title-uniqueness check depends on entity N having finished. This spec only parallelizes <em>within</em> one entity's sections, not across entities. Cross-entity parallelism would need a redesign of the uniqueness-tracking approach (e.g. checking against a snapshot taken at job start, accepting some title duplication risk across entities generated in the same burst) &mdash; flagged as a future option, not pursued here since it changes a real product guarantee (title uniqueness) rather than being a pure infra speedup.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Model-aware sampling-param omission in the LLM runner</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>runAgent()</code>, detect when <code>model</code> belongs to the sampling-param-free family (Sonnet 5, Opus 4.7+, Fable 5 &mdash; matched by a small allowlist or pattern, not hardcoded to just <code>claude-sonnet-5</code>) and omit <code>temperature</code> from the request body entirely for those models, instead of always sending the destructured default.</dd>
+          <div><dt>Files</dt><dd><code>src/agents/service.llm-runner.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Live API call with <code>model: "claude-sonnet-5"</code> returns 200, not 400. Live API call with <code>model: "claude-sonnet-4-6"</code> sends the same request body shape as before (temperature still included).</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Extract tiered section-runner helper</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New file <code>src/controllers/admin-websites/feature-utils/util.seo-section-runner.ts</code> exporting a single function (e.g. <code>runAllSeoSections(ctx, entityType, data, projectId, entityId)</code>) that replaces the duplicated for-loops in both <code>generateAllSeoSections</code> and <code>generateAllWithSharedContext</code>. Implements 3 tiers: <code>[critical, high_impact, significant]</code> run via <code>Promise.all</code>, merge their <code>generated</code> output into <code>accumulated</code>, then <code>moderate</code> alone, merge, then <code>negligible</code> alone. Insight calls for each section fire without being awaited inline (collected into a promise array) and are all awaited together once, after the last tier's generate call resolves &mdash; never gating progression to the next tier.</dd>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-utils/util.seo-section-runner.ts</code> (new), <code>src/controllers/admin-websites/feature-services/service.seo-generation.ts</code> (both functions call the new helper instead of their own loops)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> clean. Manual: trigger "Generate All" on a real page in the editor, confirm all 5 sections populate with non-empty results and the response shape matches today's (array of <code>{section, generated, insight}</code>, 5 entries).</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: Prompt caching on the SEO system prompt</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Split <code>buildSystemPrompt()</code>'s output into the stable prefix (base prompt + business data + creator context) passed as <code>cachedSystemBlocks</code>, and the volatile section instructions passed as the live <code>systemPrompt</code>. Apply to the generate, insight, and analyze <code>runAgent</code> calls in <code>service.seo-generation.ts</code>.</dd>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.seo-generation.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2 (touches the same call sites)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: trigger "Generate All" on one page, inspect logged/returned <code>usage.cache_read_input_tokens</code> across the 2nd+ section calls &mdash; should be non-zero, confirming cache hits.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T4: Explicit effort level for Sonnet 5 SEO calls</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a named constant (e.g. <code>const SEO_EFFORT = "medium"</code>) and pass <code>output_config: { effort: SEO_EFFORT }</code> on the generate and insight <code>runAgent</code> calls. (Confirm <code>runAgent</code>'s options type supports an effort passthrough &mdash; extend it if not, scoped narrowly.)</dd>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.seo-generation.ts</code>, <code>src/agents/service.llm-runner.ts</code> (only if the options type needs extending)</dd></div>
+          <div><dt>Depends on</dt><dd>T1 (effort is part of the same Sonnet-5-aware request shape)</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> clean. Manual QA below covers quality.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> &mdash; zero errors</li>
+        <li><input type="checkbox" checked disabled> Live call with <code>claude-sonnet-5</code> succeeds (no 400)</li>
+        <li><input type="checkbox" checked disabled> Live call with <code>claude-sonnet-4-6</code> is unaffected &mdash; verified via direct API spot check (not through one of the other 16 callers' own domains)</li>
+        <li><input type="checkbox" checked disabled> "Generate All" returns all 5 sections correctly populated, response shape unchanged &mdash; verified via direct function call against the live API, not a browser click-through</li>
+        <li><input type="checkbox" disabled> Bulk-generate job on a small test project &mdash; <strong>waived</strong>, deferred to dev/prod (no local Redis/BullMQ environment)</li>
+        <li><input type="checkbox" checked disabled> Timing comparison shows a measurable drop in wall-clock time &mdash; ~14s for 10 calls with tier-1 parallelism, vs. an estimated 25s+ fully sequential</li>
+        <li><input type="checkbox" disabled> <code>cache_read_input_tokens</code> confirmed non-zero &mdash; <strong>waived</strong>, deferred to dev/prod (synthetic test data too small to cross the cache-eligibility floor)</li>
+        <li><input type="checkbox" disabled> Manual quality check on real pages &mdash; <strong>waived</strong>, deferred to dev/prod (per owner: local-only testing isn't representative)</li>
+        <li><input type="checkbox" checked disabled> No regressions in other <code>runAgent</code> callers &mdash; confirmed by code-level review of the model-gating list</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-01</h3>
+        <p><strong>Change:</strong> Executed T1&ndash;T4 as specified, no deviations. Live-verified the Sonnet 5 temperature fix and tiered execution against the real Anthropic API. Three acceptance items (bulk-worker live run, cache-hit confirmation, manual quality check) require a dev/prod environment this session doesn't have access to.</p>
+        <p><strong>Reason:</strong> User QA: owner can only test those three items in dev/prod, authorized proceeding to <code>--done</code> with them waived rather than blocking on local verification that isn't possible here.</p>
+        <p><strong>Updated Done criteria:</strong> The 3 waived items are tracked for owner follow-up in dev/prod after deploy; not re-opened as blocking for this spec.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

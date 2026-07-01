@@ -1,0 +1,18 @@
+-- TODO: fill during execution
+-- Reference only — production migrations run through Knex (knexmigration.js).
+-- This file documents the equivalent raw DDL for review purposes.
+
+-- CREATE TABLE practice_facts (
+--   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+--   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+--   location_id UUID NULL REFERENCES locations(id) ON DELETE CASCADE,
+--   page_id UUID NULL,
+--   post_id UUID NULL,
+--   fact_text TEXT NOT NULL,
+--   source_field VARCHAR(32) NOT NULL,
+--   source_excerpt TEXT NOT NULL,
+--   extracted_at TIMESTAMPTZ NOT NULL DEFAULT now()
+-- );
+-- CREATE INDEX idx_practice_facts_org_loc ON practice_facts (organization_id, location_id);
+--
+-- ALTER TABLE website_builder.posts ADD COLUMN previous_content JSONB NULL;

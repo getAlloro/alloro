@@ -507,13 +507,42 @@ export function findPathsByProjectIdQuery(
   return table(trx).where({ project_id: projectId }).select("path");
 }
 
-/** All rows for a project (raw), path asc then version desc (admin detail view). */
+/**
+ * Metadata columns for the admin pages-list view. Deliberately EXCLUDES the
+ * heavy content JSONB columns (`sections`, `edit_chat_history`,
+ * `generation_progress`): the list only renders path/version/status/SEO
+ * metadata, and page content is loaded on demand when a page is opened for
+ * editing (GET .../pages/:pageId). Including `sections` here ballooned the
+ * website-detail payload to ~16MB / ~36s for large sites (all versions × full
+ * HTML). An explicit whitelist (not `select *`) keeps a future column addition
+ * from silently re-bloating the payload.
+ */
+const PAGE_LIST_COLUMNS = [
+  "id",
+  "project_id",
+  "path",
+  "version",
+  "status",
+  "created_at",
+  "updated_at",
+  "generation_status",
+  "template_page_id",
+  "seo_data",
+  "display_name",
+  "page_type",
+  "artifact_s3_prefix",
+  "change_source",
+  "revision_note",
+] as const;
+
+/** Metadata rows for a project (no page content), path asc then version desc (admin detail view). */
 export function findByProjectOrderedPathVersionQuery(
   projectId: string,
   trx?: QueryContext
 ): Promise<any[]> {
   return table(trx)
     .where("project_id", projectId)
+    .select(...PAGE_LIST_COLUMNS)
     .orderBy("path", "asc")
     .orderBy("version", "desc");
 }

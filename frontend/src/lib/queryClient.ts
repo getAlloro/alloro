@@ -250,6 +250,12 @@ export const QUERY_KEYS = {
       "sites",
       connectionId,
     ] as const,
+  adminPageFacts: (projectId: string, pageId: string) =>
+    ["admin", "website-detail", projectId, "page", pageId, "practice-facts"] as const,
+  adminPostFacts: (projectId: string, postId: string) =>
+    ["admin", "website-detail", projectId, "post", postId, "practice-facts"] as const,
+  adminPageVersions: (projectId: string, pageId: string) =>
+    ["admin", "website-detail", projectId, "page", pageId, "versions"] as const,
   adminAiSeoAuditRuns: (filters?: {
     organizationId?: number | null;
     scope?: string | null;

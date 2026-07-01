@@ -61,9 +61,16 @@ export function TelemetryOrganizationTable({
                   } focus:outline-none focus:ring-2 focus:ring-inset focus:ring-alloro-teal/40`}
                 >
                   <td className="px-4 py-3">
-                    <p className="font-black text-alloro-navy">
-                      {organization.organizationName}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-black text-alloro-navy">
+                        {organization.organizationName}
+                      </p>
+                      {organization.isLowEngagement && (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-700">
+                          Low engagement
+                        </span>
+                      )}
+                    </div>
                     <p className="mt-0.5 text-[11px] font-medium text-gray-500">
                       {organization.domain || "No domain"}
                     </p>

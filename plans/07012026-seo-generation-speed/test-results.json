@@ -1,0 +1,148 @@
+{
+  "plan": "plans/07012026-seo-generation-speed",
+  "generatedAt": "2026-07-01",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1-build",
+      "title": "Full TypeScript build is clean",
+      "surface": "cli",
+      "precondition": "Repo at HEAD with this plan's changes applied",
+      "steps": ["1. Run `npx tsc --noEmit -p .` from repo root"],
+      "expected": "Zero errors",
+      "status": "pass",
+      "evidence": "tsc --noEmit -p . exited clean across the full repo",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T1-sonnet5-fix",
+      "title": "claude-sonnet-5 call succeeds (temperature/effort fix)",
+      "surface": "api",
+      "precondition": "ANTHROPIC_API_KEY available",
+      "steps": ["1. POST /v1/messages with model=claude-sonnet-5, no temperature, output_config.effort=medium"],
+      "expected": "HTTP 200, not the prior 400 invalid_request_error",
+      "status": "pass",
+      "evidence": "Live curl test returned 200 with valid message content (msg_0175qp2b19jTFs1P8s8jJzpr)",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T1-sonnet46-unaffected",
+      "title": "Other runAgent callers (Sonnet 4.6 and older) are unaffected",
+      "surface": "api",
+      "precondition": "ANTHROPIC_API_KEY available",
+      "steps": ["1. POST /v1/messages with model=claude-sonnet-4-6, temperature=0 (the pre-existing default every other caller relies on)"],
+      "expected": "HTTP 200, request body unchanged from pre-fix behavior",
+      "status": "pass",
+      "evidence": "Live curl test returned 200 with valid message content (msg_01FuqBiRzHLwWs2ajj7A58Qw); supportsTemperature() only excludes the explicit Sonnet 5 / Opus 4.7+ / Fable 5 / Mythos 5 ids, confirmed by code read of the 16 other runAgent callers in the repo (none currently reference those models)",
+      "notes": "Not exercised through each of the 16 other callers' own domains (GBP, PM AI synth, etc.) — verified by isolated API call plus code-level confirmation that the gating list excludes their models entirely.",
+      "waiver": ""
+    },
+    {
+      "id": "T2-tiered-execution",
+      "title": "Generate-all produces all 5 sections via tiered execution",
+      "surface": "api",
+      "precondition": "Real ANTHROPIC_API_KEY; synthetic business data + page content",
+      "steps": [
+        "1. Call runAllSeoSectionsTiered(\"page\", businessData, \"\", \"\", { page_content, page_path: \"/\" }) directly",
+        "2. Inspect logs for call ordering and the returned results array"
+      ],
+      "expected": "3 generate calls for critical/high_impact/significant fire concurrently (same millisecond in logs), followed by moderate, then negligible; all 5 sections return non-empty `generated` objects with section-appropriate keys",
+      "status": "pass",
+      "evidence": "Log timestamps show 3 simultaneous '[LLM] →' lines at 05:22:55.74x for the tier-1 calls; results: critical={meta_title,canonical_url,robots}, high_impact={meta_description,max_image_preview}, significant={schema_json}, moderate={og_title,og_description,og_type,og_image_recommendation}, negligible={og_type,og_description}. Total wall time 13963ms for 10 total calls (5 generate + 5 insight).",
+      "notes": "Run via a standalone script calling the extracted function directly, not through the admin editor's browser UI — the API contract (response shape) is unchanged so the editor's existing call sites need no changes, but a live click-through has not been performed.",
+      "waiver": ""
+    },
+    {
+      "id": "T2-insight-decoupled",
+      "title": "Insight generation does not block section-to-section progression",
+      "surface": "api",
+      "precondition": "Same as T2-tiered-execution",
+      "steps": ["1. Inspect log ordering: generate calls for a later tier should fire before all of an earlier tier's insight calls resolve"],
+      "expected": "Insight calls for tier 1 overlap with tier 2's generate call, not strictly sequential",
+      "status": "pass",
+      "evidence": "Logs show the negligible-tier generate call ('system=237ch user=2522ch ... maxTokens=4096') firing at 05:23:04.666, while a tier-1/2 insight call ('maxTokens=256') for a different section was still in flight at 05:23:04.663 — confirms overlap, not strict blocking",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2-bulk-worker-shared-path",
+      "title": "Bulk-generate worker uses the same tiered helper (no duplicated logic)",
+      "surface": "none",
+      "precondition": "",
+      "steps": [],
+      "expected": "generateAllWithSharedContext (called by seoBulkGenerate.processor.ts) delegates to runAllSeoSectionsTiered instead of its own loop",
+      "status": "pass",
+      "evidence": "Code review: src/controllers/admin-websites/feature-services/service.seo-generation.ts generateAllWithSharedContext() now calls runAllSeoSectionsTiered() directly, same as generateAllSeoSections()",
+      "notes": "Not exercised through an actual running BullMQ job (requires Redis/worker infra) — verified by code path inspection and by the fact this is the identical function already live-tested under T2-tiered-execution.",
+      "waiver": ""
+    },
+    {
+      "id": "T3-cache-blocks-wired",
+      "title": "Prompt caching blocks are structured correctly in requests",
+      "surface": "api",
+      "precondition": "",
+      "steps": ["1. Code review: confirm cachedSystemBlocks passed on generate, insight, and analyze runAgent calls"],
+      "expected": "Stable prefix (base prompt + business data + creator/validator context) separated from per-call variable content (section instructions / generated data)",
+      "status": "pass",
+      "evidence": "util.seo-section-runner.ts: runGenerateOnly passes cachedSystemBlocks:[cachedPrefix] with section instructions kept in the live systemPrompt; generateInsight passes cachedSystemBlocks:[] (whole stable prompt cached as one block); service.seo-generation.ts analyzeSeoForSection passes cachedSystemBlocks:[] likewise",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3-cache-hit-confirmed",
+      "title": "cache_read_input_tokens is non-zero on repeated calls within one run",
+      "surface": "api",
+      "precondition": "Realistic (non-trivial) business data and page content — large enough to cross the per-model cache-eligibility token floor",
+      "steps": [
+        "1. Generate SEO for a real page in a real project with populated business_data (org name/address/hours/specialties)",
+        "2. Inspect [LLM] log lines for cacheWrite=/cacheRead= suffixes across the 2nd+ section calls"
+      ],
+      "expected": "cache_read_input_tokens > 0 on calls after the first within the same run",
+      "status": "pending",
+      "evidence": "",
+      "notes": "The synthetic smoke test used minimal business data (~100-160 char system prompts, well under any model's cache-eligibility floor of roughly 1K+ tokens), so no cache activity appeared in those logs — this is a property of the test's tiny payload, not evidence the caching is broken. Needs a real project with realistic business_data to actually cross the threshold and prove a cache hit.",
+      "waiver": "User-authorized deferral (Dave, 2026-07-01): local environment can't exercise a real project's business_data; will verify cache hits in dev/prod after deploy."
+    },
+    {
+      "id": "T4-effort-wired",
+      "title": "effort:medium is set on Sonnet 5 generate and insight calls",
+      "surface": "none",
+      "precondition": "",
+      "steps": [],
+      "expected": "SEO_EFFORT=\"medium\" constant passed via runAgent's effort option on both call sites",
+      "status": "pass",
+      "evidence": "util.seo-section-runner.ts: SEO_EFFORT=\"medium\" const at top; effort: SEO_EFFORT passed in runGenerateOnly's runAgent call and generateInsight's runAgent call",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "speed-comparison",
+      "title": "Wall-clock time for one entity's full generate-all measurably drops",
+      "surface": "api",
+      "precondition": "",
+      "steps": ["1. Time runAllSeoSectionsTiered end to end", "2. Compare against the pre-change 10-fully-sequential-call baseline"],
+      "expected": "Noticeably faster than ~10x single-call latency",
+      "status": "pass",
+      "evidence": "Smoke test: 13963ms total for 10 calls (5 generate + 5 insight) with 3 of those generate calls running concurrently. Individual call latencies observed: 2.0-5.4s for generate calls, 2.2-2.8s for insight calls — a naive fully-sequential sum of all 10 would land well above 25s.",
+      "notes": "No formal pre-change timing was captured before this session's edits (the bug introduced earlier in this session meant the pre-fix code path couldn't even run on Sonnet 5 to get a baseline) — this is a reasoned estimate from the call-count reduction (10 sequential round-trips -> effectively ~6-7 with tier-1 parallelism and insight overlap), not a strict A/B.",
+      "waiver": ""
+    },
+    {
+      "id": "quality-check",
+      "title": "Generated field quality has no obvious regression",
+      "surface": "ui",
+      "precondition": "3-5 real pages across at least one real project",
+      "steps": [
+        "1. Generate SEO for several real pages",
+        "2. Compare meta_title, schema_json, meta_description against prior output or reasonable judgment"
+      ],
+      "expected": "No obvious quality drop from the effort:medium setting vs. Sonnet 5's silent adaptive-high default",
+      "status": "pending",
+      "evidence": "",
+      "notes": "The smoke test's synthetic output looked reasonable (e.g. critical section insight: 'meta title effectively combines brand name with location-based keyword targeting'; significant section produced layered Dentist/Organization schema), but this is not a substitute for human judgment on real pages with real content, which this automated pass cannot perform.",
+      "waiver": "User-authorized deferral (Dave, 2026-07-01): local environment can't exercise real pages with real content for a meaningful quality comparison; will judge quality in dev/prod after deploy."
+    }
+  ]
+}

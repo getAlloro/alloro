@@ -1,30 +1,37 @@
 /**
  * SEO Generation Service
  *
- * AI-powered SEO content generation using Claude Sonnet 4.6.
+ * AI-powered SEO content generation using Claude Sonnet 5.
  * Generates meta tags, descriptions, schema markup section by section.
  * Uses CroSEO mind skills for enhanced context.
+ *
+ * Section execution (tiering, insight scheduling, prompt caching) lives in
+ * feature-utils/util.seo-section-runner.ts, shared with the bulk-generate
+ * worker (workers/processors/seoBulkGenerate.processor.ts).
  */
 
 import { LocationModel } from "../../../models/LocationModel";
 import { OrganizationModel } from "../../../models/OrganizationModel";
 import { ProjectModel } from "../../../models/website-builder/ProjectModel";
+import { PageModel } from "../../../models/website-builder/PageModel";
+import { PostModel } from "../../../models/website-builder/PostModel";
+import {
+  PracticeFactModel,
+  type IPracticeFact,
+} from "../../../models/website-builder/PracticeFactModel";
 import { loadPrompt } from "../../../agents/service.prompt-loader";
 import { runAgent } from "../../../agents/service.llm-runner";
+import {
+  runGenerateSection,
+  runAllSeoSectionsTiered,
+  type SeoSection,
+} from "../feature-utils/util.seo-section-runner";
 import logger from "../../../lib/logger";
 
-const MODEL = "claude-sonnet-4-6";
-const MAX_TOKENS = 4096;
+const MODEL = "claude-sonnet-5";
 
 const SKILLS_BASE_URL = "https://app.getalloro.com/api/skills";
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
-
-type SeoSection =
-  | "critical"
-  | "high_impact"
-  | "significant"
-  | "moderate"
-  | "negligible";
 
 interface GenerateRequest {
   section: SeoSection;
@@ -142,9 +149,10 @@ export async function generateSeoForSection(
     post_title,
   } = body;
 
-  // Fetch business data and mind skill context in parallel
-  const [businessData, creatorContext, validatorContext] = await Promise.all([
+  // Fetch business data, practice facts, and mind skill context in parallel
+  const [businessData, practiceFactsBlock, creatorContext, validatorContext] = await Promise.all([
     fetchBusinessData(projectId, location_context),
+    fetchPracticeFactsBlock(entityId, entityType),
     fetchMindSkillCreator(),
     fetchMindSkillValidator(),
   ]);
@@ -155,7 +163,7 @@ export async function generateSeoForSection(
     );
   }
 
-  return runGenerateSection(section, entityType, businessData, creatorContext, validatorContext, {
+  const result = await runGenerateSection(section, entityType, businessData, creatorContext, validatorContext, {
     page_content,
     homepage_content,
     header_html,
@@ -166,16 +174,23 @@ export async function generateSeoForSection(
     all_page_descriptions,
     page_path,
     post_title,
-  }, projectId, entityId);
+  }, projectId, entityId, practiceFactsBlock);
+
+  if (section === "geo_layer") {
+    await applyGeoRecommendation(
+      entityId,
+      entityType,
+      projectId,
+      (result.generated.opening_content_recommendation as string) || ""
+    );
+  }
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------
 // Generate ALL sections in one call (fetches shared context once)
 // ---------------------------------------------------------------------------
-
-const ALL_SECTIONS: SeoSection[] = [
-  "critical", "high_impact", "significant", "moderate", "negligible",
-];
 
 interface GenerateAllRequest {
   location_context: string | null;
@@ -200,8 +215,9 @@ export async function generateAllSeoSections(
   const { location_context, ...rest } = body;
 
   // Single fetch for all shared context
-  const [businessData, creatorContext, validatorContext] = await Promise.all([
+  const [businessData, practiceFactsBlock, creatorContext, validatorContext] = await Promise.all([
     fetchBusinessData(projectId, location_context),
+    fetchPracticeFactsBlock(entityId, entityType),
     fetchMindSkillCreator(),
     fetchMindSkillValidator(),
   ]);
@@ -212,84 +228,20 @@ export async function generateAllSeoSections(
     );
   }
 
-  const results: Array<{ section: string; generated: Record<string, unknown>; insight: string }> = [];
-  let accumulated = { ...(rest.existing_seo_data || {}) };
-
-  for (const section of ALL_SECTIONS) {
-    const result = await runGenerateSection(section, entityType, businessData, creatorContext, validatorContext, {
-      ...rest,
-      existing_seo_data: accumulated,
-    }, projectId, entityId);
-    accumulated = { ...accumulated, ...result.generated };
-    results.push(result);
-  }
-
-  return { results };
-}
-
-// ---------------------------------------------------------------------------
-// Internal: run generation for a single section with pre-fetched context
-// ---------------------------------------------------------------------------
-
-async function runGenerateSection(
-  section: SeoSection,
-  entityType: "page" | "post",
-  businessData: Record<string, unknown>,
-  creatorContext: string,
-  validatorContext: string,
-  data: {
-    page_content: string;
-    homepage_content?: string;
-    header_html?: string;
-    footer_html?: string;
-    wrapper_html?: string;
-    existing_seo_data?: Record<string, unknown>;
-    all_page_titles?: string[];
-    all_page_descriptions?: string[];
-    page_path?: string;
-    post_title?: string;
-  },
-  projectId?: string,
-  entityId?: string
-): Promise<{ section: string; generated: Record<string, unknown>; insight: string }> {
-  const systemPrompt = buildSystemPrompt(section, businessData, creatorContext);
-  const userPrompt = buildUserPrompt(section, { ...data, entityType });
-
-  const result = await runAgent({
-    systemPrompt,
-    userMessage: userPrompt,
-    model: MODEL,
-    maxTokens: MAX_TOKENS,
-    costContext: projectId
-      ? {
-          projectId,
-          eventType: "seo-generation",
-          metadata: {
-            section,
-            entity_type: entityType,
-            entity_id: entityId || null,
-            page_path: data.page_path || null,
-            stage: "generate",
-          },
-        }
-      : undefined,
-  });
-
-  const generated = result.parsed || parseGeneratedSeo(result.raw, section);
-
-  const insight = await generateInsight(
-    section,
-    generated,
+  const results = await runAllSeoSectionsTiered(
+    entityType,
     businessData,
+    creatorContext,
     validatorContext,
-    data.page_path,
-    data.post_title,
+    rest,
     projectId,
     entityId,
-    entityType
+    practiceFactsBlock
   );
 
-  return { section, generated, insight };
+  await applyGeoLayerIfPresent(results, entityId, entityType, projectId);
+
+  return { results };
 }
 
 // ---------------------------------------------------------------------------
@@ -339,6 +291,9 @@ Analyze the "${section}" section's SEO data. Return ONLY valid JSON: { "insight"
 
   const result = await runAgent({
     systemPrompt,
+    // Whole system prompt is stable per page (varies only by businessData/
+    // validatorContext, not per section) — cache it as a single block.
+    cachedSystemBlocks: [],
     userMessage: userPrompt,
     model: MODEL,
     maxTokens: 512,
@@ -364,65 +319,6 @@ Analyze the "${section}" section's SEO data. Return ONLY valid JSON: { "insight"
 }
 
 // ---------------------------------------------------------------------------
-// Insight generation (called after generation)
-// ---------------------------------------------------------------------------
-
-async function generateInsight(
-  section: SeoSection,
-  generated: Record<string, unknown>,
-  businessData: Record<string, unknown>,
-  validatorContext: string,
-  pagePath?: string,
-  postTitle?: string,
-  projectId?: string,
-  entityId?: string,
-  entityType?: "page" | "post"
-): Promise<string> {
-  try {
-    const basePrompt = loadPrompt("websiteAgents/SeoInsight");
-    const systemPrompt = `${basePrompt}
-
-BUSINESS DATA:
-${JSON.stringify(businessData, null, 2)}
-
-${validatorContext ? `SEO VALIDATION CRITERIA (from CroSEO mind):\n${validatorContext}\n` : ""}`;
-
-    const userPrompt = `SECTION: ${section}
-${pagePath ? `PAGE PATH: ${pagePath}\n` : ""}${postTitle ? `POST TITLE: ${postTitle}\n` : ""}
-GENERATED SEO DATA:
-${JSON.stringify(generated, null, 2)}
-
-Provide a brief insight about this generated "${section}" section. Return ONLY valid JSON: { "insight": "..." }`;
-
-    const result = await runAgent({
-      systemPrompt,
-      userMessage: userPrompt,
-      model: MODEL,
-      maxTokens: 256,
-      costContext: projectId
-        ? {
-            projectId,
-            eventType: "seo-generation",
-            metadata: {
-              section,
-              entity_type: entityType || null,
-              entity_id: entityId || null,
-              page_path: pagePath || null,
-              stage: "insight",
-            },
-          }
-        : undefined,
-    });
-
-    const parsed = result.parsed || parseGeneratedSeo(result.raw, section);
-    return (parsed.insight as string) || "";
-  } catch (err) {
-    logger.warn({ err: err }, "[SEO] Failed to generate insight:");
-    return "";
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Section field extraction (for targeted analysis)
 // ---------------------------------------------------------------------------
 
@@ -436,6 +332,12 @@ function extractSectionFields(
     significant: ["schema_json"],
     moderate: ["og_title", "og_description", "og_image", "og_type"],
     negligible: ["og_type", "og_description"],
+    geo_layer: [
+      "target_query_primary",
+      "target_query_variants",
+      "opening_content_recommendation",
+      "faq_candidates",
+    ],
   };
   const fields = fieldMap[section] || [];
   const result: Record<string, unknown> = {};
@@ -492,22 +394,26 @@ export async function generateAllWithSharedContext(
   projectId?: string,
   entityId?: string
 ): Promise<Array<{ section: string; generated: Record<string, unknown>; insight: string }>> {
-  const results: Array<{ section: string; generated: Record<string, unknown>; insight: string }> = [];
-  let accumulated = { ...(data.existing_seo_data || {}) };
+  // Facts are per-entity even though the rest of the context (business data,
+  // mind skill context) is shared across the whole bulk job — fetch fresh
+  // per call so each page/post only sees its own facts.
+  const practiceFactsBlock = entityId
+    ? await fetchPracticeFactsBlock(entityId, entityType)
+    : undefined;
 
-  for (const section of ALL_SECTIONS) {
-    const result = await runGenerateSection(
-      section,
-      entityType,
-      ctx.businessData,
-      ctx.creatorContext,
-      ctx.validatorContext,
-      { ...data, existing_seo_data: accumulated },
-      projectId,
-      entityId
-    );
-    accumulated = { ...accumulated, ...result.generated };
-    results.push(result);
+  const results = await runAllSeoSectionsTiered(
+    entityType,
+    ctx.businessData,
+    ctx.creatorContext,
+    ctx.validatorContext,
+    data,
+    projectId,
+    entityId,
+    practiceFactsBlock
+  );
+
+  if (entityId && projectId) {
+    await applyGeoLayerIfPresent(results, entityId, entityType, projectId);
   }
 
   return results;
@@ -565,83 +471,40 @@ async function fetchBusinessData(
 }
 
 // ---------------------------------------------------------------------------
-// Prompt builders
+// Practice facts (VERIFIED PRACTICE FACTS block)
 // ---------------------------------------------------------------------------
 
-const SEO_SECTION_FILE_MAP: Record<SeoSection, string> = {
-  critical: "websiteAgents/SeoGeneration.critical",
-  high_impact: "websiteAgents/SeoGeneration.high-impact",
-  significant: "websiteAgents/SeoGeneration.significant",
-  moderate: "websiteAgents/SeoGeneration.moderate",
-  negligible: "websiteAgents/SeoGeneration.negligible",
-};
+/**
+ * Fetch the page's or post's extracted facts (T2/T3) and render them as the
+ * VERIFIED PRACTICE FACTS block consumed by util.seo-section-runner's cached
+ * system-prompt prefix. Each fact is rendered with its literal source
+ * excerpt so the model (and a later reviewer) can see exactly what backs it.
+ * When zero facts exist, the block says so explicitly rather than silently
+ * falling back to BUSINESS DATA only — per spec T5, the absence of facts
+ * must never read as license to invent.
+ */
+async function fetchPracticeFactsBlock(
+  entityId: string,
+  entityType: "page" | "post"
+): Promise<string> {
+  const facts =
+    entityType === "page"
+      ? await PracticeFactModel.findByPageId(entityId)
+      : await PracticeFactModel.findByPostId(entityId);
 
-function buildSystemPrompt(
-  section: SeoSection,
-  businessData: Record<string, unknown>,
-  creatorContext: string = ""
-): string {
-  const base = loadPrompt("websiteAgents/SeoGeneration");
-  const sectionInstructions = loadPrompt(SEO_SECTION_FILE_MAP[section]);
-
-  return `${base}
-
-BUSINESS DATA:
-${JSON.stringify(businessData, null, 2)}
-
-${creatorContext ? `SEO GENERATION CRITERIA (from CroSEO mind):\n${creatorContext}\n` : ""}
-
-${sectionInstructions}`;
+  return buildPracticeFactsBlock(facts);
 }
 
-function buildUserPrompt(
-  section: SeoSection,
-  data: {
-    page_content: string;
-    homepage_content?: string;
-    header_html?: string;
-    footer_html?: string;
-    wrapper_html?: string;
-    existing_seo_data?: Record<string, unknown>;
-    all_page_titles?: string[];
-    all_page_descriptions?: string[];
-    page_path?: string;
-    post_title?: string;
-    entityType: "page" | "post";
-  }
-): string {
-  let prompt = `ENTITY TYPE: ${data.entityType}\n`;
-
-  if (data.page_path) prompt += `PAGE PATH: ${data.page_path}\n`;
-  if (data.post_title) prompt += `POST TITLE: ${data.post_title}\n`;
-
-  prompt += `\nPAGE CONTENT (the page being optimized):\n${truncate(data.page_content, 8000)}\n`;
-
-  if (data.homepage_content) {
-    prompt += `\nHOMEPAGE CONTENT (for context):\n${truncate(data.homepage_content, 4000)}\n`;
-  }
-  if (data.header_html) {
-    prompt += `\nHEADER HTML:\n${truncate(data.header_html, 2000)}\n`;
-  }
-  if (data.footer_html) {
-    prompt += `\nFOOTER HTML:\n${truncate(data.footer_html, 2000)}\n`;
+function buildPracticeFactsBlock(facts: IPracticeFact[]): string {
+  if (facts.length === 0) {
+    return `VERIFIED PRACTICE FACTS:
+No verified practice facts available — use only the service name and location from BUSINESS DATA; do not invent specifics.`;
   }
 
-  if (data.existing_seo_data && Object.keys(data.existing_seo_data).length > 0) {
-    prompt += `\nEXISTING SEO DATA (for reference, avoid duplicating):\n${JSON.stringify(data.existing_seo_data, null, 2)}\n`;
-  }
-
-  if (data.all_page_titles?.length) {
-    prompt += `\nEXISTING PAGE TITLES (must be unique from these):\n${data.all_page_titles.join("\n")}\n`;
-  }
-
-  if (data.all_page_descriptions?.length) {
-    prompt += `\nEXISTING META DESCRIPTIONS (must be unique from these):\n${data.all_page_descriptions.join("\n")}\n`;
-  }
-
-  prompt += `\nGenerate the SEO data for the "${section}" section. Return ONLY valid JSON.`;
-
-  return prompt;
+  const lines = facts.map(
+    (f) => `- ${f.fact_text} (source: ${f.source_excerpt})`
+  );
+  return `VERIFIED PRACTICE FACTS:\n${lines.join("\n")}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -668,4 +531,163 @@ function parseGeneratedSeo(
 function truncate(text: string, maxLen: number): string {
   if (text.length <= maxLen) return text;
   return text.slice(0, maxLen) + "\n... (truncated)";
+}
+
+// ---------------------------------------------------------------------------
+// GEO auto-apply (opening_content_recommendation → live body content)
+// ---------------------------------------------------------------------------
+
+interface GeoAutoApplyResult {
+  applied: boolean;
+  pageVersionId?: string;
+  postSnapshotted?: boolean;
+}
+
+/**
+ * Find the geo_layer result (if the "generate all" run included it) and
+ * apply its opening_content_recommendation. Shared by the single-entity
+ * "Generate All" path and the bulk-generate worker path so both get the
+ * same auto-apply behavior from one implementation.
+ */
+async function applyGeoLayerIfPresent(
+  results: Array<{ section: string; generated: Record<string, unknown> }>,
+  entityId: string,
+  entityType: "page" | "post",
+  projectId: string
+): Promise<void> {
+  const geoResult = results.find((r) => r.section === "geo_layer");
+  if (!geoResult) return;
+
+  const recommendation = (geoResult.generated.opening_content_recommendation as string) || "";
+  await applyGeoRecommendation(entityId, entityType, projectId, recommendation);
+}
+
+/**
+ * After a successful geo_layer generation, apply a non-empty
+ * `opening_content_recommendation` to the entity's body content through a
+ * recoverable write path — never an in-place overwrite of the live row
+ * (spec Must: "Auto-applied page content creates a new page version row
+ * ... auto-applied post content snapshots prior body into
+ * posts.previous_content before overwrite").
+ *
+ * Incorporation approach: prepend the recommendation as a clearly-marked
+ * leading paragraph rather than attempting to splice it into existing
+ * markup/section structure. Pages store body as a `sections` array (one
+ * section's `content` holds HTML) and posts store body as a single `content`
+ * string with no guaranteed structure — prepending is the only insertion
+ * point that's safe for both shapes without guessing at a template's layout.
+ * `faq_candidates` is intentionally NOT applied to body content here; it is
+ * persisted to seo_data only (see callers) for FAQPage schema generation,
+ * per spec scope.
+ */
+async function applyGeoRecommendation(
+  entityId: string,
+  entityType: "page" | "post",
+  projectId: string,
+  openingContentRecommendation: string
+): Promise<GeoAutoApplyResult> {
+  if (!openingContentRecommendation || !openingContentRecommendation.trim()) {
+    return { applied: false };
+  }
+
+  if (entityType === "page") {
+    return applyGeoToPage(entityId, projectId, openingContentRecommendation);
+  }
+  return applyGeoToPost(entityId, openingContentRecommendation);
+}
+
+async function applyGeoToPage(
+  pageId: string,
+  projectId: string,
+  openingContentRecommendation: string
+): Promise<GeoAutoApplyResult> {
+  const page = await PageModel.findRawByIdAndProject(pageId, projectId);
+  if (!page) {
+    logger.warn(
+      { pageId, projectId },
+      "[SEO Generation] GEO auto-apply skipped — page not found"
+    );
+    return { applied: false };
+  }
+
+  let sections: Array<Record<string, unknown>> = [];
+  try {
+    const raw =
+      typeof page.sections === "string" ? JSON.parse(page.sections) : page.sections;
+    sections = Array.isArray(raw) ? raw : [];
+  } catch {
+    sections = [];
+  }
+
+  const geoSection = {
+    type: "geo-opening-content",
+    content: `<p>${escapeHtml(openingContentRecommendation)}</p>`,
+  };
+  const newSections = [geoSection, ...sections];
+
+  const latest = await PageModel.findLatestByProjectAndPath(projectId, page.path);
+  const newVersion = latest ? latest.version + 1 : 1;
+
+  // New draft version row — never bumps the live (published) row in place.
+  // Mirrors service.page-editor.createPage's insertData shape.
+  const created = await PageModel.createPageVersion({
+    projectId,
+    path: page.path,
+    publish: false,
+    insertData: {
+      project_id: projectId,
+      path: page.path,
+      version: newVersion,
+      status: "draft",
+      sections: JSON.stringify(newSections),
+      seo_data: page.seo_data ?? null,
+    },
+  });
+
+  logger.info(
+    { pageId, projectId, newPageVersionId: created.id, version: newVersion },
+    "[SEO Generation] GEO opening_content_recommendation applied as new page version"
+  );
+
+  return { applied: true, pageVersionId: created.id };
+}
+
+async function applyGeoToPost(
+  postId: string,
+  openingContentRecommendation: string
+): Promise<GeoAutoApplyResult> {
+  const recommendationHtml = `<p>${escapeHtml(openingContentRecommendation)}</p>`;
+  const post = await PostModel.findRawById(postId);
+  if (!post) {
+    logger.warn(
+      { postId },
+      "[SEO Generation] GEO auto-apply skipped — post not found"
+    );
+    return { applied: false };
+  }
+
+  const newContent = `${recommendationHtml}\n${post.content || ""}`;
+  const updated = await PostModel.updateContentWithSnapshot(postId, newContent);
+
+  if (!updated) {
+    logger.warn(
+      { postId },
+      "[SEO Generation] GEO auto-apply failed — snapshot/update returned no row"
+    );
+    return { applied: false };
+  }
+
+  logger.info(
+    { postId },
+    "[SEO Generation] GEO opening_content_recommendation applied; previous content snapshotted"
+  );
+
+  return { applied: true, postSnapshotted: true };
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }

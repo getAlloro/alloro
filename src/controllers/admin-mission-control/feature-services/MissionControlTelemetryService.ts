@@ -1,6 +1,7 @@
 import {
   AppUsageDailyPoint,
   AppUsageEventModel,
+  AppUsageLowEngagementOrganizationRow,
   AppUsageOrganizationRow,
   AppUsagePageRow,
   AppUsageSummary,
@@ -88,13 +89,14 @@ export async function getMissionControlTelemetryData(input: {
   const includePilot = parseBoolean(input.includePilot);
   const includeAdmin = parseBoolean(input.includeAdmin);
   const params = buildRangeParams(range, includePilot, includeAdmin);
-  const [summary, dailyUsage, surfaceUsage, pageUsage, organizationUsage] =
+  const [summary, dailyUsage, surfaceUsage, pageUsage, organizationUsage, lowEngagementOrganizations] =
     await Promise.all([
       AppUsageEventModel.getSummary(params),
       AppUsageEventModel.getDailyUsage(params),
       AppUsageEventModel.getSurfaceUsage(params),
       AppUsageEventModel.getPageUsage(params),
       AppUsageEventModel.getOrganizationUsage(params),
+      AppUsageEventModel.getLowEngagementOrganizations(params),
     ]);
 
   return {
@@ -106,8 +108,47 @@ export async function getMissionControlTelemetryData(input: {
     dailyUsage: fillDailyUsage(dailyUsage, params.startDate, params.endDate),
     surfaceUsage,
     pageUsage,
-    organizationUsage,
+    organizationUsage: mergeLowEngagementFlag(
+      organizationUsage,
+      lowEngagementOrganizations,
+    ),
   };
+}
+
+// Flags low-engagement orgs on their existing organizationUsage row, and
+// appends a synthetic zero-activity row for any that don't have one at all —
+// getOrganizationUsage() INNER JOINs to app_usage_events, so a client with
+// zero events in range is otherwise silently absent from the list.
+function mergeLowEngagementFlag(
+  organizationUsage: AppUsageOrganizationRow[],
+  lowEngagementOrganizations: AppUsageLowEngagementOrganizationRow[],
+): AppUsageOrganizationRow[] {
+  const lowEngagementById = new Map(
+    lowEngagementOrganizations.map((row) => [row.organizationId, row]),
+  );
+  const flagged = organizationUsage.map((row) =>
+    lowEngagementById.has(row.organizationId)
+      ? { ...row, isLowEngagement: true }
+      : row,
+  );
+
+  const missingOrganizationIds = new Set(flagged.map((row) => row.organizationId));
+  const zeroActivityRows: AppUsageOrganizationRow[] = lowEngagementOrganizations
+    .filter((row) => !missingOrganizationIds.has(row.organizationId))
+    .map((row) => ({
+      organizationId: row.organizationId,
+      organizationName: row.organizationName,
+      domain: row.domain,
+      activeUsers: 0,
+      sessions: row.sessions,
+      pageViews: 0,
+      activeMinutes: row.activeMinutes,
+      lastActiveAt: null,
+      topSurface: null,
+      isLowEngagement: true,
+    }));
+
+  return [...flagged, ...zeroActivityRows];
 }
 
 export async function getMissionControlTelemetryOrganizationDetail(input: {

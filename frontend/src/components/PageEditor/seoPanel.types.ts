@@ -41,6 +41,13 @@ export interface SeoPanelProps {
    * Defaults to false so pages and the admin surface keep the bars.
    */
   hideScoreBar?: boolean;
+  /** Current version number of the loaded page (pages only) — used to detect
+   * whether GEO auto-apply created a newer draft version. Pages always have
+   * a version; omit for posts. */
+  currentVersion?: number;
+  /** Pre-overwrite content snapshot (posts only) — non-null once GEO
+   * auto-apply has run for this post (PostModel.updateContentWithSnapshot). */
+  previousContent?: string | null;
 }
 
 export interface LocationOption {

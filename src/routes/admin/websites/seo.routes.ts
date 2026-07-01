@@ -37,11 +37,23 @@ router.patch("/:id/pages/:pageId/seo", controller.updatePageSeo);
 // POST /:id/pages/:pageId/seo/generate — AI generate SEO for page section
 router.post("/:id/pages/:pageId/seo/generate", controller.generatePageSeo);
 
+// GET  /:id/pages/:pageId/seo/facts — List extracted practice facts for a page
+router.get("/:id/pages/:pageId/seo/facts", controller.listPageFacts);
+
+// POST /:id/pages/:pageId/seo/facts — Trigger practice-fact extraction for a page
+router.post("/:id/pages/:pageId/seo/facts", controller.extractPageFacts);
+
 // PATCH /:id/posts/:postId/seo — Update post SEO data
 router.patch("/:id/posts/:postId/seo", controller.updatePostSeo);
 
 // POST /:id/posts/:postId/seo/generate — AI generate SEO for post section
 router.post("/:id/posts/:postId/seo/generate", controller.generatePostSeo);
+
+// GET  /:id/posts/:postId/seo/facts — List extracted practice facts for a post
+router.get("/:id/posts/:postId/seo/facts", controller.listPostFacts);
+
+// POST /:id/posts/:postId/seo/facts — Trigger practice-fact extraction for a post
+router.post("/:id/posts/:postId/seo/facts", controller.extractPostFacts);
 
 // POST /:id/pages/:pageId/seo/generate-all — AI generate ALL SEO sections at once
 router.post("/:id/pages/:pageId/seo/generate-all", controller.generateAllPageSeo);

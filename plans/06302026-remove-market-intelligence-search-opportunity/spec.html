@@ -366,6 +366,12 @@
         <p><strong>Reason:</strong> User QA: owner confirmed the dev screen and requested finalize. Prod held by explicit owner decision (promoting the backlog is a separate release).</p>
         <p><strong>Updated Done criteria:</strong> Feature removal complete and verified on dev (the only environment it ever reached). Status → Completed. Prod remains a no-op until a future deliberate <code>dev/dave → main</code> release, at which point the drop migration runs with zero data impact.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 4 - 2026-07-01</h3>
+        <p><strong>Change:</strong> Owner reversed the prod hold and shipped the backlog: merged <strong>PR #138</strong> (<code>dev/dave → main</code>, merge commit <code>4ed17126</code>), promoting all 14 commits to production. Resolved a <code>CHANGELOG.md</code> merge conflict first (<code>main</code> was behind — its changelog jumped <code>0.0.138 → 0.0.132</code>; dev's changelog is the superset, so took <code>--ours</code>; no code conflicts), validated the merged tree on dev (deploy green), then merged. Prod deploy green; the drop migration ran clean on prod (<code>24 → 26 → 30</code>: create-empty → drop). Verified prod: all 3 tables absent, migrations 24/26/30 recorded, no pending, prod Redis 0 MI/search-volume jobs, health healthy. Prod CHANGELOG now at <code>0.0.140</code>.</p>
+        <p><strong>Reason:</strong> User request — "check this PR, fix, then merge" (PR #138), confirmed as a deliberate full prod release.</p>
+        <p><strong>Updated Done criteria:</strong> Prod items now satisfied for real (not deferred): the teardown is live and verified on production with zero data impact. Teardown fully shipped to dev + prod.</p>
+      </article>
     </section>
   </main>
 </body>

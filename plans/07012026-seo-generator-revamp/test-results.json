@@ -1,0 +1,152 @@
+{
+  "plan": "plans/07012026-seo-generator-revamp",
+  "generatedAt": "2026-07-01",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "practice_facts table + posts.previous_content column exist and are reversible",
+      "surface": "cli",
+      "precondition": "Dev DB migrated to latest",
+      "steps": [
+        "1. psql against dev DB: \\dt practice_facts",
+        "2. psql against dev DB: \\d website_builder.posts (confirm previous_content jsonb column)",
+        "3. Read down() in 20260701000000_add_practice_facts_and_post_snapshot.ts, confirm it drops the column then the table"
+      ],
+      "expected": "Both objects exist; down() cleanly reverses both in dependency order",
+      "status": "pass",
+      "evidence": "Direct psql query confirmed both objects present on dev DB; down() reviewed line-by-line in spec.html Rev 1 follow-up — not live-rolled-back since it shares a batch with an unrelated teardown migration (see Revision Log Rev 1)",
+      "notes": "Live rollback intentionally skipped to avoid undoing an unrelated ledger reconciliation in the same batch; down() correctness verified by code inspection instead",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "PracticeFactModel enforces tenant scope and supports idempotent re-extraction",
+      "surface": "cli",
+      "precondition": "Dev DB with practice_facts table",
+      "steps": [
+        "1. npx vitest run src/__tests__/PracticeFactModel.test.ts"
+      ],
+      "expected": "create/createMany contract + failure path pass; findByOrgAndLocation never returns another org's rows; deleteByPageId/deleteByPostId support clear-and-replace",
+      "status": "pass",
+      "evidence": "14/14 tests pass, including 4 tenant-isolation tests proving org A never sees org B's rows",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Fact extraction discards any fact whose source_excerpt isn't a verbatim substring of the input (structural no-fabrication enforcement)",
+      "surface": "cli",
+      "precondition": "Seeded dev page with known business_data/page_content",
+      "steps": [
+        "1. Run verifyFacts() against a mocked LLM response containing one sourced fact and one fabricated fact with a non-matching source_excerpt",
+        "2. Run PracticeFactModel.deleteByPageId -> createMany twice in sequence against a real seeded dev-DB page"
+      ],
+      "expected": "Sourced fact kept, fabricated fact discarded; row count does not grow on the second run (idempotent)",
+      "status": "pass",
+      "evidence": "Mocked-response test: 1 fact kept, 1 fabricated fact discarded, all assertions passed. Idempotency: row count stayed at 1 after both runs against org 6 / a real seeded page, then cleaned up to 0",
+      "notes": "Full live LLM call not exercised in this pass (no Anthropic key invocation) — the structural validation and idempotency, which are the actual fabrication backstop, were proven directly against real data instead",
+      "waiver": ""
+    },
+    {
+      "id": "T4_T5",
+      "title": "Generation consumes only sourced facts and auto-applies via recoverable write paths",
+      "surface": "cli",
+      "precondition": "Seeded page and post with practice_facts rows",
+      "steps": [
+        "1. npx vitest run src/__tests__/service.seo-generation.test.ts",
+        "2. Confirm log line '[SEO Generation] GEO opening_content_recommendation applied as new page version' appears, with no corresponding live-page-row update call",
+        "3. Confirm log line '[SEO Generation] GEO opening_content_recommendation applied; previous content snapshotted' appears for the post case"
+      ],
+      "expected": "Page auto-apply creates a new version row, never updates the live row in place; post auto-apply snapshots previous_content before overwriting; empty opening_content_recommendation triggers no write at all",
+      "status": "pass",
+      "evidence": "4/4 new tests pass; both log lines observed directly during the full-suite run (127/127 tests, 16/16 files) confirming the exact mechanism described in the spec's Constraints section",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T6_ROUTING",
+      "title": "New fact-extraction/listing routes are correctly wired with auth middleware",
+      "surface": "api",
+      "precondition": "Dev server running locally on :3000",
+      "steps": [
+        "1. curl -i http://localhost:3000/api/admin/websites/:id/pages/:pageId/seo/facts (no auth header)",
+        "2. curl -i -X POST same URL (no auth header)",
+        "3. Repeat for the /posts/:postId/seo/facts equivalents"
+      ],
+      "expected": "All 4 routes resolve (no 404) and return 401 Authentication required for unauthenticated requests",
+      "status": "pass",
+      "evidence": "Live curl against the local dev server confirmed routing + auth middleware wiring for all 4 new routes",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T6_FUNCTIONAL",
+      "title": "Authenticated round trip: trigger extraction, then list returns the extracted facts with provenance",
+      "surface": "api",
+      "precondition": "Valid admin JWT, a real project with at least one page",
+      "steps": [
+        "1. POST /api/admin/websites/:id/pages/:pageId/seo/facts with a valid JWT",
+        "2. Poll/wait, then GET the same path",
+        "3. Confirm returned facts include fact_text and source_excerpt"
+      ],
+      "expected": "200 { success: true, data: { facts: [...] } } with non-empty source_excerpt on each fact",
+      "status": "pass",
+      "evidence": "Live authenticated round trip against org 46 (Tri-City Endodontics) project d5810549-.../page c483b9f5-...: POST returned {job_id}, GET after the job completed returned 9 real facts (ZEISS EXTARO 300 microscope, Morita Veraviewepocs 3D R100, Morita AdvErL EVO laser, etc.), each with a source_excerpt independently confirmed to be a verbatim quote from the page's actual HTML content. Test rows deleted from practice_facts after verification.",
+      "notes": "Found and fixed two real bugs during this run: (1) extractPageFacts/extractPostFacts crashed with 500 on a client request with no body (destructuring req.body when undefined) instead of a clean 400 — fixed with `req.body || {}` in both handlers. (2) The extraction worker's fetchBusinessData gate short-circuited BEFORE checking page/post content — a page with zero business_data but rich, extractable page content (this exact test page) got zero facts purely because the org's business_data JSON was null. Fixed: content is checked first, business_data absence now logs and proceeds with page/post content only instead of skipping extraction entirely. Both fixes verified live after the change (400 returned correctly; 9 real facts extracted from the previously-null-business_data page).",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "SEO panel surfaces extracted facts, GEO recommendations, and auto-apply provenance in the browser",
+      "surface": "ui",
+      "precondition": "Authenticated admin session, a project with a page and a post that has been through SEO generation",
+      "steps": [
+        "1. Navigate to a page's editor, open the SEO panel, open the 'significant' section tab",
+        "2. Confirm the practice facts list renders with expandable source excerpts",
+        "3. Confirm GEO fields (target query, opening content recommendation, FAQ candidates) render when present",
+        "4. Confirm the auto-apply banner appears when a newer draft page version exists",
+        "5. Repeat steps 1-4 for a post via PostsEditorView, confirming the previous-vs-current content compare renders"
+      ],
+      "expected": "All elements render without console errors; source excerpts are legible and not buried; auto-apply banner correctly reflects version/snapshot state",
+      "status": "pass",
+      "evidence": "Live browser session (preview tools, JWT-authenticated as a super admin) against /admin/websites/d5810549-.../pages/.../edit: opened the SEO panel's Structured Data tab, confirmed 'GEO / ANSWER-FIRST RECOMMENDATIONS' and 'VERIFIED PRACTICE FACTS' sections render with clear provenance copy ('only keeps facts it can quote back to source — nothing is invented'). Clicked the real 'Extract Facts' button end to end: job triggered, facts appeared automatically in the UI without a manual reload, expanding a fact card revealed 'SOURCE — PAGE CONTENT' with the literal quoted excerpt. Screenshots captured at each step.",
+      "notes": "Found and fixed a real bug during this run: the original fixed-6-second-delay-then-single-refetch assumed extraction 'finishes in low single-digit seconds', but observed real LLM latency was ~20-30s — the single refetch fired before the job finished, leaving the UI stuck on 'No facts extracted yet' until a manual reload. Replaced with a bounded poll (~41s ceiling across 9 attempts) that stops as soon as facts appear. A second bug surfaced while verifying the fix: one transient mid-poll 500 aborted the whole poll loop silently (unhandled rejection in the mutation's onSuccess); fixed by wrapping each poll attempt in try/catch so a single failed attempt doesn't cancel the remaining schedule. Re-tested end to end after both fixes: facts appeared in the browser automatically, with zero manual reloads, confirming the fix. Test rows deleted from practice_facts after each verification pass; JWT scratch file removed afterward.",
+      "waiver": ""
+    },
+    {
+      "id": "T8_T11",
+      "title": "Bulk-generation live per-item progress: n/n counter opens a popover with pending/processing/done/failed groups, updating in real time (pages)",
+      "surface": "ui",
+      "precondition": "Authenticated admin session; a bulk SEO generation running on a project's pages list",
+      "steps": [
+        "1. Migration: confirm item_statuses jsonb column on seo_generation_jobs (T8)",
+        "2. Trigger a bulk SEO generate on a project's pages list",
+        "3. Confirm the worker seeds a full pending list, then flips one item to processing at a time, then done/failed (T9)",
+        "4. Confirm getBulkSeoStatus/getActiveBulkSeoJob return item_statuses (T10)",
+        "5. Click the n/n counter mid-run; confirm a popover opens grouping items Processing -> Pending -> Done -> Failed, updating live with no page reload (T11)"
+      ],
+      "expected": "Exactly one item processing at a time; popover groups correctly and updates live via the existing 2s poll; no page reload needed",
+      "status": "pass",
+      "evidence": "Full live run in the browser against sandbox org 45 (is_sandbox=true), project acc7cbfc, 8-page batch, JWT-authenticated as super admin. DB polling during the run confirmed: full pending list seeded before any item started, exactly one item 'processing' at a time, all 8 'done' at completion. Live DOM inspection confirmed the n/n counter is now a clickable button that opens the grouped popover ('PROCESSING (1) /about, PENDING (6), DONE (1) /', progressing to 8/8) with live updates and no reload; outside-click closes it. Backend curl mid-run confirmed item_statuses in both getBulkSeoStatus and getActiveBulkSeoJob responses.",
+      "notes": "T9's per-item update uses an atomic SQL-level jsonb update (not read-modify-write) per §10.5. T11 built a hand-rolled popover following the existing ColorPicker.tsx pattern (no shared Popover primitive exists in the codebase). preview_screenshot had a broken port-forward this session; evidence is live DOM state via preview_eval, not screenshot images. Sandbox test job rows deleted; sandbox page seo_data/version rows left in place (isolated sandbox data, deleting scattered version rows risks corrupting the sandbox project's version sequence for zero real-world benefit).",
+      "waiver": ""
+    },
+    {
+      "id": "T12",
+      "title": "Bulk-generation live per-item progress popover reused on the posts side",
+      "surface": "ui",
+      "precondition": "Authenticated admin session; an active bulk SEO job for a post type",
+      "steps": [
+        "1. Confirm PostTypeSeoButton reuses T11's BulkSeoProgressPopover component without forking it",
+        "2. Confirm the posts n/n counter is a clickable trigger wired to the popover with items={status.item_statuses}",
+        "3. Confirm the posts bulk-status hook (useBulkSeoProgress) surfaces item_statuses from the getActiveBulkSeoJob endpoint it polls"
+      ],
+      "expected": "Posts n/n counter opens the same grouped live popover as pages; item_statuses flows through the exact endpoint the posts hook polls",
+      "status": "pass",
+      "evidence": "Code verified: PostTypeSeoButton.tsx imports BulkSeoProgressPopover from the shared SeoPanel path (not forked, §4.3), converts the counter to a button toggling isProgressPopoverOpen, and renders the popover with items={status.item_statuses}; prop contract matches the component's interface exactly. Frontend tsc -p tsconfig.app.json passes with zero errors (proves status.item_statuses exists on the hook's type and the wiring is type-correct). Data path proven live: seeded a real active post job (entity_type=post, a real post_type_id, item_statuses with one item in each of processing/pending/done/failed) and hit the exact endpoint useBulkSeoProgress polls — GET /:id/seo/bulk-generate/active?entity_type=post&post_type_id=... returned all 4 item_statuses correctly. The popover component that renders this data is the same one live-proven in a real browser in T11 (pages side), fed the identical data shape.",
+      "notes": "A full posts-side browser screenshot was NOT captured: the preview browser genuinely hangs in this session (reproduced directly — preview_eval timed out on navigation; this is the same failure that stalled two T12 agents at the 600s watchdog). No sandbox org has any posts/post-types, so a genuine posts bulk run would require building a synthetic template->post_type->posts->LLM-run fixture chain. Instead, T12's verification is: (a) identical reused component already live-proven in T11, (b) matching prop contract + passing frontend tsc, (c) the exact posts-hook API endpoint proven to return item_statuses via a real seeded job + authenticated curl. Seeded post_type + job row deleted afterward (confirmed 0 remaining). This is verification-by-equivalence for the render, plus direct proof of the data path — stated honestly rather than claiming a screenshot that the broken preview tooling could not produce.",
+      "waiver": "Posts-side popover render not captured as a browser screenshot due to a session-wide preview-browser hang (reproduced firsthand). Mitigated by: identical component live-proven on the pages side (T11), matching prop contract with passing frontend tsc, and the exact posts-hook endpoint proven live to return item_statuses. Residual risk is limited to the ~15-line mount wiring, which type-checks and mirrors the live-verified pages wiring."
+    }
+  ]
+}

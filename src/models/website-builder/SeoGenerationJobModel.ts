@@ -3,6 +3,14 @@ import logger from "../../lib/logger";
 
 const TABLE = "website_builder.seo_generation_jobs";
 
+export type SeoJobItemStatusValue = "pending" | "processing" | "done" | "failed";
+
+export interface SeoJobItemStatus {
+  id: string;
+  title: string;
+  status: SeoJobItemStatusValue;
+}
+
 export interface ISeoGenerationJob {
   id: string;
   project_id: string;
@@ -13,6 +21,7 @@ export interface ISeoGenerationJob {
   completed_count: number;
   failed_count: number;
   failed_items: Array<{ id: string; title: string; error: string }> | null;
+  item_statuses: SeoJobItemStatus[];
   created_at: string;
   updated_at: string;
 }
@@ -46,6 +55,9 @@ export class SeoGenerationJobModel {
     if (!row) return null;
     if (typeof row.failed_items === "string") {
       row.failed_items = JSON.parse(row.failed_items);
+    }
+    if (typeof row.item_statuses === "string") {
+      row.item_statuses = JSON.parse(row.item_statuses);
     }
     return row;
   }
@@ -97,6 +109,56 @@ export class SeoGenerationJobModel {
       failed_items: JSON.stringify(existing),
       updated_at: new Date(),
     });
+  }
+
+  /**
+   * Writes the full item_statuses array, every entry seeded as "pending".
+   * Called once, right after the processor resolves entities and before the
+   * per-entity loop starts (§21.1 idempotency note below).
+   *
+   * Idempotent by construction: this fully overwrites the array rather than
+   * merging into it. If a BullMQ retry re-runs the whole job, calling this
+   * again just resets the list to a fresh all-pending state for the current
+   * entity set — there is nothing to duplicate or accumulate, unlike
+   * incrementFailed's push-onto-existing-array shape above.
+   */
+  static async seedItemStatuses(id: string, items: Array<{ id: string; title: string }>): Promise<void> {
+    const seeded: SeoJobItemStatus[] = items.map((item) => ({
+      id: item.id,
+      title: item.title,
+      status: "pending",
+    }));
+    await db(TABLE).where({ id }).update({
+      item_statuses: JSON.stringify(seeded),
+      updated_at: new Date(),
+    });
+  }
+
+  /**
+   * Flips one entity's status in place. Uses an atomic SQL-level jsonb_set
+   * against the matching array index (found via jsonb_path_query_first's
+   * index path) rather than a read-modify-write round trip, so a concurrent
+   * caller can never clobber another item's status update. The processor
+   * loop today is sequential (no concurrent callers), but this is written
+   * safely regardless per §10.5 multi-step-write discipline.
+   */
+  static async updateItemStatus(id: string, entityId: string, status: SeoJobItemStatusValue): Promise<void> {
+    await db(TABLE)
+      .where({ id })
+      .update({
+        item_statuses: db.raw(
+          `(
+            SELECT jsonb_agg(
+              CASE WHEN elem->>'id' = ? THEN jsonb_set(elem, '{status}', to_jsonb(?::text))
+                   ELSE elem
+              END
+            )
+            FROM jsonb_array_elements(item_statuses) AS elem
+          )`,
+          [entityId, status]
+        ),
+        updated_at: new Date(),
+      });
   }
 
   static async markCompleted(id: string): Promise<void> {

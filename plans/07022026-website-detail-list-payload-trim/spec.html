@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Website Detail List Payload Trim Spec</title>
+  <style>
+    :root { color-scheme: light; --paper:#fff; --ink:#080808; --muted:#5f5f5f; --line:#d8d8d8; --soft:#f5f5f5; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; line-height:1.5; }
+    .spec-shell { width:min(1120px,calc(100% - 32px)); margin:0 auto; padding:48px 0; }
+    .spec-hero,.spec-card,.task-card { border:1px solid var(--line); border-radius:8px; background:var(--paper); }
+    .spec-hero { border-color:var(--ink); padding:32px; margin-bottom:20px; }
+    .hero-topline { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+    .spec-card { padding:28px; margin-top:16px; }
+    .task-card { padding:20px; background:var(--soft); margin-bottom:14px; }
+    .eyebrow,dt { color:var(--muted); font-size:.78rem; font-weight:700; text-transform:uppercase; }
+    .eyebrow { margin:0; }
+    .status-pill { display:inline-flex; align-items:center; min-height:34px; padding:0 12px; border:1px solid var(--ink); border-radius:999px; background:var(--ink); color:var(--paper); font-size:.78rem; font-weight:800; text-transform:uppercase; }
+    .status-card { border-color:var(--ink); }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { max-width:840px; margin-bottom:24px; font-size:clamp(2.25rem,6vw,4rem); line-height:.95; }
+    h2 { font-size:1.35rem; } h3 { font-size:1rem; }
+    code { padding:.1rem .3rem; border:1px solid var(--line); border-radius:4px; background:var(--soft); font-size:.92em; }
+    .meta-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin:0; }
+    .meta-grid div { border:1px solid var(--line); border-radius:8px; padding:16px; }
+    dd { margin:4px 0 0; font-weight:700; }
+    .checklist { list-style:none; padding-left:0; }
+    .checklist li { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); }
+    .task-card dl > div { margin-bottom:6px; }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Pending Execution</span>
+      </div>
+      <h1>Website Detail: Trim Page-List Payload</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07022026-website-detail-list-payload-trim</dd></div>
+        <div><dt>Size</dt><dd>Small (2 files)</dd></div>
+        <div><dt>Risk</dt><dd>Level 2 (Concern) — hot endpoint, single caller</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The admin website-detail endpoint <code>GET /api/admin/websites/:id</code> (<code>service.project-manager.ts</code> <code>getProjectById</code> → <code>PageModel.findByProjectOrderedPathVersion</code> → <code>findByProjectOrderedPathVersionQuery</code>) runs <code>SELECT *</code> over <strong>every page row, including all version history</strong>. Each row carries the full <code>sections</code> HTML blob, so a large site (One Endodontics: 345 version rows) returns a ~16 MB payload in ~36 s (measured live on dev, <code>responseTime: 35983</code>). The pages list never renders page content — it only shows metadata (path, version number, status, SEO indicator). Page content is already loaded separately, on demand, when a page is opened for editing.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Trim the list query to a lightweight column projection — keep all version <strong>metadata</strong> (so the list's per-path version history and version numbers still work) but drop the heavy content JSONB columns (<code>sections</code>, <code>edit_chat_history</code>, <code>generation_progress</code>). Content continues to load only when a page is opened (unchanged <code>fetchPage</code> path). Fix the one list-level consumer of <code>sections</code> — the version <strong>revert</strong> button — to re-fetch that version's content on demand. Done when the website-detail payload no longer carries page content, the pages list + version history render unchanged, revert still works, and opening a page for editing still loads its content.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/models/website-builder/pageQueries.ts:511</code> — <code>findByProjectOrderedPathVersionQuery</code>, the <code>SELECT *</code> to trim. §7.4 (query lives in the model layer — correct home).</li>
+        <li><code>src/controllers/admin-websites/feature-services/service.project-manager.ts:271</code> — the sole caller (<code>getProjectById</code>), confirmed via grep. No other consumer of this query.</li>
+        <li><code>frontend/src/pages/admin/WebsiteDetail/PagesTab.tsx:474</code> — the revert handler that reads <code>page.sections</code> from the list row; re-point to an on-demand fetch.</li>
+        <li><code>frontend/src/api/websites/page-editor.ts:19</code> — existing <code>fetchPage(projectId, pageId)</code> returns a page/version row's full <code>sections</code> (each version row has its own id), the on-demand re-fetch for revert.</li>
+      </ul>
+      <h3>Consumer verification (blast radius)</h3>
+      <ul>
+        <li>The admin page editor loads content via <code>GET .../pages/:pageId</code> (<code>usePageEditor.ts</code> <code>fetchPage</code>), <strong>not</strong> from this payload's <code>pages[]</code>. Confirmed.</li>
+        <li>The client surface (<code>useDfyWebsite</code>) uses a different endpoint (<code>/user/website</code>) — unaffected.</li>
+        <li>Only the revert at <code>PagesTab.tsx:474</code> reads <code>sections</code> from the list row — the single dependency this spec fixes.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <ul>
+        <li><strong>Must</strong> keep every metadata field the list + version-history UI renders: <code>id, project_id, path, version, status, created_at, updated_at, generation_status, template_page_id, seo_data, display_name, page_type, artifact_s3_prefix, change_source, revision_note</code>.</li>
+        <li><strong>Must</strong> keep returning all version rows (metadata) — the list's expandable per-path history depends on them. This is not a one-row-per-path change.</li>
+        <li><strong>Must not</strong> change the editor's content-load path, the client <code>/user/website</code> endpoint, or the response shape beyond dropping the 3 heavy columns.</li>
+        <li><strong>Out of scope:</strong> collapsing the list to one-row-per-path; pagination; touching <code>seo_data</code> size.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level 2.</strong> Hot, shared endpoint — but the query has a single backend caller and the only list-level <code>sections</code> reader (revert) is fixed in the same change. <strong>Mitigation:</strong> explicit column whitelist (not a fragile <code>SELECT *</code> minus), so a future column addition can't silently re-bloat the payload; verify live on dev against org 39 that payload size and load time drop and the list + revert + editing all still work. <strong>Blast radius:</strong> <code>getProjectById</code> consumers only — <code>WebsiteDetail.tsx</code>/<code>PagesTab.tsx</code> (list) and <code>usePageEditor.ts</code> (reads project chrome + a <code>pages.find</code> that never touches <code>sections</code>).</p>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Trim the list query projection (backend)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Change <code>findByProjectOrderedPathVersionQuery</code> from <code>SELECT *</code> to an explicit <code>.select(...)</code> of the metadata whitelist above — excluding <code>sections</code>, <code>edit_chat_history</code>, <code>generation_progress</code>. Keep the <code>path asc, version desc</code> ordering.</dd></div>
+          <div><dt>Files</dt><dd><code>src/models/website-builder/pageQueries.ts</code></dd></div>
+          <div><dt>Verify</dt><dd>Live on dev: website-detail payload for org 39 drops from ~16 MB to &lt;1 MB and loads in ~1–2 s; pages list + version history render unchanged.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Revert re-fetches version content on demand (frontend)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>PagesTab.tsx</code> revert handler, replace <code>sections: page.sections</code> with an on-demand <code>fetchPage(id, page.id)</code> whose <code>.data.sections</code> is posted. Surface a toast on fetch failure (§16.2/§16.3).</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/pages/admin/WebsiteDetail/PagesTab.tsx</code></dd></div>
+          <div><dt>Verify</dt><dd>Live: reverting a version still creates a draft from that version's real content.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> (backend) and <code>tsc -p tsconfig.app.json</code> (frontend) — zero errors</li>
+        <li><input type="checkbox" disabled> <code>npm run check:conventions --strict</code> passes</li>
+        <li><input type="checkbox" disabled> Website-detail payload no longer contains <code>sections</code>/<code>edit_chat_history</code>/<code>generation_progress</code> for pages (locally verified: 15.3 MB → 2.7 MB, 82% smaller, <code>sections</code> absent, on the real 345-row One Endodontics project)</li>
+        <li><input type="checkbox" disabled> Live on dev (org 39): pages list loads in a few seconds (was ~36 s); version history + numbers still render</li>
+        <li><input type="checkbox" disabled> Live: opening a page for editing still loads its content; revert still works</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="followup">
+      <h2>Follow-up (not in this spec)</h2>
+      <p>The remaining ~2.7 MB is almost entirely <code>seo_data</code>, which the list keeps because the SEO score is computed <strong>client-side</strong> in <code>computeSeoScore</code> (<code>websiteDetail.utils.ts:47</code>) and reads most of the blob, including <code>schema_json</code> (it scores each schema by <code>@type</code>). Dropping it would break the per-page SEO score. A larger future optimization: compute the SEO score <strong>server-side</strong> and return only the number (+ title/description for the uniqueness check) per page — that would let the list drop <code>seo_data</code> entirely and take the payload to a few hundred KB. Separate, bigger change; deliberately out of this spec.</p>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-02</h3>
+        <p><strong>Change:</strong> Corrected the Done target from "&lt;1 MB / ~1–2 s" to the honest, safe outcome (2.7 MB / 82% reduction, locally measured). Investigation during execution found <code>computeSeoScore</code> depends on nearly the full <code>seo_data</code> blob (incl. <code>schema_json</code>), so <code>seo_data</code> cannot be trimmed without breaking the client-side SEO score — added a Follow-up section proposing server-side score computation as the path below 2.7 MB.</p>
+        <p><strong>Reason:</strong> Execution deviation: the original &lt;1 MB target assumed <code>seo_data</code> was trimmable; it is not, without a larger server-side-score change.</p>
+        <p><strong>Updated Done criteria:</strong> payload-size item now reflects the measured 82% reduction rather than an absolute &lt;1 MB.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

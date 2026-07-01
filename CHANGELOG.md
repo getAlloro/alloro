@@ -2,6 +2,71 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.143] - July 2026
+
+### SEO + GEO Generator Revamp: Source-Traceable Facts, Answer-First Layer, and Live Bulk Progress
+
+Rebuilt the SEO meta generator so every claim is traceable to real page/business content (no fabricated superlatives or trust signals), added a GEO (Generative Engine Optimization) answer-first layer aimed at AI-search citability, upgraded schema-type selection, and made bulk SEO generation show a real-time per-item progress breakdown.
+
+**Key Changes:**
+- **No-fabrication guardrails in the prompts.** `SeoGeneration.md` now bans superlatives and unverifiable claims ("best," "#1," "top-rated," "guaranteed," etc.) and forbids inventing specifics; `SeoGeneration.high-impact.md` no longer mandates a fabricated trust signal ("5-star rated," "[X]+ happy patients") — a trust signal is only allowed when a sourced fact or explicit business-data field supports it, otherwise the clause is omitted.
+- **Source-traceable practice facts.** A new `practice_facts` table plus a background extraction worker (`extractPracticeFacts.processor.ts`, `FactExtraction.md` prompt) pulls distinguishing facts (equipment, credentials, technology, etc.) from a page/post's real content — and structurally discards any fact whose `source_excerpt` isn't a verbatim substring of the source, so nothing is invented. Generation reads only these verified facts.
+- **GEO / answer-first layer.** New `SeoGeneration.geo-layer.md` section produces a target query, an opening-content recommendation, and sourced FAQ candidates. Auto-apply is recoverable by design: pages get a new draft version row (live row untouched), posts snapshot prior body into a new `previous_content` column before overwrite.
+- **Schema-type specificity.** `SeoGeneration.significant.md` now selects the most specific applicable schema.org type (e.g. `Dentist` / a `MedicalBusiness` subtype) instead of a generic `LocalBusiness`, plus a sourced `knowsAbout` list.
+- **Live bulk-generation progress.** A new `item_statuses` jsonb column on `seo_generation_jobs` (mirroring the existing `failed_items` pattern) tracks each page/post as `pending → processing → done/failed`; the worker updates it via an atomic SQL jsonb write. The pages-list and posts "n/n" counter is now clickable, opening a popover that groups items (Processing → Pending → Done → Failed) and updates live off the existing 2s poll — no page reload.
+- **Provenance UI.** The SEO panel surfaces extracted facts with their source excerpt, the GEO recommendation fields, and an auto-apply indicator linking to the new page version or the post's `previous_content` snapshot.
+
+**Verification:** `test-results.json` for `plans/07012026-seo-generator-revamp` rolls up to Passed. Backend + frontend `tsc`, `check:conventions --strict`, and the full 127-test suite pass. Live authenticated runs confirmed: fact extraction produced 9 real, source-verified facts from a live page (each a verbatim quote), the provenance UI rendered end to end in the browser, and bulk generation showed correct one-at-a-time per-item progress via both the API and the pages-side popover. Three real bugs found and fixed during live testing (a no-body 500, an extraction gate that skipped content-rich pages when business_data was empty, and a too-short frontend poll). The posts-side popover was verified by component equivalence (same live-proven component) plus a direct live proof of its data endpoint, since the session's preview browser could not drive the posts tab (documented in the plan's Rev 7).
+
+**Migration/deploy note:** two additive, reversible migrations run on deploy — `20260701000000_add_practice_facts_and_post_snapshot` (new table + nullable `posts.previous_content`) and `20260701030000_add_item_statuses_to_seo_generation_jobs` (nullable-with-default jsonb column). No backfills, no data rewrites.
+
+**Commits:**
+- `src/agents/websiteAgents/` — `SeoGeneration.md`/`.high-impact.md`/`.significant.md` compliance + schema fixes, new `FactExtraction.md` and `SeoGeneration.geo-layer.md`
+- `src/database/migrations/` — `practice_facts` + `posts.previous_content`; `item_statuses` on `seo_generation_jobs`
+- `src/models/website-builder/` — new `PracticeFactModel`; `PostModel.updateContentWithSnapshot`; `SeoGenerationJobModel` per-item status methods
+- `src/workers/processors/` — new `extractPracticeFacts.processor.ts`; `seoBulkGenerate.processor.ts` per-item status reporting
+- `src/controllers/admin-websites/` — `SeoController` facts + progress endpoints; `service.seo-generation.ts`/`util.seo-section-runner.ts` verified-facts injection, GEO parsing, recoverable auto-apply
+- `frontend/src/components/PageEditor/SeoPanel/` — new `PracticeFactsPanel`, `GeoFields`, `AutoApplyBanner`, `BulkSeoProgressPopover`; `usePracticeFacts`/`usePageAutoApplyStatus` hooks; clickable n/n counter on pages and posts
+
+## [0.0.142] - July 2026
+
+### SEO Generation: Sonnet 5 Fix + Speed
+
+Fixed a live regression where AI-powered SEO generation (page/post "Generate SEO" in the website editor) returned a 400 error on every call after an earlier model swap to Claude Sonnet 5, and restructured generation to be meaningfully faster without changing the API contract.
+
+**Key Changes:**
+- Sonnet 5 rejects the `temperature: 0` default `runAgent` sends on every call; `service.llm-runner.ts` now omits sampling params (and applies `output_config.effort`) for the family of models that require it, gated by an explicit model-id list so the other 16 `runAgent` callers (all still on Sonnet 4.6 or older) are unaffected.
+- Extracted the duplicated 5-section sequential generation loop (previously implemented twice — once for the single-entity "Generate All" flow, once for the bulk-generate worker) into one shared helper, `feature-utils/util.seo-section-runner.ts`.
+- Restructured generation into 3 tiers instead of 5 sequential rounds: `critical`/`high_impact`/`significant` run in parallel (no real cross-field dependency between them), then `moderate` (needs the real generated `meta_title`), then `negligible`.
+- Decoupled insight generation from the blocking chain — insight calls no longer gate progression to the next section/tier, just get awaited together at the end. API response shape is unchanged, so no frontend changes were needed.
+- Turned on Claude's prompt caching (`cachedSystemBlocks`, already supported by `runAgent` but previously unused here) on the stable portion of the system prompt (base rules + business data + creator/validator context), shared across all 5 sections of a page and across every page in the same bulk-generate job.
+- Set an explicit `effort: "medium"` on Sonnet 5 SEO calls instead of inheriting Sonnet 5's new silent adaptive-high-by-default thinking behavior.
+
+**Verification:** Live API tests confirmed the Sonnet 5 fix (no more 400) and Sonnet 4.6 callers unaffected; a direct end-to-end run of the new tiered helper against the real API showed all 5 sections correctly populated in ~14s for 10 total calls, with tier-1 calls firing concurrently and insight calls overlapping subsequent tiers. `test-results.json` for `plans/07012026-seo-generation-speed` rolls up to Passed (8/11 verified, 3 waived — bulk-worker live run, prompt-cache-hit confirmation, and manual output-quality comparison all require a dev/prod environment this session didn't have access to; owner to verify post-deploy).
+
+**Commits:**
+- `src/agents/service.llm-runner.ts` — model-aware sampling-param omission + effort passthrough
+- `src/controllers/admin-websites/feature-services/service.seo-generation.ts` — delegates to the new shared helper, removed duplicated loop/prompt-building logic
+- `src/controllers/admin-websites/feature-utils/util.seo-section-runner.ts` (new) — tiered section execution, insight decoupling, prompt caching
+- `src/services/ai-cost/pricing.ts` — added `claude-sonnet-5` pricing entry so SEO generation's AI cost rolls into project totals correctly
+
+## [0.0.141] - July 2026
+
+### Footer "Powered by Alloro" Credit Rollout
+
+10 live client practice websites now carry the same "Website Powered by Alloro" footer credit that was already live on One Endodontics, linking back to getalloro.com.
+
+**Key Changes:**
+- Direct production content edit (no schema/migration, no application code) to the `footer` column of 10 `website_builder.projects` rows: Advanced Root Canal Specialists, Artful Orthodontics, Art of Sleep Dentistry, Caswell Orthodontics, Coastal Endodontics Studio, DentalEMR, Garrison Orthodontics, San Diego Center For Endodontics, Surf City Endodontics, and TriCity Endodontics.
+- Confirmed getalloro.com (Alloro's own marketing site, which is rendered through this same CMS) was excluded by project ID, along with an already-credited internal demo project and an unverified undomained Garrison duplicate row.
+- Insertion point matched per-site via a balanced-tag scan locating each footer's column-grid container, so the credit lands exactly where it already sits on One Endodontics, regardless of each site's nested markup differences.
+- Discovered and resolved a Redis render-cache gotcha mid-rollout: one site (San Diego Center For Endodontics) served a stale pre-edit footer immediately after a confirmed-correct DB write; busted via the renderer's existing `?nocache=1` param.
+- Noted but out of scope: `sdcendo.com`'s DNS currently points to an external WordPress.com staging domain rather than Alloro's renderer.
+
+**Verification:** `test-results.json` rolls up to Passed (11/11) for `plans/07012026-footer-powered-by-alloro-credit` — all 10 sites verified live post-edit, plus a full DB sweep confirming the exact expected 11 credited / 3 excluded split.
+
+**Commits:** None — this was a direct production database content edit, not a code change. No files in `src/` or `frontend/` were modified.
+
 ## [0.0.140] - July 2026
 
 ### Removed Market Intelligence + Search Opportunity

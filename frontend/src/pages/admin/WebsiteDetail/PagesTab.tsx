@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -20,6 +21,7 @@ import {
 import {
   deletePageByPath,
   updatePageDisplayName,
+  fetchPage,
 } from "../../../api/websites";
 import type { WebsiteProjectWithPages, WebsitePage, BulkSeoStatus } from "../../../api/websites";
 import { toast } from "react-hot-toast";
@@ -27,6 +29,7 @@ import { ActionButton, BulkActionBar } from "../../../components/ui/DesignSystem
 import { useConfirm } from "../../../components/ui/ConfirmModal";
 import { adminFetch } from "../../../api";
 import { logger } from "../../../lib/logger";
+import BulkSeoProgressPopover from "../../../components/PageEditor/SeoPanel/BulkSeoProgressPopover";
 import {
   computeSeoScore,
   getGenStatusStyles,
@@ -99,6 +102,8 @@ export function PagesTab({
   handleDeletePage: (path: string, versionCount: number) => Promise<void>;
   handleDeletePageVersion: (pageId: string, pageGroup: PageGroup) => Promise<void>;
 }) {
+  const [isProgressPopoverOpen, setIsProgressPopoverOpen] = useState(false);
+
   return (
     <motion.div
       className="rounded-xl border border-gray-200 bg-white shadow-sm"
@@ -132,10 +137,22 @@ export function PagesTab({
           )}
           {/* Bulk SEO generation progress */}
           {isBulkSeoActive && bulkSeoStatus ? (
-            <span className="flex items-center gap-1.5 text-xs text-alloro-orange font-medium">
-              <Loader2 className="w-3 h-3 animate-spin" />
-              SEO {bulkSeoStatus.completed_count}/{bulkSeoStatus.total_count}
-            </span>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsProgressPopoverOpen((open) => !open)}
+                className="flex items-center gap-1.5 text-xs text-alloro-orange font-medium hover:text-alloro-orange/80 transition-colors"
+                title="View live per-page SEO generation progress"
+              >
+                <Loader2 className="w-3 h-3 animate-spin" />
+                SEO {bulkSeoStatus.completed_count}/{bulkSeoStatus.total_count}
+              </button>
+              <BulkSeoProgressPopover
+                items={bulkSeoStatus.item_statuses}
+                isOpen={isProgressPopoverOpen}
+                onOpenChange={setIsProgressPopoverOpen}
+              />
+            </div>
           ) : (
             pageGroups.length > 0 && (
               <button
@@ -449,13 +466,17 @@ export function PagesTab({
                                       });
                                       if (!ok) return;
                                       try {
-                                        // Create a new page version with this version's sections
+                                        // The list payload no longer carries page
+                                        // content (sections) — re-fetch this
+                                        // version's content on demand, then create
+                                        // a new draft from it.
+                                        const full = await fetchPage(id!, page.id);
                                         await adminFetch(`/api/admin/websites/${id}/pages`, {
                                           method: "POST",
                                           headers: { "Content-Type": "application/json" },
                                           body: JSON.stringify({
                                             path: page.path,
-                                            sections: page.sections,
+                                            sections: full.data.sections,
                                           }),
                                         });
                                         invalidateWebsite(id!);

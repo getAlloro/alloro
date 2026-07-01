@@ -15,7 +15,9 @@ import { TelemetryToolbar } from "./TelemetryToolbar";
 export function MissionControlTelemetryTab() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [range, setRange] = useState<MissionControlTelemetryRange>("30d");
-  const [includePilot, setIncludePilot] = useState(false);
+  // Pilot support-session telemetry is hard-blocked at ingestion and purged
+  // from history — nothing left to toggle. Always false.
+  const includePilot = false;
   const [includeAdmin, setIncludeAdmin] = useState(false);
   const detailOrganizationId = parseDetailId(searchParams.get("org"));
   const detailUserId = parseDetailId(searchParams.get("user"));
@@ -145,7 +147,6 @@ export function MissionControlTelemetryTab() {
       <TelemetryToolbar
         range={range}
         includeAdmin={includeAdmin}
-        includePilot={includePilot}
         isFetching={
           telemetryQuery.isFetching ||
           detailQuery.isFetching ||
@@ -153,7 +154,6 @@ export function MissionControlTelemetryTab() {
         }
         onRangeChange={setRange}
         onIncludeAdminChange={setIncludeAdmin}
-        onIncludePilotChange={setIncludePilot}
         onRefresh={handleRefreshTelemetry}
       />
 

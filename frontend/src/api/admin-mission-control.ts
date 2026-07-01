@@ -160,6 +160,7 @@ export type MissionControlTelemetryOrganizationRow = {
   activeMinutes: number;
   lastActiveAt: string | null;
   topSurface: string | null;
+  isLowEngagement?: boolean;
 };
 
 export type MissionControlTelemetryUserRow = {

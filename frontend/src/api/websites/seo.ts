@@ -9,6 +9,25 @@ import { API_BASE } from "./_shared";
 import type { SeoData, WebsitePage } from "./_shared";
 
 // =====================================================================
+// Practice Facts (source-traceable extraction provenance — mirrors
+// src/models/website-builder/PracticeFactModel.ts's IPracticeFact exactly)
+// =====================================================================
+
+export type PracticeFactSourceField = "business_data" | "page_content" | "post_content";
+
+export interface PracticeFact {
+  id: string;
+  organization_id: number;
+  location_id: number | null;
+  page_id: string | null;
+  post_id: string | null;
+  fact_text: string;
+  source_field: PracticeFactSourceField;
+  source_excerpt: string;
+  extracted_at: string;
+}
+
+// =====================================================================
 // SEO
 // =====================================================================
 
@@ -185,6 +204,7 @@ export interface BulkSeoStatus {
   completed_count: number;
   failed_count: number;
   failed_items: Array<{ id: string; title: string; error: string }> | null;
+  item_statuses: Array<{ id: string; title: string; status: "pending" | "processing" | "done" | "failed" }>;
 }
 
 export const getBulkSeoStatus = async (
@@ -235,5 +255,82 @@ export const fetchAllSeoMeta = async (
 }> => {
   const response = await adminFetch(`${API_BASE}/${projectId}/seo/all-meta`);
   if (!response.ok) throw new Error("Failed to fetch SEO meta");
+  return response.json();
+};
+
+// =====================================================================
+// Practice Fact Extraction (source-traceable provenance for GEO content)
+// =====================================================================
+
+/**
+ * Trigger practice-fact extraction for a page (enqueues the
+ * extractPracticeFacts BullMQ worker; see SeoController.extractPageFacts).
+ */
+export const extractPageFacts = async (
+  projectId: string,
+  pageId: string,
+  pageContent: string,
+  locationContext?: string | null,
+): Promise<{ success: boolean; data: { job_id: string } }> => {
+  const response = await adminFetch(`${API_BASE}/${projectId}/pages/${pageId}/seo/facts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ page_content: pageContent, location_context: locationContext || "organization" }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to trigger fact extraction");
+  }
+  return response.json();
+};
+
+/**
+ * List extracted practice facts (with source-excerpt provenance) for a page.
+ */
+export const listPageFacts = async (
+  projectId: string,
+  pageId: string,
+): Promise<{ success: boolean; data: PracticeFact[] }> => {
+  const response = await adminFetch(`${API_BASE}/${projectId}/pages/${pageId}/seo/facts`);
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to fetch practice facts");
+  }
+  return response.json();
+};
+
+/**
+ * Trigger practice-fact extraction for a post (enqueues the
+ * extractPracticeFacts BullMQ worker; see SeoController.extractPostFacts).
+ */
+export const extractPostFacts = async (
+  projectId: string,
+  postId: string,
+  locationContext?: string | null,
+): Promise<{ success: boolean; data: { job_id: string } }> => {
+  const response = await adminFetch(`${API_BASE}/${projectId}/posts/${postId}/seo/facts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ location_context: locationContext || "organization" }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to trigger fact extraction");
+  }
+  return response.json();
+};
+
+/**
+ * List extracted practice facts (with source-excerpt provenance) for a post.
+ */
+export const listPostFacts = async (
+  projectId: string,
+  postId: string,
+): Promise<{ success: boolean; data: PracticeFact[] }> => {
+  const response = await adminFetch(`${API_BASE}/${projectId}/posts/${postId}/seo/facts`);
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to fetch practice facts");
+  }
   return response.json();
 };

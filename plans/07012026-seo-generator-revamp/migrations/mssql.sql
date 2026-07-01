@@ -1,0 +1,4 @@
+-- TODO: fill during execution
+-- Not applicable: Alloro's production database is PostgreSQL only. This file
+-- is kept per the global migration-scaffold convention but is not executed.
+-- See pgsql.sql / knexmigration.js for the real migration.

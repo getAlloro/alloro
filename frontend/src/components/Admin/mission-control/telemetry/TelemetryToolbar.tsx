@@ -1,4 +1,4 @@
-import { Plane, RefreshCw, ShieldCheck } from "lucide-react";
+import { RefreshCw, ShieldCheck } from "lucide-react";
 import type { MissionControlTelemetryRange } from "../../../../api/admin-mission-control";
 import { TelemetryClarityLink } from "./TelemetryClarityLink";
 import { TelemetryFilterToggle } from "./TelemetryFilterToggle";
@@ -8,22 +8,18 @@ const RANGES: MissionControlTelemetryRange[] = ["7d", "30d", "90d"];
 type TelemetryToolbarProps = {
   range: MissionControlTelemetryRange;
   includeAdmin: boolean;
-  includePilot: boolean;
   isFetching: boolean;
   onRangeChange: (range: MissionControlTelemetryRange) => void;
   onIncludeAdminChange: (checked: boolean) => void;
-  onIncludePilotChange: (checked: boolean) => void;
   onRefresh: () => void;
 };
 
 export function TelemetryToolbar({
   range,
   includeAdmin,
-  includePilot,
   isFetching,
   onRangeChange,
   onIncludeAdminChange,
-  onIncludePilotChange,
   onRefresh,
 }: TelemetryToolbarProps) {
   return (
@@ -58,13 +54,6 @@ export function TelemetryToolbar({
           checked={includeAdmin}
           onChange={onIncludeAdminChange}
           icon={ShieldCheck}
-        />
-        <TelemetryFilterToggle
-          id="telemetry-include-pilot"
-          label="Pilot"
-          checked={includePilot}
-          onChange={onIncludePilotChange}
-          icon={Plane}
         />
         <button
           type="button"

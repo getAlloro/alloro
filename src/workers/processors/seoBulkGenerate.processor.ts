@@ -65,6 +65,14 @@ export async function processSeoBulkGenerate(job: Job<SeoBulkGenerateData>): Pro
     entities = await getPostEntities(projectId, postTypeId!);
   }
 
+  // Seed the full per-item status list (all pending) now that entities are
+  // known — entities are only resolved here, not at job-creation time in the
+  // controller. Safe to re-run on a BullMQ retry: this overwrites the array.
+  await SeoGenerationJobModel.seedItemStatuses(
+    jobRecordId,
+    entities.map((entity) => ({ id: entity.id, title: entity.title }))
+  );
+
   logger.info(`[SEO-BULK]   Found ${entities.length} ${entityType}(s) to process`);
   logger.info(`[SEO-BULK]   Existing meta: ${allMeta.titles.length} titles, ${allMeta.descriptions.length} descriptions`);
 
@@ -76,6 +84,7 @@ export async function processSeoBulkGenerate(job: Job<SeoBulkGenerateData>): Pro
     const entity = entities[i];
     const entityStart = Date.now();
     logger.info(`[SEO-BULK]   [${i + 1}/${entities.length}] Generating SEO for "${entity.title}" (${entity.id})...`);
+    await SeoGenerationJobModel.updateItemStatus(jobRecordId, entity.id, "processing");
     try {
       const results = await seoService.generateAllWithSharedContext(
         sharedContext,
@@ -131,6 +140,7 @@ export async function processSeoBulkGenerate(job: Job<SeoBulkGenerateData>): Pro
       }
 
       await SeoGenerationJobModel.incrementCompleted(jobRecordId);
+      await SeoGenerationJobModel.updateItemStatus(jobRecordId, entity.id, "done");
       logger.info(`[SEO-BULK]   [${i + 1}/${entities.length}] ✓ Done "${entity.title}" (${Date.now() - entityStart}ms)`);
     } catch (err: any) {
       logger.error({ err: err.message }, `[SEO-BULK]   [${i + 1}/${entities.length}] ✗ Failed "${entity.title}" (${Date.now() - entityStart}ms):`);
@@ -139,6 +149,7 @@ export async function processSeoBulkGenerate(job: Job<SeoBulkGenerateData>): Pro
         title: entity.title,
         error: err.message || "Unknown error",
       });
+      await SeoGenerationJobModel.updateItemStatus(jobRecordId, entity.id, "failed");
     }
   }
 

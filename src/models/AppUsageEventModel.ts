@@ -3,6 +3,7 @@ import type { QueryContext } from "./BaseModel";
 
 const TABLE = "app_usage_events";
 const PAGE_VIEW_EVENT = "app.page_viewed";
+const LOW_ENGAGEMENT_MINUTE_THRESHOLD = 5;
 type QueryRow = Record<string, any>;
 
 export interface AppUsageEventInsert {
@@ -84,6 +85,15 @@ export interface AppUsageOrganizationRow {
   activeMinutes: number;
   lastActiveAt: string | null;
   topSurface: string | null;
+  isLowEngagement?: boolean;
+}
+
+export interface AppUsageLowEngagementOrganizationRow {
+  organizationId: number;
+  organizationName: string;
+  domain: string | null;
+  sessions: number;
+  activeMinutes: number;
 }
 
 export interface AppUsageUserRow {
@@ -304,11 +314,67 @@ export class AppUsageEventModel {
           `COALESCE((${TABLE}.properties->>'is_admin_surface')::boolean, false) = false`,
         );
     }
+    // Alloro Teams (sandbox orgs) and internal staff never count as client
+    // engagement — excluded unconditionally, not behind a toggle.
+    query
+      .whereRaw(
+        `NOT EXISTS (SELECT 1 FROM organizations WHERE organizations.id = ${TABLE}.organization_id AND organizations.is_sandbox = true)`,
+      )
+      .whereRaw(
+        `NOT EXISTS (SELECT 1 FROM users WHERE users.id = ${TABLE}.user_id AND users.is_internal = true)`,
+      );
     return query;
   }
 
   private static countDistinct(params: AppUsageRangeParams, column: string) {
     return this.base(params).whereNotNull(column).countDistinct<{ count: string }>(`${column} as count`).first();
+  }
+
+  /**
+   * Eligible client orgs (not archived, not sandbox, active subscription)
+   * with zero sessions or under LOW_ENGAGEMENT_MINUTE_THRESHOLD active
+   * minutes in range. Mirrors countInactivePaidOrganizations' LEFT JOIN
+   * pattern rather than reading getOrganizationUsage(), which INNER JOINs to
+   * app_usage_events and would silently omit zero-activity orgs entirely.
+   */
+  static async getLowEngagementOrganizations(
+    params: AppUsageRangeParams,
+  ): Promise<AppUsageLowEngagementOrganizationRow[]> {
+    const usage = this.base(params)
+      .whereNotNull("organization_id")
+      .groupBy("organization_id")
+      .select("organization_id")
+      .countDistinct("session_id as sessions")
+      .sum("active_seconds as active_seconds")
+      .as("usage");
+
+    const rows = (await db("organizations as o")
+      .leftJoin(usage, "usage.organization_id", "o.id")
+      .whereNull("o.archived_at")
+      .where("o.is_sandbox", false)
+      .where("o.subscription_status", "active")
+      .where((builder) => {
+        builder
+          .whereNull("usage.organization_id")
+          .orWhere("usage.sessions", 0)
+          .orWhere(
+            "usage.active_seconds",
+            "<",
+            LOW_ENGAGEMENT_MINUTE_THRESHOLD * 60,
+          );
+      })
+      .select("o.id as organization_id", "o.name as organization_name", "o.domain")
+      .select(db.raw("COALESCE(usage.sessions, 0)::int as sessions"))
+      .select(db.raw("COALESCE(usage.active_seconds, 0) as active_seconds"))
+      .orderBy("o.name", "asc")) as QueryRow[];
+
+    return rows.map((row) => ({
+      organizationId: Number(row.organization_id),
+      organizationName: row.organization_name,
+      domain: row.domain ?? null,
+      sessions: Number(row.sessions ?? 0),
+      activeMinutes: roundMinutes(Number(row.active_seconds ?? 0)),
+    }));
   }
 
   private static countInactivePaidOrganizations(params: AppUsageRangeParams) {

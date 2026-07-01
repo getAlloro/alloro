@@ -226,6 +226,41 @@ export class PostModel extends BaseModel {
   }
 
   /**
+   * Snapshot a post's current `content` into `previous_content`, then write
+   * `newContent` — read-then-write, so it runs in a transaction per §10.5.
+   * Posts have no version-row system (unlike PageModel's
+   * createPageVersionQuery), so this single-column snapshot is the only
+   * recovery path for an auto-applied write: GEO auto-apply
+   * (service.seo-generation.ts) calls this instead of updateContentById so a
+   * bad write is always one step from reversible. Returns the updated row
+   * (raw), or undefined if the post id doesn't exist.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static async updateContentWithSnapshot(
+    id: string,
+    newContent: string,
+    trx?: QueryContext
+  ): Promise<any> {
+    const run = async (t: QueryContext): Promise<any> => {
+      const current = await this.table(t).where("id", id).first();
+      if (!current) return undefined;
+
+      const [updated] = await this.table(t)
+        .where("id", id)
+        .update({
+          previous_content: current.content ?? null,
+          content: newContent,
+          updated_at: db.fn.now(),
+        })
+        .returning("*");
+      return updated;
+    };
+
+    if (trx) return run(trx);
+    return db.transaction((t) => run(t));
+  }
+
+  /**
    * Apply a partial column update to a post by id, stamping updated_at via the
    * DB clock. The caller passes only the fields it wants to change (already
    * stringified where needed, e.g. custom_fields). Mirrors the inline

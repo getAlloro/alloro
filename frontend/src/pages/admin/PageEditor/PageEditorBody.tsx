@@ -137,6 +137,7 @@ export function PageEditorBody({
               setPage((prev) => prev ? { ...prev, seo_data: data } : prev);
             }}
             organizationId={project?.organization?.id}
+            currentVersion={page.version}
           />
         </div>
       ) : activeView === "code" ? (
