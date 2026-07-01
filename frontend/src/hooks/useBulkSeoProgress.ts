@@ -74,6 +74,7 @@ export function useBulkSeoProgress(
         completed_count: 0,
         failed_count: 0,
         failed_items: null,
+        item_statuses: [],
       });
       startPolling(jId);
     } catch (err: unknown) {

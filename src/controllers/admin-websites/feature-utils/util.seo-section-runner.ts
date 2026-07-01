@@ -22,7 +22,8 @@ export type SeoSection =
   | "high_impact"
   | "significant"
   | "moderate"
-  | "negligible";
+  | "negligible"
+  | "geo_layer";
 
 export interface SeoSectionRunData {
   page_content: string;
@@ -47,8 +48,11 @@ const MODEL = "claude-sonnet-5";
 const MAX_TOKENS = 4096;
 const SEO_EFFORT = "medium" as const;
 
+// "geo_layer" joins the first tier alongside "significant" — both consume
+// VERIFIED PRACTICE FACTS and neither depends on another section's output,
+// so it doesn't need its own tier round.
 const SEO_TIERS: SeoSection[][] = [
-  ["critical", "high_impact", "significant"],
+  ["critical", "high_impact", "significant", "geo_layer"],
   ["moderate"],
   ["negligible"],
 ];
@@ -59,7 +63,18 @@ const SEO_SECTION_FILE_MAP: Record<SeoSection, string> = {
   significant: "websiteAgents/SeoGeneration.significant",
   moderate: "websiteAgents/SeoGeneration.moderate",
   negligible: "websiteAgents/SeoGeneration.negligible",
+  geo_layer: "websiteAgents/SeoGeneration.geo-layer",
 };
+
+/**
+ * Fallback VERIFIED PRACTICE FACTS block when the caller has no facts to
+ * inject (e.g. callers that haven't been updated to pass one yet, or a page/
+ * post with zero extracted facts). Spec requirement (T5): state explicitly
+ * that nothing is sourced rather than silently falling back to BUSINESS DATA
+ * only, so the model doesn't quietly treat the absence as license to invent.
+ */
+const DEFAULT_PRACTICE_FACTS_BLOCK = `VERIFIED PRACTICE FACTS:
+No verified practice facts available — use only the service name and location from BUSINESS DATA; do not invent specifics.`;
 
 // ---------------------------------------------------------------------------
 // Prompt builders
@@ -67,20 +82,28 @@ const SEO_SECTION_FILE_MAP: Record<SeoSection, string> = {
 
 /**
  * Split the system prompt into a stable, cacheable prefix (base rules +
- * business data + creator context — identical across every section of this
- * page, and across every page in the same bulk-generate job) and the
- * per-section instructions, which vary every call and must stay outside the
- * cached block.
+ * VERIFIED PRACTICE FACTS + business data + creator context — identical
+ * across every section of this page, and across every page in the same
+ * bulk-generate job) and the per-section instructions, which vary every call
+ * and must stay outside the cached block.
+ *
+ * VERIFIED PRACTICE FACTS is rendered ahead of the raw BUSINESS DATA blob so
+ * the model sees source-traceable facts first; when no facts exist the block
+ * still appears, explicitly instructing the model not to invent specifics
+ * (T5 — never silently degrade to "BUSINESS DATA only" without saying so).
  */
 function buildSystemPromptParts(
   section: SeoSection,
   businessData: Record<string, unknown>,
-  creatorContext: string
+  creatorContext: string,
+  practiceFactsBlock: string
 ): { cachedPrefix: string; sectionPrompt: string } {
   const base = loadPrompt("websiteAgents/SeoGeneration");
   const sectionInstructions = loadPrompt(SEO_SECTION_FILE_MAP[section]);
 
   const cachedPrefix = `${base}
+
+${practiceFactsBlock}
 
 BUSINESS DATA:
 ${JSON.stringify(businessData, null, 2)}
@@ -178,9 +201,10 @@ async function runGenerateOnly(
   creatorContext: string,
   data: SeoSectionRunData,
   projectId?: string,
-  entityId?: string
+  entityId?: string,
+  practiceFactsBlock: string = DEFAULT_PRACTICE_FACTS_BLOCK
 ): Promise<{ section: string; generated: Record<string, unknown> }> {
-  const { cachedPrefix, sectionPrompt } = buildSystemPromptParts(section, businessData, creatorContext);
+  const { cachedPrefix, sectionPrompt } = buildSystemPromptParts(section, businessData, creatorContext, practiceFactsBlock);
   const userPrompt = buildUserPrompt(section, { ...data, entityType });
 
   const result = await runAgent({
@@ -261,7 +285,8 @@ export async function runGenerateSection(
   validatorContext: string,
   data: SeoSectionRunData,
   projectId?: string,
-  entityId?: string
+  entityId?: string,
+  practiceFactsBlock: string = DEFAULT_PRACTICE_FACTS_BLOCK
 ): Promise<SeoSectionResult> {
   const { generated } = await runGenerateOnly(
     section,
@@ -270,7 +295,8 @@ export async function runGenerateSection(
     creatorContext,
     data,
     projectId,
-    entityId
+    entityId,
+    practiceFactsBlock
   );
 
   const insight = await generateInsight(
@@ -301,7 +327,8 @@ export async function runAllSeoSectionsTiered(
   validatorContext: string,
   data: SeoSectionRunData,
   projectId?: string,
-  entityId?: string
+  entityId?: string,
+  practiceFactsBlock: string = DEFAULT_PRACTICE_FACTS_BLOCK
 ): Promise<SeoSectionResult[]> {
   let accumulated = { ...(data.existing_seo_data || {}) };
   const results: SeoSectionResult[] = [];
@@ -310,7 +337,7 @@ export async function runAllSeoSectionsTiered(
   for (const tier of SEO_TIERS) {
     const tierResults = await Promise.all(
       tier.map((section) =>
-        runGenerateOnly(section, entityType, businessData, creatorContext, { ...data, existing_seo_data: accumulated }, projectId, entityId)
+        runGenerateOnly(section, entityType, businessData, creatorContext, { ...data, existing_seo_data: accumulated }, projectId, entityId, practiceFactsBlock)
       )
     );
 

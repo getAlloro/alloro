@@ -150,6 +150,12 @@ export interface ChatHistoryMessage {
 
 export type EditChatHistory = Record<string, ChatHistoryMessage[]>;
 
+/** {question, answer} pair surfaced by the GEO/answer-first SEO section. */
+export interface SeoFaqCandidate {
+  question: string;
+  answer: string;
+}
+
 export interface SeoData {
   location_context?: string | null;
   meta_title?: string | null;
@@ -164,6 +170,12 @@ export interface SeoData {
   schema_json?: Record<string, unknown>[] | null;
   scores?: Record<string, unknown> | null;
   insights?: Record<string, string> | null;
+  // GEO / answer-first fields (geo_layer section, persisted into the same
+  // seo_data JSONB — see SeoGeneration.geo-layer.md + service.seo-generation.ts).
+  target_query_primary?: string | null;
+  target_query_variants?: string[] | null;
+  opening_content_recommendation?: string | null;
+  faq_candidates?: SeoFaqCandidate[] | null;
 }
 
 export interface WebsitePage {

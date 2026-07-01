@@ -2,6 +2,32 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.143] - July 2026
+
+### SEO + GEO Generator Revamp: Source-Traceable Facts, Answer-First Layer, and Live Bulk Progress
+
+Rebuilt the SEO meta generator so every claim is traceable to real page/business content (no fabricated superlatives or trust signals), added a GEO (Generative Engine Optimization) answer-first layer aimed at AI-search citability, upgraded schema-type selection, and made bulk SEO generation show a real-time per-item progress breakdown.
+
+**Key Changes:**
+- **No-fabrication guardrails in the prompts.** `SeoGeneration.md` now bans superlatives and unverifiable claims ("best," "#1," "top-rated," "guaranteed," etc.) and forbids inventing specifics; `SeoGeneration.high-impact.md` no longer mandates a fabricated trust signal ("5-star rated," "[X]+ happy patients") — a trust signal is only allowed when a sourced fact or explicit business-data field supports it, otherwise the clause is omitted.
+- **Source-traceable practice facts.** A new `practice_facts` table plus a background extraction worker (`extractPracticeFacts.processor.ts`, `FactExtraction.md` prompt) pulls distinguishing facts (equipment, credentials, technology, etc.) from a page/post's real content — and structurally discards any fact whose `source_excerpt` isn't a verbatim substring of the source, so nothing is invented. Generation reads only these verified facts.
+- **GEO / answer-first layer.** New `SeoGeneration.geo-layer.md` section produces a target query, an opening-content recommendation, and sourced FAQ candidates. Auto-apply is recoverable by design: pages get a new draft version row (live row untouched), posts snapshot prior body into a new `previous_content` column before overwrite.
+- **Schema-type specificity.** `SeoGeneration.significant.md` now selects the most specific applicable schema.org type (e.g. `Dentist` / a `MedicalBusiness` subtype) instead of a generic `LocalBusiness`, plus a sourced `knowsAbout` list.
+- **Live bulk-generation progress.** A new `item_statuses` jsonb column on `seo_generation_jobs` (mirroring the existing `failed_items` pattern) tracks each page/post as `pending → processing → done/failed`; the worker updates it via an atomic SQL jsonb write. The pages-list and posts "n/n" counter is now clickable, opening a popover that groups items (Processing → Pending → Done → Failed) and updates live off the existing 2s poll — no page reload.
+- **Provenance UI.** The SEO panel surfaces extracted facts with their source excerpt, the GEO recommendation fields, and an auto-apply indicator linking to the new page version or the post's `previous_content` snapshot.
+
+**Verification:** `test-results.json` for `plans/07012026-seo-generator-revamp` rolls up to Passed. Backend + frontend `tsc`, `check:conventions --strict`, and the full 127-test suite pass. Live authenticated runs confirmed: fact extraction produced 9 real, source-verified facts from a live page (each a verbatim quote), the provenance UI rendered end to end in the browser, and bulk generation showed correct one-at-a-time per-item progress via both the API and the pages-side popover. Three real bugs found and fixed during live testing (a no-body 500, an extraction gate that skipped content-rich pages when business_data was empty, and a too-short frontend poll). The posts-side popover was verified by component equivalence (same live-proven component) plus a direct live proof of its data endpoint, since the session's preview browser could not drive the posts tab (documented in the plan's Rev 7).
+
+**Migration/deploy note:** two additive, reversible migrations run on deploy — `20260701000000_add_practice_facts_and_post_snapshot` (new table + nullable `posts.previous_content`) and `20260701030000_add_item_statuses_to_seo_generation_jobs` (nullable-with-default jsonb column). No backfills, no data rewrites.
+
+**Commits:**
+- `src/agents/websiteAgents/` — `SeoGeneration.md`/`.high-impact.md`/`.significant.md` compliance + schema fixes, new `FactExtraction.md` and `SeoGeneration.geo-layer.md`
+- `src/database/migrations/` — `practice_facts` + `posts.previous_content`; `item_statuses` on `seo_generation_jobs`
+- `src/models/website-builder/` — new `PracticeFactModel`; `PostModel.updateContentWithSnapshot`; `SeoGenerationJobModel` per-item status methods
+- `src/workers/processors/` — new `extractPracticeFacts.processor.ts`; `seoBulkGenerate.processor.ts` per-item status reporting
+- `src/controllers/admin-websites/` — `SeoController` facts + progress endpoints; `service.seo-generation.ts`/`util.seo-section-runner.ts` verified-facts injection, GEO parsing, recoverable auto-apply
+- `frontend/src/components/PageEditor/SeoPanel/` — new `PracticeFactsPanel`, `GeoFields`, `AutoApplyBanner`, `BulkSeoProgressPopover`; `usePracticeFacts`/`usePageAutoApplyStatus` hooks; clickable n/n counter on pages and posts
+
 ## [0.0.142] - July 2026
 
 ### SEO Generation: Sonnet 5 Fix + Speed

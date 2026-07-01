@@ -195,6 +195,7 @@ export function PostsEditorView({
             onSeoDataChange={handleSeoDataChange}
             organizationId={organizationId}
             hideScoreBar={surface === "client"}
+            previousContent={editingPost.previous_content}
           />
         </div>
       ) : (

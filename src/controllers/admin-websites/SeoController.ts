@@ -14,6 +14,8 @@ import * as pageEditor from "./feature-services/service.page-editor";
 import * as postManager from "./feature-services/service.post-manager";
 import { PageModel } from "../../models/website-builder/PageModel";
 import { PostModel } from "../../models/website-builder/PostModel";
+import { ProjectModel } from "../../models/website-builder/ProjectModel";
+import { PracticeFactModel } from "../../models/website-builder/PracticeFactModel";
 import logger from "../../lib/logger";
 
 /** PATCH /:id/pages/:pageId/seo — Update page SEO data */
@@ -84,6 +86,136 @@ export async function generatePostSeo(req: Request, res: Response): Promise<Resp
     logger.error({ err: error }, "[Admin Websites] Error generating post SEO:");
     return res.status(500).json({ success: false, error: "GENERATION_ERROR", message: error?.message });
   }
+}
+
+/** POST /:id/pages/:pageId/seo/facts — Trigger practice-fact extraction for a page */
+export async function extractPageFacts(req: Request, res: Response): Promise<Response> {
+  try {
+    const { id: projectId, pageId } = req.params;
+    const { page_content, location_context } = req.body || {};
+    if (!page_content || typeof page_content !== "string" || page_content.trim().length === 0) {
+      return res.status(400).json({ success: false, error: "INVALID_INPUT", message: "page_content is required" });
+    }
+
+    const page = await PageModel.findById(pageId);
+    if (!page || page.project_id !== projectId) {
+      return res.status(404).json({ success: false, error: "NOT_FOUND", message: "Page not found" });
+    }
+
+    const project = await ProjectModel.findOrganizationIdById(projectId);
+    if (!project?.organization_id) {
+      return res.status(400).json({ success: false, error: "NO_ORGANIZATION", message: "Project has no linked organization" });
+    }
+
+    const locationId = parseLocationContext(location_context);
+    const { getMindsQueue } = await import("../../workers/queues");
+    const queue = getMindsQueue("extract-practice-facts");
+    const job = await queue.add(
+      "extract-practice-facts",
+      {
+        organizationId: project.organization_id,
+        locationId,
+        pageId,
+        pageContent: page_content,
+      },
+      { attempts: 3, backoff: { type: "exponential", delay: 30000 } }
+    );
+
+    return res.json({ success: true, data: { job_id: job.id } });
+  } catch (error: any) {
+    logger.error({ err: error }, "[Admin Websites] Error triggering page fact extraction:");
+    return res.status(500).json({ success: false, error: "EXTRACTION_ERROR", message: error?.message });
+  }
+}
+
+/** POST /:id/posts/:postId/seo/facts — Trigger practice-fact extraction for a post */
+export async function extractPostFacts(req: Request, res: Response): Promise<Response> {
+  try {
+    const { id: projectId, postId } = req.params;
+    const { location_context } = req.body || {};
+
+    const post = await PostModel.findByIdAndProject(postId, projectId);
+    if (!post) {
+      return res.status(404).json({ success: false, error: "NOT_FOUND", message: "Post not found" });
+    }
+    if (!post.content || post.content.trim().length === 0) {
+      return res.status(400).json({ success: false, error: "INVALID_INPUT", message: "Post has no content to extract facts from" });
+    }
+
+    const project = await ProjectModel.findOrganizationIdById(projectId);
+    if (!project?.organization_id) {
+      return res.status(400).json({ success: false, error: "NO_ORGANIZATION", message: "Project has no linked organization" });
+    }
+
+    const locationId = parseLocationContext(location_context);
+    const { getMindsQueue } = await import("../../workers/queues");
+    const queue = getMindsQueue("extract-practice-facts");
+    const job = await queue.add(
+      "extract-practice-facts",
+      {
+        organizationId: project.organization_id,
+        locationId,
+        postId,
+        postContent: post.content,
+      },
+      { attempts: 3, backoff: { type: "exponential", delay: 30000 } }
+    );
+
+    return res.json({ success: true, data: { job_id: job.id } });
+  } catch (error: any) {
+    logger.error({ err: error }, "[Admin Websites] Error triggering post fact extraction:");
+    return res.status(500).json({ success: false, error: "EXTRACTION_ERROR", message: error?.message });
+  }
+}
+
+/** GET /:id/pages/:pageId/seo/facts — List extracted practice facts for a page */
+export async function listPageFacts(req: Request, res: Response): Promise<Response> {
+  try {
+    const { id: projectId, pageId } = req.params;
+
+    const page = await PageModel.findById(pageId);
+    if (!page || page.project_id !== projectId) {
+      return res.status(404).json({ success: false, error: "NOT_FOUND", message: "Page not found" });
+    }
+
+    const facts = await PracticeFactModel.findByPageId(pageId);
+    return res.json({ success: true, data: facts });
+  } catch (error: any) {
+    logger.error({ err: error }, "[Admin Websites] Error listing page practice facts:");
+    return res.status(500).json({ success: false, error: "FETCH_ERROR", message: error?.message });
+  }
+}
+
+/** GET /:id/posts/:postId/seo/facts — List extracted practice facts for a post */
+export async function listPostFacts(req: Request, res: Response): Promise<Response> {
+  try {
+    const { id: projectId, postId } = req.params;
+
+    const post = await PostModel.findByIdAndProject(postId, projectId);
+    if (!post) {
+      return res.status(404).json({ success: false, error: "NOT_FOUND", message: "Post not found" });
+    }
+
+    const facts = await PracticeFactModel.findByPostId(postId);
+    return res.json({ success: true, data: facts });
+  } catch (error: any) {
+    logger.error({ err: error }, "[Admin Websites] Error listing post practice facts:");
+    return res.status(500).json({ success: false, error: "FETCH_ERROR", message: error?.message });
+  }
+}
+
+/**
+ * Parse the same `location_context` shape the generation service accepts
+ * ("organization" or a numeric location id string) into a nullable numeric
+ * locationId for the extraction job payload. Mirrors
+ * service.seo-generation.ts's fetchBusinessData location handling.
+ */
+function parseLocationContext(locationContext: unknown): number | null {
+  if (typeof locationContext !== "string" || locationContext === "organization") {
+    return null;
+  }
+  const parsed = parseInt(locationContext, 10);
+  return isNaN(parsed) ? null : parsed;
 }
 
 /** POST /:id/pages/:pageId/seo/generate-all — AI generate ALL SEO sections at once */
@@ -259,6 +391,7 @@ export async function getActiveBulkSeoJob(req: Request, res: Response): Promise<
         completed_count: job.completed_count,
         failed_count: job.failed_count,
         failed_items: job.failed_items,
+        item_statuses: job.item_statuses,
       },
     });
   } catch (error: any) {
@@ -293,6 +426,7 @@ export async function getBulkSeoStatus(req: Request, res: Response): Promise<Res
         completed_count: job.completed_count,
         failed_count: job.failed_count,
         failed_items: job.failed_items,
+        item_statuses: job.item_statuses,
       },
     });
   } catch (error: any) {

@@ -17,6 +17,7 @@ export type {
   ChatHistoryMessage,
   EditChatHistory,
   SeoData,
+  SeoFaqCandidate,
   WebsitePage,
   WebsiteProjectWithPages,
   WebsiteProjectListView,

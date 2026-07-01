@@ -54,7 +54,7 @@ export function useWebsiteDetailBulkSeo(
     try {
       const res = await startBulkSeoGenerate(id, "page", undefined, paths);
       setBulkSeoJobId(res.job_id);
-      setBulkSeoStatus({ id: res.job_id, status: "queued", total_count: 0, completed_count: 0, failed_count: 0, failed_items: null });
+      setBulkSeoStatus({ id: res.job_id, status: "queued", total_count: 0, completed_count: 0, failed_count: 0, failed_items: null, item_statuses: [] });
       stopBulkSeoPoll();
       await pollBulkSeo(res.job_id);
       bulkSeoIntervalRef.current = setInterval(() => pollBulkSeo(res.job_id), 2000);

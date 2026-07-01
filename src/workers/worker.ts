@@ -12,6 +12,7 @@ import {
 } from "./processors/skillTrigger.processor";
 import { processWorksDigest } from "./processors/worksDigest.processor";
 import { processSeoBulkGenerate } from "./processors/seoBulkGenerate.processor";
+import { processExtractPracticeFacts } from "./processors/extractPracticeFacts.processor";
 import { processReviewSync } from "./processors/reviewSync.processor";
 import { processApifyReviewFetch } from "./processors/reviewApifyFetch.processor";
 import { processSchedulerTick } from "./processors/scheduler.processor";
@@ -153,6 +154,19 @@ const seoBulkGenerateWorker = new Worker(
   {
     connection: makeConnection(),
     concurrency: 1,
+    prefix: '{minds}',
+  }
+);
+
+// Practice Fact Extraction worker
+const extractPracticeFactsWorker = new Worker(
+  "minds-extract-practice-facts",
+  async (job) => {
+    await processExtractPracticeFacts(job);
+  },
+  {
+    connection: makeConnection(),
+    concurrency: 2,
     prefix: '{minds}',
   }
 );
@@ -461,7 +475,7 @@ const gbpAutomationWorker = new Worker(
 );
 
 // Event handlers
-for (const worker of [scrapeCompareWorker, compilePublishWorker, discoveryWorker, skillTriggerWorker, worksDigestWorker, seoBulkGenerateWorker, reviewSyncWorker, schedulerWorker, scheduleExecWorker, wbBackupWorker, wbRestoreWorker, wbIdentityWarmupWorker, wbAiSeoAuditWorker, wbLayoutsWorker, wbProjectScrapeWorker, wbPageGenerateWorker, wbPostImportWorker, auditLeadgenWorker, crmHubspotPushWorker, crmMappingValidationWorker, dataHarvestWorker, gbpAutomationWorker]) {
+for (const worker of [scrapeCompareWorker, compilePublishWorker, discoveryWorker, skillTriggerWorker, worksDigestWorker, seoBulkGenerateWorker, extractPracticeFactsWorker, reviewSyncWorker, schedulerWorker, scheduleExecWorker, wbBackupWorker, wbRestoreWorker, wbIdentityWarmupWorker, wbAiSeoAuditWorker, wbLayoutsWorker, wbProjectScrapeWorker, wbPageGenerateWorker, wbPostImportWorker, auditLeadgenWorker, crmHubspotPushWorker, crmMappingValidationWorker, dataHarvestWorker, gbpAutomationWorker]) {
   worker.on("completed", (job) => {
     logger.info(`[MINDS-WORKER] Job ${job?.id} completed on queue ${worker.name}`);
   });
@@ -484,6 +498,7 @@ async function shutdown(): Promise<void> {
   await skillTriggerWorker.close();
   await worksDigestWorker.close();
   await seoBulkGenerateWorker.close();
+  await extractPracticeFactsWorker.close();
   await reviewSyncWorker.close();
   await schedulerWorker.close();
   await scheduleExecWorker.close();

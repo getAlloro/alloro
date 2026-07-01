@@ -13,6 +13,12 @@
 import { LocationModel } from "../../../models/LocationModel";
 import { OrganizationModel } from "../../../models/OrganizationModel";
 import { ProjectModel } from "../../../models/website-builder/ProjectModel";
+import { PageModel } from "../../../models/website-builder/PageModel";
+import { PostModel } from "../../../models/website-builder/PostModel";
+import {
+  PracticeFactModel,
+  type IPracticeFact,
+} from "../../../models/website-builder/PracticeFactModel";
 import { loadPrompt } from "../../../agents/service.prompt-loader";
 import { runAgent } from "../../../agents/service.llm-runner";
 import {
@@ -143,9 +149,10 @@ export async function generateSeoForSection(
     post_title,
   } = body;
 
-  // Fetch business data and mind skill context in parallel
-  const [businessData, creatorContext, validatorContext] = await Promise.all([
+  // Fetch business data, practice facts, and mind skill context in parallel
+  const [businessData, practiceFactsBlock, creatorContext, validatorContext] = await Promise.all([
     fetchBusinessData(projectId, location_context),
+    fetchPracticeFactsBlock(entityId, entityType),
     fetchMindSkillCreator(),
     fetchMindSkillValidator(),
   ]);
@@ -156,7 +163,7 @@ export async function generateSeoForSection(
     );
   }
 
-  return runGenerateSection(section, entityType, businessData, creatorContext, validatorContext, {
+  const result = await runGenerateSection(section, entityType, businessData, creatorContext, validatorContext, {
     page_content,
     homepage_content,
     header_html,
@@ -167,7 +174,18 @@ export async function generateSeoForSection(
     all_page_descriptions,
     page_path,
     post_title,
-  }, projectId, entityId);
+  }, projectId, entityId, practiceFactsBlock);
+
+  if (section === "geo_layer") {
+    await applyGeoRecommendation(
+      entityId,
+      entityType,
+      projectId,
+      (result.generated.opening_content_recommendation as string) || ""
+    );
+  }
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -197,8 +215,9 @@ export async function generateAllSeoSections(
   const { location_context, ...rest } = body;
 
   // Single fetch for all shared context
-  const [businessData, creatorContext, validatorContext] = await Promise.all([
+  const [businessData, practiceFactsBlock, creatorContext, validatorContext] = await Promise.all([
     fetchBusinessData(projectId, location_context),
+    fetchPracticeFactsBlock(entityId, entityType),
     fetchMindSkillCreator(),
     fetchMindSkillValidator(),
   ]);
@@ -216,8 +235,11 @@ export async function generateAllSeoSections(
     validatorContext,
     rest,
     projectId,
-    entityId
+    entityId,
+    practiceFactsBlock
   );
+
+  await applyGeoLayerIfPresent(results, entityId, entityType, projectId);
 
   return { results };
 }
@@ -310,6 +332,12 @@ function extractSectionFields(
     significant: ["schema_json"],
     moderate: ["og_title", "og_description", "og_image", "og_type"],
     negligible: ["og_type", "og_description"],
+    geo_layer: [
+      "target_query_primary",
+      "target_query_variants",
+      "opening_content_recommendation",
+      "faq_candidates",
+    ],
   };
   const fields = fieldMap[section] || [];
   const result: Record<string, unknown> = {};
@@ -366,15 +394,29 @@ export async function generateAllWithSharedContext(
   projectId?: string,
   entityId?: string
 ): Promise<Array<{ section: string; generated: Record<string, unknown>; insight: string }>> {
-  return runAllSeoSectionsTiered(
+  // Facts are per-entity even though the rest of the context (business data,
+  // mind skill context) is shared across the whole bulk job — fetch fresh
+  // per call so each page/post only sees its own facts.
+  const practiceFactsBlock = entityId
+    ? await fetchPracticeFactsBlock(entityId, entityType)
+    : undefined;
+
+  const results = await runAllSeoSectionsTiered(
     entityType,
     ctx.businessData,
     ctx.creatorContext,
     ctx.validatorContext,
     data,
     projectId,
-    entityId
+    entityId,
+    practiceFactsBlock
   );
+
+  if (entityId && projectId) {
+    await applyGeoLayerIfPresent(results, entityId, entityType, projectId);
+  }
+
+  return results;
 }
 
 // ---------------------------------------------------------------------------
@@ -429,6 +471,43 @@ async function fetchBusinessData(
 }
 
 // ---------------------------------------------------------------------------
+// Practice facts (VERIFIED PRACTICE FACTS block)
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch the page's or post's extracted facts (T2/T3) and render them as the
+ * VERIFIED PRACTICE FACTS block consumed by util.seo-section-runner's cached
+ * system-prompt prefix. Each fact is rendered with its literal source
+ * excerpt so the model (and a later reviewer) can see exactly what backs it.
+ * When zero facts exist, the block says so explicitly rather than silently
+ * falling back to BUSINESS DATA only — per spec T5, the absence of facts
+ * must never read as license to invent.
+ */
+async function fetchPracticeFactsBlock(
+  entityId: string,
+  entityType: "page" | "post"
+): Promise<string> {
+  const facts =
+    entityType === "page"
+      ? await PracticeFactModel.findByPageId(entityId)
+      : await PracticeFactModel.findByPostId(entityId);
+
+  return buildPracticeFactsBlock(facts);
+}
+
+function buildPracticeFactsBlock(facts: IPracticeFact[]): string {
+  if (facts.length === 0) {
+    return `VERIFIED PRACTICE FACTS:
+No verified practice facts available — use only the service name and location from BUSINESS DATA; do not invent specifics.`;
+  }
+
+  const lines = facts.map(
+    (f) => `- ${f.fact_text} (source: ${f.source_excerpt})`
+  );
+  return `VERIFIED PRACTICE FACTS:\n${lines.join("\n")}`;
+}
+
+// ---------------------------------------------------------------------------
 // Response parsing
 // ---------------------------------------------------------------------------
 
@@ -452,4 +531,163 @@ function parseGeneratedSeo(
 function truncate(text: string, maxLen: number): string {
   if (text.length <= maxLen) return text;
   return text.slice(0, maxLen) + "\n... (truncated)";
+}
+
+// ---------------------------------------------------------------------------
+// GEO auto-apply (opening_content_recommendation → live body content)
+// ---------------------------------------------------------------------------
+
+interface GeoAutoApplyResult {
+  applied: boolean;
+  pageVersionId?: string;
+  postSnapshotted?: boolean;
+}
+
+/**
+ * Find the geo_layer result (if the "generate all" run included it) and
+ * apply its opening_content_recommendation. Shared by the single-entity
+ * "Generate All" path and the bulk-generate worker path so both get the
+ * same auto-apply behavior from one implementation.
+ */
+async function applyGeoLayerIfPresent(
+  results: Array<{ section: string; generated: Record<string, unknown> }>,
+  entityId: string,
+  entityType: "page" | "post",
+  projectId: string
+): Promise<void> {
+  const geoResult = results.find((r) => r.section === "geo_layer");
+  if (!geoResult) return;
+
+  const recommendation = (geoResult.generated.opening_content_recommendation as string) || "";
+  await applyGeoRecommendation(entityId, entityType, projectId, recommendation);
+}
+
+/**
+ * After a successful geo_layer generation, apply a non-empty
+ * `opening_content_recommendation` to the entity's body content through a
+ * recoverable write path — never an in-place overwrite of the live row
+ * (spec Must: "Auto-applied page content creates a new page version row
+ * ... auto-applied post content snapshots prior body into
+ * posts.previous_content before overwrite").
+ *
+ * Incorporation approach: prepend the recommendation as a clearly-marked
+ * leading paragraph rather than attempting to splice it into existing
+ * markup/section structure. Pages store body as a `sections` array (one
+ * section's `content` holds HTML) and posts store body as a single `content`
+ * string with no guaranteed structure — prepending is the only insertion
+ * point that's safe for both shapes without guessing at a template's layout.
+ * `faq_candidates` is intentionally NOT applied to body content here; it is
+ * persisted to seo_data only (see callers) for FAQPage schema generation,
+ * per spec scope.
+ */
+async function applyGeoRecommendation(
+  entityId: string,
+  entityType: "page" | "post",
+  projectId: string,
+  openingContentRecommendation: string
+): Promise<GeoAutoApplyResult> {
+  if (!openingContentRecommendation || !openingContentRecommendation.trim()) {
+    return { applied: false };
+  }
+
+  if (entityType === "page") {
+    return applyGeoToPage(entityId, projectId, openingContentRecommendation);
+  }
+  return applyGeoToPost(entityId, openingContentRecommendation);
+}
+
+async function applyGeoToPage(
+  pageId: string,
+  projectId: string,
+  openingContentRecommendation: string
+): Promise<GeoAutoApplyResult> {
+  const page = await PageModel.findRawByIdAndProject(pageId, projectId);
+  if (!page) {
+    logger.warn(
+      { pageId, projectId },
+      "[SEO Generation] GEO auto-apply skipped — page not found"
+    );
+    return { applied: false };
+  }
+
+  let sections: Array<Record<string, unknown>> = [];
+  try {
+    const raw =
+      typeof page.sections === "string" ? JSON.parse(page.sections) : page.sections;
+    sections = Array.isArray(raw) ? raw : [];
+  } catch {
+    sections = [];
+  }
+
+  const geoSection = {
+    type: "geo-opening-content",
+    content: `<p>${escapeHtml(openingContentRecommendation)}</p>`,
+  };
+  const newSections = [geoSection, ...sections];
+
+  const latest = await PageModel.findLatestByProjectAndPath(projectId, page.path);
+  const newVersion = latest ? latest.version + 1 : 1;
+
+  // New draft version row — never bumps the live (published) row in place.
+  // Mirrors service.page-editor.createPage's insertData shape.
+  const created = await PageModel.createPageVersion({
+    projectId,
+    path: page.path,
+    publish: false,
+    insertData: {
+      project_id: projectId,
+      path: page.path,
+      version: newVersion,
+      status: "draft",
+      sections: JSON.stringify(newSections),
+      seo_data: page.seo_data ?? null,
+    },
+  });
+
+  logger.info(
+    { pageId, projectId, newPageVersionId: created.id, version: newVersion },
+    "[SEO Generation] GEO opening_content_recommendation applied as new page version"
+  );
+
+  return { applied: true, pageVersionId: created.id };
+}
+
+async function applyGeoToPost(
+  postId: string,
+  openingContentRecommendation: string
+): Promise<GeoAutoApplyResult> {
+  const recommendationHtml = `<p>${escapeHtml(openingContentRecommendation)}</p>`;
+  const post = await PostModel.findRawById(postId);
+  if (!post) {
+    logger.warn(
+      { postId },
+      "[SEO Generation] GEO auto-apply skipped — post not found"
+    );
+    return { applied: false };
+  }
+
+  const newContent = `${recommendationHtml}\n${post.content || ""}`;
+  const updated = await PostModel.updateContentWithSnapshot(postId, newContent);
+
+  if (!updated) {
+    logger.warn(
+      { postId },
+      "[SEO Generation] GEO auto-apply failed — snapshot/update returned no row"
+    );
+    return { applied: false };
+  }
+
+  logger.info(
+    { postId },
+    "[SEO Generation] GEO opening_content_recommendation applied; previous content snapshotted"
+  );
+
+  return { applied: true, postSnapshotted: true };
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }

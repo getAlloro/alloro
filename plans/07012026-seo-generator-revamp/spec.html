@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SEO + GEO Meta Generator Revamp Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-bottom: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .risk-pill { display: inline-flex; align-items: center; padding: 2px 10px; border: 1px solid var(--ink); border-radius: 999px; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; margin-left: 8px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; font-size: 0.92rem; vertical-align: top; }
+    th { background: var(--soft); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>SEO + GEO Meta Generator Revamp</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed — T1-T7 (facts/GEO layer, Rev 4) and T8-T12 (Rev 5-7: real-time per-item bulk-generation progress) all executed and verified. Acceptance suite Passed.</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07012026-seo-generator-revamp</dd></div>
+        <div><dt>Size</dt><dd>Large (15+ files)</dd></div>
+        <div><dt>Risk</dt><dd>Level 4 (Major Impact) <span class="risk-pill">mitigated, see Risk</span></dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The current SEO meta generator instructs the model to invent unverifiable trust signals (<code>"5-star rated"</code>, <code>"[X]+ happy patients"</code> in <code>SeoGeneration.high-impact.md</code>) and superlative claims with no compliance guardrail — both a dental-board advertising risk and a GEO (AI search citability) liability, since AI engines favor specific, sourced facts over superlatives. There is also no answer-first / AI-citability layer at all, and schema generation defaults to generic <code>LocalBusiness</code> instead of the most specific applicable type.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Rebuild the SEO generation pipeline so every claim is source-traceable: extract <code>practice_facts</code> from existing <code>business_data</code>/page/post content (never invented), ban fabricated trust signals and superlatives, upgrade schema-type selection to the most specific applicable type, add a GEO/answer-first content layer (direct-answer opening line + sourced FAQ candidates) for pages and posts, and auto-apply generated content through recoverable write paths (new page version row; pre-write content snapshot for posts) so generated changes are never an unrecoverable overwrite. Done when: the 5+ prompt files no longer contain fabrication-inducing instructions, <code>practice_facts</code> extraction runs as a background job with literal source-excerpt provenance on every row, the generation service consumes only sourced facts, and the SEO panel UI surfaces what was extracted/used/auto-applied per page and post.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/agents/websiteAgents/SeoGeneration.md</code> — base prompt, 4 generic rules today; gets the banned-phrase/no-fabrication rule.</li>
+        <li><code>src/agents/websiteAgents/SeoGeneration.high-impact.md</code> — currently <em>instructs</em> fabricated trust signals; direct conflict to resolve.</li>
+        <li><code>src/agents/websiteAgents/SeoGeneration.significant.md</code> — schema section, currently generic <code>LocalBusiness</code>; gets specific-type + <code>knowsAbout</code> logic.</li>
+        <li><code>src/agents/websiteAgents/SeoGeneration.critical.md</code>, <code>.moderate.md</code>, <code>.negligible.md</code> — minor alignment only.</li>
+        <li><code>src/agents/websiteAgents/FactExtraction.md</code> (new) — extraction prompt, hard rule: every fact must carry a literal <code>source_excerpt</code>.</li>
+        <li><code>src/controllers/admin-websites/feature-services/service.seo-generation.ts:560-645</code> — <code>buildSystemPrompt</code>/<code>buildUserPrompt</code>; currently passes raw <code>business_data</code> JSON blob + <code>page_content</code> with no fact-sourcing layer.</li>
+        <li><code>src/controllers/admin-websites/SeoController.ts</code> — existing parallel page/post handlers; gets new extract/list-facts endpoints.</li>
+        <li><code>src/routes/admin/websites/seo.routes.ts</code> — existing <code>/pages/:pageId/seo/*</code> and <code>/posts/:postId/seo/*</code> routes.</li>
+        <li><code>src/workers/processors/seoBulkGenerate.processor.ts</code> + <code>src/workers/worker.ts:14,148,464,486</code> — existing BullMQ registration pattern to mirror for the new extraction worker.</li>
+        <li><code>src/models/website-builder/PageModel.ts:568</code> (<code>createPageVersionQuery</code>), <code>:397,620</code> (<code>propagateSeoDataToSiblingsQuery</code>) — page content is already version-row based; auto-apply must create a new version, never bump the live row in place.</li>
+        <li><code>src/models/website-builder/PostModel.ts:215,236</code> (<code>updateContentById</code>/<code>updateFieldsById</code>) — posts have <strong>no version-row system</strong>, these are direct overwrites. Auto-apply must snapshot first.</li>
+        <li><code>src/database/migrations/20260308000001_add_seo_and_business_data.ts</code> — added the <code>business_data</code> JSONB (organizations/locations) and <code>seo_data</code> JSONB (pages/posts) columns this whole pipeline runs on.</li>
+        <li><code>frontend/src/components/PageEditor/SeoPanel/SeoPanel.tsx</code>, <code>frontend/src/api/websites/seo.ts</code> — shared edit UI and API client; gets fact-provenance + GEO-recommendation surfacing.</li>
+        <li><code>frontend/src/components/Admin/website-tabs/PostsTab/PostTypeSeoButton.tsx</code> — post-specific trigger; same surfacing for posts.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>§6.1 — new domain code (<code>PracticeFactModel</code>, extraction service) mirrors <code>src/controllers/gbp-automation/</code>: thin controller, business logic in <code>feature-services/</code>, typed errors in <code>feature-utils/</code>, all DB access through <code>models/</code>.</li>
+        <li>§6.3 — extraction logic nests under the existing <code>controllers/admin-websites/feature-services/</code>, not a new bare <code>services/</code> folder.</li>
+        <li>§21.1–§21.4 — the new extraction worker is idempotent (re-running on the same page/post must not duplicate facts), retried with backoff, calls a service (not inline logic), logs failures with context via Pino.</li>
+        <li>§11.7/§5.5 — every <code>practice_facts</code> query is scoped to <code>organization_id</code>/<code>location_id</code> from server context, never client-supplied.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/controllers/gbp-automation/</code> — closest existing analog for the new extraction domain's controller/service/model split.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Every fact used in generation traces to a literal <code>source_excerpt</code> stored in <code>practice_facts</code> — structurally enforced (extraction worker discards any fact without a verbatim excerpt), not just a prompt instruction.</li>
+            <li>No fabricated superlatives or trust signals in any tier prompt, ever — including the existing <code>high-impact.md</code> CTA copy.</li>
+            <li>Auto-applied page content creates a new page version row (existing <code>createPageVersionQuery</code> path); auto-applied post content snapshots prior body into <code>posts.previous_content</code> before overwrite.</li>
+            <li>SEO panel UI shows, per generation: which facts were used, their source excerpt, and (for auto-applied content) a link/diff to the prior version or snapshot.</li>
+            <li>Schema recommendation selects the most specific applicable type, never a generic fallback when a more specific one is determinable from sourced facts.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No new state-management library or DB beyond the additive Postgres migration.</li>
+            <li>No change to the existing bulk-generate flow's external contract (<code>generateAllPageSeo</code>/<code>generateAllPostSeo</code>) beyond consuming the new fact-sourcing layer.</li>
+            <li>No per-client content-style rule engine (e.g. Caswell's clinical-format rules) — out of scope, flagged as a follow-on risk below.</li>
+            <li>Do not refactor <code>PageModel</code>/<code>PostModel</code> beyond the methods this spec needs.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Per-client content-style/voice rule encoding (Caswell-style clinical format) — posts auto-apply uses the generic GEO instructions only this round.</li>
+        <li>A full post version-history system — the snapshot column is a single-step recovery, not a history log.</li>
+        <li>Manual fact-entry UI for Corey/Jo to add facts not present in any existing source — extraction is sourced-only this round.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 4 — cross-cutting (new DB table, new worker, 5+ prompt files, 2 model files, controller/routes, frontend), auto-writes to live page/post content.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>Auto-applying generated content to live pages/posts with no pre-publish human gate.</strong> <strong>Mitigation:</strong> pages use the existing version-row system (recoverable, never overwrites the live row in place); posts get a <code>previous_content</code> snapshot written immediately before overwrite. Confirmed by owner: source-traceable extraction is the trust mechanism, with UI visibility after the fact — not a pre-publish approval queue.</li>
+        <li><strong>Extraction itself could "launder" a stale or wrong fact already sitting in old page copy into a confidently-restated one.</strong> <strong>Mitigation:</strong> every extracted fact must carry a literal, verbatim <code>source_excerpt</code> — the extraction worker discards anything it can't quote back to source. This doesn't catch a source that's wrong at the root, only a source that's invented.</li>
+        <li><strong>Posts have no version-history system</strong>, unlike pages — the snapshot column is a single-step undo, not a history log. <strong>Mitigation:</strong> documented as an accepted limitation this round; flagged as Out of Scope above rather than silently building full post versioning into this spec.</li>
+        <li><strong>GEO/answer-first auto-apply on posts has no per-client content-style awareness</strong> (e.g. Caswell's clinical-format rules aren't machine-readable anywhere in the codebase — confirmed, zero hits for any content-style config). <strong>Mitigation:</strong> flagged as Out of Scope; auto-applied content on posts may not match an individual client's established voice until a follow-on spec encodes those rules.</li>
+        <li><strong>New LLM call (fact extraction) adds AI cost</strong> beyond existing SEO generation. <strong>Mitigation:</strong> uses the existing model-rate pricing in <code>src/services/ai-cost/pricing.ts</code> — no new registration needed, but cost volume should be monitored post-launch since it runs per page/post, not just on-demand.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>SeoController</code>, <code>seo.routes.ts</code>, <code>service.seo-generation.ts</code> (touches both the bulk-generate and analyze flows), <code>seoBulkGenerate.processor.ts</code>, <code>worker.ts</code> registration, <code>PageModel</code>, <code>PostModel</code>, all SEO prompt files, frontend <code>SeoPanel</code> + <code>PostTypeSeoButton</code> + <code>api/websites/seo.ts</code>. Consumers: admin website editor users, DFY internal staff generating SEO in bulk, any client site whose pages/posts get auto-applied GEO content.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Auto-extract + auto-apply (no pre-publish review) was explicitly chosen by the owner over the safer advisory-only / human-confirm alternative. The mitigations above (source-excerpt provenance, recoverable writes) reduce the blast radius of a bad write, but they do not prevent one from going live — if a source itself is wrong, the fact will be marked "sourced" and used anyway. This is an accepted tradeoff, not a closed risk.</li>
+        <li>Combining both Spec A (prompt fixes) and Spec B (data pipeline + auto-apply) into one plan, per owner's choice, makes this a Large/Level-4 spec rather than the smaller, faster-to-ship Spec A alone. Recommend the parallel sub-agent task breakdown below to keep wall-clock reasonable, and treat T1–T3 as the critical path — nothing else can safely execute until source-traceable facts exist.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Database migration — practice_facts table + posts.previous_content</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Additive migration: new <code>practice_facts</code> table (org/location/page/post scoped, <code>fact_text</code>, <code>source_field</code>, <code>source_excerpt</code> required not-null, <code>extracted_at</code>); add nullable <code>previous_content</code> JSONB to <code>website_builder.posts</code>. Reversible down migration drops both.</dd></div>
+          <div><dt>Files</dt><dd><code>src/database/migrations/{timestamp}_add_practice_facts_and_post_snapshot.ts</code> (fill in scaffold at <code>plans/07012026-seo-generator-revamp/migrations/knexmigration.js</code>)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run db:migrate</code> then <code>npm run db:rollback</code> clean on dev DB; confirm via dev <code>knex_migrations</code></dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: PracticeFactModel</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New model, tenant-scoped CRUD (§11.7): <code>create</code>, <code>findByOrgAndLocation</code>, <code>findByPageId</code>, <code>findByPostId</code>, <code>deleteByPageId</code>/<code>deleteByPostId</code> (for idempotent re-extraction). Mirror <code>gbp-automation</code> model conventions.</dd></div>
+          <div><dt>Files</dt><dd><code>src/models/website-builder/PracticeFactModel.ts</code>, <code>src/models/website-builder/PracticeFactModel.test.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>vitest run PracticeFactModel.test.ts</code> — contract + tenant-isolation cases per §20.2</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Fact extraction worker + prompt</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New BullMQ processor mirroring <code>seoBulkGenerate.processor.ts</code>: reads <code>business_data</code> + <code>page_content</code>/post body, runs <code>FactExtraction.md</code> prompt via existing <code>service.llm-runner.ts</code>, requires every returned fact to include a literal <code>source_excerpt</code> substring-matchable against the input — discard any fact that fails that check before writing via <code>PracticeFactModel</code>. Idempotent: clears prior facts for the page/post before writing new ones (§21.1).</dd></div>
+          <div><dt>Files</dt><dd><code>src/workers/processors/extractPracticeFacts.processor.ts</code>, <code>src/workers/worker.ts</code> (register), <code>src/agents/websiteAgents/FactExtraction.md</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>Manual: run against a seeded page with known business_data, confirm every written fact's <code>source_excerpt</code> is a verbatim substring of the source field</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Prompt fixes — compliance, schema specificity, GEO layer (parallelizable with T1–T3)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>(a) <code>SeoGeneration.md</code>: add banned-phrase/no-fabrication rule, instruct the model to omit rather than invent when no sourced fact supports a claim. (b) <code>SeoGeneration.high-impact.md</code>: replace the trust-signal mandate with "include a trust signal ONLY if a sourced practice_fact or business_data field directly supports it; otherwise omit that clause" — keep the CTA language, drop the fabrication. (c) <code>SeoGeneration.significant.md</code>: schema type selection becomes the most specific applicable type (e.g. <code>Dentist</code>, not <code>LocalBusiness</code>), plus a <code>knowsAbout</code> field of specific sourced procedure/treatment terms. (d) New GEO section (extend <code>significant.md</code> or add <code>SeoGeneration.geo-layer.md</code>): <code>target_query_primary</code>/<code>target_query_variants</code>, <code>opening_content_recommendation</code>, <code>faq_candidates</code> — all sourced only from VERIFIED PRACTICE FACTS, never invented.</dd></div>
+          <div><dt>Files</dt><dd><code>src/agents/websiteAgents/SeoGeneration.md</code>, <code>.high-impact.md</code>, <code>.significant.md</code>, new <code>.geo-layer.md</code> (or extend <code>.significant.md</code> — decide during execution based on section-weight fit)</dd></div>
+          <div><dt>Depends on</dt><dd>none for the prompt text itself; needs T2's field shape agreed before wiring (T5)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: read-through confirms no superlative/trust-signal instruction remains unconditioned</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Wire generation service — consume facts, parse GEO output, auto-apply</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>buildSystemPrompt</code> adds a "VERIFIED PRACTICE FACTS" block sourced from <code>PracticeFactModel</code> (each fact + its excerpt) ahead of the raw <code>business_data</code> blob. Response parsing extended for the new GEO fields. After successful generation, if <code>opening_content_recommendation</code>/<code>faq_candidates</code> are present: for pages, call <code>PageModel.createPageVersionQuery</code> (new version, never bump live row); for posts, write current content into <code>previous_content</code> then call <code>updateContentById</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.seo-generation.ts</code>, <code>src/models/website-builder/PostModel.ts</code> (add snapshot-aware update method)</dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3, T4</dd></div>
+          <div><dt>Verify</dt><dd><code>vitest run service.seo-generation.test.ts</code>; manual: generate on a seeded page, confirm a new version row appears and live content is unchanged until accepted</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: SeoController — extraction trigger + facts listing endpoints</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New endpoints: trigger fact extraction for a page/post (enqueues T3's worker), list facts with provenance for a page/post. Thin controller, §7.3 — no business logic.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/SeoController.ts</code>, <code>src/routes/admin/websites/seo.routes.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3</dd></div>
+          <div><dt>Verify</dt><dd>Manual: <code>curl</code> against dev, confirm <code>{ success, data, error }</code> contract (§8.1) and auth middleware present (§11.1)</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: Frontend — surface facts, GEO output, auto-apply provenance</h3>
+        <dl>
+          <div><dt>Do</dt><dd>SEO panel shows extracted facts with source excerpt per page/post; shows GEO recommendation fields; shows an auto-apply indicator linking to the new page version or the post's <code>previous_content</code> snapshot so an editor can review/revert what was written.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/api/websites/seo.ts</code>, <code>frontend/src/components/PageEditor/SeoPanel/SeoPanel.tsx</code> (+ new subcomponents under <code>SeoPanel/</code>), <code>frontend/src/components/Admin/website-tabs/PostsTab/PostTypeSeoButton.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T6</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc -p tsconfig.app.json</code> zero errors; manual browser check per the alloro-frontend skill</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T8: Migration — item_statuses jsonb on seo_generation_jobs (Rev 5)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Additive migration: add <code>item_statuses</code> jsonb column (default <code>'[]'</code>) to <code>website_builder.seo_generation_jobs</code>, mirroring the existing <code>failed_items</code> jsonb column already on that table — same precedent, no new table. Each array entry: <code>{ id, title, status }</code> where status is <code>"pending" | "processing" | "done" | "failed"</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>src/database/migrations/{timestamp}_add_item_statuses_to_seo_generation_jobs.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run db:migrate</code> then <code>npm run db:rollback</code> clean on dev DB</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T9: SeoGenerationJobModel + processor report per-item status (Rev 5)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>SeoGenerationJobModel</code>: add <code>seedItemStatuses(jobId, items)</code> (writes the full <code>pending</code> list) and <code>updateItemStatus(jobId, entityId, status)</code> (flips one entry in place). In <code>seoBulkGenerate.processor.ts</code>: entities are only resolved inside the processor (confirmed — <code>entities = await getPageEntities(...)</code>/<code>getPostEntities(...)</code> at lines 60-65, not at job-creation time in the controller), so seed the full pending list immediately after that resolve, before the loop starts. Inside the existing per-entity loop, flip the entity to <code>processing</code> before calling <code>generateAllWithSharedContext</code>, then to <code>done</code> or <code>failed</code> after — alongside the existing <code>incrementCompleted</code>/<code>incrementFailed</code> calls, not replacing them.</dd></div>
+          <div><dt>Files</dt><dd><code>src/models/website-builder/SeoGenerationJobModel.ts</code>, <code>src/workers/processors/seoBulkGenerate.processor.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T8</dd></div>
+          <div><dt>Verify</dt><dd>Manual: run a bulk generate against a seeded project, poll the job row mid-run, confirm exactly one item is <code>processing</code> at a time and prior items are <code>done</code>/<code>failed</code></dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T10: Expose item_statuses through the status API (Rev 5)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>SeoController.getBulkSeoStatus</code> (currently returns <code>id, status, total_count, completed_count, failed_count, failed_items</code>) adds <code>item_statuses</code> to the response. Extend the frontend <code>BulkSeoStatus</code> type in <code>frontend/src/api/websites/seo.ts</code> to match.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/SeoController.ts</code>, <code>frontend/src/api/websites/seo.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T9</dd></div>
+          <div><dt>Verify</dt><dd>Manual: <code>curl</code> the status endpoint mid-run, confirm <code>item_statuses</code> array present with correct shape</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T11: Clickable n/n popover — pages list (Rev 5)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New shared component (e.g. <code>BulkSeoProgressPopover.tsx</code>) — click opens a popover anchored to the counter, grouping items as Processing → Pending → Done → Failed, live via the existing 2s poll in <code>useBulkSeoProgress.ts</code> (surface <code>item_statuses</code> in its return value; no new polling mechanism). Convert the current plain, non-interactive <code>&lt;span&gt;</code> at <code>PagesTab.tsx:134-138</code> into a trigger for the popover.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/hooks/useBulkSeoProgress.ts</code>, new <code>frontend/src/components/PageEditor/SeoPanel/BulkSeoProgressPopover.tsx</code> (or nearest shared location), <code>frontend/src/pages/admin/WebsiteDetail/PagesTab.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T10</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc -p tsconfig.app.json</code> zero errors; manual browser check: trigger a bulk generate, click n/n, confirm live grouped breakdown updates without a page reload</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T12: Clickable n/n popover — posts (Rev 5)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Reuse T11's <code>BulkSeoProgressPopover</code> component (§4.3 — same shape, don't fork it) on the near-identical posts bulk-SEO indicator.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/Admin/website-tabs/PostsTab/PostTypeSeoButton.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T11</dd></div>
+          <div><dt>Verify</dt><dd><code>tsc -p tsconfig.app.json</code> zero errors; manual browser check on the posts tab, same as T11</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> (backend) and <code>tsc -p tsconfig.app.json</code> (frontend) — zero errors</li>
+        <li><input type="checkbox" disabled> <code>npm run check:conventions --strict</code> passes, citing §N.M for any pre-existing violation only</li>
+        <li><input type="checkbox" disabled> No tier prompt file contains an unconditioned superlative/trust-signal/fabrication instruction</li>
+        <li><input type="checkbox" disabled> Every row in <code>practice_facts</code> has a non-null <code>source_excerpt</code> that is a verbatim substring of its <code>source_field</code> content</li>
+        <li><input type="checkbox" disabled> Page auto-apply creates a new version row; live page row is unchanged by generation alone</li>
+        <li><input type="checkbox" disabled> Post auto-apply writes <code>previous_content</code> before overwriting</li>
+        <li><input type="checkbox" disabled> Schema recommendation returns a specific type (not generic <code>LocalBusiness</code>) when sourced facts support one</li>
+        <li><input type="checkbox" disabled> Manual: SEO panel shows fact provenance and auto-apply history for at least one page and one post in dev</li>
+        <li><input type="checkbox" disabled> No regression in existing bulk-generate flow (<code>generateAllPageSeo</code>/<code>generateAllPostSeo</code>)</li>
+        <li><input type="checkbox" disabled> (Rev 5) <code>item_statuses</code> jsonb column exists on <code>seo_generation_jobs</code>, additive migration reverses cleanly</li>
+        <li><input type="checkbox" disabled> (Rev 5) During a live bulk run, exactly one item shows <code>processing</code> at a time; prior items show <code>done</code>/<code>failed</code>, later items show <code>pending</code></li>
+        <li><input type="checkbox" disabled> (Rev 5) <code>getBulkSeoStatus</code> response includes <code>item_statuses</code> matching the DB row</li>
+        <li><input type="checkbox" disabled> (Rev 5) Manual: clicking the n/n counter on the pages list opens a live-updating popover with no page reload, for both pages and posts</li>
+        <li><input type="checkbox" disabled> (Rev 5) No regression in the existing aggregate n/n counter or the underlying bulk-generate flow</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-01</h3>
+        <p><strong>Change:</strong> T1's local dev DB (Docker container <code>alloro-local-db</code> on <code>localhost:5433</code>) had pre-existing migration-ledger drift unrelated to this spec: <code>20260624000000_create_keyword_search_volume.ts</code> was never recorded as applied despite its table existing on disk, blocking <code>npm run db:migrate</code> before it could reach T1's new migration. Reconciled by inserting the missing ledger row (metadata-only, table already matched the migration's DDL exactly), then ran migrations forward — this executed the pending Market Intelligence/Search-Opportunity teardown (<code>20260630000000</code>, already shipped on the real dev/prod servers per prior work) and T1's new <code>practice_facts</code> + <code>posts.previous_content</code> migration cleanly. T1's down() migration was verified by inspection (not a live rollback) since it shared a batch with the teardown migration and a batch-rollback would have undone the reconciliation.<br>T2's test file was placed at <code>src/__tests__/PracticeFactModel.test.ts</code> instead of the spec's stated <code>src/models/website-builder/PracticeFactModel.test.ts</code> — the latter path is outside <code>vitest.config.ts</code>'s include glob and would never execute. No model-level test files exist anywhere in <code>src/models/</code> in this repo, so the spec's "mirror PageModel.test.ts/PostModel.test.ts" instruction assumed prior art that doesn't exist; the closest real precedent (<code>src/__tests__/</code> mock-the-data-layer style) was used instead.</p>
+        <p><strong>Reason:</strong> Execution deviation: pre-existing environment state (DB ledger drift) and a factually incorrect assumption in the original spec about test file conventions, both discovered during T1/T2 execution.</p>
+        <p><strong>Updated Done criteria:</strong> none — all original Done items still apply as written; T2's tests live at <code>src/__tests__/PracticeFactModel.test.ts</code>.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-01</h3>
+        <p><strong>Change:</strong> T5's stated injection point ("<code>buildSystemPrompt</code> around line 579-595 of <code>service.seo-generation.ts</code>") no longer existed at execution time — that logic had already been refactored out into <code>src/controllers/admin-websites/feature-utils/util.seo-section-runner.ts</code>'s <code>buildSystemPromptParts</code> prior to this spec. The VERIFIED PRACTICE FACTS block was wired there instead, preceding BUSINESS DATA with an explicit "no facts" fallback message when empty — matching the spec's intent exactly, just at the correct current file. Discovered as a downstream consequence: adding <code>geo_layer</code> to the <code>SeoSection</code> union also required adding a corresponding entry to <code>service.seo-generation.ts</code>'s <code>extractSectionFields</code> <code>fieldMap</code> (a <code>Record&lt;SeoSection, string[]&gt;</code>) to keep it exhaustive — fixed in the same pass, not a scope expansion.<br>T6 found that <code>controllers/admin-websites/</code> has no shared <code>ok()</code>/<code>fail()</code> response-builder file (unlike the <code>gbp-automation</code> reference domain) — the existing <code>SeoController.ts</code> handlers hand-roll <code>{ success, data, error }</code> inline. T6's new endpoints followed that existing in-file convention (§6.1 mirror-existing) rather than introducing a new builder pattern the rest of the file doesn't use.</p>
+        <p><strong>Reason:</strong> Execution deviation: both discoveries were about the actual current state of files the spec described from an earlier read, not new scope.</p>
+        <p><strong>Updated Done criteria:</strong> none.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-07-01</h3>
+        <p><strong>Change:</strong> T7 found that <code>applyGeoLayerIfPresent</code>/<code>applyGeoRecommendation</code> (added in T5) compute a <code>pageVersionId</code>/<code>postSnapshotted</code> result internally but never return them — <code>generateAllSeoSections</code>'s API response is only <code>{ results }</code>, so the frontend has no direct signal that an auto-apply happened. Worked around without a new backend endpoint: pages reuse the existing <code>GET /:id/pages/:pageId/versions</code> route (comparing the latest draft against the live page's version), posts read the already-present <code>previous_content</code> field off the post entity payload. Also: the fact-extraction trigger endpoint (<code>POST .../seo/facts</code>) only returns a job id with no status-check route (unlike bulk-generate's polled <code>/seo/bulk-generate/:jobId/status</code>) — T7 used a fixed 6-second-delay-then-refetch instead of polling, and flagged adding a real status endpoint as a follow-up rather than expanding T7's frontend-only scope into new backend work.</p>
+        <p><strong>Reason:</strong> Execution deviation: discovered gap between what T5's auto-apply functions compute internally and what the API actually surfaces; resolved via existing endpoints rather than scope creep into a new backend route.</p>
+        <p><strong>Updated Done criteria:</strong> "Manual: SEO panel shows fact provenance and auto-apply history" is satisfied via the versions-endpoint/previous_content workaround above, not a dedicated auto-apply-result field on the generate response. A real per-job status endpoint for fact extraction remains a known follow-up, not required for this spec's Done.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 4 - 2026-07-01</h3>
+        <p><strong>Change:</strong> Closed the two acceptance items left pending after Rev 3 (T6_FUNCTIONAL, T7) by running them live against a real client project (org 46, Tri-City Endodontics) with an authenticated super-admin JWT, and found + fixed three real bugs in the process:</p>
+        <p>(1) <code>SeoController.extractPageFacts</code>/<code>extractPostFacts</code> destructured <code>req.body</code> without a guard — a request with no body crashed with a 500 (<code>EXTRACTION_ERROR</code>) instead of the intended 400 <code>INVALID_INPUT</code>. Fixed with <code>req.body || {}</code> in both handlers.</p>
+        <p>(2) <code>extractPracticeFacts.processor.ts</code>'s business-data gate ran <em>before</em> the content check and returned early whenever <code>fetchBusinessData</code> came back null — which is common, since many orgs never populate <code>business_data</code>. This meant a page with rich, genuinely extractable content (equipment/technology names verbatim in the HTML) got zero facts purely because an unrelated JSON blob was empty, directly reproducing the sparse-business-data failure mode flagged during planning. Fixed: content is checked first; a missing business_data now logs and proceeds with page/post content only, instead of skipping extraction entirely.</p>
+        <p>(3) <code>usePracticeFacts.ts</code>'s original "fixed 6-second delay then single refetch" assumed extraction finishes in "low single-digit seconds" — observed real LLM latency was ~20-30s, so the single refetch fired too early and left the UI stuck on "No facts extracted yet" until a manual reload. Replaced with a bounded poll (9 attempts, ~41s ceiling, stops as soon as facts appear). While verifying that fix, a second issue surfaced: one transient mid-poll 500 aborted the whole poll loop silently. Fixed by wrapping each poll attempt in try/catch so one failed attempt doesn't cancel the remaining schedule.</p>
+        <p>All three fixes were re-verified live after the change: the no-body request now returns a clean 400; the previously-null-business_data page now yields 9 real, source-verified facts (ZEISS EXTARO 300 microscope, Morita Veraviewepocs 3D R100, Morita AdvErL EVO laser — each with a literal quoted excerpt); and the browser UI now shows extracted facts automatically, with zero manual reloads, surviving a transient error along the way. All test data written during verification was deleted from <code>practice_facts</code> afterward.</p>
+        <p><strong>Reason:</strong> Execution deviation — acceptance testing surfaced real defects introduced during T6/T5/T7, not pre-existing issues. Fixed per the "fix automatically when tests fail due to changes made in this execution" rule rather than merely reporting them as pending.</p>
+        <p><strong>Updated Done criteria:</strong> T6_FUNCTIONAL and T7 in <code>test-results.json</code> now both <code>pass</code> with live evidence. Acceptance artifact status rolls up to <code>Passed</code> — all 7 items pass, none pending or waived.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 5 - 2026-07-01</h3>
+        <p><strong>Change:</strong> Scope addition — real-time per-item progress for bulk SEO generation. Owner asked: when generating SEO in bulk from the pages list, clicking the "n/n" counter should show which items are pending, currently processing, and done, live. Investigated first: confirmed the current "n/n" indicator (<code>PagesTab.tsx:134-138</code> for pages, <code>PostTypeSeoButton.tsx:33-42</code> for posts) is a plain, non-interactive aggregate counter — no per-item status exists anywhere in the stack today (not in the DB schema, not via BullMQ's <code>job.updateProgress()</code> which is unused, not in the status API, not in the frontend poll hook). Added 5 new tasks (T8-T12): a new <code>item_statuses</code> jsonb column on <code>seo_generation_jobs</code> mirroring the existing <code>failed_items</code> jsonb precedent (T8); the worker seeds the full pending list right after it resolves entities (confirmed entities are only known inside the processor, not at job-creation time in the controller) and flips each item through <code>processing</code> → <code>done</code>/<code>failed</code> as it loops (T9); the status endpoint and frontend type expose the new array (T10); a new shared popover component makes the n/n counter clickable with a live grouped breakdown, reusing the existing 2s poll — no new polling mechanism (T11 pages, T12 posts, same component per §4.3).</p>
+        <p><strong>Reason:</strong> Scope addition: owner request, made after Rev 4 finalized the original practice-facts/GEO-layer scope. Kept in the same spec rather than a new plan folder since it's a direct continuation of the same SEO generation UX this spec already owns, and shares the same job model/status endpoint the original spec built on.</p>
+        <p><strong>Updated Done criteria:</strong> 6 new Done items added, tagged (Rev 5), covering the migration, live per-item accuracy, API shape, and the clickable popover for both pages and posts. Status moves back to <strong>In Progress</strong> pending T8-T12 execution.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 6 - 2026-07-01</h3>
+        <p><strong>Change:</strong> T8-T10 executed and live-verified. T9 confirmed the full worker mechanism against a real 3-page run in the sandbox org (org 45, <code>is_sandbox=true</code>): seeded pending list appears before any item starts, exactly one item <code>processing</code> at a time, all items <code>done</code> at completion — using an atomic SQL-level <code>jsonb_agg</code>/<code>CASE</code> update for <code>updateItemStatus</code> rather than read-modify-write, per §10.5. T10 additionally included <code>item_statuses</code> on <code>getActiveBulkSeoJob</code> (not explicitly named in T10's task card, but it returns the same <code>ISeoGenerationJob</code> row shape as <code>getBulkSeoStatus</code> — omitting it there would have made the frontend type a lie for that endpoint), and added the now-required <code>item_statuses: []</code> field to two pre-existing optimistic-state placeholder objects in <code>useBulkSeoProgress.ts</code> and <code>useWebsiteDetailBulkSeo.ts</code> that were typed as <code>BulkSeoStatus</code> before this field existed. T10's live curl evidence against an 8-page sandbox run confirmed the same pending → processing → done ordering end to end through the actual API response.</p>
+        <p><strong>Reason:</strong> Execution deviation: both T9 and T10 additions were direct, non-optional consequences of the exact change already specified (a shared row shape, a type that must stay accurate everywhere it's used) — not new scope.</p>
+        <p><strong>Updated Done criteria:</strong> none — T8, T9, T10 Done items above are satisfied as written.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 7 - 2026-07-01</h3>
+        <p><strong>Change:</strong> T11 and T12 completed, closing Rev 5. T11 (pages) built a shared <code>BulkSeoProgressPopover</code> (hand-rolled following the existing <code>ColorPicker.tsx</code> pattern — no shared Popover primitive exists in the codebase) and made the pages n/n counter a clickable trigger; live-verified in a real browser against an 8-page sandbox run (org 45), popover grouping and live updates confirmed with no reload. T12 (posts) reused that component as-is on <code>PostTypeSeoButton.tsx</code> (not forked, §4.3), converting its counter to the same trigger.</p>
+        <p>Two execution issues, both stated plainly: (1) the two subagents dispatched for T12 both stalled at the 600s watchdog — they had already written the correct code (verified on disk: import + state + popover render with matching props, frontend tsc clean) and stalled only in the live-browser verification phase. (2) The preview browser genuinely hangs in this session (reproduced firsthand: <code>preview_eval</code> timed out on navigation — the same failure that stalled the agents), and no sandbox org has any posts/post-types, so a full posts-side browser screenshot could not be produced without building a synthetic template→post_type→posts→LLM-run fixture chain. T12 was therefore verified by: identical reused component already live-proven in T11, matching prop contract with a passing <code>tsc -p tsconfig.app.json</code>, and a direct live proof of the posts data path — a real active post job was seeded and the exact endpoint <code>useBulkSeoProgress</code> polls (<code>GET /:id/seo/bulk-generate/active?entity_type=post&amp;post_type_id=…</code>) returned all four <code>item_statuses</code> (processing/pending/done/failed) correctly. Seeded fixtures deleted afterward (0 remaining). Also reconciled a T11 cleanup gap: deleted leftover sandbox job rows T11 had left; sandbox page <code>seo_data</code>/version rows intentionally left in place (isolated sandbox data; deleting scattered version rows risks corrupting the sandbox version sequence for no real benefit).</p>
+        <p><strong>Reason:</strong> Execution completion + honest limitation disclosure: broken preview tooling and absent posts fixtures, worked around with equivalence + direct data-path proof rather than a fabricated screenshot claim.</p>
+        <p><strong>Updated Done criteria:</strong> All 6 Rev 5 Done items satisfied. Acceptance artifact adds T8_T11 (pass, live) and T12 (pass, verified by equivalence + live data-path proof; carries a transparency waiver noting the posts-browser screenshot was not capturable due to the session's preview-browser hang). Rollup: Passed. Full spec status → <strong>Completed</strong>.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

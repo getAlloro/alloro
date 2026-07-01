@@ -20,6 +20,9 @@ import CriticalFields from "./SeoPanel/CriticalFields";
 import HighImpactFields from "./SeoPanel/HighImpactFields";
 import SchemaFields from "./SeoPanel/SchemaFields";
 import SocialFields from "./SeoPanel/SocialFields";
+import PracticeFactsPanel from "./SeoPanel/PracticeFactsPanel";
+import GeoFields from "./SeoPanel/GeoFields";
+import AutoApplyBanner from "./SeoPanel/AutoApplyBanner";
 
 // ---------------------------------------------------------------------------
 // Component
@@ -40,6 +43,8 @@ export default function SeoPanel({
   onSeoDataChange,
   organizationId,
   hideScoreBar = false,
+  currentVersion,
+  previousContent,
 }: SeoPanelProps) {
   const [seo, setSeo] = useState<SeoData>(seoData || {});
   const [activeSection, setActiveSection] = useState("critical");
@@ -439,6 +444,15 @@ export default function SeoPanel({
         {/* Main content */}
         <div className="flex-1 overflow-y-auto p-5">
           <div className="max-w-xl">
+            <AutoApplyBanner
+              projectId={projectId}
+              entityId={entityId}
+              entityType={entityType}
+              currentVersion={currentVersion}
+              previousContent={previousContent}
+              currentContent={pageContent}
+            />
+
             {/* Section header with action buttons */}
             <div className="flex items-center gap-2 mb-4">
               <span className={`w-2.5 h-2.5 rounded-full ${currentSection.dotColor}`} />
@@ -522,7 +536,16 @@ export default function SeoPanel({
               <HighImpactFields seo={seo} onChange={updateField} />
             )}
             {activeSection === "significant" && (
-              <SchemaFields seo={seo} onChange={updateField} />
+              <>
+                <SchemaFields seo={seo} onChange={updateField} />
+                <GeoFields seo={seo} />
+                <PracticeFactsPanel
+                  projectId={projectId}
+                  entityId={entityId}
+                  entityType={entityType}
+                  pageContent={pageContent}
+                />
+              </>
             )}
             {activeSection === "moderate" && (
               <SocialFields seo={seo} onChange={updateField} />

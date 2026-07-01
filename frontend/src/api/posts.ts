@@ -61,6 +61,12 @@ export interface Post {
   title: string;
   slug: string;
   content: string;
+  /**
+   * Pre-overwrite content snapshot written by GEO auto-apply before it
+   * prepends the opening_content_recommendation (PostModel.updateContentWithSnapshot).
+   * Null when no auto-apply has run yet for this post.
+   */
+  previous_content?: string | null;
   excerpt: string | null;
   featured_image: string | null;
   /**
