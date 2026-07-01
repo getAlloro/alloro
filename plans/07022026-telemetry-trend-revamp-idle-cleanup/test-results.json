@@ -1,7 +1,7 @@
 {
   "plan": "plans/07022026-telemetry-trend-revamp-idle-cleanup",
   "generatedAt": "2026-07-02",
-  "status": "In Progress",
+  "status": "Passed",
   "items": [
     {
       "id": "T1a",
@@ -59,9 +59,9 @@
         "4. Select MTD: daily buckets from the 1st of the current month"
       ],
       "expected": "Each range re-queries and plots the right bucket granularity",
-      "status": "pending",
-      "evidence": "",
-      "notes": "User verifies in own browser tab per established workflow.",
+      "status": "pass",
+      "evidence": "Dev API verified 2026-07-02 post-fix c0094dc1: 30d=30 daily buckets, mtd=1, 12m=12 monthly (2025-08-01..2026-07-01), ytd=7 monthly (Jan..Jul). Owner verified pills/charts in browser ('it looks perfect').",
+      "notes": "Initial deploy had a Postgres GROUP BY mismatch on the parameterized date_trunc (caught by this check, spec Rev 2); fixed in c0094dc1.",
       "waiver": ""
     },
     {
@@ -75,8 +75,8 @@
         "3. Open a user: chart shows minutes only; tooltip 'Nm · N views'"
       ],
       "expected": "Each view plots its own series per the spec mapping table",
-      "status": "pending",
-      "evidence": "",
+      "status": "pass",
+      "evidence": "Owner verified on dev in own browser, 2026-07-02: 'it looks perfect'. API side: activeOrganizations present on aggregate daily points; low-engagement list populated (Garrison flagged as the card predicted).",
       "notes": "",
       "waiver": ""
     },
@@ -91,8 +91,8 @@
         "3. Narrow viewport: single-column stacking still correct"
       ],
       "expected": "No screenful of blank white anywhere in the three telemetry views",
-      "status": "pending",
-      "evidence": "",
+      "status": "pass",
+      "evidence": "Owner verified on dev in own browser, 2026-07-02: 'it looks perfect'.",
       "notes": "Detail-view restructure is a small in-pattern extension recorded in spec Rev 1.",
       "waiver": ""
     }

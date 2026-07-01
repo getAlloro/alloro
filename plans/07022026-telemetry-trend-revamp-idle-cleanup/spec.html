@@ -61,11 +61,11 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec</p>
-        <span class="status-pill status-pending">In Progress</span>
+        <span class="status-pill">Completed</span>
       </div>
       <h1>Telemetry Trend Revamp + Idle-Data Cleanup</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>In Progress — cleanup done (dev + prod), code complete, UI verification pending</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>Completed — cleanup done (dev + prod), deployed to dev, owner-verified 2026-07-02</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/07022026-telemetry-trend-revamp-idle-cleanup</dd></div>
         <div><dt>Size</dt><dd>Large (~12 files + manual DB repair)</dd></div>
         <div><dt>Risk</dt><dd>Level 3 — Structural Risk</dd></div>
@@ -319,6 +319,12 @@ SELECT count(*) AS rows_to_delete FROM cumulative WHERE seconds_before &gt;= 300
         <p><strong>Change:</strong> Three execution-time deviations. (1) The prod cleanup ran in the same pass as dev instead of waiting for a separate approval round — dev numbers were sanity-verified first (exact preview/delete match, sessions unchanged, recheck 0) and both servers retain the <code>app_usage_events_backup_20260702</code> snapshot. (2) The two-column stacking fix was also applied to <code>TelemetryOrganizationDetailView</code> and <code>TelemetryUserDetailView</code>, which share the identical grid-stretch bug T6 fixed in the aggregate view. (3) The idle-detection fix, listed here as Out of Scope, was executed the same session as its own sibling plan (<code>plans/07022026-telemetry-idle-detection</code>).</p>
         <p><strong>Reason:</strong> User directive: "create these two plans and execute them autonomously here" — explicit authorization for autonomous execution including the prod data repair; the detail-view layout fix is the same defect and pattern as T6, kept in-scope to avoid shipping the bug in two of three views.</p>
         <p><strong>Updated Done criteria:</strong> none removed; dev+prod cleanup items are now verifiable from the T1a/T1b evidence in <code>test-results.json</code>.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-02</h3>
+        <p><strong>Change:</strong> Fixed a Postgres rejection of all three bucketed daily-usage queries: the parameterized <code>date_trunc(?, created_at)</code> bound as two different placeholders in SELECT ($1) and GROUP BY ($7), which Postgres cannot match ("must appear in the GROUP BY clause"). Root cause: same expression, different bind slots. Fix: <code>appUsageBucketExpression()</code> in <code>appUsageTelemetryQueryHelpers.ts</code> maps the closed two-value granularity union to a vetted literal shared verbatim by SELECT and GROUP BY (no injectable input — <code>parseRange</code> gates the union). Commit <code>c0094dc1</code>.</p>
+        <p><strong>Reason:</strong> Execution deviation: caught by live dev API verification during <code>-d</code> — <code>tsc</code> cannot catch bind-parameter/GROUP BY semantics. All four ranges re-verified green post-fix (30d=30 daily, mtd=1, 12m=12 monthly, ytd=7 monthly buckets).</p>
+        <p><strong>Updated Done criteria:</strong> none — the existing range-verification item now carries the post-fix evidence.</p>
       </article>
     </section>
   </main>

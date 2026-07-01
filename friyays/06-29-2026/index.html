@@ -31,7 +31,7 @@
           <div class="status-stack">
             <span class="tag good">Ready for review</span>
             <span class="tag">1 client-view item</span>
-            <span class="tag">1 admin/operator item</span>
+            <span class="tag">2 admin/operator items</span>
             <span class="tag good">Acceptance passed</span>
           </div>
         </aside>
@@ -169,6 +169,27 @@
                   noted as waivers). Internal tooling speed/reliability fix, not a
                   customer-visible dashboard change &mdash; flagging here per the
                   deployment/reliability-improvement rule rather than omitting.
+                </td>
+              </tr>
+              <tr>
+                <td>Admin telemetry</td>
+                <td>Telemetry trust: idle detection, idle-data cleanup, usage-trend revamp</td>
+                <td>Internal &mdash; Mission Control operators reading client engagement</td>
+                <td>Deployed to dev, user-verified</td>
+                <td>No</td>
+                <td>
+                  Heartbeat now stops counting after 2 idle minutes; historical idle
+                  inflation surgically removed on dev AND prod (5-min per-run cap,
+                  snapshotted &mdash; prod minutes 2,816&rarr;718, sessions unchanged);
+                  Usage Trend chart now plots per-view series (orgs+minutes /
+                  users+minutes / minutes) across six ranges incl. monthly 12M/YTD;
+                  layout dead-space fixed. Garrison correctly surfaced as the first
+                  low-engagement flag. Changelog 0.0.144. See
+                  <code>plans/07022026-telemetry-trend-revamp-idle-cleanup/test-results.json</code>
+                  and <code>plans/07022026-telemetry-idle-detection/test-results.json</code>
+                  (both Passed). Prod app code still pre-filtering until the next
+                  main merge &mdash; prod DB was data-repaired but re-inflates slowly
+                  until then. Internal admin tooling; not customer-email material.
                 </td>
               </tr>
             </tbody>
