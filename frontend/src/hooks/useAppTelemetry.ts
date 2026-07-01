@@ -11,6 +11,19 @@ import { isEmbeddedPilotSession } from "../utils/embeddedPilotSession";
 
 const SESSION_KEY = "alloro_app_telemetry_session_id";
 const HEARTBEAT_INTERVAL_MS = 30_000;
+// Stop counting active time this long after the last real interaction —
+// a visible-but-parked tab must not accrue engagement minutes.
+const IDLE_GRACE_MS = 2 * 60_000;
+// Throttle for interaction timestamp writes (pointermove fires constantly).
+const INTERACTION_SAMPLE_MS = 1_000;
+const INTERACTION_EVENTS = [
+  "pointermove",
+  "pointerdown",
+  "keydown",
+  "wheel",
+  "touchstart",
+  "scroll",
+] as const;
 let embeddedTelemetrySessionId: string | null = null;
 
 type CurrentRoute = {
@@ -27,6 +40,7 @@ export function useAppTelemetry(): void {
   const hasSentSessionStart = useRef(false);
   const currentRoute = useRef<CurrentRoute | null>(null);
   const lastActiveAt = useRef(Date.now());
+  const lastInteractionAt = useRef(Date.now());
 
   useEffect(() => {
     if (isLoadingUserProperties) return;
@@ -50,6 +64,8 @@ export function useAppTelemetry(): void {
     };
     currentRoute.current = route;
     lastActiveAt.current = Date.now();
+    // Navigating is itself an interaction.
+    lastInteractionAt.current = Date.now();
 
     const events: AppTelemetryEvent[] = [];
     if (!hasSentSessionStart.current) {
@@ -66,15 +82,29 @@ export function useAppTelemetry(): void {
   }, [isLoadingUserProperties, location.pathname, location.search, sessionId]);
 
   useEffect(() => {
+    const markInteraction = () => {
+      const now = Date.now();
+      if (now - lastInteractionAt.current >= INTERACTION_SAMPLE_MS) {
+        lastInteractionAt.current = now;
+      }
+    };
+
     const flushHeartbeat = () => {
       if (!hasTelemetryAuth()) return;
       if (document.visibilityState !== "visible") return;
       const route = currentRoute.current;
       if (!route) return;
       const now = Date.now();
+      // Count time only while the user is actually interacting: the counted
+      // window ends IDLE_GRACE_MS after the last input, so a visible but
+      // parked tab stops accruing minutes until the next interaction.
+      const countedUntil = Math.min(
+        now,
+        lastInteractionAt.current + IDLE_GRACE_MS,
+      );
       const activeSeconds = Math.max(
         0,
-        Math.round((now - lastActiveAt.current) / 1000),
+        Math.round((countedUntil - lastActiveAt.current) / 1000),
       );
       lastActiveAt.current = now;
       if (activeSeconds === 0) return;
@@ -84,18 +114,32 @@ export function useAppTelemetry(): void {
     };
 
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") flushHeartbeat();
-      else lastActiveAt.current = Date.now();
+      if (document.visibilityState === "hidden") {
+        flushHeartbeat();
+        return;
+      }
+      // Returning to the tab is itself an interaction.
+      lastActiveAt.current = Date.now();
+      lastInteractionAt.current = Date.now();
     };
 
     const interval = window.setInterval(flushHeartbeat, HEARTBEAT_INTERVAL_MS);
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("pagehide", flushHeartbeat);
+    INTERACTION_EVENTS.forEach((eventName) =>
+      window.addEventListener(eventName, markInteraction, {
+        passive: true,
+        capture: true,
+      }),
+    );
 
     return () => {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("pagehide", flushHeartbeat);
+      INTERACTION_EVENTS.forEach((eventName) =>
+        window.removeEventListener(eventName, markInteraction, true),
+      );
     };
   }, [sessionId]);
 }
