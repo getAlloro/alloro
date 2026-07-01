@@ -34,6 +34,16 @@ export function buildOrganizationUsageQuery(
       );
   }
 
+  // Alloro Teams (sandbox orgs) and internal staff never count as client
+  // engagement — excluded unconditionally, not behind a toggle.
+  query
+    .whereRaw(
+      `NOT EXISTS (SELECT 1 FROM organizations WHERE organizations.id = ${APP_USAGE_EVENTS_TABLE}.organization_id AND organizations.is_sandbox = true)`,
+    )
+    .whereRaw(
+      `NOT EXISTS (SELECT 1 FROM users WHERE users.id = ${APP_USAGE_EVENTS_TABLE}.user_id AND users.is_internal = true)`,
+    );
+
   return query;
 }
 

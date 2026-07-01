@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Telemetry Internal-Team Filtering Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 12px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .risk-item { border-top: 1px solid var(--line); padding: 12px 0; }
+    .risk-item:first-child { border-top: none; padding-top: 0; }
+    .dep-note { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">In Progress</span>
+      </div>
+      <h1>Telemetry Internal-Team Filtering</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>In Progress — code complete (T1-T6), pending deploy/migrate and manual verification (T7-T8)</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07012026-telemetry-internal-filtering</dd></div>
+        <div><dt>Size</dt><dd>Large (11 files, 6 code tasks + 1 manual)</dd></div>
+        <div><dt>Risk</dt><dd>Level 3 — Structural Risk</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Internal Alloro app usage — team logins, Pilot support sessions, and the internal Alloro Teams organization — is currently counted as real client engagement in the product telemetry system (<code>app_usage_events</code>). Corey flagged on the June 29 Weekly Reset that the Alloro Teams org accounts for 505 of 625 logged minutes, and that Garrison (zero logins) and Artful (90 seconds) are real engagement signals that are invisible until internal noise is removed. Jo confirmed this data will drive future CS outreach when clients go quiet, so it has to be trustworthy first. DentalEMR — fully offboarded — is also still showing in the organization list.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Stop internal activity from being recorded as telemetry going forward, filter it out of every existing rendered metric, archive DentalEMR, and add a zero-login / low-engagement flag to the Mission Control telemetry view so Corey and Jo can see real client engagement at a glance — no manual noise-subtraction required.</p>
+      <p><strong>Done means:</strong> Mission Control's telemetry tab shows numbers with zero internal-team or Alloro-Teams contamination, DentalEMR is archived and off the org list, and orgs with zero logins or under 5 active minutes in the trailing 30 days are visibly flagged in that same view.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>What "Pilot" actually means here</h3>
+      <p><code>is_pilot_session</code> on <code>app_usage_events</code> does <strong>not</strong> mean a trial client account. It flags telemetry generated during Mission Control's embedded "Pilot" support feature (<code>plans/06272026-embedded-organization-pilot-tab</code>) — an admin viewing/acting as a client user in an iframe for support/debugging. Pilot-session rows are staff-generated support-tool activity, not client usage. This spec treats "pilotted accounts" in the original ask as this existing flag, confirmed with the user.</p>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/models/AppUsageEventModel.ts</code> - private <code>base()</code> (line 291) is the single query builder behind every global telemetry metric (summary, daily/surface/page usage, org list, user list, inactive-org count). Currently filters only <code>is_pilot_session</code> and <code>is_admin_surface</code>/mission_control surface — never <code>organizations.is_sandbox</code> or any user-internal flag.</li>
+        <li><code>src/models/appUsageTelemetryQueryHelpers.ts</code> - <code>buildOrganizationUsageQuery()</code> (line 8) is the query builder behind org-detail and user-detail telemetry views (via <code>AppUsageOrganizationTelemetryModel.base()</code> and <code>AppUsageUserTelemetryModel.base()</code>, which both delegate to it). Same filtering gap as above. These two functions are the entire blast radius of the read-side fix — every telemetry view funnels through one of them.</li>
+        <li><code>src/models/AppUsageEventModel.ts:314</code> - <code>countInactivePaidOrganizations()</code> is the existing reference pattern for "eligible client org" (<code>archived_at IS NULL AND is_sandbox = false AND subscription_status = 'active'</code>) and for a LEFT JOIN that surfaces orgs with <em>zero</em> matching events — the correct analog for the new low-engagement flag, since the existing org-list query INNER JOINs to <code>app_usage_events</code> and would silently omit any org with zero events in range.</li>
+        <li><code>src/controllers/app-telemetry/feature-services/AppTelemetryIngestionService.ts</code> - <code>ingestAppTelemetryEvents()</code> (line 31) is the single write path for every telemetry event. <code>actor.userId</code>/<code>actor.organizationId</code> already come from server-side auth context in <code>AppTelemetryController.recordEvents()</code> (<code>req.userId</code>, <code>req.organizationId</code>) — not client input, so the write-side block can trust these two identifiers. <code>isPilotSession</code>, by contrast, is a client-supplied boolean (<code>input.isPilotSession === true</code>) — flagged in Risk below.</li>
+        <li><code>src/models/UserModel.ts</code> - <code>IUser</code> interface (lines 4-19) has no role/admin/internal flag today. Needs <code>is_internal</code> added.</li>
+        <li><code>src/models/OrganizationModel.ts</code> - already exposes <code>is_sandbox</code> (used by <code>countInactivePaidOrganizations</code>); confirm the same accessor is usable from the ingestion write path.</li>
+        <li><code>src/controllers/admin-mission-control/feature-services/MissionControlTelemetryService.ts</code> - <code>getMissionControlTelemetryData()</code> (line 82) assembles the org list the frontend renders; this is where the low-engagement flag gets attached per org row.</li>
+        <li><code>frontend/src/components/Admin/mission-control/telemetry/TelemetryToolbar.tsx:55-68</code> - has the <code>includePilot</code>/<code>includeAdmin</code> toggle controls. <code>includePilot</code> toggle is removed per this spec (pilot is hard-blocked at write time, so nothing is left to toggle).</li>
+        <li><code>frontend/src/components/Admin/mission-control/telemetry/MissionControlTelemetryTab.tsx</code> - renders the org list; gains the low-engagement flag/badge per row.</li>
+        <li><code>src/controllers/admin-organizations/feature-services/OrganizationArchiveService.ts</code> - existing <code>archiveOrganization()</code>, already wired to <code>PATCH /api/admin/organizations/:id/archive</code> and a UI Archive button in <code>frontend/src/components/Admin/org/OrgSettingsSection.tsx</code>. DentalEMR (organization id 6) is archived through this existing, unmodified path — no new code.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Migration structure mirrors <code>src/database/migrations/20260604000005_add_is_sandbox_to_organizations.ts</code>: <code>hasColumn()</code> guard, <code>alterTable().notNullable().defaultTo(false)</code>, one-time backfill query, reversible <code>down()</code>.</li>
+        <li>New low-engagement query mirrors <code>AppUsageEventModel.countInactivePaidOrganizations()</code>'s LEFT JOIN pattern — required because the existing org-list query INNER JOINs to <code>app_usage_events</code> and cannot surface zero-activity orgs on its own.</li>
+        <li>Backend structure follows <code>§6.1</code> (<code>src/controllers/gbp-automation/</code> reference): thin controller/service call, all DB access through <code>models/</code>, no inline queries in the ingestion service.</li>
+        <li>Frontend follows <code>§12.1</code> (the <code>frontend/src/api/</code> + React Query + feature-folder triad) — no raw <code>fetch</code>, data-fetching stays in the existing telemetry hook layer.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/database/migrations/20260604000005_add_is_sandbox_to_organizations.ts</code> - structural analog for the new <code>users.is_internal</code> migration.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Exclude <code>is_sandbox = true</code> organizations and <code>is_internal = true</code> users unconditionally from every telemetry read path (not behind a toggle) — matches the existing unconditional exclusion in <code>countInactivePaidOrganizations()</code>.</li>
+            <li>Block telemetry event writes at ingestion for: internal users (<code>is_internal</code>), sandbox/internal orgs (<code>is_sandbox</code>), and Pilot support sessions (<code>isPilotSession</code>).</li>
+            <li>Purge existing Pilot-session rows from <code>app_usage_events</code> via migration (per explicit user decision — see Revision context below).</li>
+            <li>Keep historical rows for internal users and the Alloro Teams org intact, filtered at read time only — do not delete them (distinct decision from Pilot rows; these may have other diagnostic value).</li>
+            <li>Add <code>users.is_internal</code>, backfilled by <code>@getalloro.com</code> email domain, following the <code>is_sandbox</code> migration pattern exactly.</li>
+            <li>Archive DentalEMR (org id 6) through the existing <code>OrganizationArchiveService</code> / admin UI Archive action — not a hard delete.</li>
+            <li>Low-engagement flag: zero sessions OR under 5 active minutes, trailing 30 days, computed only over eligible client orgs (<code>archived_at IS NULL AND is_sandbox = false</code>), surfaced in the existing Mission Control telemetry organization list.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not drop the <code>is_pilot_session</code> column or remove backend query-param plumbing for <code>includePilot</code> — leave it inert. Full plumbing removal is out of scope (see Out of Scope).</li>
+            <li>Do not hard-delete DentalEMR's organization row or any FK-referenced data.</li>
+            <li>Do not fix the DentalEMR revenue hardcode in <code>src/services/businessMetrics.ts:18</code> (<code>ORG_MONTHLY_RATE</code>) or the domain mapping in <code>src/utils/core/domainMappings.ts:89-95</code> — real bugs, but unrelated to telemetry filtering. Flagged as a follow-up.</li>
+            <li>Do not fix the client-trusted <code>isPilotSession</code> boolean at ingestion (§5.4 concern, pre-existing) beyond what this spec already requires — flagged in Risk, not remediated here.</li>
+            <li>Do not introduce a new toggle/state-management pattern on the frontend for the low-engagement flag — render it as a derived badge from data already being fetched.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Removing the <code>includePilot</code> query-param plumbing from <code>AppUsageRangeParams</code>, <code>MissionControlTelemetryData</code>, and the route layer. The user asked only to remove the frontend toggle control; the backend param becomes inert (always effectively <code>false</code>-equivalent post-purge) but removing it end-to-end touches ~5 more files for no functional gain.</li>
+        <li>DentalEMR revenue-metrics hardcode cleanup (separate bug, separate ticket).</li>
+        <li>Server-side verification of the client-supplied <code>isPilotSession</code> flag (separate hardening ticket).</li>
+        <li>Automated CS-outreach trigger off the low-engagement flag — this spec only surfaces the flag; wiring it to an outreach workflow is future scope per the "Build — Journey Insights Dashboard" related card.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 — Structural Risk</p>
+      <h3>Risks Identified</h3>
+      <div class="risk-item">
+        <p><strong>Centralized but high-traffic blast radius.</strong> <code>AppUsageEventModel.base()</code> and <code>buildOrganizationUsageQuery()</code> are the sole query path for every Mission Control telemetry view (global summary, daily/surface/page usage, org list, org detail, user detail, inactive-org count). A filtering mistake in either function silently corrupts every one of those views at once, not just one.</p>
+        <p><strong>Mitigation:</strong> Change is centralized to exactly 2 functions (confirmed by reading every consumer). Verify each of the 7 downstream read methods manually post-change, not just the org-list view Corey looked at.</p>
+      </div>
+      <div class="risk-item">
+        <p><strong>Irreversible production data purge.</strong> Migration 2 (<code>DELETE FROM app_usage_events WHERE is_pilot_session = true</code>) permanently removes rows on the production database. Per this repo's migration-safety rules, this must be flagged explicitly before merge.</p>
+        <p><strong>Mitigation:</strong> Rows being deleted are staff-generated Pilot-support-session telemetry (not client data, not billing data, not PII beyond internal staff identifiers already visible in Mission Control). Confirmed via the deliberate user decision to purge (see Pushback below). Runs on dev first per standard deploy path; verify row count before/after on dev before the same migration reaches prod via <code>main</code>.</p>
+      </div>
+      <div class="risk-item">
+        <p><strong>Live ingestion endpoint behavior change.</strong> <code>AppTelemetryController.recordEvents()</code> is hit on every authenticated page navigation across the app. Adding an internal/sandbox lookup on the write path introduces a new failure surface (DB lookup latency, lookup errors) on a hot path.</p>
+        <p><strong>Mitigation:</strong> Reuse the actor's already-resolved <code>userId</code>/<code>organizationId</code> (already fetched per-request elsewhere in the auth chain) rather than adding a second DB round-trip if avoidable during execution; if a lookup is unavoidable, wrap it in the same try/catch already present in <code>recordEvents()</code> and fail open (skip the block, log, don't 500) so a lookup failure never breaks page telemetry for real users.</p>
+      </div>
+      <p><strong>Blast radius:</strong> <code>AppUsageEventModel</code> (7 public methods), <code>AppUsageOrganizationTelemetryModel</code>, <code>AppUsageUserTelemetryModel</code>, <code>AppUsageOrganizationMovementModel</code> query consumers, <code>MissionControlTelemetryService.ts</code> (4 exported functions), <code>AppTelemetryIngestionService.ts</code> / <code>AppTelemetryController.ts</code> (live write path), <code>TelemetryToolbar.tsx</code>, <code>MissionControlTelemetryTab.tsx</code>.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li><strong>Purging Pilot rows vs. keeping+filtering them.</strong> Recommended keeping all historical data and filtering at read time only (reversible, matches how internal-user and Alloro-Teams data is handled elsewhere in this same spec). User explicitly chose the harder line for Pilot specifically: hard-block writes, delete existing rows, remove the toggle entirely. Documented here as a deliberate, informed deviation from the safer default — not an oversight.</li>
+        <li><strong>Client-trusted <code>isPilotSession</code> flag.</strong> The flag this entire Pilot-blocking mechanism depends on is currently set by the frontend, not verified server-side (§5.4: never trust client input). This spec does not fix that — it's pre-existing and out of scope — but it means the write-side Pilot block is only as reliable as the frontend's own reporting. Recommend a follow-up ticket to move Pilot-session detection to a server-verified signal (e.g., presence of an active embedded-pilot token) rather than a client-reported boolean.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Migration — add users.is_internal</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>is_internal boolean not null default false</code> to <code>users</code>; backfill <code>true</code> where <code>lower(email) LIKE '%@getalloro.com'</code>. Mirror <code>20260604000005_add_is_sandbox_to_organizations.ts</code> structure exactly (hasColumn guard, reversible down).</dd>
+          <div><dt>Files</dt><dd><code>src/database/migrations/{timestamp}_add_is_internal_to_users.ts</code> (new)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Migrate on dev, confirm <code>SELECT email, is_internal FROM users WHERE is_internal = true</code> returns exactly the 4 <code>@getalloro.com</code> accounts.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Migration — purge existing Pilot-session telemetry rows</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>DELETE FROM app_usage_events WHERE is_pilot_session = true</code>. Irreversible <code>down()</code> (documented no-op). See migrations scaffold in this plan folder for the full statement.</dd></div>
+          <div><dt>Files</dt><dd><code>src/database/migrations/{timestamp}_purge_pilot_session_app_usage_events.ts</code> (new)</dd></div>
+          <div><dt>Depends on</dt><dd>none (parallel with T1)</dd></div>
+          <div><dt>Verify</dt><dd>On dev: record row count where <code>is_pilot_session = true</code> before migrating, confirm 0 after. Confirm total row count drop matches.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Backend — centralize read-side exclusion filters</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>AppUsageEventModel.base()</code> and <code>appUsageTelemetryQueryHelpers.buildOrganizationUsageQuery()</code>: join <code>organizations</code> (if not already joined) and unconditionally exclude <code>is_sandbox = true</code>; join/subquery <code>users</code> and unconditionally exclude <code>is_internal = true</code>. Applies regardless of <code>includeAdmin</code>/<code>includePilot</code> toggle state — these are baseline exclusions, not optional views.</dd></div>
+          <div><dt>Files</dt><dd><code>src/models/AppUsageEventModel.ts</code>, <code>src/models/appUsageTelemetryQueryHelpers.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1 (needs <code>users.is_internal</code> to exist)</dd></div>
+          <div><dt>Verify</dt><dd>On dev, with dev's own <code>is_sandbox</code>/<code>is_internal</code> data: confirm Mission Control telemetry summary excludes the Alloro Teams org and all 4 internal accounts from every metric (activeUsers, sessions, activeMinutes) across all 7 consumer methods, not just the org list.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Backend — write-side hard block at ingestion</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>ingestAppTelemetryEvents()</code>: before insert, resolve the actor's <code>is_internal</code> (via <code>UserModel</code>) and the target org's <code>is_sandbox</code> (via <code>OrganizationModel</code>); skip the insert (return <code>{ accepted: 0 }</code>) if either is true, or if any event in the batch has <code>isPilotSession === true</code>. Wrap the lookup in the existing try/catch and fail open (log, don't block real ingestion) per the Risk mitigation above.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/app-telemetry/feature-services/AppTelemetryIngestionService.ts</code>, <code>src/models/UserModel.ts</code> (expose <code>is_internal</code> on <code>IUser</code>)</dd></div>
+          <div><dt>Depends on</dt><dd>T1 (needs <code>users.is_internal</code> to exist)</dd></div>
+          <div><dt>Verify</dt><dd>On dev: log in as an <code>@getalloro.com</code> account, navigate the app, confirm no new <code>app_usage_events</code> rows are written for that user. Confirm a real client account's telemetry still writes normally.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Backend — zero-login / low-engagement flag</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New method (e.g. <code>AppUsageEventModel.getLowEngagementOrganizations()</code>) mirroring <code>countInactivePaidOrganizations()</code>'s LEFT JOIN pattern over eligible client orgs (<code>archived_at IS NULL AND is_sandbox = false AND subscription_status = 'active'</code>), aggregating sessions/active-minutes over the trailing 30 days, returning orgs where sessions = 0 OR active minutes &lt; 5. Wire the result into <code>getMissionControlTelemetryData()</code> as a per-org <code>isLowEngagement</code> boolean.</dd></div>
+          <div><dt>Files</dt><dd><code>src/models/AppUsageEventModel.ts</code>, <code>src/controllers/admin-mission-control/feature-services/MissionControlTelemetryService.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3 (flag must run against the now-clean exclusion baseline, or internal test traffic could mask a real zero-engagement client)</dd></div>
+          <div><dt>Verify</dt><dd>On dev, seed/confirm an org with zero events in 30 days appears with <code>isLowEngagement: true</code> — this could not previously happen because <code>getOrganizationUsage()</code> INNER JOINs and silently omits zero-activity orgs.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Frontend — remove Pilot toggle, surface low-engagement badge</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Remove the <code>includePilot</code> toggle control from <code>TelemetryToolbar.tsx</code> (backend param plumbing stays, per Out of Scope). Render a low-engagement badge/flag on each organization row in <code>MissionControlTelemetryTab.tsx</code> using the new <code>isLowEngagement</code> field.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/Admin/mission-control/telemetry/TelemetryToolbar.tsx</code>, <code>frontend/src/components/Admin/mission-control/telemetry/MissionControlTelemetryTab.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T5 (needs the backend flag field)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: open Mission Control telemetry tab on dev, confirm the Pilot toggle is gone, confirm Garrison (or dev-equivalent low-activity org) shows the low-engagement badge.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T7: Archive DentalEMR (manual, no code)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Use the existing Archive action in <code>/admin/organization-detail/6?section=settings</code> to archive DentalEMR (org id 6) with an offboarding reason. No new code — this path already exists end to end.</dd></div>
+          <div><dt>Files</dt><dd>none — operator action via existing UI</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: confirm DentalEMR no longer appears in the default org list, and <code>organizations.archived_at</code> is set for org id 6.</dd></div>
+        </dl>
+      </article>
+
+      <p class="dep-note">Parallelizable groups for execution: {T1, T2} → {T3, T4} → T5 → T6. T7 is independent and can run anytime.</p>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> - zero errors</li>
+        <li><input type="checkbox" disabled> <code>npm run check:all</code> - zero new backend violations (§7.4, §9.1, §11.7 relevant to this change)</li>
+        <li><input type="checkbox" disabled> Migrations run clean on dev, verified before merge to <code>main</code>/prod per standard deploy path</li>
+        <li><input type="checkbox" disabled> Manual: Mission Control telemetry summary excludes Alloro Teams org and all 4 internal accounts across every metric, not just the org list</li>
+        <li><input type="checkbox" disabled> Manual: an <code>@getalloro.com</code> login produces zero new telemetry rows; a real client login still writes normally</li>
+        <li><input type="checkbox" disabled> Manual: DentalEMR archived, absent from the default org list</li>
+        <li><input type="checkbox" disabled> Manual: low-engagement badge visible in Mission Control telemetry tab; a zero-activity org (Garrison, on prod) is flagged</li>
+        <li><input type="checkbox" disabled> Manual: Pilot toggle removed from the telemetry UI; a Pilot support session produces zero new telemetry rows</li>
+        <li><input type="checkbox" disabled> Updated telemetry numbers pulled post-deploy and shared with Jo and Corey (post-code-freeze action, tracked here for closure)</li>
+        <li><input type="checkbox" disabled> No regressions in other Mission Control telemetry views (surface usage, page usage, daily usage charts)</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

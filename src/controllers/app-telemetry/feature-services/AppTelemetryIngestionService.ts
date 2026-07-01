@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import {
   APP_TELEMETRY_PROPERTY_KEY_SET,
   isAppTelemetryEventName,
@@ -8,6 +9,8 @@ import {
   AppUsageEventInsert,
   AppUsageEventModel,
 } from "../../../models/AppUsageEventModel";
+import { UserModel } from "../../../models/UserModel";
+import { OrganizationModel } from "../../../models/OrganizationModel";
 import type { UserRole } from "../../../middleware/rbac";
 
 const MAX_BATCH_SIZE = 20;
@@ -32,9 +35,36 @@ export async function ingestAppTelemetryEvents(
   body: unknown,
   actor: AppTelemetryActor,
 ): Promise<{ accepted: number }> {
-  const events = extractEvents(body).map((event) => normalizeEvent(event, actor));
+  // Pilot (Mission Control's embedded "view as user" support sessions) never
+  // counts as client telemetry — dropped per-event, going forward.
+  const events = extractEvents(body)
+    .map((event) => normalizeEvent(event, actor))
+    .filter((event) => !event.is_pilot_session);
+
+  if (events.length === 0) return { accepted: 0 };
+  if (await isSuppressedActor(actor)) return { accepted: 0 };
+
   const accepted = await AppUsageEventModel.createMany(events);
   return { accepted };
+}
+
+// Internal staff (@getalloro.com) and sandbox/internal orgs (e.g. Alloro
+// Teams) never generate real client telemetry — blocked at write time here,
+// not just filtered at read time. Fails open on lookup errors: a DB hiccup
+// on this hot path must never drop legitimate client telemetry.
+async function isSuppressedActor(actor: AppTelemetryActor): Promise<boolean> {
+  try {
+    const [user, organization] = await Promise.all([
+      UserModel.findInternalFlagById(actor.userId),
+      actor.organizationId
+        ? OrganizationModel.findSandboxFlagById(actor.organizationId)
+        : Promise.resolve(undefined),
+    ]);
+    return Boolean(user?.is_internal) || Boolean(organization?.is_sandbox);
+  } catch (error) {
+    Sentry.captureException(error);
+    return false;
+  }
 }
 
 function extractEvents(body: unknown): Record<string, unknown>[] {

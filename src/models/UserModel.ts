@@ -14,6 +14,7 @@ export interface IUser {
   email_verification_expires_at: Date | null;
   password_reset_code: string | null;
   password_reset_expires_at: Date | null;
+  is_internal: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -174,6 +175,14 @@ export class UserModel extends BaseModel {
     trx?: QueryContext
   ): Promise<number> {
     return super.updateById(id, { password_hash: passwordHash }, trx);
+  }
+
+  // (id) → is_internal projection, used by telemetry ingestion's write-side block.
+  static async findInternalFlagById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<{ is_internal: boolean } | undefined> {
+    return this.table(trx).where({ id }).select("is_internal").first();
   }
 
   // Fetch a single user's email (used by PM enrichment helpers).

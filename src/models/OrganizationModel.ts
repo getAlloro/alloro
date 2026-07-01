@@ -21,6 +21,7 @@ export interface IOrganization {
   onboarding_wizard_completed: boolean;
   setup_progress: Record<string, unknown> | null;
   business_data: Record<string, unknown> | null;
+  is_sandbox: boolean;
   archived_at: Date | null;
   archived_by_user_id: number | null;
   archive_reason: string | null;
@@ -263,6 +264,14 @@ export class OrganizationModel extends BaseModel {
           .orWhereNotNull("subscription_tier");
       })
       .select("id");
+  }
+
+  /** is_sandbox projection for an org — used by telemetry ingestion's write-side block. */
+  static async findSandboxFlagById(
+    id: number,
+    trx?: QueryContext
+  ): Promise<{ is_sandbox: boolean } | undefined> {
+    return this.table(trx).where({ id }).select("is_sandbox").first();
   }
 
   /** Domain-only projection for an organization (or undefined if missing). */

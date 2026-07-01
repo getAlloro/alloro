@@ -1,0 +1,132 @@
+{
+  "plan": "plans/07012026-telemetry-internal-filtering",
+  "generatedAt": "2026-07-01",
+  "status": "Not Run",
+  "items": [
+    {
+      "id": "T1",
+      "title": "users.is_internal backfilled correctly",
+      "surface": "cli",
+      "precondition": "Migration 20260701010000_add_is_internal_to_users.ts has run on the target database.",
+      "steps": [
+        "1. Run: SELECT email, is_internal FROM users WHERE is_internal = true ORDER BY email;",
+        "2. Confirm the result set is exactly the @getalloro.com accounts and nothing else."
+      ],
+      "expected": "Only @getalloro.com accounts have is_internal = true.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Not run — migration has not been applied to dev/prod yet.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Pilot-session rows purged from app_usage_events",
+      "surface": "cli",
+      "precondition": "Migration 20260701020000_purge_pilot_session_app_usage_events.ts has run.",
+      "steps": [
+        "1. Before migrating, run: SELECT count(*) FROM app_usage_events WHERE is_pilot_session = true;",
+        "2. After migrating, run the same query."
+      ],
+      "expected": "Post-migration count is 0.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Not run — migration has not been applied to dev/prod yet.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Alloro Teams org and internal users excluded from every telemetry metric",
+      "surface": "api",
+      "precondition": "T1 migration applied; an @getalloro.com account has logged into the app after this deploy.",
+      "steps": [
+        "1. GET /api/admin/mission-control/telemetry?range=30d as a super admin.",
+        "2. Confirm the Alloro Teams org does not appear in organizationUsage.",
+        "3. Confirm summary.activeUsers / totalSessions / totalActiveMinutes do not include internal accounts (cross-check against a known internal-only session)."
+      ],
+      "expected": "No is_sandbox org or is_internal user activity appears in summary, dailyUsage, surfaceUsage, pageUsage, organizationUsage, or per-user detail views.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Requires dev deploy + live traffic to verify meaningfully.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Telemetry write-side block: internal/sandbox/pilot events are not recorded",
+      "surface": "ui",
+      "precondition": "T1, T3, T4 code deployed; test account available at an @getalloro.com email.",
+      "steps": [
+        "1. Log in as an @getalloro.com account, navigate several pages.",
+        "2. Query app_usage_events for that user_id and created_at after login time.",
+        "3. Repeat with a real (non-internal) client account as a control."
+      ],
+      "expected": "Zero new rows for the internal account; normal rows for the control account.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Requires dev deploy and an interactive login — left for human/computer-use run.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Low-engagement flag surfaces zero-activity and low-activity client orgs",
+      "surface": "api",
+      "precondition": "T3, T5 deployed; at least one eligible client org with zero or <5 min activity in the trailing 30 days.",
+      "steps": [
+        "1. GET /api/admin/mission-control/telemetry?range=30d.",
+        "2. Confirm organizationUsage includes an entry with isLowEngagement: true for a known low-activity org (e.g. Garrison on prod).",
+        "3. Confirm a zero-activity org appears even though it has no app_usage_events rows at all."
+      ],
+      "expected": "Low-activity and zero-activity eligible client orgs are present and flagged.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Requires dev/prod data to verify meaningfully — dev may not have a naturally zero-activity eligible org.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Pilot toggle removed; low-engagement badge renders",
+      "surface": "ui",
+      "precondition": "Frontend deployed; admin session in Mission Control.",
+      "steps": [
+        "1. Open Mission Control → Telemetry tab.",
+        "2. Confirm only the Admin toggle remains (no Pilot toggle).",
+        "3. Confirm a flagged org shows the \"Low engagement\" badge next to its name."
+      ],
+      "expected": "Pilot toggle absent; badge visible on flagged rows.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Not run — needs an authenticated Mission Control session; left for the user to verify in their own browser tab per established workflow.",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "DentalEMR archived and off the default org list",
+      "surface": "ui",
+      "precondition": "Admin access to /admin/organization-detail/6.",
+      "steps": [
+        "1. Archive DentalEMR (org id 6) via the existing Archive action.",
+        "2. Confirm it no longer appears in the default (active) organization list.",
+        "3. Confirm organizations.archived_at is set for org id 6."
+      ],
+      "expected": "DentalEMR archived, absent from default views.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Manual operator action — not part of this code execution.",
+      "waiver": ""
+    },
+    {
+      "id": "T8",
+      "title": "Updated telemetry numbers shared with Jo and Corey",
+      "surface": "none",
+      "precondition": "T1-T6 deployed and verified on prod.",
+      "steps": [
+        "1. Pull the post-fix telemetry summary.",
+        "2. Share with Jo and Corey."
+      ],
+      "expected": "Numbers communicated.",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Post-deploy communication action, tracked here per the card's Definition of Done.",
+      "waiver": ""
+    }
+  ]
+}
