@@ -1,4 +1,5 @@
 import { db } from "../database/connection";
+import { appUsageBucketExpression } from "./appUsageTelemetryQueryHelpers";
 import type { QueryContext } from "./BaseModel";
 
 const TABLE = "app_usage_events";
@@ -157,12 +158,9 @@ export class AppUsageEventModel {
   static async getDailyUsage(
     params: AppUsageRangeParams,
   ): Promise<AppUsageDailyPoint[]> {
+    const bucket = appUsageBucketExpression(params.granularity);
     const rows = (await this.base(params)
-      .select(
-        db.raw("date_trunc(?, created_at)::date::text as date", [
-          params.granularity,
-        ]),
-      )
+      .select(db.raw(`${bucket}::date::text as date`))
       .countDistinct("user_id as active_users")
       .countDistinct("organization_id as active_organizations")
       .select(
@@ -172,7 +170,7 @@ export class AppUsageEventModel {
         ),
       )
       .sum("active_seconds as active_seconds")
-      .groupByRaw("date_trunc(?, created_at)", [params.granularity])
+      .groupByRaw(bucket)
       .orderBy("date", "asc")) as QueryRow[];
 
     return rows.map((row) => ({

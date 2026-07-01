@@ -1,9 +1,24 @@
 import { db } from "../database/connection";
-import { AppUsageRangeParams } from "./AppUsageEventModel";
+import {
+  AppUsageBucketGranularity,
+  AppUsageRangeParams,
+} from "./AppUsageEventModel";
 
 export const APP_USAGE_EVENTS_TABLE = "app_usage_events";
 export const APP_USAGE_PAGE_VIEW_EVENT = "app.page_viewed";
 export type AppUsageQueryRow = Record<string, any>;
+
+// SELECT and GROUP BY must share the exact same expression text — with two
+// separate bind params ($1 vs $7) Postgres cannot match them and rejects the
+// query. granularity is a closed two-value union (gated by parseRange), so
+// inlining the vetted literal is safe: only these two fixed strings exist.
+export function appUsageBucketExpression(
+  granularity: AppUsageBucketGranularity,
+): string {
+  return granularity === "month"
+    ? "date_trunc('month', created_at)"
+    : "date_trunc('day', created_at)";
+}
 
 export function buildOrganizationUsageQuery(
   organizationId: number,
