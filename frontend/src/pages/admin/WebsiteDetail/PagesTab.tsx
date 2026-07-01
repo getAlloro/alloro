@@ -21,6 +21,7 @@ import {
 import {
   deletePageByPath,
   updatePageDisplayName,
+  fetchPage,
 } from "../../../api/websites";
 import type { WebsiteProjectWithPages, WebsitePage, BulkSeoStatus } from "../../../api/websites";
 import { toast } from "react-hot-toast";
@@ -465,13 +466,17 @@ export function PagesTab({
                                       });
                                       if (!ok) return;
                                       try {
-                                        // Create a new page version with this version's sections
+                                        // The list payload no longer carries page
+                                        // content (sections) — re-fetch this
+                                        // version's content on demand, then create
+                                        // a new draft from it.
+                                        const full = await fetchPage(id!, page.id);
                                         await adminFetch(`/api/admin/websites/${id}/pages`, {
                                           method: "POST",
                                           headers: { "Content-Type": "application/json" },
                                           body: JSON.stringify({
                                             path: page.path,
-                                            sections: page.sections,
+                                            sections: full.data.sections,
                                           }),
                                         });
                                         invalidateWebsite(id!);
