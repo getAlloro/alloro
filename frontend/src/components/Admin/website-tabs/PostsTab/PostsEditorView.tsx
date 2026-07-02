@@ -190,6 +190,12 @@ export function PostsEditorView({
             entityId={editingPost.id}
             entityType="post"
             seoData={formSeoData}
+            // A post's real serving path — enables the canonical
+            // path-correctness check (host context isn't available here).
+            pagePath={(() => {
+              const typeSlug = postTypes.find((pt) => pt.id === editingPost.post_type_id)?.slug;
+              return typeSlug && editingPost.slug ? `/${typeSlug}/${editingPost.slug}` : undefined;
+            })()}
             postTitle={formTitle}
             pageContent={formContent}
             onSeoDataChange={handleSeoDataChange}

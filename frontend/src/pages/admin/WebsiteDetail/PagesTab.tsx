@@ -303,7 +303,14 @@ export function PagesTab({
                       const seoPage = displayPage;
                       const sibTitles = allPageSeoMeta.titles.filter((t) => t !== (seoPage.seo_data?.meta_title || ""));
                       const sibDescs = allPageSeoMeta.descriptions.filter((d) => d !== (seoPage.seo_data?.meta_description || ""));
-                      const seoScore = computeSeoScore(seoPage.seo_data, sibTitles, sibDescs, website.wrapper || "");
+                      const seoScore = computeSeoScore(seoPage.seo_data, sibTitles, sibDescs, website.wrapper || "", {
+                        expectedPath: seoPage.path,
+                        // Primary host only — a canonical on the internal
+                        // generated hostname is a defect once a custom domain exists.
+                        siteHosts: website.custom_domain
+                          ? [website.custom_domain]
+                          : [website.generated_hostname ? `${website.generated_hostname}.sites.getalloro.com` : null],
+                      });
                       return (
                         <div className="flex items-center gap-1.5" title={`SEO: ${seoScore.score}/${seoScore.max}`}>
                           <div className="w-8 h-1.5 bg-gray-100 rounded-full overflow-hidden">

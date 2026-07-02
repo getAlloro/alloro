@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SEO Audit Canonical Check Spec</title>
+  <style>
+    :root { color-scheme: light; --paper: #ffffff; --ink: #080808; --muted: #5f5f5f; --line: #d8d8d8; --soft: #f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.5; }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; }
+    h2 { font-size: 1.35rem; }
+    h3 { font-size: 1rem; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 0; }
+    .meta-grid div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .risk-tag { display: inline-block; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; border: 1px solid var(--ink); border-radius: 999px; padding: 2px 10px; margin-bottom: 6px; }
+    @media (max-width: 640px) { .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; } .spec-hero, .spec-card { padding: 20px; } }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>SEO Audit Canonical Check</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07022026-seo-audit-canonical-check</dd></div>
+        <div><dt>Size</dt><dd>Small</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The AI SEO Audit app (<code>/admin/apps</code>) scored the exact page that started this whole investigation — One Endodontics' Fredericksburg location, whose canonical pointed at a dead legacy URL — <strong>8/8 on "Canonical tag" and 30/30 on the whole "Page Title &amp; Canonical" card</strong> (owner screenshot, 2026-07-02). The check only verifies that a canonical exists and whether it's absolute vs relative; it never checks that the canonical actually names the page it sits on, or the site's own domain. That blind spot let 71 wrong canonicals across three live client sites (including Garrison posts canonicalizing to an internal <code>*.sites.getalloro.com</code> hostname) hide behind perfect scores. An audit that can't see the defect it exists to catch quietly certifies broken data.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>The canonical criterion becomes a three-part correctness check: (1) tag present, (2) same host as the audited site's real domain (relative counts as same-host), (3) path matches the audited page's actual serving path after normalization (trailing slash, case). Full credit requires all three; a present-but-wrong canonical scores zero for the criterion and the finding names the mismatch (<code>expected /locations/fredericksburg-office, found /fredericksburg-office</code>). Done when re-auditing a page with a deliberately wrong canonical fails the criterion with that message, and a correct page still passes at full weight.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <ul>
+        <li><code>src/services/ai-seo-audit/</code> — the audit engine (Rev 9 scoring contract: rubric, full-weight pass, importance-weighted pages). Canonical-related logic appears in <code>scoringEngine.ts</code>, <code>scoringShared.ts</code>, and <code>sourceReadinessScoring.ts</code>; first execution step is locating the exact criterion implementation for the "Page Title &amp; Canonical" card before changing anything.</li>
+        <li>The audited page's expected path/host are derivable from the audit target's own URL (<code>urlCollectorService.ts</code> / <code>auditTargetExecutionService.ts</code> collect and fetch the URLs) — the comparison needs no new data source.</li>
+        <li>Frontend (<code>SeoAuditApp</code> surfaces) renders whatever criteria/insight the backend returns — expected to be backend-only; verify no frontend contract change is needed.</li>
+      </ul>
+      <p><strong>Reference analog:</strong> the neighboring criteria in the same scoring card (title-length, robots) — match their result shape, weighting, and finding-text style exactly.</p>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 — scores will drop on sites with wrong canonicals, which is the point but is owner-visible.</p>
+      <ul>
+        <li><span class="risk-tag">Level 2</span> Historical audit runs scored under the old rubric; new runs will dip for affected sites and the two numbers aren't comparable. <strong>Mitigation:</strong> note the rubric change in the changelog; the 4 recently fixed sites will pass anyway.</li>
+        <li><span class="risk-tag">Level 1</span> Legitimate cross-page canonicals (a duplicate page deliberately canonicalizing elsewhere on the same site) would now flag. <strong>Mitigation:</strong> same-host + different-path scores partial credit with an informational finding rather than zero — deliberate consolidation is valid SEO; cross-host is the hard failure.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> AI SEO Audit scoring for every org that runs it; no data writes, no generation-pipeline overlap.</p>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Locate and upgrade the canonical criterion</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Find the criterion powering "Canonical tag (8pts)" in the Page Title &amp; Canonical card; implement the three-part check with normalization (strip domain for comparison, trailing slash, lowercase host); scoring — all three pass: full credit; same-host wrong-path: partial credit + informational finding; cross-host or missing: zero + explicit expected/found message.</dd></div>
+          <div><dt>Files</dt><dd><code>src/services/ai-seo-audit/scoringEngine.ts</code> / <code>scoringShared.ts</code> / <code>sourceReadinessScoring.ts</code> (exact file confirmed at execution)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Unit tests: correct canonical passes; the real Fredericksburg failure case (canonical <code>/fredericksburg-office</code> on <code>/locations/fredericksburg-office</code>) scores zero with the expected/found message; Garrison's old cross-host case fails; same-host deliberate consolidation gets partial credit.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Live re-audit proof</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Run the audit app against a One Endodontics location page (now correct — should pass at full weight) and against a synthetic/dev page with a deliberately wrong canonical (should fail the criterion).</dd></div>
+          <div><dt>Files</dt><dd>None</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Manual: both outcomes visible in the audit UI with the new finding text.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> Frontend <code>tsc -p tsconfig.app.json</code> exit 0 (the real FE gate); frontend vitest 32/32 (11 new); eslint 0 errors on changed files</li>
+        <li><input type="checkbox" checked disabled> The original Fredericksburg failure mode can no longer score 8/8 — pinned regression test computes the exact production values and asserts partial credit (4) with a mismatch-naming label; the Garrison internal-hostname mode is pinned as a hard fail</li>
+        <li><input type="checkbox" checked disabled> The criterion label names the mismatch in the panel ("points to a different page" / "wrong domain or malformed"); in-browser visual confirmation left to owner QA per session convention (score is computed client-side from the same values the tests pin)</li>
+        <li><input type="checkbox" checked disabled> Rubric change noted in the changelog (scores on wrong-canonical sites drop by design; the 4 recently repaired sites pass)</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-02</h3>
+        <p><strong>Change:</strong> The criterion the owner screenshotted does NOT live in <code>src/services/ai-seo-audit/</code> as this spec assumed — that newer backend audit engine already compares canonical vs final URL (<code>scoringShared.ts:107</code>, <code>sourceReadinessScoring.ts:6</code>). The 8/8 blind spot lives in the frontend SEO panel's scoring rubric (<code>frontend/src/components/PageEditor/seoPanel.utils.ts:42</code>, <code>passed: canonical.length &gt; 0</code>) and its duplicated sibling scorer (<code>frontend/src/pages/admin/websiteDetail.utils.ts</code> — "matching SeoPanel's calculateScores exactly"). Fixed both in parity via one shared <code>assessCanonical</code> (presence + primary-host + path, trailing-slash/www-insensitive; partial credit 4pts for same-host consolidation; hard fail for cross-host including the site's own internal generated hostname once a custom domain exists). Context threaded: page editor (path + hosts), pages list (path + hosts), posts editor (path only — no domain context in that component tree; path-check still catches the Fredericksburg mode).</p>
+        <p><strong>Reason:</strong> Execution deviation: T1's locate step disproved the spec's assumed file location; the fix moved to the real one (frontend), which also surfaced the second parallel scorer that had to stay in parity.</p>
+        <p><strong>Updated Done criteria:</strong> Reworded in place to the frontend gates (FE tsc + FE vitest) and to unit-pinned regression proof plus owner visual QA, replacing the backend-gate wording.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

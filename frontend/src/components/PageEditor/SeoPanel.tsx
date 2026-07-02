@@ -45,6 +45,7 @@ export default function SeoPanel({
   hideScoreBar = false,
   currentVersion,
   previousContent,
+  siteHosts,
 }: SeoPanelProps) {
   const [seo, setSeo] = useState<SeoData>(seoData || {});
   const [activeSection, setActiveSection] = useState("critical");
@@ -288,7 +289,10 @@ export default function SeoPanel({
     }
   };
 
-  const scores = calculateScores(seo, wrapperHtml || "", allTitles, allDescriptions);
+  const scores = calculateScores(seo, wrapperHtml || "", allTitles, allDescriptions, {
+    expectedPath: pagePath ?? null,
+    siteHosts,
+  });
   const totalScore = scores.reduce((sum, s) => sum + s.score, 0);
   const totalMax = scores.reduce((sum, s) => sum + s.max, 0);
   const pct = Math.round((totalScore / totalMax) * 100);

@@ -1,4 +1,8 @@
 import type { WebsiteProjectWithPages, WebsitePage } from "../../api/websites";
+import {
+  assessCanonical,
+  type CanonicalContext,
+} from "../../components/PageEditor/seoPanel.utils";
 
 export type OrganizationListItem = {
   id: number;
@@ -48,7 +52,8 @@ export function computeSeoScore(
   seoData: WebsitePage["seo_data"],
   siblingTitles: string[],
   siblingDescriptions: string[],
-  wrapperHtml: string
+  wrapperHtml: string,
+  canonicalContext?: CanonicalContext
 ): {
   score: number;
   max: number;
@@ -80,8 +85,10 @@ export function computeSeoScore(
 
   let score = 0;
 
-  // Critical (30) — exact match with SeoPanel
-  if (canonical.length > 0) score += 8;
+  // Critical (30) — exact match with SeoPanel (full 8 / partial 4 / fail 0)
+  const canonicalAssessment = assessCanonical(canonical, canonicalContext);
+  if (canonicalAssessment === "full") score += 8;
+  else if (canonicalAssessment === "partial") score += 4;
   if (title.length >= 20) score += 7;
   if (titleIsUnique) score += 6;
   if (title.length >= 50 && title.length <= 60) score += 5;
