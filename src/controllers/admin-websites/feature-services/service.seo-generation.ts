@@ -26,6 +26,7 @@ import {
   runAllSeoSectionsTiered,
   type SeoSection,
 } from "../feature-utils/util.seo-section-runner";
+import { deriveCanonicalPath } from "../feature-utils/util.canonical-path";
 import logger from "../../../lib/logger";
 
 const MODEL = "claude-sonnet-5";
@@ -176,6 +177,14 @@ export async function generateSeoForSection(
     post_title,
   }, projectId, entityId, practiceFactsBlock);
 
+  // Canonical is never LLM-authored: derive it from the entity's real
+  // serving path and overwrite whatever the model produced (the prompt no
+  // longer asks for it, but this guarantee must not depend on the prompt).
+  if (section === "critical") {
+    const canonical = await deriveCanonicalPath(entityId, entityType);
+    if (canonical) result.generated.canonical_url = canonical;
+  }
+
   if (section === "geo_layer") {
     await applyGeoRecommendation(
       entityId,
@@ -204,15 +213,27 @@ interface GenerateAllRequest {
   all_page_descriptions?: string[];
   page_path?: string;
   post_title?: string;
+  /**
+   * GEO auto-apply opt-out. Defaults to true (the 0.0.143-approved behavior:
+   * a non-empty opening_content_recommendation is applied to the entity's
+   * BODY CONTENT — a new draft version for pages, a snapshotted overwrite
+   * for posts). Pass false for metadata-only generation.
+   */
+  apply_geo_content?: boolean;
 }
 
+/**
+ * SIDE EFFECT: unless `apply_geo_content` is false, a non-empty geo_layer
+ * opening_content_recommendation is auto-applied to the entity's visible
+ * body content (see applyGeoRecommendation).
+ */
 export async function generateAllSeoSections(
   projectId: string,
   entityId: string,
   entityType: "page" | "post",
   body: GenerateAllRequest
 ): Promise<{ results: Array<{ section: string; generated: Record<string, unknown>; insight: string }> }> {
-  const { location_context, ...rest } = body;
+  const { location_context, apply_geo_content, ...rest } = body;
 
   // Single fetch for all shared context
   const [businessData, practiceFactsBlock, creatorContext, validatorContext] = await Promise.all([
@@ -239,7 +260,16 @@ export async function generateAllSeoSections(
     practiceFactsBlock
   );
 
-  await applyGeoLayerIfPresent(results, entityId, entityType, projectId);
+  await overrideCanonicalOnResults(results, entityId, entityType);
+
+  if (apply_geo_content !== false) {
+    await applyGeoLayerIfPresent(results, entityId, entityType, projectId);
+  } else {
+    logger.info(
+      { entityId, entityType, projectId },
+      "[SEO Generation] GEO auto-apply skipped (apply_geo_content=false)"
+    );
+  }
 
   return { results };
 }
@@ -376,6 +406,11 @@ export async function fetchSharedContext(
   return { businessData, creatorContext, validatorContext };
 }
 
+/**
+ * SIDE EFFECT: unless `options.applyGeoContent` is false, a non-empty
+ * geo_layer opening_content_recommendation is auto-applied to the entity's
+ * visible body content (see applyGeoRecommendation).
+ */
 export async function generateAllWithSharedContext(
   ctx: SharedSeoContext,
   entityType: "page" | "post",
@@ -392,7 +427,8 @@ export async function generateAllWithSharedContext(
     post_title?: string;
   },
   projectId?: string,
-  entityId?: string
+  entityId?: string,
+  options?: { applyGeoContent?: boolean }
 ): Promise<Array<{ section: string; generated: Record<string, unknown>; insight: string }>> {
   // Facts are per-entity even though the rest of the context (business data,
   // mind skill context) is shared across the whole bulk job — fetch fresh
@@ -412,11 +448,40 @@ export async function generateAllWithSharedContext(
     practiceFactsBlock
   );
 
+  if (entityId) {
+    await overrideCanonicalOnResults(results, entityId, entityType);
+  }
+
   if (entityId && projectId) {
-    await applyGeoLayerIfPresent(results, entityId, entityType, projectId);
+    if (options?.applyGeoContent !== false) {
+      await applyGeoLayerIfPresent(results, entityId, entityType, projectId);
+    } else {
+      logger.info(
+        { entityId, entityType, projectId },
+        "[SEO Generation] GEO auto-apply skipped (applyGeoContent=false)"
+      );
+    }
   }
 
   return results;
+}
+
+/**
+ * Overwrite the "critical" section's canonical_url with the entity's real,
+ * deterministically derived serving path. The prompt no longer asks the
+ * model for a canonical, but this guarantee must hold regardless of model
+ * output or prompt drift. No-op when derivation can't resolve the entity.
+ */
+async function overrideCanonicalOnResults(
+  results: Array<{ section: string; generated: Record<string, unknown> }>,
+  entityId: string,
+  entityType: "page" | "post"
+): Promise<void> {
+  const critical = results.find((r) => r.section === "critical");
+  if (!critical) return;
+
+  const canonical = await deriveCanonicalPath(entityId, entityType);
+  if (canonical) critical.generated.canonical_url = canonical;
 }
 
 // ---------------------------------------------------------------------------
@@ -646,7 +711,13 @@ async function applyGeoToPage(
   });
 
   logger.info(
-    { pageId, projectId, newPageVersionId: created.id, version: newVersion },
+    {
+      pageId,
+      projectId,
+      newPageVersionId: created.id,
+      version: newVersion,
+      recommendationBytes: openingContentRecommendation.length,
+    },
     "[SEO Generation] GEO opening_content_recommendation applied as new page version"
   );
 
@@ -679,7 +750,11 @@ async function applyGeoToPost(
   }
 
   logger.info(
-    { postId },
+    {
+      postId,
+      recommendationBytes: recommendationHtml.length,
+      previousContentBytes: (post.content || "").length,
+    },
     "[SEO Generation] GEO opening_content_recommendation applied; previous content snapshotted"
   );
 

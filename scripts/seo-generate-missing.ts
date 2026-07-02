@@ -1,25 +1,22 @@
 /**
  * One-off SEO generation for posts that currently have NO seo_data at all —
  * distinct from scripts/seo-enrichment-backfill.ts, which only patches
- * existing data and deliberately never re-runs generation. These 108 posts
- * (92 One Endodontics + 16 Garrison Orthodontics) have nothing to protect,
- * so real tiered LLM generation is safe here in a way it wasn't for the
- * already-populated posts in the prior plan.
+ * existing data and deliberately never re-runs generation. Originally the
+ * 108 posts (92 One Endodontics + 16 Garrison), extended (spec Rev 2) to
+ * Artful Orthodontics; already-covered sites re-run as idempotent no-ops.
  *
- * Calls runAllSeoSectionsTiered directly (the section runner, not the
- * service.seo-generation.ts wrapper functions) so this stays scoped to SEO
- * metadata only. The wrapper's generateAllWithSharedContext also triggers
- * "GEO auto-apply" — a separate feature that rewrites the post's visible
- * body content — which is explicitly out of scope here (owner decision,
- * plans/07022026-seo-full-coverage). Practice facts are fetched the same
- * way the wrapper does internally (fetchPracticeFactsBlock, exported for
- * this reuse) so generation quality is unaffected by bypassing the wrapper.
- * Immediately runs enrichPostSeoData (unmodified, from the prior plan) on
- * top so the fresh schema type / og_image / rating / FAQ / title-length all
- * get the same guardrails as everything else.
+ * Uses the standard generateAllWithSharedContext wrapper with
+ * `applyGeoContent: false` (metadata-only: the GEO body-content auto-apply
+ * is explicitly skipped — owner decision, plans/07022026-seo-generator-root-
+ * fixes) — the wrapper also derives the deterministic canonical for every
+ * post, so this script no longer carries its own override. Existing seo_data
+ * keys (e.g. an imported og_image) are preserved under the generated fields.
+ * Each post is finished with enrichPostSeoData so schema type / og_image /
+ * rating / FAQ / title-length get the same guardrails as everything else.
  *
  * Companion to:
- *   plans/07022026-seo-full-coverage/spec.html (T3)
+ *   plans/07022026-seo-full-coverage/spec.html (T3, T6 (Rev 2))
+ *   plans/07022026-seo-generator-root-fixes/spec.html (T2/T3 — shared helper + flag)
  *
  * USAGE
  *   cd ~/Desktop/alloro
@@ -40,13 +37,11 @@
 
 import { closeConnection } from "../src/database/connection";
 import { PostModel } from "../src/models/website-builder/PostModel";
-import { PostTypeModel } from "../src/models/website-builder/PostTypeModel";
 import { ProjectModel } from "../src/models/website-builder/ProjectModel";
 import {
   fetchSharedContext,
-  fetchPracticeFactsBlock,
+  generateAllWithSharedContext,
 } from "../src/controllers/admin-websites/feature-services/service.seo-generation";
-import { runAllSeoSectionsTiered } from "../src/controllers/admin-websites/feature-utils/util.seo-section-runner";
 import { enrichPostSeoData } from "../src/controllers/admin-websites/feature-services/service.seo-enrichment";
 
 const TARGET_PROJECTS: Array<{ name: string; projectId: string }> = [
@@ -59,8 +54,6 @@ interface ZeroDataPost {
   id: string;
   title: string;
   content: string;
-  slug: string;
-  postTypeId: string;
   /** Whatever partial seo_data the post already carries (e.g. an imported og_image) — preserved under the generated fields. */
   existingSeoData: Record<string, unknown>;
 }
@@ -78,31 +71,12 @@ async function findZeroDataPosts(projectId: string): Promise<ZeroDataPost[]> {
       const seo = parseExistingSeoData(post.seo_data);
       return !seo.meta_title;
     })
-    .map((post: { id: string; title: string; content: string | null; slug: string; post_type_id: string; seo_data: unknown }) => ({
+    .map((post: { id: string; title: string; content: string | null; seo_data: unknown }) => ({
       id: post.id,
       title: post.title,
       content: post.content || "",
-      slug: post.slug,
-      postTypeId: post.post_type_id,
       existingSeoData: parseExistingSeoData(post.seo_data),
     }));
-}
-
-/**
- * The "critical" generation section fabricates a plausible-looking
- * canonical_url instead of deriving it from the actual serving path (the
- * same disease already found and corrected for existing posts this
- * session). Canonical is 100% deterministic for a post — /{type-slug}/
- * {post-slug} — so it is never trusted from the LLM here; always
- * overridden with the real value after generation.
- */
-async function correctCanonicalUrl(
-  seoData: Record<string, unknown>,
-  post: ZeroDataPost
-): Promise<void> {
-  const postType = await PostTypeModel.findRawById(post.postTypeId);
-  if (!postType?.slug) return;
-  seoData.canonical_url = `/${postType.slug}/${post.slug}`;
 }
 
 async function generateAndEnrichPost(
@@ -110,22 +84,19 @@ async function generateAndEnrichPost(
   post: ZeroDataPost,
   sharedContext: Awaited<ReturnType<typeof fetchSharedContext>>
 ): Promise<string[]> {
-  const practiceFactsBlock = await fetchPracticeFactsBlock(post.id, "post");
-
-  const results = await runAllSeoSectionsTiered(
+  const results = await generateAllWithSharedContext(
+    sharedContext,
     "post",
-    sharedContext.businessData,
-    sharedContext.creatorContext,
-    sharedContext.validatorContext,
     { page_content: post.content, post_title: post.title },
     projectId,
     post.id,
-    practiceFactsBlock
+    { applyGeoContent: false }
   );
 
   // Start from whatever the post already carries (imported og_image, prior
   // canonical fix, ...) so fresh generation fills the gaps without wiping
-  // unrelated keys — generated fields win where both exist.
+  // unrelated keys — generated fields win where both exist. The wrapper has
+  // already overridden canonical_url with the deterministic serving path.
   const mergedSeoData: Record<string, unknown> = { ...post.existingSeoData };
   const mergedInsights: Record<string, string> = {};
   for (const r of results) {
@@ -133,8 +104,6 @@ async function generateAndEnrichPost(
     if (r.insight) mergedInsights[r.section] = r.insight;
   }
   mergedSeoData.insights = mergedInsights;
-
-  await correctCanonicalUrl(mergedSeoData, post);
 
   await PostModel.updateSeoDataByIdJsClock(post.id, JSON.stringify(mergedSeoData));
 
@@ -151,6 +120,11 @@ async function main(): Promise<number> {
 
     if (dryRun) {
       console.log(`[seo-generate-missing] (dry-run) ${target.name}: would generate ${posts.length} post(s)`);
+      continue;
+    }
+
+    if (posts.length === 0) {
+      console.log(`[seo-generate-missing] ${target.name}: nothing to do`);
       continue;
     }
 

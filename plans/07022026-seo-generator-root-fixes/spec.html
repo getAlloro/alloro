@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SEO Generator Root Fixes Spec</title>
+  <style>
+    :root { color-scheme: light; --paper: #ffffff; --ink: #080808; --muted: #5f5f5f; --line: #d8d8d8; --soft: #f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.5; }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; }
+    h2 { font-size: 1.35rem; }
+    h3 { font-size: 1rem; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .risk-tag { display: inline-block; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; border: 1px solid var(--ink); border-radius: 999px; padding: 2px 10px; margin-bottom: 6px; }
+    @media (max-width: 640px) { .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; } .spec-hero, .spec-card { padding: 20px; } }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>SEO Generator Root Fixes</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07022026-seo-generator-root-fixes</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Two real generator bugs were discovered during <code>plans/07022026-seo-metatag-fixes</code> and <code>plans/07022026-seo-full-coverage</code> but only worked around at the call sites of two one-off scripts — every other caller (the admin UI's per-page/per-post "Generate" and "Generate All" buttons, and the bulk-generate worker) still has them. Until they're fixed at the root, any admin click can re-introduce the exact data corruption those two plans cleaned up across ~380 posts: fabricated canonical URLs, and a silent body-content rewrite whose recovery snapshot has never once succeeded (0 non-null <code>previous_content</code> across all 553 posts platform-wide — the snapshot write crashes on a column-type mismatch, which also makes the whole generation call fail for any post where the GEO section produces a recommendation).</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Three root fixes in the shared generation pipeline, protecting every current and future call path:</p>
+      <ul>
+        <li><strong>Canonical is never LLM-authored again.</strong> The prompt stops asking for it; a deterministic derivation (post: <code>/{post_type.slug}/{post.slug}</code>; page: its real <code>path</code>) is applied in one shared seam that every caller flows through.</li>
+        <li><strong>GEO auto-apply: keep + fix + explicit opt-out</strong> (owner decision 2026-07-02, option A): the approved 0.0.143 behavior stays default-on for the admin UI and worker, the broken snapshot gets fixed so recovery genuinely works, the side effect gets explicit naming/logging, and callers get an <code>applyGeoContent</code> flag to skip content mutation (formalizing what the session scripts did by bypassing the wrapper).</li>
+        <li><strong><code>previous_content</code> column type corrected</strong> from <code>jsonb</code> to <code>text</code> via migration — the column stores raw HTML, every reader already treats it as a string, and it is provably all-NULL in prod, so the change is zero-data-risk.</li>
+      </ul>
+      <p>Done when: a "Generate All" run through the real controller path produces a correct deterministic canonical and a working post-content snapshot, the metadata-only flag verifiably skips content mutation, and the one-generation-engine claim is confirmed and documented.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/agents/websiteAgents/SeoGeneration.critical.md</code> — line 5 is the canonical root cause: <code>"canonical_url": The canonical URL path for this page (usually the page path itself)</code>. Pages came out correct only because <code>page_path</code> happens to be in the user prompt; posts never receive their serving path, so the model guesses.</li>
+        <li><code>src/controllers/admin-websites/feature-services/service.seo-generation.ts</code> — the three wrapper entry points (<code>generateSeoForSection</code>, <code>generateAllSeoSections</code>, <code>generateAllWithSharedContext</code>) and the GEO auto-apply chain (<code>applyGeoLayerIfPresent</code> → <code>applyGeoToPage</code>/<code>applyGeoToPost</code>). The canonical override and the <code>applyGeoContent</code> flag both land here.</li>
+        <li><code>src/controllers/admin-websites/feature-utils/util.seo-section-runner.ts</code> — the shared engine underneath (<code>runGenerateSection</code>, <code>runAllSeoSectionsTiered</code>); confirmed single generation engine, but T1 re-verifies exhaustively before anything else changes.</li>
+        <li><code>src/workers/processors/seoBulkGenerate.processor.ts</code> — merges section results and saves; needs the same canonical override before its save (it builds <code>seo_data</code> from an empty object; the fix must not depend on the wrapper alone).</li>
+        <li><code>src/controllers/admin-websites/SeoController.ts</code> — the four admin endpoints binding UI buttons to the wrappers; no logic change expected, listed for blast radius.</li>
+        <li><code>src/models/website-builder/PostModel.ts:239</code> — <code>updateContentWithSnapshot</code>, the crashing write (<code>previous_content</code> jsonb ← raw HTML string, Postgres error 22P02 confirmed live this session).</li>
+        <li><code>src/database/migrations/20260701000000_add_practice_facts_and_post_snapshot.ts</code> — where the column was created as <code>jsonb</code> (should have been <code>text</code>).</li>
+        <li>Readers of <code>previous_content</code>: <code>frontend/src/api/posts.ts</code>, <code>PostsEditorView.tsx</code>, <code>PostTypeSeoButton.tsx</code>, <code>AutoApplyBanner.tsx</code>, and <code>src/__tests__/service.seo-generation.test.ts:118</code> — all treat it as a raw HTML string, which is what makes <code>text</code> the honest type.</li>
+        <li><code>scripts/seo-generate-missing.ts</code> / <code>scripts/seo-generate-schema-only.ts</code> — currently carry their own canonical override + wrapper bypass; after this plan they should consume the shared helper/flag instead of their private workarounds (§4.3).</li>
+        <li><code>plans/07012026-seo-generator-revamp</code> — the plan that shipped GEO auto-apply as an owner-approved, recoverability-designed feature (0.0.143); this plan deliberately preserves that intent.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>§6.3 — the canonical-derivation helper is a small pure-ish function in <code>feature-utils/</code> (analog: <code>util.schema-business-type.ts</code> from the prior plan), consumed by <code>feature-services/</code> and the worker.</li>
+        <li>§4.3 — one shared implementation; delete the two scripts' private copies.</li>
+        <li>§10.3 — column change via Knex migration only; §20.1/§20.2 — tests updated to use real string content through the snapshot path.</li>
+        <li>§21.3 — the worker keeps calling the service-layer helper, no divergent logic.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/controllers/admin-websites/feature-utils/util.schema-business-type.ts</code> — closest analog for a deterministic guard that makes an LLM field trustworthy regardless of model output.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Canonical derivation applies on every path that writes <code>seo_data</code>: UI single-section, UI generate-all, bulk worker, both scripts.</li>
+            <li><code>applyGeoContent</code> defaults to <code>true</code> (behavior-preserving for UI/worker); scripts pass <code>false</code>.</li>
+            <li>Snapshot fix proven with a real-HTML post end to end before declaring done.</li>
+            <li>Migration is reversible (<code>text</code> → <code>jsonb</code> down is safe precisely because the column is all-NULL; assert that in the migration).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not change what the GEO recommendation writes (prepend-as-paragraph stays as approved in 0.0.143).</li>
+            <li>Do not regenerate or touch any existing prod <code>seo_data</code> — data is already correct; this plan is code-only plus one column-type migration.</li>
+            <li>Do not remove <code>canonical_url</code> from stored <code>seo_data</code> shape (renderer reads it verbatim) — override its value, don't drop the key.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Renderer-side canonical derivation (separate plan: <code>07022026-renderer-seo-hardening</code>).</li>
+        <li>A preview/confirmation UI for auto-applied content — the opt-out flag is the control this round; a review UI is a future product decision.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 — shared pipeline used by every org's admin SEO tooling, plus a schema migration.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><span class="risk-tag">Level 2</span> The canonical override needs the entity's slug/type — the worker path merges sections without entity context today. <strong>Mitigation:</strong> derive once (helper takes <code>entityId</code> + <code>entityType</code>), call it at each save seam; T1's call-path map is the checklist that none is missed.</li>
+        <li><span class="risk-tag">Level 2</span> Fixing the snapshot un-breaks GEO auto-apply for posts — meaning post-content rewrites that have been silently failing will START succeeding for UI/worker callers. That is the owner-chosen outcome (option A), but it is a behavior activation, not just a bug fix. <strong>Mitigation:</strong> explicit log line on every auto-apply, verified restore path (previous_content populated and readable in the admin editor), called out in the changelog.</li>
+        <li><span class="risk-tag">Level 1</span> Migration on a live table. <strong>Mitigation:</strong> all-NULL column (verified 0/553 in prod), <code>ALTER ... TYPE text USING previous_content #>> '{}'</code> is instant; dev first per deployment path.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> four SeoController endpoints (every org's admin SEO tools), <code>seoBulkGenerate</code> worker, both session scripts, the posts editor's restore surface, <code>service.seo-generation.test.ts</code>.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>None on direction — but note the alternative to the prompt edit (keep asking the LLM and only override in code) was rejected: leaving the instruction in the prompt invites drift and wastes tokens on a field we discard. Belt (prompt stops asking) and suspenders (code overrides regardless) together.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Confirm the single-generation-engine claim</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Exhaustively map every code path that writes <code>seo_data</code> (grep <code>updateSeoDataById</code>/<code>updateSeoDataByIdJsClock</code>/<code>updateSeoDataRaw</code>/<code>updatePageSeo</code>/<code>updatePostSeo</code> callers + every <code>runGenerateSection</code>/<code>runAllSeoSectionsTiered</code> consumer). Expected result: one engine (<code>util.seo-section-runner.ts</code>), three wrapper entry points, one worker, two scripts, plus manual PATCH endpoints (human-entered, out of scope). Record the map in this spec via Revision Log if it differs.</dd></div>
+          <div><dt>Files</dt><dd>None (read-only investigation)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: the map lists every writer; each is either covered by T2 or explicitly human-input.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Deterministic canonical at the root</h3>
+        <dl>
+          <div><dt>Do</dt><dd>(a) Edit <code>SeoGeneration.critical.md</code>: remove the <code>canonical_url</code> instruction (title + robots stay). (b) New <code>feature-utils/util.canonical-path.ts</code>: <code>deriveCanonicalPath(entityId, entityType)</code> → post: <code>/{post_type.slug}/{post.slug}</code> via PostModel/PostTypeModel; page: its stored <code>path</code>. (c) Apply it after generation in all three service wrappers and before save in the worker. (d) Replace both scripts' private overrides with the shared helper.</dd></div>
+          <div><dt>Files</dt><dd><code>SeoGeneration.critical.md</code>, new <code>util.canonical-path.ts</code>, <code>service.seo-generation.ts</code>, <code>seoBulkGenerate.processor.ts</code>, both scripts, test file</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Unit: helper returns correct paths for post/page, throws-safe on missing rows. Manual: one real "Generate All" via the controller path on a dev/test post yields the deterministic canonical.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: Fix the snapshot column + make auto-apply explicit</h3>
+        <dl>
+          <div><dt>Do</dt><dd>(a) Migration: <code>previous_content</code> jsonb → text (scaffolds in <code>migrations/</code>). (b) Add <code>applyGeoContent = true</code> option threaded through <code>generateAllSeoSections</code>/<code>generateAllWithSharedContext</code>; when false, skip <code>applyGeoLayerIfPresent</code> entirely. (c) JSDoc on both wrappers naming the side effect; Pino info log on every applied rewrite (entity id, project, byte counts). (d) Scripts pass <code>applyGeoContent: false</code> and drop their runner-level bypass (call the wrapper again — §4.3).</dd></div>
+          <div><dt>Files</dt><dd>new migration + <code>migrations/</code> scaffolds, <code>service.seo-generation.ts</code>, both scripts</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Manual on dev: generate against a post with real HTML — content rewritten, <code>previous_content</code> populated, restore surface in the posts editor shows it. Second run with <code>applyGeoContent: false</code> — content byte-identical.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T4: Tests</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Update <code>service.seo-generation.test.ts</code>: snapshot test uses real string content through the fixed column type; new cases — canonical override wins over any LLM value, <code>applyGeoContent: false</code> never touches content, default true preserves 0.0.143 behavior.</dd></div>
+          <div><dt>Files</dt><dd><code>src/__tests__/service.seo-generation.test.ts</code>, possibly a new <code>canonical-path</code> test file</dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3</dd></div>
+          <div><dt>Verify</dt><dd><code>npx vitest run</code> green</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> zero errors; <code>npm run check:conventions --strict</code> zero new violations</li>
+        <li><input type="checkbox" checked disabled> Full vitest green (161/161), including the new canonical override (post + page), opt-out, and snapshot cases</li>
+        <li><input type="checkbox" checked disabled> Migration applied on dev (batch 126); <code>previous_content</code> is <code>text</code>; snapshot round-trip proven on a real 5.4KB-HTML dev post — the previously-always-crashing call now captures and restores byte-identically</li>
+        <li><input type="checkbox" checked disabled> Manual: real controller-path "Generate All" on dev (services/apicoectomy) produced canonical <code>/services/apicoectomy</code> deterministically</li>
+        <li><input type="checkbox" checked disabled> Manual: same dev run — auto-apply rewrote content with byte-count logging (348-byte recommendation over 5385-byte original), snapshot captured, restore byte-identical; <code>apply_geo_content: false</code> proven to skip entirely (unit + skip-log observed)</li>
+        <li><input type="checkbox" checked disabled> <code>seo-generate-missing.ts</code> consumes the wrapper + flag (private canonical override and runner bypass deleted); <code>seo-generate-schema-only.ts</code> needs no change (significant-only, preserves existing canonical)</li>
+        <li><input type="checkbox" checked disabled> T1 call-path map confirms ONE engine (<code>util.seo-section-runner</code>), consumed only by the 3 wrappers + 2 scripts; remaining seo_data writers are human-input PATCH endpoints and the deterministic enrichment — no uncovered generation path</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
