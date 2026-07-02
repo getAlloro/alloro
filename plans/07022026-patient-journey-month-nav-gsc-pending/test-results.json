@@ -1,0 +1,103 @@
+{
+  "plan": "plans/07022026-patient-journey-month-nav-gsc-pending",
+  "generatedAt": "2026-07-02",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Connected practice, current month, no GSC rows yet → \"Google data is still pending\" + tooltip",
+      "surface": "ui",
+      "precondition": "Logged in as an org whose website project has an ACTIVE gsc integration but zero gsc_data rows for the current month (any connected org in the first ~2 days of a month, e.g. Garrison on July 1–2).",
+      "steps": [
+        "1. Open /patientJourneyInsights",
+        "2. Confirm the pipeline shows the current month (e.g. \"· JULY 2026\")",
+        "3. Look at the Google Visibility card's empty state",
+        "4. Hover the small ? icon next to the message"
+      ],
+      "expected": "Card reads \"Google data is still pending\" (NOT \"Not connected yet\") with a ? icon whose hover tooltip reads \"GSC data trails ~2 days behind\".",
+      "status": "pass",
+      "evidence": "Owner-verified in own browser tab, 2026-07-02 (QA approval: \"looks good now\")",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Org without an active GSC integration still shows \"Not connected yet\"",
+      "surface": "ui",
+      "precondition": "Logged in as an org whose website project has NO website_integrations row with platform=gsc status=active.",
+      "steps": [
+        "1. Open /patientJourneyInsights",
+        "2. Look at the Google Visibility card's empty state"
+      ],
+      "expected": "Card reads \"Not connected yet\" with no ? icon — unchanged legacy behavior.",
+      "status": "pass",
+      "evidence": "Owner-verified in own browser tab, 2026-07-02 (QA approval: \"looks good now\")",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Past month, connected, zero rows → \"No Google data for this month\"",
+      "surface": "ui",
+      "precondition": "Same org as T1. A past month within the last 12 that has no gsc_data rows (e.g. a month before the GSC connection date).",
+      "steps": [
+        "1. Open /patientJourneyInsights",
+        "2. Click the ‹ chevron until a connected-but-empty past month is shown",
+        "3. Look at the Google Visibility card's empty state"
+      ],
+      "expected": "Card reads \"No Google data for this month\" — not \"pending\", not \"Not connected yet\".",
+      "status": "pass",
+      "evidence": "Owner-verified in own browser tab, 2026-07-02 (QA approval: \"looks good now\")",
+      "notes": "If every past month has GSC rows, this state is unreachable for that org — pick an org that connected GSC recently.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Month chevrons: step back 12 months, clamp both ends, no skeleton flash",
+      "surface": "ui",
+      "precondition": "Logged in on /patientJourneyInsights, any org with funnel data.",
+      "steps": [
+        "1. Confirm the › (next) chevron is disabled on the current month",
+        "2. Click ‹ once — the period label moves to last month and the funnel numbers change to that month's window",
+        "3. While the step loads, confirm the previous funnel stays visible (dimmed), not a full-page skeleton",
+        "4. Keep clicking ‹ until it disables — exactly 11 steps back (12 months shown incl. current)",
+        "5. Click › back to the current month — it disables again at the current month"
+      ],
+      "expected": "Both clamps hold; each month shows its own numbers and period label; stepping dims briefly instead of flashing the loading skeleton; an open stage popover closes on month change.",
+      "status": "pass",
+      "evidence": "Owner-verified in own browser tab, 2026-07-02 (QA approval: \"looks good now\")",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Advisor banner copy is month-aware",
+      "surface": "ui",
+      "precondition": "Org where the visits→leads conversion has a value (banner shows the % sentence).",
+      "steps": [
+        "1. On the current month, read the advisor banner",
+        "2. Step to a past month with lead data and read it again"
+      ],
+      "expected": "Current month ends \"…contacted your practice this month.\"; past month ends \"…contacted your practice in {Month Year}.\" (e.g. \"in June 2026.\").",
+      "status": "pass",
+      "evidence": "Owner-verified in own browser tab, 2026-07-02 (QA approval: \"looks good now\")",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Practice Hub journey card unaffected (stays current month)",
+      "surface": "ui",
+      "precondition": "Same session as T4, after stepping to a past month on the insights screen.",
+      "steps": [
+        "1. Navigate to /dashboard (Practice Hub)",
+        "2. Look at the Patient Journey summary card"
+      ],
+      "expected": "Hub card still shows current-month numbers and headline; no errors; clicking it opens the insights screen (which lands on the current month after a location switch or fresh mount).",
+      "status": "pass",
+      "evidence": "Owner-verified in own browser tab, 2026-07-02 (QA approval: \"looks good now\")",
+      "notes": "",
+      "waiver": ""
+    }
+  ]
+}

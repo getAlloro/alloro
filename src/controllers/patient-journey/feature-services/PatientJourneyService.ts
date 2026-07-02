@@ -27,6 +27,7 @@ import {
   buildConversions,
   buildHeadline,
   buildPeriod,
+  isCurrentUtcMonth,
   monthBounds,
 } from "../feature-utils/funnelMath";
 import {
@@ -107,6 +108,7 @@ function toStage(
     asOf: read.asOf,
     shared,
   };
+  if (read.unavailableReason) stage.unavailableReason = read.unavailableReason;
   if (read.note) stage.note = read.note;
   if (read.metadata) stage.metadata = read.metadata;
   if (shared && isMultiLocation) {
@@ -124,6 +126,7 @@ export async function assemblePatientJourney(
   const period = buildPeriod(input.reportMonth);
   const { start: monthStart, end: monthEnd } = monthBounds(input.reportMonth);
   const isMulti = location.isMultiLocation;
+  const isCurrentMonth = isCurrentUtcMonth(input.reportMonth);
 
   const emptyRead: StageRead = { value: null, available: false, asOf: null };
 
@@ -131,7 +134,12 @@ export async function assemblePatientJourney(
   const [impressions, visits, leads, pms, rank, reviews] =
     await Promise.all([
       projectId
-        ? readImpressions(projectId, period.startDate, period.endDate)
+        ? readImpressions(
+            projectId,
+            period.startDate,
+            period.endDate,
+            isCurrentMonth,
+          )
         : Promise.resolve(emptyRead),
       projectId
         ? readVisits(projectId, period.startDate, period.endDate)

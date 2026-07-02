@@ -39,5 +39,19 @@ export function usePatientJourney(
     queryFn: () => fetchPatientJourneyInner(locationId as number, period),
     enabled: !!organizationId && locationId != null,
     staleTime: 5 * 60 * 1000,
+    // Keep the previous funnel visible while stepping months so the screen
+    // never flashes the full skeleton — but only within the SAME org+location
+    // (a location switch must never show another location's numbers).
+    placeholderData: (previousData, previousQuery) => {
+      const previousKey = previousQuery?.queryKey;
+      if (
+        !previousKey ||
+        previousKey[1] !== organizationId ||
+        previousKey[2] !== locationId
+      ) {
+        return undefined;
+      }
+      return previousData;
+    },
   });
 }

@@ -149,6 +149,15 @@ export function buildPeriod(reportMonth: string): PatientJourneyPeriod {
   };
 }
 
+/** Whether a report month key (YYYY-MM-01) is the current UTC month. */
+export function isCurrentUtcMonth(reportMonth: string): boolean {
+  const now = new Date();
+  const currentKey = `${now.getUTCFullYear()}-${String(
+    now.getUTCMonth() + 1,
+  ).padStart(2, "0")}-01`;
+  return reportMonth === currentKey;
+}
+
 /** Half-open [start, end) calendar-month bounds for a report month, in UTC. */
 export function monthBounds(reportMonth: string): { start: Date; end: Date } {
   const [yearStr, monthStr] = reportMonth.split("-");

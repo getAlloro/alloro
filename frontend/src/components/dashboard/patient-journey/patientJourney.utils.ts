@@ -18,6 +18,41 @@ import type {
 /** Visual role of a stage card within the pipeline. */
 export type StageKind = "flow" | "leak" | "goal";
 
+/** Hover copy for the pending-GSC helper icon on the Google Visibility card. */
+export const GSC_PENDING_TOOLTIP = "GSC data trails ~2 days behind";
+
+/** Months of history the pipeline can step back through, current month included. */
+export const MONTH_HISTORY_LIMIT = 12;
+
+/**
+ * Empty-state copy for an unavailable stage, driven by the backend's
+ * `unavailableReason`. Stages without a reason keep the legacy generic copy.
+ */
+export function stageEmptyStateCopy(stage: PatientJourneyStage): string {
+  switch (stage.unavailableReason) {
+    case "pending":
+      return "Google data is still pending";
+    case "no_data":
+      return "No Google data for this month";
+    default:
+      return "Not connected yet";
+  }
+}
+
+/**
+ * YYYY-MM key for the UTC month `offset` months from the current one
+ * (offset 0 = current, -1 = last month). UTC to match the backend's
+ * `resolveReportMonth` clock, so label and window never disagree.
+ */
+export function monthKeyFromOffset(offset: number): string {
+  const now = new Date();
+  const shifted = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offset, 1),
+  );
+  const month = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+  return `${shifted.getUTCFullYear()}-${month}`;
+}
+
 /**
  * Format a stage count for display. `null` (unavailable) renders as an em-dash
  * placeholder; the card's empty state carries the "not connected yet" copy.

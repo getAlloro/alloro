@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Patient Journey Month Navigation + GSC Pending State Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 12px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .task-card dd { font-weight: 500; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+    th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; font-size: 0.92rem; vertical-align: top; }
+    th { background: var(--soft); font-size: 0.78rem; text-transform: uppercase; color: var(--muted); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-completed">Completed</span>
+      </div>
+      <h1>Patient Journey Month Navigation + GSC Pending State</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed — executed, gates green, owner-verified</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07022026-patient-journey-month-nav-gsc-pending</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 2</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The Patient Journey Insights page (<code>/patientJourneyInsights</code>) is locked to the current month, so owners cannot review how last month's funnel performed. Worse, the Google Visibility card says "Not connected yet" whenever the month window has zero stored GSC rows — which is false for connected practices early in a month (GSC data trails ~2 days behind, so on July 2 a fully connected practice shows "Not connected yet"). That message erodes trust in the product.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Two user-visible changes, both on the Patient Journey Insights surface:</p>
+      <ul>
+        <li><strong>Month navigation:</strong> prev/next chevrons beside the "Your Lead Pipeline · {Month Year}" label. Back up to 12 months (current month + 11 prior); forward clamped at the current month. Stepping months refetches the funnel for that month without flashing the full-page skeleton. The advisor banner copy becomes month-aware ("…this month." vs "…in June 2026.").</li>
+        <li><strong>Honest GSC empty state:</strong> the Google Visibility card distinguishes three unavailable states:
+          <table>
+            <tr><th>Condition</th><th>Reason value</th><th>Card copy</th></tr>
+            <tr><td>No active <code>gsc</code> integration for the project</td><td><code>not_connected</code></td><td>"Not connected yet" (unchanged)</td></tr>
+            <tr><td>Active integration, zero rows in window, <strong>current</strong> month</td><td><code>pending</code></td><td>"Google data is still pending" + a <code>?</code> icon whose hover tooltip reads "GSC data trails ~2 days behind"</td></tr>
+            <tr><td>Active integration, zero rows in window, <strong>past</strong> month</td><td><code>no_data</code></td><td>"No Google data for this month"</td></tr>
+          </table>
+          A fresh connection with no historical rows at all is treated as <code>pending</code> on the current month (owner decision 07-02).
+        </li>
+      </ul>
+      <p><strong>Done when:</strong> a connected practice on day 1–2 of a month sees "Google data is still pending" with the tooltip; an unconnected practice still sees "Not connected yet"; users can step back through 12 months of funnels and the numbers match each month's window; both tsc gates and the patient-journey service tests pass.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/controllers/patient-journey/feature-services/stageReaders.ts</code> - <code>readImpressions()</code> returns <code>{ available: false }</code> purely on zero <code>gsc_data</code> rows; never checks connection. Gains the integration + history checks.</li>
+        <li><code>src/controllers/patient-journey/feature-services/PatientJourneyService.ts</code> - <code>toStage()</code> copies <code>StageRead</code> fields onto the response stage; passes the new reason through.</li>
+        <li><code>src/controllers/patient-journey/feature-utils/types.ts</code> - backend <code>PatientJourneyStage</code>; its doc comment mandates verbatim lockstep with the frontend mirror.</li>
+        <li><code>src/controllers/patient-journey/feature-utils/controllerResponses.ts</code> - <code>resolveReportMonth()</code> already accepts <code>?month=YYYY-MM</code>; no backend route/controller change needed.</li>
+        <li><code>src/models/website-builder/WebsiteIntegrationModel.ts</code> - <code>findByProjectAndPlatform(projectId, "gsc")</code> + <code>status === "active"</code> is the connection signal.</li>
+        <li><code>src/models/website-builder/GscDataModel.ts</code> - <code>findLatestReportDate(projectId)</code> is the has-any-history signal.</li>
+        <li><code>src/__tests__/patient-journey.service.test.ts</code> - existing service tests to extend (§20.1/§20.2).</li>
+        <li><code>frontend/src/types/patientJourney.ts</code> - frontend mirror of the stage type; gains the same optional field.</li>
+        <li><code>frontend/src/components/dashboard/patient-journey/PatientJourneyDashboard.tsx</code> - calls <code>usePatientJourney(orgId, locId)</code> with no period today; gains month state, chevrons, fetch-dimming, month-aware banner copy.</li>
+        <li><code>frontend/src/components/dashboard/patient-journey/PatientJourneyStageCard.tsx</code> - hardcodes "Not connected yet" for every unavailable stage (line ~154); gains the reason-driven copy + tooltip.</li>
+        <li><code>frontend/src/components/dashboard/patient-journey/patientJourney.utils.ts</code> - pure helpers; gains month-key math + empty-state copy helper to keep components lean (§13.2).</li>
+        <li><code>frontend/src/hooks/queries/usePatientJourney.ts</code> - already accepts <code>period</code> and keys the cache by it; gains <code>placeholderData</code> so month steps keep the previous funnel visible.</li>
+        <li><code>frontend/src/api/patientJourney.ts</code> - already sends <code>month</code>; no change.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Connection check pattern: <code>readVisits()</code> in the same <code>stageReaders.ts</code> already does <code>WebsiteIntegrationModel.findByProjectAndPlatform(projectId, "rybbit")</code> — mirror it for <code>gsc</code> (§7.4: all reads through models).</li>
+        <li>Two-state precedent: <code>resolveGsc()</code> in <code>src/services/ai-seo-audit/organizationAuditContextService.ts:158</code> already distinguishes "No active GSC integration" from "No GSC harvest rows found".</li>
+        <li>Chevron month stepper: <code>frontend/src/components/Admin/shell/MonthSelector.tsx</code> is the visual/interaction analog (adapted to this surface's tokens, not imported — it lives in the Admin feature folder, §12.3/§12.4).</li>
+        <li>Constitution Articles in play: §5.5/§11.7 (tenant scope stays middleware-derived; <code>month</code> is a pure window selector), §7.4 (new reads via models only), §6.1/§6.3 (domain already mirrors gbp-automation; keep readers in <code>feature-services/</code>), §8.1 (envelope unchanged), §20.1/§20.2 (extend service tests for the three reasons), §12.1/§14.2/§14.3 (reuse the existing api/hook plumbing, no new fetch paths), §13.1/§13.2 (helpers into <code>*.utils.ts</code>, dashboard stays lean), §4.2 (named constants for the 12-month window and tooltip copy), §4.4 (no new dependencies — native <code>title</code> tooltip).</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/controllers/patient-journey/feature-services/stageReaders.ts</code> (<code>readVisits</code>) for the backend change; <code>frontend/src/components/Admin/shell/MonthSelector.tsx</code> for the month-stepper interaction. No new files are created except none — all changes land in existing files.</p>
+      <h3>Docs Impact</h3>
+      <p>Dashboard UI change → Alloro Docs parity required at <code>--done</code>: the Patient Journey Insights page in <code>/Users/rustinedave/Desktop/alloro-docs</code> gains the month chevrons and the new empty-state messages ("Google data is still pending" + tooltip, "No Google data for this month").</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Add <code>unavailableReason?: "not_connected" | "pending" | "no_data"</code> to <em>both</em> stage types (backend <code>feature-utils/types.ts</code> and <code>frontend/src/types/patientJourney.ts</code>) in the same execution — additive and optional so absent = legacy behavior.</li>
+            <li>Only the <code>impressions</code> stage emits the reason; <code>visits</code>/<code>leads</code> keep the generic fallback ("Not connected yet") when unavailable.</li>
+            <li>"Current month" for pending-vs-no_data is decided backend-side by comparing <code>input.reportMonth</code> to the current UTC month (same clock <code>resolveReportMonth</code> uses).</li>
+            <li>Frontend sends <code>period</code> only when viewing a past month (offset &lt; 0); the current month keeps the period-less query key so the Practice Hub card's query stays deduped.</li>
+            <li>Month math on the frontend uses UTC (matching <code>resolveReportMonth</code>) so the label and the backend window never disagree around month rollover.</li>
+            <li>Chevrons clamp: next disabled at the current month, prev disabled at current-11 (12 visible months total). Both carry aria-labels.</li>
+            <li>Integration/history lookups run only on the already-empty path (zero rows in window) — no extra queries when data exists.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No new dependencies — the <code>?</code> tooltip is a lucide icon (already in use) with a native <code>title</code>/<code>aria-label</code>, and it must not be a nested <code>&lt;button&gt;</code> inside the stage-card button.</li>
+            <li>No backend route, controller, or API-client changes — the <code>?month=</code> plumbing already exists end-to-end.</li>
+            <li>No changes to funnel math, leak selection, or conversion behavior — an unavailable impressions stage keeps <code>available: false</code> regardless of reason.</li>
+            <li>Do not modify the Practice Hub <code>PatientJourneyCard</code> or the detail-deck components — the new field is additive and they ignore it.</li>
+            <li>No refactors of unrelated stage readers or the Rybbit failure-path semantics.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Rybbit visits stage showing "Not connected yet" when the integration is active but the live fetch fails — known imprecision, separate fix if wanted.</li>
+        <li>Backend clamping of future/ancient months (authorized users get honest empties; frontend clamps the UI).</li>
+        <li>Month-scoped local-rank history (rank card stays "latest completed" on all months — owner decision 07-02).</li>
+        <li>A "reconnect needed" state for <code>broken</code>/<code>revoked</code> GSC integrations — those render as <code>not_connected</code>, matching the <code>resolveGsc</code> precedent.</li>
+        <li>Any month navigation on the Practice Hub summary card.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 2 — additive contract change + new UI state on an owner-facing surface; no schema changes, no migrations, no auth changes.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>BE/FE contract drift</strong> — the stage type lives in two mirrored files. <strong>Mitigation:</strong> optional additive field, both files edited in T1/T2 of the same execution, verified by both tsc gates.</li>
+        <li><strong>"Pending" mislabel on past months</strong> — a past month with no rows is not "pending"; that data will never arrive. <strong>Mitigation:</strong> the third <code>no_data</code> state ("No Google data for this month"), decided by report-month vs current-UTC-month. Flagged to owner 07-02; option A (three states) chosen over option B (one pending message everywhere).</li>
+        <li><strong>Query-cache duplication</strong> — always sending an explicit month would split the cache from the Hub card's period-less key. <strong>Mitigation:</strong> send <code>period</code> only for past months.</li>
+        <li><strong>Skeleton flash on month step</strong> — default React Query behavior blanks the page per new key. <strong>Mitigation:</strong> <code>placeholderData: (prev) =&gt; prev</code> in the hook + a dim/disable treatment while <code>isFetching</code>.</li>
+        <li><strong>Extra reads on the empty path</strong> (Level 1) — two indexed lookups (<code>website_integrations</code>, <code>max(report_date)</code>) only when the month window is empty. Negligible.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> consumers of the <code>PatientJourney</code> payload: <code>PatientJourneyDashboard</code> (this surface), <code>components/dashboard/focus/PatientJourneyCard.tsx</code> (Practice Hub — period-less query, ignores the new field), the detail-deck components (read stage metadata — additive-safe), and <code>src/__tests__/patient-journey.service.test.ts</code>. The <code>GET /api/patient-journey</code> endpoint has no other frontend callers.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>A per-stage <code>unavailableReason</code> string on the API is marginally more surface than a boolean, but it keeps copy decisions in the frontend and states typed — preferred over overloading the existing <code>note</code> field, which already feeds tooltips and whole-practice suffixes.</li>
+        <li>The 12-month window is a frontend-only clamp; the API will serve older months to anyone who crafts the query. That is acceptable (tenant-scoped, honest empties) and avoids duplicating the clamp server-side.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Backend — <code>unavailableReason</code> on the impressions stage</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>unavailableReason?: "not_connected" | "pending" | "no_data"</code> to <code>StageRead</code> (stageReaders) and <code>PatientJourneyStage</code> (feature-utils/types.ts). In <code>readImpressions</code>, when the window has zero rows: look up <code>WebsiteIntegrationModel.findByProjectAndPlatform(projectId, "gsc")</code>; if missing or <code>status !== "active"</code> → <code>not_connected</code>; otherwise decide <code>pending</code> (report month == current UTC month) vs <code>no_data</code> (past month). Pass the report month into <code>readImpressions</code> (it already receives the window dates — derive or add the flag via a parameter from <code>assemblePatientJourney</code>). Copy the field through in <code>toStage()</code>. Keep <code>value: null / available: false</code> semantics untouched. Wrap new lookups in the existing try/catch so a failed check degrades to <code>not_connected</code>-free legacy behavior (no reason emitted) rather than throwing (§3.1). Extend <code>src/__tests__/patient-journey.service.test.ts</code> to cover all three reasons and the no-integration legacy path (§20.1/§20.2).</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/patient-journey/feature-services/stageReaders.ts</code>, <code>src/controllers/patient-journey/feature-services/PatientJourneyService.ts</code>, <code>src/controllers/patient-journey/feature-utils/types.ts</code>, <code>src/__tests__/patient-journey.service.test.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> + <code>npx vitest run src/__tests__/patient-journey.service.test.ts</code> + <code>npm run check:conventions --strict</code></dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Frontend — three-state Google Visibility empty copy + tooltip</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Mirror the optional <code>unavailableReason</code> field in <code>frontend/src/types/patientJourney.ts</code>. Add a pure helper in <code>patientJourney.utils.ts</code> mapping reason → copy ("Not connected yet" / "Google data is still pending" / "No Google data for this month"), defaulting to "Not connected yet" when absent. In <code>PatientJourneyStageCard.tsx</code>, render the mapped copy in the empty state; when reason is <code>pending</code>, append a small lucide <code>HelpCircle</code> (span, not button) with <code>title</code> + <code>aria-label</code> "GSC data trails ~2 days behind". Named constant for the tooltip copy (§4.2).</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/types/patientJourney.ts</code>, <code>frontend/src/components/dashboard/patient-journey/patientJourney.utils.ts</code>, <code>frontend/src/components/dashboard/patient-journey/PatientJourneyStageCard.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1 (contract field)</dd></div>
+          <div><dt>Verify</dt><dd><code>cd /Users/rustinedave/Desktop/alloro/frontend && npx tsc -p tsconfig.app.json</code> (unmasked exit code)</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: Frontend — month navigation on the pipeline header</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add UTC month-key helpers to <code>patientJourney.utils.ts</code> (offset → <code>YYYY-MM</code>, named constant <code>MONTH_HISTORY_LIMIT = 12</code>). In <code>PatientJourneyDashboard.tsx</code>: <code>monthOffset</code> state (0 = current); pass <code>period</code> to <code>usePatientJourney</code> only when offset &lt; 0; prev/next chevron buttons beside the "Your Lead Pipeline · {label}" line (ChevronLeft/ChevronRight, disabled states at both clamps, aria-labels); dim the pipeline (opacity + pointer-events-none) while <code>isFetching &amp;&amp; !isLoading</code>; reset any active stage selection on month change. In <code>usePatientJourney.ts</code>, add <code>placeholderData: (prev) =&gt; prev</code> so stepping months never flashes the full-page skeleton.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/dashboard/patient-journey/PatientJourneyDashboard.tsx</code>, <code>frontend/src/components/dashboard/patient-journey/patientJourney.utils.ts</code>, <code>frontend/src/hooks/queries/usePatientJourney.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none (parallel with T1/T2)</dd></div>
+          <div><dt>Verify</dt><dd><code>cd /Users/rustinedave/Desktop/alloro/frontend && npx tsc -p tsconfig.app.json</code>; Manual: step back/forward, clamps hold, numbers change per month, no skeleton flash</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T4: Frontend — month-aware advisor banner copy</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Extend <code>advisorBannerText</code> (or move it to <code>patientJourney.utils.ts</code> if the dashboard file grows) to take the period label + an is-current-month flag: current month keeps "…contacted your practice this month."; past months read "…contacted your practice in {Month Year}." The neutral fallback line stays month-agnostic.</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/dashboard/patient-journey/PatientJourneyDashboard.tsx</code>, <code>frontend/src/components/dashboard/patient-journey/patientJourney.utils.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T3 (month state)</dd></div>
+          <div><dt>Verify</dt><dd><code>cd /Users/rustinedave/Desktop/alloro/frontend && npx tsc -p tsconfig.app.json</code>; Manual: banner wording changes when viewing a past month</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> (backend) - zero errors from this work</li>
+        <li><input type="checkbox" disabled> <code>cd frontend && npx tsc -p tsconfig.app.json</code> - zero errors (the real FE gate)</li>
+        <li><input type="checkbox" disabled> <code>npx vitest run src/__tests__/patient-journey.service.test.ts</code> - passes, including the three new reason cases</li>
+        <li><input type="checkbox" disabled> <code>npm run check:conventions --strict</code> - no new backend violations</li>
+        <li><input type="checkbox" disabled> Manual: connected practice + current month with no GSC rows shows "Google data is still pending" with the <code>?</code> tooltip ("GSC data trails ~2 days behind")</li>
+        <li><input type="checkbox" disabled> Manual: org without an active GSC integration still shows "Not connected yet"</li>
+        <li><input type="checkbox" disabled> Manual: past month, connected, zero rows shows "No Google data for this month"</li>
+        <li><input type="checkbox" disabled> Manual: chevrons step back 12 months and clamp at both ends; funnel numbers and period label follow the selected month without a full-page skeleton flash</li>
+        <li><input type="checkbox" disabled> Manual: advisor banner reads "in {Month Year}" on past months, "this month" on the current one</li>
+        <li><input type="checkbox" disabled> No regressions: Practice Hub Patient Journey card still loads current-month data (period-less query untouched)</li>
+        <li><input type="checkbox" disabled> Docs parity queued for <code>--done</code>: alloro-docs Patient Journey page (month chevrons + new empty-state messages)</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-02</h3>
+        <p><strong>Change:</strong> Executed T1–T4 with three small deviations. (a) The <code>isCurrentUtcMonth()</code> helper landed in <code>src/controllers/patient-journey/feature-utils/funnelMath.ts</code> (not in T1's file list) — it is period math and that file is the domain's designated home for it. (b) A new test file <code>src/__tests__/patient-journey.stage-readers.test.ts</code> was created for the reason-decision logic, because the existing service test mocks the stage readers wholesale and can never exercise the real <code>readImpressions</code> (§20.1 tests-mirror-the-unit). (c) The chevrons were extracted into a <code>MonthNavigation</code> child component inside <code>PatientJourneyDashboard.tsx</code> to keep the page component under the §13.2 function-size cap. The hook's <code>placeholderData</code> is additionally guarded to reuse previous data only within the same org+location, so a location switch can never flash another location's numbers.</p>
+        <p><strong>Reason:</strong> Execution deviation: file-placement and test-isolation realities discovered during T1; ESLint max-lines warning surfaced during T3 verification.</p>
+        <p><strong>Updated Done criteria:</strong> The vitest Done item covers both patient-journey test files (21 tests). All other criteria unchanged.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-02</h3>
+        <p><strong>Change:</strong> Owner verified the running UI ("looks good now"); all six acceptance items marked pass in <code>test-results.json</code> (rolls up Passed). Hero status moved to Completed. Work committed to <code>dev/dave</code> and pushed (dev deploy workflow).</p>
+        <p><strong>Reason:</strong> User QA: owner approval after in-tab verification.</p>
+        <p><strong>Updated Done criteria:</strong> none — changelog and alloro-docs parity remain for <code>--done</code>.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

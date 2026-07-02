@@ -11,9 +11,12 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { HelpCircle } from "lucide-react";
 import type { PatientJourneyStage } from "../../../types/patientJourney";
 import {
+  GSC_PENDING_TOOLTIP,
   resolveStageKind,
+  stageEmptyStateCopy,
   stageGateLabel,
   stageGateSubtext,
   type StageKind,
@@ -149,9 +152,18 @@ export function PatientJourneyStageCard({
 
       {!available ? (
         <div
-          className={`text-center text-[10.5px] font-medium leading-tight ${mutedColor}`}
+          className={`flex items-center justify-center gap-1 text-center text-[10.5px] font-medium leading-tight ${mutedColor}`}
         >
-          Not connected yet
+          <span>{stageEmptyStateCopy(stage)}</span>
+          {stage.unavailableReason === "pending" ? (
+            <span
+              title={GSC_PENDING_TOOLTIP}
+              aria-label={GSC_PENDING_TOOLTIP}
+              className="inline-flex cursor-help"
+            >
+              <HelpCircle className="h-3 w-3" aria-hidden="true" />
+            </span>
+          ) : null}
         </div>
       ) : null}
     </button>

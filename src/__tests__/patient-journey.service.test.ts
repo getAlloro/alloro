@@ -245,6 +245,79 @@ describe("assemblePatientJourney — empty / not-connected paths", () => {
   });
 });
 
+describe("assemblePatientJourney — impressions unavailable reason", () => {
+  it("copies the impressions reader's unavailableReason onto the stage only", async () => {
+    readImpressions.mockResolvedValue({
+      value: null,
+      available: false,
+      asOf: null,
+      unavailableReason: "pending",
+    });
+
+    const result = await assemblePatientJourney({
+      organizationId: ORG,
+      locationId: LOCATION,
+      reportMonth: MONTH,
+    });
+
+    const impressions = result.stages.find((s) => s.key === "impressions");
+    expect(impressions?.available).toBe(false);
+    expect(impressions?.unavailableReason).toBe("pending");
+    expect(
+      result.stages.find((s) => s.key === "visits")?.unavailableReason,
+    ).toBeUndefined();
+    expect(
+      result.stages.find((s) => s.key === "leads")?.unavailableReason,
+    ).toBeUndefined();
+  });
+
+  it("omits the reason for a legacy reason-less empty read", async () => {
+    readImpressions.mockResolvedValue(stage(null, false));
+
+    const result = await assemblePatientJourney({
+      organizationId: ORG,
+      locationId: LOCATION,
+      reportMonth: MONTH,
+    });
+
+    const impressions = result.stages.find((s) => s.key === "impressions");
+    expect(impressions?.available).toBe(false);
+    expect(impressions?.unavailableReason).toBeUndefined();
+  });
+
+  it("tells the impressions reader whether the report month is the current UTC month", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(Date.UTC(2026, 5, 15))); // June 15, 2026 (UTC)
+    try {
+      await assemblePatientJourney({
+        organizationId: ORG,
+        locationId: LOCATION,
+        reportMonth: "2026-06-01",
+      });
+      expect(readImpressions).toHaveBeenLastCalledWith(
+        "proj-1",
+        "2026-06-01",
+        "2026-06-30",
+        true,
+      );
+
+      await assemblePatientJourney({
+        organizationId: ORG,
+        locationId: LOCATION,
+        reportMonth: "2026-05-01",
+      });
+      expect(readImpressions).toHaveBeenLastCalledWith(
+        "proj-1",
+        "2026-05-01",
+        "2026-05-31",
+        false,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("assemblePatientJourney — leak selection", () => {
   it("flags the single smallest non-null step as the biggest leak and names it in the headline", async () => {
     // Make visits → leads the worst step (5%), impressions → visits healthier.
