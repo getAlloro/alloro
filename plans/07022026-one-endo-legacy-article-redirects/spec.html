@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>One Endo Legacy Article Redirects Spec</title>
+  <style>
+    :root { color-scheme: light; --paper: #ffffff; --ink: #080808; --muted: #5f5f5f; --line: #d8d8d8; --soft: #f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.5; }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; }
+    h2 { font-size: 1.35rem; }
+    h3 { font-size: 1rem; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 0; }
+    .meta-grid div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .risk-tag { display: inline-block; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; border: 1px solid var(--ink); border-radius: 999px; padding: 2px 10px; margin-bottom: 6px; }
+    @media (max-width: 640px) { .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; } .spec-hero, .spec-card { padding: 20px; } }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>One Endo Legacy Article Redirects</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07022026-one-endo-legacy-article-redirects</dd></div>
+        <div><dt>Size</dt><dd>Small</dd></div>
+        <div><dt>Risk</dt><dd>Level 1</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The old One Endodontics WordPress site served its ~90 articles at root-level URLs (<code>/{slug}/</code>, Wayback-confirmed); the new site serves the same articles — same slugs — at <code>/articles/{slug}</code>. No redirect rows cover them, so today every legacy article URL soft-404s to the homepage. <strong>Why redirects and not just a Google reindex request:</strong> reindexing only makes Google re-fetch a URL — and the re-fetch still returns 200-homepage, teaching Google nothing about where the content went. The 301 is the actual signal that transfers each old URL's backlink history to its new home and sends real visitors clicking old links to the article instead of the homepage. GSC inspection submissions are also manual and quota-capped (~10/day — impractical for 90). Ordering matters: once the renderer's soft-404 fix (<code>07022026-renderer-seo-hardening</code> T5) ships, these URLs start returning hard 404s and their link equity dies — <strong>this plan must land first</strong>.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Insert exact-match 301 rows into <code>website_builder.redirects</code> for the One Endodontics project (<code>0dcad678-2845-4c20-a298-e9c62aed9ebc</code>): one per published article post, <code>/{slug}</code> → <code>/articles/{slug}</code> (91 rows, zero collisions with the existing 41 rows — verified 2026-07-02), plus <code>/contact-us/gainesville-office-coming-soon</code> → <code>/locations/gainesville-office</code> (Wayback-confirmed legacy URL). Done when every inserted <code>from_path</code> 301s to a 200 target on the live site.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <ul>
+        <li><code>website_builder.redirects</code> — <code>project_id</code>, <code>from_path</code>, <code>to_path</code>, <code>type</code> (301), <code>is_wildcard</code>; unique index on <code>(project_id, from_path)</code> makes the insert naturally idempotent with <code>ON CONFLICT DO NOTHING</code>.</li>
+        <li>Renderer resolution: redirects run before page lookup (<code>website-builder-rebuild/src/routes/site.ts:408</code>), cached 5 min in Redis (<code>redir:*</code>), flushed by <code>?nocache=1</code>.</li>
+        <li>Row generation is a single <code>INSERT ... SELECT</code> from <code>website_builder.posts</code> joined to <code>post_types</code> (<code>pt.slug='articles'</code>, published) — same direct-prod-data pattern as this session's canonical and og_image fixes.</li>
+        <li>Generating a row for a slug the old site never actually had is harmless: an exact-match redirect nobody requests does nothing.</li>
+      </ul>
+      <p><strong>Reference analog:</strong> the transaction + verify-count + cache-bust + live-curl procedure used in <code>plans/07022026-seo-metatag-fixes</code> T1.</p>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 1 — additive, idempotent, exact-match data rows; no schema change, no code change.</p>
+      <ul>
+        <li><span class="risk-tag">Level 1</span> A future article slug rename would leave a stale redirect. <strong>Mitigation:</strong> exact-match rows are inert unless requested; acceptable.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> One Endodontics site only; 92 new redirect rows.</p>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Insert + verify the redirect rows</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Transactional <code>INSERT ... SELECT '/'||p.slug, '/articles/'||p.slug, 301 ... ON CONFLICT DO NOTHING</code> for the 91 published articles, plus the one contact-us row; verify inserted count; bust the redirect cache (<code>?nocache=1</code>); curl a sample of ≥5 legacy URLs (including <code>/dentist-gainesville-insider-tips</code>, the session's known probe) asserting 301 → target → 200.</dd></div>
+          <div><dt>Files</dt><dd>None — direct prod data via the session's psql tooling; SQL preserved in the plan folder if a re-run is ever needed.</dd></div>
+          <div><dt>Depends on</dt><dd>none (but must precede the renderer soft-404 task)</dd></div>
+          <div><dt>Verify</dt><dd>Manual: sampled 301 chains; SQL: 92 rows present, 0 duplicates.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> 92 redirect rows inserted (91 articles + 1 contact-us), 0 conflicts — project total 41→133</li>
+        <li><input type="checkbox" checked disabled> Sampled legacy URLs 301 to a 200 target live — 5 samples + the contact-us row, full chain followed to 200</li>
+        <li><input type="checkbox" checked disabled> Noted in the renderer-hardening plan that its T5 precondition is satisfied</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-02</h3>
+        <p><strong>Change:</strong> Executed as specified (92 rows, 0 conflicts, live-verified). One discovery during verification: the deployed renderer's <code>?nocache=1</code> pattern-flush is silently broken — the production Redis is a cluster with the <code>KEYS</code> command disabled, the flush's <code>redis.keys(pattern)</code> throws, and the catch swallows it. The redirects appeared only after the redirect cache's natural 5-minute TTL, not because of any cache-bust. Every prior "nocache-verified" change this session actually propagated via short TTLs.</p>
+        <p><strong>Reason:</strong> Execution deviation: verification initially showed no redirects firing; root-caused to the broken flush + TTL rather than bad data.</p>
+        <p><strong>Updated Done criteria:</strong> None here — the broken cache-flush fix was added to <code>plans/07022026-renderer-seo-hardening</code>'s scope instead (SCAN-based, cluster-aware flush).</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
