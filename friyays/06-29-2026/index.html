@@ -212,6 +212,48 @@
                   until then. Internal admin tooling; not customer-email material.
                 </td>
               </tr>
+              <tr>
+                <td>Client websites</td>
+                <td>SEO overhaul: metadata repairs, legacy redirects, sitemaps, real 404s, archived-site gating</td>
+                <td>All rendered client sites (public-facing) &mdash; deepest on One Endodontics, Artful, Garrison, getalloro.com</td>
+                <td>Deployed to production</td>
+                <td>Needs classification</td>
+                <td>
+                  Started from the owner's "wrong Google sitelink" question and grew into a
+                  full root-cause pass: fixed fabricated canonicals, invalid schema types,
+                  missing social images, missing star-rating and FAQ structured data across
+                  all 4 audited sites (109 posts generated from scratch, 254 enriched, 57
+                  pages fixed); 92 legacy WordPress article URLs plus 21 broken internal
+                  links now 301 correctly; every site serves a real
+                  <code>robots.txt</code>/<code>sitemap.xml</code>; unknown URLs return honest
+                  404s instead of the homepage; archived ghost sites stopped rendering
+                  (410); render-time canonical backstop covers every other client site.
+                  Changelogs 0.0.147&ndash;0.0.151; six Passed plan folders (see
+                  <code>plans/07022026-seo-*</code>,
+                  <code>plans/07022026-one-endo-legacy-article-redirects</code>,
+                  <code>plans/07022026-renderer-seo-hardening</code>). Renderer + prod-data
+                  changes are live in production; owner to confirm whether the client-value
+                  story (better Google presence) joins a customer email.
+                </td>
+              </tr>
+              <tr>
+                <td>Admin/DFY tooling</td>
+                <td>SEO generator root fixes + honest canonical scoring in the SEO panel</td>
+                <td>Internal &mdash; website editor admin/DFY users generating page &amp; post SEO</td>
+                <td>Pushed to dev/dave (dev deploy in progress at time of writing)</td>
+                <td>No</td>
+                <td>
+                  The generator can never fabricate a canonical again (prompt fixed +
+                  deterministic override on every call path); GEO auto-apply gained an
+                  explicit opt-out and its recovery snapshot works for the first time
+                  (<code>previous_content</code> column-type migration, runs on prod at the
+                  next main merge); the SEO panel's "Canonical tag" criterion now checks
+                  correctness (host + path) instead of mere presence &mdash; the exact 8/8
+                  blind spot that hid the original bug. See
+                  <code>plans/07022026-seo-generator-root-fixes</code> and
+                  <code>plans/07022026-seo-audit-canonical-check</code> (both Passed).
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
