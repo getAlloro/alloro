@@ -24,6 +24,7 @@ import {
   hasFaqPageSchema,
 } from "../controllers/admin-websites/feature-utils/util.faq-schema";
 import { injectAggregateRating } from "../controllers/admin-websites/feature-utils/util.aggregate-rating-schema";
+import { trimTitleLength } from "../controllers/admin-websites/feature-utils/util.title-length";
 
 describe("sanitizeSchemaEntryType / sanitizeSchemaJsonTypes", () => {
   it("falls back invented specialty types to MedicalBusiness", () => {
@@ -37,7 +38,7 @@ describe("sanitizeSchemaEntryType / sanitizeSchemaJsonTypes", () => {
   });
 
   it("passes through known non-business schema kinds unchanged", () => {
-    for (const type of ["BreadcrumbList", "Service", "FAQPage", "WebPage", "Organization"]) {
+    for (const type of ["BreadcrumbList", "Service", "FAQPage", "WebPage", "Organization", "SoftwareApplication"]) {
       const entry = { "@type": type };
       expect(sanitizeSchemaEntryType(entry)).toEqual(entry);
     }
@@ -149,5 +150,62 @@ describe("injectAggregateRating", () => {
 
   it("returns an empty array for non-array input", () => {
     expect(injectAggregateRating(null, { ratingValue: 5, reviewCount: 10 })).toEqual([]);
+  });
+});
+
+describe("trimTitleLength", () => {
+  it("leaves titles at or under 60 chars unchanged", () => {
+    const title = "Endodontist in Fredericksburg, VA | One Endodontics"; // 53 chars
+    expect(trimTitleLength(title)).toEqual({ title, trimmed: false, unresolvable: false });
+  });
+
+  it("drops only the trailing brand segment when that's enough (real 70-char title)", () => {
+    const result = trimTitleLength(
+      "Patient Reviews: Root Canal Care in Falls Church, VA | One Endodontics"
+    );
+    expect(result).toEqual({
+      title: "Patient Reviews: Root Canal Care in Falls Church, VA",
+      trimmed: true,
+      unresolvable: false,
+    });
+    expect(result.title.length).toBeLessThanOrEqual(60);
+  });
+
+  it("keeps the first two segments when dropping only the last isn't enough (real 68-char title)", () => {
+    const result = trimTitleLength(
+      "Endodontic Articles & Resources | Falls Church, VA | One Endodontics"
+    );
+    expect(result).toEqual({
+      title: "Endodontic Articles & Resources | Falls Church, VA",
+      trimmed: true,
+      unresolvable: false,
+    });
+  });
+
+  it("keeps the front keyword+location segment, only drops the brand tail (real 66-char title)", () => {
+    const result = trimTitleLength(
+      "First Visit Guide | Falls Church, VA Endodontist | One Endodontics"
+    );
+    expect(result).toEqual({
+      title: "First Visit Guide | Falls Church, VA Endodontist",
+      trimmed: true,
+      unresolvable: false,
+    });
+  });
+
+  it("flags as unresolvable rather than mid-word-truncate a single-segment over-limit title", () => {
+    const longSingleSegment = "A".repeat(80);
+    const result = trimTitleLength(longSingleSegment);
+    expect(result).toEqual({ title: longSingleSegment, trimmed: false, unresolvable: true });
+  });
+
+  it("flags as unresolvable when even the first segment alone still exceeds the limit", () => {
+    const result = trimTitleLength(`${"A".repeat(70)} | Brand`);
+    expect(result.unresolvable).toBe(true);
+    expect(result.title).toBe("A".repeat(70));
+  });
+
+  it("handles empty input without throwing", () => {
+    expect(trimTitleLength("")).toEqual({ title: "", trimmed: false, unresolvable: false });
   });
 });

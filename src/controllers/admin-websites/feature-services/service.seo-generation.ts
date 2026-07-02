@@ -483,7 +483,7 @@ async function fetchBusinessData(
  * falling back to BUSINESS DATA only — per spec T5, the absence of facts
  * must never read as license to invent.
  */
-async function fetchPracticeFactsBlock(
+export async function fetchPracticeFactsBlock(
   entityId: string,
   entityType: "page" | "post"
 ): Promise<string> {

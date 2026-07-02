@@ -2,6 +2,29 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.149] - July 2026
+
+### SEO Full Coverage: Pages Enriched, 108 Blank Posts Given Real SEO Data
+
+Follow-up to 0.0.147. A fresh, precise audit of all 57 pages and 254 posts found the prior fix only ever reached posts — pages still carried the same invalid-schema-type, missing-rating, and missing-FAQ-schema defects — and surfaced something bigger: 92 One Endodontics posts and 16 Garrison Orthodontics posts had no SEO data at all, and Garrison's other 33 posts had a title but zero structured data.
+
+**Key Changes:**
+- **Pages now get the same enrichment posts already had.** `enrichPageSeoData` + `enrichPagesForProject` (new, mirrors the post-level functions from 0.0.147) applied schema-type sanitization, real `aggregateRating` injection, and `faq_candidates` → `FAQPage` conversion across all 57 published pages on all 4 sites. Caught and immediately reverted a real bug in the same pass: the schema-type allowlist didn't recognize `SoftwareApplication` (getalloro.com's own type), so 4 getalloro.com pages briefly had their legitimate type overwritten to `MedicalBusiness` before the allowlist was fixed and the 4 rows corrected — confirmed via a full before/after type-count reconciliation across all 4 sites, zero collateral damage.
+- **Deterministic title-length trim.** New `trimTitleLength` (`util.title-length.ts`) drops trailing pipe-delimited title segments (least-important first, e.g. the brand-name tail) until a title fits Google's ~60-character cutoff, without ever risking a mid-word cut — a single-segment title that's still too long is left alone and flagged rather than mangled. Wired into both page and post enrichment. Closed 0/57 pages and all multi-segment post titles across all 3 posting sites; 31 single-segment article-style headlines remain over 60 chars by design (no safe split point exists).
+- **Real SEO generated for the 108 posts that had none**, plus schema_json for Garrison's other 33 — using the existing tiered generation pipeline (already schema-type-fixed from 0.0.147), immediately enriched on top for og_image/rating/FAQ/title-length. Two things were caught and fixed before they could affect all 108+ posts: (1) full generation also silently triggers "GEO auto-apply," a separate feature that rewrites a post's visible body content — confirmed with the owner this run should stay metadata-only, so generation now calls the section runner directly instead of the wrapper that triggers it; (2) the "critical" section fabricated a plausible-looking canonical URL instead of deriving the real one — same disease as 0.0.147, now overridden with the deterministic `/{type-slug}/{slug}` path on every freshly-generated post, never trusted from the LLM.
+- **Retroactive title-trim sweep.** The 254 posts fixed in 0.0.147 predate the title-trim capability; re-ran the existing post-enrichment batch (idempotent, no LLM calls) across all 3 sites so newly-added title-trim reaches posts that weren't touched by this session's generation work.
+
+**Verification:** `npx tsc --noEmit` clean. `npm run check:conventions --strict` 0 violations. 158/158 vitest passing (22 new this session). `npm run depcruise` 0 new violations. Final audit: 0 invalid schema types anywhere (pages or posts, all 4 sites), real ratings on every eligible business-entity element, 0 posts with missing SEO data, 49/49 Garrison posts have schema_json, 0/57 pages over the title-length limit. Live-verified via cache-busted curl across all 4 sites. Acceptance checklist Passed (`plans/07022026-seo-full-coverage/test-results.json`). Deliberately left non-green, on purpose: FAQ schema on Artful/Garrison/getalloro.com pages and any post (no real `faq_candidates` exist to convert — fabricating one would be the same dishonesty this effort exists to remove) and a rating for getalloro.com (not a reviewed business, no data to source one from).
+
+**Commits:**
+- `src/controllers/admin-websites/feature-services/service.seo-enrichment.ts` — page-level enrichment + shared title-trim/schema-type/rating/FAQ helpers extracted for reuse across pages and posts
+- `src/controllers/admin-websites/feature-utils/util.title-length.ts` — new deterministic title trim
+- `src/controllers/admin-websites/feature-utils/util.schema-business-type.ts` — added `SoftwareApplication` to the non-business allowlist (regression fix)
+- `src/controllers/admin-websites/feature-services/service.seo-generation.ts` — exported `fetchPracticeFactsBlock` for reuse by the new generation scripts
+- `scripts/seo-page-enrichment-backfill.ts`, `scripts/seo-generate-missing.ts`, `scripts/seo-generate-schema-only.ts` — new one-off batch scripts
+- `src/__tests__/seo-enrichment.test.ts` — 7 new title-trim tests + 1 regression test for the SoftwareApplication fix
+- `plans/07022026-seo-full-coverage/` — spec, acceptance artifact
+
 ## [0.0.148] - July 2026
 
 ### Website Builder: GEO Auto-Apply Also Drops the Page Label

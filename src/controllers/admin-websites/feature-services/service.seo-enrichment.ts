@@ -17,6 +17,7 @@
  */
 
 import { PostModel } from "../../../models/website-builder/PostModel";
+import { PageModel } from "../../../models/website-builder/PageModel";
 import { ProjectModel } from "../../../models/website-builder/ProjectModel";
 import { LocationModel } from "../../../models/LocationModel";
 import { ReviewModel } from "../../../models/website-builder/ReviewModel";
@@ -28,6 +29,7 @@ import {
   type RealAggregateRating,
 } from "../feature-utils/util.aggregate-rating-schema";
 import { buildFaqPageSchema, hasFaqPageSchema } from "../feature-utils/util.faq-schema";
+import { trimTitleLength } from "../feature-utils/util.title-length";
 import logger from "../../../lib/logger";
 
 export interface PostEnrichmentResult {
@@ -73,6 +75,67 @@ function parseSeoData(raw: unknown): Record<string, unknown> {
 }
 
 /**
+ * Shared title-length enrichment step for both posts and pages: trims an
+ * over-60-char meta_title in place on `enriched` and records the change.
+ * No-op (including the unresolvable case) when the title already fits or
+ * can't be trimmed without cutting the first segment.
+ */
+function applyTitleTrim(enriched: Record<string, unknown>, changed: string[]): void {
+  if (typeof enriched.meta_title !== "string") return;
+  const result = trimTitleLength(enriched.meta_title);
+  if (result.trimmed) {
+    enriched.meta_title = result.title;
+    changed.push("meta_title:trimmed");
+  }
+}
+
+/**
+ * Shared invalid-schema-type + aggregateRating enrichment for both posts and
+ * pages: mutates `enriched.schema_json` in place when a fix applies and
+ * records each change. Both steps are guarded — never fabricate a rating,
+ * never invent a schema type beyond the safe fallback.
+ */
+async function applySchemaTypeAndRating(
+  enriched: Record<string, unknown>,
+  changed: string[],
+  projectId: string
+): Promise<void> {
+  if (!Array.isArray(enriched.schema_json)) return;
+
+  const sanitized = sanitizeSchemaJsonTypes(enriched.schema_json);
+  if (JSON.stringify(sanitized) !== JSON.stringify(enriched.schema_json)) {
+    enriched.schema_json = sanitized;
+    changed.push("schema_json:type");
+  }
+
+  const project = await ProjectModel.findOrganizationIdById(projectId);
+  if (!project?.organization_id) return;
+
+  const rating = await fetchProjectAggregateRating(project.organization_id);
+  if (!rating) return;
+
+  const withRating = injectAggregateRating(enriched.schema_json as unknown[], rating);
+  if (JSON.stringify(withRating) !== JSON.stringify(enriched.schema_json)) {
+    enriched.schema_json = withRating;
+    changed.push("schema_json:aggregateRating");
+  }
+}
+
+/**
+ * Shared faq_candidates -> FAQPage enrichment for both posts and pages.
+ */
+function applyFaqPageConversion(enriched: Record<string, unknown>, changed: string[]): void {
+  if (!Array.isArray(enriched.faq_candidates) || !Array.isArray(enriched.schema_json)) return;
+  if (hasFaqPageSchema(enriched.schema_json)) return;
+
+  const faqSchema = buildFaqPageSchema(enriched.faq_candidates);
+  if (faqSchema) {
+    enriched.schema_json = [...(enriched.schema_json as unknown[]), faqSchema];
+    changed.push("schema_json:faqpage");
+  }
+}
+
+/**
  * Enrich one post's seo_data in place: fix invalid schema @type, set
  * og_image from featured_image, inject real aggregateRating, convert
  * faq_candidates to FAQPage. Writes only when something actually changed.
@@ -92,46 +155,15 @@ export async function enrichPostSeoData(
   const enriched: Record<string, unknown> = { ...current };
   const changed: string[] = [];
 
-  // T2 — sanitize invalid schema.org business types
-  if (Array.isArray(enriched.schema_json)) {
-    const sanitized = sanitizeSchemaJsonTypes(enriched.schema_json);
-    if (JSON.stringify(sanitized) !== JSON.stringify(enriched.schema_json)) {
-      enriched.schema_json = sanitized;
-      changed.push("schema_json:type");
-    }
-  }
-
-  // T3 — og_image from the post's own featured_image
+  // og_image from the post's own featured_image (posts only — pages have no featured_image column)
   if (post.featured_image && enriched.og_image !== post.featured_image) {
     enriched.og_image = post.featured_image;
     changed.push("og_image");
   }
 
-  // T4 — real aggregateRating (never LLM-authored)
-  if (Array.isArray(enriched.schema_json)) {
-    const project = await ProjectModel.findOrganizationIdById(projectId);
-    if (project?.organization_id) {
-      const rating = await fetchProjectAggregateRating(project.organization_id);
-      if (rating) {
-        const withRating = injectAggregateRating(enriched.schema_json, rating);
-        if (JSON.stringify(withRating) !== JSON.stringify(enriched.schema_json)) {
-          enriched.schema_json = withRating;
-          changed.push("schema_json:aggregateRating");
-        }
-      }
-    }
-  }
-
-  // T5 — faq_candidates -> FAQPage schema
-  if (Array.isArray(enriched.faq_candidates) && Array.isArray(enriched.schema_json)) {
-    if (!hasFaqPageSchema(enriched.schema_json)) {
-      const faqSchema = buildFaqPageSchema(enriched.faq_candidates);
-      if (faqSchema) {
-        enriched.schema_json = [...(enriched.schema_json as unknown[]), faqSchema];
-        changed.push("schema_json:faqpage");
-      }
-    }
-  }
+  await applySchemaTypeAndRating(enriched, changed, projectId);
+  applyFaqPageConversion(enriched, changed);
+  applyTitleTrim(enriched, changed);
 
   if (changed.length === 0) {
     return { postId, changed: [] };
@@ -180,6 +212,82 @@ export async function enrichPostsForProject(
       const message = err instanceof Error ? err.message : "Unknown error";
       summary.failed.push({ postId: post.id, error: message });
       logger.error({ err, postId: post.id }, "[SEO Enrichment] Post enrichment failed");
+    }
+  }
+
+  return summary;
+}
+
+export interface PageEnrichmentResult {
+  pageId: string;
+  changed: string[];
+}
+
+/**
+ * Enrich one page's seo_data in place: fix invalid schema @type, inject a
+ * real aggregateRating, convert faq_candidates to FAQPage, trim an
+ * over-length title. Same read-patch-write discipline as
+ * {@link enrichPostSeoData} — no og_image step here, pages have no
+ * featured_image column to source one from (see plans/07022026-seo-full-
+ * coverage — page-level og_image was a one-time direct data fix instead).
+ */
+export async function enrichPageSeoData(
+  pageId: string,
+  projectId: string
+): Promise<PageEnrichmentResult> {
+  const page = await PageModel.findRawById(pageId);
+  if (!page) {
+    throw new Error(`[SEO Enrichment] Page not found: ${pageId}`);
+  }
+
+  const current = parseSeoData(page.seo_data);
+  const enriched: Record<string, unknown> = { ...current };
+  const changed: string[] = [];
+
+  await applySchemaTypeAndRating(enriched, changed, projectId);
+  applyFaqPageConversion(enriched, changed);
+  applyTitleTrim(enriched, changed);
+
+  if (changed.length === 0) {
+    return { pageId, changed: [] };
+  }
+
+  await PageModel.updateSeoDataById(pageId, JSON.stringify(enriched));
+  return { pageId, changed };
+}
+
+export interface EnrichPagesSummary {
+  total: number;
+  enriched: number;
+  unchanged: number;
+  failed: Array<{ pageId: string; error: string }>;
+}
+
+/**
+ * Enrich every published page of a project, sequentially with per-page
+ * error isolation — mirrors {@link enrichPostsForProject}.
+ */
+export async function enrichPagesForProject(projectId: string): Promise<EnrichPagesSummary> {
+  const pages = await PageModel.findPublishedByProjectId(projectId);
+
+  const summary: EnrichPagesSummary = { total: pages.length, enriched: 0, unchanged: 0, failed: [] };
+
+  for (const page of pages) {
+    try {
+      const result = await enrichPageSeoData(page.id, projectId);
+      if (result.changed.length > 0) {
+        summary.enriched += 1;
+        logger.info(
+          { pageId: page.id, changed: result.changed },
+          "[SEO Enrichment] Page enriched"
+        );
+      } else {
+        summary.unchanged += 1;
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      summary.failed.push({ pageId: page.id, error: message });
+      logger.error({ err, pageId: page.id }, "[SEO Enrichment] Page enrichment failed");
     }
   }
 

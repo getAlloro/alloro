@@ -1,0 +1,107 @@
+{
+  "plan": "plans/07022026-seo-full-coverage",
+  "generatedAt": "2026-07-02",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Page-level enrichment: schema type, rating, FAQ-candidate conversion",
+      "surface": "web",
+      "precondition": "57 published pages across 4 sites",
+      "steps": [
+        "1. Run enrichPageSeoData against a single page, verify live",
+        "2. Run enrichPagesForProject across all 4 sites",
+        "3. Reconcile every schema @type against the pre-batch baseline"
+      ],
+      "expected": "0 invalid schema types, real rating on every eligible page, FAQ schema on every page with real candidates, no collateral changes to unrelated legitimate types",
+      "status": "pass",
+      "evidence": "Batch: One Endo 19/19, Artful 15/15, Garrison 9/10, getalloro 4/13 enriched, 0 failures. Full type-count reconciliation against pre-batch baseline confirmed every count matches exactly (11 Endodontist/Orthodontist conversions, 0 collateral). Live curl confirmed on /reviews (One Endo): title trimmed, @type MedicalBusiness, FAQPage present, aggregateRating 4.98/1521 matching real synced data.",
+      "notes": "Caught and fixed a real bug mid-run: allowlist didn't recognize getalloro.com's SoftwareApplication type, briefly mis-flagged 4 pages. Reverted immediately, confirmed clean, added regression test.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Deterministic title-length trim",
+      "surface": "api",
+      "precondition": "Title over 60 characters",
+      "steps": [
+        "1. Unit test against real over-length titles from the DB",
+        "2. Apply live via T1/T3/T4/retroactive sweep",
+        "3. Re-audit final title lengths across all pages and posts"
+      ],
+      "expected": "Multi-segment titles trimmed to fit, keeping the front keyword+location; single-segment titles left alone and flagged, never mid-word truncated",
+      "status": "pass",
+      "evidence": "7 unit tests passing using real 66-70 char titles. Final audit: 0/57 pages over 60 chars. Posts: 0 remaining except 31 single-segment article headlines (verified each has no ' | ' delimiter at all — correctly unresolvable by design, not a bug).",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Generate full SEO for the 108 zero-data posts",
+      "surface": "web",
+      "precondition": "Post has no meta_title at all",
+      "steps": [
+        "1. Dry-run to confirm target count (108)",
+        "2. Test against a single post, verify live",
+        "3. Run full batch across One Endo (92) + Garrison (16)",
+        "4. Confirm 0 posts remain with null meta_title"
+      ],
+      "expected": "Real generated title/description/schema/canonical for every target post, immediately enriched for og_image/rating/FAQ, canonical never fabricated",
+      "status": "pass",
+      "evidence": "Batch: One Endo 91/91 succeeded (1 already covered by manual test), Garrison 16/16 succeeded, 0 failures. Post-batch SQL: 0 posts remain with null meta_title on either site. Live curl on /articles/root-canal-sterling-what-expect-saves-tooth confirmed real title/description/canonical (/articles/{slug}, not fabricated)/og_image all correct.",
+      "notes": "Two execution-time deviations, both resolved before the batch ran: (1) full generation also triggers GEO auto-apply (body-content rewrite) — owner confirmed metadata-only scope, switched to calling the section runner directly; (2) canonical URL was being fabricated by the LLM again — now always deterministically overridden.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Generate schema_json only for Garrison's other 33 posts",
+      "surface": "web",
+      "precondition": "Post has title/description but no schema_json",
+      "steps": [
+        "1. Dry-run to confirm target count (33, 32 after 1 manual test)",
+        "2. Test against a single post, verify title/description/canonical unchanged",
+        "3. Run full batch",
+        "4. Confirm 49/49 Garrison posts have schema_json"
+      ],
+      "expected": "New valid schema_json added, title/description/canonical byte-unchanged, rating injected where a business-entity element exists",
+      "status": "pass",
+      "evidence": "Single-post test: title/description/canonical all confirmed identical before/after, schema_json newly populated with BlogPosting + BreadcrumbList. Batch: 32/32 succeeded, 0 failures. Post-batch SQL: 49/49 Garrison posts now have schema_json (was 0/49).",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Full re-audit against the original table",
+      "surface": "cli",
+      "precondition": "T1-T4 complete",
+      "steps": [
+        "1. Re-run the exact audit queries from the original report across all 57 pages + 254 posts",
+        "2. Confirm every legitimately-closeable cell is green",
+        "3. Confirm deliberately-excluded cells are still correctly absent, not corrupted"
+      ],
+      "expected": "No unexplained non-green cells",
+      "status": "pass",
+      "evidence": "Pages (4 sites): 0 invalid types, 0 titles >60 chars, rating on every eligible page, FAQ on every page with real candidates. Posts (3 sites): 0 missing SEO data, 0 invalid types, 49/49 Garrison have schema_json, title-length closed except 31 correctly-unresolvable single-segment headlines. getalloro.com rating correctly still absent (no fabrication); Artful/Garrison/getalloro FAQ correctly still absent where no real candidates exist.",
+      "notes": "Discovered during this task that title-trim hadn't reached the 254 posts from the prior plan (only T3/T4-touched posts got it) — ran an additional idempotent, zero-LLM retroactive sweep to close this before calling the audit final.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Build, lint, type-check, and test gates",
+      "surface": "cli",
+      "precondition": "None",
+      "steps": [
+        "1. npx tsc --noEmit",
+        "2. npm run check:conventions --strict",
+        "3. npx vitest run (full suite)",
+        "4. npx eslint on new/modified files",
+        "5. npm run depcruise"
+      ],
+      "expected": "Zero new errors/violations introduced by this change",
+      "status": "pass",
+      "evidence": "tsc: 0 errors. check:conventions --strict: 0 clear structural violations. vitest: 158/158 passed across 18 files (22 new this session). eslint: 0 errors, 0 warnings on all new/modified source files. depcruise: 0 errors, 32 pre-existing advisory warnings, none from this session's files.",
+      "notes": "",
+      "waiver": ""
+    }
+  ]
+}

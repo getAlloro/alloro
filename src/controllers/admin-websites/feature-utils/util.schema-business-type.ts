@@ -39,6 +39,7 @@ const KNOWN_NON_BUSINESS_SCHEMA_TYPES = new Set([
   "AggregateRating",
   "Question",
   "Answer",
+  "SoftwareApplication",
 ]);
 
 /** Fallback type when a schema_json entry's @type is neither a valid business type nor a known non-business kind. */
