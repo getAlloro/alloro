@@ -2,6 +2,28 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.147] - July 2026
+
+### SEO Metatags: Real Social Images, Valid Schema Types, Real Ratings, FAQ Schema
+
+Found and fixed four SEO-generation defects across One Endodontics, Artful Orthodontics, Garrison Orthodontics, and getalloro.com that could plausibly cost real leads: an invented schema.org business type Google can't parse, zero social-preview images on every page despite a detailed image brief being generated for each one, no star-rating structured data despite these practices having hundreds to thousands of real reviews, and FAQ content that was generated but never became usable schema.
+
+**Key Changes:**
+- **Page-level social image (prod data, 57 pages).** Set `seo_data.og_image` to an owner-supplied photo on every published page across all 4 sites — direct data correction, no code change, mirrors the earlier canonical_url fix pattern.
+- **Fixed the SEO-generation pipeline (code), then backfilled existing posts (254 posts, 3 sites).** `SeoGeneration.significant.md` told the model to invent a "closest valid MedicalBusiness subtype" for a specialty practice (e.g. "Orthodontist", "'Endodontist'-equivalent") — neither exists in schema.org's vocabulary, so the whole schema block was almost certainly silently dropped by Google's parser on any page carrying one. Rewrote the prompt to use "Dentist" uniformly (conveying specialty via `knowsAbout`/`description`, which the generator already does well) and added a code-level allowlist guard (`util.schema-business-type.ts`) so an invalid type can never reach the database again regardless of prompt drift. Added deterministic (non-LLM) enrichment for the other three gaps: `og_image` sourced from a post's own `featured_image` column instead of the LLM's text-only recommendation; a real `AggregateRating` block injected from already-synced `website_builder.reviews` data (never LLM-authored, since a wrong review count is a false claim about a real business, not just a technical miss); and `faq_candidates` converted into real `FAQPage` schema (`util.faq-schema.ts`).
+- **Backfill was a targeted patch, not a full regeneration.** The existing bulk-generate worker builds `seo_data` from an empty object every run — reusing it as-is would have silently wiped out the 74 Artful and 33 Garrison posts that already had working `og_image` values. Built a dedicated enrichment path (`service.seo-enrichment.ts`, `scripts/seo-enrichment-backfill.ts`) that always reads a post's current `seo_data` and patches only the 4 targeted fields, leaving title/description/canonical/target-query untouched. Verified on a single post live before running the full batch.
+
+**Verification:** `npx tsc --noEmit` clean. `npm run check:conventions --strict` 0 violations. 151/151 vitest passing (15 new). `npm run depcruise` 0 new violations. Batch backfill: One Endo 121/121 posts enriched, Artful 10 enriched + 74 confirmed unchanged, Garrison 16 enriched + 33 confirmed unchanged, 0 failures across all 254 posts. Live-verified via cache-busted curl on all 3 sites (og:image, schema `@type`, `aggregateRating`) and on all 4 sites for the page-level image. Acceptance checklist Passed (`plans/07022026-seo-metatag-fixes/test-results.json`). One follow-up surfaced during execution: Garrison's 49 posts have no `schema_json` at all (a separate, deeper pre-existing gap — the enrichment correctly did nothing rather than fabricate one), logged in the spec's Revision Log.
+
+**Commits:**
+- `src/agents/websiteAgents/SeoGeneration.significant.md` — prompt fix (Dentist uniformly, no invented specialty types)
+- `src/agents/websiteAgents/SeoGeneration.geo-layer.md` — removed a stale "not yet wired" comment (the section has been wired in since the prior GEO revamp)
+- `src/controllers/admin-websites/feature-utils/util.schema-business-type.ts`, `util.faq-schema.ts`, `util.aggregate-rating-schema.ts` — new pure enrichment helpers
+- `src/controllers/admin-websites/feature-services/service.seo-enrichment.ts` — new enrichment orchestration + real-rating lookup
+- `scripts/seo-enrichment-backfill.ts` — one-off backfill script (mirrors `scripts/pms-restart-stuck-jobs.ts`)
+- `src/__tests__/seo-enrichment.test.ts` — 15 new unit tests
+- `plans/07022026-seo-metatag-fixes/` — spec, acceptance artifact
+
 ## [0.0.146] - July 2026
 
 ### Website Builder: Page Label Backfill and Draft-Creation Label Loss Fix

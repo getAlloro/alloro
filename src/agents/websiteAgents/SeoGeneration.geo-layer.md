@@ -1,4 +1,3 @@
-<!-- NEW SECTION — not yet wired into SEO_SECTION_FILE_MAP / util.seo-section-runner.ts. Wiring is T5 (service.seo-generation.ts) in plans/07012026-seo-generator-revamp. -->
 SECTION: GEO — Answer-First / AI Citability
 
 Generate:
