@@ -21,11 +21,41 @@ import {
 } from "../../models/GoogleConnectionModel";
 import { OrganizationModel } from "../../models/OrganizationModel";
 import { syncSubscriptionQuantity } from "../billing/BillingService";
+import { LocationError } from "./feature-utils/LocationError";
 
 interface GBPSelection {
   accountId: string;
   locationId: string;
   displayName: string;
+}
+
+/**
+ * Guard: a GBP profile (external_id) may be linked to at most one location
+ * per Google connection. Without this, the (google_connection_id, external_id)
+ * unique index rejects the insert with an opaque 500 — clients wrongly
+ * re-selecting an already-linked profile must get a clean typed error instead.
+ *
+ * @param excludeLocationId - skip the check when the match is this location
+ *   (re-selecting the same GBP for the same location is a no-op, not a clash)
+ */
+async function assertGbpNotLinked(
+  connectionId: number,
+  externalId: string,
+  trx: QueryContext,
+  excludeLocationId?: number
+): Promise<void> {
+  const existing = await GooglePropertyModel.findByConnectionAndExternalId(
+    connectionId,
+    externalId,
+    trx
+  );
+  if (existing && existing.location_id !== excludeLocationId) {
+    throw new LocationError(
+      "GBP_ALREADY_LINKED",
+      "This Google Business Profile is already linked to another location.",
+      { externalId, linkedLocationId: existing.location_id }
+    );
+  }
 }
 
 /**
@@ -134,7 +164,77 @@ export async function syncLocationsFromGBP(
 }
 
 /**
+ * Transaction body of location creation: guards, inserts, and blob sync.
+ * Exported so the paid purchase flow (LocationBillingService) can run the
+ * exact same creation inside its own charge-wrapping transaction — commit
+ * only happens after the Stripe charge succeeds ("create after paid").
+ */
+export async function createLocationInTransaction(
+  trx: QueryContext,
+  organizationId: number,
+  name: string,
+  gbp: GBPSelection,
+  domain?: string | null
+): Promise<ILocation> {
+  const connection = await GoogleConnectionModel.findOneByOrganization(
+    organizationId,
+    trx
+  );
+  if (!connection) {
+    throw new LocationError(
+      "NO_GOOGLE_CONNECTION",
+      "No Google connection found for organization",
+      { organizationId }
+    );
+  }
+
+  // A GBP profile may only back one location per org connection
+  await assertGbpNotLinked(connection.id, gbp.locationId, trx);
+
+  // If no domain provided, use org domain
+  const orgDomain =
+    domain ??
+    (await OrganizationModel.findById(organizationId, trx))?.domain ??
+    null;
+
+  // Determine primary status
+  const existingCount = await LocationModel.count(
+    { organization_id: organizationId },
+    trx
+  );
+
+  const loc = await LocationModel.create(
+    {
+      organization_id: organizationId,
+      name,
+      domain: orgDomain,
+      is_primary: existingCount === 0,
+    },
+    trx
+  );
+
+  await GooglePropertyModel.create(
+    {
+      location_id: loc.id,
+      google_connection_id: connection.id,
+      type: "gbp",
+      external_id: gbp.locationId,
+      account_id: gbp.accountId || null,
+      display_name: gbp.displayName,
+      metadata: null,
+      selected: true,
+    },
+    trx
+  );
+
+  await syncJsonBlobFromProperties(organizationId, connection.id, trx);
+
+  return loc;
+}
+
+/**
  * Create a single location with a required GBP connection.
+ * (Platform-admin path — clients go through LocationBillingService.purchaseLocation.)
  */
 export async function createLocation(
   organizationId: number,
@@ -142,53 +242,9 @@ export async function createLocation(
   gbp: GBPSelection,
   domain?: string | null
 ): Promise<ILocation> {
-  const location = await LocationModel.transaction(async (trx) => {
-    const connection = await GoogleConnectionModel.findOneByOrganization(
-      organizationId,
-      trx
-    );
-    if (!connection) {
-      throw new Error("No Google connection found for organization");
-    }
-
-    // If no domain provided, use org domain
-    const orgDomain =
-      domain ?? (await OrganizationModel.findById(organizationId, trx))?.domain ?? null;
-
-    // Determine primary status
-    const existingCount = await LocationModel.count(
-      { organization_id: organizationId },
-      trx
-    );
-
-    const loc = await LocationModel.create(
-      {
-        organization_id: organizationId,
-        name,
-        domain: orgDomain,
-        is_primary: existingCount === 0,
-      },
-      trx
-    );
-
-    await GooglePropertyModel.create(
-      {
-        location_id: loc.id,
-        google_connection_id: connection.id,
-        type: "gbp",
-        external_id: gbp.locationId,
-        account_id: gbp.accountId || null,
-        display_name: gbp.displayName,
-        metadata: null,
-        selected: true,
-      },
-      trx
-    );
-
-    await syncJsonBlobFromProperties(organizationId, connection.id, trx);
-
-    return loc;
-  });
+  const location = await LocationModel.transaction(async (trx) =>
+    createLocationInTransaction(trx, organizationId, name, gbp, domain)
+  );
 
   // Sync Stripe subscription quantity (fire-and-forget, after transaction commits)
   syncSubscriptionQuantity(organizationId);
@@ -312,6 +368,11 @@ export async function setLocationGBP(
     if (!connection) {
       throw new Error("No Google connection found for organization");
     }
+
+    // Changing to a GBP that already backs a DIFFERENT location must fail
+    // cleanly (same unique index as create; re-selecting this location's own
+    // GBP is a harmless no-op re-link)
+    await assertGbpNotLinked(connection.id, gbp.locationId, trx, locationId);
 
     // Remove existing google_properties for this location
     await GooglePropertyModel.deleteByLocationId(locationId, trx);

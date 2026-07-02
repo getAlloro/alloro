@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { apiGet } from "../../api";
 import { MapPin, Plus, Star, Trash2, RefreshCw, Pencil } from "lucide-react";
 import { PropertySelectionModal, type PropertyItem } from "./PropertySelectionModal";
@@ -11,11 +11,11 @@ import { useAuth } from "../../hooks/useAuth";
 import {
   getLocations,
   deleteLocation,
-  createLocation,
   updateLocation,
   updateLocationGBP,
   type Location,
 } from "../../api/locations";
+import { AddLocationWizard } from "./AddLocationWizard";
 import { logger } from "../../lib/logger";
 
 type UserRole = "admin" | "manager" | "viewer";
@@ -34,10 +34,8 @@ export const PropertiesTab: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [gbpTargetLocationId, setGbpTargetLocationId] = useState<number | null>(null);
 
-  // Add location wizard
-  const [addModalOpen, setAddModalOpen] = useState(false);
-  const [newLocationName, setNewLocationName] = useState("");
-  const [addStep, setAddStep] = useState<"name" | "gbp">("name");
+  // Add location wizard (name → GBP → billing review → pay → created)
+  const [addWizardOpen, setAddWizardOpen] = useState(false);
 
   // Delete confirmation
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -121,37 +119,7 @@ export const PropertiesTab: React.FC = () => {
 
   // ---- Add location wizard ----
   const openAddLocation = () => {
-    setNewLocationName("");
-    setAddStep("name");
-    setAddModalOpen(true);
-  };
-
-  const handleAddNameSubmit = async () => {
-    if (!newLocationName.trim()) return;
-    setAddStep("gbp");
-    setGbpTargetLocationId(null); // null = creating new
-    await fetchAvailableGBP();
-  };
-
-  const handleAddGBPSelected = async (item: { accountId?: string; locationId?: string; name: string }) => {
-    setIsSaving(true);
-    try {
-      await createLocation({
-        name: newLocationName.trim(),
-        gbp: {
-          accountId: item.accountId ?? "",
-          locationId: item.locationId ?? "",
-          displayName: item.name,
-        },
-      });
-      setAddModalOpen(false);
-      await loadData();
-      await refreshLocations();
-    } catch (err) {
-      logger.error("Failed to create location:", err);
-    } finally {
-      setIsSaving(false);
-    }
+    setAddWizardOpen(true);
   };
 
   // ---- Delete location ----
@@ -417,76 +385,14 @@ export const PropertiesTab: React.FC = () => {
         multiSelect={false}
       />
 
-      {/* Add Location Modal — only shown during name step */}
-      <AnimatePresence>
-        {addModalOpen && addStep === "name" && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-alloro-navy/50 backdrop-blur-sm"
-              onClick={() => setAddModalOpen(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ type: "spring", duration: 0.3 }}
-              className="relative bg-white rounded-[28px] shadow-2xl w-full max-w-md overflow-hidden"
-            >
-              <div className="p-8">
-                <h3 className="font-display text-lg font-medium text-alloro-navy tracking-tight mb-1">
-                  Add New Location
-                </h3>
-                <p className="text-slate-400 text-sm mb-6">
-                  Enter the name for your new location
-                </p>
-                <input
-                  value={newLocationName}
-                  onChange={(e) => setNewLocationName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleAddNameSubmit();
-                  }}
-                  placeholder="e.g. Downtown Office"
-                  autoFocus
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-alloro-navy font-semibold focus:outline-none focus:ring-2 focus:ring-alloro-orange/30 focus:border-alloro-orange"
-                />
-                <div className="flex justify-end gap-3 mt-6">
-                  <button
-                    onClick={() => setAddModalOpen(false)}
-                    className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleAddNameSubmit}
-                    disabled={!newLocationName.trim()}
-                    className="px-5 py-2.5 text-sm font-bold text-white bg-alloro-orange rounded-xl hover:bg-alloro-orange/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Next: Select GBP
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Add Location - GBP Selection (shown in step 2) */}
-      <PropertySelectionModal
-        isOpen={addStep === "gbp" && addModalOpen}
-        onClose={() => {
-          setAddModalOpen(false);
-          setAddStep("name");
+      {/* Add Location wizard — name → GBP → billing review → pay → created */}
+      <AddLocationWizard
+        open={addWizardOpen}
+        onClose={() => setAddWizardOpen(false)}
+        onCompleted={async () => {
+          await loadData();
+          await refreshLocations();
         }}
-        title={`Select GBP for "${newLocationName}"`}
-        items={availableGBP}
-        onSelect={handleAddGBPSelected}
-        isLoading={loadingAvailable}
-        isSaving={isSaving}
-        type="gbp"
-        multiSelect={false}
       />
 
       {/* Delete Confirmation */}

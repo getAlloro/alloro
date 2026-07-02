@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import { LocationModel } from "../models/LocationModel";
 import { GooglePropertyModel } from "../models/GooglePropertyModel";
 import { authenticateToken } from "../middleware/auth";
+import { superAdminMiddleware } from "../middleware/superAdmin";
 import {
   rbacMiddleware,
   locationScopeMiddleware,
@@ -10,6 +11,9 @@ import {
   LocationScopedRequest,
   RBACRequest,
 } from "../middleware/rbac";
+import { validate } from "../middleware/validate";
+import { purchaseLocationSchema } from "../validation/billing.schemas";
+import { purchaseLocationHandler } from "../controllers/billing/BillingController";
 import {
   createLocation,
   removeLocation,
@@ -17,6 +21,7 @@ import {
   setLocationGBP,
   disconnectLocationGBP,
 } from "../controllers/locations/LocationService";
+import { LocationError } from "../controllers/locations/feature-utils/LocationError";
 import {
   refreshLocationBusinessData,
   updateLocationBusinessData,
@@ -210,13 +215,32 @@ router.patch(
 // =====================================================================
 
 /**
+ * POST /api/locations/purchase
+ * The paid location-add flow (clients): quote recompute → prorated charge on
+ * the card on file → create only after the charge succeeds.
+ * Body: { name, domain?, gbp: { accountId, locationId, displayName },
+ *         expectedNewMonthlyTotal? } — validated in ENFORCE mode (payment endpoint).
+ */
+router.post(
+  "/purchase",
+  authenticateToken,
+  rbacMiddleware,
+  requireRole("admin"),
+  validate(purchaseLocationSchema, { mode: "enforce" }),
+  purchaseLocationHandler
+);
+
+/**
  * POST /api/locations
- * Create a new location with a required GBP profile.
+ * Create a new location with a required GBP profile — PLATFORM ADMINS ONLY.
+ * Org admins must use POST /api/locations/purchase (the payment-consent flow);
+ * this silent-create path is restricted so it cannot be used to bypass billing.
  * Body: { name: string, domain?: string, gbp: { accountId, locationId, displayName } }
  */
 router.post(
   "/",
   authenticateToken,
+  superAdminMiddleware,
   rbacMiddleware,
   requireRole("admin"),
   async (req: Request, res: Response) => {
@@ -245,6 +269,14 @@ router.post(
       });
     } catch (error: any) {
       logger.error({ err: error }, "[LOCATIONS] Error creating location:");
+      if (error instanceof LocationError) {
+        const status = error.code === "GBP_ALREADY_LINKED" ? 409 : 400;
+        return res.status(status).json({
+          success: false,
+          error: error.message,
+          code: error.code,
+        });
+      }
       return res.status(500).json({
         success: false,
         error: error.message || "Failed to create location",

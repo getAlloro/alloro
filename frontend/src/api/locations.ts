@@ -1,4 +1,5 @@
-import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from "./index";
+import { apiGet, apiPost, apiPut, apiPatch, apiDelete, unwrap } from "./index";
+import type { LocationBillingMode } from "./billing";
 
 export interface GooglePropertyInfo {
   type: string;
@@ -75,6 +76,7 @@ export interface GBPSelection {
 
 /**
  * Create a new location with a required GBP profile.
+ * PLATFORM-ADMIN ONLY on the backend — client flows use purchaseLocation().
  */
 export async function createLocation(data: {
   name: string;
@@ -86,6 +88,32 @@ export async function createLocation(data: {
     passedData: data,
   });
   return response.location;
+}
+
+export interface PurchaseLocationBilling {
+  mode: LocationBillingMode;
+  /** Cents actually invoiced now (null when nothing was charged) */
+  chargedNow: number | null;
+  newMonthlyTotal: number | null;
+  currency: string | null;
+}
+
+/**
+ * Paid location-add flow: the server recomputes the quote, charges the
+ * prorated delta on the card on file, and creates the location only after
+ * the charge succeeds. Throws ApiError with codes like PAYMENT_FAILED,
+ * NO_PAYMENT_METHOD, GBP_ALREADY_LINKED, QUOTE_STALE.
+ */
+export async function purchaseLocation(data: {
+  name: string;
+  domain?: string;
+  gbp: GBPSelection;
+  /** Echo of the quote's newMonthlyTotal (cents) for consent integrity */
+  expectedNewMonthlyTotal?: number | null;
+}): Promise<{ location: Location; billing: PurchaseLocationBilling }> {
+  return unwrap(
+    await apiPost({ path: "/locations/purchase", passedData: data })
+  );
 }
 
 /**

@@ -10,6 +10,15 @@ import { Response } from "express";
 import { RBACRequest } from "../../middleware/rbac";
 import { Request } from "express";
 import * as BillingService from "./BillingService";
+import {
+  getAddLocationQuote,
+  purchaseLocation,
+} from "./feature-services/LocationBillingService";
+import { BillingLocationError } from "./feature-utils/BillingLocationError";
+import {
+  ok,
+  handleBillingLocationError,
+} from "./feature-utils/controllerResponses";
 import logger from "../../lib/logger";
 
 /**
@@ -192,6 +201,75 @@ export async function getAdminDetails(
       success: false,
       error: error?.message || "Failed to get billing details",
     });
+  }
+}
+
+/**
+ * GET /api/billing/location-add-quote
+ *
+ * Quote for adding one location: per-location price, current → new monthly
+ * total, prorated charge today. Canonical { success, data, error } shape.
+ */
+export async function getLocationAddQuote(
+  req: RBACRequest,
+  res: Response
+): Promise<Response> {
+  try {
+    const organizationId = req.organizationId;
+    if (!organizationId) {
+      throw new BillingLocationError(
+        "ORG_NOT_FOUND",
+        "Organization required. Complete onboarding first.",
+        null
+      );
+    }
+    const quote = await getAddLocationQuote(organizationId);
+    return ok(res, quote);
+  } catch (error) {
+    logger.error(
+      { err: (error as Error)?.message || error },
+      "[Billing] Location-add quote error:"
+    );
+    return handleBillingLocationError(res, error);
+  }
+}
+
+/**
+ * POST /api/locations/purchase
+ *
+ * The paid location-add flow: server recomputes the quote, charges the
+ * prorated delta (card on file), and creates the location only after the
+ * charge succeeds. Body validated by purchaseLocationSchema (enforce mode).
+ */
+export async function purchaseLocationHandler(
+  req: RBACRequest,
+  res: Response
+): Promise<Response> {
+  try {
+    const organizationId = req.organizationId;
+    if (!organizationId) {
+      throw new BillingLocationError(
+        "ORG_NOT_FOUND",
+        "Organization required. Complete onboarding first.",
+        null
+      );
+    }
+
+    const { name, domain, gbp, expectedNewMonthlyTotal } = req.body;
+    const result = await purchaseLocation(organizationId, {
+      name,
+      domain,
+      gbp,
+      expectedNewMonthlyTotal,
+    });
+
+    return ok(res, result, 201);
+  } catch (error) {
+    logger.error(
+      { err: (error as Error)?.message || error },
+      "[Billing] Purchase location error:"
+    );
+    return handleBillingLocationError(res, error);
   }
 }
 

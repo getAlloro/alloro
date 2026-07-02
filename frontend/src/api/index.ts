@@ -35,7 +35,8 @@ export class ApiError extends Error {
 interface ApiEnvelope {
   success?: boolean;
   successful?: boolean;
-  error?: string;
+  /** Legacy endpoints send a string; canonical §8.1 endpoints send { code, message, details } */
+  error?: string | { code?: string; message?: string; details?: unknown } | null;
   errorMessage?: string;
   errorCode?: string;
   message?: string;
@@ -54,10 +55,16 @@ interface ApiEnvelope {
 export function unwrap<T>(res: unknown): T {
   const env = (res ?? {}) as ApiEnvelope;
   if (env.success === false || env.successful === false) {
-    throw new ApiError(
-      env.error || env.errorMessage || env.message || "Request failed",
-      { code: env.errorCode },
-    );
+    // Canonical endpoints nest { code, message } under error; legacy ones use strings
+    const errObj =
+      typeof env.error === "object" && env.error !== null ? env.error : null;
+    const message =
+      errObj?.message ||
+      (typeof env.error === "string" ? env.error : "") ||
+      env.errorMessage ||
+      env.message ||
+      "Request failed";
+    throw new ApiError(message, { code: errObj?.code || env.errorCode });
   }
   return (env.data !== undefined ? env.data : res) as T;
 }

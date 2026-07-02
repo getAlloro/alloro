@@ -314,6 +314,7 @@ export class OrganizationModel extends BaseModel {
         subscription_status: string | null;
         stripe_customer_id: string | null;
         stripe_subscription_id: string | null;
+        billing_quantity_override: number | null;
       }
     | undefined
   > {
@@ -323,7 +324,8 @@ export class OrganizationModel extends BaseModel {
         "subscription_tier",
         "subscription_status",
         "stripe_customer_id",
-        "stripe_subscription_id"
+        "stripe_subscription_id",
+        "billing_quantity_override"
       )
       .first();
   }

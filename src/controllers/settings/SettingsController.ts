@@ -91,7 +91,9 @@ export async function getAvailableProperties(req: AuthenticatedRequest, res: Res
       return res.status(401).json({ error: "Authentication failed" });
     }
 
-    const properties = await getAvailablePropertiesByType(type, oauth2Client);
+    const properties = await getAvailablePropertiesByType(type, oauth2Client, {
+      excludeLinkedForOrganizationId: (req as RBACRequest).organizationId,
+    });
 
     return res.json({
       success: true,
