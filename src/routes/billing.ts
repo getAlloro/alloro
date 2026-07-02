@@ -41,6 +41,16 @@ billingRoutes.post(
   BillingController.createPortal
 );
 
+// GET /api/billing/location-add-quote — Quote for adding one location
+// (per-location price, current → new total, prorated charge today)
+billingRoutes.get(
+  "/location-add-quote",
+  authenticateToken,
+  rbacMiddleware,
+  requireRole("admin"),
+  BillingController.getLocationAddQuote
+);
+
 // GET /api/billing/status — Get current subscription status
 billingRoutes.get(
   "/status",

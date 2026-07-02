@@ -1,0 +1,163 @@
+{
+  "plan": "plans/07032026-multi-location-billing (Phase A — Paid Location Adds)",
+  "generatedAt": "2026-07-03",
+  "status": "Not Run",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Paid add: quote → purchase charges prorated delta → location created",
+      "surface": "api",
+      "precondition": "Dev server on Stripe TEST keys; org 41 seeded with an active test-mode subscription (qty 1) and default test card",
+      "steps": [
+        "1. GET /api/billing/location-add-quote as org 41 admin — expect mode=quantity, unitAmount=200000, newQuantity=2, newMonthlyTotal=400000, proratedChargeNow > 0",
+        "2. POST /api/locations/purchase with { name, gbp(unused test GBP), expectedNewMonthlyTotal=400000 }",
+        "3. Verify response 201 with billing.chargedNow > 0 and location id",
+        "4. Verify Stripe: subscription quantity = 2, latest invoice billing_reason=subscription_update and paid",
+        "5. Verify DB: locations row exists with google_properties link"
+      ],
+      "expected": "Charge succeeds first, location exists after; amounts match the quote",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Declined card: no charge completes, NO location is created",
+      "surface": "api",
+      "precondition": "Org 41 test subscription's default payment method swapped to a declining test card (pm_card_visa_chargeDeclined)",
+      "steps": [
+        "1. POST /api/locations/purchase with a fresh unused GBP",
+        "2. Expect 402 with error.code=PAYMENT_FAILED",
+        "3. Verify DB: no new locations row; Stripe quantity unchanged"
+      ],
+      "expected": "Transaction rolled back — nothing committed, nothing charged",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "GBP reuse blocked with friendly 409 (One Endo silent-500 fixed)",
+      "surface": "api",
+      "precondition": "Org 41 has a location whose GBP external_id is known",
+      "steps": [
+        "1. POST /api/locations/purchase using the already-linked GBP external_id",
+        "2. Expect 409 with error.code=GBP_ALREADY_LINKED (not a 500)"
+      ],
+      "expected": "Typed 409; no charge attempted, no row created",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Available-GBP picker excludes already-linked profiles",
+      "surface": "api",
+      "precondition": "Org 41 admin JWT; at least one GBP linked",
+      "steps": [
+        "1. GET /api/settings/properties/available/gbp",
+        "2. Verify the linked external_id(s) are absent from the response"
+      ],
+      "expected": "Linked profiles filtered server-side (fixes both add + change pickers)",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Billing card shows 'N locations × $X/mo = $Z/mo'",
+      "surface": "ui",
+      "precondition": "Org 41 with active test subscription (2 locations after T1)",
+      "steps": [
+        "1. GET /api/billing/status — verify locationBilling { locationCount, unitAmount, monthlyTotal }",
+        "2. Open Settings → Billing as org 41 admin (user visual pass)",
+        "3. Verify plan card shows the locations × price = total line"
+      ],
+      "expected": "API payload correct; card renders '2 locations × $2,000/mo' with '$4,000/mo'",
+      "status": "pending",
+      "evidence": "",
+      "notes": "API half verifiable headlessly; visual half is the owner's pass",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Legacy silent-create endpoint rejects org admins (payment bypass closed)",
+      "surface": "api",
+      "precondition": "Org 41 org-admin JWT (not in SUPER_ADMIN_EMAILS)",
+      "steps": [
+        "1. POST /api/locations with a valid body as the org admin",
+        "2. Expect 403 (Super Admin privileges required)"
+      ],
+      "expected": "Org admins cannot silently add locations any more",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "Legacy remove still syncs quantity down",
+      "surface": "api",
+      "precondition": "Org 41 with 2 locations and quantity 2 (after T1)",
+      "steps": [
+        "1. DELETE /api/locations/:id for the added location as org admin",
+        "2. Verify Stripe subscription quantity returns to 1 (auto-prorated credit is existing behavior)"
+      ],
+      "expected": "Quantity sync fires on remove as before",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Client remove is replaced by cancellation in Phase B",
+      "waiver": ""
+    },
+    {
+      "id": "T8",
+      "title": "STRIPE_MODE guard: mismatch fails boot; webhook livemode mismatch ignored",
+      "surface": "cli",
+      "precondition": "Local checkout of the branch with test keys",
+      "steps": [
+        "1. Locally: STRIPE_MODE=live with sk_test key → process must exit with the mismatch error",
+        "2. On dev (STRIPE_MODE=test set in dev.env): app boots, health green",
+        "3. stripe trigger checkout.session.completed (test) → delivered + processed (livemode matches)"
+      ],
+      "expected": "Boot-time fail-fast on mismatch; matching events processed normally",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T9",
+      "title": "Foreign-mode Stripe ids are inert on dev (prod-cloned org)",
+      "surface": "api",
+      "precondition": "A dev org still carrying live-mode stripe ids (prod clone)",
+      "steps": [
+        "1. GET /api/billing/location-add-quote as that org's admin — expect mode=unavailable (200, not 500)",
+        "2. Check PM2 logs: warn-level 'unavailable/foreign mode' lines, no error stack"
+      ],
+      "expected": "Clean warn no-ops; no Stripe mutations attempted",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T10",
+      "title": "Reset script: refuses under live keys, resets test org repeatably",
+      "surface": "cli",
+      "precondition": "Worktree checkout with .env on test keys",
+      "steps": [
+        "1. Run with STRIPE_SECRET_KEY temporarily set to an sk_live_ placeholder → exits code 2 with refusal",
+        "2. Run npm run billing:reset-test-org -- 41 against dev DB → org 41 stripe columns nulled, status active"
+      ],
+      "expected": "Interlock enforced; reset works and is repeatable",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    }
+  ]
+}
