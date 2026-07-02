@@ -59,3 +59,14 @@ export const purchaseLocationSchema = z.object({
 });
 
 export type PurchaseLocationBody = z.infer<typeof purchaseLocationSchema>;
+
+/**
+ * POST /api/locations/:id/reopen — optional consent echo for the paid
+ * reopen-after-cancelled path (QUOTE_STALE on mismatch). Enforced: new
+ * endpoint, no legacy clients.
+ */
+export const reopenLocationSchema = z.object({
+  expectedNewMonthlyTotal: z.number().int().nonnegative().nullish(),
+});
+
+export type ReopenLocationBody = z.infer<typeof reopenLocationSchema>;

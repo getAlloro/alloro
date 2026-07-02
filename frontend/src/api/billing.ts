@@ -19,6 +19,10 @@ export interface LocationBillingSummary {
   /** Cents */
   monthlyTotal: number | null;
   isFlatRate: boolean;
+  /** Locations scheduled to cancel at period end (still usable until then) */
+  pendingCancellationCount?: number;
+  /** ISO date of the soonest pending cancellation */
+  nextEndingAt?: string | null;
 }
 
 export interface BillingStatus {

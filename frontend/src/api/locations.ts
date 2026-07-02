@@ -38,12 +38,17 @@ export interface OrgBusinessData {
   refreshed_at?: string;
 }
 
+export type LocationStatus = "active" | "pending_cancellation" | "cancelled";
+
 export interface Location {
   id: number;
   organization_id: number;
   name: string;
   domain: string | null;
   is_primary: boolean;
+  status: LocationStatus;
+  cancel_effective_at: string | null;
+  cancelled_at: string | null;
   business_data: LocationBusinessData | null;
   created_at: string;
   updated_at: string;
@@ -53,9 +58,17 @@ export interface Location {
 /**
  * Fetch all locations accessible to the current user.
  * Backend filters by organization + user_locations for non-admin users.
+ * Cancelled locations are excluded unless includeCancelled is set
+ * (PropertiesTab shows them greyed out; the sidebar switcher never does).
  */
-export async function getLocations(): Promise<Location[]> {
-  const response = await apiGet({ path: "/locations" });
+export async function getLocations(options?: {
+  includeCancelled?: boolean;
+}): Promise<Location[]> {
+  const response = await apiGet({
+    path: options?.includeCancelled
+      ? "/locations?include_cancelled=true"
+      : "/locations",
+  });
   // apiGet already unwraps axios { data } — response IS the body
   return response.locations || [];
 }
@@ -130,11 +143,48 @@ export async function updateLocation(
   return response.location;
 }
 
+export interface LocationLifecycleResult {
+  location: Location;
+  billing: {
+    action:
+      | "quantity_decremented"
+      | "subscription_ending"
+      | "quantity_restored"
+      | "subscription_resumed"
+      | "charged"
+      | "none";
+    effectiveAt: string | null;
+    chargedNow: number | null;
+  };
+}
+
 /**
- * Delete a location (cannot remove the last one).
+ * Schedule a location's cancellation. It stays fully usable until the end of
+ * the current billing period (immediate for orgs without a subscription);
+ * data is never deleted and the location can always be reopened.
+ * Cancelling the LAST active location schedules the whole subscription to end.
  */
-export async function deleteLocation(locationId: number): Promise<void> {
-  await apiDelete({ path: `/locations/${locationId}` });
+export async function cancelLocation(
+  locationId: number
+): Promise<LocationLifecycleResult> {
+  return unwrap(await apiPost({ path: `/locations/${locationId}/cancel` }));
+}
+
+/**
+ * Reopen a pending (free undo) or cancelled (paid re-add, prorated charge)
+ * location. Throws ApiError with PAYMENT_FAILED / QUOTE_STALE codes on the
+ * paid path.
+ */
+export async function reopenLocation(
+  locationId: number,
+  options?: { expectedNewMonthlyTotal?: number | null }
+): Promise<LocationLifecycleResult> {
+  return unwrap(
+    await apiPost({
+      path: `/locations/${locationId}/reopen`,
+      passedData: options ?? {},
+    })
+  );
 }
 
 /**

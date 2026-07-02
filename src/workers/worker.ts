@@ -16,6 +16,7 @@ import { processExtractPracticeFacts } from "./processors/extractPracticeFacts.p
 import { processReviewSync } from "./processors/reviewSync.processor";
 import { processApifyReviewFetch } from "./processors/reviewApifyFetch.processor";
 import { processSchedulerTick } from "./processors/scheduler.processor";
+import { processLocationCancellationFinalizerTick } from "./processors/locationCancellationFinalizer.processor";
 import { processScheduleExec } from "./processors/scheduleExec.processor";
 import { processWebsiteBackup } from "./processors/websiteBackup.processor";
 import { processWebsiteRestore } from "./processors/websiteRestore.processor";
@@ -251,6 +252,21 @@ const schedulerWorker = new Worker(
     connection: makeConnection(),
     concurrency: 1,
     prefix: '{minds}',
+  }
+);
+
+// Location cancellation finalizer (hourly — flips due pending_cancellation → cancelled)
+const locationCancellationFinalizerWorker = new Worker(
+  "minds-location-cancellation",
+  async (job) => {
+    await processLocationCancellationFinalizerTick(job);
+  },
+  {
+    connection: makeConnection(),
+    concurrency: 1,
+    prefix: '{minds}',
+    removeOnComplete: { count: 24 },
+    removeOnFail: { count: 24 },
   }
 );
 
@@ -501,6 +517,7 @@ async function shutdown(): Promise<void> {
   await extractPracticeFactsWorker.close();
   await reviewSyncWorker.close();
   await schedulerWorker.close();
+  await locationCancellationFinalizerWorker.close();
   await scheduleExecWorker.close();
   await wbBackupWorker.close();
   await wbRestoreWorker.close();
@@ -583,6 +600,29 @@ async function setupGbpLocalPostSyncSchedule(): Promise<void> {
     logger.info("[MINDS-WORKER] Daily GBP local post sync scheduled (4:45 AM UTC)");
   } catch (err: any) {
     logger.error({ err: err }, "[MINDS-WORKER] Failed to set up GBP local post sync schedule:");
+  }
+}
+
+// Set up location cancellation finalizer (hourly, on the hour)
+async function setupLocationCancellationFinalizer(): Promise<void> {
+  try {
+    const queue = getMindsQueue("location-cancellation");
+    await queue.add(
+      "location-cancellation-finalizer",
+      {},
+      {
+        repeat: {
+          pattern: "0 * * * *", // hourly
+          tz: "UTC",
+        },
+        jobId: "location-cancellation-finalizer",
+        attempts: 3,
+        backoff: { type: "exponential", delay: 60000 },
+      }
+    );
+    logger.info("[MINDS-WORKER] Location cancellation finalizer scheduled (hourly)");
+  } catch (err: any) {
+    logger.error({ err: err }, "[MINDS-WORKER] Failed to set up location cancellation finalizer:");
   }
 }
 
@@ -675,6 +715,7 @@ setupSkillTriggerSchedule();
 setupWorksDigestSchedule();
 setupReviewSyncSchedule();
 setupSchedulerTick();
+setupLocationCancellationFinalizer();
 setupCrmMappingValidationSchedule();
 setupDataHarvestSchedule();
 setupGbpLocalPostGenerationSchedule();

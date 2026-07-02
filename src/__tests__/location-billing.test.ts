@@ -44,7 +44,7 @@ vi.mock("../models/LocationModel", () => ({
     transaction: vi.fn(async (cb: (trx: unknown) => Promise<unknown>) =>
       cb({})
     ),
-    countByOrganizationId: vi.fn(),
+    countActiveByOrganizationId: vi.fn(),
   },
 }));
 
@@ -205,7 +205,7 @@ describe("purchaseLocation — create after paid", () => {
     vi.mocked(createLocationInTransaction).mockResolvedValue(
       fakeLocation as never
     );
-    vi.mocked(LocationModel.countByOrganizationId).mockResolvedValue({
+    vi.mocked(LocationModel.countActiveByOrganizationId).mockResolvedValue({
       count: 2,
     } as never);
 
@@ -253,7 +253,7 @@ describe("purchaseLocation — create after paid", () => {
     vi.mocked(createLocationInTransaction).mockResolvedValue(
       fakeLocation as never
     );
-    vi.mocked(LocationModel.countByOrganizationId).mockResolvedValue({
+    vi.mocked(LocationModel.countActiveByOrganizationId).mockResolvedValue({
       count: 2,
     } as never);
 
@@ -286,7 +286,7 @@ describe("purchaseLocation — create after paid", () => {
     vi.mocked(createLocationInTransaction).mockResolvedValue(
       fakeLocation as never
     );
-    vi.mocked(LocationModel.countByOrganizationId).mockResolvedValue({
+    vi.mocked(LocationModel.countActiveByOrganizationId).mockResolvedValue({
       count: 2,
     } as never);
 

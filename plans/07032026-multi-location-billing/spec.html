@@ -53,11 +53,11 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec · Phase A of 2 (see spec-cancellation.html)</p>
-        <span class="status-pill status-pending">Pending Execution</span>
+        <span class="status-pill status-pending">In Progress</span>
       </div>
       <h1>Multi-Location Billing — Phase A: Paid Location Adds</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>In Progress — code complete, dev-deployed + E2E-verified; awaiting owner UI pass + main merge</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/07032026-multi-location-billing</dd></div>
         <div><dt>Size</dt><dd>Medium (≈17 files)</dd></div>
         <div><dt>Risk</dt><dd>Level 3 (real-money charging)</dd></div>
@@ -308,6 +308,12 @@
         <p><strong>Change:</strong> Added payment-process testing hardening as T9–T11: <code>STRIPE_MODE</code> startup guard (env ↔ key prefix ↔ webhook <code>livemode</code>), mode-aware no-op classification for foreign-mode Stripe ids (prod-cloned orgs inert on dev), and a test-mode-only <code>billing:reset-test-org</code> script plus a defined dev test matrix for add/remove/payment flows. Size ≈14 → ≈17 files.</p>
         <p><strong>Reason:</strong> Scope addition: owner wants location add/remove and payment testing on the dev server hardened so it can never affect prod users — today's protection is only the commented-out live key in dev.env, and dev DB re-clones re-import live Stripe ids.</p>
         <p><strong>Updated Done criteria:</strong> three (Rev 1) checklist items — mode guard live on both servers, prod-cloned orgs inert on dev, reset script + full test matrix green.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-03</h3>
+        <p><strong>Change:</strong> Executed on worktree <code>dave/multi-location-billing</code>, merged to <code>dev/dave</code>, deployed to dev, and E2E-verified with test cards (9/10 matrix items pass; T4 picker-filter awaits the owner's UI pass on a real Google connection). Two execution deviations: (1) the charge mechanism changed from <code>payment_behavior: error_if_incomplete</code> to an explicit finalize-and-pay of the proration invoice with void + quantity-revert compensation — dev E2E proved Stripe does NOT synchronously charge update-generated proration invoices, so the specced design let a declined card through (real bug caught and fixed live: declined card now returns 402, invoice voided, nothing committed). (2) T4's endpoint split resolved simpler than specced: the three Mission-Control "add location" surfaces turned out to use the separate project-identity system, so the legacy <code>POST /api/locations</code> just gained <code>superAdminMiddleware</code> with zero admin-surface changes. Also: quote's prorated amount uses Stripe's invoice preview with an arithmetic fallback; the receipt amount (chargedNow) is authoritative — verified $1,999.99 charged on a fresh test sub.</p>
+        <p><strong>Reason:</strong> Execution deviation: live Stripe behavior contradicted the specced payment primitive; blast-radius investigation collapsed T4's scope.</p>
+        <p><strong>Updated Done criteria:</strong> none removed; dev E2E and declined-card items are satisfied with evidence in <code>test-results.json</code>. Outstanding for -d: owner UI pass (wizard, billing card, T4 picker), merge to main by July 7 + prod env gets <code>STRIPE_MODE=live</code>, docs parity.</p>
       </article>
     </section>
   </main>
