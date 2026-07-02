@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Multi-Location Billing — Phase A: Paid Location Adds</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 12px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec · Phase A of 2 (see spec-cancellation.html)</p>
+        <span class="status-pill status-pending">Pending Execution</span>
+      </div>
+      <h1>Multi-Location Billing — Phase A: Paid Location Adds</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07032026-multi-location-billing</dd></div>
+        <div><dt>Size</dt><dd>Medium (≈17 files)</dd></div>
+        <div><dt>Risk</dt><dd>Level 3 (real-money charging)</dd></div>
+        <div><dt>Deadline</dt><dd>Merged to main by July 7 (Garrison call July 8)</dd></div>
+        <div><dt>Execution</dt><dd>Worktree <code>dave/multi-location-billing</code></dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Adding a location today silently bumps the Stripe subscription quantity after the fact — the client never sees or confirms the new amount. Jo is onboarding Garrison's South Orange location (+$2,000/month) on the July 8 call and needs a flow that walks the client through the new total and charges with consent. Garrison (org 5) has an active Stripe subscription, default $2,000 price, quantity billing, 1 location — this is exactly the quantity 1→2 path.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>The client add-location flow in Settings → Properties becomes: enter name → pick GBP (required; already-linked GBPs blocked) → see a billing summary (location name, per-location cost, current total, new total, prorated charge today) → confirm → Stripe charges the prorated delta on the card on file → <strong>only then</strong> is the location created. The Billing tab's plan card shows "N locations × $X/mo = $Z/mo". Done when a dev test-mode run completes the full flow on org 41 and the change is live on production before July 8.</p>
+      <h3>Owner decisions (locked 07-02/07-03)</h3>
+      <ul>
+        <li>GBP stays <strong>required</strong> (overrides Jo's ticket item "make GBP optional") — and the same GBP cannot be linked twice for an org.</li>
+        <li>Location is created <strong>after</strong> payment succeeds — no pending-location records.</li>
+        <li>Proration: charge the prorated remainder of the current cycle immediately; full new total from next cycle.</li>
+        <li>Billing tab shows count + per-location price + total; cancel/reopen UI (Phase B) lives in Properties tab.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/controllers/billing/BillingService.ts</code> — Stripe integration: checkout, portal, status, details, webhook, <code>syncSubscriptionQuantity()</code> (672 lines — near §2.4 ceiling; do not grow it, extract to <code>feature-services/</code>)</li>
+        <li><code>src/controllers/locations/LocationService.ts</code> — <code>createLocation()</code> (GBP-required guard at :151, fire-and-forget billing sync at :194)</li>
+        <li><code>src/routes/locations.ts</code> — <code>POST /api/locations</code> with "GBP profile is required" guard at :234; <code>requireRole("admin")</code> = org-level admin</li>
+        <li><code>src/routes/billing.ts</code> — existing billing routes (checkout/portal/status/details/webhook)</li>
+        <li><code>src/config/stripe.ts</code> — <code>getStripe()</code>, <code>getDefaultPriceId()</code>; env-driven (§5.6)</li>
+        <li><code>frontend/src/components/settings/PropertiesTab.tsx</code> — client add-location surface (508 lines; extract the wizard, don't grow it)</li>
+        <li><code>frontend/src/components/settings/BillingTab.tsx</code> — plan card (576 lines; new summary is a small child component)</li>
+        <li><code>frontend/src/api/locations.ts</code>, <code>frontend/src/api/billing.ts</code> — API layer (§12.1 triad)</li>
+        <li><code>frontend/src/components/Admin/org/AddLocationModal.tsx</code>, <code>frontend/src/components/Admin/identity/ImportFromIdentityModal.tsx</code>, <code>frontend/src/components/Admin/identity/IdentityModal/IdentityLocationsTab.tsx</code> — the other three consumers of <code>createLocation()</code> (blast radius)</li>
+      </ul>
+      <h3>Billing branch matrix (server-resolved, never client-trusted — §5.4)</h3>
+      <ul>
+        <li><strong>Active sub, quantity billing</strong> (Garrison): quote → prorated charge → create. The main path.</li>
+        <li><strong>Flat override</strong> (<code>billing_quantity_override</code> set — Caswell 25, One Endo 39): quote shows $0 change; create on confirm, no Stripe mutation.</li>
+        <li><strong>No Stripe subscription</strong> (admin-granted, e.g. org 41 pre-checkout): summary notes billing is admin-managed; create on confirm, no charge. Existing silent sync stays a no-op.</li>
+        <li><strong>Locked out</strong>: blocked upstream by <code>billingGate</code> (402) — no new handling.</li>
+      </ul>
+      <h3>Patterns To Follow (Code Constitution)</h3>
+      <ul>
+        <li>§6.1/§6.3 — new backend logic in <code>src/controllers/billing/feature-services/LocationBillingService.ts</code> + <code>feature-utils/</code> (typed error, ok/fail builders), mirroring <code>src/controllers/gbp-automation/</code></li>
+        <li>§7.1–§7.4 — routes thin, controllers orchestrate, all queries in <code>models/</code> (GBP-reuse lookup goes in <code>GooglePropertyModel</code>)</li>
+        <li>§8.1–§8.3 — <code>{ success, data, error }</code> with machine codes (<code>GBP_ALREADY_LINKED</code>, <code>PAYMENT_FAILED</code>, <code>NO_PAYMENT_METHOD</code>)</li>
+        <li>§11.1/§11.2 — auth + <code>requireRole("admin")</code> + validation schemas at the boundary; §11.7/§5.5 — all location/GBP lookups org-scoped</li>
+        <li>§4.2/§5.6 — no hardcoded prices anywhere; unit amount always fetched from the Stripe price object</li>
+        <li>§12.1/§14.2/§14.3/§15.1 — FE via api/ triad + React Query; §13.1/§13.2 — wizard extracted as its own component</li>
+        <li>§20.1/§20.2 — vitest coverage for quote branches, ordering, and org-scope guards</li>
+      </ul>
+      <p><strong>Reference file (backend):</strong> <code>src/controllers/gbp-automation/</code> — thin controller + feature-services + feature-utils. <strong>Reference file (frontend):</strong> <code>frontend/src/api/minds.ts</code> over <code>api/index.ts</code>.</p>
+      <h3>Environment (already done, 07-02)</h3>
+      <ul>
+        <li>Local <code>.env</code> + dev <code>/etc/alloro/dev.env</code> run Stripe <strong>test</strong> keys; live values kept commented.</li>
+        <li>Test price <code>price_1THBq4Dlp4RQpOXN2w9VICxN</code> ($2,000/mo "Alloro Intelligence"). Test webhook endpoint <code>we_1ToVhXDlp4RQpOXN4uikQtdC</code> → dev, verified end to end.</li>
+        <li><code>getAppUrl()</code> honors <code>APP_URL</code> (commit <code>f57e235a</code>) — dev redirects land on dev.</li>
+        <li>Dev test org = org 41 "Test" (admin user 65). Test card 4242 4242 4242 4242.</li>
+        <li><strong>(Rev 1) Standing hazard this spec now hardens:</strong> the dev DB is cloned from prod, so org rows carry <em>live-mode</em> <code>stripe_customer_id</code>/<code>stripe_subscription_id</code> values, and any future re-clone re-imports them. Today's safety rests only on dev.env holding test keys — one uncommented line away from dev actions mutating real client subscriptions. T9–T11 make that protection structural.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Execute on worktree <code>~/Desktop/alloro-multi-location-billing</code>, branch <code>dave/multi-location-billing</code>; <code>dev/dave</code> stays clean until merge.</li>
+            <li>Merge path: worktree branch → <code>dev/dave</code> (dev deploy + test-card E2E) → <code>main</code> by July 7.</li>
+            <li>Charge ordering: quantity update with <code>always_invoice</code> proration + Stripe idempotency key → verify invoice paid → create location (+ <code>google_properties</code>) in a transaction (§10.5) → skip the legacy blind sync for this call.</li>
+            <li>On payment failure: no location row, compensating quantity revert (proration <code>none</code>), typed <code>PAYMENT_FAILED</code> error with a "update payment method" portal CTA.</li>
+            <li>Idempotent retry: key derived from org + GBP external id; a retry after charge-success/create-failure must not double-charge (detect quantity already at target, proceed to create).</li>
+            <li>Server recomputes the quote at purchase time — client-sent amounts are display-only (§5.4).</li>
+            <li>GBP-reuse guard enforced server-side on <strong>every</strong> create path (client + admin), plus FE picker filtering.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No new dependencies; no schema changes in Phase A (the status column belongs to Phase B).</li>
+            <li>No behavior gated on <code>NODE_ENV</code> (dev runs <code>production</code>) — env vars only.</li>
+            <li>Do not grow <code>BillingService.ts</code> (672 lines) or <code>PropertiesTab.tsx</code> (508) — extract.</li>
+            <li>Do not change the Mission Control admin add-location UX — admin adds stay silent (no charge screen).</li>
+            <li>Do not touch prod Stripe config, live webhook, or prod env.</li>
+            <li>No hardcoded price amounts (§4.2).</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Cancellation lifecycle — Phase B (<code>spec-cancellation.html</code>).</li>
+        <li>Making GBP optional (owner overrode the ticket; South Orange's GBP must exist in Google before the call).</li>
+        <li>Workflow/job gating per location, payment dunning changes, per-location price tiers, Mission Control billing UX.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 — this code moves real client money once merged to main.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>(L3) Double-charge or charge-without-location.</strong> <strong>Mitigation:</strong> the Must-column ordering + Stripe idempotency key + compensating revert; vitest on the ordering; dev test-card E2E before merge; charge-success/create-failure logs at <code>error</code> with org/GBP ids (§9.3).</li>
+        <li><strong>(L3) POST /api/locations has four consumers — three are admin surfaces.</strong> If the payment gate lands on the shared endpoint, Mission Control adds would demand payment. <strong>Mitigation:</strong> new client endpoint <code>POST /api/locations/purchase</code> for PropertiesTab; legacy endpoint restricted to platform-admin/impersonation callers (T4 verifies the existing admin/impersonation marker before relying on it — if none exists, restrict via the <code>/api/admin</code> route family instead). Org admins must not be able to bypass payment via the legacy route.</li>
+        <li><strong>(L2) SCA/3DS on the prorated invoice</strong> — card-on-file charges can require authentication and fail. <strong>Mitigation:</strong> treat as <code>PAYMENT_FAILED</code> + portal CTA; acceptable for July 8 (US cards, existing default payment method); note in acceptance run.</li>
+        <li><strong>(L2) Quote drift</strong> — locations/price changing between quote and purchase. <strong>Mitigation:</strong> server recompute at purchase; if totals differ from the client-echoed quote, return <code>QUOTE_STALE</code> and refresh.</li>
+        <li><strong>(L1) One Endo dup-GBP silent-500</strong> becomes a friendly <code>GBP_ALREADY_LINKED</code> 409 — fixed as part of T5.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>createLocation()</code> FE callers (PropertiesTab + 3 admin surfaces — T4 keeps admin paths on the legacy endpoint); <code>LocationService.createLocation</code> (gains an option, existing callers unchanged); <code>syncSubscriptionQuantity</code> (untouched, but bypassed by the purchase path); BillingTab (additive section); no schema, no webhook contract changes.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>The ticket's "routed to Stripe to confirm" is implemented as an in-app confirm charging the card on file — Stripe Checkout cannot host a quantity-update confirmation for an existing subscription. The consent requirement (see the new amount before being charged) is met in-app; this is the standard Stripe pattern.</li>
+        <li>Charging the prorated delta immediately is the honest reading of "create after paid," but it means the client's card is hit mid-call on July 8 — Jo should say so out loud during the walkthrough.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: LocationBillingService (quote + purchase orchestration)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New <code>feature-services/LocationBillingService.ts</code> under <code>src/controllers/billing/</code>: <code>getAddLocationQuote(orgId)</code> resolves the branch matrix (sub / flat / no-sub), fetches unit amount from the Stripe price, current quantity from the subscription item, and the prorated amount via Stripe's upcoming-invoice preview; <code>purchaseLocation(orgId, input)</code> implements the charge→create ordering with idempotency and compensating revert, calling <code>LocationService.createLocation</code> with a new <code>skipBillingSync</code> option. Typed <code>BillingLocationError</code> + response builders in <code>feature-utils/</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/billing/feature-services/LocationBillingService.ts</code>, <code>src/controllers/billing/feature-utils/</code> (new), <code>src/controllers/locations/LocationService.ts</code> (option only)</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code>; vitest unit tests (T8)</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Quote endpoint</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>GET /api/billing/location-add-quote</code> (auth + rbac + <code>requireRole("admin")</code>): returns <code>{ mode, unitAmount, currency, interval, currentQuantity, newQuantity, currentMonthlyTotal, newMonthlyTotal, proratedChargeNow, periodEnd }</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>src/routes/billing.ts</code>, <code>src/controllers/billing/BillingController.ts</code> (or existing controller seam), <code>src/validation/</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>curl on dev returns correct numbers for org 41 pre/post checkout</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: Purchase endpoint (create-after-paid)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>POST /api/locations/purchase</code> (same middleware chain): validates name+GBP, enforces GBP-reuse guard, recomputes quote, executes <code>purchaseLocation</code>. Error codes: <code>GBP_ALREADY_LINKED</code>, <code>PAYMENT_FAILED</code>, <code>NO_PAYMENT_METHOD</code>, <code>QUOTE_STALE</code>. Location + <code>google_properties</code> writes transactional (§10.5).</dd></div>
+          <div><dt>Files</dt><dd><code>src/routes/locations.ts</code>, <code>src/validation/</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>dev test-card E2E: charge succeeds → location exists; declined card (4000 0000 0000 0002) → no location, friendly error</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T4: Restrict the legacy create endpoint to platform-admin callers</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Investigate the existing platform-admin / impersonation marker (Pilot) on the JWT/session. Gate <code>POST /api/locations</code> so org admins cannot silently add (and bypass payment); Mission Control's three surfaces keep working unchanged. If no reliable marker exists, move admin adds under the <code>/api/admin</code> route family instead and point the three admin components at it.</dd></div>
+          <div><dt>Files</dt><dd><code>src/routes/locations.ts</code>, possibly <code>src/routes/admin/…</code>, <code>frontend/src/api/locations.ts</code> + the 3 admin components if the path moves</dd></div>
+          <div><dt>Depends on</dt><dd>T3</dd></div>
+          <div><dt>Verify</dt><dd>Org-admin JWT on legacy endpoint → 403; Mission Control add still works on dev</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T5: GBP-reuse guard (kills the One Endo silent-500)</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>GooglePropertyModel.isExternalIdLinkedForOrg(orgId, externalId)</code> (org-scoped, §11.7); enforced in both create paths before any Stripe call; FE picker filters already-linked place_ids from the results.</dd></div>
+          <div><dt>Files</dt><dd><code>src/models/GooglePropertyModel.ts</code>, <code>src/controllers/locations/LocationService.ts</code>, the GBP picker component used by PropertiesTab</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Attempt to re-link an existing GBP → 409 <code>GBP_ALREADY_LINKED</code>, picker doesn't offer it</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T6: Billing card shows locations × price = total</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Extend <code>GET /api/billing/status</code> payload with <code>locationBilling: { locationCount, unitAmount, currency, interval, effectiveQuantity, monthlyTotal, isFlatRate }</code>; BillingTab plan card renders "N locations × $X/mo = $Z/mo" (flat-rate: "Flat rate: $Z/mo · N locations") as a small child component.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/billing/BillingService.ts</code> seam or feature-service, <code>frontend/src/components/settings/BillingTab.tsx</code> + new child component, <code>frontend/src/api/billing.ts</code>, <code>frontend/src/types/</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Dev org 41 with sub shows "2 locations × $2,000/mo = $4,000/mo" after T7 E2E</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T7: Add-location wizard payment step (client UI)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Extract PropertiesTab's add flow into <code>AddLocationWizard</code> (feature folder): step 1 name+GBP (picker filtered per T5) → step 2 billing summary from the quote endpoint (location name, per-location cost, current → new total, "$X charged today, $Z/mo from &lt;date&gt;", branch-matrix copy for flat/no-sub) → confirm → purchase call → success. <code>PAYMENT_FAILED</code> renders the portal CTA. React Query for quote; no fetch outside api/ (§14.2).</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/settings/PropertiesTab.tsx</code> (slimmed), <code>frontend/src/components/settings/AddLocationWizard.tsx</code> (new), <code>frontend/src/api/locations.ts</code>, <code>frontend/src/api/billing.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3, T5</dd></div>
+          <div><dt>Verify</dt><dd>Full dev E2E with test card; declined-card path; flat-override org shows $0-change copy</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T8: Validation schemas + unit tests</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Boundary schemas for both new endpoints (§11.2). Vitest for LocationBillingService: quote per branch (sub/flat/no-sub), purchase ordering (charge fail → no create + revert; create fail after charge → no double-charge on retry), GBP-reuse guard org-scoping (§20.2).</dd></div>
+          <div><dt>Files</dt><dd><code>src/validation/</code>, <code>src/controllers/billing/feature-services/__tests__/LocationBillingService.test.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1–T5</dd></div>
+          <div><dt>Verify</dt><dd><code>npx vitest run</code> green</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T9: Stripe mode guard — env ↔ key ↔ event safety (Rev 1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New <code>STRIPE_MODE</code> env var (<code>test</code> | <code>live</code>) validated at startup in <code>src/config/stripe.ts</code> (§5.6): if set, it must match the secret key's <code>sk_test_</code>/<code>sk_live_</code> prefix — mismatch fails fast with a clear message, so re-enabling live keys on dev crashes at boot instead of silently going live. If unset, infer from the key prefix and log a <code>warn</code> (safe rollout: prod deploys before its env gets the var). Export <code>getStripeMode()</code>. Webhook handler asserts <code>event.livemode</code> matches the mode; mismatched events are logged at <code>error</code> and acknowledged with 200 (no retry storm, no processing).</dd></div>
+          <div><dt>Files</dt><dd><code>src/config/stripe.ts</code>, webhook seam in <code>src/controllers/billing/BillingService.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Boot with mismatched mode/key locally → exits with clear error; synthetic mismatched-livemode event → logged + ignored. Rollout step: set <code>STRIPE_MODE=test</code> in dev.env, <code>STRIPE_MODE=live</code> in prod app.env.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T10: Mode-aware mutation guards for foreign-mode Stripe ids (Rev 1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Classify Stripe <code>resource_missing</code> on customer/subscription lookups in <code>syncSubscriptionQuantity</code>, the quote path, and the purchase path as "billing objects from another mode / stale clone": <code>warn</code> log with org id + typed no-op (<code>BILLING_OBJECTS_UNAVAILABLE</code>) instead of a 500 or a confusing failure (§3.2, §8.3). Quote/purchase endpoints surface it as a clear, human-readable state ("billing for this account is managed outside this environment"). Result: prod-cloned orgs on dev are inert and quiet on every add/remove/sync path — no mutation is ever attempted against an object the key can't see.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/billing/feature-services/LocationBillingService.ts</code>, <code>src/controllers/billing/BillingService.ts</code> (sync seam), <code>feature-utils/</code> error codes</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>On dev (test mode), quote + add + legacy remove against a prod-cloned org (live ids) → clean warn logs, no 500s, no Stripe mutation calls; vitest covers the classification.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T11: Dev billing test harness — repeatable, prod-safe (Rev 1)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Script <code>scripts/billing-reset-test-org.ts</code> (npm alias <code>billing:reset-test-org -- &lt;orgId&gt;</code>): nulls <code>stripe_customer_id</code>, <code>stripe_subscription_id</code>, <code>stripe_price_id</code>, <code>billing_quantity_override</code> for one org so checkout/add/remove can be exercised from a clean slate — and <strong>refuses to run unless the configured key is test mode</strong> (the interlock that makes it impossible to point at prod data with live keys). Document the post-re-clone routine (run reset for test orgs; T9 keeps everything else inert). Define the dev test matrix that the acceptance artifact will carry: add success (4242…), declined (4000 0000 0000 0002), 3DS challenge (4000 0027 6000 3184), duplicate GBP, quote-stale, legacy remove → quantity decrement, webhook round-trip.</dd></div>
+          <div><dt>Files</dt><dd><code>scripts/billing-reset-test-org.ts</code> (new), <code>package.json</code> (script alias)</dd></div>
+          <div><dt>Depends on</dt><dd>T9</dd></div>
+          <div><dt>Verify</dt><dd>Script with live key configured → refuses; on dev resets org 41 repeatably; full matrix run green on dev and recorded in <code>test-results.json</code>.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> <code>npx tsc --noEmit</code> zero errors (backend) and <code>tsc -p tsconfig.app.json</code> zero errors (frontend)</li>
+        <li><input type="checkbox" disabled> <code>npm run check:conventions --strict</code> passes; new code cites clean against §6.3, §7.4, §8.1, §11.7, §14.2</li>
+        <li><input type="checkbox" disabled> <code>npx vitest run</code> — new unit tests green</li>
+        <li><input type="checkbox" disabled> Dev E2E (test mode, org 41): add location → prorated invoice paid → location created → billing card shows "2 locations × $2,000/mo = $4,000/mo"</li>
+        <li><input type="checkbox" disabled> Declined-card E2E: no location created, friendly error with portal CTA</li>
+        <li><input type="checkbox" disabled> Re-linking an already-linked GBP blocked with <code>GBP_ALREADY_LINKED</code> (One Endo silent-500 gone)</li>
+        <li><input type="checkbox" disabled> Mission Control admin add-location unchanged and working</li>
+        <li><input type="checkbox" disabled> Merged worktree → dev/dave → main; prod deploy green + health check before July 7 EOD</li>
+        <li><input type="checkbox" disabled> Acceptance artifact (<code>test.html</code> + <code>test-results.json</code>) generated and passing (§20.5)</li>
+        <li><input type="checkbox" disabled> Docs parity: Settings → Properties + Billing pages updated in alloro-docs (add-location payment step, billing summary line)</li>
+        <li><input type="checkbox" disabled> (Rev 1) <code>STRIPE_MODE</code> guard live: mismatched mode/key fails startup; dev.env has <code>test</code>, prod app.env has <code>live</code> at rollout; mismatched-livemode webhook event logged + ignored</li>
+        <li><input type="checkbox" disabled> (Rev 1) Prod-cloned org on dev exercising quote/add/remove → clean warn no-ops, zero 500s, zero attempted Stripe mutations</li>
+        <li><input type="checkbox" disabled> (Rev 1) Reset script refuses under live keys, resets a test org repeatably; full dev test matrix (success / declined / 3DS / dup GBP / quote-stale / remove-decrement / webhook) green in the acceptance artifact</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-03</h3>
+        <p><strong>Change:</strong> Added payment-process testing hardening as T9–T11: <code>STRIPE_MODE</code> startup guard (env ↔ key prefix ↔ webhook <code>livemode</code>), mode-aware no-op classification for foreign-mode Stripe ids (prod-cloned orgs inert on dev), and a test-mode-only <code>billing:reset-test-org</code> script plus a defined dev test matrix for add/remove/payment flows. Size ≈14 → ≈17 files.</p>
+        <p><strong>Reason:</strong> Scope addition: owner wants location add/remove and payment testing on the dev server hardened so it can never affect prod users — today's protection is only the commented-out live key in dev.env, and dev DB re-clones re-import live Stripe ids.</p>
+        <p><strong>Updated Done criteria:</strong> three (Rev 1) checklist items — mode guard live on both servers, prod-cloned orgs inert on dev, reset script + full test matrix green.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

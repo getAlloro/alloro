@@ -1,0 +1,16 @@
+-- Multi-Location Billing — Phase B: location cancellation lifecycle (SQL Server variant)
+-- Table: locations
+-- Adds: status (nvarchar(32), NOT NULL, default 'active', CHECK active|pending_cancellation|cancelled)
+--       cancel_effective_at (datetimeoffset, null)
+--       cancelled_at        (datetimeoffset, null)
+-- Index: (organization_id, status)
+-- Data: no rows modified; existing locations default to 'active'.
+
+-- TODO: fill during execution
+-- ALTER TABLE locations ADD
+--   status nvarchar(32) NOT NULL CONSTRAINT DF_locations_status DEFAULT 'active',
+--   cancel_effective_at datetimeoffset NULL,
+--   cancelled_at datetimeoffset NULL;
+-- ALTER TABLE locations ADD CONSTRAINT CK_locations_status
+--   CHECK (status IN ('active', 'pending_cancellation', 'cancelled'));
+-- CREATE INDEX IX_locations_org_status ON locations (organization_id, status);

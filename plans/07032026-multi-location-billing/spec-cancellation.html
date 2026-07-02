@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Multi-Location Billing — Phase B: Location Cancellation Lifecycle</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 12px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec · Phase B of 2 (Phase A: spec.html)</p>
+        <span class="status-pill status-pending">Pending Execution</span>
+      </div>
+      <h1>Multi-Location Billing — Phase B: Location Cancellation Lifecycle</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07032026-multi-location-billing</dd></div>
+        <div><dt>Size</dt><dd>Medium (≈12 files + 1 migration)</dd></div>
+        <div><dt>Risk</dt><dd>Level 3 (billing lifecycle + schema)</dd></div>
+        <div><dt>Timing</dt><dd>After Phase A merges (post-July 8)</dd></div>
+        <div><dt>Execution</dt><dd>Worktree <code>dave/multi-location-billing</code></dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Clients cannot cancel a single location today — the only paths are hard-deleting the location (destroys the org's data trail; currently exposed to clients in PropertiesTab) or cancelling the whole subscription. The owner wants end-of-period cancellation per location, a reopen window, and a hard rule: <strong>nothing is ever deleted</strong> — a cancelled location keeps all its data and can always be reopened.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Locations gain a status lifecycle: <code>active → pending_cancellation → cancelled</code>, with reopen from either non-active state. Cancelling stops the <em>next</em> invoice from including the location (the current, already-paid period is untouched); the location stays fully usable until the period ends; reopening before then simply restores it. Once cancelled: greyed out in Settings → Properties, gone from the sidebar switcher, all data retained. Cancelling the <strong>last</strong> active location schedules the whole subscription to cancel at period end (owner decision: all locations are cancellable, no floor guard). Reopening a fully-cancelled location goes through the Phase A payment flow. Client hard-delete is removed.</p>
+      <h3>Owner decisions (locked 07-03)</h3>
+      <ul>
+        <li>All locations cancellable, including primary and last. Rows never disappear from the Properties list — only marked.</li>
+        <li>Background workflows (rankings, GBP automation, agents, PMS) <strong>keep running</strong> for cancelled locations for now; gating them is a separate later plan.</li>
+        <li>Cancel/reopen UI lives in Settings → Properties; the Billing tab only carries the count/total summary (Phase A).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/database/migrations/20260222000001_create_locations_table.ts</code> — current schema (no status column); Phase B migration scaffolds in <code>migrations/</code> of this plan folder</li>
+        <li><code>src/models/LocationModel.ts</code> — <code>findByOrganizationId</code> (status-blind today), <code>countByOrganizationId</code> (feeds Stripe quantity)</li>
+        <li><code>src/controllers/locations/LocationService.ts</code> — <code>removeLocation()</code> hard delete (:204–259; client route to be removed), primary-promote logic to reuse for reference only</li>
+        <li><code>src/controllers/billing/BillingService.ts</code> — <code>syncSubscriptionQuantity()</code> (:550–642) counts raw locations with a <code>Math.max(count, 1)</code> floor — both must become status-aware</li>
+        <li><code>src/routes/locations.ts</code> — <code>GET /api/locations</code> (:43–97, no status filter), <code>DELETE</code> route (client-exposed today)</li>
+        <li><code>src/workers/</code> — BullMQ queues + <code>processors/scheduler.processor.ts</code> — the analog for the repeatable finalizer job</li>
+        <li><code>frontend/src/components/settings/PropertiesTab.tsx</code> — hosts cancel/reopen UI; currently has <code>deleteLocation</code> (:167) to remove</li>
+        <li><code>frontend/src/components/LocationSwitcher.tsx</code> + <code>frontend/src/contexts/LocationProvider.tsx</code> — no FE change expected: API-side filtering removes cancelled locations; localStorage restore already falls back (primary → first)</li>
+        <li><code>frontend/src/components/settings/BillingTab.tsx</code> — cancelled-subscription banner already exists; copy must make sense when cancellation was triggered by the last-location cancel</li>
+      </ul>
+      <h3>Billing mechanics (per direction)</h3>
+      <ul>
+        <li><strong>Cancel (not last):</strong> set <code>pending_cancellation</code> + <code>cancel_effective_at</code> = subscription <code>current_period_end</code>; decrement quantity immediately with proration <code>none</code> — the paid current period is untouched, the next invoice is lower.</li>
+        <li><strong>Cancel (last active):</strong> set <code>pending_cancellation</code>; set subscription <code>cancel_at_period_end = true</code> (Stripe quantities cannot go to 0). The existing webhook flow handles the org status when it lapses.</li>
+        <li><strong>Reopen while pending:</strong> restore <code>active</code>; increment quantity back with proration <code>none</code> (already paid this period) or clear <code>cancel_at_period_end</code> in the last-location case.</li>
+        <li><strong>Reopen after cancelled:</strong> a paid re-add — reuse Phase A's <code>LocationBillingService</code> quote + prorated charge, then restore <code>active</code>.</li>
+        <li><strong>No-sub / flat-override orgs:</strong> no Stripe mutation; no period end exists for no-sub orgs → cancellation is immediate (<code>cancelled</code> directly, <code>cancelled_at = now</code>). Flat-override orgs keep their price; status-only change with period-end timing from the sub if one exists, else immediate.</li>
+        <li><strong>Effective quantity rule (single definition):</strong> quantity = count of <code>status = 'active'</code> locations. <code>pending_cancellation</code> is excluded because the decrement already happened at cancel time. The <code>Math.max(count, 1)</code> floor is removed from the sync path; the checkout path keeps a ≥1 rule.</li>
+      </ul>
+      <h3>Patterns To Follow (Code Constitution)</h3>
+      <ul>
+        <li>§10.3/§10.4/§10.5 — schema via migration (+ index on <code>(organization_id, status)</code>), multi-write transitions in transactions</li>
+        <li>§6.1/§6.3 — cancel/reopen logic in <code>src/controllers/locations/feature-services/LocationLifecycleService.ts</code> (analog: <code>gbp-automation</code>)</li>
+        <li>§7.4/§11.7 — status filters live in <code>LocationModel</code>, always org-scoped</li>
+        <li>§8.1–§8.3 — typed codes: <code>ALREADY_CANCELLED</code>, <code>NOT_PENDING</code>, <code>REOPEN_REQUIRES_PAYMENT</code></li>
+        <li>§21.1–§21.4 — finalizer job idempotent (status+due-date predicate re-checked in the job), bounded retries, Pino context</li>
+        <li>§12.1/§14.2/§15.1/§16.1 — FE through the api/ triad, React Query invalidation of locations + billing status after transitions</li>
+        <li>§20.1/§20.2 — vitest for every transition and its Stripe side-effect, tenant-scope negative tests</li>
+      </ul>
+      <p><strong>Reference file (backend):</strong> <code>src/controllers/gbp-automation/</code>. <strong>Reference file (worker):</strong> <code>src/workers/processors/scheduler.processor.ts</code>.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Execute on worktree <code>dave/multi-location-billing</code>; this migration merges to <code>dev/dave</code> only <em>after</em> Phase A has merged to main (never bundle it into the July 7 merge).</li>
+            <li>Data retention is absolute: no code path deletes a location or its dependents; the client <code>DELETE</code> route is removed.</li>
+            <li><code>pending_cancellation</code> locations stay fully usable (switcher, features) until <code>cancel_effective_at</code>.</li>
+            <li><code>GET /api/locations</code> excludes <code>cancelled</code> by default; <code>?include_cancelled=true</code> for PropertiesTab (server still org-scopes, §11.7).</li>
+            <li>Every transition logs org/location ids + Stripe object ids at <code>info</code> (§9.3) and emails org admins (reuse the existing quantity-change email seam).</li>
+            <li>Migration reversible: <code>down</code> drops the columns; flag before merge that <code>down</code> loses status data (prod-risk note per repo migration rules).</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No gating of background workflows/jobs on status in this plan (owner deferral) — cancelled locations keep processing.</li>
+            <li>No auto-promotion of <code>is_primary</code> at cancel time ("just mark as cancelled") — flagged as an accepted edge, see Risk.</li>
+            <li>No new state library, no schema beyond the three columns + index, no Stripe webhook contract changes.</li>
+            <li>Do not touch <code>LocationSwitcher</code>/<code>LocationProvider</code> unless dev QA proves the API-side filter insufficient.</li>
+            <li>No hard delete anywhere in client-reachable code.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Workflow/job gating per cancelled location (later plan), Mission Control cancel tooling, refunds/credits, org offboarding, data export.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 — subscription lifecycle mutations + a production schema change.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><strong>(L3) Quantity drift between DB status and Stripe.</strong> A cancel that decrements Stripe but fails the DB write (or vice versa) leaves money wrong. <strong>Mitigation:</strong> DB status transition commits first, Stripe call second, compensating status revert on Stripe failure; sync recount derives from status so a later sync self-heals; every mismatch logged at <code>error</code>.</li>
+        <li><strong>(L3) Removing the <code>Math.max(count, 1)</code> floor</strong> changes sync semantics for all orgs. <strong>Mitigation:</strong> floor removal applies only to the status-aware recount path; checkout keeps ≥1; unit tests cover 0-active (last-location) branching into sub-cancel instead of quantity 0.</li>
+        <li><strong>(L2) Cancelled primary location.</strong> <code>is_primary</code> may sit on a cancelled row; the provider falls back (primary → first <em>returned</em> location) so the switcher is safe, but any backend path resolving "the primary location" may pick a cancelled one. <strong>Mitigation:</strong> accepted per owner ("just mark as cancelled"); audit direct <code>is_primary</code> consumers during execution and list them in the summary; full handling belongs to the workflow-gating plan.</li>
+        <li><strong>(L2) Webhook interplay.</strong> Last-location cancel sets <code>cancel_at_period_end</code>; the existing <code>customer.subscription.updated</code>/<code>deleted</code> handlers will move org status — BillingTab then shows the org-level cancelled banner. <strong>Mitigation:</strong> T8 aligns copy so "your subscription ends on X because your last location was cancelled" reads correctly; reopen-while-pending clears the flag.</li>
+        <li><strong>(L2) Finalizer double-run / missed run.</strong> <strong>Mitigation:</strong> §21.1 idempotent predicate (<code>status = 'pending_cancellation' AND cancel_effective_at &lt;= now()</code>), hourly repeatable job, bounded retries + dead-letter, and the flip is also safe to run manually.</li>
+        <li><strong>(L1) localStorage selected location becomes cancelled</strong> — provider fallback already handles a missing id (verified in -b).</li>
+      </ul>
+      <p><strong>Blast radius:</strong> every consumer of <code>GET /api/locations</code> (switcher, PropertiesTab, RBAC grant filtering) sees the new default filter; <code>LocationModel.findByOrganizationId</code>/<code>countByOrganizationId</code> callers must be audited for status-awareness (billing sync, RBAC middleware :118–145, admin surfaces); <code>DELETE /api/locations/:id</code> removal affects PropertiesTab only (admin project-identity locations are a separate system, untouched). Downstream location_id tables are untouched — data stays.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Allowing the last location to cancel the whole subscription via a Properties-tab action is a big lever next to small ones. The confirm dialog must say explicitly: "This is your only active location — cancelling it ends your Alloro subscription on &lt;date&gt;."</li>
+        <li>Keeping workflows running for cancelled locations means Alloro keeps paying compute/API costs for non-paying locations. Deferral accepted, but the follow-up gating plan should come soon after — noted as the explicit next step.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Schema migration + status-aware model</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Knex migration: <code>locations.status</code> text NOT NULL default <code>'active'</code> (check constraint <code>active|pending_cancellation|cancelled</code>), <code>cancel_effective_at</code> timestamptz null, <code>cancelled_at</code> timestamptz null, index <code>(organization_id, status)</code>. LocationModel: <code>findByOrganizationId(orgId, { includeCancelled })</code>, <code>countActiveByOrganizationId</code>, <code>findDuePendingCancellations</code>, transition helpers. Fill this folder's <code>migrations/</code> scaffolds (pgsql, mssql, knex).</dd></div>
+          <div><dt>Files</dt><dd><code>src/database/migrations/&lt;stamp&gt;_add_location_cancellation_lifecycle.ts</code>, <code>src/models/LocationModel.ts</code>, <code>plans/07032026-multi-location-billing/migrations/*</code></dd></div>
+          <div><dt>Depends on</dt><dd>Phase A merged</dd></div>
+          <div><dt>Verify</dt><dd><code>npm run db:migrate</code> + <code>db:rollback</code> clean locally</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Cancel service</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>LocationLifecycleService.cancelLocation(orgId, locationId)</code>: guards (org-scoped, currently <code>active</code>), branch matrix per Context (period-end pending vs immediate for no-sub; quantity decrement proration <code>none</code>; last-active → <code>cancel_at_period_end</code>), admin email, Pino context.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/locations/feature-services/LocationLifecycleService.ts</code> (new), <code>src/controllers/locations/feature-utils/</code> (typed error)</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>vitest per branch; dev: next-invoice preview drops after cancel</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: Reopen service</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>reopenLocation(orgId, locationId)</code>: pending → restore active (+ quantity re-increment proration <code>none</code> / clear <code>cancel_at_period_end</code>); cancelled → Phase A quote + prorated charge (reuse <code>LocationBillingService</code>) then restore. Emails + logs.</dd></div>
+          <div><dt>Files</dt><dd>same feature-service</dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>vitest; dev: reopen-while-pending restores next invoice; reopen-after-cancelled charges prorated amount</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T4: Routes, validation, and client-delete removal</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>POST /api/locations/:id/cancel</code> and <code>POST /api/locations/:id/reopen</code> (auth + rbac + <code>requireRole("admin")</code> + schemas). Remove the client <code>DELETE /api/locations/:id</code> route and PropertiesTab's delete action; <code>LocationService.removeLocation</code> stays only if a platform-admin surface still references it — otherwise delete it too (no dead exports).</dd></div>
+          <div><dt>Files</dt><dd><code>src/routes/locations.ts</code>, <code>src/validation/</code>, <code>frontend/src/api/locations.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3</dd></div>
+          <div><dt>Verify</dt><dd>DELETE returns 404/410; cancel/reopen round-trip on dev</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T5: Period-boundary finalizer job</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Repeatable BullMQ job (hourly, existing scheduler pattern): flip due <code>pending_cancellation</code> → <code>cancelled</code> (<code>cancelled_at = now()</code>). Idempotent predicate, bounded retries, dead-letter, §21.4 logging. Calls the lifecycle service (§21.3), no inline logic.</dd></div>
+          <div><dt>Files</dt><dd><code>src/workers/processors/locationCancellationFinalizer.processor.ts</code> (new), <code>src/workers/queues.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2</dd></div>
+          <div><dt>Verify</dt><dd>vitest on the predicate; dev: backdate <code>cancel_effective_at</code>, job flips it within the hour (or manual trigger)</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T6: Listing filter + status-aware quantity sync</h3>
+        <dl>
+          <div><dt>Do</dt><dd><code>GET /api/locations</code> excludes <code>cancelled</code> unless <code>?include_cancelled=true</code>; response rows carry <code>status</code> + <code>cancel_effective_at</code>. <code>syncSubscriptionQuantity</code> recounts <code>active</code> only, floor removed per Context rule; audit all <code>findByOrganizationId</code>/<code>countByOrganizationId</code> callers for which view they need (RBAC middleware keeps grants working for pending locations).</dd></div>
+          <div><dt>Files</dt><dd><code>src/routes/locations.ts</code>, <code>src/controllers/billing/BillingService.ts</code> (seam only) or feature-service, <code>src/middleware/rbac.ts</code> (audit)</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Switcher on dev no longer lists a cancelled location; sidebar fallback works when the selected one cancels</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T7: Properties tab lifecycle UI</h3>
+        <dl>
+          <div><dt>Do</dt><dd>PropertiesTab rows (fetched with <code>include_cancelled</code>): status badge; pending shows "active until &lt;date&gt;" + <strong>Reopen</strong>; cancelled greyed with <strong>Reopen</strong> (opens the Phase A payment summary); active shows <strong>Cancel</strong> with a confirm dialog stating the effective date — and the explicit subscription-ending warning when it is the last active location. React Query invalidation of locations + billing status on every transition (§15.1).</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/settings/PropertiesTab.tsx</code> + extracted row/dialog components, <code>frontend/src/api/locations.ts</code>, <code>frontend/src/types/</code></dd></div>
+          <div><dt>Depends on</dt><dd>T4, T6</dd></div>
+          <div><dt>Verify</dt><dd>Dev walkthrough of all three states; greyed-out rendering; no delete button anywhere</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T8: Billing-tab copy alignment + tests</h3>
+        <dl>
+          <div><dt>Do</dt><dd>BillingTab cancelled/cancelling banner copy covers the last-location-triggered case; Phase A summary line shows pending state ("2 locations, 1 ending &lt;date&gt;"). Vitest suite for all transitions incl. tenant-scope negatives (§20.2).</dd></div>
+          <div><dt>Files</dt><dd><code>frontend/src/components/settings/BillingTab.tsx</code>, <code>src/controllers/locations/feature-services/__tests__/</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2–T7</dd></div>
+          <div><dt>Verify</dt><dd><code>npx vitest run</code> green; dev visual check</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> Backend + frontend type gates zero errors; <code>npm run check:conventions --strict</code> passes</li>
+        <li><input type="checkbox" disabled> Migration applied + rolled back cleanly on local; applied on dev via deploy; prod-risk note written before main merge</li>
+        <li><input type="checkbox" disabled> Dev E2E: cancel → location stays usable + next-invoice preview lower → reopen restores; finalizer flips a backdated pending row; cancelled location greyed in Properties and absent from the sidebar switcher</li>
+        <li><input type="checkbox" disabled> Last-location cancel schedules subscription cancellation with the explicit warning dialog; reopen-while-pending clears it</li>
+        <li><input type="checkbox" disabled> Reopen-after-cancelled charges the prorated amount via the Phase A path</li>
+        <li><input type="checkbox" disabled> No client-reachable delete path remains; no location data removed anywhere</li>
+        <li><input type="checkbox" disabled> Vitest suite green (transitions, Stripe branches, tenant scope)</li>
+        <li><input type="checkbox" disabled> Acceptance artifact (<code>test.html</code> + <code>test-results.json</code>) passing (§20.5)</li>
+        <li><input type="checkbox" disabled> Docs parity: alloro-docs Properties/Billing pages cover cancel, reopen, greyed states; workflow-gating follow-up plan noted</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

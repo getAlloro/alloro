@@ -1,0 +1,16 @@
+-- Multi-Location Billing — Phase B: location cancellation lifecycle
+-- Table: locations
+-- Adds: status ('active' | 'pending_cancellation' | 'cancelled', NOT NULL, default 'active')
+--       cancel_effective_at (timestamptz, null — when a pending cancellation takes effect)
+--       cancelled_at        (timestamptz, null — when the location became cancelled)
+-- Index: (organization_id, status) — listing + finalizer queries filter on both
+-- Data: no rows modified; all existing locations default to 'active'.
+-- Rollback risk: down drops the columns — status/cancellation history is lost (flag before prod merge).
+
+-- TODO: fill during execution
+-- ALTER TABLE locations
+--   ADD COLUMN status text NOT NULL DEFAULT 'active'
+--     CHECK (status IN ('active', 'pending_cancellation', 'cancelled')),
+--   ADD COLUMN cancel_effective_at timestamptz NULL,
+--   ADD COLUMN cancelled_at timestamptz NULL;
+-- CREATE INDEX idx_locations_org_status ON locations (organization_id, status);
