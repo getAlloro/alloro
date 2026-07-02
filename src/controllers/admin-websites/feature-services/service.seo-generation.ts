@@ -641,6 +641,7 @@ async function applyGeoToPage(
       status: "draft",
       sections: JSON.stringify(newSections),
       seo_data: page.seo_data ?? null,
+      display_name: page.display_name || null,
     },
   });
 

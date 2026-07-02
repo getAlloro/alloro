@@ -2,6 +2,23 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.148] - July 2026
+
+### Website Builder: GEO Auto-Apply Also Drops the Page Label
+
+Following up on the page-label carry-forward fix: auditing every place a new page-version row gets created turned up a second instance of the same bug in the SEO/GEO generator's auto-apply flow.
+
+**Key Changes:**
+- **Root-cause fix.** `applyGeoToPage()` (`service.seo-generation.ts`) auto-applies a GEO opening-content recommendation by creating a new draft version of the live page. It already has the source page loaded (`page.display_name` in scope) but the `insertData` passed to `PageModel.createPageVersion` omitted `display_name` — so any page that gets a GEO recommendation auto-applied loses its label, the same failure mode as the earlier `createDraft` bug. Fixed with the identical one-line pattern: `display_name: page.display_name || null`.
+- **Full audit closes the loop.** Traced every insert-into-`pages` call site in the codebase (9 total) to confirm nothing else has this gap: `createPage`, the AI Command new-page handler, `ProjectsController`'s pre-create, and `project-manager`'s bulk project scaffold are all brand-new-page creation with nothing to carry forward (correct as-is); `restoreVersionIntoDraft` and `snapshotPageStateIfChanged` already carried `display_name` forward correctly; `uploadArtifactPage`/`replaceArtifactBuild` take the label as an explicit caller-supplied form field or never insert a new row, so they're a different (non-bug) case.
+- **Regression test.** Extended the existing unit test that already asserted on this function's `insertData` shape — added `display_name` to the mocked source page and a new assertion that it survives into the new draft's `insertData`.
+
+**Verification:** `npx tsc --noEmit` clean. Full suite 18 files / 158 tests pass. `npm run check:conventions --strict` 0 backend violations. No live browser verification — `applyGeoToPage` has no drivable UI surface in this session (fires only after a real AI-generated GEO recommendation); the extended unit test is the proof, documented as the single N/A acceptance item in `plans/07022026-geo-autoapply-display-name-fix/test-results.json`. No schema migration.
+
+**Commits:**
+- `src/controllers/admin-websites/feature-services/service.seo-generation.ts` — carry `display_name` forward in `applyGeoToPage`'s insert
+- `src/__tests__/service.seo-generation.test.ts` — regression assertion
+
 ## [0.0.147] - July 2026
 
 ### SEO Metatags: Real Social Images, Valid Schema Types, Real Ratings, FAQ Schema

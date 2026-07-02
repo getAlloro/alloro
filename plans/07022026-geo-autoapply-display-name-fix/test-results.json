@@ -1,0 +1,19 @@
+{
+  "plan": "plans/07022026-geo-autoapply-display-name-fix",
+  "generatedAt": "2026-07-02",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T0",
+      "title": "GEO auto-apply carries display_name into the new draft version — verified by Layer 1 test",
+      "surface": "none",
+      "precondition": "No drivable UI surface: applyGeoToPage() is an internal step of the SEO/GEO generator's auto-apply flow, triggered only after a real AI-generated opening_content_recommendation. Reproducing it live requires an authenticated admin session plus a real generation run, which this session does not drive (established constraint: no admin-auth browser automation).",
+      "steps": [],
+      "expected": "insertData.display_name passed to PageModel.createPageVersion equals the source page's display_name (page.display_name || null), mirroring createDraft's already-verified behavior.",
+      "status": "pass",
+      "evidence": "src/__tests__/service.seo-generation.test.ts — 'pages: non-empty opening_content_recommendation creates a NEW page version row' now asserts versionArgs.insertData.display_name === 'Teeth Cleaning Services' against a mocked source page carrying that label. Full suite: 18 files / 158 tests passed. npx tsc --noEmit clean. npm run check:conventions --strict: 0 backend structural violations.",
+      "notes": "Layer 1 (automated test) is the real proof here; this item exists only to satisfy the acceptance-artifact convention for -i with an honest N/A rather than fabricated click-steps.",
+      "waiver": ""
+    }
+  ]
+}

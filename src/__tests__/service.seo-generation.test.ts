@@ -90,6 +90,7 @@ const findRawByIdAndProject = vi.fn(async () => ({
   path: "/services/cleaning",
   sections: JSON.stringify([{ type: "hero", content: "<h1>Cleaning</h1>" }]),
   seo_data: null as Record<string, unknown> | null,
+  display_name: null as string | null,
 }));
 const findLatestByProjectAndPath = vi.fn(async () => ({ version: 1 }));
 const createPageVersion = vi.fn(async (params: { insertData: Record<string, unknown> }) => ({
@@ -165,6 +166,7 @@ describe("service.seo-generation — GEO auto-apply (T5)", () => {
       path: "/services/cleaning",
       sections: JSON.stringify([{ type: "hero", content: "<h1>Cleaning</h1>" }]),
       seo_data: null,
+      display_name: "Teeth Cleaning Services",
     });
     findLatestByProjectAndPath.mockResolvedValue({ version: 1 });
     findRawById.mockResolvedValue({ id: POST_ID, content: "<p>Old post content.</p>" });
@@ -210,6 +212,9 @@ describe("service.seo-generation — GEO auto-apply (T5)", () => {
     expect(String(versionArgs.insertData.sections)).toContain(
       "We offer professional teeth cleaning in Springfield."
     );
+    // The source page's display_name must survive into the new draft version —
+    // otherwise the admin Pages list falls back to showing the bare path.
+    expect(versionArgs.insertData.display_name).toBe("Teeth Cleaning Services");
 
     // ...and the live row was read, never mutated in place by auto-apply.
     expect(findRawByIdAndProject).toHaveBeenCalledWith(PAGE_ID, PROJECT_ID);
