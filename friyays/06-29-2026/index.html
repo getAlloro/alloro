@@ -30,7 +30,7 @@
           <p class="eyebrow">06-29-2026 edition</p>
           <div class="status-stack">
             <span class="tag good">Ready for review</span>
-            <span class="tag">1 client-view item</span>
+            <span class="tag">2 client-view items</span>
             <span class="tag">2 admin/operator items</span>
             <span class="tag good">Acceptance passed</span>
           </div>
@@ -169,6 +169,26 @@
                   noted as waivers). Internal tooling speed/reliability fix, not a
                   customer-visible dashboard change &mdash; flagging here per the
                   deployment/reliability-improvement rule rather than omitting.
+                </td>
+              </tr>
+              <tr>
+                <td>Client dashboard</td>
+                <td>Patient Journey: month navigation + honest Google Visibility states</td>
+                <td>All client dashboard users on Patient/Customer Journey Insights</td>
+                <td>Deployed to dev, user-verified</td>
+                <td>Needs classification</td>
+                <td>
+                  Prev/next chevrons step the funnel through the last 12 months
+                  (no-flash stepping, clamped both ends), and the Google
+                  Visibility card now distinguishes "Not connected yet" from
+                  "Google data is still pending" (connected, GSC's ~2-day lag,
+                  with tooltip) and "No Google data for this month" (connected
+                  past month). Changelog 0.0.145, commit <code>5f2d5bcf</code>. See
+                  <code>plans/07022026-patient-journey-month-nav-gsc-pending/test-results.json</code>
+                  (6/6 passed, owner-verified). Docs note: alloro-docs has no
+                  Patient Journey page yet (pre-existing gap, flagged as
+                  follow-up) &mdash; nothing to sync for this increment. Owner to
+                  confirm whether this joins a customer email.
                 </td>
               </tr>
               <tr>
