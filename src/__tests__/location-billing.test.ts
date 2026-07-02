@@ -19,7 +19,13 @@ import Stripe from "stripe";
 const mockStripe = {
   subscriptions: { retrieve: vi.fn() },
   subscriptionItems: { update: vi.fn() },
-  invoices: { createPreview: vi.fn(), list: vi.fn() },
+  invoices: {
+    createPreview: vi.fn(),
+    list: vi.fn(),
+    finalizeInvoice: vi.fn(),
+    pay: vi.fn(),
+    voidInvoice: vi.fn(),
+  },
 };
 
 vi.mock("../config/stripe", () => ({
@@ -175,7 +181,7 @@ describe("purchaseLocation — create after paid", () => {
   };
   const fakeLocation = { id: 9, organization_id: 41, name: "South Orange" };
 
-  it("charges with always_invoice + error_if_incomplete inside the create transaction", async () => {
+  it("updates quantity then pays the proration invoice synchronously", async () => {
     vi.mocked(OrganizationModel.findById).mockResolvedValue(orgBase as never);
     mockStripe.subscriptions.retrieve.mockResolvedValue(subscriptionItem(1));
     mockStripe.invoices.createPreview.mockResolvedValue({ total: 98765 });
@@ -183,11 +189,18 @@ describe("purchaseLocation — create after paid", () => {
     mockStripe.invoices.list.mockResolvedValue({
       data: [
         {
+          id: "in_test",
           billing_reason: "subscription_update",
           created: NOW_SEC,
-          amount_paid: 98765,
+          status: "open",
+          amount_paid: 0,
         },
       ],
+    });
+    mockStripe.invoices.pay.mockResolvedValue({
+      id: "in_test",
+      status: "paid",
+      amount_paid: 98765,
     });
     vi.mocked(createLocationInTransaction).mockResolvedValue(
       fakeLocation as never
@@ -204,26 +217,39 @@ describe("purchaseLocation — create after paid", () => {
       {
         quantity: 2,
         proration_behavior: "always_invoice",
-        payment_behavior: "error_if_incomplete",
       },
       { idempotencyKey: expect.stringContaining("locadd-41-gbp-123-q2") }
     );
+    expect(mockStripe.invoices.pay).toHaveBeenCalledWith("in_test");
     expect(result.billing.chargedNow).toBe(98765);
     expect(result.billing.mode).toBe("quantity");
     expect(result.location.id).toBe(9);
   });
 
-  it("rejects with PAYMENT_FAILED on a declined card and commits nothing", async () => {
+  it("on payment failure: voids the invoice, reverts quantity, rejects PAYMENT_FAILED, commits nothing", async () => {
     vi.mocked(OrganizationModel.findById).mockResolvedValue(orgBase as never);
     mockStripe.subscriptions.retrieve.mockResolvedValue(subscriptionItem(1));
     mockStripe.invoices.createPreview.mockResolvedValue({ total: 98765 });
-    mockStripe.subscriptionItems.update.mockRejectedValue(
+    mockStripe.subscriptionItems.update.mockResolvedValue({});
+    mockStripe.invoices.list.mockResolvedValue({
+      data: [
+        {
+          id: "in_test",
+          billing_reason: "subscription_update",
+          created: NOW_SEC,
+          status: "open",
+          amount_paid: 0,
+        },
+      ],
+    });
+    mockStripe.invoices.pay.mockRejectedValue(
       new Stripe.errors.StripeCardError({
         type: "card_error",
         code: "card_declined",
         message: "Your card was declined.",
       } as never)
     );
+    mockStripe.invoices.voidInvoice.mockResolvedValue({});
     vi.mocked(createLocationInTransaction).mockResolvedValue(
       fakeLocation as never
     );
@@ -245,6 +271,12 @@ describe("purchaseLocation — create after paid", () => {
       code: "PAYMENT_FAILED",
     });
     expect(transactionRejected).toBe(true);
+    expect(mockStripe.invoices.voidInvoice).toHaveBeenCalledWith("in_test");
+    // Compensating revert: second update call restores the original quantity
+    expect(mockStripe.subscriptionItems.update).toHaveBeenLastCalledWith(
+      "si_test",
+      { quantity: 1, proration_behavior: "none" }
+    );
   });
 
   it("skips the charge when the subscription is already at the target quantity", async () => {

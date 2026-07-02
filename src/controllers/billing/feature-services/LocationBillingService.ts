@@ -259,12 +259,62 @@ export async function getAddLocationQuote(
 
 // ─── Purchase (create after paid) ───
 
+function classifyPaymentError(
+  error: unknown,
+  subscriptionId: string
+): BillingLocationError | null {
+  if (error instanceof Stripe.errors.StripeCardError) {
+    return new BillingLocationError(
+      "PAYMENT_FAILED",
+      `Payment failed: ${error.message}`,
+      { declineCode: error.decline_code ?? null }
+    );
+  }
+  if (error instanceof Stripe.errors.StripeInvalidRequestError) {
+    const message = error.message || "";
+    if (
+      message.includes("no attached payment source") ||
+      message.includes("default payment method")
+    ) {
+      return new BillingLocationError(
+        "NO_PAYMENT_METHOD",
+        "No payment method on file. Add one in Billing before adding a location.",
+        null
+      );
+    }
+    if (error.code === "resource_missing") {
+      return new BillingLocationError(
+        "BILLING_OBJECTS_UNAVAILABLE",
+        "Billing objects are unavailable in this environment.",
+        { subscriptionId }
+      );
+    }
+    // Unpayable invoices that are not card errors (e.g. requires 3DS action)
+    if (message.toLowerCase().includes("payment")) {
+      return new BillingLocationError(
+        "PAYMENT_FAILED",
+        `Payment could not be completed: ${error.message}`,
+        null
+      );
+    }
+  }
+  return null;
+}
+
 /**
  * Charge for the added location by moving the subscription item to
- * `targetQuantity` with an immediate prorated invoice. Atomic on Stripe's
- * side: error_if_incomplete rejects the update when the invoice can't be paid.
- * Returns the cents invoiced now (best-effort), or null when the update was
- * already applied by a previous attempt (idempotent retry).
+ * `targetQuantity` with an immediate prorated invoice, then paying that
+ * invoice SYNCHRONOUSLY. Stripe does not attempt payment of update-generated
+ * proration invoices at request time (they auto-advance later), so "create
+ * after paid" requires the explicit finalize + pay here — verified against
+ * a declining test card on dev, where the update alone happily succeeded.
+ *
+ * On payment failure the compensation runs in strict order: void the invoice,
+ * revert the quantity with no proration, then throw PAYMENT_FAILED so the
+ * caller's transaction rolls the location back.
+ *
+ * Returns the cents actually paid now, or null when the update was already
+ * applied by a previous attempt (idempotent retry — never charged twice).
  */
 async function chargeForAddedLocation(
   org: IOrganization,
@@ -284,7 +334,9 @@ async function chargeForAddedLocation(
     return null;
   }
 
-  const idempotencyKey = `locadd-${org.id}-${sanitizeKeyPart(gbpExternalId)}-q${targetQuantity}`;
+  // Unique per attempt: cross-attempt double-charge protection is the
+  // quantity pre-check above; the key guards the SDK's own network retries.
+  const idempotencyKey = `locadd-${org.id}-${sanitizeKeyPart(gbpExternalId)}-q${targetQuantity}-t${Date.now()}`;
 
   try {
     await stripe.subscriptionItems.update(
@@ -292,51 +344,15 @@ async function chargeForAddedLocation(
       {
         quantity: targetQuantity,
         proration_behavior: "always_invoice",
-        payment_behavior: "error_if_incomplete",
       },
       { idempotencyKey }
     );
   } catch (error) {
-    if (error instanceof Stripe.errors.StripeCardError) {
-      throw new BillingLocationError(
-        "PAYMENT_FAILED",
-        `Payment failed: ${error.message}`,
-        { declineCode: error.decline_code ?? null }
-      );
-    }
-    if (error instanceof Stripe.errors.StripeInvalidRequestError) {
-      const message = error.message || "";
-      if (
-        message.includes("no attached payment source") ||
-        message.includes("default payment method")
-      ) {
-        throw new BillingLocationError(
-          "NO_PAYMENT_METHOD",
-          "No payment method on file. Add one in Billing before adding a location.",
-          null
-        );
-      }
-      if (error.code === "resource_missing") {
-        throw new BillingLocationError(
-          "BILLING_OBJECTS_UNAVAILABLE",
-          "Billing objects are unavailable in this environment.",
-          { subscriptionId }
-        );
-      }
-      // error_if_incomplete surfaces unpayable invoices as invalid_request
-      // errors that are not card errors (e.g. requires 3DS authentication)
-      if (message.toLowerCase().includes("payment")) {
-        throw new BillingLocationError(
-          "PAYMENT_FAILED",
-          `Payment could not be completed: ${error.message}`,
-          null
-        );
-      }
-    }
-    throw error;
+    throw classifyPaymentError(error, subscriptionId) ?? error;
   }
 
-  // Best-effort: report the actual invoiced amount for the receipt line
+  // Locate the proration invoice the update just generated
+  let invoice: Stripe.Invoice | null = null;
   try {
     const invoices = await stripe.invoices.list({
       subscription: subscriptionId,
@@ -348,7 +364,7 @@ async function chargeForAddedLocation(
       latest.billing_reason === "subscription_update" &&
       Date.now() / 1000 - (latest.created ?? 0) < 180
     ) {
-      return latest.amount_paid ?? null;
+      invoice = latest;
     }
   } catch (invoiceError) {
     logger.warn(
@@ -356,7 +372,56 @@ async function chargeForAddedLocation(
       `[LocationBilling] Could not fetch the proration invoice for org ${org.id}`
     );
   }
-  return null;
+
+  if (!invoice) {
+    // Nothing to pay (e.g. a $0 proration edge) — the update stands
+    return null;
+  }
+  if (invoice.status === "paid") {
+    return invoice.amount_paid ?? null;
+  }
+
+  // Pay it NOW — a failure here must undo everything
+  try {
+    if (invoice.status === "draft") {
+      invoice = await stripe.invoices.finalizeInvoice(invoice.id as string);
+    }
+    if (invoice.status !== "paid") {
+      invoice = await stripe.invoices.pay(invoice.id as string);
+    }
+    return invoice.amount_paid ?? null;
+  } catch (payError) {
+    logger.warn(
+      `[LocationBilling] Synchronous payment failed for org ${org.id} invoice ${invoice.id} — voiding + reverting quantity ${targetQuantity} → ${item.quantity}`
+    );
+    try {
+      await stripe.invoices.voidInvoice(invoice.id as string);
+    } catch (voidError) {
+      logger.error(
+        { err: (voidError as Error)?.message },
+        `[LocationBilling] Failed to void invoice ${invoice.id} for org ${org.id} after payment failure — VOID MANUALLY in Stripe`
+      );
+    }
+    try {
+      await stripe.subscriptionItems.update(item.itemId, {
+        quantity: item.quantity,
+        proration_behavior: "none",
+      });
+    } catch (revertError) {
+      logger.error(
+        { err: (revertError as Error)?.message },
+        `[LocationBilling] Failed to revert subscription ${subscriptionId} quantity for org ${org.id} — RECONCILE MANUALLY in Stripe`
+      );
+    }
+    throw (
+      classifyPaymentError(payError, subscriptionId) ??
+      new BillingLocationError(
+        "PAYMENT_FAILED",
+        "Payment could not be completed. Check your payment method in Billing and try again.",
+        null
+      )
+    );
+  }
 }
 
 export async function purchaseLocation(
