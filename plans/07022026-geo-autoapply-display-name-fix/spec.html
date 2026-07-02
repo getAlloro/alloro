@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GEO Auto-Apply display_name Carry-Forward Fix Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill status-pending">Completed</span>
+      </div>
+      <h1>GEO Auto-Apply Drops the Page Label</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07022026-geo-autoapply-display-name-fix</dd></div>
+        <div><dt>Size</dt><dd>Small</dd></div>
+        <div><dt>Risk</dt><dd>Level 1</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Earlier this session we found and fixed one instance of a bug class: creating a new page-version row from an existing published page can silently omit <code>display_name</code>, reverting the page to a bare-URL label in the admin Pages list. That fix covered <code>createDraft()</code> (click Edit on a published page). Auditing every other insert-into-<code>pages</code> call site turned up a second instance in the GEO auto-apply flow — same root cause, same fix shape.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p><code>applyGeoToPage()</code> already loads the source page (<code>page.display_name</code> is in scope) but its <code>insertData</code> for the new draft version omits <code>display_name</code>, so any page whose GEO opening-content recommendation gets auto-applied loses its label. Fix: copy <code>page.display_name</code> into the insert, mirroring the pattern already used in <code>createDraft</code>. Extend the existing unit test that already asserts on this function's <code>insertData</code> shape so the fix has a regression guard.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/controllers/admin-websites/feature-services/service.seo-generation.ts:599-651</code> - <code>applyGeoToPage()</code>, the buggy insert (~line 637-644)</li>
+        <li><code>src/controllers/admin-websites/feature-services/service.page-editor.ts:399-511</code> - <code>createDraft()</code>, the reference analog already carrying <code>display_name</code> forward (fixed earlier this session)</li>
+        <li><code>src/__tests__/service.seo-generation.test.ts:157-216</code> - existing test asserting on <code>createPageVersion</code>'s <code>insertData</code> shape; mock source page currently has no <code>display_name</code> to carry</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>§4.3 (DRY carefully) - reuse the exact <code>sourcePage.display_name || null</code> fallback pattern already established in <code>createDraft</code>, don't invent a new shape for the same concept.</li>
+        <li>§7.4 (all DB access lives in <code>models/</code>) - already satisfied; the fix only adds a key to the plain object passed into the existing <code>PageModel.createPageVersion()</code> model call, no new query.</li>
+        <li>§20.1 (tests mirror the unit) - the unit already has a test file and a test asserting on this exact <code>insertData</code> object; extend it rather than adding a parallel test file.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/controllers/admin-websites/feature-services/service.page-editor.ts:500-509</code> - <code>createDraft</code>'s insert, patched this session with the identical one-line fix.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Use the identical <code>page.display_name || null</code> fallback shape used in <code>createDraft</code> - no new pattern.</li>
+            <li>Extend the existing test's mock + assertion rather than adding a new test file.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No new dependencies.</li>
+            <li>No changes to <code>uploadArtifactPage</code>'s explicit-parameter <code>displayName</code> handling - verified as working-as-designed, out of scope.</li>
+            <li>No retroactive prod data re-check/repair in this task - that is a separate, explicit ask if wanted.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul><li>Auditing whether any of the 4 already-backfilled sites had a GEO auto-apply run against them since the backfill (would need a fresh prod read-only check - offered as a follow-up, not part of this fix).</li></ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 1 (Suggestion) - one line, one file, additive only, mirrors an established pattern already reviewed and shipped this session.</p>
+      <h3>Risks Identified</h3>
+      <ul><li>None beyond the trivial: adding a key to an insert payload cannot break any existing caller's contract (purely additive). <strong>Mitigation:</strong> n/a.</li></ul>
+      <p><strong>Blast radius:</strong> <code>applyGeoToPage</code> is called only from the GEO auto-apply path inside <code>service.seo-generation.ts</code> (post-generation, `entityType === "page"`); no other caller. Platform-wide in effect (any project's GEO auto-apply), not limited to the 4 sites already backfilled.</p>
+      <h3>Pushback</h3>
+      <ul><li>None - this is a pure correctness fix restoring intended behavior, not a design choice with tradeoffs.</li></ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Carry display_name forward in applyGeoToPage's insert</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>display_name: page.display_name || null,</code> to the <code>insertData</code> object passed to <code>PageModel.createPageVersion</code> inside <code>applyGeoToPage</code>.</dd></div>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.seo-generation.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code></dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Extend the existing test with a display_name regression assertion</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>display_name: "Teeth Cleaning Services"</code> to the mocked source page in the <code>beforeEach</code>, and assert <code>versionArgs.insertData.display_name</code> equals it in the "creates a NEW page version row" test.</dd></div>
+          <div><dt>Files</dt><dd><code>src/__tests__/service.seo-generation.test.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd><code>npx vitest run src/__tests__/service.seo-generation.test.ts</code></dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled checked> <code>npx tsc --noEmit</code> - zero errors</li>
+        <li><input type="checkbox" disabled checked> <code>npx vitest run src/__tests__/service.seo-generation.test.ts</code> - all pass, including new assertion</li>
+        <li><input type="checkbox" disabled checked> <code>applyGeoToPage</code>'s insert matches <code>createDraft</code>'s carry-forward pattern exactly</li>
+        <li><input type="checkbox" disabled checked> No regressions in the other two tests in the same describe block</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

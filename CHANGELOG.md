@@ -2,6 +2,121 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.151] - July 2026
+
+### SEO Root-Cause Batch: Legacy Redirects, Generator Fixes, Honest Audit Scoring, Renderer Hardening
+
+Four plans executed as one batch, closing every root cause behind the SEO defects repaired in 0.0.147–0.0.150 — so the fixed data stays fixed no matter which button anyone clicks next.
+
+**Key Changes:**
+- **One Endo legacy article redirects (`plans/07022026-one-endo-legacy-article-redirects`, prod data).** 92 exact-match 301 rows send the old WordPress root-level article URLs (and one legacy contact page) to their real new paths, preserving backlink equity and landing visitors on the article instead of the homepage. Landed deliberately before the renderer's 404 flip.
+- **Generator root fixes (`plans/07022026-seo-generator-root-fixes`).** The canonical URL is never LLM-authored again: the "critical" prompt stops asking for it, and a shared `deriveCanonicalPath` deterministically overrides it on every generation path — admin UI single-section, "Generate All", the bulk worker, and the backfill scripts. GEO auto-apply keeps its 0.0.143-approved default-on behavior with an explicit `apply_geo_content` opt-out, side-effect documentation, and byte-count logging. Its recovery snapshot works for the first time ever: `previous_content` was created as `jsonb` while storing raw HTML — every snapshot write crashed (0 recorded platform-wide, and the crash failed entire post generations whenever GEO produced a recommendation); migrated to `text` (provably all-NULL, zero data risk) and proven end-to-end on dev including a byte-identical restore. T1 also settled the "do we have multiple generators?" question: exactly one engine, five entry points, all now covered.
+- **SEO panel scoring honesty (`plans/07022026-seo-audit-canonical-check`, frontend).** The "Canonical tag" criterion — which scored the original broken Fredericksburg canonical 8/8 — now checks correctness: full credit only for present + primary-host + path-matching values; partial credit (4) with a mismatch-naming label for same-host consolidation; hard fail for cross-host (including the site's internal generated hostname once a custom domain exists), wrong-path, or malformed values. Fixed in both parallel scorers with real page/host context threaded through; both production failure modes pinned as regression tests. Sites with wrong canonicals score lower now — that is the point.
+- **Renderer hardening (`plans/07022026-renderer-seo-hardening`, website-renderer repo `920dbc9`, deployed).** Archived projects stop rendering (410 Gone; the DentalEMR ghost verified live — the Garrison orphan's row was separately deleted and 404s); unknown paths return a real 404 instead of the homepage-with-200 soft-404, gated behind a platform-wide internal-link audit that first added 21 redirect rows for every genuinely broken nav/body link on live sites; every site now serves a real `robots.txt` and `sitemap.xml` (entry counts verified exact against the DB); canonical/og:url are self-derived at render time and always emitted — correct stored values (including indexed www styles) pass through byte-identically, junk and missing values get the real URL, which immediately gave never-repaired sites like caswellorthodontics.com canonicals on posts that had none. Also fixed `?nocache=1` itself: the production Redis is a cluster with `KEYS` disabled, so the old pattern-flush silently did nothing — now SCAN-based and proven live.
+
+**Verification:** backend `tsc` clean, 161/161 vitest, `check:conventions --strict` 0 violations; frontend `tsc -p tsconfig.app.json` exit 0, 32/32 vitest, eslint 0 errors; renderer `tsc` clean, deploy run 28570861809 success, post-deploy matrix green (ghosts dead, 404s honest, 5/5 sampled pages 200, old/new/pre-flip redirects all 301, sitemap counts exact, canonical stability confirmed). Migration `20260702000000` applied on dev (batch 126) — runs on prod at the next dev/dave→main deploy. All four plan folders carry Passed acceptance artifacts. Both idle chip sessions (`task_cfd3c6f7`, `task_99606846`) inspected before execution: zero work to adopt — safe to close.
+
+**Commits:**
+- `90259c08` — Plan A: legacy article redirect rows + artifacts
+- `d37b2362` — Plan B: prompt fix, `util.canonical-path.ts`, `apply_geo_content` flag, `previous_content` migration, tests
+- `25f28d0f` — Plan C: `assessCanonical` + both scorers + context threading + regression tests
+- `a46d5997` — Plan D artifacts (renderer code in website-renderer `920dbc9`)
+
+## [0.0.150] - July 2026
+
+### SEO Full Coverage Rev 2: Artful Orthodontics Gets the Same Generation Pass
+
+The final audit table from 0.0.149 exposed a scoping miss: the "generate SEO for posts that have none" work was only ever sized against One Endodontics and Garrison — Artful Orthodontics had the same disease at larger scale (75 posts with zero structured data, including 1 staff-bio post with no SEO data at all) and was never checked. Owner requested the same pass for Artful; recorded as Rev 2 on `plans/07022026-seo-full-coverage`.
+
+**Key Changes:**
+- **Angelita staff post generated from scratch** — real 60-char title, deterministic canonical (`/staff/angelita`, never LLM-authored), `Person` schema (correct for a bio, correctly carrying no star rating). `scripts/seo-generate-missing.ts` now merges generated fields over a post's existing `seo_data` instead of overwriting it, so the post's pre-existing imported `og_image` survived the generation rather than depending on re-enrichment to restore it.
+- **74 articles given structured data** via the schema-only pass (`scripts/seo-generate-schema-only.ts`, refactored from a hardcoded Garrison-only constant into a multi-project target list covering all 3 posting sites — sites already covered re-run as idempotent no-ops). Titles/descriptions confirmed byte-identical via pre-run md5 snapshots on sampled posts; 74/74 succeeded, 0 failures.
+- **Final post-side state across all 3 posting sites:** 0 posts missing SEO data, 0 posts missing structured data, 0 invalid schema types, ratings only on eligible business entities (Artful 9→12), FAQ schema only where article content actually supports it (Artful 4→34).
+
+**Verification:** `npx tsc --noEmit` clean, 158/158 vitest, `check:conventions --strict` 0 violations. Dry-runs confirmed exact targeting (One Endo 0, Garrison 0, Artful 1+74) before any write. Acceptance item T7 (Rev 2) added to `plans/07022026-seo-full-coverage/test-results.json`, all items pass.
+
+**Commits:**
+- `scripts/seo-generate-missing.ts` — Artful added to targets; merge-preserve existing seo_data keys
+- `scripts/seo-generate-schema-only.ts` — refactored to multi-project target list
+- `plans/07022026-seo-full-coverage/` — Rev 2 revision entry, Done items, acceptance item T7
+
+## [0.0.149] - July 2026
+
+### SEO Full Coverage: Pages Enriched, 108 Blank Posts Given Real SEO Data
+
+Follow-up to 0.0.147. A fresh, precise audit of all 57 pages and 254 posts found the prior fix only ever reached posts — pages still carried the same invalid-schema-type, missing-rating, and missing-FAQ-schema defects — and surfaced something bigger: 92 One Endodontics posts and 16 Garrison Orthodontics posts had no SEO data at all, and Garrison's other 33 posts had a title but zero structured data.
+
+**Key Changes:**
+- **Pages now get the same enrichment posts already had.** `enrichPageSeoData` + `enrichPagesForProject` (new, mirrors the post-level functions from 0.0.147) applied schema-type sanitization, real `aggregateRating` injection, and `faq_candidates` → `FAQPage` conversion across all 57 published pages on all 4 sites. Caught and immediately reverted a real bug in the same pass: the schema-type allowlist didn't recognize `SoftwareApplication` (getalloro.com's own type), so 4 getalloro.com pages briefly had their legitimate type overwritten to `MedicalBusiness` before the allowlist was fixed and the 4 rows corrected — confirmed via a full before/after type-count reconciliation across all 4 sites, zero collateral damage.
+- **Deterministic title-length trim.** New `trimTitleLength` (`util.title-length.ts`) drops trailing pipe-delimited title segments (least-important first, e.g. the brand-name tail) until a title fits Google's ~60-character cutoff, without ever risking a mid-word cut — a single-segment title that's still too long is left alone and flagged rather than mangled. Wired into both page and post enrichment. Closed 0/57 pages and all multi-segment post titles across all 3 posting sites; 31 single-segment article-style headlines remain over 60 chars by design (no safe split point exists).
+- **Real SEO generated for the 108 posts that had none**, plus schema_json for Garrison's other 33 — using the existing tiered generation pipeline (already schema-type-fixed from 0.0.147), immediately enriched on top for og_image/rating/FAQ/title-length. Two things were caught and fixed before they could affect all 108+ posts: (1) full generation also silently triggers "GEO auto-apply," a separate feature that rewrites a post's visible body content — confirmed with the owner this run should stay metadata-only, so generation now calls the section runner directly instead of the wrapper that triggers it; (2) the "critical" section fabricated a plausible-looking canonical URL instead of deriving the real one — same disease as 0.0.147, now overridden with the deterministic `/{type-slug}/{slug}` path on every freshly-generated post, never trusted from the LLM.
+- **Retroactive title-trim sweep.** The 254 posts fixed in 0.0.147 predate the title-trim capability; re-ran the existing post-enrichment batch (idempotent, no LLM calls) across all 3 sites so newly-added title-trim reaches posts that weren't touched by this session's generation work.
+
+**Verification:** `npx tsc --noEmit` clean. `npm run check:conventions --strict` 0 violations. 158/158 vitest passing (22 new this session). `npm run depcruise` 0 new violations. Final audit: 0 invalid schema types anywhere (pages or posts, all 4 sites), real ratings on every eligible business-entity element, 0 posts with missing SEO data, 49/49 Garrison posts have schema_json, 0/57 pages over the title-length limit. Live-verified via cache-busted curl across all 4 sites. Acceptance checklist Passed (`plans/07022026-seo-full-coverage/test-results.json`). Deliberately left non-green, on purpose: FAQ schema on Artful/Garrison/getalloro.com pages and any post (no real `faq_candidates` exist to convert — fabricating one would be the same dishonesty this effort exists to remove) and a rating for getalloro.com (not a reviewed business, no data to source one from).
+
+**Commits:**
+- `src/controllers/admin-websites/feature-services/service.seo-enrichment.ts` — page-level enrichment + shared title-trim/schema-type/rating/FAQ helpers extracted for reuse across pages and posts
+- `src/controllers/admin-websites/feature-utils/util.title-length.ts` — new deterministic title trim
+- `src/controllers/admin-websites/feature-utils/util.schema-business-type.ts` — added `SoftwareApplication` to the non-business allowlist (regression fix)
+- `src/controllers/admin-websites/feature-services/service.seo-generation.ts` — exported `fetchPracticeFactsBlock` for reuse by the new generation scripts
+- `scripts/seo-page-enrichment-backfill.ts`, `scripts/seo-generate-missing.ts`, `scripts/seo-generate-schema-only.ts` — new one-off batch scripts
+- `src/__tests__/seo-enrichment.test.ts` — 7 new title-trim tests + 1 regression test for the SoftwareApplication fix
+- `plans/07022026-seo-full-coverage/` — spec, acceptance artifact
+
+## [0.0.148] - July 2026
+
+### Website Builder: GEO Auto-Apply Also Drops the Page Label
+
+Following up on the page-label carry-forward fix: auditing every place a new page-version row gets created turned up a second instance of the same bug in the SEO/GEO generator's auto-apply flow.
+
+**Key Changes:**
+- **Root-cause fix.** `applyGeoToPage()` (`service.seo-generation.ts`) auto-applies a GEO opening-content recommendation by creating a new draft version of the live page. It already has the source page loaded (`page.display_name` in scope) but the `insertData` passed to `PageModel.createPageVersion` omitted `display_name` — so any page that gets a GEO recommendation auto-applied loses its label, the same failure mode as the earlier `createDraft` bug. Fixed with the identical one-line pattern: `display_name: page.display_name || null`.
+- **Full audit closes the loop.** Traced every insert-into-`pages` call site in the codebase (9 total) to confirm nothing else has this gap: `createPage`, the AI Command new-page handler, `ProjectsController`'s pre-create, and `project-manager`'s bulk project scaffold are all brand-new-page creation with nothing to carry forward (correct as-is); `restoreVersionIntoDraft` and `snapshotPageStateIfChanged` already carried `display_name` forward correctly; `uploadArtifactPage`/`replaceArtifactBuild` take the label as an explicit caller-supplied form field or never insert a new row, so they're a different (non-bug) case.
+- **Regression test.** Extended the existing unit test that already asserted on this function's `insertData` shape — added `display_name` to the mocked source page and a new assertion that it survives into the new draft's `insertData`.
+
+**Verification:** `npx tsc --noEmit` clean. Full suite 18 files / 158 tests pass. `npm run check:conventions --strict` 0 backend violations. No live browser verification — `applyGeoToPage` has no drivable UI surface in this session (fires only after a real AI-generated GEO recommendation); the extended unit test is the proof, documented as the single N/A acceptance item in `plans/07022026-geo-autoapply-display-name-fix/test-results.json`. No schema migration.
+
+**Commits:**
+- `src/controllers/admin-websites/feature-services/service.seo-generation.ts` — carry `display_name` forward in `applyGeoToPage`'s insert
+- `src/__tests__/service.seo-generation.test.ts` — regression assertion
+
+## [0.0.147] - July 2026
+
+### SEO Metatags: Real Social Images, Valid Schema Types, Real Ratings, FAQ Schema
+
+Found and fixed four SEO-generation defects across One Endodontics, Artful Orthodontics, Garrison Orthodontics, and getalloro.com that could plausibly cost real leads: an invented schema.org business type Google can't parse, zero social-preview images on every page despite a detailed image brief being generated for each one, no star-rating structured data despite these practices having hundreds to thousands of real reviews, and FAQ content that was generated but never became usable schema.
+
+**Key Changes:**
+- **Page-level social image (prod data, 57 pages).** Set `seo_data.og_image` to an owner-supplied photo on every published page across all 4 sites — direct data correction, no code change, mirrors the earlier canonical_url fix pattern.
+- **Fixed the SEO-generation pipeline (code), then backfilled existing posts (254 posts, 3 sites).** `SeoGeneration.significant.md` told the model to invent a "closest valid MedicalBusiness subtype" for a specialty practice (e.g. "Orthodontist", "'Endodontist'-equivalent") — neither exists in schema.org's vocabulary, so the whole schema block was almost certainly silently dropped by Google's parser on any page carrying one. Rewrote the prompt to use "Dentist" uniformly (conveying specialty via `knowsAbout`/`description`, which the generator already does well) and added a code-level allowlist guard (`util.schema-business-type.ts`) so an invalid type can never reach the database again regardless of prompt drift. Added deterministic (non-LLM) enrichment for the other three gaps: `og_image` sourced from a post's own `featured_image` column instead of the LLM's text-only recommendation; a real `AggregateRating` block injected from already-synced `website_builder.reviews` data (never LLM-authored, since a wrong review count is a false claim about a real business, not just a technical miss); and `faq_candidates` converted into real `FAQPage` schema (`util.faq-schema.ts`).
+- **Backfill was a targeted patch, not a full regeneration.** The existing bulk-generate worker builds `seo_data` from an empty object every run — reusing it as-is would have silently wiped out the 74 Artful and 33 Garrison posts that already had working `og_image` values. Built a dedicated enrichment path (`service.seo-enrichment.ts`, `scripts/seo-enrichment-backfill.ts`) that always reads a post's current `seo_data` and patches only the 4 targeted fields, leaving title/description/canonical/target-query untouched. Verified on a single post live before running the full batch.
+
+**Verification:** `npx tsc --noEmit` clean. `npm run check:conventions --strict` 0 violations. 151/151 vitest passing (15 new). `npm run depcruise` 0 new violations. Batch backfill: One Endo 121/121 posts enriched, Artful 10 enriched + 74 confirmed unchanged, Garrison 16 enriched + 33 confirmed unchanged, 0 failures across all 254 posts. Live-verified via cache-busted curl on all 3 sites (og:image, schema `@type`, `aggregateRating`) and on all 4 sites for the page-level image. Acceptance checklist Passed (`plans/07022026-seo-metatag-fixes/test-results.json`). One follow-up surfaced during execution: Garrison's 49 posts have no `schema_json` at all (a separate, deeper pre-existing gap — the enrichment correctly did nothing rather than fabricate one), logged in the spec's Revision Log.
+
+**Commits:**
+- `src/agents/websiteAgents/SeoGeneration.significant.md` — prompt fix (Dentist uniformly, no invented specialty types)
+- `src/agents/websiteAgents/SeoGeneration.geo-layer.md` — removed a stale "not yet wired" comment (the section has been wired in since the prior GEO revamp)
+- `src/controllers/admin-websites/feature-utils/util.schema-business-type.ts`, `util.faq-schema.ts`, `util.aggregate-rating-schema.ts` — new pure enrichment helpers
+- `src/controllers/admin-websites/feature-services/service.seo-enrichment.ts` — new enrichment orchestration + real-rating lookup
+- `scripts/seo-enrichment-backfill.ts` — one-off backfill script (mirrors `scripts/pms-restart-stuck-jobs.ts`)
+- `src/__tests__/seo-enrichment.test.ts` — 15 new unit tests
+- `plans/07022026-seo-metatag-fixes/` — spec, acceptance artifact
+
+## [0.0.146] - July 2026
+
+### Website Builder: Page Label Backfill and Draft-Creation Label Loss Fix
+
+The admin Pages list for four sites was showing raw URL paths ("/about", "/consultation") instead of readable names because `display_name` had never been set on the rows the list actually renders. Backfilled real labels directly in prod, then fixed the root cause so future edits stop silently dropping the label.
+
+**Key Changes:**
+- **One-off prod data repair (no migration).** Backfilled `display_name` on the exact `website_builder.pages` rows the admin Pages list renders — `publishedPage || latestPage` per path, mirroring `PagesTab.tsx`'s own selection logic — for Artful Orthodontics (15 paths), Garrison Orthodontics (10 paths, the org-linked project only; a no-org orphan duplicate project was left untouched pending review), One Endodontics (19 paths, propagating labels the team had already chosen on older versions onto the current published/draft rows), and getalloro.com (13 paths, all previously unlabeled). 102 page-version rows updated across 57 paths, inside transactions with an organization-linkage safety guard and exact row-count checks; independently re-verified against fresh prod state afterward.
+- **Root-cause fix.** `createDraft()` (`service.page-editor.ts`) runs whenever an already-published page is opened for editing with no draft already in progress. It copied `sections`, `seo_data`, and `template_page_id` from the source page into the new draft row, but never `display_name` — so the new draft, and everything published from it afterward, landed with no label. This is almost certainly why most pages arrived unlabeled in the first place. Every other version-creating path (save, publish, restore-from-history, history snapshot) already carried the label forward correctly with the same `existing.display_name || null` pattern; this was the one gap. The fix is platform-wide — it applies to every project, not just the four sites backfilled above.
+
+**Verification:** `npx tsc --noEmit` clean. Prod backfill independently re-verified by recomputing each path's `displayPage.display_name` fresh from the database post-write — all 57 paths resolve to a real label. Fixed as a quickfix (single line, one file, mirrors the existing `template_page_id` carry-forward pattern already in the same insert call); no test exercises `createDraft`'s own insert payload (the one existing test touching this file mocks `createDraft` entirely for a different caller). No schema migration — data-only correction plus a code fix, no `spec.html`/plan folder, matching the direct-prod-edit precedent used for the earlier footer-credit correction.
+
+**Commits:**
+- `src/controllers/admin-websites/feature-services/service.page-editor.ts` — carry `display_name` forward in `createDraft`'s insert
+
 ## [0.0.145] - July 2026
 
 ### Patient Journey: Month Navigation and Honest Google Visibility States

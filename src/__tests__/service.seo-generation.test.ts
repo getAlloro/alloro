@@ -90,6 +90,7 @@ const findRawByIdAndProject = vi.fn(async () => ({
   path: "/services/cleaning",
   sections: JSON.stringify([{ type: "hero", content: "<h1>Cleaning</h1>" }]),
   seo_data: null as Record<string, unknown> | null,
+  display_name: null as string | null,
 }));
 const findLatestByProjectAndPath = vi.fn(async () => ({ version: 1 }));
 const createPageVersion = vi.fn(async (params: { insertData: Record<string, unknown> }) => ({
@@ -97,6 +98,11 @@ const createPageVersion = vi.fn(async (params: { insertData: Record<string, unkn
   ...params.insertData,
 }));
 const updateSeoDataById = vi.fn(async () => 1);
+// Canonical derivation reads the page's real path (util.canonical-path).
+const pageFindRawById = vi.fn(async () => ({
+  id: PAGE_ID,
+  path: "/services/cleaning",
+}));
 
 vi.mock("../models/website-builder/PageModel", () => ({
   PageModel: {
@@ -104,12 +110,15 @@ vi.mock("../models/website-builder/PageModel", () => ({
     findLatestByProjectAndPath,
     createPageVersion,
     updateSeoDataById,
+    findRawById: pageFindRawById,
   },
 }));
 
 const findRawById = vi.fn(async () => ({
   id: POST_ID,
   content: "<p>Old post content.</p>",
+  slug: "cleanings-101",
+  post_type_id: "pt-articles",
 }));
 const updateContentWithSnapshot = vi.fn(async (id: string, newContent: string) => ({
   id,
@@ -123,6 +132,14 @@ vi.mock("../models/website-builder/PostModel", () => ({
     findRawById,
     updateContentWithSnapshot,
     updateContentById,
+  },
+}));
+
+// Canonical derivation resolves the post type's slug (util.canonical-path).
+const postTypeFindRawById = vi.fn(async () => ({ id: "pt-articles", slug: "articles" }));
+vi.mock("../models/website-builder/PostTypeModel", () => ({
+  PostTypeModel: {
+    findRawById: postTypeFindRawById,
   },
 }));
 
@@ -165,9 +182,17 @@ describe("service.seo-generation — GEO auto-apply (T5)", () => {
       path: "/services/cleaning",
       sections: JSON.stringify([{ type: "hero", content: "<h1>Cleaning</h1>" }]),
       seo_data: null,
+      display_name: "Teeth Cleaning Services",
     });
     findLatestByProjectAndPath.mockResolvedValue({ version: 1 });
-    findRawById.mockResolvedValue({ id: POST_ID, content: "<p>Old post content.</p>" });
+    findRawById.mockResolvedValue({
+      id: POST_ID,
+      content: "<p>Old post content.</p>",
+      slug: "cleanings-101",
+      post_type_id: "pt-articles",
+    });
+    pageFindRawById.mockResolvedValue({ id: PAGE_ID, path: "/services/cleaning" });
+    postTypeFindRawById.mockResolvedValue({ id: "pt-articles", slug: "articles" });
   });
 
   it("pages: non-empty opening_content_recommendation creates a NEW page version row, never updates the live row in place", async () => {
@@ -210,6 +235,9 @@ describe("service.seo-generation — GEO auto-apply (T5)", () => {
     expect(String(versionArgs.insertData.sections)).toContain(
       "We offer professional teeth cleaning in Springfield."
     );
+    // The source page's display_name must survive into the new draft version —
+    // otherwise the admin Pages list falls back to showing the bare path.
+    expect(versionArgs.insertData.display_name).toBe("Teeth Cleaning Services");
 
     // ...and the live row was read, never mutated in place by auto-apply.
     expect(findRawByIdAndProject).toHaveBeenCalledWith(PAGE_ID, PROJECT_ID);
@@ -316,5 +344,86 @@ describe("service.seo-generation — GEO auto-apply (T5)", () => {
     expect(capturedSystemBlocks?.[0]).toContain(
       "Open Saturdays 9am-1pm (source: Open Saturdays 9am-1pm)"
     );
+  });
+
+  it("posts: canonical_url is deterministically overridden — any LLM-fabricated value is discarded", async () => {
+    queueGeneratedSections({
+      critical: {
+        meta_title: "Cleaning",
+        // The model fabricating a plausible-but-wrong canonical is the exact
+        // production failure mode this guards against.
+        canonical_url: "https://example.com/totally/fabricated/path/",
+      },
+      high_impact: { meta_description: "Get a cleaning." },
+      significant: { schema_json: [] },
+      geo_layer: { opening_content_recommendation: "", faq_candidates: [] },
+      moderate: { og_title: "Cleaning" },
+      negligible: { og_type: "article" },
+    });
+
+    const { generateAllSeoSections } = await import(
+      "../controllers/admin-websites/feature-services/service.seo-generation"
+    );
+
+    const { results } = await generateAllSeoSections(PROJECT_ID, POST_ID, "post", {
+      location_context: null,
+      page_content: "<p>Old post content.</p>",
+      post_title: "Cleanings 101",
+    });
+
+    const critical = results.find((r) => r.section === "critical");
+    expect(critical?.generated.canonical_url).toBe("/articles/cleanings-101");
+  });
+
+  it("pages: canonical_url is overridden with the page's real path", async () => {
+    queueGeneratedSections({
+      critical: { meta_title: "Cleaning", canonical_url: "/wrong-guess" },
+      high_impact: { meta_description: "Get a cleaning." },
+      significant: { schema_json: [] },
+      geo_layer: { opening_content_recommendation: "", faq_candidates: [] },
+      moderate: { og_title: "Cleaning" },
+      negligible: { og_type: "website" },
+    });
+
+    const { generateAllSeoSections } = await import(
+      "../controllers/admin-websites/feature-services/service.seo-generation"
+    );
+
+    const { results } = await generateAllSeoSections(PROJECT_ID, PAGE_ID, "page", {
+      location_context: null,
+      page_content: "<h1>Cleaning</h1>",
+    });
+
+    const critical = results.find((r) => r.section === "critical");
+    expect(critical?.generated.canonical_url).toBe("/services/cleaning");
+  });
+
+  it("apply_geo_content: false skips the body-content auto-apply entirely, even with a non-empty recommendation", async () => {
+    queueGeneratedSections({
+      critical: { meta_title: "Cleaning" },
+      high_impact: { meta_description: "Get a cleaning." },
+      significant: { schema_json: [] },
+      geo_layer: {
+        target_query_primary: "teeth cleaning near me",
+        target_query_variants: [],
+        opening_content_recommendation: "We offer professional teeth cleaning in Springfield.",
+        faq_candidates: [],
+      },
+      moderate: { og_title: "Cleaning" },
+      negligible: { og_type: "website" },
+    });
+
+    const { generateAllSeoSections } = await import(
+      "../controllers/admin-websites/feature-services/service.seo-generation"
+    );
+
+    await generateAllSeoSections(PROJECT_ID, PAGE_ID, "page", {
+      location_context: null,
+      page_content: "<h1>Cleaning</h1>",
+      apply_geo_content: false,
+    });
+
+    expect(createPageVersion).not.toHaveBeenCalled();
+    expect(updateContentWithSnapshot).not.toHaveBeenCalled();
   });
 });

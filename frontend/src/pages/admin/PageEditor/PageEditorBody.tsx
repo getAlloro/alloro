@@ -138,6 +138,14 @@ export function PageEditorBody({
             }}
             organizationId={project?.organization?.id}
             currentVersion={page.version}
+            // Primary host only: when a custom domain exists, a canonical
+            // pointing at the internal generated hostname is a real defect
+            // (it tells Google the page lives on the wrong host).
+            siteHosts={
+              project?.custom_domain
+                ? [project.custom_domain]
+                : [project?.generated_hostname ? `${project.generated_hostname}.sites.getalloro.com` : null]
+            }
           />
         </div>
       ) : activeView === "code" ? (

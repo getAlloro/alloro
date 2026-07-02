@@ -1,0 +1,111 @@
+{
+  "plan": "plans/07022026-renderer-seo-hardening",
+  "generatedAt": "2026-07-02",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Reconcile with the chip session",
+      "surface": "cli",
+      "precondition": "None",
+      "steps": ["1. Inspect task_99606846's worktree in the renderer repo"],
+      "expected": "One starting branch, no duplicate implementations",
+      "status": "pass",
+      "evidence": "Worktree .claude/worktrees/eager-williamson-393d54 at 8e120cf (= main), zero commits, zero uncommitted changes — nothing to adopt. Recorded in spec Rev 1.",
+      "notes": "The alloro-repo generator chip (task_cfd3c6f7) was also inspected: equally empty, based on a month-old commit. Both idle sessions safe to close.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Archived-project gating (410)",
+      "surface": "web",
+      "precondition": "Deployed",
+      "steps": [
+        "1. whereNull(archived_at) on both project lookups + dedicated archived lookups",
+        "2. New site-archived template served with 410",
+        "3. curl both known ghosts + real sites"
+      ],
+      "expected": "Archived hosts stop serving content; real sites unaffected",
+      "status": "pass",
+      "evidence": "swift-medical-7604.sites.getalloro.com returns 410 with the archived template. garrison-orthodontics-3307's row was deleted from the DB by another actor before deploy, so it returns 404 site-not-found — duplicate equally dead. All 5 sampled real pages 200.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Canonical/og:url self-derivation",
+      "surface": "web",
+      "precondition": "Deployed",
+      "steps": [
+        "1. injectSeoMeta gains ServingContext; canonical/og:url always emitted; stored honored only when it names this exact page on this site (www/slash-insensitive)",
+        "2. Verify an indexed-style canonical is preserved verbatim",
+        "3. Verify a never-repaired site now emits a canonical where none existed"
+      ],
+      "expected": "No churn on correct stored values; junk/missing replaced with self-derived",
+      "status": "pass",
+      "evidence": "One Endo /locations/fredericksburg-office still emits its stored www-style canonical byte-identically. caswellorthodontics.com/articles/are-adult-braces-right-for-me (98 posts had no canonical before) now emits the correct self-referencing canonical — platform-wide backstop confirmed live.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "robots.txt + sitemap.xml",
+      "surface": "web",
+      "precondition": "Deployed",
+      "steps": [
+        "1. Per-project routes resolved before redirects/pages",
+        "2. Sitemap from published pages + posts, absolute URLs on the primary host, Redis-cached",
+        "3. Verify entry counts against known DB counts on all 4 audited sites"
+      ],
+      "expected": "Valid XML/robots on every site; counts match published content",
+      "status": "pass",
+      "evidence": "Counts exact: One Endo 140 (19 pages + 121 posts), Artful 99 (15+84), Garrison 59 (10+49), getalloro 13 (13+0). robots.txt references the sitemap. Keys included in the flush.",
+      "notes": "Deliberate minor inconsistency recorded in Rev 1: sitemap locs use the bare primary host while some sites' canonicals use www — canonicals stay authoritative and untouched.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Soft-404 -> real 404 (shipped last, gated on the link audit + redirects)",
+      "surface": "web",
+      "precondition": "Plans A redirects + pre-flip audit redirects landed",
+      "steps": [
+        "1. SQL link audit across ALL live sites (page sections + post content + header/footer/wrapper + menu items) vs valid paths (pages ∪ posts ∪ redirects ∪ specials)",
+        "2. 21 redirect rows inserted for every real broken link (verified targets)",
+        "3. Flip the fallback to pageNotFoundPage + 404",
+        "4. Post-deploy matrix"
+      ],
+      "expected": "Nonsense paths 404; every nav link and legacy URL still resolves via page or 301",
+      "status": "pass",
+      "evidence": "Nonsense path on One Endo: 404 with branded template. Old redirects (/fredericksburg-office), Plan A redirects (/dentist-gainesville-insider-tips), and pre-flip audit redirects (/home, getalloro /consultation, /blog/*) all 301 to 200 targets. Favicon refs and generated-hostname-only prototype sites triaged as non-blockers (already broken today / not crawled).",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Fixed ?nocache=1 flush (Rev 1 scope addition)",
+      "surface": "web",
+      "precondition": "Deployed",
+      "steps": [
+        "1. Replace keys()+del(...) with SCAN + per-key DEL (cluster Redis: KEYS disabled, CROSSSLOT on multi-key DEL)",
+        "2. Prove live: flush then immediately observe a change that was invisible before it"
+      ],
+      "expected": "Pattern flush actually clears cache on the production cluster",
+      "status": "pass",
+      "evidence": "getalloro /consultation redirect (row present in DB, invisible via cache) fired immediately after a single ?nocache=1 request post-deploy — the same sequence that provably did nothing under the old flush.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "Build + deploy",
+      "surface": "cli",
+      "precondition": "None",
+      "steps": ["1. tsc clean", "2. Commit 920dbc9 on main, push", "3. GitHub Actions run 28570861809"],
+      "expected": "Clean build, successful deploy, healthy sites",
+      "status": "pass",
+      "evidence": "tsc exit 0. Deploy run completed success in 26s. Post-deploy: 5/5 sampled real pages 200 across all 4 audited sites.",
+      "notes": "",
+      "waiver": ""
+    }
+  ]
+}

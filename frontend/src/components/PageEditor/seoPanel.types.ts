@@ -48,6 +48,10 @@ export interface SeoPanelProps {
   /** Pre-overwrite content snapshot (posts only) — non-null once GEO
    * auto-apply has run for this post (PostModel.updateContentWithSnapshot). */
   previousContent?: string | null;
+  /** Hosts this site legitimately serves on (custom domain, generated
+   * hostname) — enables the canonical host-correctness check. Omit where the
+   * caller has no domain context; the check degrades to path-only. */
+  siteHosts?: Array<string | null | undefined>;
 }
 
 export interface LocationOption {

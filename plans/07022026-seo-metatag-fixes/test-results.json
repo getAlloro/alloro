@@ -1,0 +1,119 @@
+{
+  "plan": "plans/07022026-seo-metatag-fixes",
+  "generatedAt": "2026-07-02",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Page-level og_image set on all 4 sites",
+      "surface": "web",
+      "precondition": "Prod DB reachable; owner-supplied photo URLs live",
+      "steps": [
+        "1. UPDATE seo_data.og_image on every published page per project (One Endo, Artful, Garrison, getalloro.com)",
+        "2. Bust render cache (?nocache=1) and curl each site's homepage + one other page"
+      ],
+      "expected": "og:image meta tag present with the correct owner-supplied URL on every checked page",
+      "status": "pass",
+      "evidence": "SQL verified 0 still_missing across 57 published pages (19+15+10+13). Live curl confirmed correct og:image on all 4 sites (one-endodontics.com/about, artfulorthodontics.com/services, garrisonorthodontics.com/reviews, getalloro.com/about).",
+      "notes": "Garrison's supplied photo is a square 600x600 and getalloro.com's is a 1128x191 banner strip — both will crop in a standard social-preview card, flagged as Risk Level 1 in the spec, not a blocker.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Invalid schema.org business type fixed (code + backfill)",
+      "surface": "api",
+      "precondition": "Enrichment code deployed to the path being tested",
+      "steps": [
+        "1. Rewrite SeoGeneration.significant.md to stop instructing 'Endodontist'/'Orthodontist'-style invented types",
+        "2. Add sanitizeSchemaJsonTypes allowlist guard, run enrichment against existing posts",
+        "3. Query schema_json across all 254 enriched posts for any remaining 'Endodontist'/'Orthodontist' @type"
+      ],
+      "expected": "Zero posts with an invalid business @type remaining",
+      "status": "pass",
+      "evidence": "SQL cross-check: still_invalid_type = 0 across all 3 sites (1endodontics.com, artfulorthodontics.com, garrisonorthodontics.com). Unit tests confirm the sanitizer falls back both known-bad strings to MedicalBusiness and passes through valid/non-business types unchanged.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "og_image sourced from post's own featured_image",
+      "surface": "web",
+      "precondition": "Post has a non-null featured_image column",
+      "steps": [
+        "1. Run enrichment against a post with featured_image set and empty og_image",
+        "2. curl the live rendered post page for the og:image tag"
+      ],
+      "expected": "og:image matches the post's featured_image URL, everything else in seo_data unchanged",
+      "status": "pass",
+      "evidence": "Single-post test (One Endo Fredericksburg office) and full batch: og_image populated from featured_image on 121/121 One Endo, 10/84 Artful (74 already had it, confirmed unchanged), 16/49 Garrison (33 already had it, confirmed unchanged). Live curl confirmed on 4 sampled posts across all 3 sites.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Real aggregateRating injected from GBP-synced review data",
+      "surface": "web",
+      "precondition": "Org has a primary location with synced website_builder.reviews rows",
+      "steps": [
+        "1. Run enrichment against a post with a business-entity schema element",
+        "2. Compare injected ratingValue/reviewCount against a direct SQL aggregate of website_builder.reviews for the org's primary location",
+        "3. curl the live rendered post for the aggregateRating JSON-LD block"
+      ],
+      "expected": "Injected rating exactly matches the real synced review aggregate; never a fabricated value; skipped (not zeroed) when no review data exists",
+      "status": "pass",
+      "evidence": "One Endo Falls Church (primary): SQL aggregate 4.98/1521 reviews; injected value on Fredericksburg post identical (4.98/1521), confirmed live via curl. Artful braces-treatment post: live rating 4.94/77 reviews, matches org's synced data. Garrison: correctly injected 0 times because its 49 posts have no schema_json array at all (see Revision Log Rev 1) — not a rating-fetch bug, confirmed org 5 does have 94 reviews/5.00 avg synced.",
+      "notes": "Garrison posts need schema_json generated before this enrichment can apply to them — flagged as a follow-up, out of this plan's scope.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "faq_candidates converted to FAQPage schema",
+      "surface": "api",
+      "precondition": "Post has a non-empty faq_candidates array with no existing FAQPage entry",
+      "steps": [
+        "1. Unit test buildFaqPageSchema with valid/empty/malformed candidate arrays",
+        "2. Confirm no existing FAQPage entry is duplicated when one is already present"
+      ],
+      "expected": "Valid FAQPage schema.org block for real candidates, null for empty/malformed, idempotent against an existing FAQPage",
+      "status": "pass",
+      "evidence": "6 unit tests cover valid conversion, empty/absent/malformed candidates (never fabricates), partial-validity filtering, and hasFaqPageSchema duplicate-detection — all passing.",
+      "notes": "No post among the 254 enriched currently has faq_candidates populated (confirmed via SQL: 0 across all 3 sites), so this path was not exercised end-to-end against live data this run — only the unit-tested pure function. It will apply automatically the next time a post's faq_candidates get populated by generation.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Enrichment applied to all existing published posts on the 3 named sites",
+      "surface": "cli",
+      "precondition": "scripts/seo-enrichment-backfill.ts run against prod DB credentials",
+      "steps": [
+        "1. Dry-run to confirm target post counts (121 / 84 / 49)",
+        "2. Test against a single post, verify live before the full batch",
+        "3. Run the full batch across all 3 projects",
+        "4. Verify 0 failures and that Artful/Garrison's already-correct og_image posts are unchanged"
+      ],
+      "expected": "All published posts processed with 0 failures; previously-correct data untouched; title/description/canonical_url byte-identical",
+      "status": "pass",
+      "evidence": "Batch summary: One Endo 121/121 enriched, 0 failed. Artful 84 total, 10 enriched, 74 unchanged, 0 failed. Garrison 49 total, 16 enriched, 33 unchanged, 0 failed. Spot-checked Artful's does-wearing-braces-cause-tooth-decay (an 'unchanged' post) — og_image byte-identical to its pre-run value. Single-post test confirmed meta_title/meta_description/canonical_url unchanged.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "Build, lint, type-check, and test gates",
+      "surface": "cli",
+      "precondition": "None",
+      "steps": [
+        "1. npx tsc --noEmit",
+        "2. npm run check:conventions --strict",
+        "3. npx vitest run (full suite)",
+        "4. npx eslint on new files",
+        "5. npm run depcruise"
+      ],
+      "expected": "Zero new errors/violations introduced by this change",
+      "status": "pass",
+      "evidence": "tsc: 0 errors. check:conventions --strict: 0 clear structural violations (new files appear in no advisory list). vitest: 151/151 passed across 18 files (15 new). eslint on new files: 0 errors, 0 warnings (fixed one initial `any` in a catch clause). depcruise: 0 errors, 32 pre-existing advisory warnings, none from new files.",
+      "notes": "",
+      "waiver": ""
+    }
+  ]
+}

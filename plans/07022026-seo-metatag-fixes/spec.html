@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SEO Metatag Fixes Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .risk-tag { display: inline-block; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; border: 1px solid var(--ink); border-radius: 999px; padding: 2px 10px; margin-bottom: 6px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { text-align: left; border-bottom: 1px solid var(--line); padding: 8px 10px; font-size: 0.92rem; vertical-align: top; }
+    th { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; font-weight: 800; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>SEO Metatag Fixes</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07022026-seo-metatag-fixes</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>A read-only audit (2026-07-02) of One Endodontics, Artful Orthodontics, Garrison Orthodontics, and getalloro.com found the SEO-generation pipeline producing several confirmed defects that plausibly cost real leads: an invented schema.org business type that Google likely can't parse (<code>"Endodontist"</code> / <code>"Orthodontist"</code> don't exist in schema.org's vocabulary), zero social-preview images on every one of 55 published pages across all 4 sites despite the generator writing a detailed image brief for each, no star-rating structured data despite these practices having hundreds to thousands of real 5-star reviews, and generated FAQ content that never becomes usable FAQ schema. These are pipeline bugs, not per-page mistakes — the same defect repeats on every page/post the generator has touched.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Two independent deliverables:</p>
+      <p><strong>Task A — page-level social image (quick, low-risk):</strong> set <code>og_image</code> on every published page of all 4 sites to an owner-supplied photo (one photo per site, all pages on that site share it).</p>
+      <p><strong>Task B — fix the SEO-generation pipeline, then apply it to existing content:</strong> correct the four confirmed generator defects (invalid schema type, missing <code>og_image</code>, missing <code>aggregateRating</code>, unconverted FAQ candidates) as targeted, deterministic code fixes — then run that fix against the existing published posts/articles of One Endodontics, Artful Orthodontics, and Garrison Orthodontics (not getalloro.com, which has no posts). getalloro.com's page-level image is still covered under Task A.</p>
+      <p>Done when: all 55 pages show a real <code>og:image</code> on the live site; every post on the 3 named sites has a valid schema.org <code>@type</code>, a real <code>aggregateRating</code> sourced from actual GBP data, an <code>og_image</code> sourced from the post's own <code>featured_image</code> where one exists, and an FAQ schema block wherever FAQ candidates exist — with title/description/canonical/target-query fields on those posts byte-for-byte unchanged from before the run.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>src/controllers/admin-websites/feature-services/service.seo-generation.ts</code> — main generation service; fetches business data + practice facts; where the new enrichment step (schema-type validation, og_image-from-featured_image, aggregateRating injection, FAQ→FAQPage conversion) gets added as a post-processing pass after LLM generation.</li>
+        <li><code>src/controllers/admin-websites/feature-utils/util.seo-section-runner.ts</code> — tiered generation runner shared by both pages and posts (<code>entityType: "page" | "post"</code>); the seam where enrichment output gets merged into the object that's eventually written.</li>
+        <li><code>src/agents/websiteAgents/SeoGeneration.significant.md</code> — the prompt instructing the LLM to "select the MOST SPECIFIC applicable schema.org type... 'Endodontist'-equivalent specialty type for endodontics." This line is the direct source of the invalid-type bug and must be rewritten.</li>
+        <li><code>src/agents/websiteAgents/SeoGeneration.geo-layer.md</code> — generates <code>faq_candidates</code>; nothing downstream currently converts this into schema.</li>
+        <li><code>src/agents/websiteAgents/SeoGeneration.moderate.md</code> — generates <code>og_image_recommendation</code> (text only); superseded for posts by the featured_image enrichment, left as-is for pages (pages have no featured_image field to draw from).</li>
+        <li><code>src/models/website-builder/PostModel.ts:407</code> — <code>updateSeoDataByIdJsClock</code>, the write path. <strong>Confirmed: this is a full-column REPLACE of <code>seo_data</code>, not a merge.</strong> Any enrichment logic must read the current <code>seo_data</code>, patch only the intended keys, and write the whole merged object back — never assume the write is additive.</li>
+        <li><code>src/workers/processors/seoBulkGenerate.processor.ts</code> — existing BullMQ worker for bulk (re)generation; sequential per-entity, try/catch per entity, shared context fetched once per job. Reference pattern for T6's batch run rather than building new orchestration.</li>
+        <li><code>src/models/GooglePropertyModel.ts</code>, <code>src/models/GbpReviewInsightModel.ts</code>, <code>src/utils/dashboard-metrics/service.dashboard-metrics.ts</code> (<code>buildReviewsMetrics</code>) — where real rating/review-count data already lives; not currently read during SEO generation at all.</li>
+        <li><code>website_builder.pages</code> / <code>website_builder.posts</code> (<code>seo_data</code> jsonb column) — no schema change needed; every field this plan touches already exists as a key inside the jsonb blob.</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>§6.1 — mirror <code>src/controllers/gbp-automation/</code> for general thin-controller/service/model layering, but the direct structural analog for this domain is the existing SEO generation code itself (<code>service.seo-generation.ts</code> + <code>util.seo-section-runner.ts</code> + <code>seoBulkGenerate.processor.ts</code>) — extend it, don't reinvent it.</li>
+        <li>§21.3 — the worker orchestrates and calls services; new enrichment logic belongs in <code>feature-services/</code>, not inline in the processor.</li>
+        <li>§4.2 — the valid-schema-type allowlist is a named constant (e.g. in <code>config/</code> or a small constants file next to the SEO service), never scattered string literals.</li>
+        <li>§3.1/§3.2 — enrichment must handle one post's malformed/missing data (e.g. no GBP link, no featured_image) without failing the whole batch, matching the existing try/catch-per-entity shape in <code>seoBulkGenerate.processor.ts</code>.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/workers/processors/seoBulkGenerate.processor.ts</code> — closest existing analog for the batch-run structure in T6 (shared-context-once, sequential per-entity loop, per-entity error isolation, job-status tracking).</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Preserve every existing correct field on a post's <code>seo_data</code> during enrichment — read-patch-write the full object, given the write path is a full replace.</li>
+            <li>Source <code>aggregateRating</code> from real, currently-synced GBP review data — never LLM-authored.</li>
+            <li>Validate schema.org <code>@type</code> against a hardcoded allowlist before it can reach the database, regardless of what the prompt/LLM produces.</li>
+            <li>Test the enrichment pass against a single post on one site and manually verify before running the 3-site batch.</li>
+            <li>Verify after the batch run that Artful's 74 and Garrison's 33 already-correct <code>og_image</code> posts are unchanged.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not re-run full LLM section generation (title/description/target-query tiers) against already-published posts as part of this plan — those fields aren't broken and re-running them risks regressing live, indexed copy for no benefit.</li>
+            <li>Do not invoke the existing <code>POST /:id/seo/bulk-generate</code> endpoint as-is for this fix — confirmed unsafe without the enrichment guarantees above (full-column replace + no featured_image awareness today).</li>
+            <li>Do not touch getalloro.com posts (none exist) or the two archived ghost projects (Garrison orphan, DentalEMR) — out of scope, tracked separately.</li>
+            <li>Do not add a new dependency for image handling or schema validation — plain JS/TS is sufficient for an allowlist check and an FAQPage object transform.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Fixing the same generator defects for pages (only posts are covered by Task B's regeneration; pages' schema/FAQ/rating gaps are a known follow-up, not in this plan).</li>
+        <li>Automatic <code>og_image</code> sourcing for future brand-new pages (pages have no <code>featured_image</code> concept — a future page still needs a manually-chosen photo via the editor).</li>
+        <li>The renderer soft-404 / archived-project-still-live / sitemap-and-robots fixes — already tracked in a separate background task.</li>
+        <li>Prod canonical_url repair for posts — already completed in a prior session for these same 3 sites.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 — Structural Risk (cross-cutting change to a shared, platform-wide generation engine, plus a live-content write against real client sites)</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><span class="risk-tag">Level 3</span> The post <code>seo_data</code> write path (<code>PostModel.ts:407</code>, <code>updateSeoDataByIdJsClock</code>) is a full-column replace. Naively re-running the existing generation/bulk-generate flow risks silently dropping Artful's 74 and Garrison's 33 already-correct <code>og_image</code> values. <strong>Mitigation:</strong> build the fix as a dedicated enrichment function that always starts from the row's current <code>seo_data</code>, patches only the 4 targeted keys, and writes the merged object back — verified with a before/after diff on a sample post from each site before the full batch.</li>
+        <li><span class="risk-tag">Level 2</span> The invalid schema-type bug is a prompt-authoring problem (<code>SeoGeneration.significant.md</code> literally instructs "'Endodontist'-equivalent specialty type"), not just an LLM slip. A prompt fix alone doesn't guarantee compliance from a non-deterministic model. <strong>Mitigation:</strong> rewrite the prompt to use only <code>"Dentist"</code> (schema.org's actual most-specific valid dental type, with specialty conveyed via <code>knowsAbout</code>/<code>description</code> as the generator already does well) AND add a code-level allowlist guard/fallback as defense in depth.</li>
+        <li><span class="risk-tag">Level 2</span> Star rating and review count are factual claims about a real business; letting an LLM author them risks the same hallucination failure mode that produced the invalid schema type, with a worse trust/compliance downside if wrong. <strong>Mitigation:</strong> inject <code>aggregateRating</code> in code from the already-synced GBP data path (mirroring <code>buildReviewsMetrics</code>), never ask the generation prompt to produce it.</li>
+        <li><span class="risk-tag">Level 2</span> <code>service.seo-generation.ts</code> / <code>util.seo-section-runner.ts</code> are shared by every org on the platform, not just these 3 sites — any regression in the enrichment logic affects future generation everywhere. <strong>Mitigation:</strong> the enrichment step is additive-only and guarded (schema-type allowlist with safe fallback, featured_image/rating injection only when source data exists) so it can't make an already-working generation worse; test on one post before any batch run.</li>
+        <li><span class="risk-tag">Level 1</span> Two of the four owner-supplied page images have unusual aspect ratios (Garrison: square 600×600; getalloro.com: a 1128×191 banner strip) that will likely crop awkwardly in a standard 1.91:1 social-preview card. <strong>Mitigation:</strong> use them as supplied (still strictly better than no image at all) and flag to the owner as a possible future asset swap — not a blocker for this plan.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> <code>SeoController.ts</code> (single-section generate, generate-all, bulk-generate routes — used by every org's admin SEO tooling), <code>seoBulkGenerate.processor.ts</code> (shared BullMQ queue), any future page/post SEO generation platform-wide. Directly written: <code>website_builder.posts.seo_data</code> for ~254 published posts across 3 live client sites (One Endo 121, Artful 84, Garrison 49), and <code>website_builder.pages.seo_data</code> for 55 published pages across 4 live client sites.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>The user's own phrasing was "regenerate correct SEO data" — the literal reading is a full re-run through the existing bulk-generate endpoint. This plan deliberately narrows that to a targeted enrichment pass instead, because the full re-run (a) risks the regression described above and (b) rewrites title/description/target-query copy on live, presumably-performing pages that were never identified as broken. If a full regeneration is actually wanted (e.g. because the existing titles/descriptions are also considered weak), that is a materially different, larger, costlier task (LLM calls across ~254 posts × 6 tiers) and should be scoped as its own decision, not bundled into this fix.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Set page-level <code>og_image</code> for all 4 sites</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Update <code>seo_data.og_image</code> on every published page row for each project to the owner-supplied photo URL (one URL per site, same photo for every page on that site). Mirrors the prior session's canonical_url prod-data fix: scoped <code>UPDATE ... jsonb_set(...)</code> per project, wrapped in a transaction, verified with a before/after count, then cache-busted (<code>?nocache=1</code>) and spot-checked live via curl for the <code>og:image</code> tag.</dd>
+          <div><dt>Photos</dt><dd>One Endo → <code>8bcf07b5-Group1-scaled.jpg.webp</code>; Artful → <code>lh3-googleuserconten-597-mnn1yutp.jpg</code>; Garrison → <code>ca73783c-gen-1778749396511-6uu2eg.jpg</code> (square 600×600 — will crop, flagged in Risk); getalloro.com → <code>ca93e309-getalloro_cover.jpg.webp</code> (1128×191 banner — will crop significantly, flagged in Risk). All 4 URLs verified live and loading (2026-07-02).</dd>
+          <div><dt>Files</dt><dd>No code files — direct prod data operation against <code>website_builder.pages</code>, same tooling pattern as the prior canonical_url fix.</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: curl each site's homepage (and one other page) after cache-bust, confirm <code>&lt;meta property="og:image"&gt;</code> shows the new URL.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Fix the invalid schema.org business type</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Rewrite <code>SeoGeneration.significant.md</code> to stop instructing the model to invent specialty-named types ("Endodontist"-equivalent) — instruct it to use <code>"Dentist"</code> uniformly for any dental/ortho/endo specialty practice, conveying specialization via <code>knowsAbout</code>/<code>description</code> (already working well). Add a small named-constant allowlist (valid schema.org medical business types: <code>Dentist</code>, <code>Physician</code>, <code>MedicalBusiness</code>, <code>MedicalClinic</code>, <code>LocalBusiness</code>, <code>Organization</code>) plus a fallback-to-<code>MedicalBusiness</code> guard in <code>service.seo-generation.ts</code> so an invalid type can never be written regardless of what the model outputs.</dd>
+          <div><dt>Files</dt><dd><code>src/agents/websiteAgents/SeoGeneration.significant.md</code>, <code>src/controllers/admin-websites/feature-services/service.seo-generation.ts</code>, new small constants file for the allowlist, matching test file.</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd><code>vitest</code> unit test for the allowlist/fallback function (valid type passes through, invalid type falls back, case covering exactly "Endodontist"/"Orthodontist").</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: <code>og_image</code> from a post's <code>featured_image</code></h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a deterministic (non-LLM) enrichment step: when a post has <code>featured_image</code> set, its <code>seo_data.og_image</code> is set to that URL, overriding/filling the field regardless of what the LLM's <code>og_image_recommendation</code> says. Must read-patch-write given the full-replace write path (§ risk above) — existing correct values (Artful/Garrison) must come out byte-identical when their <code>featured_image</code> already matches.</dd>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.seo-generation.ts</code> (or a new small <code>feature-utils/</code> helper it calls).</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Unit test: post with featured_image → og_image set to it; post without → og_image left untouched (not cleared). Manual: diff a sample Artful post's full <code>seo_data</code> before/after — only <code>og_image</code> may change, and only if different from current.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Real <code>aggregateRating</code> from GBP data</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a small read function that pulls a project's real average rating + review count from the already-synced GBP data (mirroring the ad-hoc query in <code>service.dashboard-metrics.ts</code>'s <code>buildReviewsMetrics</code>), then inject a schema.org <code>AggregateRating</code> block into <code>schema_json</code>'s business-entity object using those real numbers — never LLM-authored. Skip injection (not a fabricated placeholder) when no GBP rating data exists for the project.</dd>
+          <div><dt>Files</dt><dd>New small function in <code>feature-services/</code> or a model method alongside <code>GooglePropertyModel</code>/<code>GbpReviewInsightModel</code>; wired into <code>service.seo-generation.ts</code>'s enrichment pass.</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Unit test: project with GBP rating data → correct AggregateRating block; project without → no block added (no fabrication). Manual: confirm One Endo's injected numbers match its real GBP rating/review count.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: <code>faq_candidates</code> → real <code>FAQPage</code> schema</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add a pure, deterministic transform: when a post/page has one or more <code>faq_candidates</code>, convert them into a valid schema.org <code>FAQPage</code> block (<code>mainEntity</code> array of <code>Question</code>/<code>Answer</code> pairs) and append it to <code>schema_json</code> if not already present. No LLM call — this is a straight data-shape conversion of content the generator already produced.</dd>
+          <div><dt>Files</dt><dd>New small pure function in <code>feature-utils/</code>, wired into <code>service.seo-generation.ts</code>'s enrichment pass.</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Unit test: candidates array → correct FAQPage shape; empty/absent candidates → no block added.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T6: Apply the enrichment to existing posts on One Endo, Artful, Garrison</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Run the T2-T5 enrichment (not full section regeneration) against every published post on the 3 named sites. Mirror <code>seoBulkGenerate.processor.ts</code>'s shape (shared context once, sequential per-post, try/catch per post, no batch-wide failure from one bad row) but call the new enrichment path instead of full tiered generation. Test on a single One Endo post first; manually verify its schema type, rating, FAQ block, and (if applicable) image before running the full batch. After the batch, explicitly diff a sample of Artful/Garrison posts to confirm their pre-existing correct fields survived unchanged.</dd>
+          <div><dt>Files</dt><dd>Either extends <code>seoBulkGenerate.processor.ts</code> with an enrichment-only mode, or a small new processor/script following the same pattern — decide during implementation based on which is the smaller, cleaner diff.</dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3, T4, T5</dd></div>
+          <div><dt>Verify</dt><dd>Manual: spot-check live rendered HTML (curl, cache-busted) on 2-3 posts per site for correct <code>@type</code>, <code>AggregateRating</code>, <code>FAQPage</code>, and <code>og:image</code>. Manual: confirm meta_title/meta_description/canonical_url are byte-identical to their pre-run values on the same sampled posts.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> — zero errors from this change</li>
+        <li><input type="checkbox" checked disabled> <code>npm run check:conventions --strict</code> — zero new backend violations (0 clear structural violations; new files appear in no advisory list)</li>
+        <li><input type="checkbox" checked disabled> New vitest coverage passes for: schema-type allowlist/fallback, og_image-from-featured_image, aggregateRating injection (present + absent cases), faq_candidates→FAQPage conversion — 15/15 new tests, 151/151 full suite</li>
+        <li><input type="checkbox" checked disabled> Manual: all 55 pages across the 4 sites show the correct <code>og:image</code> live (cache-busted) — verified via curl on all 4 sites</li>
+        <li><input type="checkbox" checked disabled> Manual: sampled posts on One Endo/Artful/Garrison show valid <code>@type</code>, real <code>AggregateRating</code>, and <code>FAQPage</code> schema where applicable, live</li>
+        <li><input type="checkbox" checked disabled> Manual: Artful's 74 and Garrison's 33 already-correct <code>og_image</code> posts are verified unchanged post-run — batch summary matched exactly (74/33 unchanged), spot-checked one Artful post's og_image byte-identical pre/post</li>
+        <li><input type="checkbox" checked disabled> Manual: title/description/canonical_url unchanged on sampled posts pre vs post enrichment run — verified on the single-post test (Fredericksburg office) before the batch</li>
+        <li><input type="checkbox" checked disabled> No regressions in the general SEO generation flow for other orgs (single-post smoke test before the 3-site batch) — ran and verified live before the 254-post batch</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-02</h3>
+        <p><strong>Change:</strong> Execution completed T1-T6 as planned (254 posts across 3 sites enriched, 57 pages across 4 sites given a real og_image, 0 failures). One new fact surfaced during T6 that wasn't known at planning time: Garrison Orthodontics' 49 posts have no <code>schema_json</code> key at all (confirmed via direct query — 0 of 49 across all post types). This is a separate, deeper pre-existing gap than the "wrong data" defects this plan targeted — the enrichment code correctly did nothing for these posts (guarded by <code>Array.isArray(enriched.schema_json)</code>) rather than fabricating a schema_json array from scratch, which would have been out of this plan's scope (generating missing structured data, not fixing broken structured data).</p>
+        <p><strong>Reason:</strong> Execution deviation: discovered while verifying T6's per-project results (Garrison's batch summary showed 0 aggregateRating injections despite real GBP review data existing for the org — investigated and found the root cause was absent schema_json, not a bug in the rating fetch).</p>
+        <p><strong>Updated Done criteria:</strong> None — all original Done items are met as written. Flagging as a known follow-up: Garrison's posts need schema_json generated before they can benefit from this plan's aggregateRating/FAQPage enrichment.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

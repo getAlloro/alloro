@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SEO Full Coverage Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .risk-tag { display: inline-block; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; border: 1px solid var(--ink); border-radius: 999px; padding: 2px 10px; margin-bottom: 6px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { text-align: left; border-bottom: 1px solid var(--line); padding: 8px 10px; font-size: 0.88rem; vertical-align: top; }
+    th { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; font-weight: 800; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>SEO Full Coverage</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07022026-seo-full-coverage</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Follow-up to <code>plans/07022026-seo-metatag-fixes</code> (Completed). A fresh, precise audit of all 57 pages and 254 posts across the 4 sites (One Endodontics, Artful Orthodontics, Garrison Orthodontics, getalloro.com) found that the prior fix only ever touched posts — pages still carry the same invalid-schema-type, missing-rating, and missing-FAQ-schema defects untouched. It also surfaced something new and bigger: 92 One Endodontics posts and 16 Garrison posts have <strong>no SEO data at all</strong> (no title, no description, nothing was ever generated), and Garrison's other 33 posts have a title but zero <code>schema_json</code>. Google is auto-writing titles/snippets for 108 live, published pages today.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Close every gap that is honestly closeable without fabricating data:</p>
+      <table>
+        <tr><th>Gap</th><th>Scope</th><th>Mechanism</th></tr>
+        <tr><td>Invalid schema type on pages</td><td>11 pages (One Endo 6, Artful 2, Garrison 3)</td><td>Reuse existing <code>sanitizeSchemaJsonTypes</code></td></tr>
+        <tr><td>Missing star rating on pages</td><td>up to 41 eligible pages (One Endo 17, Artful 15, Garrison 9) — getalloro.com excluded, no real review data exists for it</td><td>Reuse existing <code>fetchProjectAggregateRating</code> + <code>injectAggregateRating</code></td></tr>
+        <tr><td>Missing FAQ schema on pages</td><td>One Endo only — 16 pages that already have real <code>faq_candidates</code></td><td>Reuse existing <code>buildFaqPageSchema</code></td></tr>
+        <tr><td>Titles over 60 characters</td><td>~57 instances across pages + posts, both sites</td><td>New deterministic trim (drop trailing segments, never the front keyword+location)</td></tr>
+        <tr><td>108 posts with zero SEO data</td><td>92 One Endo + 16 Garrison</td><td>Real LLM generation (existing tiered pipeline, already prompt-fixed) + existing post-enrichment layered on top</td></tr>
+        <tr><td>Garrison's other 33 posts — no schema_json</td><td>33 Garrison posts (title/description exist, structured data doesn't)</td><td>Single-section generation ("significant" only) + existing post-enrichment layered on top</td></tr>
+      </table>
+      <p><strong>Deliberately NOT touched</strong> (see Constraints): FAQ schema on Artful/Garrison/getalloro.com pages or any posts (no <code>faq_candidates</code> exist there — fabricating one would mean inventing Q&amp;A content, not converting real content), and a star rating for getalloro.com (not a GBP-reviewed business).</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files (from the completed prior plan — reused, not rebuilt)</h3>
+      <ul>
+        <li><code>src/controllers/admin-websites/feature-utils/util.schema-business-type.ts</code> — <code>sanitizeSchemaJsonTypes</code>, <code>isBusinessEntitySchema</code>. Reused as-is for pages.</li>
+        <li><code>src/controllers/admin-websites/feature-utils/util.aggregate-rating-schema.ts</code> — <code>injectAggregateRating</code>. Reused as-is for pages.</li>
+        <li><code>src/controllers/admin-websites/feature-utils/util.faq-schema.ts</code> — <code>buildFaqPageSchema</code>, <code>hasFaqPageSchema</code>. Reused as-is for pages.</li>
+        <li><code>src/controllers/admin-websites/feature-services/service.seo-enrichment.ts</code> — <code>fetchProjectAggregateRating</code>, <code>enrichPostSeoData</code> (posts). Extend with page-level equivalents; <code>enrichPostSeoData</code> itself is reused verbatim in T3/T4's post-processing step.</li>
+        <li><code>src/models/website-builder/PageModel.ts</code> — needs a raw-fetch-by-id and a project-wide "all published pages" query mirroring <code>PostModel.findRawById</code>/<code>findByProjectFiltered</code>; check what already exists before adding.</li>
+        <li><code>src/controllers/admin-websites/feature-services/service.seo-generation.ts</code> — <code>generateAllWithSharedContext</code> (full tiered generation), <code>fetchSharedContext</code>. Reused as-is for T3. <code>runGenerateSection</code> (single-section) from <code>util.seo-section-runner.ts</code>, reused for T4's schema-only generation.</li>
+        <li><code>scripts/seo-enrichment-backfill.ts</code> — structural reference for the new batch scripts in this plan (dry-run flag, per-project loop, exit codes, prod-env-var invocation pattern).</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>§4.3 (DRY) — the three pure schema-fixing functions and <code>fetchProjectAggregateRating</code> must not be re-implemented for pages; import the same modules posts already use.</li>
+        <li>§21.3 — new batch scripts orchestrate only; business logic stays in <code>feature-services/</code>.</li>
+        <li>§20.1 — new pure functions (title trim) get unit tests mirroring <code>src/__tests__/seo-enrichment.test.ts</code>'s style.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/controllers/admin-websites/feature-services/service.seo-enrichment.ts</code> (prior plan) — direct structural analog for the new page-enrichment additions.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Read-patch-write every page/post's <code>seo_data</code> — never assume a full-column write is additive (same rule as the prior plan; applies equally to <code>PageModel</code>'s write path).</li>
+            <li>Title trim must preserve the front keyword+location segment; only drop trailing segments (typically the brand-name tail).</li>
+            <li>T3/T4 generation must run through the existing tiered pipeline (already prompt-fixed for schema type) — no new prompt content authored in this plan.</li>
+            <li>Test the title-trim function and the page-enrichment path against one real page/post before batch-applying either.</li>
+            <li>Test T3's generation against one real blank post before running it against all 108.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not fabricate <code>faq_candidates</code> or a rating for sites/pages that have no real underlying data (Artful/Garrison/getalloro.com pages' FAQ gap, getalloro.com's rating gap) — leave those cells as they honestly are.</li>
+            <li>Do not re-run generation on any post/page that already has a meta_title — T3/T4 target only rows confirmed to have zero seo_data or zero schema_json, by id, not a blanket re-generate.</li>
+            <li>Do not touch getalloro.com posts (still none) or the two archived ghost projects — same exclusions as the prior plan.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Wiring the <code>geo_layer</code> section to actually produce <code>faq_candidates</code> for Artful/Garrison/getalloro.com content that currently has none — a real content-generation feature, not a data-repair task.</li>
+        <li>The archived-project-still-renders bug and the renderer soft-404/sitemap gaps — already tracked separately (background task <code>task_99606846</code>).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 — real LLM generation against live, published, publicly-served content for the first time this session (the prior plan was enrichment-only, zero LLM calls in its backfill).</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><span class="risk-tag">Level 2</span> LLM generation for ~141 posts (108 zero-data + 33 schema-only) has real API cost and takes real time (sequential, per the existing bulk pattern) — this is not free or instant like the prior enrichment-only pass. <strong>Mitigation:</strong> test on one post first; the tiered runner (3 rounds, not 6) already minimizes call count.</li>
+        <li><span class="risk-tag">Level 1</span> Freshly-generated content for 108 currently-blank posts is new, unreviewed AI copy going live automatically. <strong>Mitigation:</strong> regression risk is near-zero (nothing currently shows to users/Google for these posts, so any real content is an improvement) — proceeding without a per-post human review gate, matching the existing bulk-generate precedent. Flagged for the owner to override if a review pass is wanted instead.</li>
+        <li><span class="risk-tag">Level 2</span> The title-trim function operates on live, already-decent titles — an aggressive or naive trim could cut something important. <strong>Mitigation:</strong> only drop whole trailing pipe-delimited segments (never mid-word truncation), verified against a handful of real over-length titles before batch-applying.</li>
+        <li><span class="risk-tag">Level 1</span> Same full-column-replace write-path risk as before, now also applying to <code>PageModel</code>. <strong>Mitigation:</strong> identical read-patch-write discipline as the prior plan's <code>enrichPostSeoData</code>, applied to the new page-level function.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> Same shared generation engine as the prior plan (<code>service.seo-generation.ts</code>, <code>util.seo-section-runner.ts</code>) — platform-wide by nature. Directly written: <code>website_builder.pages.seo_data</code> for up to 57 rows (4 sites), <code>website_builder.posts.seo_data</code> for up to 141 rows (2 sites, generation) plus title-trim touching any over-60-char row on top of the prior plan's already-enriched 254 posts.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Not every red/yellow cell in the audit table is a defect — see What. Forcing FAQ schema onto content with no real Q&amp;A material, or a rating onto a SaaS product with no public reviews, would be the same kind of fabrication this whole effort exists to remove. Recommending those stay as-is rather than "solving" them cosmetically.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+
+      <article class="task-card">
+        <h3>T1: Page-level enrichment (schema type, rating, FAQ-candidate conversion)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>enrichPageSeoData(pageId, projectId)</code> to <code>service.seo-enrichment.ts</code>, mirroring <code>enrichPostSeoData</code> exactly (read-patch-write, reuse the same 3 pure functions — no featured_image step, pages don't have one). Add <code>enrichPagesForProject(projectId)</code> batch runner mirroring <code>enrichPostsForProject</code>. Apply against all published pages on all 4 sites (57 pages).</dd>
+          <div><dt>Files</dt><dd><code>src/controllers/admin-websites/feature-services/service.seo-enrichment.ts</code>, matching test additions to <code>src/__tests__/seo-enrichment.test.ts</code>, new <code>scripts/seo-page-enrichment-backfill.ts</code> mirroring <code>seo-enrichment-backfill.ts</code>.</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Unit tests for the new orchestrator (mocked). Manual: one real page tested and verified live before the 57-page batch; post-batch SQL re-check confirms 0 invalid types, real ratings on all eligible pages, FAQPage on all 16 One Endo candidate-bearing pages.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T2: Deterministic title-length trim</h3>
+        <dl>
+          <div><dt>Do</dt><dd>New pure function: given a title over 60 characters that follows a pipe-delimited pattern (<code>"Primary Phrase | Location | Brand"</code>), progressively drop trailing segments until ≤60 chars, keeping at least the first segment always. If the first segment alone still exceeds 60, leave it untouched and flag rather than mid-word truncate. Apply to every page/post title currently over 60 chars (both sites' pages, all 3 posting sites).</dd>
+          <div><dt>Files</dt><dd>New <code>src/controllers/admin-websites/feature-utils/util.title-length.ts</code>, test file, wired into both <code>enrichPageSeoData</code> and <code>enrichPostSeoData</code> (extending the latter from the prior plan) so it runs as part of the same enrichment pass rather than a separate script.</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Unit tests: multi-segment title trims correctly and keeps the front segment; single-segment over-60 title is left alone (flagged, not mangled); already-short titles pass through untouched. Manual: spot-check 3-4 real trimmed titles read naturally.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T3: Generate full SEO for the 108 zero-data posts</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Identify the exact 92 One Endo + 16 Garrison post ids with null/absent <code>meta_title</code>. Run the existing <code>generateAllWithSharedContext</code> tiered pipeline against each (shared context fetched once per project, sequential per post, per-post error isolation — mirrors <code>seoBulkGenerate.processor.ts</code>'s shape). Immediately follow each generation with <code>enrichPostSeoData</code> (from the prior plan, unmodified) so the freshly-generated schema type/og_image/rating/FAQ get the same guardrails as everything else.</dd>
+          <div><dt>Files</dt><dd>New <code>scripts/seo-generate-missing.ts</code>, calling existing <code>service.seo-generation.ts</code> + <code>service.seo-enrichment.ts</code> functions — no new generation logic.</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: run against a single One Endo post first, verify meta_title/description/schema_json/og_image/rating all populate sensibly and live. Post-batch: SQL confirms 0 posts remaining with null meta_title on One Endo + Garrison.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T4: Generate schema_json only for Garrison's other 33 posts</h3>
+        <dl>
+          <div><dt>Do</dt><dd>For the 33 Garrison posts that have a title/description but zero <code>schema_json</code>, run <code>runGenerateSection</code> scoped to the "significant" section only (not the full tiered pipeline — title/description already exist and must not be touched). Follow with <code>enrichPostSeoData</code> per post for the rating/FAQ layer now that a schema_json array exists to inject into.</dd>
+          <div><dt>Files</dt><dd>Extends <code>scripts/seo-generate-missing.ts</code> from T3 with a second mode, or a sibling script — decide during implementation based on the cleaner diff.</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: confirm one Garrison post's title/description are byte-unchanged after this task, schema_json is newly populated with a valid type, and aggregateRating is injected. Post-batch: SQL confirms 49/49 Garrison posts now have schema_json.</dd></div>
+        </dl>
+      </article>
+
+      <article class="task-card">
+        <h3>T5: Full re-audit against the original table</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Re-run the exact audit queries from the last report across all 57 pages + 254 posts. Confirm every legitimately-closeable cell is now green, and that the deliberately-excluded cells (Artful/Garrison/getalloro.com page FAQ, getalloro.com rating) are still correctly absent, not corrupted.</dd></div>
+          <div><dt>Files</dt><dd>None — read-only verification.</dd></div>
+          <div><dt>Depends on</dt><dd>T1, T2, T3, T4</dd></div>
+          <div><dt>Verify</dt><dd>Updated audit table presented to the owner; zero unexplained non-green cells.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> — zero errors from this change</li>
+        <li><input type="checkbox" checked disabled> <code>npm run check:conventions --strict</code> — zero new backend violations</li>
+        <li><input type="checkbox" checked disabled> New vitest coverage: title-length trim (7 cases) + SoftwareApplication regression case — 158/158 full suite passing</li>
+        <li><input type="checkbox" checked disabled> Manual: 0 invalid schema types remain across all 57 pages (and 0 across all 254 posts)</li>
+        <li><input type="checkbox" checked disabled> Manual: real rating present on every eligible page/post across the 3 dental/ortho sites (getalloro.com correctly excluded)</li>
+        <li><input type="checkbox" checked disabled> Manual: One Endo's 16 candidate-bearing pages show real FAQ schema</li>
+        <li><input type="checkbox" checked disabled> Manual: 0 titles remain over 60 characters on pages; posts closed except 31 single-segment headlines explicitly flagged un-trimmable (no safe split point)</li>
+        <li><input type="checkbox" checked disabled> Manual: 0 posts remain with null meta_title on One Endo + Garrison (108/108 generated)</li>
+        <li><input type="checkbox" checked disabled> Manual: 49/49 Garrison posts have schema_json</li>
+        <li><input type="checkbox" checked disabled> Manual: final re-audit table has no unexplained non-green cells</li>
+        <li><input type="checkbox" checked disabled> (Rev 2) Manual: 0 Artful posts remain with null meta_title (Angelita generated: 60-char title, canonical /staff/angelita, og_image preserved, Person schema — live-verified)</li>
+        <li><input type="checkbox" checked disabled> (Rev 2) Manual: 84/84 Artful posts have schema_json (74/74 batch, 0 failed); md5 of title+description byte-identical on all 3 sampled posts</li>
+        <li><input type="checkbox" checked disabled> (Rev 2) Manual: 0 invalid schema types after the pass; rating only on eligible business entities (9→12), FAQ only where content supports it (4→34)</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-02</h3>
+        <p><strong>Change:</strong> Execution completed T1-T5 as planned, with four execution-time deviations. (1) T1's schema-type allowlist initially didn't recognize getalloro.com's legitimate <code>SoftwareApplication</code> type, briefly overwriting it to <code>MedicalBusiness</code> on 4 pages — caught immediately via a full before/after type-count reconciliation across all 4 sites, allowlist fixed, 4 rows reverted to the exact original value, zero remaining damage, regression test added. (2) T3 discovered that full tiered generation also triggers "GEO auto-apply" (rewrites a post's visible body content) as an undocumented side effect — owner confirmed metadata-only scope, so T3/T4 call the section runner directly instead of the wrapper that triggers it. (3) T3 discovered the "critical" section re-fabricates canonical URLs on fresh posts (same disease already fixed for existing posts pre-session) — every freshly-generated post's canonical is now deterministically overridden to <code>/{type-slug}/{slug}</code>, never trusted from the LLM. (4) Title-trim (added mid-session as part of T1/T2) only reached posts touched by T3/T4's generation calls — ran an additional retroactive, idempotent, zero-LLM-cost sweep of <code>enrichPostsForProject</code> across all 3 posting sites so the capability reaches the 254 posts fixed in the prior plan too.</p>
+        <p><strong>Reason:</strong> Execution deviation: all four were discovered mid-run via live verification and direct DB reconciliation, not anticipated at planning time.</p>
+        <p><strong>Updated Done criteria:</strong> Title-length Done item's wording updated in place to reflect the 31 genuinely-unresolvable single-segment headlines as the correct final state, not a gap.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-02</h3>
+        <p><strong>Change:</strong> Extend the T3/T4 generation treatment to Artful Orthodontics, which the original scope missed: T6 (Rev 2) full generation for its 1 zero-SEO post (the "Angelita" staff bio — its existing <code>og_image</code>/<code>canonical_url</code> keys are preserved by making <code>scripts/seo-generate-missing.ts</code> merge over existing <code>seo_data</code> instead of overwriting it), and T7 (Rev 2) schema_json-only generation for its 74 articles via <code>scripts/seo-generate-schema-only.ts</code>, refactored from a hardcoded Garrison-only constant to a multi-project target list (One Endo/Garrison become idempotent no-ops). Same single-section "significant" generation + post-enrichment layering as T4; titles/descriptions must come out byte-identical, verified against pre-run md5 snapshots of 3 sampled articles.</p>
+        <p><strong>Reason:</strong> Scope addition: owner request ("do a pass for artful to fix it") after the final audit table surfaced that the original plan sized the zero-data/zero-schema problem only against One Endo + Garrison and never checked Artful, which has the same disease at larger scale (75 schema-less posts + 1 blank).</p>
+        <p><strong>Updated Done criteria:</strong> Three new (Rev 2) checklist items — Artful null-title count reaches 0, 84/84 Artful posts carry schema_json with sampled titles/descriptions unchanged, and no invalid types introduced by the new pass.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

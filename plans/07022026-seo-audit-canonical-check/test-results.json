@@ -1,0 +1,39 @@
+{
+  "plan": "plans/07022026-seo-audit-canonical-check",
+  "generatedAt": "2026-07-02",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Locate and upgrade the canonical criterion",
+      "surface": "ui",
+      "precondition": "None",
+      "steps": [
+        "1. Locate the criterion behind the owner's 8/8 screenshot — found in the frontend SEO panel (seoPanel.utils.ts:42, presence-only), NOT the assumed backend ai-seo-audit service (which already checks canonical-vs-URL)",
+        "2. New shared assessCanonical (presence + primary-host + path; www/trailing-slash-insensitive; partial=4 for same-host consolidation; hard fail cross-host)",
+        "3. Fix BOTH scorers in parity (seoPanel.utils calculateScores + websiteDetail.utils computeSeoScore) and thread real context: page editor (path+hosts), pages list (path+hosts), posts editor (path only)",
+        "4. Mismatch-naming labels: 'points to a different page' / 'wrong domain or malformed'"
+      ],
+      "expected": "The criterion can never again award full credit to a wrong-page or wrong-host canonical",
+      "status": "pass",
+      "evidence": "11 new frontend unit tests, all passing: the exact Fredericksburg production values (canonical /fredericksburg-office on /locations/fredericksburg-office) now score 4/8 partial with a mismatch-naming label instead of 8/8; the Garrison internal-generated-hostname mode is a pinned hard fail against the primary host; correct relative and absolute canonicals score full; missing/malformed fail; posts-panel path-only degradation covered.",
+      "notes": "Location deviation from the spec recorded as Rev 1 — the second parallel scorer (websiteDetail.utils, comment-mandated parity) was discovered and fixed in the same pass.",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Re-audit proof",
+      "surface": "ui",
+      "precondition": "T1 shipped",
+      "steps": [
+        "1. Compute the criterion against the real fixed page values (pass at full weight)",
+        "2. Compute against the pre-fix wrong values (partial/fail with named mismatch)"
+      ],
+      "expected": "Fixed page passes at full weight; wrong canonical no longer passes at full weight",
+      "status": "pass",
+      "evidence": "Score computation is fully client-side from seo_data — the unit tests execute the identical code path the panel renders, using the real production values from both failure modes. Frontend gates: tsc -p tsconfig.app.json exit 0, vitest 32/32, eslint 0 errors.",
+      "notes": "In-browser visual confirmation in the admin panel left to owner QA per session convention (frontend visual pass = owner's job).",
+      "waiver": ""
+    }
+  ]
+}

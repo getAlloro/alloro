@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Renderer SEO Hardening Spec</title>
+  <style>
+    :root { color-scheme: light; --paper: #ffffff; --ink: #080808; --muted: #5f5f5f; --line: #d8d8d8; --soft: #f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.5; }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; }
+    h2 { font-size: 1.35rem; }
+    h3 { font-size: 1rem; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .risk-tag { display: inline-block; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; border: 1px solid var(--ink); border-radius: 999px; padding: 2px 10px; margin-bottom: 6px; }
+    @media (max-width: 640px) { .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; } .spec-hero, .spec-card { padding: 20px; } }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>Renderer SEO Hardening</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07022026-renderer-seo-hardening</dd></div>
+        <div><dt>Size</dt><dd>Medium</dd></div>
+        <div><dt>Risk</dt><dd>Level 3</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="coordination">
+      <h2>Coordination Note (read first)</h2>
+      <p><strong>Target repo is <code>/Users/rustinedave/Desktop/website-builder-rebuild</code></strong>, not this one — this spec lives here because the investigation and evidence do. A background task chip (<code>task_99606846</code>, same four workstreams) was started by the owner in a separate session running in an isolated git worktree; the renderer's main tree is clean with no new commits as of 2026-07-02. <strong>Before executing this plan, check that session's worktree/branch state and reconcile</strong> — either adopt its work or supersede it, never run both.</p>
+    </section>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Four renderer-level gaps confirmed live this session, each affecting every client site: (1) <strong>archived projects still render publicly</strong> — two confirmed ghost sites (<code>garrison-orthodontics-3307.sites.getalloro.com</code>, an orphaned full duplicate of the real Garrison site, and <code>swift-medical-7604</code>/DentalEMR), an active duplicate-content risk against sites whose SEO was just repaired; (2) <strong>any unknown path returns the homepage with HTTP 200</strong> (soft-404) — stale URLs never leave Google's index, broken links are invisible in GSC, and it repeatedly confused this session's own debugging; (3) <strong>no sitemap.xml or robots.txt</strong> — both fall through to the homepage fallback, so Google discovers the freshly fixed metadata only via nav links; (4) <strong>the renderer trusts stored canonical/og:url verbatim and emits nothing when missing</strong> — the data is fixed for the 4 audited sites, but every other client site still has posts with missing canonicals, and nothing prevents future junk from rendering.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <ul>
+        <li>Archived projects stop resolving: hostname/domain lookups exclude <code>archived_at IS NOT NULL</code>; matched-but-archived requests get a dedicated "site no longer available" response (410), distinct from site-not-found.</li>
+        <li>Unknown paths return the existing <code>pageNotFoundPage</code> template with HTTP 404 instead of the homepage render.</li>
+        <li>Per-project <code>robots.txt</code> (allow all + Sitemap line) and <code>sitemap.xml</code> (published pages + published posts at <code>/{post_type.slug}/{post.slug}</code>, absolute URLs on the project's domain), Redis-cached and included in the <code>?nocache=1</code> flush list.</li>
+        <li>Canonical/og:url derived self-referentially from the actual serving context; stored <code>canonical_url</code> honored only when same-domain and path-matching; emitted even when the stored key is absent.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files (all in the renderer repo)</h3>
+      <ul>
+        <li><code>src/services/project.service.ts:9-22</code> — <code>getProjectByHostname</code> / <code>getProjectByCustomDomain</code>: no <code>archived_at</code> check (root cause of the ghost sites).</li>
+        <li><code>src/routes/site.ts:464-472</code> — the deliberate homepage fallback for unmatched paths; <code>:374-385</code> the <code>?nocache=1</code> pattern flush list (add sitemap/robots keys); <code>:408-413</code> redirects resolve before page lookup (they keep working after the 404 change).</li>
+        <li><code>src/templates/page-not-found.ts</code> — the 404 template that exists but is only reachable when a project has no homepage.</li>
+        <li><code>src/utils/renderer.ts:359 / :418</code> — canonical and og:url emitted verbatim from <code>seo_data.canonical_url</code>, no tag at all when missing.</li>
+        <li><code>src/services/redirect.service.ts</code> — exact + wildcard redirect resolution, 5-min Redis cache (<code>redir:*</code>).</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Mirror the existing per-site Redis caching (<code>pb:*</code>/<code>posts:*</code>/<code>sp:*</code> patterns in <code>site.ts</code>) for sitemap/robots.</li>
+        <li>Renderer repo is outside the Alloro Code Constitution's mechanized gates; hold new code to the same principles anyway (small files, no swallowed errors, parameterized queries).</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>src/services/redirect.service.ts</code> — closest analog for a per-project, Redis-cached lookup added to the request path.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Execute <code>plans/07022026-one-endo-legacy-article-redirects</code> BEFORE the soft-404 change ships — once unknown paths 404, unredirected legacy URLs die hard and their link equity dies with them.</li>
+            <li>Before the 404 change, audit top sites for internal links currently hidden by the fallback (crawl each site's nav/footer/body links; anything that would start 404ing gets fixed or redirected first).</li>
+            <li>Confirm with the owner that neither ghost project needs to stay reachable before flipping them off.</li>
+            <li>Deploy path: renderer runs on alloro-renderer (54.159.199.33), pm2 app <code>website-builder</code>, port 7777 behind Caddy — verify on a low-traffic site first.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>Do not include archived projects' content in any sitemap.</li>
+            <li>Do not change redirect resolution order (redirects stay first).</li>
+            <li>Do not emit sitemap entries for draft/inactive pages or posts.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>The main-repo generator fixes (separate plan: <code>07022026-seo-generator-root-fixes</code>).</li>
+        <li>Deleting/cleaning the ghost projects' rows — gating rendering is enough; data cleanup is a later decision.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 3 — request-path behavior change for every client site on the platform.</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><span class="risk-tag">Level 3</span> The soft-404 fallback may be silently load-bearing: internal links that today "work" (render homepage) will start 404ing. <strong>Mitigation:</strong> pre-ship link audit per site (Must above); ship 404 change last, behind the redirect backfill.</li>
+        <li><span class="risk-tag">Level 2</span> Duplicate-session risk: the <code>task_99606846</code> worktree may contain overlapping work. <strong>Mitigation:</strong> the Coordination Note gate — reconcile before executing.</li>
+        <li><span class="risk-tag">Level 2</span> Canonical derivation could disagree with intentional cross-page canonicals if any exist. <strong>Mitigation:</strong> honor stored values that are same-domain AND resolve to a real page/post; only override junk/missing.</li>
+        <li><span class="risk-tag">Level 1</span> Sitemap generation cost on large sites. <strong>Mitigation:</strong> Redis cache with the existing TTL pattern.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> every rendered client site (all orgs), Googlebot/Bing crawl behavior platform-wide, the two ghost hostnames (go dark deliberately).</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>410 vs 404 for archived sites: 410 ("gone") is recommended — it tells Google to deindex faster and is honest about intent; 404 is acceptable if 410 complicates the Caddy/Express stack.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Reconcile with the chip session</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Inspect <code>task_99606846</code>'s worktree/branch in the renderer repo; adopt, merge, or supersede its work; record the outcome in this spec's Revision Log.</dd></div>
+          <div><dt>Files</dt><dd>None</dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: one agreed starting branch, no duplicate implementations.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Archived-project gating</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Exclude <code>archived_at IS NOT NULL</code> in both project lookups; add an archived-specific lookup so <code>site.ts</code> can return a dedicated 410 "no longer available" template (new, minimal, styled like <code>site-not-found</code>); platform-wide query for other archived-but-resolving hostnames.</dd></div>
+          <div><dt>Files</dt><dd><code>project.service.ts</code>, <code>site.ts</code>, new <code>templates/site-archived.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Manual: both known ghosts return 410; real sites unaffected (curl matrix).</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: Canonical/og:url self-derivation</h3>
+        <dl>
+          <div><dt>Do</dt><dd>In <code>renderer.ts</code>: build the canonical from serving domain + request path; use stored <code>canonical_url</code> only if same-domain and path-equal after normalization; always emit both tags.</dd></div>
+          <div><dt>Files</dt><dd><code>utils/renderer.ts</code>, <code>routes/site.ts</code> (thread serving context)</dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Manual: a post with missing stored canonical now emits a correct absolute one; the 4 audited sites' output unchanged (values already match).</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T4: robots.txt + sitemap.xml</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Route both paths before the page-resolution chain; generate per project from published pages + posts; Redis-cache; add keys to the <code>?nocache=1</code> flush list.</dd></div>
+          <div><dt>Files</dt><dd><code>routes/site.ts</code>, new <code>services/sitemap.service.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T1</dd></div>
+          <div><dt>Verify</dt><dd>Manual: valid XML on all 4 audited sites; entry counts match published counts; robots references the sitemap.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T5: Soft-404 → real 404 (ships last)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Replace the homepage fallback (<code>site.ts:464-472</code>) with <code>pageNotFoundPage</code> + 404, keeping the <code>/success</code> fallback and resolution order. Precondition: the internal-link audit is clean and <code>07022026-one-endo-legacy-article-redirects</code> has landed.</dd></div>
+          <div><dt>Files</dt><dd><code>routes/site.ts</code></dd></div>
+          <div><dt>Depends on</dt><dd>T2, T3, T4 + the redirects plan</dd></div>
+          <div><dt>Verify</dt><dd>Manual: nonsense path → 404 template; every nav/footer link on the 4 audited sites → 200; redirect rows still 301.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> swift-medical-7604 returns 410; garrison-orthodontics-3307's row was deleted from the DB entirely by another actor between audit and deploy, so it correctly returns 404 site-not-found (duplicate is dead either way)</li>
+        <li><input type="checkbox" checked disabled> Unknown paths 404 with the branded template; internal-link audit ran across ALL live sites (not just 4) — every real broken link (21: One Endo 10, Artful 1, Garrison 1, getalloro 8, sdcendo 1) got a verified redirect row BEFORE the flip; favicon refs and generated-hostname prototypes triaged as non-blockers</li>
+        <li><input type="checkbox" checked disabled> robots.txt + sitemap.xml live on every site — entry counts exact (One Endo 140 = 19 pages + 121 posts; Artful 99; Garrison 59; getalloro 13); Redis-cached; keys in the (now actually working) <code>?nocache=1</code> flush</li>
+        <li><input type="checkbox" checked disabled> Canonical/og:url always emitted and junk-resistant: One Endo's indexed www style preserved verbatim; caswellorthodontics.com (never data-repaired) now emits a correct self-canonical on posts that had none</li>
+        <li><input type="checkbox" checked disabled> Renderer tsc clean; deployed via push→Actions (run 28570861809, success); post-deploy matrix verified: ghosts dead, 404s, all sampled pages 200, old + new redirects 301</li>
+        <li><input type="checkbox" checked disabled> Chip-session reconciliation recorded in the Revision Log (worktree empty — nothing to adopt)</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-02</h3>
+        <p><strong>Change:</strong> Executed with one scope addition and two environment discoveries. Scope addition: the <code>?nocache=1</code> pattern-flush itself was broken in production — the Redis is a cluster with <code>KEYS</code> disabled and CROSSSLOT enforcement on multi-key DEL, so the old <code>keys()+del(...)</code> threw and was silently swallowed; every historical "nocache-verified" change had actually propagated via TTL expiry. Replaced with SCAN + per-key DEL and added the new <code>sitemap:*</code>/<code>robots:*</code> keys; proven live (redirects fired immediately after a flush that previously did nothing). Discoveries: (1) the garrison-orthodontics-3307 ghost row was deleted from <code>website_builder.projects</code> by another actor between the audit and this deploy, so it 404s as site-not-found rather than 410 — the outcome (duplicate dead) is the same; swift-medical-7604 verifies the 410 path. (2) T1 reconciliation: the <code>task_99606846</code> chip worktree contained zero commits and zero uncommitted changes — nothing to adopt; this session was the sole implementer. Known minor inconsistency, deliberate: sitemap <code>loc</code> URLs use the bare primary host while some sites' stored canonicals use www — canonicals are the authoritative signal and were left untouched to avoid churning indexed styles.</p>
+        <p><strong>Reason:</strong> Scope addition: broken flush discovered during Plan A's verification (redirect rows invisible until TTL expiry); discoveries surfaced during the post-deploy verification matrix.</p>
+        <p><strong>Updated Done criteria:</strong> Done items reworded in place to the verified outcomes (410/404 split for the two ghosts, all-sites link audit, working flush).</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

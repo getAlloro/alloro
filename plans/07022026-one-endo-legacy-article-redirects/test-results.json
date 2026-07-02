@@ -1,0 +1,24 @@
+{
+  "plan": "plans/07022026-one-endo-legacy-article-redirects",
+  "generatedAt": "2026-07-02",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Insert + verify the 92 legacy redirect rows",
+      "surface": "api",
+      "precondition": "Prod DB reachable; renderer serving 1endodontics.com",
+      "steps": [
+        "1. Run backfill.sql (transactional INSERT ... SELECT + ON CONFLICT DO NOTHING)",
+        "2. Verify counts (91 article rows + 1 contact-us; project total 41 -> 133)",
+        "3. curl >=5 legacy URLs asserting 301 -> /articles/{slug}",
+        "4. Follow one chain end-to-end to a 200"
+      ],
+      "expected": "Every inserted from_path 301s to a 200 target on the live site",
+      "status": "pass",
+      "evidence": "INSERT 0 91 + INSERT 0 1, zero conflicts, project total 133. Five samples (dentist-gainesville-insider-tips, root-canals-near-me, endodontist-near-me, how-do-tooth-infections-happen, contact-us/gainesville-office-coming-soon) all 301 to correct targets; full chain for dentist-gainesville-insider-tips ends 200 at /articles/dentist-gainesville-insider-tips. SQL preserved at backfill.sql in this folder.",
+      "notes": "Redirects appeared after the redirect cache's natural 5-min TTL, not via ?nocache=1 — discovered the deployed cache-bust's pattern flush is silently broken (KEYS disabled on the cluster Redis, error swallowed). Fix scoped into plans/07022026-renderer-seo-hardening.",
+      "waiver": ""
+    }
+  ]
+}

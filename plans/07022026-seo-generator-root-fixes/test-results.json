@@ -1,0 +1,67 @@
+{
+  "plan": "plans/07022026-seo-generator-root-fixes",
+  "generatedAt": "2026-07-02",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Single-generation-engine claim confirmed",
+      "surface": "cli",
+      "precondition": "None",
+      "steps": [
+        "1. Grep every seo_data write method caller across src/ and scripts/",
+        "2. Grep every consumer of runGenerateSection/runAllSeoSectionsTiered"
+      ],
+      "expected": "One engine; every generation path identified and covered by T2",
+      "status": "pass",
+      "evidence": "Exactly one engine (util.seo-section-runner.ts), consumed only by service.seo-generation.ts's three wrappers and the two backfill scripts. Remaining seo_data writers: the worker (merges wrapper output — covered), the deterministic enrichment service (read-patch-write, no LLM canonical), and human-input PATCH endpoints (page-editor updatePageSeo, user-website updateSeoDataRaw — out of scope by design). Answers the owner's 'do we have multiple generators' question: no.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Canonical never LLM-authored again",
+      "surface": "api",
+      "precondition": "None",
+      "steps": [
+        "1. Remove the canonical_url instruction from SeoGeneration.critical.md (explicit 'do NOT generate' note added)",
+        "2. New util.canonical-path.ts deriveCanonicalPath (page: real path; post: /{type-slug}/{slug}; null-on-failure, never throws)",
+        "3. Inject after generation in generateSeoForSection (critical section), generateAllSeoSections, generateAllWithSharedContext (covers UI single, UI all, worker)",
+        "4. seo-generate-missing.ts switched to the wrapper; private override deleted"
+      ],
+      "expected": "Deterministic canonical on every generation path regardless of model output",
+      "status": "pass",
+      "evidence": "Unit: LLM-fabricated 'https://example.com/totally/fabricated/path/' overridden to /articles/cleanings-101 (post) and /wrong-guess overridden to /services/cleaning (page). Live dev controller-path run: services/apicoectomy generated canonical /services/apicoectomy.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Snapshot column fixed + GEO auto-apply explicit (owner option A)",
+      "surface": "api",
+      "precondition": "Migration 20260702000000 applied",
+      "steps": [
+        "1. Migration previous_content jsonb -> text on dev (batch 126)",
+        "2. apply_geo_content / applyGeoContent flag threaded through both generate-all wrappers, default true (0.0.143 behavior preserved); SIDE EFFECT JSDoc on both; byte-count logging on applies; skip-log on opt-out",
+        "3. Dev round-trip: snapshot a real 5.4KB HTML post, restore from snapshot, clear"
+      ],
+      "expected": "The previously-always-crashing snapshot works end to end; opt-out verifiably skips; recovery restores byte-identically",
+      "status": "pass",
+      "evidence": "Dev round-trip: snapshot write succeeded (was Postgres 22P02 before), previous_content === original (string), restore byte-identical, snapshot cleared. Live dev generation with defaults: content rewritten (recommendationBytes 348 logged), snapshot captured, restored byte-identically afterward. apply_geo_content:false: unit test proves no createPageVersion/updateContentWithSnapshot; skip-log observed in test output.",
+      "notes": "Prod still runs jsonb until dev/dave -> main deploys the migration — auto-apply on prod keeps failing until then (unchanged from today's status quo; nothing regressed).",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Tests",
+      "surface": "cli",
+      "precondition": "None",
+      "steps": ["1. Extend service.seo-generation.test.ts mocks (PageModel.findRawById, PostTypeModel) + 3 new cases"],
+      "expected": "Full suite green",
+      "status": "pass",
+      "evidence": "161/161 across the suite; tsc 0 errors; check:conventions --strict 0 violations.",
+      "notes": "",
+      "waiver": ""
+    }
+  ]
+}
