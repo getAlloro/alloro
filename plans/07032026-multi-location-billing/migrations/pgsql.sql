@@ -1,16 +1,21 @@
 -- Multi-Location Billing — Phase B: location cancellation lifecycle
+-- FILLED during execution. Real migration: src/database/migrations/
+-- 20260703000000_add_location_cancellation_lifecycle.ts (runs via knex).
 -- Table: locations
--- Adds: status ('active' | 'pending_cancellation' | 'cancelled', NOT NULL, default 'active')
---       cancel_effective_at (timestamptz, null — when a pending cancellation takes effect)
---       cancelled_at        (timestamptz, null — when the location became cancelled)
--- Index: (organization_id, status) — listing + finalizer queries filter on both
 -- Data: no rows modified; all existing locations default to 'active'.
--- Rollback risk: down drops the columns — status/cancellation history is lost (flag before prod merge).
+-- Rollback risk: down drops the columns — status/cancellation history is lost.
 
--- TODO: fill during execution
--- ALTER TABLE locations
---   ADD COLUMN status text NOT NULL DEFAULT 'active'
---     CHECK (status IN ('active', 'pending_cancellation', 'cancelled')),
---   ADD COLUMN cancel_effective_at timestamptz NULL,
---   ADD COLUMN cancelled_at timestamptz NULL;
--- CREATE INDEX idx_locations_org_status ON locations (organization_id, status);
+ALTER TABLE locations
+  ADD COLUMN status text NOT NULL DEFAULT 'active',
+  ADD COLUMN cancel_effective_at timestamptz NULL,
+  ADD COLUMN cancelled_at timestamptz NULL;
+
+ALTER TABLE locations ADD CONSTRAINT chk_locations_status
+  CHECK (status IN ('active', 'pending_cancellation', 'cancelled'));
+
+CREATE INDEX idx_locations_org_status ON locations (organization_id, status);
+
+-- Rollback:
+-- ALTER TABLE locations DROP CONSTRAINT IF EXISTS chk_locations_status;
+-- DROP INDEX IF EXISTS idx_locations_org_status;
+-- ALTER TABLE locations DROP COLUMN status, DROP COLUMN cancel_effective_at, DROP COLUMN cancelled_at;
