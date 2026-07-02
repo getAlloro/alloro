@@ -222,6 +222,9 @@
         <li><input type="checkbox" checked disabled> Manual: 0 posts remain with null meta_title on One Endo + Garrison (108/108 generated)</li>
         <li><input type="checkbox" checked disabled> Manual: 49/49 Garrison posts have schema_json</li>
         <li><input type="checkbox" checked disabled> Manual: final re-audit table has no unexplained non-green cells</li>
+        <li><input type="checkbox" checked disabled> (Rev 2) Manual: 0 Artful posts remain with null meta_title (Angelita generated: 60-char title, canonical /staff/angelita, og_image preserved, Person schema — live-verified)</li>
+        <li><input type="checkbox" checked disabled> (Rev 2) Manual: 84/84 Artful posts have schema_json (74/74 batch, 0 failed); md5 of title+description byte-identical on all 3 sampled posts</li>
+        <li><input type="checkbox" checked disabled> (Rev 2) Manual: 0 invalid schema types after the pass; rating only on eligible business entities (9→12), FAQ only where content supports it (4→34)</li>
       </ul>
     </section>
 
@@ -232,6 +235,12 @@
         <p><strong>Change:</strong> Execution completed T1-T5 as planned, with four execution-time deviations. (1) T1's schema-type allowlist initially didn't recognize getalloro.com's legitimate <code>SoftwareApplication</code> type, briefly overwriting it to <code>MedicalBusiness</code> on 4 pages — caught immediately via a full before/after type-count reconciliation across all 4 sites, allowlist fixed, 4 rows reverted to the exact original value, zero remaining damage, regression test added. (2) T3 discovered that full tiered generation also triggers "GEO auto-apply" (rewrites a post's visible body content) as an undocumented side effect — owner confirmed metadata-only scope, so T3/T4 call the section runner directly instead of the wrapper that triggers it. (3) T3 discovered the "critical" section re-fabricates canonical URLs on fresh posts (same disease already fixed for existing posts pre-session) — every freshly-generated post's canonical is now deterministically overridden to <code>/{type-slug}/{slug}</code>, never trusted from the LLM. (4) Title-trim (added mid-session as part of T1/T2) only reached posts touched by T3/T4's generation calls — ran an additional retroactive, idempotent, zero-LLM-cost sweep of <code>enrichPostsForProject</code> across all 3 posting sites so the capability reaches the 254 posts fixed in the prior plan too.</p>
         <p><strong>Reason:</strong> Execution deviation: all four were discovered mid-run via live verification and direct DB reconciliation, not anticipated at planning time.</p>
         <p><strong>Updated Done criteria:</strong> Title-length Done item's wording updated in place to reflect the 31 genuinely-unresolvable single-segment headlines as the correct final state, not a gap.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-02</h3>
+        <p><strong>Change:</strong> Extend the T3/T4 generation treatment to Artful Orthodontics, which the original scope missed: T6 (Rev 2) full generation for its 1 zero-SEO post (the "Angelita" staff bio — its existing <code>og_image</code>/<code>canonical_url</code> keys are preserved by making <code>scripts/seo-generate-missing.ts</code> merge over existing <code>seo_data</code> instead of overwriting it), and T7 (Rev 2) schema_json-only generation for its 74 articles via <code>scripts/seo-generate-schema-only.ts</code>, refactored from a hardcoded Garrison-only constant to a multi-project target list (One Endo/Garrison become idempotent no-ops). Same single-section "significant" generation + post-enrichment layering as T4; titles/descriptions must come out byte-identical, verified against pre-run md5 snapshots of 3 sampled articles.</p>
+        <p><strong>Reason:</strong> Scope addition: owner request ("do a pass for artful to fix it") after the final audit table surfaced that the original plan sized the zero-data/zero-schema problem only against One Endo + Garrison and never checked Artful, which has the same disease at larger scale (75 schema-less posts + 1 blank).</p>
+        <p><strong>Updated Done criteria:</strong> Three new (Rev 2) checklist items — Artful null-title count reaches 0, 84/84 Artful posts carry schema_json with sampled titles/descriptions unchanged, and no invalid types introduced by the new pass.</p>
       </article>
     </section>
   </main>

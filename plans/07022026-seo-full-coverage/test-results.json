@@ -102,6 +102,24 @@
       "evidence": "tsc: 0 errors. check:conventions --strict: 0 clear structural violations. vitest: 158/158 passed across 18 files (22 new this session). eslint: 0 errors, 0 warnings on all new/modified source files. depcruise: 0 errors, 32 pre-existing advisory warnings, none from this session's files.",
       "notes": "",
       "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "(Rev 2) Artful pass: generate the 1 blank post + schema_json for 74 articles",
+      "surface": "web",
+      "precondition": "Rev 2 scope addition — Artful was missed by the original T3/T4 sizing",
+      "steps": [
+        "1. Extend seo-generate-missing.ts targets to Artful (merge-preserving existing seo_data keys) and refactor seo-generate-schema-only.ts to a multi-project list",
+        "2. Dry-run both: One Endo 0/0, Garrison 0/0, Artful 1 + 74 — other sites confirmed idempotent no-ops",
+        "3. Run full generation for the Angelita staff post, verify live",
+        "4. Run the 74-article schema-only batch, verify sampled titles/descriptions byte-identical via pre-run md5 snapshots",
+        "5. Re-audit the Artful row"
+      ],
+      "expected": "0 Artful posts with null meta_title, 84/84 with schema_json, titles/descriptions unchanged, no invalid types, rating/FAQ only on eligible elements",
+      "status": "pass",
+      "evidence": "Angelita: 60-char title, canonical /staff/angelita (deterministic, not LLM), og_image preserved through the merge, Person + BreadcrumbList schema, live-verified via curl. Batch: 74/74 succeeded, 0 failed. All 3 md5-snapshotted posts byte-identical on title and description. Final audit: no_title 0, no_schema 0, invalid types 0, rating 9→12 (3 articles whose generated schema included an eligible business entity), FAQPage 4→34. Live spot-check of /articles/adult-braces-dental-health shows Article + BreadcrumbList schema with the original title. Gates re-run: tsc 0 errors, vitest 158/158, check:conventions --strict 0 violations.",
+      "notes": "One Endo and Garrison re-ran as no-ops (0 targets each), confirming both scripts are now safe, idempotent multi-site sweeps.",
+      "waiver": ""
     }
   ]
 }

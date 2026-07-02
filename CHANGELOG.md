@@ -2,6 +2,24 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.150] - July 2026
+
+### SEO Full Coverage Rev 2: Artful Orthodontics Gets the Same Generation Pass
+
+The final audit table from 0.0.149 exposed a scoping miss: the "generate SEO for posts that have none" work was only ever sized against One Endodontics and Garrison — Artful Orthodontics had the same disease at larger scale (75 posts with zero structured data, including 1 staff-bio post with no SEO data at all) and was never checked. Owner requested the same pass for Artful; recorded as Rev 2 on `plans/07022026-seo-full-coverage`.
+
+**Key Changes:**
+- **Angelita staff post generated from scratch** — real 60-char title, deterministic canonical (`/staff/angelita`, never LLM-authored), `Person` schema (correct for a bio, correctly carrying no star rating). `scripts/seo-generate-missing.ts` now merges generated fields over a post's existing `seo_data` instead of overwriting it, so the post's pre-existing imported `og_image` survived the generation rather than depending on re-enrichment to restore it.
+- **74 articles given structured data** via the schema-only pass (`scripts/seo-generate-schema-only.ts`, refactored from a hardcoded Garrison-only constant into a multi-project target list covering all 3 posting sites — sites already covered re-run as idempotent no-ops). Titles/descriptions confirmed byte-identical via pre-run md5 snapshots on sampled posts; 74/74 succeeded, 0 failures.
+- **Final post-side state across all 3 posting sites:** 0 posts missing SEO data, 0 posts missing structured data, 0 invalid schema types, ratings only on eligible business entities (Artful 9→12), FAQ schema only where article content actually supports it (Artful 4→34).
+
+**Verification:** `npx tsc --noEmit` clean, 158/158 vitest, `check:conventions --strict` 0 violations. Dry-runs confirmed exact targeting (One Endo 0, Garrison 0, Artful 1+74) before any write. Acceptance item T7 (Rev 2) added to `plans/07022026-seo-full-coverage/test-results.json`, all items pass.
+
+**Commits:**
+- `scripts/seo-generate-missing.ts` — Artful added to targets; merge-preserve existing seo_data keys
+- `scripts/seo-generate-schema-only.ts` — refactored to multi-project target list
+- `plans/07022026-seo-full-coverage/` — Rev 2 revision entry, Done items, acceptance item T7
+
 ## [0.0.149] - July 2026
 
 ### SEO Full Coverage: Pages Enriched, 108 Blank Posts Given Real SEO Data

@@ -1,10 +1,11 @@
 /**
- * One-off schema_json-only generation for Garrison Orthodontics posts that
- * have a title/description but zero schema_json — 33 posts, distinct from
- * scripts/seo-generate-missing.ts's 108 fully-blank posts. Only the
- * "significant" section is generated (schema_json); everything else on
- * these posts already exists and must not be touched. Read-patch-write,
- * same discipline as service.seo-enrichment.ts.
+ * One-off schema_json-only generation for posts that have a title/description
+ * but zero schema_json — originally Garrison Orthodontics' 33 posts, extended
+ * (spec Rev 2) to Artful Orthodontics' 74 articles. Only the "significant"
+ * section is generated (schema_json); everything else on these posts already
+ * exists and must not be touched. Read-patch-write, same discipline as
+ * service.seo-enrichment.ts. Sites whose posts all carry schema_json already
+ * are idempotent no-ops, so the target list stays a reusable sweep.
  *
  * Uses runGenerateSection (util.seo-section-runner.ts) directly, not the
  * service.seo-generation.ts wrapper — no auto-apply risk either way since
@@ -12,7 +13,7 @@
  * staying consistent with seo-generate-missing.ts's approach.
  *
  * Companion to:
- *   plans/07022026-seo-full-coverage/spec.html (T4)
+ *   plans/07022026-seo-full-coverage/spec.html (T4, T7 (Rev 2))
  *
  * USAGE
  *   cd ~/Desktop/alloro
@@ -37,8 +38,11 @@ import {
 import { runGenerateSection } from "../src/controllers/admin-websites/feature-utils/util.seo-section-runner";
 import { enrichPostSeoData } from "../src/controllers/admin-websites/feature-services/service.seo-enrichment";
 
-const PROJECT_ID = "5972c0d7-bfbd-4a0b-952a-a08ba408eb81";
-const PROJECT_NAME = "Garrison Orthodontics";
+const TARGET_PROJECTS: Array<{ name: string; projectId: string }> = [
+  { name: "One Endodontics", projectId: "0dcad678-2845-4c20-a298-e9c62aed9ebc" },
+  { name: "Garrison Orthodontics", projectId: "5972c0d7-bfbd-4a0b-952a-a08ba408eb81" },
+  { name: "Artful Orthodontics", projectId: "b64249d7-43fe-4148-8acd-ae7e47aaa3cd" },
+];
 
 interface SchemaOnlyPost {
   id: string;
@@ -53,8 +57,8 @@ function parseSeoData(raw: unknown): Record<string, unknown> {
   return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
 }
 
-async function findSchemaOnlyTargets(): Promise<SchemaOnlyPost[]> {
-  const posts = await PostModel.findByProjectFiltered(PROJECT_ID, { status: "published" });
+async function findSchemaOnlyTargets(projectId: string): Promise<SchemaOnlyPost[]> {
+  const posts = await PostModel.findByProjectFiltered(projectId, { status: "published" });
   return posts
     .map((post: { id: string; title: string; content: string | null; seo_data: unknown }) => ({
       id: post.id,
@@ -71,6 +75,7 @@ async function findSchemaOnlyTargets(): Promise<SchemaOnlyPost[]> {
 }
 
 async function generateSchemaAndEnrich(
+  projectId: string,
   post: SchemaOnlyPost,
   sharedContext: Awaited<ReturnType<typeof fetchSharedContext>>
 ): Promise<string[]> {
@@ -83,7 +88,7 @@ async function generateSchemaAndEnrich(
     sharedContext.creatorContext,
     sharedContext.validatorContext,
     { page_content: post.content, post_title: post.title, existing_seo_data: post.seoData },
-    PROJECT_ID,
+    projectId,
     post.id,
     practiceFactsBlock
   );
@@ -95,35 +100,39 @@ async function generateSchemaAndEnrich(
 
   await PostModel.updateSeoDataByIdJsClock(post.id, JSON.stringify(merged));
 
-  const enrichment = await enrichPostSeoData(post.id, PROJECT_ID);
+  const enrichment = await enrichPostSeoData(post.id, projectId);
   return enrichment.changed;
 }
 
-async function main(): Promise<number> {
-  const dryRun = process.argv.includes("--dry-run");
-  const posts = await findSchemaOnlyTargets();
+async function processProject(target: { name: string; projectId: string }, dryRun: boolean): Promise<boolean> {
+  const posts = await findSchemaOnlyTargets(target.projectId);
 
   if (dryRun) {
-    console.log(`[seo-generate-schema-only] (dry-run) ${PROJECT_NAME}: would process ${posts.length} post(s)`);
-    return 0;
+    console.log(`[seo-generate-schema-only] (dry-run) ${target.name}: would process ${posts.length} post(s)`);
+    return true;
   }
 
-  const project = await ProjectModel.findOrganizationIdById(PROJECT_ID);
+  if (posts.length === 0) {
+    console.log(`[seo-generate-schema-only] ${target.name}: nothing to do`);
+    return true;
+  }
+
+  const project = await ProjectModel.findOrganizationIdById(target.projectId);
   if (!project?.organization_id) {
-    console.error(`[seo-generate-schema-only] ${PROJECT_NAME}: no organization linked`);
-    return 1;
+    console.error(`[seo-generate-schema-only] ${target.name}: no organization linked, skipping`);
+    return false;
   }
 
-  console.log(`[seo-generate-schema-only] ${PROJECT_NAME}: fetching shared context...`);
-  const sharedContext = await fetchSharedContext(PROJECT_ID);
+  console.log(`[seo-generate-schema-only] ${target.name}: fetching shared context...`);
+  const sharedContext = await fetchSharedContext(target.projectId);
 
-  console.log(`[seo-generate-schema-only] ${PROJECT_NAME}: generating schema_json for ${posts.length} post(s)...`);
+  console.log(`[seo-generate-schema-only] ${target.name}: generating schema_json for ${posts.length} post(s)...`);
   let done = 0;
   const failures: Array<{ id: string; error: string }> = [];
 
   for (const post of posts) {
     try {
-      const enrichmentChanges = await generateSchemaAndEnrich(post, sharedContext);
+      const enrichmentChanges = await generateSchemaAndEnrich(target.projectId, post, sharedContext);
       done += 1;
       console.log(
         `[seo-generate-schema-only]   [${done}/${posts.length}] ✓ "${post.title}" — enrichment: ${enrichmentChanges.join(", ") || "none needed"}`
@@ -135,12 +144,24 @@ async function main(): Promise<number> {
     }
   }
 
-  console.log(`[seo-generate-schema-only] ${PROJECT_NAME}: done — ${done}/${posts.length} succeeded, ${failures.length} failed`);
+  console.log(`[seo-generate-schema-only] ${target.name}: done — ${done}/${posts.length} succeeded, ${failures.length} failed`);
   if (failures.length > 0) {
-    console.error(`[seo-generate-schema-only] failures —`, failures);
-    return 1;
+    console.error(`[seo-generate-schema-only] ${target.name}: failures —`, failures);
+    return false;
   }
-  return 0;
+  return true;
+}
+
+async function main(): Promise<number> {
+  const dryRun = process.argv.includes("--dry-run");
+  let allOk = true;
+
+  for (const target of TARGET_PROJECTS) {
+    const ok = await processProject(target, dryRun);
+    allOk = allOk && ok;
+  }
+
+  return allOk ? 0 : 1;
 }
 
 main()

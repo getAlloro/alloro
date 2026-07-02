@@ -52,6 +52,7 @@ import { enrichPostSeoData } from "../src/controllers/admin-websites/feature-ser
 const TARGET_PROJECTS: Array<{ name: string; projectId: string }> = [
   { name: "One Endodontics", projectId: "0dcad678-2845-4c20-a298-e9c62aed9ebc" },
   { name: "Garrison Orthodontics", projectId: "5972c0d7-bfbd-4a0b-952a-a08ba408eb81" },
+  { name: "Artful Orthodontics", projectId: "b64249d7-43fe-4148-8acd-ae7e47aaa3cd" },
 ];
 
 interface ZeroDataPost {
@@ -60,21 +61,30 @@ interface ZeroDataPost {
   content: string;
   slug: string;
   postTypeId: string;
+  /** Whatever partial seo_data the post already carries (e.g. an imported og_image) — preserved under the generated fields. */
+  existingSeoData: Record<string, unknown>;
+}
+
+function parseExistingSeoData(raw: unknown): Record<string, unknown> {
+  if (!raw) return {};
+  const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+  return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
 }
 
 async function findZeroDataPosts(projectId: string): Promise<ZeroDataPost[]> {
   const posts = await PostModel.findByProjectFiltered(projectId, { status: "published" });
   return posts
     .filter((post: { seo_data: unknown }) => {
-      const seo = typeof post.seo_data === "string" ? JSON.parse(post.seo_data) : post.seo_data;
-      return !seo || typeof seo !== "object" || !seo.meta_title;
+      const seo = parseExistingSeoData(post.seo_data);
+      return !seo.meta_title;
     })
-    .map((post: { id: string; title: string; content: string | null; slug: string; post_type_id: string }) => ({
+    .map((post: { id: string; title: string; content: string | null; slug: string; post_type_id: string; seo_data: unknown }) => ({
       id: post.id,
       title: post.title,
       content: post.content || "",
       slug: post.slug,
       postTypeId: post.post_type_id,
+      existingSeoData: parseExistingSeoData(post.seo_data),
     }));
 }
 
@@ -113,7 +123,10 @@ async function generateAndEnrichPost(
     practiceFactsBlock
   );
 
-  const mergedSeoData: Record<string, unknown> = {};
+  // Start from whatever the post already carries (imported og_image, prior
+  // canonical fix, ...) so fresh generation fills the gaps without wiping
+  // unrelated keys — generated fields win where both exist.
+  const mergedSeoData: Record<string, unknown> = { ...post.existingSeoData };
   const mergedInsights: Record<string, string> = {};
   for (const r of results) {
     Object.assign(mergedSeoData, r.generated);
