@@ -2,6 +2,26 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.151] - July 2026
+
+### SEO Root-Cause Batch: Legacy Redirects, Generator Fixes, Honest Audit Scoring, Renderer Hardening
+
+Four plans executed as one batch, closing every root cause behind the SEO defects repaired in 0.0.147–0.0.150 — so the fixed data stays fixed no matter which button anyone clicks next.
+
+**Key Changes:**
+- **One Endo legacy article redirects (`plans/07022026-one-endo-legacy-article-redirects`, prod data).** 92 exact-match 301 rows send the old WordPress root-level article URLs (and one legacy contact page) to their real new paths, preserving backlink equity and landing visitors on the article instead of the homepage. Landed deliberately before the renderer's 404 flip.
+- **Generator root fixes (`plans/07022026-seo-generator-root-fixes`).** The canonical URL is never LLM-authored again: the "critical" prompt stops asking for it, and a shared `deriveCanonicalPath` deterministically overrides it on every generation path — admin UI single-section, "Generate All", the bulk worker, and the backfill scripts. GEO auto-apply keeps its 0.0.143-approved default-on behavior with an explicit `apply_geo_content` opt-out, side-effect documentation, and byte-count logging. Its recovery snapshot works for the first time ever: `previous_content` was created as `jsonb` while storing raw HTML — every snapshot write crashed (0 recorded platform-wide, and the crash failed entire post generations whenever GEO produced a recommendation); migrated to `text` (provably all-NULL, zero data risk) and proven end-to-end on dev including a byte-identical restore. T1 also settled the "do we have multiple generators?" question: exactly one engine, five entry points, all now covered.
+- **SEO panel scoring honesty (`plans/07022026-seo-audit-canonical-check`, frontend).** The "Canonical tag" criterion — which scored the original broken Fredericksburg canonical 8/8 — now checks correctness: full credit only for present + primary-host + path-matching values; partial credit (4) with a mismatch-naming label for same-host consolidation; hard fail for cross-host (including the site's internal generated hostname once a custom domain exists), wrong-path, or malformed values. Fixed in both parallel scorers with real page/host context threaded through; both production failure modes pinned as regression tests. Sites with wrong canonicals score lower now — that is the point.
+- **Renderer hardening (`plans/07022026-renderer-seo-hardening`, website-renderer repo `920dbc9`, deployed).** Archived projects stop rendering (410 Gone; the DentalEMR ghost verified live — the Garrison orphan's row was separately deleted and 404s); unknown paths return a real 404 instead of the homepage-with-200 soft-404, gated behind a platform-wide internal-link audit that first added 21 redirect rows for every genuinely broken nav/body link on live sites; every site now serves a real `robots.txt` and `sitemap.xml` (entry counts verified exact against the DB); canonical/og:url are self-derived at render time and always emitted — correct stored values (including indexed www styles) pass through byte-identically, junk and missing values get the real URL, which immediately gave never-repaired sites like caswellorthodontics.com canonicals on posts that had none. Also fixed `?nocache=1` itself: the production Redis is a cluster with `KEYS` disabled, so the old pattern-flush silently did nothing — now SCAN-based and proven live.
+
+**Verification:** backend `tsc` clean, 161/161 vitest, `check:conventions --strict` 0 violations; frontend `tsc -p tsconfig.app.json` exit 0, 32/32 vitest, eslint 0 errors; renderer `tsc` clean, deploy run 28570861809 success, post-deploy matrix green (ghosts dead, 404s honest, 5/5 sampled pages 200, old/new/pre-flip redirects all 301, sitemap counts exact, canonical stability confirmed). Migration `20260702000000` applied on dev (batch 126) — runs on prod at the next dev/dave→main deploy. All four plan folders carry Passed acceptance artifacts. Both idle chip sessions (`task_cfd3c6f7`, `task_99606846`) inspected before execution: zero work to adopt — safe to close.
+
+**Commits:**
+- `90259c08` — Plan A: legacy article redirect rows + artifacts
+- `d37b2362` — Plan B: prompt fix, `util.canonical-path.ts`, `apply_geo_content` flag, `previous_content` migration, tests
+- `25f28d0f` — Plan C: `assessCanonical` + both scorers + context threading + regression tests
+- `a46d5997` — Plan D artifacts (renderer code in website-renderer `920dbc9`)
+
 ## [0.0.150] - July 2026
 
 ### SEO Full Coverage Rev 2: Artful Orthodontics Gets the Same Generation Pass
