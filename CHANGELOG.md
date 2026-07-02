@@ -2,6 +2,21 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.146] - July 2026
+
+### Website Builder: Page Label Backfill and Draft-Creation Label Loss Fix
+
+The admin Pages list for four sites was showing raw URL paths ("/about", "/consultation") instead of readable names because `display_name` had never been set on the rows the list actually renders. Backfilled real labels directly in prod, then fixed the root cause so future edits stop silently dropping the label.
+
+**Key Changes:**
+- **One-off prod data repair (no migration).** Backfilled `display_name` on the exact `website_builder.pages` rows the admin Pages list renders — `publishedPage || latestPage` per path, mirroring `PagesTab.tsx`'s own selection logic — for Artful Orthodontics (15 paths), Garrison Orthodontics (10 paths, the org-linked project only; a no-org orphan duplicate project was left untouched pending review), One Endodontics (19 paths, propagating labels the team had already chosen on older versions onto the current published/draft rows), and getalloro.com (13 paths, all previously unlabeled). 102 page-version rows updated across 57 paths, inside transactions with an organization-linkage safety guard and exact row-count checks; independently re-verified against fresh prod state afterward.
+- **Root-cause fix.** `createDraft()` (`service.page-editor.ts`) runs whenever an already-published page is opened for editing with no draft already in progress. It copied `sections`, `seo_data`, and `template_page_id` from the source page into the new draft row, but never `display_name` — so the new draft, and everything published from it afterward, landed with no label. This is almost certainly why most pages arrived unlabeled in the first place. Every other version-creating path (save, publish, restore-from-history, history snapshot) already carried the label forward correctly with the same `existing.display_name || null` pattern; this was the one gap. The fix is platform-wide — it applies to every project, not just the four sites backfilled above.
+
+**Verification:** `npx tsc --noEmit` clean. Prod backfill independently re-verified by recomputing each path's `displayPage.display_name` fresh from the database post-write — all 57 paths resolve to a real label. Fixed as a quickfix (single line, one file, mirrors the existing `template_page_id` carry-forward pattern already in the same insert call); no test exercises `createDraft`'s own insert payload (the one existing test touching this file mocks `createDraft` entirely for a different caller). No schema migration — data-only correction plus a code fix, no `spec.html`/plan folder, matching the direct-prod-edit precedent used for the earlier footer-credit correction.
+
+**Commits:**
+- `src/controllers/admin-websites/feature-services/service.page-editor.ts` — carry `display_name` forward in `createDraft`'s insert
+
 ## [0.0.145] - July 2026
 
 ### Patient Journey: Month Navigation and Honest Google Visibility States

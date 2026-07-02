@@ -505,6 +505,7 @@ export async function createDraft(
     template_page_id: sourcePage.template_page_id || null,
     sections: JSON.stringify(normalizeSections(sourcePage.sections)),
     seo_data: sourcePage.seo_data ? JSON.stringify(sourcePage.seo_data) : null,
+    display_name: sourcePage.display_name || null,
   });
 
   logger.info(
