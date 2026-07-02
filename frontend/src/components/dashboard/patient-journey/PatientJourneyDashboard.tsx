@@ -12,14 +12,27 @@
  * Spec: plans/06242026-patient-journey-insights/spec.html (T7)
  */
 
-import { useEffect, type ReactNode } from "react";
-import { AlertCircle, RefreshCw, TrendingUp } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import {
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
+  TrendingUp,
+} from "lucide-react";
 import { usePatientJourney } from "../../../hooks/queries/usePatientJourney";
 import { useLabels } from "../../../hooks/useLabels";
 import { useLocationContext } from "../../../contexts/locationContext";
 import { PatientJourneyPipeline } from "./PatientJourneyPipeline";
 import { PatientJourneyContextCards } from "./PatientJourneyContextCards";
-import { formatPrecisePct } from "./patientJourney.utils";
+import {
+  MONTH_HISTORY_LIMIT,
+  formatPrecisePct,
+  monthKeyFromOffset,
+} from "./patientJourney.utils";
+
+const MONTH_NAV_BUTTON_CLASS =
+  "rounded-lg border border-line-soft p-1.5 text-ink-muted transition-colors hover:bg-slate-50 hover:text-alloro-navy disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-ink-muted";
 
 interface PatientJourneyDashboardProps {
   organizationId: number | null;
@@ -53,14 +66,48 @@ function CenteredCard({ children }: { children: ReactNode }) {
   );
 }
 
+interface MonthNavigationProps {
+  monthOffset: number;
+  onStep: (delta: number) => void;
+}
+
+/** Prev/next month chevrons, clamped to [current − 11 … current] months. */
+function MonthNavigation({ monthOffset, onStep }: MonthNavigationProps) {
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        aria-label="Previous month"
+        disabled={monthOffset <= 1 - MONTH_HISTORY_LIMIT}
+        onClick={() => onStep(-1)}
+        className={MONTH_NAV_BUTTON_CLASS}
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+      <button
+        type="button"
+        aria-label="Next month"
+        disabled={monthOffset >= 0}
+        onClick={() => onStep(1)}
+        className={MONTH_NAV_BUTTON_CLASS}
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
 function advisorBannerText(
   conversions: Array<{ toKey: string; pct: number | null }>,
+  periodLabel: string,
+  isCurrentMonth: boolean,
 ): string {
   const leadConversion = conversions.find((conversion) => conversion.toKey === "leads");
   if (leadConversion?.pct === null || leadConversion?.pct === undefined) {
     return "Your lead pipeline is ready. Review each step to see where visibility, visits, and leads are moving.";
   }
-  return `Your visibility is strong. Your website conversion is your largest opportunity. Only ${formatPrecisePct(leadConversion.pct)} of website visitors contacted your practice this month.`;
+  const timePhrase = isCurrentMonth ? "this month" : `in ${periodLabel}`;
+  return `Your visibility is strong. Your website conversion is your largest opportunity. Only ${formatPrecisePct(leadConversion.pct)} of website visitors contacted your practice ${timePhrase}.`;
 }
 
 export function PatientJourneyDashboard({
@@ -69,10 +116,18 @@ export function PatientJourneyDashboard({
 }: PatientJourneyDashboardProps) {
   const labels = useLabels();
   const { signalContentReady } = useLocationContext();
-  const { data, isLoading, isError, error, refetch } = usePatientJourney(
-    organizationId,
-    locationId,
-  );
+  // 0 = current month, -1 = last month … clamped at MONTH_HISTORY_LIMIT months.
+  const [monthOffset, setMonthOffset] = useState(0);
+  // The current month keeps the period-less query key so the Practice Hub
+  // summary card's request stays deduped with this screen's.
+  const period = monthOffset < 0 ? monthKeyFromOffset(monthOffset) : undefined;
+  const { data, isLoading, isFetching, isError, error, refetch } =
+    usePatientJourney(organizationId, locationId, period);
+
+  // A location switch always lands back on the current month.
+  useEffect(() => {
+    setMonthOffset(0);
+  }, [locationId]);
 
   // Signal the location-transition overlay once the surface has resolved.
   useEffect(() => {
@@ -140,7 +195,11 @@ export function PatientJourneyDashboard({
         {/* Advisor summary — descriptive only, never a prediction. */}
         <div className="rounded-[16px] border border-cream-line bg-cream px-7 py-5 shadow-premium sm:px-8 sm:py-6">
           <p className="max-w-[860px] font-display text-[16.5px] leading-[1.55] text-alloro-navy sm:text-[18px]">
-            {advisorBannerText(data.conversions)}
+            {advisorBannerText(
+              data.conversions,
+              data.period.label,
+              monthOffset === 0,
+            )}
           </p>
         </div>
 
@@ -153,15 +212,33 @@ export function PatientJourneyDashboard({
                 &middot; {data.period.label}
               </span>
             </p>
+            <MonthNavigation
+              monthOffset={monthOffset}
+              onStep={(delta) => setMonthOffset((offset) => offset + delta)}
+            />
           </div>
 
-          <PatientJourneyPipeline journey={data} />
+          {/* Dim (and lock) the month-scoped content while a step refetches;
+              the previous month stays visible via the hook's placeholderData.
+              The key remount resets card selection per month. */}
+          <div
+            className={
+              isFetching && !isLoading
+                ? "pointer-events-none opacity-50 transition-opacity"
+                : "transition-opacity"
+            }
+          >
+            <PatientJourneyPipeline
+              key={data.period.startDate}
+              journey={data}
+            />
 
-          <div className="mt-6 border-t border-line-soft pt-5">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">
-              What&rsquo;s influencing your leads
-            </p>
-            <PatientJourneyContextCards context={data.context} />
+            <div className="mt-6 border-t border-line-soft pt-5">
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">
+                What&rsquo;s influencing your leads
+              </p>
+              <PatientJourneyContextCards context={data.context} />
+            </div>
           </div>
         </section>
       </main>

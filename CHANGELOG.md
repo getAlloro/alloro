@@ -2,6 +2,22 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.145] - July 2026
+
+### Patient Journey: Month Navigation and Honest Google Visibility States
+
+Owners can now review past months of the Patient Journey funnel, and the Google Visibility card no longer claims "Not connected yet" when Search Console is connected but its data simply hasn't landed yet.
+
+**Key Changes:**
+- **Month navigation.** Prev/next chevrons beside "Your Lead Pipeline · {Month}" step through the last 12 months (clamped at the current month and at 11 months back). The backend `?month=YYYY-MM` window already existed end-to-end; the screen now drives it. Stepping keeps the previous funnel visible (dimmed) instead of flashing the loading skeleton — placeholder data is reused only within the same org + location, so a location switch can never briefly show another location's numbers. The current month keeps the period-less query key so the Practice Hub summary card's request stays deduped with the screen's.
+- **Three honest Google Visibility empty states.** The impressions reader previously reported "not connected" whenever the month window had zero stored GSC rows — false for connected practices in the first days of a month (GSC data trails ~2 days). It now checks the project's `gsc` integration: no active integration → "Not connected yet" (unchanged); connected + empty current month → "Google data is still pending" with a `?` hover tooltip ("GSC data trails ~2 days behind"); connected + empty past month → "No Google data for this month". Carried as an additive optional `unavailableReason` on the stage contract, mirrored in the backend and frontend type files.
+- **Month-aware advisor copy.** The banner reads "…contacted your practice this month." on the current month and "…contacted your practice in {Month Year}." on past months.
+
+**Verification:** backend + frontend tsc clean; 21/21 vitest — 6 new reader tests (all three reasons, inactive integration, lookup-failure degradation, no lookup when data exists) plus 3 new service tests (reason passthrough, current-month flag); `check:conventions --strict` 0 violations; acceptance checklist Passed (owner-verified in browser). Dev deploy workflow succeeded and `/api/health/db` reports healthy. No schema migrations in this release.
+
+**Commits:**
+- `5f2d5bcf` — backend reason plumbing (`src/controllers/patient-journey/`: `stageReaders.ts`, `PatientJourneyService.ts`, `feature-utils/funnelMath.ts`, `feature-utils/types.ts`), frontend month navigation + empty-state copy (`PatientJourneyDashboard.tsx`, `PatientJourneyStageCard.tsx`, `patientJourney.utils.ts`, `usePatientJourney.ts`, `types/patientJourney.ts`), new `patient-journey.stage-readers.test.ts`, plan artifacts under `plans/07022026-patient-journey-month-nav-gsc-pending/`
+
 ## [0.0.144] - July 2026
 
 ### Telemetry Trust: Idle Detection, Idle-Data Cleanup, and Usage-Trend Revamp

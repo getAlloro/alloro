@@ -10,6 +10,7 @@
  */
 
 import { GscDataModel } from "../../../models/website-builder/GscDataModel";
+import type { StageUnavailableReason } from "../feature-utils/types";
 import { FormSubmissionModel } from "../../../models/website-builder/FormSubmissionModel";
 import { WebsiteIntegrationModel } from "../../../models/website-builder/WebsiteIntegrationModel";
 import { ProjectModel } from "../../../models/website-builder/ProjectModel";
@@ -58,6 +59,8 @@ export interface StageRead {
   value: number | null;
   available: boolean;
   asOf: string | null;
+  /** Why an unavailable read is empty; only the impressions reader sets it. */
+  unavailableReason?: StageUnavailableReason;
   note?: string;
   metadata?: StageReadMetadata;
 }
@@ -179,15 +182,48 @@ function buildGscDimensions(
     .sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions);
 }
 
+/**
+ * Distinguish why the impressions window is empty: no active GSC integration
+ * (`not_connected`), connected but the current month's data has not landed
+ * yet (`pending` — GSC trails ~2 days), or a connected past month with no
+ * rows (`no_data`). A failed lookup degrades to the reason-less legacy empty
+ * read instead of throwing (§3.1) — the stage stays honestly unavailable.
+ */
+async function emptyImpressionsRead(
+  projectId: string,
+  isCurrentMonth: boolean,
+): Promise<StageRead> {
+  try {
+    const integration = await WebsiteIntegrationModel.findByProjectAndPlatform(
+      projectId,
+      "gsc",
+    );
+    if (!integration || integration.status !== "active") {
+      return { ...emptyRead(), unavailableReason: "not_connected" };
+    }
+    return {
+      ...emptyRead(),
+      unavailableReason: isCurrentMonth ? "pending" : "no_data",
+    };
+  } catch (err) {
+    logger.warn(
+      { err, projectId },
+      "[patient-journey] impressions connection check failed",
+    );
+    return emptyRead();
+  }
+}
+
 /** Sum GSC `summary[].impressions` for a project over [startDate, endDate]. */
 export async function readImpressions(
   projectId: string,
   startDate: string,
-  endDate: string
+  endDate: string,
+  isCurrentMonth: boolean
 ): Promise<StageRead> {
   try {
     const rows = await GscDataModel.findByProjectAndDateRange(projectId, startDate, endDate);
-    if (!rows.length) return emptyRead();
+    if (!rows.length) return emptyImpressionsRead(projectId, isCurrentMonth);
     const totals = emptyGscAccumulator();
     const queryMap = new Map<string, GscMetricAccumulator>();
     const pageMap = new Map<string, GscMetricAccumulator>();

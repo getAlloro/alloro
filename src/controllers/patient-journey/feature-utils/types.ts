@@ -24,6 +24,15 @@ export type PatientJourneyStageKey =
   | "leads"
   | "patients";
 
+/**
+ * Why an unavailable stage is empty. Only the impressions stage emits this
+ * today: `not_connected` = no active GSC integration; `pending` = connected
+ * but the current month's data has not landed yet (GSC trails ~2 days);
+ * `no_data` = connected but the selected past month has no rows. Absent =
+ * the generic empty state.
+ */
+export type StageUnavailableReason = "not_connected" | "pending" | "no_data";
+
 export type OrgType = "health" | "generic";
 
 export interface PatientJourneyLocation {
@@ -53,6 +62,8 @@ export interface PatientJourneyStage {
   value: number | null;
   /** True when a real value was read; false drives the empty state. */
   available: boolean;
+  /** Why an unavailable stage is empty; drives the stage-card empty copy. */
+  unavailableReason?: StageUnavailableReason;
   /** Source descriptor, e.g. "Google Search Console". */
   source: string;
   /** Freshness of this stage's value (ISO date) or null when unknown. */
