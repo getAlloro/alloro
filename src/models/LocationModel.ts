@@ -19,12 +19,22 @@ export type LocationCompetitorOnboardingStatus =
   | "curating"
   | "finalized";
 
+/**
+ * Cancellation lifecycle: active → pending_cancellation (still usable until
+ * cancel_effective_at) → cancelled (retained forever, reopenable — never
+ * deleted). See plans/07032026-multi-location-billing Phase B.
+ */
+export type LocationStatus = "active" | "pending_cancellation" | "cancelled";
+
 export interface ILocation {
   id: number;
   organization_id: number;
   name: string;
   domain: string | null;
   is_primary: boolean;
+  status: LocationStatus;
+  cancel_effective_at: Date | null;
+  cancelled_at: Date | null;
   business_data: Record<string, unknown> | null;
   location_competitor_onboarding_status: LocationCompetitorOnboardingStatus;
   location_competitor_onboarding_finalized_at: Date | null;
@@ -65,6 +75,97 @@ export class LocationModel extends BaseModel {
     return this.table(trx)
       .where({ organization_id: organizationId, is_primary: true })
       .first();
+  }
+
+  /**
+   * Client-visible listing view: everything except `cancelled` rows
+   * (pending_cancellation locations stay fully usable until their effective
+   * date). PropertiesTab opts back into the full view with include_cancelled.
+   */
+  static async findNonCancelledByOrganizationId(
+    organizationId: number,
+    trx?: QueryContext
+  ): Promise<ILocation[]> {
+    return this.table(trx)
+      .where({ organization_id: organizationId })
+      .whereNot({ status: "cancelled" })
+      .orderBy("is_primary", "desc")
+      .orderBy("name", "asc");
+  }
+
+  /**
+   * COUNT of ACTIVE locations — the single source for the Stripe billing
+   * quantity (pending_cancellation is excluded because its decrement already
+   * happened at cancel time; cancelled rows are never billed).
+   */
+  static async countActiveByOrganizationId(
+    organizationId: number,
+    trx?: QueryContext
+  ): Promise<{ count: string | number } | undefined> {
+    return this.table(trx)
+      .where({ organization_id: organizationId, status: "active" })
+      .count("id as count")
+      .first();
+  }
+
+  /**
+   * Pending-cancellation rows for an org, soonest effective date first.
+   * Feeds the billing card's "1 ending <date>" subtitle.
+   */
+  static async findPendingCancellationsByOrganizationId(
+    organizationId: number,
+    trx?: QueryContext
+  ): Promise<ILocation[]> {
+    return this.table(trx)
+      .where({
+        organization_id: organizationId,
+        status: "pending_cancellation",
+      })
+      .orderBy("cancel_effective_at", "asc");
+  }
+
+  /**
+   * System-wide sweep for the cancellation finalizer worker: pending rows
+   * whose effective date has passed. Deliberately NOT org-scoped — the
+   * worker finalizes across all tenants (§21.3); every mutation it performs
+   * goes through the org-scoped lifecycle service.
+   */
+  static async findDuePendingCancellations(
+    now: Date,
+    trx?: QueryContext
+  ): Promise<ILocation[]> {
+    return this.table(trx)
+      .where({ status: "pending_cancellation" })
+      .where("cancel_effective_at", "<=", now);
+  }
+
+  static async markPendingCancellation(
+    id: number,
+    effectiveAt: Date,
+    trx?: QueryContext
+  ): Promise<number> {
+    return this.table(trx).where({ id }).update({
+      status: "pending_cancellation",
+      cancel_effective_at: effectiveAt,
+      updated_at: new Date(),
+    });
+  }
+
+  static async markCancelled(id: number, trx?: QueryContext): Promise<number> {
+    return this.table(trx).where({ id }).update({
+      status: "cancelled",
+      cancelled_at: new Date(),
+      updated_at: new Date(),
+    });
+  }
+
+  static async markActive(id: number, trx?: QueryContext): Promise<number> {
+    return this.table(trx).where({ id }).update({
+      status: "active",
+      cancel_effective_at: null,
+      cancelled_at: null,
+      updated_at: new Date(),
+    });
   }
 
   /**
@@ -113,6 +214,9 @@ export class LocationModel extends BaseModel {
       | "id"
       | "created_at"
       | "updated_at"
+      | "status"
+      | "cancel_effective_at"
+      | "cancelled_at"
       | "business_data"
       | "location_competitor_onboarding_status"
       | "location_competitor_onboarding_finalized_at"
@@ -122,6 +226,7 @@ export class LocationModel extends BaseModel {
       | "client_lat"
       | "client_lng"
     > & {
+      status?: LocationStatus;
       business_data?: Record<string, unknown> | null;
       location_competitor_onboarding_status?: LocationCompetitorOnboardingStatus;
       location_competitor_onboarding_finalized_at?: Date | null;

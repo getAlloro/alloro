@@ -26,24 +26,36 @@ export const PlanLocationSummary: React.FC<{
 
   const count = summary.locationCount;
   const locationsLabel = `${count} ${count === 1 ? "location" : "locations"}`;
+  const pending = summary.pendingCancellationCount ?? 0;
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-slate-50 rounded-xl border border-black/5">
-      <div className="flex items-center gap-2.5">
-        <div className="w-7 h-7 rounded-lg bg-alloro-orange/[0.07] flex items-center justify-center shrink-0">
-          <MapPin size={14} className="text-alloro-orange" />
+    <div className="px-4 py-3 bg-slate-50 rounded-xl border border-black/5 space-y-1">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-alloro-orange/[0.07] flex items-center justify-center shrink-0">
+            <MapPin size={14} className="text-alloro-orange" />
+          </div>
+          <span className="text-sm text-slate-600 font-medium">
+            {summary.isFlatRate
+              ? `Flat rate · ${locationsLabel}`
+              : summary.unitAmount != null
+                ? `${locationsLabel} × ${formatCents(summary.unitAmount, summary.currency)}/mo`
+                : locationsLabel}
+          </span>
         </div>
-        <span className="text-sm text-slate-600 font-medium">
-          {summary.isFlatRate
-            ? `Flat rate · ${locationsLabel}`
-            : summary.unitAmount != null
-              ? `${locationsLabel} × ${formatCents(summary.unitAmount, summary.currency)}/mo`
-              : locationsLabel}
+        <span className="text-sm font-bold text-alloro-navy">
+          {formatCents(summary.monthlyTotal, summary.currency)}/mo
         </span>
       </div>
-      <span className="text-sm font-bold text-alloro-navy">
-        {formatCents(summary.monthlyTotal, summary.currency)}/mo
-      </span>
+      {pending > 0 && (
+        <p className="text-xs text-amber-700 pl-[38px]">
+          {pending} {pending === 1 ? "location" : "locations"} ending
+          {summary.nextEndingAt
+            ? ` ${new Date(summary.nextEndingAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`
+            : " at period end"}{" "}
+          — still active until then.
+        </p>
+      )}
     </div>
   );
 };

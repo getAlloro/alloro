@@ -1,21 +1,23 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { apiGet } from "../../api";
-import { MapPin, Plus, Star, Trash2, RefreshCw, Pencil } from "lucide-react";
+import { MapPin, Plus, Star, Ban, RefreshCw, Pencil, RotateCcw } from "lucide-react";
 import { PropertySelectionModal, type PropertyItem } from "./PropertySelectionModal";
-import { ConfirmModal } from "./ConfirmModal";
 import { GoogleConnectButton } from "../GoogleConnectButton";
 import { getPriorityItem } from "../../hooks/useLocalStorage";
 import { useLocationContext } from "../../contexts/locationContext";
 import { useAuth } from "../../hooks/useAuth";
 import {
   getLocations,
-  deleteLocation,
   updateLocation,
   updateLocationGBP,
   type Location,
 } from "../../api/locations";
 import { AddLocationWizard } from "./AddLocationWizard";
+import {
+  CancelLocationDialog,
+  ReopenLocationDialog,
+} from "./LocationLifecycleDialogs";
 import { logger } from "../../lib/logger";
 
 type UserRole = "admin" | "manager" | "viewer";
@@ -37,10 +39,9 @@ export const PropertiesTab: React.FC = () => {
   // Add location wizard (name → GBP → billing review → pay → created)
   const [addWizardOpen, setAddWizardOpen] = useState(false);
 
-  // Delete confirmation
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  // Lifecycle dialogs (cancel = end-of-period; reopen = undo or paid re-add)
+  const [cancelTarget, setCancelTarget] = useState<Location | null>(null);
+  const [reopenTarget, setReopenTarget] = useState<Location | null>(null);
 
   // Inline name editing
   const [editingNameId, setEditingNameId] = useState<number | null>(null);
@@ -55,7 +56,8 @@ export const PropertiesTab: React.FC = () => {
     inFlightRef.current = true;
     try {
       setIsLoading(true);
-      const locs = await getLocations();
+      // Cancelled locations stay listed here (greyed) — data is never deleted
+      const locs = await getLocations({ includeCancelled: true });
       setLocations(locs);
     } catch (err) {
       logger.error("Failed to fetch locations:", err);
@@ -120,28 +122,6 @@ export const PropertiesTab: React.FC = () => {
   // ---- Add location wizard ----
   const openAddLocation = () => {
     setAddWizardOpen(true);
-  };
-
-  // ---- Delete location ----
-  const initiateDelete = (locationId: number) => {
-    setDeleteTargetId(locationId);
-    setDeleteConfirmOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!deleteTargetId) return;
-    setIsDeleting(true);
-    try {
-      await deleteLocation(deleteTargetId);
-      setDeleteConfirmOpen(false);
-      setDeleteTargetId(null);
-      await loadData();
-      await refreshLocations();
-    } catch (err) {
-      logger.error("Failed to delete location:", err);
-    } finally {
-      setIsDeleting(false);
-    }
   };
 
   // ---- Set as primary ----
@@ -260,13 +240,21 @@ export const PropertiesTab: React.FC = () => {
         <div className="space-y-4">
           {locations.map((loc, index) => {
             const gbpProp = loc.googleProperties?.[0];
+            const isCancelled = loc.status === "cancelled";
+            const isPending = loc.status === "pending_cancellation";
             return (
               <motion.div
                 key={loc.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className="bg-white rounded-[28px] border border-slate-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden"
+                className={`bg-white rounded-[28px] border shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden ${
+                  isCancelled
+                    ? "border-slate-200 opacity-60 grayscale"
+                    : isPending
+                      ? "border-amber-200"
+                      : "border-slate-200"
+                }`}
               >
                 <div className="p-5">
                   {/* Location Header Row */}
@@ -313,20 +301,40 @@ export const PropertiesTab: React.FC = () => {
                             Primary
                           </span>
                         )}
+                        {isPending && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-amber-50 text-amber-700 border border-amber-200">
+                            Ends{" "}
+                            {loc.cancel_effective_at
+                              ? new Date(
+                                  loc.cancel_effective_at
+                                ).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                })
+                              : "at period end"}
+                          </span>
+                        )}
+                        {isCancelled && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-slate-100 text-slate-500 border border-slate-200">
+                            Cancelled
+                          </span>
+                        )}
                       </div>
                     </div>
 
                     {/* Action Buttons */}
                     {canManageConnections && (
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        <button
-                          onClick={() => handleChangeGBP(loc.id)}
-                          className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-alloro-orange bg-alloro-orange/10 rounded-xl hover:bg-alloro-orange/20 transition-colors"
-                        >
-                          <RefreshCw size={12} className="inline mr-1.5" />
-                          {gbpProp ? "Change GBP" : "Connect GBP"}
-                        </button>
-                        {!loc.is_primary && (
+                        {!isCancelled && (
+                          <button
+                            onClick={() => handleChangeGBP(loc.id)}
+                            className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-alloro-orange bg-alloro-orange/10 rounded-xl hover:bg-alloro-orange/20 transition-colors"
+                          >
+                            <RefreshCw size={12} className="inline mr-1.5" />
+                            {gbpProp ? "Change GBP" : "Connect GBP"}
+                          </button>
+                        )}
+                        {!isCancelled && !loc.is_primary && (
                           <button
                             onClick={() => handleSetPrimary(loc.id)}
                             className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors"
@@ -334,13 +342,27 @@ export const PropertiesTab: React.FC = () => {
                             Set Primary
                           </button>
                         )}
-                        {locations.length > 1 && (
+                        {loc.status === "active" && (
                           <button
-                            onClick={() => initiateDelete(loc.id)}
+                            onClick={() => setCancelTarget(loc)}
                             className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
-                            title="Remove location"
+                            title="Cancel location (end of billing period; data retained)"
                           >
-                            <Trash2 size={16} />
+                            <Ban size={16} />
+                          </button>
+                        )}
+                        {(isPending || isCancelled) && (
+                          <button
+                            onClick={() => setReopenTarget(loc)}
+                            className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white bg-alloro-orange rounded-xl hover:bg-alloro-orange/90 transition-colors"
+                            title={
+                              isPending
+                                ? "Reopen — cancels the scheduled removal (free)"
+                                : "Reopen — re-adds this location to billing"
+                            }
+                          >
+                            <RotateCcw size={12} className="inline mr-1.5" />
+                            Reopen
                           </button>
                         )}
                       </div>
@@ -395,20 +417,31 @@ export const PropertiesTab: React.FC = () => {
         }}
       />
 
-      {/* Delete Confirmation */}
-      <ConfirmModal
-        isOpen={deleteConfirmOpen}
-        onClose={() => {
-          setDeleteConfirmOpen(false);
-          setDeleteTargetId(null);
-        }}
-        onConfirm={handleConfirmDelete}
-        title="Remove Location?"
-        message="This will remove the location and disconnect its GBP profile. Existing data (tasks, reports, etc.) will no longer be associated with this location."
-        confirmText="Remove"
-        isLoading={isDeleting}
-        type="danger"
-      />
+      {/* Cancel dialog — end-of-period semantics, last-location warning */}
+      {cancelTarget && (
+        <CancelLocationDialog
+          target={cancelTarget}
+          activeCount={locations.filter((l) => l.status === "active").length}
+          onClose={() => setCancelTarget(null)}
+          onCompleted={async () => {
+            await loadData();
+            await refreshLocations();
+          }}
+        />
+      )}
+
+      {/* Reopen dialog — free undo while pending, paid re-add when cancelled */}
+      {reopenTarget && (
+        <ReopenLocationDialog
+          target={reopenTarget}
+          activeCount={locations.filter((l) => l.status === "active").length}
+          onClose={() => setReopenTarget(null)}
+          onCompleted={async () => {
+            await loadData();
+            await refreshLocations();
+          }}
+        />
+      )}
     </div>
   );
 };

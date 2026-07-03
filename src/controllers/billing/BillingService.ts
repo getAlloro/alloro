@@ -28,7 +28,7 @@ import logger from "../../lib/logger";
 // ─── Types ───
 
 export interface BillingLocationSummary {
-  /** Locations in the org (DB truth) */
+  /** ACTIVE locations in the org (matches the billed quantity) */
   locationCount: number;
   /** Quantity Stripe bills for (override for flat-rate orgs) */
   effectiveQuantity: number | null;
@@ -39,6 +39,10 @@ export interface BillingLocationSummary {
   /** Cents */
   monthlyTotal: number | null;
   isFlatRate: boolean;
+  /** Locations scheduled to cancel at period end (still usable until then) */
+  pendingCancellationCount: number;
+  /** ISO date of the soonest pending cancellation, if any */
+  nextEndingAt: string | null;
 }
 
 export interface BillingStatus {
@@ -235,10 +239,16 @@ export async function getSubscriptionStatus(
   const isAdminGranted =
     !hasStripe && org.subscription_status === "active";
 
-  // Location-billing summary ("N locations × $X/mo = $Z/mo" on the plan card)
-  const locationCountRow = await LocationModel.countByOrganizationId(orgId);
+  // Location-billing summary ("N locations × $X/mo = $Z/mo" on the plan card).
+  // ACTIVE locations only — matches the Stripe quantity (cancelled never billed,
+  // pending_cancellation already decremented at cancel time).
+  const [locationCountRow, pendingLocations] = await Promise.all([
+    LocationModel.countActiveByOrganizationId(orgId),
+    LocationModel.findPendingCancellationsByOrganizationId(orgId),
+  ]);
   const locationCount = Number(locationCountRow?.count) || 0;
   const isFlatRate = org.billing_quantity_override != null;
+  const nextEnding = pendingLocations[0]?.cancel_effective_at ?? null;
   const locationBilling: BillingLocationSummary = {
     locationCount,
     effectiveQuantity: isFlatRate ? org.billing_quantity_override : null,
@@ -247,6 +257,8 @@ export async function getSubscriptionStatus(
     interval: null,
     monthlyTotal: null,
     isFlatRate,
+    pendingCancellationCount: pendingLocations.length,
+    nextEndingAt: nextEnding ? new Date(nextEnding).toISOString() : null,
   };
 
   // If we have a Stripe subscription, fetch period end + cancel state from Stripe
@@ -627,14 +639,24 @@ export async function syncSubscriptionQuantity(
     const org = await OrganizationModel.findById(organizationId);
     if (!org?.stripe_subscription_id) return;
 
-    // Use override if set (flat-rate clients), otherwise count locations
+    // Use override if set (flat-rate clients), otherwise count ACTIVE
+    // locations (status-aware: cancelled are never billed, pending were
+    // decremented at cancel time). The old Math.max(…, 1) floor is gone —
+    // a zero-active org is handled by the last-location cancel flow
+    // (subscription cancel_at_period_end), never by syncing quantity 0.
     let newQuantity: number;
     if (org.billing_quantity_override != null) {
       newQuantity = org.billing_quantity_override;
     } else {
       const result =
-        await LocationModel.countByOrganizationId(organizationId);
-      newQuantity = Math.max(Number(result?.count) || 0, 1);
+        await LocationModel.countActiveByOrganizationId(organizationId);
+      newQuantity = Number(result?.count) || 0;
+      if (newQuantity < 1) {
+        logger.warn(
+          `[Billing] Skipping quantity sync for org ${organizationId}: zero active locations (lifecycle owns the last-location case)`
+        );
+        return;
+      }
     }
 
     // Get subscription from Stripe

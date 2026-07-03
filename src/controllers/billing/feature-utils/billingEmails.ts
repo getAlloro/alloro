@@ -65,3 +65,72 @@ export async function sendQuantityUpdateEmail(
     );
   }
 }
+
+export type LocationLifecycleEmailKind =
+  | "cancel_scheduled"
+  | "cancelled_immediately"
+  | "subscription_ending"
+  | "reopened";
+
+const LIFECYCLE_COPY: Record<
+  LocationLifecycleEmailKind,
+  (locationName: string, effectiveDate: string | null) => string
+> = {
+  cancel_scheduled: (name, date) =>
+    `<strong>${name}</strong> is scheduled to be cancelled${date ? ` on <strong>${date}</strong>` : ""}. It stays fully active until then, and you can reopen it any time before that date at no charge.`,
+  cancelled_immediately: (name) =>
+    `<strong>${name}</strong> has been cancelled. Its data is retained and it can be reopened at any time.`,
+  subscription_ending: (name, date) =>
+    `<strong>${name}</strong> was your last active location, so your Alloro subscription is scheduled to end${date ? ` on <strong>${date}</strong>` : ""}. Reopening the location before then keeps your subscription running.`,
+  reopened: (name) =>
+    `<strong>${name}</strong> has been reopened and is active again.`,
+};
+
+/**
+ * Notify org admins about a location lifecycle change (cancel / reopen).
+ * Best-effort — logs and never throws.
+ */
+export async function sendLocationLifecycleEmail(
+  org: IOrganization,
+  locationName: string,
+  kind: LocationLifecycleEmailKind,
+  effectiveAt: Date | null
+): Promise<void> {
+  try {
+    const orgUsers = await OrganizationUserModel.listByOrgWithUsers(org.id);
+    const adminEmails = orgUsers
+      .filter((u) => u.role === "admin")
+      .map((u) => u.email)
+      .filter(Boolean);
+    if (adminEmails.length === 0) return;
+
+    const effectiveDate = effectiveAt
+      ? effectiveAt.toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        })
+      : null;
+
+    await sendEmail({
+      subject: `Location update for ${org.name}`,
+      body: `
+        <div style="font-family: sans-serif; padding: 20px; max-width: 600px;">
+          <h2 style="color: #1a1a1a;">Location Update</h2>
+          <p style="color: #4a5568; font-size: 16px;">
+            ${LIFECYCLE_COPY[kind](locationName, effectiveDate)}
+          </p>
+          <p style="color: #718096; font-size: 14px;">
+            Manage your locations any time in Settings → Properties.
+          </p>
+        </div>
+      `,
+      recipients: adminEmails,
+    });
+  } catch (emailErr) {
+    logger.warn(
+      { detail: emailErr },
+      `[Billing] Failed to send location lifecycle email for org ${org.id}:`
+    );
+  }
+}

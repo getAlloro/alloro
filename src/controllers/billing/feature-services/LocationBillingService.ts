@@ -99,7 +99,7 @@ function sanitizeKeyPart(value: string): string {
   return value.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 80);
 }
 
-interface SubscriptionItemView {
+export interface SubscriptionItemView {
   itemId: string;
   quantity: number;
   unitAmount: number | null;
@@ -109,7 +109,8 @@ interface SubscriptionItemView {
   periodEnd: number | null;
 }
 
-async function retrieveSubscriptionItem(
+/** Exported for the cancellation lifecycle service (Phase B). */
+export async function retrieveSubscriptionItem(
   stripe: Stripe,
   subscriptionId: string
 ): Promise<SubscriptionItemView> {
@@ -302,8 +303,8 @@ function classifyPaymentError(
 }
 
 /**
- * Charge for the added location by moving the subscription item to
- * `targetQuantity` with an immediate prorated invoice, then paying that
+ * Charge for an added (or reopened) location by moving the subscription item
+ * to `targetQuantity` with an immediate prorated invoice, then paying that
  * invoice SYNCHRONOUSLY. Stripe does not attempt payment of update-generated
  * proration invoices at request time (they auto-advance later), so "create
  * after paid" requires the explicit finalize + pay here — verified against
@@ -315,10 +316,11 @@ function classifyPaymentError(
  *
  * Returns the cents actually paid now, or null when the update was already
  * applied by a previous attempt (idempotent retry — never charged twice).
+ * Exported for the Phase B reopen-after-cancelled flow.
  */
-async function chargeForAddedLocation(
+export async function chargeForQuantityIncrease(
   org: IOrganization,
-  gbpExternalId: string,
+  idempotencyKeyPart: string,
   targetQuantity: number
 ): Promise<number | null> {
   const stripe = getStripe();
@@ -336,7 +338,7 @@ async function chargeForAddedLocation(
 
   // Unique per attempt: cross-attempt double-charge protection is the
   // quantity pre-check above; the key guards the SDK's own network retries.
-  const idempotencyKey = `locadd-${org.id}-${sanitizeKeyPart(gbpExternalId)}-q${targetQuantity}-t${Date.now()}`;
+  const idempotencyKey = `locadd-${org.id}-${sanitizeKeyPart(idempotencyKeyPart)}-q${targetQuantity}-t${Date.now()}`;
 
   try {
     await stripe.subscriptionItems.update(
@@ -468,9 +470,13 @@ export async function purchaseLocation(
     );
 
     if (quote.mode === "quantity") {
-      const countRow = await LocationModel.countByOrganizationId(orgId, trx);
+      // ACTIVE locations only — cancelled rows are never billed (Phase B)
+      const countRow = await LocationModel.countActiveByOrganizationId(
+        orgId,
+        trx
+      );
       const targetQuantity = Math.max(Number(countRow?.count) || 0, 1);
-      chargedNow = await chargeForAddedLocation(
+      chargedNow = await chargeForQuantityIncrease(
         org,
         input.gbp.locationId,
         targetQuantity

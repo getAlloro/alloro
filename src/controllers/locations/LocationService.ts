@@ -253,68 +253,6 @@ export async function createLocation(
 }
 
 /**
- * Remove a location and its google_properties.
- * Cannot remove the last location for an org.
- * If removing the primary, promotes another location.
- */
-export async function removeLocation(
-  locationId: number,
-  organizationId: number
-): Promise<void> {
-  await LocationModel.transaction(async (trx) => {
-    const location = await LocationModel.findById(locationId, trx);
-    if (!location || location.organization_id !== organizationId) {
-      throw new Error("Location not found or does not belong to organization");
-    }
-
-    const count = await LocationModel.count(
-      { organization_id: organizationId },
-      trx
-    );
-    if (count <= 1) {
-      throw new Error("Cannot remove the last location");
-    }
-
-    // If this is primary, promote another first
-    if (location.is_primary) {
-      const others = await LocationModel.findByOrganizationId(
-        organizationId,
-        trx
-      );
-      const nextPrimary = others.find((l) => l.id !== locationId);
-      if (nextPrimary) {
-        await LocationModel.updateById(
-          nextPrimary.id,
-          { is_primary: true },
-          trx
-        );
-      }
-    }
-
-    // Null out downstream references
-    await LocationModel.nullOutLocationReferences(locationId, trx);
-
-    // Delete google_properties (cascade would handle this, but be explicit)
-    await GooglePropertyModel.deleteByLocationId(locationId, trx);
-
-    // Delete the location
-    await LocationModel.deleteById(locationId, trx);
-
-    // Sync JSON blob
-    const connection = await GoogleConnectionModel.findOneByOrganization(
-      organizationId,
-      trx
-    );
-    if (connection) {
-      await syncJsonBlobFromProperties(organizationId, connection.id, trx);
-    }
-  });
-
-  // Sync Stripe subscription quantity (fire-and-forget, after transaction commits)
-  syncSubscriptionQuantity(organizationId);
-}
-
-/**
  * Update location metadata (name, domain, is_primary).
  */
 export async function updateLocation(
