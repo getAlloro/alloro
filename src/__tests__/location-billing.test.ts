@@ -17,7 +17,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import Stripe from "stripe";
 
 const mockStripe = {
-  subscriptions: { retrieve: vi.fn() },
+  subscriptions: { retrieve: vi.fn(), update: vi.fn() },
   subscriptionItems: { update: vi.fn() },
   invoices: {
     createPreview: vi.fn(),
@@ -326,5 +326,33 @@ describe("purchaseLocation — create after paid", () => {
     await expect(purchaseLocation(999, input)).rejects.toBeInstanceOf(
       BillingLocationError
     );
+  });
+
+  it("location-swap edge: clears a scheduled subscription end when purchasing", async () => {
+    vi.mocked(OrganizationModel.findById).mockResolvedValue(orgBase as never);
+    // Sub is scheduled to end (client cancelled their locations) and its
+    // quantity already covers the add (pending decrements freed the slot)
+    mockStripe.subscriptions.retrieve.mockResolvedValue({
+      ...subscriptionItem(1),
+      cancel_at_period_end: true,
+    });
+    mockStripe.invoices.createPreview.mockResolvedValue({ total: 0 });
+    mockStripe.subscriptions.update.mockResolvedValue({});
+    vi.mocked(createLocationInTransaction).mockResolvedValue(
+      fakeLocation as never
+    );
+    vi.mocked(LocationModel.countActiveByOrganizationId).mockResolvedValue({
+      count: 1,
+    } as never);
+
+    const result = await purchaseLocation(41, input);
+
+    // The subscription MUST survive — the paid location would die with it
+    expect(mockStripe.subscriptions.update).toHaveBeenCalledWith("sub_test", {
+      cancel_at_period_end: false,
+    });
+    // Quantity already at target → idempotent skip, no double charge
+    expect(mockStripe.subscriptionItems.update).not.toHaveBeenCalled();
+    expect(result.location.id).toBe(9);
   });
 });
