@@ -107,6 +107,8 @@ export interface SubscriptionItemView {
   interval: string | null;
   periodStart: number | null;
   periodEnd: number | null;
+  /** The whole subscription is scheduled to end at period end */
+  subscriptionEnding: boolean;
 }
 
 /** Exported for the cancellation lifecycle service (Phase B). */
@@ -114,9 +116,9 @@ export async function retrieveSubscriptionItem(
   stripe: Stripe,
   subscriptionId: string
 ): Promise<SubscriptionItemView> {
-  const subscription = await stripe.subscriptions.retrieve(subscriptionId, {
+  const subscription = (await stripe.subscriptions.retrieve(subscriptionId, {
     expand: ["items.data.price"],
-  });
+  })) as Stripe.Subscription & { cancel_at?: number | null };
   const item = subscription.items.data[0];
   if (!item) {
     throw new BillingLocationError(
@@ -133,6 +135,8 @@ export async function retrieveSubscriptionItem(
     interval: item.price?.recurring?.interval ?? null,
     periodStart: item.current_period_start ?? null,
     periodEnd: item.current_period_end ?? null,
+    subscriptionEnding:
+      subscription.cancel_at_period_end === true || !!subscription.cancel_at,
   };
 }
 
@@ -326,6 +330,19 @@ export async function chargeForQuantityIncrease(
   const stripe = getStripe();
   const subscriptionId = org.stripe_subscription_id as string;
   const item = await retrieveSubscriptionItem(stripe, subscriptionId);
+
+  // Location-swap edge: a client who cancelled their last location(s) has a
+  // subscription scheduled to end at period end. Buying a location now
+  // supersedes that — the subscription must survive, or the paid location
+  // dies with it. Cleared regardless of the idempotent-skip below.
+  if (item.subscriptionEnding) {
+    await stripe.subscriptions.update(subscriptionId, {
+      cancel_at_period_end: false,
+    });
+    logger.info(
+      `[LocationBilling] Cleared scheduled subscription end for org ${org.id} — a location purchase supersedes it`
+    );
+  }
 
   if (item.quantity >= targetQuantity) {
     // A previous attempt charged but failed to commit the DB write; the
