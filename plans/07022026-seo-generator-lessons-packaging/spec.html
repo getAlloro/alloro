@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SEO Generator Lessons Packaging Spec</title>
+  <style>
+    :root { color-scheme: light; --paper:#fff; --ink:#080808; --muted:#5f5f5f; --line:#d8d8d8; --soft:#f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; line-height:1.5; }
+    .spec-shell { width:min(1120px,calc(100% - 32px)); margin:0 auto; padding:48px 0; }
+    .spec-hero,.spec-card,.task-card { border:1px solid var(--line); border-radius:8px; background:var(--paper); }
+    .spec-hero { border-color:var(--ink); padding:32px; margin-bottom:20px; }
+    .hero-topline { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+    .spec-card { padding:28px; margin-top:16px; }
+    .task-card { padding:20px; background:var(--soft); margin-top:14px; }
+    .eyebrow,dt { color:var(--muted); font-size:.78rem; font-weight:700; text-transform:uppercase; }
+    .eyebrow { margin:0; }
+    .status-pill { display:inline-flex; align-items:center; min-height:34px; padding:0 12px; border:1px solid var(--ink); border-radius:999px; background:var(--ink); color:var(--paper); font-size:.78rem; font-weight:800; text-transform:uppercase; }
+    .status-card { border-color:var(--ink); }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { max-width:840px; margin-bottom:24px; font-size:clamp(2.25rem,6vw,5rem); line-height:.95; }
+    h2 { font-size:1.35rem; } h3 { font-size:1rem; }
+    code { padding:.1rem .3rem; border:1px solid var(--line); border-radius:4px; background:var(--soft); font-size:.92em; }
+    .meta-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin:0; }
+    .meta-grid div { border:1px solid var(--line); border-radius:8px; padding:16px; }
+    dd { margin:4px 0 0; font-weight:700; }
+    .checklist { list-style:none; padding-left:0; }
+    .checklist li { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); }
+    @media (max-width:640px){ .spec-shell{width:min(100% - 20px,1120px);padding:24px 0;} .spec-hero,.spec-card{padding:20px;} }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">Completed</span>
+      </div>
+      <h1>SEO Generator Lessons Packaging</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07022026-seo-generator-lessons-packaging</dd></div>
+        <div><dt>Size</dt><dd>Small</dd></div>
+        <div><dt>Risk</dt><dd>Level 1</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The 2026-07-02 SEO overhaul (six plans, changelogs 0.0.147–0.0.151) taught a set of durable rules — the root causes behind fabricated canonicals, invalid schema types, missing social images, and hallucinated ratings. The code guardrails shipped, but the lessons needed to be captured where the generator lives so future prompt edits and future generation runs don't reintroduce the defects.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Package the learnings into the generator mechanism: strengthen the LLM-facing section prompts to close the specific gaps found, and add one comprehensive source-of-truth doc that maps every rule to the layer (prompt / code / renderer) that guarantees it. Documentation + prompt content only — no runtime code or data changes.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Files</h3>
+      <ul>
+        <li><code>src/agents/websiteAgents/SeoGeneration.md</code> — base prompt; added "fields set deterministically by the system — do not produce them" (canonical_url, aggregateRating, og_image).</li>
+        <li><code>SeoGeneration.critical.md</code> — homepage title must never be the bare brand name.</li>
+        <li><code>SeoGeneration.significant.md</code> — never emit aggregateRating; never hand-author FAQPage; valid business @types only.</li>
+        <li><code>SeoGeneration.moderate.md</code> — og_image_recommendation is advisory; real og_image is system-resolved.</li>
+        <li><code>SeoGeneration.LESSONS.md</code> (new) — complete reference: every rule, its motivating failure, and its enforcing layer, plus a quick enforcement-index table. Not loaded into any prompt (documentation only).</li>
+      </ul>
+      <p><strong>Reference analog:</strong> the existing <code>SeoGeneration.*.md</code> prompt files (style + loaded-as-text convention).</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <ul>
+        <li>Documentation + prompt text only. No TypeScript, no schema, no data writes.</li>
+        <li><code>SeoGeneration.LESSONS.md</code> must NOT be wired into <code>loadPrompt</code> — it is reference, not prompt tokens.</li>
+        <li>Prompt additions reinforce behavior the code already enforces; they never contradict a code guardrail.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level 1.</strong> Prompt-content refinements affect only future generation and align with already-shipped code guardrails. The new doc is inert. Blast radius: the shared SEO generation prompt (all orgs), on the next generation run only.</p>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Strengthen the section prompts</h3>
+        <dl><div><dt>Do</dt><dd>Add the system-controlled-fields guard (base), homepage-title rule (critical), aggregateRating/FAQPage bans + valid-@type note (significant), og_image advisory note (moderate).</dd></div>
+        <div><dt>Verify</dt><dd><code>npx tsc --noEmit</code> + the SEO generation/enrichment tests (loadPrompt reads the .md as text).</dd></div></dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Author the source-of-truth lessons doc</h3>
+        <dl><div><dt>Do</dt><dd>Create <code>SeoGeneration.LESSONS.md</code> — grouped rules, each with the failure that motivated it and its enforcing layer, plus an enforcement-index table.</dd></div>
+        <div><dt>Verify</dt><dd>Manual: doc is complete and not referenced by <code>loadPrompt</code>.</dd></div></dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" checked disabled> <code>npx tsc --noEmit</code> clean; SEO generation + enrichment tests pass (29/29)</li>
+        <li><input type="checkbox" checked disabled> Four section prompts strengthened; gaps from the live audit closed</li>
+        <li><input type="checkbox" checked disabled> <code>SeoGeneration.LESSONS.md</code> authored, comprehensive, not loaded into any prompt</li>
+        <li><input type="checkbox" checked disabled> Committed + pushed to dev/dave (47be559d); dev deploy succeeded; prod pending owner's main merge</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

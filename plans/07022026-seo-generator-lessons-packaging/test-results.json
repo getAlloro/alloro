@@ -1,0 +1,38 @@
+{
+  "plan": "plans/07022026-seo-generator-lessons-packaging",
+  "generatedAt": "2026-07-02",
+  "status": "Passed",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Strengthened prompts still generate valid SEO (no regression)",
+      "surface": "cli",
+      "precondition": "loadPrompt reads the .md prompts as text at generation time",
+      "steps": [
+        "1. Edit base/critical/significant/moderate prompts",
+        "2. npx tsc --noEmit",
+        "3. Run the SEO generation + enrichment vitest suites (real loadPrompt, mocked LLM)"
+      ],
+      "expected": "Type-check clean; generation/enrichment tests pass with the edited prompts",
+      "status": "pass",
+      "evidence": "tsc exit 0; service.seo-generation.test.ts + seo-enrichment.test.ts = 29/29 pass (loadPrompt reads the edited .md files for real). Prompt additions reinforce already-shipped code guardrails and contradict none.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Lessons doc authored and inert (documentation only)",
+      "surface": "none",
+      "precondition": "None",
+      "steps": [
+        "1. Create SeoGeneration.LESSONS.md",
+        "2. Confirm nothing calls loadPrompt('websiteAgents/SeoGeneration.LESSONS')"
+      ],
+      "expected": "Comprehensive reference exists next to the prompts; not loaded into any LLM prompt",
+      "status": "pass",
+      "evidence": "SeoGeneration.LESSONS.md created with all rules grouped, each tied to its motivating failure and enforcing layer, plus an enforcement-index table. Not referenced by loadPrompt (grep confirms), so it ships as documentation only — no prompt-token cost.",
+      "notes": "Internal documentation/prompt change — no browser-observable surface.",
+      "waiver": ""
+    }
+  ]
+}

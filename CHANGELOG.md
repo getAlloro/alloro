@@ -2,6 +2,22 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.152] - July 2026
+
+### SEO Generator: Lessons Packaged Into the Prompts + a Source-of-Truth Doc
+
+Captured everything the 2026-07-02 SEO overhaul (0.0.147–0.0.151) taught, encoded where the generator lives so it can't reintroduce the defects. Documentation + prompt content only — no runtime code or data changes.
+
+**Key Changes:**
+- **Prompts strengthened to close the gaps the live audit found.** Base prompt now names the fields the system sets deterministically and the model must NOT produce (`canonical_url`, `aggregateRating`, `og_image`), with the core lesson stated plainly: any field that must be *true* rather than believable is code-decided. `critical` gained a homepage-title rule (never the bare brand name — the exact miss on Artful's homepage). `significant` now bans emitting `aggregateRating` (real one injected from synced reviews) and hand-authoring `FAQPage` (built from sourced `faq_candidates`), and restates valid business `@type`s only. `moderate` marks `og_image_recommendation` as advisory, with the real image system-resolved.
+- **New `SeoGeneration.LESSONS.md`** next to the prompts — the complete reference: every rule, the failure that motivated it, and which layer (prompt / code / renderer) guarantees it, plus a quick enforcement-index table. Not wired into `loadPrompt`, so it ships as documentation with zero prompt-token cost.
+
+**Verification:** `npx tsc --noEmit` clean; SEO generation + enrichment suites 29/29 pass (real `loadPrompt` reads the edited `.md` files). Grep-confirmed the lessons doc is not referenced by `loadPrompt` (inert). Acceptance artifact Passed (`plans/07022026-seo-generator-lessons-packaging/test-results.json`). Committed to `dev/dave` (`47be559d`), dev deploy succeeded; production carries the change on the owner's next `dev/dave → main` merge. No dashboard UI change, so no Alloro Docs update required.
+
+**Commits:**
+- `47be559d` — prompt strengthening (`SeoGeneration.md`, `.critical.md`, `.significant.md`, `.moderate.md`) + new `SeoGeneration.LESSONS.md`
+- (this changelog + plan artifacts under `plans/07022026-seo-generator-lessons-packaging/`)
+
 ## [0.0.151] - July 2026
 
 ### SEO Root-Cause Batch: Legacy Redirects, Generator Fixes, Honest Audit Scoring, Renderer Hardening
