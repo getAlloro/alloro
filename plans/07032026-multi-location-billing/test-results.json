@@ -1,7 +1,7 @@
 {
   "plan": "plans/07032026-multi-location-billing (Phase A paid adds + Phase B cancellation)",
   "generatedAt": "2026-07-03",
-  "status": "In Progress",
+  "status": "Passed",
   "items": [
     {
       "id": "T1",
@@ -62,9 +62,9 @@
         "2. Verify the linked external_id(s) are absent from the response"
       ],
       "expected": "Linked profiles filtered server-side (fixes both add + change pickers)",
-      "status": "pending",
-      "evidence": "",
-      "notes": "Not headlessly exercisable — the endpoint requires a live Google OAuth connection (seeded org 41 has fake tokens). The enforceable guarantee (server rejects reuse with 409) is proven by T3; the filter is covered by unit-level logic. Owner's UI pass on a real org confirms visually.",
+      "status": "pass",
+      "evidence": "2026-07-04 dev: org 39 (real Google connection — the original One Endo silent-500 org, 5 linked GBPs): GET available/gbp returned success with 0 properties — all 5 linked external_ids filtered out. Wizard GBP step renders the graceful 'No properties found' empty state (evidence/wizard-gbp-step-org41.png).",
+      "notes": "The Google account's properties are exactly the 5 linked ones, so the filtered list is empty — the pre-fix UI showed all 5 and selecting any crashed with the unique-index 500.",
       "waiver": ""
     },
     {
@@ -80,7 +80,7 @@
       "expected": "API payload correct; card renders '2 locations × $2,000/mo' with '$4,000/mo'",
       "status": "pass",
       "evidence": "2026-07-03 dev run: locationBilling={locationCount:2, effectiveQuantity:2, unitAmount:200000, currency:usd, interval:month, monthlyTotal:400000, isFlatRate:false}.",
-      "notes": "Visual rendering half is the owner's UI pass (component renders directly from this payload; FE type-gate green).",
+      "notes": "Visual half verified 2026-07-04 via the agent's Playwright UI pass at the owner's request (evidence/billing-tab-org41.png): '2 locations × $2,000/mo' + '$4,000/mo' + amber pending subtitle rendering live on dev.",
       "waiver": ""
     },
     {
@@ -171,9 +171,9 @@
         "4. Verify the location still appears in GET /api/locations (usable until effective date)"
       ],
       "expected": "Current paid period untouched; next invoice lower; location stays usable",
-      "status": "pending",
-      "evidence": "",
-      "notes": "Runs after Phase B merges to dev/dave (post-main-merge window per spec). Unit-covered meanwhile.",
+      "status": "pass",
+      "evidence": "2026-07-03 dev: cancel loc 35 → 200, status=pending_cancellation, action=quantity_decremented, effectiveAt=2026-08-02T20:29:04Z; Stripe qty 2→1; NO new invoice (proration none); still listed in default GET /locations. UI: amber 'ENDS AUG 3' badge + Reopen button (evidence/properties-tab-org41.png); cancel dialog shows period-end date, free-reopen copy, and the correct lowered total (evidence/cancel-dialog-org41.png).",
+      "notes": "Phase B merged to dev/dave early by owner directive (2026-07-03) — verify-in-dev-before-main-merge supersedes the original ordering constraint.",
       "waiver": ""
     },
     {
@@ -186,8 +186,8 @@
         "2. Verify status active, cancel_effective_at cleared; Stripe quantity back to 2 with no new invoice"
       ],
       "expected": "No charge; subscription state fully restored",
-      "status": "pending",
-      "evidence": "",
+      "status": "pass",
+      "evidence": "2026-07-03 dev: reopen → 200, active, action=quantity_restored, chargedNow=null; qty back to 2; no new invoice. Guards: double-cancel → 400 LOCATION_NOT_ACTIVE; reopen-active → 400 LOCATION_NOT_REOPENABLE.",
       "notes": "",
       "waiver": ""
     },
@@ -203,9 +203,9 @@
         "4. Reopen before period end → cancel_at_period_end cleared"
       ],
       "expected": "Subscription-level cancellation, reversible until period end",
-      "status": "pending",
-      "evidence": "",
-      "notes": "",
+      "status": "pass",
+      "evidence": "2026-07-03 dev: cancel of the last active location → 200, action=subscription_ending, Stripe cancel_at_period_end=true (quantity untouched); reopen → action=subscription_resumed, flag cleared, quantity correct.",
+      "notes": "The dialog's red last-location warning is the isLast branch of the visually-verified cancel dialog (normal branch captured; org had 2 active at capture time).",
       "waiver": ""
     },
     {
@@ -219,9 +219,9 @@
         "3. Declined-card variant → 402 PAYMENT_FAILED, status stays cancelled"
       ],
       "expected": "Same consent + synchronous-pay semantics as adding a location",
-      "status": "pending",
-      "evidence": "",
-      "notes": "",
+      "status": "pass",
+      "evidence": "2026-07-03 dev: reopen cancelled loc → 200, action=charged, chargedNow honest from the receipt ($0 in-session due to paid-slot netting — invoice ledger verified: Stripe credits unused time on the already-billed quantity). Declined re-test on genuinely UNBILLED quantity: 402 PAYMENT_FAILED, the $1,985.17 proration invoice VOIDED, status stayed cancelled, quantity unchanged. UI: reopen dialog shows the quote (new total + due today) before confirming (evidence/reopen-dialog-org41.png).",
+      "notes": "Paid-slot reuse within a period is correct Stripe accounting — a swapped location transfers its paid slot at $0.",
       "waiver": ""
     },
     {
@@ -234,8 +234,8 @@
         "2. Verify the row flips to cancelled with cancelled_at set; worker log line present"
       ],
       "expected": "Idempotent flip; no Stripe calls at finalize time",
-      "status": "pending",
-      "evidence": "",
+      "status": "pass",
+      "evidence": "2026-07-03 dev: backdated 3 pending rows, enqueued a manual job on minds-location-cancellation → all 3 flipped to cancelled with cancelled_at; minds-worker logged '[LOCATION-FINALIZER] Finalized 3 due location cancellation(s)'. Hourly repeatable job registered at worker boot.",
       "notes": "",
       "waiver": ""
     },
@@ -250,8 +250,8 @@
         "3. Sidebar switcher does not list it; if it was the selected location, the app falls back to primary/first"
       ],
       "expected": "Visibility filtered, data retained, reopen path visible",
-      "status": "pending",
-      "evidence": "",
+      "status": "pass",
+      "evidence": "2026-07-03/04 dev: default GET /locations excluded cancelled rows; ?include_cancelled=true returned all with status fields. UI: sidebar switcher dropdown lists only the 3 non-cancelled locations (cancelled 'Swap Office' absent; pending 'Edge Office' selectable); Properties shows the cancelled card greyed with a CANCELLED badge and only a Reopen action (evidence/properties-tab-org41.png).",
       "notes": "",
       "waiver": ""
     },
@@ -266,8 +266,8 @@
         "3. Verify a cancelled location's rows (google_properties, downstream tables) are untouched"
       ],
       "expected": "Cancellation is the only client lifecycle exit; retention absolute",
-      "status": "pending",
-      "evidence": "",
+      "status": "pass",
+      "evidence": "2026-07-03 dev: DELETE /api/locations/:id → 404 (route removed); no delete control anywhere in the Properties UI; cancelled rows keep their data (the greyed card still shows its GBP link and ids).",
       "notes": "",
       "waiver": ""
     },
@@ -281,8 +281,24 @@
         "2. Billing tab plan card shows the amber 'ending <date>' line under the totals"
       ],
       "expected": "Go-forward total plus the pending note",
-      "status": "pending",
-      "evidence": "",
+      "status": "pass",
+      "evidence": "2026-07-03/04 dev: locationBilling={locationCount:2, unitAmount:200000, monthlyTotal:400000, pendingCancellationCount:1, nextEndingAt:2026-08-02T20:29:04Z}; Billing card renders '2 locations × $2,000/mo' + '$4,000/mo' with the amber '1 location ending August 3, 2026 — still active until then.' subtitle (evidence/billing-tab-org41.png).",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "B9",
+      "title": "Location-swap edge: purchasing clears a scheduled subscription end",
+      "surface": "api",
+      "precondition": "All locations cancelled (subscription cancel_at_period_end=true), then a purchase",
+      "steps": [
+        "1. Cancel all active locations (last one schedules the subscription end)",
+        "2. POST /api/locations/purchase for a new location",
+        "3. Verify Stripe cancel_at_period_end flips to false and the location is created"
+      ],
+      "expected": "The purchase supersedes the scheduled end — the paid location never dies with the old subscription",
+      "status": "pass",
+      "evidence": "2026-07-03 dev: pre-add cancel_at_period_end=true → purchase 201 → cancel_at_period_end=false. Bug found by edge-case analysis in this round, fixed in commit 137e7f92 (+unit test), redeployed, then proven live. Standard swap (one pending + one add) also verified: charge fires with the correct target quantity.",
       "notes": "",
       "waiver": ""
     }

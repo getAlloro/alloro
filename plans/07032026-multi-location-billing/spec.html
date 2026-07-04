@@ -315,6 +315,12 @@
         <p><strong>Reason:</strong> Execution deviation: live Stripe behavior contradicted the specced payment primitive; blast-radius investigation collapsed T4's scope.</p>
         <p><strong>Updated Done criteria:</strong> none removed; dev E2E and declined-card items are satisfied with evidence in <code>test-results.json</code>. Outstanding for -d: owner UI pass (wizard, billing card, T4 picker), merge to main by July 7 + prod env gets <code>STRIPE_MODE=live</code>, docs parity.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-07-04</h3>
+        <p><strong>Change:</strong> (1) Location-swap edge fix in the purchase path: <code>chargeForQuantityIncrease</code> now clears a scheduled subscription end (<code>cancel_at_period_end</code>) before charging — without it, a client who cancelled their locations and then bought a new one would pay for a location that dies with the subscription at period end. Commit <code>137e7f92</code> + unit test; proven live on dev (flag true → purchase → flag false). (2) The remaining acceptance items closed: T4 picker filter verified against org 39's REAL Google connection (all 5 linked GBPs excluded — the original silent-500 org now shows a clean empty picker), and the visual halves verified via an agent-driven Playwright UI pass at the owner's request (billing card, Properties lifecycle states, cancel/reopen dialogs, wizard steps, switcher filtering — screenshots in <code>evidence/</code>). <code>test-results.json</code> now rolls up <strong>Passed</strong> (T1–T10 + B1–B9). (3) Prod prep done: <code>STRIPE_MODE=live</code> added to prod <code>app.env</code>.</p>
+        <p><strong>Reason:</strong> User QA: dev verification round requested 2026-07-03 (edge cases + agent-driven UI checking) before any main merge.</p>
+        <p><strong>Updated Done criteria:</strong> Remaining for -d: owner sign-off, main merge (both phases ride together per the owner's dev-first directive), docs parity, changelog/Friyay.</p>
+      </article>
     </section>
   </main>
 </body>
