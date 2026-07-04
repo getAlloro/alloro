@@ -57,7 +57,7 @@
       </div>
       <h1>Multi-Location Billing — Phase B: Location Cancellation Lifecycle</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>In Progress — code complete on the worktree (unit-tested, gates green, migration verified); dev E2E awaits the post-main-merge deploy window</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>In Progress — deployed to dev and fully E2E-verified (B1–B9 + UI pass); awaiting owner sign-off and the main merge</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/07032026-multi-location-billing</dd></div>
         <div><dt>Size</dt><dd>Medium (≈12 files + 1 migration)</dd></div>
         <div><dt>Risk</dt><dd>Level 3 (billing lifecycle + schema)</dd></div>
@@ -267,6 +267,12 @@
         <p><strong>Change:</strong> The Phase B migration (<code>20260703000000_add_location_cancellation_lifecycle</code>) shipped to <code>dev/dave</code> bundled with a Phase A fix commit and was applied to the dev database by that deploy — earlier than the "only after Phase A merges to main" constraint allowed. Kept rather than reverted: the migration is additive, inert (no code writes the new columns until Phase B deploys), and reversible, while removing the file from the branch after knex recorded it would corrupt the migration directory and break every subsequent dev deploy (a known failure mode in this repo).</p>
         <p><strong>Reason:</strong> Execution deviation: worktree commit included the migration; the merge carrying a Phase A payment fix could not wait. Risk assessed Level 2 — see amended constraint.</p>
         <p><strong>Updated Done criteria:</strong> The "applied on dev via deploy" item is satisfied early. Amended constraint: the July 7 main merge MAY carry this inert schema (additive columns + CHECK + index on a small table, no data rewrite, nothing writes them until Phase B code deploys) — the prod-risk note required before main merge must state exactly that.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-04</h3>
+        <p><strong>Change:</strong> Phase B merged to <code>dev/dave</code>, deployed to dev, and fully E2E-verified ahead of any main merge — every acceptance item (B1–B9) passed with evidence in <code>test-results.json</code>, including: end-of-period cancel with no new invoice, free reopen, last-location subscription-ending + resume, finalizer flip via the worker, visibility filtering (switcher + Properties greyed states, screenshots in <code>evidence/</code>), removed delete path, the pending billing-card subtitle, and a declined-card reopen on unbilled quantity (402 + invoice voided + status preserved). One additional edge found and fixed during this round: purchasing a location now clears a scheduled subscription end (location-swap; commit <code>137e7f92</code>, new B9 item + unit test). Invoice-ledger review confirmed Stripe's paid-slot netting: re-occupying a slot already billed this period costs $0 — correct accounting, noted as expected behavior.</p>
+        <p><strong>Reason:</strong> User QA directive 2026-07-03: hold the main merge and verify everything on dev first (supersedes the "Phase B only after Phase A merges to main" ordering); agent-driven browser UI pass explicitly requested.</p>
+        <p><strong>Updated Done criteria:</strong> Dev E2E items are satisfied; remaining for -d: owner sign-off, main merge (carries both phases + the inert migration; prod app.env already has STRIPE_MODE=live), docs parity, changelog/Friyay.</p>
       </article>
     </section>
   </main>
