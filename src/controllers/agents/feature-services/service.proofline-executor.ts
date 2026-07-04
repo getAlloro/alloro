@@ -70,7 +70,11 @@ export async function executeProoflineAgent(referenceDate?: string): Promise<Pro
     log(`[${"=".repeat(60)}]`);
 
     try {
-      const locations = await LocationModel.findByOrganizationId(account.organization_id);
+      // Cancelled locations are unpaid — recurring agents skip them. Paid
+      // pending_cancellation locations keep running until their period ends.
+      const locations = await LocationModel.findNonCancelledByOrganizationId(
+        account.organization_id
+      );
 
       if (locations.length === 0) {
         const fallbackLocationId = await resolveLocationId(account.organization_id);

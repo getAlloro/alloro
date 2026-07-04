@@ -274,6 +274,12 @@
         <p><strong>Reason:</strong> User QA directive 2026-07-03: hold the main merge and verify everything on dev first (supersedes the "Phase B only after Phase A merges to main" ordering); agent-driven browser UI pass explicitly requested.</p>
         <p><strong>Updated Done criteria:</strong> Dev E2E items are satisfied; remaining for -d: owner sign-off, main merge (carries both phases + the inert migration; prod app.env already has STRIPE_MODE=live), docs parity, changelog/Friyay.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-07-04</h3>
+        <p><strong>Change:</strong> Recurring-agent stop guards pulled INTO this plan (partial supersession of the "workflows keep running" deferral): the proofline and practice-ranking executors now enumerate locations via <code>findNonCancelledByOrganizationId</code> — <strong>cancelled locations are skipped</strong>; paid <code>pending_cancellation</code> locations keep running until their period ends. Research finding recorded: <strong>archived organizations were already fully guarded</strong> for all recurring work — both agent feeder queries (<code>findOnboardedActiveConnectionsWithOrganization</code>, <code>findOnboardedOrgConnectionsForRanking</code>) filter <code>whereNull o.archived_at</code>, the monthly-agents runner has its own explicit archived guard, and review-sync / GBP-local-post / GBP-automation sweeps all filter archived orgs at the model layer. Still deferred to the follow-up gating plan: location-status filters for the non-agent recurring systems (review sync, GBP local-post generation/deployment, data harvest, PMS jobs), which enumerate via <code>google_properties</code> without a location-status join and therefore still process cancelled locations.</p>
+        <p><strong>Reason:</strong> Scope addition: owner asked 2026-07-04 what happens to agents on cancelled locations and whether recurring agents stop for archived clients — agents guard added now, archived coverage verified pre-existing.</p>
+        <p><strong>Updated Done criteria:</strong> New acceptance item B10 (agents skip cancelled locations; archived-org guards verified). Behavioral confirmation of a live scheduled run rides the next proofline/ranking tick on dev.</p>
+      </article>
     </section>
   </main>
 </body>
