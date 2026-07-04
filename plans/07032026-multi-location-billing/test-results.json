@@ -301,6 +301,22 @@
       "evidence": "2026-07-03 dev: pre-add cancel_at_period_end=true → purchase 201 → cancel_at_period_end=false. Bug found by edge-case analysis in this round, fixed in commit 137e7f92 (+unit test), redeployed, then proven live. Standard swap (one pending + one add) also verified: charge fires with the correct target quantity.",
       "notes": "",
       "waiver": ""
+    },
+    {
+      "id": "B10",
+      "title": "Recurring agents skip cancelled locations; archived orgs already guarded",
+      "surface": "api",
+      "precondition": "Org with a cancelled location; proofline/ranking schedules enabled",
+      "steps": [
+        "1. Verify both agent executors enumerate via the status-aware finder (cancelled excluded, pending included)",
+        "2. Verify both agent feeder queries filter archived orgs (whereNull o.archived_at)",
+        "3. Next scheduled proofline/ranking run on dev processes org 41's non-cancelled locations only"
+      ],
+      "expected": "No agent compute or writes for cancelled locations; archived clients never enter the account list",
+      "status": "pass",
+      "evidence": "2026-07-04: proofline + ranking executors switched to findNonCancelledByOrganizationId (the exact query proven by B6: org 41 returns 3 non-cancelled of 4). Archived-org guards verified pre-existing in GoogleConnectionModel.findOnboardedActiveConnectionsWithOrganization + findOnboardedOrgConnectionsForRanking (whereNull o.archived_at) and the monthly-agents runner's explicit archived check. Gates green (tsc/conventions/189 tests).",
+      "notes": "Non-agent recurring systems (review sync, GBP local posts, harvest, PMS) still process cancelled locations — explicitly deferred to the workflow-gating follow-up plan.",
+      "waiver": ""
     }
   ]
 }
