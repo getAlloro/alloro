@@ -153,10 +153,15 @@ describe("OsIngestService.run — pipeline order", () => {
       liveVersion
     );
     // LLM throws — ingest must NOT fail; it degrades to the title fallback.
+    // streamChat is unused on the ingest path but required by the interface.
     const throwingLlm: OsLlmProvider = {
       generateDocMetadata: vi.fn(async () => {
         throw new Error("gemini exploded");
       }),
+      // eslint-disable-next-line require-yield
+      streamChat: async function* () {
+        throw new Error("streamChat not used in ingest tests");
+      },
     };
     setLlm(throwingLlm);
 

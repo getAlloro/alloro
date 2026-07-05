@@ -39,11 +39,11 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec · Phase 5 of 7 · plans/07042026-alloro-os-admin-port</p>
-        <span class="status-pill">Pending Execution</span>
+        <span class="status-pill">Completed</span>
       </div>
       <h1>P5 — Grounded RAG Chat with Citations (SSE)</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>Completed (worktree — T6 Apache block deferred to deploy)</dd></div>
         <div><dt>Depends on</dt><dd>P4 Completed (retrieval)</dd></div>
         <div><dt>Size</dt><dd>Medium (~15 new files)</dd></div>
         <div><dt>Unlocks</dt><dd>Final acceptance chat items</dd></div>
@@ -166,6 +166,15 @@ cd /Users/rustinedave/Desktop/alloro/frontend && npm run build
         <p><strong>Change:</strong> Added T6 (mirror the minds <code>flushpackets=on</code> SSE Location block for <code>/api/admin/os/chat/</code> on both Apache vhosts) plus the matching risk, gate step, and Done item.</p>
         <p><strong>Reason:</strong> Scope addition: server-compatibility probe (2026-07-04) showed Apache's catch-all <code>ProxyPass /</code> does not flush — minds chat streams only because of its dedicated Location block, so OS chat needs the same or SSE buffers into one lump.</p>
         <p><strong>Updated Done criteria:</strong> Added — dev vhost flush block verified via incremental-arrival curl; prod at main merge.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-05</h3>
+        <p><strong>Change:</strong> Executed T1–T5 in the worktree. Backend: 3 chat models (<code>OsChatConversationModel</code> with the enriched list-aggregate, <code>OsChatMessageModel</code> with jsonb citations, <code>OsChatContextDocumentModel</code>); extended <code>service.os-llm.ts</code> with <code>streamChat()</code> + a strict grounded-refusal <code>OS_CHAT_SYSTEM_PROMPT</code> + a deterministic fake; <code>OsChatService</code> (per-user ownership, history build, context assembly, citations from the retrieval set ONLY, fire-and-forget auto-title); <code>AdminOsChatController</code> (minds-exact SSE headers + <code>X-Accel-Buffering: no</code> + flushHeaders; vocabulary status→delta→done{message_id,citations}/error; envelope before headers, in-stream error after) + 7 routes. Frontend: <code>api/admin-os-chat.ts</code> (CRUD + <code>streamOsChatMessage</code> buffered-line SSE reader via the sanctioned <code>adminFetch</code> auth helper); hooks <code>useAdminOsConversations</code>/<code>useAdminOsConversation</code>/<code>useOsChatStream</code> (optimistic turn + cache-writing stream) + <code>useOsStreamScroll</code>/<code>useOsDocTitles</code>; two-pane Chat page + 8 components (sidebar, thread, message, citation chip, thinking indicator, input, context chips, attach dialog) replacing the placeholder. Tests: <code>os-chat.test.ts</code> + <code>os-chat-sse.test.ts</code> (hermetic) and <code>p5-chat.itest.ts</code> (live DB, fakes).</p>
+        <p><strong>Reason:</strong> Execution (-x) of P5 tasks T1–T5.</p>
+        <p><strong>Streaming API (R1 resolved):</strong> <code>@google/genai</code> 1.43 <code>client.models.generateContentStream(params) => Promise&lt;AsyncGenerator&lt;GenerateContentResponse&gt;&gt;</code>, each chunk exposing a <code>text</code> getter (verified in <code>genai.d.ts</code>). Full streaming parity — <strong>NO fallback to the Anthropic seam.</strong> T5 live smoke (real <code>gemini-3.5-flash</code>, key from worktree .env): first token <strong>2136 ms</strong> (&lt; 5 s), ≥2 tokens, real grounded text — PASS.</p>
+        <p><strong>Gates (all green):</strong> backend <code>tsc</code> clean · <code>check:conventions --strict</code> exit 0 (0 backend structural violations) · chat vitest 19/19 · full backend suite 286/286 · OS itests 19/19 (incl. new p5) · frontend <code>tsc -p tsconfig.app.json</code> clean · frontend vitest 47/47 · frontend build ✓. FE advisory: 0 console / 0 raw-fetch-outside-client / 0 <code>any</code>. Local test DB left migrated + clean (itest afterAll).</p>
+        <p><strong>T6 deferred:</strong> the Apache <code>flushpackets=on</code> Location block for <code>/api/admin/os/chat/</code> is a server-config action on the shared dev/prod vhosts — NOT performed from the worktree (no ssh). Still required at deploy: dev on P5 deploy, prod at the main merge. Localhost/tests bypass Apache, so streaming only buffers through the public URL without it.</p>
+        <p><strong>Updated Done criteria:</strong> Items 1–4 met in the worktree (SSE stream + server-built citations + auth matrix + refusal path proven by tests; live Gemini smoke recorded; gates green; pills updated). Item 5 (Apache flush block live + public-URL verification) remains open — deferred to deploy/merge per T6.</p>
       </article>
     </section>
   </main>

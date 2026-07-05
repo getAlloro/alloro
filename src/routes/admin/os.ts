@@ -11,6 +11,7 @@ import { AdminOsTrashController } from "../../controllers/admin-os/AdminOsTrashC
 import { AdminOsLocksController } from "../../controllers/admin-os/AdminOsLocksController";
 import { AdminOsSearchController } from "../../controllers/admin-os/AdminOsSearchController";
 import { AdminOsLinksController } from "../../controllers/admin-os/AdminOsLinksController";
+import { AdminOsChatController } from "../../controllers/admin-os/AdminOsChatController";
 import { getOsKnowledgeBaseConfig } from "../../config/osKnowledgeBase";
 import {
   osIdParamsSchema,
@@ -29,6 +30,8 @@ import {
   osCreateLinkSchema,
   osLinkIdParamsSchema,
   osUpdateLinkSchema,
+  osCreateConversationSchema,
+  osContextParamsSchema,
 } from "../../validation/os.schemas";
 
 // Fail fast at boot (§5.6): parsing validates every OS_* value, including the
@@ -212,5 +215,41 @@ router.delete(
 
 // ── Search (FTS) ─────────────────────────────────────────────────────────────
 router.get("/search", query(osSearchQuerySchema), AdminOsSearchController.search);
+
+// ── Chat (P5) ────────────────────────────────────────────────────────────────
+router.get("/chat/conversations", AdminOsChatController.list);
+router.post(
+  "/chat/conversations",
+  body(osCreateConversationSchema),
+  AdminOsChatController.create
+);
+router.get(
+  "/chat/conversations/:id",
+  params(osIdParamsSchema),
+  AdminOsChatController.get
+);
+router.delete(
+  "/chat/conversations/:id",
+  params(osIdParamsSchema),
+  AdminOsChatController.remove
+);
+// SSE stream. No body(...) middleware: the controller re-parses the message so
+// a bad payload 400s as an envelope BEFORE the stream opens, keeping full
+// control of the pre-stream error shape (§8.3). params still validate.
+router.post(
+  "/chat/conversations/:id/messages",
+  params(osIdParamsSchema),
+  AdminOsChatController.sendMessage
+);
+router.post(
+  "/chat/conversations/:id/context/:documentId",
+  params(osContextParamsSchema),
+  AdminOsChatController.attachContext
+);
+router.delete(
+  "/chat/conversations/:id/context/:documentId",
+  params(osContextParamsSchema),
+  AdminOsChatController.detachContext
+);
 
 export default router;

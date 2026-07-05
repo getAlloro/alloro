@@ -300,6 +300,10 @@ export const QUERY_KEYS = {
   adminOsTrashAll: ["admin", "os", "trash"] as const,
   adminOsSearch: (q: string, params?: Record<string, unknown>) =>
     ["admin", "os", "search", q, params] as const,
+  // Chat (P5) — the conversation list and one conversation's thread+context.
+  adminOsConversations: ["admin", "os", "conversations"] as const,
+  adminOsConversation: (id: string | null) =>
+    ["admin", "os", "conversation", id] as const,
 
   // Client — notifications
   notifications: (orgId: number | null, locationId: number | null) =>

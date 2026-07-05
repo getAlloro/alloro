@@ -122,7 +122,7 @@
           <tr><td>P2</td><td><code>p2-library-backend.html</code></td><td>Documents/versions/drafts/publish, folders, categories, trash+purge, locks, FTS search, activity — API complete</td><td>P1</td><td><span class="phase-status">Completed</span></td></tr>
           <tr><td>P3</td><td><code>p3-library-frontend.html</code></td><td>Library views (list/grouped/folders, dnd), DocumentRead 3-pane, TipTap editor + autosave + versions/diff/restore, Trash UI</td><td>P2</td><td><span class="phase-status">Completed</span></td></tr>
           <tr><td>P4</td><td><code>p4-indexing-search.html</code></td><td>Ingest worker (chunk→embed→AI metadata→link suggest→tsv→status), reindex, semantic+FTS search API, ⌘K palette, Related rail</td><td>P2 (API), P3 (UI)</td><td><span class="phase-status">Completed</span></td></tr>
-          <tr><td>P5</td><td><code>p5-chat.html</code></td><td>Chat backend (conversations, SSE stream, retrieval+citations, grounded refusal, auto-title) + Chat tab UI</td><td>P4</td><td><span class="phase-status">Pending</span></td></tr>
+          <tr><td>P5</td><td><code>p5-chat.html</code></td><td>Chat backend (conversations, SSE stream, retrieval+citations, grounded refusal, auto-title) + Chat tab UI</td><td>P4</td><td><span class="phase-status">Completed</span></td></tr>
           <tr><td>P6</td><td><code>p6-imports-assets.html</code></td><td>File imports (docx/xlsx/pdf/md → markdown, batch, warnings) + editor image assets via S3</td><td>P2, P3 (P4 for auto-index)</td><td><span class="phase-status">Pending</span></td></tr>
           <tr><td>P7</td><td><code>p7-comments.html</code></td><td>Threaded comments on documents (no task fields) + read-rail UI</td><td>P3</td><td><span class="phase-status">Pending</span></td></tr>
         </tbody>
@@ -258,6 +258,12 @@
         <p><strong>Change:</strong> All 16 tables moved from <code>os_</code>-prefixed names in <code>public</code> to a dedicated Postgres schema <code>os</code> with unprefixed table names (<code>os.documents</code>, <code>os.document_chunks</code>, …). D4 rewritten; <code>migrations/pgsql.sql</code> + <code>knexmigration.js</code> reauthored (<code>CREATE SCHEMA IF NOT EXISTS os</code>, <code>withSchema("os")</code>, cross-schema FKs to <code>public.users</code>, down() drops tables then schema); P1/P4/P6 table references and acceptance item T3 updated. Model convention: dot-qualified table strings (<code>db("os.documents")</code>), the exact <code>minds</code>-schema pattern.</p>
         <p><strong>Reason:</strong> Scope change (owner): "the db i want to use is a new schema called OS, with all the tables there." Also matches the house precedent — minds already lives in its own schema.</p>
         <p><strong>Updated Done criteria:</strong> Migration check now reads "schema <code>os</code> exists with 16 tables" (was "16 <code>os_</code> tables present").</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 3 - 2026-07-05</h3>
+        <p><strong>Change:</strong> P5 (Chat) executed in the worktree and set to <code>Completed</code> in the Phase Index. Full detail in <code>p5-chat.html</code> Rev 2. Highlights: grounded RAG chat backend (3 chat models, <code>OsChatService</code>, SSE <code>AdminOsChatController</code> with minds-exact headers, 7 routes) + two-pane Chat tab UI (streaming client, hooks, 8 components) replacing the placeholder. R1 resolved: <code>@google/genai</code> 1.43 <code>generateContentStream</code> has streaming parity — no Anthropic fallback; live smoke first token 2136 ms. All phase gates green (backend+frontend tsc, conventions --strict exit 0, 286 backend + 47 frontend + 19 OS-itest tests, frontend build). Local test DB left migrated + clean.</p>
+        <p><strong>Reason:</strong> Execution deviation record (per the execution-model rule: deviations mirrored from the phase file into this master log). No scope change — P5 built as specced.</p>
+        <p><strong>Updated Done criteria:</strong> Master Done item "(Rev 1) Apache SSE flush block for <code>/api/admin/os/chat/</code> present on dev AND prod vhosts (P5 T6)" remains OPEN — deferred to deploy (dev) / main merge (prod); it is a shared-server config action, not doable from the worktree.</p>
       </article>
     </section>
   </main>

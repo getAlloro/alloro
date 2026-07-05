@@ -20,6 +20,9 @@ const OS_TAGS_MAX_COUNT = 50;
 const OS_NOTE_MAX = 2000;
 /** Markdown body ceiling (~2 MB of text) for drafts/creates. */
 const OS_CONTENT_MD_MAX = 2_000_000;
+/** Chat message ceilings (§4.2) — a title hint and one message body. */
+const OS_CHAT_TITLE_MAX = 200;
+const OS_CHAT_MESSAGE_MAX = 20_000;
 
 const uuidSchema = z.uuid();
 const titleSchema = z.string().trim().min(1).max(OS_TITLE_MAX);
@@ -125,4 +128,27 @@ export const osLinkIdParamsSchema = z.looseObject({ id: uuidSchema });
 
 export const osUpdateLinkSchema = z.object({
   status: z.enum(["accepted", "rejected"]),
+});
+
+// ── Chat (P5) ────────────────────────────────────────────────────────────────
+
+/** POST /chat/conversations body — optional title hint (blank ⇒ auto-title). */
+export const osCreateConversationSchema = z.object({
+  title: z.string().trim().max(OS_CHAT_TITLE_MAX).optional(),
+});
+
+/** :id/context/:documentId params — both are document/conversation UUIDs. */
+export const osContextParamsSchema = z.looseObject({
+  id: uuidSchema,
+  documentId: uuidSchema,
+});
+
+/**
+ * POST /chat/conversations/:id/messages body. NOT applied as route middleware —
+ * the SSE controller re-parses this so a bad payload 400s as an envelope BEFORE
+ * the stream opens (validate() middleware would answer the same, but the
+ * controller owns the pre-stream error shape). Exported for the controller.
+ */
+export const osChatMessageSchema = z.object({
+  message: z.string().trim().min(1).max(OS_CHAT_MESSAGE_MAX),
 });
