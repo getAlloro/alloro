@@ -15,7 +15,7 @@
       ],
       "expected": "google_sub + avatar_url columns and users_google_sub_unique index appear on up, disappear on down, reappear on re-up — no errors",
       "status": "pass",
-      "evidence": "Local: Batch 128 up → both columns + users_google_sub_unique present; rollback → 0 columns; re-migrate → 2 columns. Reversible.",
+      "evidence": "Local: up → columns + users_google_sub_unique present; rollback → 0; re-migrate → present (reversible). Dev DB: deploy ran it — knex_migrations has 20260705000000_add_google_sub_to_users, cols=2, idx=1.",
       "notes": "",
       "waiver": ""
     },
@@ -46,7 +46,7 @@
       ],
       "expected": "Redirected through /auth/google/finish to /admin; admin dashboard loads; auth_token present in localStorage; no OTP anywhere",
       "status": "pending",
-      "evidence": "",
+      "evidence": "OAuth start verified live on dev: 302 → accounts.google.com with scope 'openid email profile', redirect_uri=https://dev.getalloro.com/api/auth/google/callback, hd=getalloro.com, and the oauth_login_tx state cookie set. The full sign-in round-trip still needs a real @getalloro account.",
       "notes": "Requires a real Google account — owner runs.",
       "waiver": ""
     },
@@ -75,9 +75,9 @@
         "2. Same for /api/auth/otp/verify"
       ],
       "expected": "Both return 404 (routes removed). /api/auth/otp/validate still responds (401 without a token).",
-      "status": "pending",
-      "evidence": "",
-      "notes": "Verifiable on dev after deploy.",
+      "status": "pass",
+      "evidence": "Live dev: POST /api/auth/otp/request → 404, /api/auth/otp/verify → 404, /api/auth/otp/validate → 401. Health green.",
+      "notes": "",
       "waiver": ""
     },
     {
