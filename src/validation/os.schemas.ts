@@ -23,6 +23,8 @@ const OS_CONTENT_MD_MAX = 2_000_000;
 /** Chat message ceilings (§4.2) — a title hint and one message body. */
 const OS_CHAT_TITLE_MAX = 200;
 const OS_CHAT_MESSAGE_MAX = 20_000;
+/** Comment body ceiling (§4.2) — a discussion note, not a document. */
+const OS_COMMENT_BODY_MAX = 10_000;
 
 const uuidSchema = z.uuid();
 const titleSchema = z.string().trim().min(1).max(OS_TITLE_MAX);
@@ -151,4 +153,24 @@ export const osContextParamsSchema = z.looseObject({
  */
 export const osChatMessageSchema = z.object({
   message: z.string().trim().min(1).max(OS_CHAT_MESSAGE_MAX),
+});
+
+// ── Comments (P7) ────────────────────────────────────────────────────────────
+
+/** :id/comments params — the document UUID. */
+export const osCommentIdParamsSchema = z.looseObject({ id: uuidSchema });
+
+/**
+ * POST …/comments body — the raw markdown note, optional parent for a reply.
+ * No task fields (is_task/assignee/due/status): pmtool owns tasks (master
+ * D-scope). body_md is stored raw and rendered client-side.
+ */
+export const osCreateCommentSchema = z.object({
+  body_md: z.string().trim().min(1).max(OS_COMMENT_BODY_MAX),
+  parent_comment_id: uuidSchema.nullish(),
+});
+
+/** PATCH /comments/:id body — edit the markdown note (author-only server-side). */
+export const osUpdateCommentSchema = z.object({
+  body_md: z.string().trim().min(1).max(OS_COMMENT_BODY_MAX),
 });

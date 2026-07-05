@@ -15,6 +15,7 @@ import { AdminOsLinksController } from "../../controllers/admin-os/AdminOsLinksC
 import { AdminOsChatController } from "../../controllers/admin-os/AdminOsChatController";
 import { AdminOsImportsController } from "../../controllers/admin-os/AdminOsImportsController";
 import { AdminOsAssetsController } from "../../controllers/admin-os/AdminOsAssetsController";
+import { AdminOsCommentsController } from "../../controllers/admin-os/AdminOsCommentsController";
 import { authenticateOsAsset } from "../../controllers/admin-os/feature-utils/osAssetAuth";
 import { getOsKnowledgeBaseConfig } from "../../config/osKnowledgeBase";
 import {
@@ -36,6 +37,9 @@ import {
   osUpdateLinkSchema,
   osCreateConversationSchema,
   osContextParamsSchema,
+  osCommentIdParamsSchema,
+  osCreateCommentSchema,
+  osUpdateCommentSchema,
 } from "../../validation/os.schemas";
 
 // Fail fast at boot (§5.6): parsing validates every OS_* value, including the
@@ -230,6 +234,33 @@ router.patch(
   params(osLinkIdParamsSchema),
   body(osUpdateLinkSchema),
   AdminOsLinksController.updateStatus
+);
+
+// ── Comments (P7 T1) ─────────────────────────────────────────────────────────
+// Threaded discussion per document. Edit/delete are author-only, enforced in
+// OsCommentService (§5.4) — the route only validates the boundary. No task
+// fields anywhere (pmtool owns tasks; master D-scope).
+router.get(
+  "/documents/:id/comments",
+  params(osIdParamsSchema),
+  AdminOsCommentsController.list
+);
+router.post(
+  "/documents/:id/comments",
+  params(osIdParamsSchema),
+  body(osCreateCommentSchema),
+  AdminOsCommentsController.create
+);
+router.patch(
+  "/comments/:id",
+  params(osCommentIdParamsSchema),
+  body(osUpdateCommentSchema),
+  AdminOsCommentsController.update
+);
+router.delete(
+  "/comments/:id",
+  params(osCommentIdParamsSchema),
+  AdminOsCommentsController.remove
 );
 
 // ── Versions (diff before :versionNo so "diff" never parses as a number) ────

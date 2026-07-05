@@ -60,11 +60,11 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec · Master (multi-file plan)</p>
-        <span class="status-pill">In Progress</span>
+        <span class="status-pill">Code-Complete</span>
       </div>
       <h1>Alloro OS → Admin Port</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>In Progress (worktree dave/os-admin-port)</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>Code-Complete on worktree — awaiting dev merge + one-time acceptance</dd></div>
         <div><dt>Plan Folder</dt><dd>plans/07042026-alloro-os-admin-port</dd></div>
         <div><dt>Size</dt><dd>Large (7 phase files)</dd></div>
         <div><dt>Risk</dt><dd>Level 2</dd></div>
@@ -124,7 +124,7 @@
           <tr><td>P4</td><td><code>p4-indexing-search.html</code></td><td>Ingest worker (chunk→embed→AI metadata→link suggest→tsv→status), reindex, semantic+FTS search API, ⌘K palette, Related rail</td><td>P2 (API), P3 (UI)</td><td><span class="phase-status">Completed</span></td></tr>
           <tr><td>P5</td><td><code>p5-chat.html</code></td><td>Chat backend (conversations, SSE stream, retrieval+citations, grounded refusal, auto-title) + Chat tab UI</td><td>P4</td><td><span class="phase-status">Completed</span></td></tr>
           <tr><td>P6</td><td><code>p6-imports-assets.html</code></td><td>File imports (docx/xlsx/pdf/md → markdown, batch, warnings) + editor image assets via S3</td><td>P2, P3 (P4 for auto-index)</td><td><span class="phase-status">Completed</span></td></tr>
-          <tr><td>P7</td><td><code>p7-comments.html</code></td><td>Threaded comments on documents (no task fields) + read-rail UI</td><td>P3</td><td><span class="phase-status">Pending</span></td></tr>
+          <tr><td>P7</td><td><code>p7-comments.html</code></td><td>Threaded comments on documents (no task fields) + read-rail UI</td><td>P3</td><td><span class="phase-status">Completed</span></td></tr>
         </tbody>
       </table>
     </section>
@@ -264,6 +264,13 @@
         <p><strong>Change:</strong> P5 (Chat) executed in the worktree and set to <code>Completed</code> in the Phase Index. Full detail in <code>p5-chat.html</code> Rev 2. Highlights: grounded RAG chat backend (3 chat models, <code>OsChatService</code>, SSE <code>AdminOsChatController</code> with minds-exact headers, 7 routes) + two-pane Chat tab UI (streaming client, hooks, 8 components) replacing the placeholder. R1 resolved: <code>@google/genai</code> 1.43 <code>generateContentStream</code> has streaming parity — no Anthropic fallback; live smoke first token 2136 ms. All phase gates green (backend+frontend tsc, conventions --strict exit 0, 286 backend + 47 frontend + 19 OS-itest tests, frontend build). Local test DB left migrated + clean.</p>
         <p><strong>Reason:</strong> Execution deviation record (per the execution-model rule: deviations mirrored from the phase file into this master log). No scope change — P5 built as specced.</p>
         <p><strong>Updated Done criteria:</strong> Master Done item "(Rev 1) Apache SSE flush block for <code>/api/admin/os/chat/</code> present on dev AND prod vhosts (P5 T6)" remains OPEN — deferred to deploy (dev) / main merge (prod); it is a shared-server config action, not doable from the worktree.</p>
+      </article>
+
+      <article class="revision-entry">
+        <h3>Rev 4 - 2026-07-05</h3>
+        <p><strong>Change:</strong> ALL 7 PHASES EXECUTED on worktree <code>dave/os-admin-port</code> (7 commits, LagDave). Full cross-phase gate green: backend <code>tsc</code> 0, <code>check:conventions --strict</code> 0, 313 hermetic tests (35 files), 26 integration tests (6 files) against a local pgvector replica of the dev schema, frontend <code>tsc</code> 0, 53 FE tests, FE build green. Chat streaming proven live against real Gemini (first token ~2.1s). Zero task fields/UI anywhere (pmtool scope respected). One security deviation logged + tracked: OS asset <code>&lt;img&gt;</code> auth uses a <code>?token=</code> session JWT (p6 Rev 2, follow-up task) — harden before prod.</p>
+        <p><strong>Reason:</strong> Scope completion: user requested autonomous execution of all phases on a worktree branched from dev/dave, reporting only when done.</p>
+        <p><strong>Updated Done criteria:</strong> Automated Done items met (both tsc, conventions strict, full suites, FE build, migration up/down/up on the pgvector replica). REMAINING before finalize (-d): (1) merge <code>dave/os-admin-port</code> → <code>dev/dave</code> so the migration runs on the shared dev DB via deploy; (2) add the Apache <code>flushpackets</code> Location block for <code>/api/admin/os/chat/</code> on the dev vhost (prod at main merge); (3) the one-time human/agent acceptance walkthrough (<code>test.html</code>, 12 items T1–T12); (4) resolve the asset-auth hardening follow-up. The migration was deliberately NOT applied to the shared dev DB from the worktree (a migration recorded on dev while its file lives only on this branch would fail every other dev deploy's missing-file check).</p>
       </article>
     </section>
   </main>

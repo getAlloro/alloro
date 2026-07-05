@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Clock, GitCompareArrows, History, MessageSquare, RotateCcw, X } from "lucide-react";
+import { Clock, GitCompareArrows, History, RotateCcw, X } from "lucide-react";
 import type { OsDiffHunk, OsDocumentVersion } from "../../../../api/admin-os";
 import {
   useAdminOsVersionDiff,
@@ -9,14 +9,14 @@ import {
 import { useConfirm } from "../../../ui/ConfirmModal";
 import { OsErrorState } from "../shared/OsErrorState";
 import { OsRelatedRail } from "./OsRelatedRail";
+import { OsCommentThread } from "../comments/OsCommentThread";
 import { formatOsDateTime, formatOsRelativeTime } from "../shared/osFormat";
 
 /**
- * Right rail on the read view (P3 T3/T5): version history with line-diff and
- * non-destructive restore, the live Related section (P4), and a quiet
- * placeholder for Comments (P7). Order: History → Related → Comments. Diff
- * hunks use the semantic soft tokens — add = success-soft, remove = danger-soft
- * (D13).
+ * Right rail on the read view (P3 T3/T5, P7 T2): version history with line-diff
+ * and non-destructive restore, the live Related section (P4), and the threaded
+ * Comments section (P7). Order: History → Related → Comments. Diff hunks use
+ * the semantic soft tokens — add = success-soft, remove = danger-soft (D13).
  */
 
 const DIFF_ROW_CLASSES: Record<OsDiffHunk["type"], string> = {
@@ -166,28 +166,6 @@ function OsVersionRow({
   );
 }
 
-function OsRailPlaceholder({
-  icon: Icon,
-  title,
-  phase,
-}: {
-  icon: typeof MessageSquare;
-  title: string;
-  phase: string;
-}) {
-  return (
-    <section className="py-4">
-      <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-400">
-        <Icon className="h-4 w-4" strokeWidth={1.5} />
-        {title}
-      </h3>
-      <p className="mt-1.5 pl-6 font-mono text-[11px] text-gray-300">
-        arrives in {phase}
-      </p>
-    </section>
-  );
-}
-
 export function OsHistoryRail({
   documentId,
   currentVersionNo,
@@ -269,7 +247,7 @@ export function OsHistoryRail({
         </div>
       </section>
       <OsRelatedRail documentId={documentId} />
-      <OsRailPlaceholder icon={MessageSquare} title="Comments" phase="P7" />
+      <OsCommentThread documentId={documentId} />
     </div>
   );
 }

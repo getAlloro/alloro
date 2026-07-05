@@ -200,6 +200,38 @@ export type OsLinksView = {
   suggested: OsLinkDto[];
 };
 
+// ── Comments (P7) ─────────────────────────────────────────────────────────────
+
+/** A comment's author, for the avatar initial + name. */
+export type OsCommentAuthor = {
+  id: number;
+  name: string | null;
+  email: string;
+};
+
+/** One comment as the rail renders it (a tombstone exposes no body). */
+export type OsComment = {
+  id: string;
+  parent_comment_id: string | null;
+  author: OsCommentAuthor | null;
+  body_md: string;
+  version_tag: number | null;
+  created_at: string;
+  updated_at: string;
+  deleted: boolean;
+};
+
+/** A root comment plus its one level of replies. */
+export type OsCommentNode = OsComment & {
+  replies: OsComment[];
+};
+
+/** GET …/comments payload: the live version + threaded roots. */
+export type OsCommentThreadView = {
+  liveVersionNo: number | null;
+  comments: OsCommentNode[];
+};
+
 // ── Request params ───────────────────────────────────────────────────────────
 
 export type OsDocumentListParams = {
@@ -566,6 +598,53 @@ export async function adminOsUpdateLinkStatus(
       passedData: { status },
     }),
   );
+}
+
+// ── Comments (P7) ─────────────────────────────────────────────────────────────
+
+/** GET the threaded comments for a document (live version + roots). */
+export async function adminOsGetComments(
+  documentId: string,
+): Promise<OsCommentThreadView> {
+  return unwrap(
+    await apiGet({ path: `/admin/os/documents/${documentId}/comments` }),
+  );
+}
+
+/** POST a comment or reply (body_md raw; parent_comment_id for a reply). */
+export async function adminOsCreateComment(
+  documentId: string,
+  input: { body_md: string; parent_comment_id?: string | null },
+): Promise<{ comment: OsComment }> {
+  return unwrap(
+    await apiPost({
+      path: `/admin/os/documents/${documentId}/comments`,
+      passedData: {
+        body_md: input.body_md,
+        parent_comment_id: input.parent_comment_id ?? null,
+      },
+    }),
+  );
+}
+
+/** PATCH a comment's body (PATCH /comments/:id; author-only server-side). */
+export async function adminOsUpdateComment(
+  commentId: string,
+  bodyMd: string,
+): Promise<{ comment: OsComment }> {
+  return unwrap(
+    await apiPatch({
+      path: `/admin/os/comments/${commentId}`,
+      passedData: { body_md: bodyMd },
+    }),
+  );
+}
+
+/** DELETE a comment — tombstone (DELETE /comments/:id; author-only server-side). */
+export async function adminOsDeleteComment(
+  commentId: string,
+): Promise<{ id: string; deleted: true }> {
+  return unwrap(await apiDelete({ path: `/admin/os/comments/${commentId}` }));
 }
 
 // ── Imports & assets (P6) ─────────────────────────────────────────────────────

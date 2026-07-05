@@ -29,6 +29,10 @@ export const OS_ACTIVITY_ACTIONS = [
   // P6 — file import + editor/import image asset events.
   "document.imported",
   "asset.uploaded",
+  // P7 — threaded document comments (no task fields; pmtool owns tasks).
+  "comment.created",
+  "comment.replied",
+  "comment.deleted",
 ] as const;
 
 export type OsActivityAction = (typeof OS_ACTIVITY_ACTIONS)[number];
@@ -44,6 +48,9 @@ export const OS_ACTIVITY_TARGET_TYPES = [
   "link",
   // P6 — target of asset.uploaded (os.assets.id).
   "asset",
+  // P7 — target of comment.created / comment.replied / comment.deleted
+  // (os.comments.id).
+  "comment",
 ] as const;
 
 export type OsActivityTargetType = (typeof OS_ACTIVITY_TARGET_TYPES)[number];
