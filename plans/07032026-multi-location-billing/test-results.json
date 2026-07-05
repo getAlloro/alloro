@@ -314,8 +314,8 @@
       ],
       "expected": "No agent compute or writes for cancelled locations; archived clients never enter the account list",
       "status": "pass",
-      "evidence": "2026-07-04: proofline + ranking executors switched to findNonCancelledByOrganizationId (the exact query proven by B6: org 41 returns 3 non-cancelled of 4). Archived-org guards verified pre-existing in GoogleConnectionModel.findOnboardedActiveConnectionsWithOrganization + findOnboardedOrgConnectionsForRanking (whereNull o.archived_at) and the monthly-agents runner's explicit archived check. Gates green (tsc/conventions/189 tests).",
-      "notes": "Non-agent recurring systems (review sync, GBP local posts, harvest, PMS) still process cancelled locations — explicitly deferred to the workflow-gating follow-up plan.",
+      "evidence": "2026-07-04: proofline + ranking executors switched to findNonCancelledByOrganizationId. LIVE SCHEDULED RUN PROOF (2026-07-05 dev, minds-worker log): '[CLIENT] Found 3 location(s) for org 41' — 3 of 4 enumerated, cancelled Swap Office skipped; full run completed across 8 accounts. Archived-org guards verified pre-existing in both agent feeder queries (whereNull o.archived_at) and the monthly-agents runner's explicit check. Gates green (tsc/conventions/189 tests).",
+      "notes": "Non-agent recurring systems (review sync, GBP local posts, harvest, PMS) still process cancelled locations — explicitly deferred to the workflow-gating follow-up plan. Bonus finding: dev proofline had been dead since 2026-04-28 (stale 'running' schedule_runs row 48 blocked every tick) — cleared during this verification, dev proofline now runs again.",
       "waiver": ""
     }
   ]
