@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import {
   AdminLayout,
@@ -35,6 +36,17 @@ import OsShell from "./admin/os/OsShell";
 import OsLibrary from "./admin/os/OsLibrary";
 import OsChat from "./admin/os/OsChat";
 import OsTrash from "./admin/os/OsTrash";
+import OsDocumentRead from "./admin/os/OsDocumentRead";
+
+// Lazy editor route (P3 T4 / master spec R6): TipTap + tiptap-markdown stay
+// out of the main admin chunk; verified as a separate chunk in the build.
+const OsDocumentEdit = lazy(() => import("./admin/os/OsDocumentEdit"));
+
+function OsEditRouteFallback() {
+  return (
+    <div className="mt-6 min-h-[50vh] rounded-xl border border-line-soft bg-alloro-surface motion-safe:animate-pulse" />
+  );
+}
 
 function WebDevEngine() {
   return (
@@ -112,9 +124,15 @@ function AdminWithLayout() {
           <Route index element={<OsLibrary />} />
           <Route path="chat" element={<OsChat />} />
           <Route path="trash" element={<OsTrash />} />
-          {/* Document read/edit land in P3 — placeholders keep deep links inside the shell */}
-          <Route path="doc/:id" element={<OsLibrary />} />
-          <Route path="doc/:id/edit" element={<OsLibrary />} />
+          <Route path="doc/:id" element={<OsDocumentRead />} />
+          <Route
+            path="doc/:id/edit"
+            element={
+              <Suspense fallback={<OsEditRouteFallback />}>
+                <OsDocumentEdit />
+              </Suspense>
+            }
+          />
         </Route>
         <Route path="leadgen-submissions" element={<LeadgenSubmissions />} />
       </Routes>

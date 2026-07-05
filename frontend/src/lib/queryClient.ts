@@ -274,6 +274,28 @@ export const QUERY_KEYS = {
 
   // Admin — OS knowledge base
   adminOsUsers: ["admin", "os", "users"] as const,
+  adminOsDocuments: (params?: Record<string, unknown>) =>
+    ["admin", "os", "documents", params] as const,
+  adminOsDocumentsAll: ["admin", "os", "documents"] as const,
+  // Detail key prefixes draft/versions/diff/lock so invalidating a document
+  // also refreshes its dependents (granular per-facet keys below).
+  adminOsDocument: (id: string | null) =>
+    ["admin", "os", "document", id] as const,
+  adminOsDraft: (id: string | null) =>
+    ["admin", "os", "document", id, "draft"] as const,
+  adminOsVersions: (id: string | null) =>
+    ["admin", "os", "document", id, "versions"] as const,
+  adminOsVersionDiff: (id: string | null, from: string, to: string) =>
+    ["admin", "os", "document", id, "diff", from, to] as const,
+  adminOsLock: (id: string | null) =>
+    ["admin", "os", "document", id, "lock"] as const,
+  adminOsFolders: ["admin", "os", "folders"] as const,
+  adminOsCategories: ["admin", "os", "categories"] as const,
+  adminOsTrash: (params?: Record<string, unknown>) =>
+    ["admin", "os", "trash", params] as const,
+  adminOsTrashAll: ["admin", "os", "trash"] as const,
+  adminOsSearch: (q: string, params?: Record<string, unknown>) =>
+    ["admin", "os", "search", q, params] as const,
 
   // Client — notifications
   notifications: (orgId: number | null, locationId: number | null) =>

@@ -39,11 +39,11 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec · Phase 3 of 7 · plans/07042026-alloro-os-admin-port</p>
-        <span class="status-pill">Pending Execution</span>
+        <span class="status-pill">Completed</span>
       </div>
       <h1>P3 — Library Frontend: Views, Reader, Editor, Trash</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
         <div><dt>Depends on</dt><dd>P2 Completed</dd></div>
         <div><dt>Size</dt><dd>Large-in-phase (~28 new files)</dd></div>
         <div><dt>Unlocks</dt><dd>P4 (UI hooks), P6, P7</dd></div>
@@ -149,6 +149,15 @@ cd /Users/rustinedave/Desktop/alloro/frontend && npx vitest run src/**/os*.test.
         <li><input type="checkbox" disabled> Every surface has loading skeleton + empty + error states; zero raw fetch, zero console, zero any (§14.2/§17.1/§17.2).</li>
         <li><input type="checkbox" disabled> Editor route is a separate lazy chunk; FE build green; status pill + master index updated.</li>
       </ul>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-05</h3>
+        <p><strong>Change:</strong> P3 executed on worktree; gates green (FE tsc 0, lint zero NEW findings, FE tests 44/44 incl. real-Editor markdown round-trip + dnd mapping suites, build green with OsDocumentEdit as its own 191.7kB lazy chunk, conventions strict-trio zero in OS files, backend suite untouched 238/238). Deviations: @tiptap/extension-image already present (nothing installed); table/task-list pinned EXACT 3.20.5 (caret resolved to 3.27.1 and mixed against core 3.20.5); TaskItem imported from the consolidated @tiptap/extension-list; list rows omit the summary line until P4 populates the AI index; extra §13 helper splits (OsModalShell/OsErrorState/osFormat/dnd utils); folder rename stays API-only; publish-conflict flow = toast + re-base draft on latest.</p>
+        <p><strong>Reason:</strong> Execution deviation: dependency-version hygiene, P2 payload reality (no summary field pre-P4), and §13.1/§13.2 size discipline.</p>
+        <p><strong>Updated Done criteria:</strong> none — all phase Done items met as written.</p>
+      </article>
     </section>
   </main>
 </body>
