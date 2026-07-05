@@ -97,6 +97,22 @@ export function getGbpAutomationQueue(name: string): Queue {
   return queues[queueName];
 }
 
+/**
+ * OS knowledge base queue helper (plans/07042026-alloro-os-admin-port, D10).
+ * Mirrors getMindsQueue. Queues: 'ingest', 'convert', 'purge', 'lock-reaper'.
+ * Idempotency convention (§21.1): jobId = os-<queue>:{documentId}.
+ */
+export function getOsQueue(name: string): Queue {
+  const queueName = `os-${name}`;
+  if (!queues[queueName]) {
+    queues[queueName] = new Queue(queueName, {
+      connection: getRedisConnection(),
+      prefix: '{os}',
+    });
+  }
+  return queues[queueName];
+}
+
 export async function closeQueues(): Promise<void> {
   for (const queue of Object.values(queues)) {
     await queue.close();

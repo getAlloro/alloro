@@ -9,6 +9,7 @@ import {
   Layers,
   FolderKanban,
   LifeBuoy,
+  BookOpen,
 } from "lucide-react";
 import { queryClient } from "../../../lib/queryClient";
 import { toast } from "react-hot-toast";
@@ -24,6 +25,12 @@ export function useIsPmRoute() {
 export function useIsSupportRoute() {
   const location = useLocation();
   return location.pathname.startsWith("/admin/support");
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function useIsOsRoute() {
+  const location = useLocation();
+  return location.pathname.startsWith("/admin/os");
 }
 
 function getAdminDisplayName(): string {
@@ -47,7 +54,8 @@ export function AdminTopBar() {
   const menuRef = useRef<HTMLDivElement>(null);
   const isPm = useIsPmRoute();
   const isSupport = useIsSupportRoute();
-  const isProcess = !isPm && !isSupport;
+  const isOs = useIsOsRoute();
+  const isProcess = !isPm && !isSupport && !isOs;
   const displayName = getAdminDisplayName();
 
   const toggleMenu = () => setIsMenuOpen((value) => !value);
@@ -230,6 +238,24 @@ export function AdminTopBar() {
               Support
             </span>
             {isSupport && (
+              <motion.div
+                layoutId="tab-underline"
+                className="absolute bottom-0 left-2 right-2 h-[2px] bg-[#D66853] rounded-full"
+                transition={{ duration: 0.2, ease: "easeOut" }}
+              />
+            )}
+          </Link>
+          <Link
+            to="/admin/os"
+            className={`relative flex items-center gap-2 px-5 py-2.5 text-[13px] transition-colors duration-150 ${
+              isOs ? "text-[#D66853]" : "text-gray-400 hover:text-gray-200"
+            }`}
+          >
+            <BookOpen className="h-4 w-4" strokeWidth={1.5} />
+            <span className={isOs ? "font-semibold" : "font-medium"}>
+              OS
+            </span>
+            {isOs && (
               <motion.div
                 layoutId="tab-underline"
                 className="absolute bottom-0 left-2 right-2 h-[2px] bg-[#D66853] rounded-full"

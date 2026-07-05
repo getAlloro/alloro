@@ -272,6 +272,9 @@ export const QUERY_KEYS = {
     ["admin", "ai-seo-audit", "run", runId ?? null] as const,
   adminAiSeoAuditableOrgs: ["admin", "ai-seo-audit", "auditable-orgs"] as const,
 
+  // Admin — OS knowledge base
+  adminOsUsers: ["admin", "os", "users"] as const,
+
   // Client — notifications
   notifications: (orgId: number | null, locationId: number | null) =>
     ["notifications", orgId, locationId] as const,

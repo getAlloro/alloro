@@ -39,11 +39,11 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec · Phase 1 of 7 · plans/07042026-alloro-os-admin-port</p>
-        <span class="status-pill">Pending Execution</span>
+        <span class="status-pill">Completed</span>
       </div>
       <h1>P1 — Foundation: Schema, Domain Skeleton, OS Tab</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
         <div><dt>Depends on</dt><dd>None (first phase)</dd></div>
         <div><dt>Size</dt><dd>Medium (~20 new files, 6 edits)</dd></div>
         <div><dt>Unlocks</dt><dd>P2 (and everything after)</dd></div>
@@ -167,6 +167,12 @@ cd /Users/rustinedave/Desktop/alloro/frontend && npm run build</pre>
         <p><strong>Change:</strong> T1 and all table references updated from <code>os_</code>-prefixed public tables to the dedicated <code>os</code> schema (<code>os.documents</code>, …), per master spec Rev 2.</p>
         <p><strong>Reason:</strong> Scope change (owner): OS tables live in a new schema named <code>os</code>.</p>
         <p><strong>Updated Done criteria:</strong> "Schema <code>os</code> with 16 tables exists on dev" replaces the os_ wording.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-05</h3>
+        <p><strong>Change:</strong> P1 executed on worktree <code>dave/os-admin-port</code>; all gates green (BE/FE tsc 0, conventions --strict exit 0, 14/14 phase tests, 3/3 migration itest, FE build, full suite 203 tests). Five execution deviations: (1) worker.ts OS registration uses a compact defs-array — the verbose form broke the §2.4 800-line ceiling (now 779); (2) migration docblock reworded to avoid a §7.4 grep false-positive; (3) new <code>vitest.integration.config.ts</code> pins NODE_ENV=development (no "test" DB profile exists in database/config.ts); (4) the migration itest loads ts-node/register to require .ts migrations inside the vitest fork; (5) reaper removeOnComplete/Fail uses the sibling 50/25 counts. Added the integration-test tier <code>npm run test:integration:os</code> running against a local pgvector replica of the dev schema (127.0.0.1:8250/alloro_admin_os_test).</p>
+        <p><strong>Reason:</strong> Execution deviation: §2.4 ceiling + detector false-positive + missing test DB profile surfaced during the gate; the integration tier exists because the house vitest suite is deliberately hermetic (mocked knex) and cannot prove migration/vector SQL.</p>
+        <p><strong>Updated Done criteria:</strong> Migration proof (up/down/up + 16 tables + HNSW) runs against the local pgvector replica; applying to the SHARED dev DB is deliberately deferred to the dev/dave merge + deploy — a migration recorded on dev while its file lives only on this worktree branch would make every other dev deploy fail knex's missing-file check.</p>
       </article>
     </section>
   </main>

@@ -31,6 +31,10 @@ import LeadgenSubmissions from "./admin/LeadgenSubmissions";
 import SupportDashboard from "./admin/SupportDashboard";
 import MissionControl from "./admin/MissionControl";
 import AdminApps from "./admin/AdminApps";
+import OsShell from "./admin/os/OsShell";
+import OsLibrary from "./admin/os/OsLibrary";
+import OsChat from "./admin/os/OsChat";
+import OsTrash from "./admin/os/OsTrash";
 
 function WebDevEngine() {
   return (
@@ -104,6 +108,14 @@ function AdminWithLayout() {
         <Route path="pm" element={<PmErrorBoundary><ProjectsDashboard /></PmErrorBoundary>} />
         <Route path="pm/:projectId" element={<PmErrorBoundary><ProjectBoard /></PmErrorBoundary>} />
         <Route path="support" element={<SupportDashboard />} />
+        <Route path="os" element={<OsShell />}>
+          <Route index element={<OsLibrary />} />
+          <Route path="chat" element={<OsChat />} />
+          <Route path="trash" element={<OsTrash />} />
+          {/* Document read/edit land in P3 — placeholders keep deep links inside the shell */}
+          <Route path="doc/:id" element={<OsLibrary />} />
+          <Route path="doc/:id/edit" element={<OsLibrary />} />
+        </Route>
         <Route path="leadgen-submissions" element={<LeadgenSubmissions />} />
       </Routes>
     </AdminLayout>
