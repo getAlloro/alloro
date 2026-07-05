@@ -1,17 +1,21 @@
 /**
- * Smoke tests — auth (login + OTP verify/validate).
+ * Smoke tests — auth (email/password login + token validate).
+ *
+ * The OTP login flow was retired (plans/07052026-google-sso-admin-and-user-login,
+ * T7); admin sign-in now runs through Google SSO (covered by auth-sso tests).
+ * What remains here: the password login happy/failure paths and the /validate
+ * endpoint.
  *
  * These endpoints route cleanly through models/, so they are mocked at the
  * MODEL seam (Option B) rather than the raw `db` seam:
  *   • UserModel / OrganizationUserModel / InvitationModel / GoogleConnectionModel
  *   • bcrypt (password compare) — no real hashing
  *   • emails/emailService.sendEmail — never sends a real email
- *   • OTP verify/onboard services — no DB, no email
  *
  * Asserted per endpoint: one happy path (success status + token-bearing shape)
- * and one+ failure path (bad creds / bad code / missing body). No live DB, no
- * outbound network. /api/auth is on the public allowlist, so no JWT is required
- * to reach these handlers.
+ * and one+ failure path (bad creds / missing body). No live DB, no outbound
+ * network. /api/auth is on the public allowlist, so no JWT is required to reach
+ * these handlers.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -50,14 +54,6 @@ vi.mock("bcrypt", () => ({
 vi.mock("../emails/emailService", () => ({
   sendEmail: vi.fn(async () => ({ success: true })),
 }));
-vi.mock(
-  "../controllers/auth-otp/feature-services/service.otp-verification",
-  () => ({ verifyAndConsume: vi.fn() }),
-);
-vi.mock(
-  "../controllers/auth-otp/feature-services/service.user-onboarding",
-  () => ({ onboardUser: vi.fn() }),
-);
 // linkAccountCreation is fire-and-forget; stub so nothing escapes.
 vi.mock(
   "../controllers/leadgen-tracking/feature-services/service.account-linking",
@@ -68,7 +64,6 @@ import { app } from "./helpers/app";
 import { UserModel } from "../models/UserModel";
 import { OrganizationUserModel } from "../models/OrganizationUserModel";
 import bcrypt from "bcrypt";
-import { verifyAndConsume } from "../controllers/auth-otp/feature-services/service.otp-verification";
 
 const loginSuccessShape = z.object({
   success: z.literal(true),
@@ -131,50 +126,6 @@ describe("POST /api/auth/login", () => {
 
     expect(res.status).toBe(400);
     expect(() => errorShape.parse(res.body)).not.toThrow();
-  });
-});
-
-describe("POST /api/auth/otp/verify", () => {
-  it("returns 200 + token-bearing shape for a valid code", async () => {
-    (verifyAndConsume as any).mockResolvedValue(true);
-    (UserModel.findByEmail as any).mockResolvedValue({
-      id: 99,
-      email: "otp@test.alloro",
-      name: "OTP User",
-    });
-    (OrganizationUserModel.findByUserId as any).mockResolvedValue({
-      organization_id: 3,
-      role: "manager",
-    });
-
-    const res = await request(app)
-      .post("/api/auth/otp/verify")
-      .send({ email: "otp@test.alloro", code: "123456" });
-
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(typeof res.body.token).toBe("string");
-    expect(res.body.user?.id).toBe(99);
-  });
-
-  it("returns 400 + error shape for an invalid code", async () => {
-    (verifyAndConsume as any).mockResolvedValue(false);
-    (UserModel.findByEmail as any).mockResolvedValue({
-      id: 99,
-      email: "otp@test.alloro",
-    });
-
-    const res = await request(app)
-      .post("/api/auth/otp/verify")
-      .send({ email: "otp@test.alloro", code: "000000" });
-
-    expect(res.status).toBe(400);
-    expect(() => errorShape.parse(res.body)).not.toThrow();
-  });
-
-  it("returns 400 when email/code are missing", async () => {
-    const res = await request(app).post("/api/auth/otp/verify").send({});
-    expect(res.status).toBe(400);
   });
 });
 

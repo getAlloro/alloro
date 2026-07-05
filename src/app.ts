@@ -35,6 +35,7 @@ import clarityRoutes from "./routes/clarity";
 import taskRoutes from "./routes/tasks";
 import authRoutes from "./routes/auth";
 import otpRoutes from "./routes/auth-otp";
+import authSsoRoutes from "./routes/auth-sso";
 import authPasswordRoutes from "./routes/auth-password";
 import pmsRoutes from "./routes/pms";
 import pmRoutes from "./routes/pm";
@@ -209,6 +210,7 @@ app.use("/api/patient-journey", patientJourneyRoutes);
 app.use("/api/clarity", clarityRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/auth/google", authSsoRoutes); // Google SSO admin login (plans/07052026-google-sso-admin-and-user-login)
 app.use("/api/auth/otp", otpRoutes);
 app.use("/api/auth", authPasswordRoutes);
 app.use("/api/pms", pmsRoutes);

@@ -1,0 +1,143 @@
+{
+  "plan": "plans/07052026-google-sso-admin-and-user-login",
+  "generatedAt": "2026-07-05",
+  "status": "In Progress",
+  "items": [
+    {
+      "id": "T1",
+      "title": "Migration adds google_sub + avatar_url with a partial-unique index",
+      "surface": "cli",
+      "precondition": "Local dev DB (localhost:5433) migration-current",
+      "steps": [
+        "1. npm run db:migrate",
+        "2. Inspect users columns + indexes",
+        "3. npm run db:rollback, then npm run db:migrate again"
+      ],
+      "expected": "google_sub + avatar_url columns and users_google_sub_unique index appear on up, disappear on down, reappear on re-up — no errors",
+      "status": "pass",
+      "evidence": "Local: Batch 128 up → both columns + users_google_sub_unique present; rollback → 0 columns; re-migrate → 2 columns. Reversible.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Admin login shows 'Sign in with Google' and no OTP fields",
+      "surface": "ui",
+      "precondition": "Logged out; dev deployed",
+      "steps": [
+        "1. Open https://dev.getalloro.com/admin while logged out",
+        "2. Observe the login card"
+      ],
+      "expected": "A single 'Sign in with Google' button, copy noting @getalloro.com is required; no email/OTP-code inputs",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Owner run on dev after deploy.",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "An @getalloro.com Google account reaches the admin dashboard",
+      "surface": "ui",
+      "precondition": "Dev deployed; a @getalloro.com Google Workspace account; OAuth Web client created in the Internal 'Alloro' project with the dev redirect URI",
+      "steps": [
+        "1. /admin → 'Sign in with Google'",
+        "2. Choose the @getalloro.com account and consent",
+        "3. Land back on the app"
+      ],
+      "expected": "Redirected through /auth/google/finish to /admin; admin dashboard loads; auth_token present in localStorage; no OTP anywhere",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Requires a real Google account — owner runs.",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "A non-@getalloro Google account cannot reach admin",
+      "surface": "ui",
+      "precondition": "Dev deployed",
+      "steps": [
+        "1. /admin → 'Sign in with Google'",
+        "2. Attempt with a personal (non-@getalloro) Google account"
+      ],
+      "expected": "Blocked — the Internal consent screen prevents non-Workspace accounts; if it ever reaches the callback, the finish page shows AUTH_DOMAIN_FORBIDDEN and no session is created",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Owner runs.",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "OTP admin login endpoints are retired",
+      "surface": "api",
+      "precondition": "Dev deployed",
+      "steps": [
+        "1. curl -sS -o /dev/null -w '%{http_code}' -X POST https://dev.getalloro.com/api/auth/otp/request -H 'Content-Type: application/json' -d '{\"email\":\"x@getalloro.com\"}'",
+        "2. Same for /api/auth/otp/verify"
+      ],
+      "expected": "Both return 404 (routes removed). /api/auth/otp/validate still responds (401 without a token).",
+      "status": "pending",
+      "evidence": "",
+      "notes": "Verifiable on dev after deploy.",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Email/password login is unchanged",
+      "surface": "api",
+      "precondition": "None (local unit)",
+      "steps": [
+        "1. POST /api/auth/login with valid credentials (mocked model seam)"
+      ],
+      "expected": "200 with { success:true, token, user }",
+      "status": "pass",
+      "evidence": "auth.smoke.test.ts: login happy path + bad-password 401 + missing-body 400 all pass.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "/api/auth/otp/validate still works",
+      "surface": "api",
+      "precondition": "None (local unit)",
+      "steps": [
+        "1. POST /api/auth/otp/validate with no token"
+      ],
+      "expected": "401 with { valid:false, error }",
+      "status": "pass",
+      "evidence": "auth.smoke.test.ts validate case passes; route + controller retained.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T8",
+      "title": "Admin authorization is domain-based (with allowlist as extra grant)",
+      "surface": "api",
+      "precondition": "None (local unit)",
+      "steps": [
+        "1. isSuperAdmin('anyone@getalloro.com') → true",
+        "2. isSuperAdmin(allowlisted non-domain email) → true",
+        "3. isSuperAdmin('random@example.com') → false"
+      ],
+      "expected": "Domain grants admin; SUPER_ADMIN_EMAILS grants extra; everyone else denied. superAdminMiddleware delegates to this.",
+      "status": "pass",
+      "evidence": "auth-sso.test.ts isSuperAdmin cases pass; middleware refactored to call isSuperAdmin.",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T9",
+      "title": "OAuth handshake builds a correct, CSRF-protected auth URL",
+      "surface": "cli",
+      "precondition": "GOOGLE_LOGIN_* configured (local .env)",
+      "steps": [
+        "1. createOAuthClient() from real env",
+        "2. buildAuthUrl(client, state, nonce, 'getalloro.com')"
+      ],
+      "expected": "URL to accounts.google.com with hd=getalloro.com, a nonce, the registered redirect_uri, and a signed-JWT state",
+      "status": "pass",
+      "evidence": "Runtime smoke: authUrl_ok, has_hd_and_nonce, redirect_uri_ok (localhost:5174/api/auth/google/callback), state_is_signed_jwt all true.",
+      "notes": "",
+      "waiver": ""
+    }
+  ]
+}

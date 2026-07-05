@@ -15,6 +15,8 @@ export interface IUser {
   password_reset_code: string | null;
   password_reset_expires_at: Date | null;
   is_internal: boolean;
+  google_sub: string | null;
+  avatar_url: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -68,6 +70,57 @@ export class UserModel extends BaseModel {
     const existing = await this.findByEmail(email, trx);
     if (existing) return existing;
     return this.create({ email, name }, trx);
+  }
+
+  // ─── Google SSO login (plans/07052026-google-sso-admin-and-user-login) ───
+
+  /** Look up a user by their stable Google account id (the `sub` claim). */
+  static async findByGoogleSub(
+    googleSub: string,
+    trx?: QueryContext
+  ): Promise<IUser | undefined> {
+    return this.table(trx).where({ google_sub: googleSub }).first();
+  }
+
+  /** Create a new user from a verified Google identity (admin sign-in). */
+  static async createFromGoogle(
+    data: {
+      email: string;
+      name: string | null;
+      googleSub: string;
+      avatarUrl: string | null;
+    },
+    trx?: QueryContext
+  ): Promise<IUser> {
+    const normalizedEmail = data.email.toLowerCase();
+    return super.create(
+      {
+        email: normalizedEmail,
+        name: data.name || normalizedEmail.split("@")[0],
+        google_sub: data.googleSub,
+        avatar_url: data.avatarUrl,
+      },
+      trx
+    );
+  }
+
+  /** Bind a google_sub (and refresh the avatar) onto an existing user row. */
+  static async attachGoogleIdentity(
+    id: number,
+    googleSub: string,
+    avatarUrl: string | null,
+    trx?: QueryContext
+  ): Promise<IUser> {
+    await super.updateById(
+      id,
+      {
+        google_sub: googleSub,
+        ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
+      },
+      trx
+    );
+    const updated = await this.findById(id, trx);
+    return updated as IUser;
   }
 
   static async updateProfile(

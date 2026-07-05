@@ -19,6 +19,7 @@ import SignIn from "./pages/Signin";
 import Signup from "./pages/Signup";
 import VerifyEmail from "./pages/VerifyEmail";
 import ForgotPassword from "./pages/ForgotPassword";
+import AuthGoogleFinish from "./pages/AuthGoogleFinish";
 import NewAccountOnboarding from "./pages/NewAccountOnboarding";
 import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
@@ -141,6 +142,13 @@ function App() {
                       }
                     />
                     <Route path="/verify-email" element={<VerifyEmail />} />
+                    {/* Google SSO finish — copies the minted JWT cookie into
+                        localStorage, then routes on. Standalone (no wrapper). */}
+                    <Route
+                      path="/auth/google/finish"
+                      element={<AuthGoogleFinish />}
+                    />
+                    {/* Admin login error redirect target — /admin renders AdminLogin when unauthed */}
                     <Route
                       path="/forgot-password"
                       element={
