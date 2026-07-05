@@ -199,7 +199,7 @@ function OsFolderSidebar({
 }) {
   return (
     <aside>
-      <div className="flex items-center justify-between pb-2">
+      <div className="flex items-center justify-between gap-2 pb-2.5">
         <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-gray-400">
           Folders
         </p>
@@ -207,10 +207,14 @@ function OsFolderSidebar({
           type="button"
           onClick={onToggleCreating}
           aria-label="New folder"
-          title="New folder"
-          className="flex h-6 w-6 items-center justify-center rounded-[7px] text-gray-400 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-700"
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] font-medium transition-colors duration-150 ${
+            isCreating
+              ? "border-alloro-orange bg-accent-soft text-alloro-orange"
+              : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-800"
+          }`}
         >
-          <FolderPlus className="h-4 w-4" strokeWidth={1.5} />
+          <FolderPlus className="h-3.5 w-3.5" strokeWidth={1.5} />
+          New folder
         </button>
       </div>
       {isCreating && (

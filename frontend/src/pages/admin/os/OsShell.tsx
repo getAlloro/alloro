@@ -31,17 +31,8 @@ export default function OsShell() {
   const isTrash = location.pathname.startsWith("/admin/os/trash");
 
   return (
-    <div className="min-h-[calc(100vh-104px)] bg-alloro-bg">
-      <div className="mx-auto w-full max-w-[1200px] px-4 sm:px-6 lg:px-8">
-        <header className="pt-10 pb-6">
-          <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-gray-400">
-            Alloro OS
-          </p>
-          <h1 className="mt-1 font-display text-3xl text-alloro-textDark">
-            Knowledge Base
-          </h1>
-        </header>
-
+    <div className="min-h-[calc(100vh-104px)] bg-gray-50">
+      <div className="mx-auto w-full max-w-[1200px] px-4 pt-7 sm:px-6 lg:px-8">
         <nav
           aria-label="OS sections"
           className="flex items-center border-b border-gray-200"

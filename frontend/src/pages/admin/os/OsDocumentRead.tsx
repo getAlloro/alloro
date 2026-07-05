@@ -66,7 +66,7 @@ export default function OsDocumentRead() {
         )}
       </div>
 
-      <aside className="border-t border-line-soft pt-2 xl:sticky xl:top-24 xl:max-h-[calc(100vh-8rem)] xl:overflow-y-auto xl:border-t-0 xl:pt-0">
+      <aside className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm xl:sticky xl:top-24 xl:max-h-[calc(100vh-8rem)] xl:overflow-y-auto sm:p-5">
         {detailQuery.data && (
           <OsHistoryRail
             documentId={documentId}

@@ -166,7 +166,7 @@ export function OsSearchResults({
                     onClick={() => onSelect(row.item)}
                     onMouseMove={() => onHover(index)}
                     className={`flex w-full flex-col items-start gap-0.5 px-4 py-2 text-left transition-colors ${
-                      isSelected ? "bg-alloro-bg" : "bg-transparent"
+                      isSelected ? "bg-accent-soft" : "bg-transparent"
                     }`}
                   >
                     <span className="min-w-0 truncate font-display text-[15px] text-alloro-textDark">

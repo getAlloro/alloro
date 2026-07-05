@@ -25,9 +25,11 @@ export function OsDraggableDocumentRow({
       ref={setNodeRef}
       {...listeners}
       style={{ touchAction: "none" }}
-      className={isDragging ? "opacity-40" : undefined}
+      className={`cursor-grab active:cursor-grabbing ${
+        isDragging ? "opacity-40" : ""
+      }`}
     >
-      <OsDocumentRow doc={doc} onLinkClick={onLinkClick} />
+      <OsDocumentRow doc={doc} onLinkClick={onLinkClick} draggable />
     </div>
   );
 }

@@ -98,7 +98,7 @@ export default function OsTrash() {
   };
 
   return (
-    <section className="pt-6">
+    <section className="mt-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
       <div className="flex items-center justify-between border-b border-line-soft pb-4">
         <div>
           <h2 className="font-display text-xl text-alloro-textDark">Trash</h2>

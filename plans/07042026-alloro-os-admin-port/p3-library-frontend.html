@@ -158,6 +158,12 @@ cd /Users/rustinedave/Desktop/alloro/frontend && npx vitest run src/**/os*.test.
         <p><strong>Reason:</strong> Execution deviation: dependency-version hygiene, P2 payload reality (no summary field pre-P4), and §13.1/§13.2 size discipline.</p>
         <p><strong>Updated Done criteria:</strong> none — all phase Done items met as written.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-05 (User QA — UI refinement)</h3>
+        <p><strong>Change:</strong> Seven owner-QA fixes on the deployed OS: (1) removed the "Alloro OS / Knowledge Base" page header from <code>OsShell</code>; (2) added a grab-cursor + hover grip affordance to draggable rows (dnd is real in Grouped/Folders views; List view has no drop targets by design); (3) replaced the native <code>&lt;select&gt;</code> filters (which rendered the browser's dark menu) with a new on-brand animated dropdown <code>OsFilterSelect</code> (framer-motion popover, click-outside/Esc, check-marked active option) across all five Library filters + sort; (4) made "New folder" a labeled button instead of a bare icon; (5) switched the OS page background from warm paper <code>#FAF8F3</code> to the admin-standard cool <code>bg-gray-50</code> (#F3F4F6) to match Process; (6) added depth — the Library list, the 3-pane reader (center column + both rails), and Trash now sit in elevated white cards (<code>border-gray-200 rounded-xl shadow-sm</code>) on the neutral page; (7) cohered the Chat into the same card language (white card + shadow, neutral composer strip, subtly tinted conversation rail). Also swept the three residual warm <code>bg-alloro-bg</code> strips (chat composer, palette selection, import dropzone) to neutral tokens.</p>
+        <p><strong>Reason:</strong> User QA on the live dev OS — flat warm-paper surface read as low-depth and inconsistent with Process/Support; native selects broke the design language.</p>
+        <p><strong>Updated Done criteria:</strong> none removed. Gates: FE tsc 0, build green, 53 FE tests, conventions clean. Note on item 5: OS now matches Process (gray-50); Support/Projects use the separate PM-light theme — unifying those too is a follow-up if wanted. Live browser re-verify on dev pending after deploy.</p>
+      </article>
     </section>
   </main>
 </body>

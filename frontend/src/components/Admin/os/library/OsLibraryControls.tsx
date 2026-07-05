@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { FolderTree, Rows3, Tag, X } from "lucide-react";
 import type { AdminOsUser, OsDocumentStatus } from "../../../../api/admin-os";
+import { OsFilterSelect, type OsFilterOption } from "./OsFilterSelect";
 import {
   OS_EMPTY_LIBRARY_FILTERS,
   type OsLibraryFilters,
@@ -27,29 +28,6 @@ const STATUS_OPTIONS: { value: OsDocumentStatus; label: string }[] = [
   { value: "processing", label: "Processing" },
   { value: "processing_failed", label: "Failed" },
 ];
-
-function FilterSelect({
-  label,
-  value,
-  onChange,
-  children,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  children: ReactNode;
-}) {
-  return (
-    <select
-      aria-label={label}
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      className="h-8 rounded-lg border border-line-medium bg-alloro-surface px-2 text-[12px] text-gray-700 outline-none transition-colors duration-150 focus:border-alloro-orange"
-    >
-      {children}
-    </select>
-  );
-}
 
 function OsViewToggle({
   view,
@@ -109,82 +87,77 @@ function OsFilterRow({
     (value) => value !== null,
   ).length;
 
+  const categoryOpts: OsFilterOption[] = [
+    { value: "", label: "All categories" },
+    ...categoryOptions.map((category) => ({ value: category, label: category })),
+  ];
+  const tagOpts: OsFilterOption[] = [
+    { value: "", label: "All tags" },
+    ...tagOptions.map((tag) => ({ value: tag, label: tag })),
+  ];
+  const ownerOpts: OsFilterOption[] = [
+    { value: "", label: "All owners" },
+    ...owners.map((owner) => ({
+      value: String(owner.id),
+      label: owner.name || owner.email,
+    })),
+  ];
+  const statusOpts: OsFilterOption[] = [
+    { value: "", label: "All statuses" },
+    ...STATUS_OPTIONS.map(({ value, label }) => ({ value, label })),
+  ];
+  const sortOpts: OsFilterOption[] = [
+    { value: "updated", label: "Recently updated" },
+    { value: "title", label: "Title A–Z" },
+  ];
+
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2 border-b border-line-soft pb-4">
-      <FilterSelect
-        label="Filter by category"
+      <OsFilterSelect
+        ariaLabel="Filter by category"
         value={filters.category ?? ""}
+        options={categoryOpts}
         onChange={(value) =>
           onFiltersChange({ ...filters, category: value || null })
         }
-      >
-        <option value="">All categories</option>
-        {categoryOptions.map((category) => (
-          <option key={category} value={category}>
-            {category}
-          </option>
-        ))}
-      </FilterSelect>
-
-      <FilterSelect
-        label="Filter by tag"
+      />
+      <OsFilterSelect
+        ariaLabel="Filter by tag"
         value={filters.tag ?? ""}
+        options={tagOpts}
         onChange={(value) => onFiltersChange({ ...filters, tag: value || null })}
-      >
-        <option value="">All tags</option>
-        {tagOptions.map((tag) => (
-          <option key={tag} value={tag}>
-            {tag}
-          </option>
-        ))}
-      </FilterSelect>
-
-      <FilterSelect
-        label="Filter by owner"
+      />
+      <OsFilterSelect
+        ariaLabel="Filter by owner"
         value={filters.ownerId === null ? "" : String(filters.ownerId)}
+        options={ownerOpts}
         onChange={(value) =>
           onFiltersChange({
             ...filters,
             ownerId: value === "" ? null : Number(value),
           })
         }
-      >
-        <option value="">All owners</option>
-        {owners.map((owner) => (
-          <option key={owner.id} value={owner.id}>
-            {owner.name || owner.email}
-          </option>
-        ))}
-      </FilterSelect>
-
-      <FilterSelect
-        label="Filter by status"
+      />
+      <OsFilterSelect
+        ariaLabel="Filter by status"
         value={filters.status ?? ""}
+        options={statusOpts}
         onChange={(value) =>
           onFiltersChange({
             ...filters,
             status: (value || null) as OsDocumentStatus | null,
           })
         }
-      >
-        <option value="">All statuses</option>
-        {STATUS_OPTIONS.map(({ value, label }) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
-        ))}
-      </FilterSelect>
+      />
 
       <span className="mx-1 hidden h-4 w-px bg-line-medium sm:inline-block" />
 
-      <FilterSelect
-        label="Sort documents"
+      <OsFilterSelect
+        ariaLabel="Sort documents"
         value={sort}
+        options={sortOpts}
         onChange={(value) => onSortChange(value as OsLibrarySort)}
-      >
-        <option value="updated">Recently updated</option>
-        <option value="title">Title A–Z</option>
-      </FilterSelect>
+      />
 
       {activeFilterCount > 0 && (
         <button
@@ -224,7 +197,7 @@ export function OsLibraryControls({
   toolbar: ReactNode;
 }) {
   return (
-    <div className="pt-6">
+    <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <OsViewToggle view={view} onViewChange={onViewChange} />
         {toolbar}

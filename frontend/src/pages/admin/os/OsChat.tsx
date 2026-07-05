@@ -158,7 +158,7 @@ export default function OsChat() {
 
   return (
     <div
-      className={`mt-6 flex overflow-hidden rounded-xl border border-gray-200 bg-alloro-surface ${OS_CHAT_HEIGHT}`}
+      className={`mt-6 flex overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm ${OS_CHAT_HEIGHT}`}
     >
       <OsConversationSidebar
         conversations={conversations}

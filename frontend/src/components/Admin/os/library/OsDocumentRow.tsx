@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ChevronRight, RotateCw } from "lucide-react";
+import { ChevronRight, GripVertical, RotateCw } from "lucide-react";
 import type { MouseEvent } from "react";
 import type { OsDocumentListItem } from "../../../../api/admin-os";
 import { useReindexOsDocument } from "../../../../hooks/queries/useAdminOsDocumentMutations";
@@ -39,9 +39,11 @@ function OsRowReindexButton({ documentId }: { documentId: string }) {
 export function OsDocumentRow({
   doc,
   onLinkClick,
+  draggable = false,
 }: {
   doc: OsDocumentListItem;
   onLinkClick?: (event: MouseEvent<HTMLAnchorElement>) => void;
+  draggable?: boolean;
 }) {
   const isArchived = doc.status === "archived";
   const isFailed = doc.status === "processing_failed";
@@ -51,9 +53,16 @@ export function OsDocumentRow({
     <Link
       to={`/admin/os/doc/${doc.id}`}
       onClick={onLinkClick}
-      className="group -mx-2 flex items-center justify-between gap-3 border-t border-line-soft px-2 py-3.5 transition-colors duration-150 hover:bg-accent-soft/60"
+      className="group -mx-2 flex items-center justify-between gap-3 rounded-lg border-t border-line-soft px-2 py-3.5 transition-colors duration-150 hover:bg-accent-soft/60"
     >
       <div className="flex min-w-0 items-center gap-2.5">
+        {draggable && (
+          <GripVertical
+            className="h-4 w-4 shrink-0 text-gray-300 opacity-0 transition-opacity duration-150 group-hover:opacity-100"
+            strokeWidth={1.5}
+            aria-hidden="true"
+          />
+        )}
         <OsStatusDot status={doc.status} />
         <h3
           className={`min-w-0 truncate font-display text-[17px] font-semibold ${

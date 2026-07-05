@@ -236,7 +236,7 @@ export function OsReadingColumn({
   const tocEntries = version?.toc_json ?? [];
 
   return (
-    <main className="min-w-0">
+    <main className="min-w-0 rounded-xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
       <OsReadingHeader
         document={document}
         version={version}

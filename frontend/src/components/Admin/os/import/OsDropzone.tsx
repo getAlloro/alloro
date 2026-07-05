@@ -55,7 +55,7 @@ export function OsDropzone({
         disabled ? "cursor-not-allowed opacity-60" : "",
         isDragging
           ? "border-alloro-orange bg-accent-soft"
-          : "border-line-medium bg-alloro-bg hover:border-alloro-orange/60",
+          : "border-line-medium bg-gray-50 hover:border-alloro-orange/60",
       ].join(" ")}
     >
       <UploadCloud

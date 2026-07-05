@@ -45,7 +45,7 @@ export function OsChatInput({
   }
 
   return (
-    <div className="border-t border-gray-200 bg-alloro-bg px-4 py-3">
+    <div className="border-t border-gray-200 bg-gray-50 px-4 py-3">
       <OsContextChips
         conversationId={conversationId}
         context={context}

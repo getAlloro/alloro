@@ -24,7 +24,7 @@ export function OsDocRail({ activeDocumentId }: { activeDocumentId: string }) {
   }, [documentsQuery.data, filterText]);
 
   return (
-    <aside className="sticky top-24 hidden max-h-[calc(100vh-8rem)] flex-col overflow-hidden xl:flex">
+    <aside className="sticky top-24 hidden max-h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white p-4 shadow-sm xl:flex">
       <div className="relative pb-2">
         <Search
           className="pointer-events-none absolute left-2.5 top-[9px] h-3.5 w-3.5 text-gray-400"

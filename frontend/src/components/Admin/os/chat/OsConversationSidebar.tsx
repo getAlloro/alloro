@@ -98,7 +98,7 @@ export function OsConversationSidebar({
   creating: boolean;
 }) {
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-gray-200">
+    <aside className="flex w-64 shrink-0 flex-col border-r border-gray-200 bg-gray-50/60">
       <div className="p-3">
         <button
           type="button"

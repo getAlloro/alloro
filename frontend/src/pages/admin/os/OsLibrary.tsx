@@ -161,7 +161,7 @@ export default function OsLibrary() {
   };
 
   return (
-    <section>
+    <section className="mt-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
       <OsLibraryControls
         view={view}
         onViewChange={setView}
