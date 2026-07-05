@@ -235,7 +235,7 @@ describe("POST /api/admin/os/documents/:id/restore", () => {
     expect(queueAdd).toHaveBeenCalledWith(
       "os-ingest",
       { documentId: DOC_ID },
-      expect.objectContaining({ jobId: `os-ingest:${DOC_ID}` })
+      expect.objectContaining({ jobId: `os-ingest-${DOC_ID}` })
     );
   });
 

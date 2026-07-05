@@ -223,7 +223,7 @@ describe("POST /api/admin/os/documents", () => {
     expect(queueAdd).toHaveBeenCalledWith(
       "os-ingest",
       { documentId: DOC_ID },
-      expect.objectContaining({ jobId: `os-ingest:${DOC_ID}` })
+      expect.objectContaining({ jobId: `os-ingest-${DOC_ID}` })
     );
   });
 
@@ -429,7 +429,7 @@ describe("POST /api/admin/os/documents/:id/publish", () => {
     expect(queueAdd).toHaveBeenCalledWith(
       "os-ingest",
       { documentId: DOC_ID },
-      expect.objectContaining({ jobId: `os-ingest:${DOC_ID}` })
+      expect.objectContaining({ jobId: `os-ingest-${DOC_ID}` })
     );
   });
 

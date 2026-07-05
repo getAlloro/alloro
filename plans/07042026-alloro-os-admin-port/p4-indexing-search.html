@@ -155,6 +155,12 @@ cd /Users/rustinedave/Desktop/alloro/frontend && npm run build</pre>
         <p><strong>Reason:</strong> Execution deviation: mid-run model-limit handoff + spec-mandated search reshape + error-code-to-HTTP mapping precision.</p>
         <p><strong>Updated Done criteria:</strong> none — all phase Done items met; live post-deploy dot-turns-green smoke deferred to final acceptance T3/T5.</p>
       </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-05 (must-fix bug — BullMQ jobId)</h3>
+        <p><strong>Change:</strong> Fixed a runtime enqueue failure in <code>osQueueJobs.ts</code>: the dedup jobIds used a single colon (<code>os-ingest:{uuid}</code>), which BullMQ 5.70 rejects (<code>Job.validateOptions</code> throws "Custom Id cannot contain :" unless the id splits into exactly 3 colon-parts). Every <code>enqueueOsIngest/Convert/Purge</code> threw AFTER the document row committed — so on a real queue, documents were created but never indexed (stuck in <code>processing</code>), and imports/purge silently failed. Changed the separator to "-" (<code>os-ingest-{uuid}</code>). Added regression test <code>src/__tests__/os-queue-jobs.test.ts</code> encoding BullMQ's rule, and updated the 3 existing suites that asserted the old colon format.</p>
+        <p><strong>Reason:</strong> Execution deviation caught by the local runtime smoke (booting the built backend + worker against local Redis) — the hermetic + integration suites mock <code>getOsQueue</code>, so the real <code>.add()</code> validation never ran and the throw was invisible until the app actually enqueued against BullMQ. Full local API E2E then proved the whole chain: create → worker ingest (1536-dim chunk + Gemini metadata) → hybrid search → grounded chat with citations → grounded refusal.</p>
+        <p><strong>Updated Done criteria:</strong> Added — OS enqueue jobIds must be BullMQ-valid (colon-free), guarded by <code>os-queue-jobs.test.ts</code> in the standard <code>npm test</code> gate. Full backend suite now 316 (was 313).</p>
+      </article>
     </section>
   </main>
 </body>

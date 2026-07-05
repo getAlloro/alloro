@@ -275,7 +275,7 @@ describe("OsIngestService.run — pipeline order", () => {
 describe("processOsIngest — final-attempt failure transition", () => {
   const makeJob = (attemptsMade: number, attempts: number) =>
     ({
-      id: `os-ingest:${DOC_ID}`,
+      id: `os-ingest-${DOC_ID}`,
       data: { documentId: DOC_ID },
       attemptsMade,
       opts: { attempts },

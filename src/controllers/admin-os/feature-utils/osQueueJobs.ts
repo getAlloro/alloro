@@ -1,7 +1,13 @@
 /**
  * OS queue enqueue helpers — the one place that knows job names, payloads and
- * the §21.1 idempotency convention (jobId = os-<queue>:{documentId}, master
+ * the §21.1 idempotency convention (jobId = os-<queue>-{documentId}, master
  * spec D10). Services call these; they never touch BullMQ directly.
+ *
+ * Separator is "-" not ":": BullMQ (5.70) rejects a custom jobId with a single
+ * colon — a colon is only valid in the legacy 3-part repeatable-job form
+ * "name:id:timestamp", so Job.validateOptions throws "Custom Id cannot contain
+ * :" on "os-ingest:<uuid>". Caught at runtime (a mocked queue hides it in unit
+ * tests); without this the whole ingest/convert/purge path fails after commit.
  *
  * removeOnComplete keeps the jobId slot reusable: BullMQ ignores an add()
  * whose jobId still exists, so a retained completed job would silently
@@ -27,7 +33,7 @@ export async function enqueueOsIngest(documentId: string): Promise<void> {
   await getOsQueue("ingest").add(
     "os-ingest",
     { documentId },
-    { ...OS_JOB_OPTIONS, jobId: `os-ingest:${documentId}` }
+    { ...OS_JOB_OPTIONS, jobId: `os-ingest-${documentId}` }
   );
 }
 
@@ -44,7 +50,7 @@ export async function enqueueOsConvert(
   await getOsQueue("convert").add(
     "os-convert",
     { documentId, importId },
-    { ...OS_JOB_OPTIONS, jobId: `os-convert:${importId}` }
+    { ...OS_JOB_OPTIONS, jobId: `os-convert-${importId}` }
   );
 }
 
@@ -53,6 +59,6 @@ export async function enqueueOsPurge(documentId: string): Promise<void> {
   await getOsQueue("purge").add(
     "os-purge",
     { documentId },
-    { ...OS_JOB_OPTIONS, jobId: `os-purge:${documentId}` }
+    { ...OS_JOB_OPTIONS, jobId: `os-purge-${documentId}` }
   );
 }
