@@ -82,7 +82,14 @@ export class UserModel extends BaseModel {
     return this.table(trx).where({ google_sub: googleSub }).first();
   }
 
-  /** Create a new user from a verified Google identity (admin sign-in). */
+  /**
+   * Create a new user from a verified Google identity (admin sign-in). The
+   * admin Google flow only ever reaches here for an @getalloro.com account
+   * (assertAdminDomain runs first, and the login flow never creates), so the
+   * new row is internal staff — is_internal:true keeps them out of client
+   * telemetry and into the OS people-pickers, matching the one-time backfill
+   * in migration 20260701010000.
+   */
   static async createFromGoogle(
     data: {
       email: string;
@@ -99,9 +106,20 @@ export class UserModel extends BaseModel {
         name: data.name || normalizedEmail.split("@")[0],
         google_sub: data.googleSub,
         avatar_url: data.avatarUrl,
+        is_internal: true,
       },
       trx
     );
+  }
+
+  /** Mark a user as internal Alloro staff. Idempotent. */
+  static async markInternal(
+    id: number,
+    trx?: QueryContext
+  ): Promise<IUser> {
+    await super.updateById(id, { is_internal: true }, trx);
+    const updated = await this.findById(id, trx);
+    return updated as IUser;
   }
 
   /** Bind a google_sub (and refresh the avatar) onto an existing user row. */

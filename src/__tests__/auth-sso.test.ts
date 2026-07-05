@@ -18,6 +18,7 @@ vi.mock("../models/UserModel", () => ({
     findByEmail: vi.fn(),
     createFromGoogle: vi.fn(),
     attachGoogleIdentity: vi.fn(),
+    markInternal: vi.fn(),
   },
 }));
 vi.mock(
@@ -107,6 +108,7 @@ describe("loginAdminFromGoogle", () => {
       id: 5,
       email: "admin@getalloro.com",
       name: "Admin",
+      is_internal: true,
     });
     const r = await loginAdminFromGoogle(identity);
     expect(r).toEqual({
@@ -114,6 +116,7 @@ describe("loginAdminFromGoogle", () => {
       user: { id: 5, email: "admin@getalloro.com", name: "Admin" },
     });
     expect(UserModel.createFromGoogle).not.toHaveBeenCalled();
+    expect(UserModel.markInternal).not.toHaveBeenCalled();
   });
 
   it("links google_sub onto an existing email match", async () => {
@@ -122,11 +125,13 @@ describe("loginAdminFromGoogle", () => {
       id: 7,
       email: "admin@getalloro.com",
       name: "Admin",
+      is_internal: true,
     });
     (UserModel.attachGoogleIdentity as any).mockResolvedValue({
       id: 7,
       email: "admin@getalloro.com",
       name: "Admin",
+      is_internal: true,
     });
     const r = await loginAdminFromGoogle(identity);
     expect(UserModel.attachGoogleIdentity).toHaveBeenCalledWith(7, "g-1", null);
@@ -140,10 +145,29 @@ describe("loginAdminFromGoogle", () => {
       id: 9,
       email: "admin@getalloro.com",
       name: "Admin",
+      is_internal: true,
     });
     const r = await loginAdminFromGoogle(identity);
     expect(UserModel.createFromGoogle).toHaveBeenCalledOnce();
     expect(r.user.id).toBe(9);
+  });
+
+  it("heals is_internal for an existing @getalloro row that missed the seed", async () => {
+    (UserModel.findByGoogleSub as any).mockResolvedValue({
+      id: 12,
+      email: "late@getalloro.com",
+      name: "Late Admin",
+      is_internal: false,
+    });
+    (UserModel.markInternal as any).mockResolvedValue({
+      id: 12,
+      email: "late@getalloro.com",
+      name: "Late Admin",
+      is_internal: true,
+    });
+    const r = await loginAdminFromGoogle(identity);
+    expect(UserModel.markInternal).toHaveBeenCalledWith(12);
+    expect(r.user.id).toBe(12);
   });
 
   it("rejects a non-@getalloro identity before any DB call", async () => {

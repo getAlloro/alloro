@@ -51,6 +51,14 @@ export async function loginAdminFromGoogle(
     }
   }
 
+  // Every account reaching here is @getalloro staff (assertAdminDomain gate),
+  // so it must be internal. New rows already are (createFromGoogle); this heals
+  // an existing @getalloro row that predates or missed the one-time is_internal
+  // backfill, so it stays out of client telemetry and appears in OS pickers.
+  if (!user.is_internal) {
+    user = await UserModel.markInternal(user.id);
+  }
+
   const token = generateToken(user.id, user.email);
   return {
     token,
