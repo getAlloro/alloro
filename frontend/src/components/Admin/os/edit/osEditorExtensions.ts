@@ -10,6 +10,22 @@ import {
 import TaskList from "@tiptap/extension-task-list";
 import { TaskItem } from "@tiptap/extension-list";
 import { Markdown } from "tiptap-markdown";
+import { osAssetSrc } from "../shared/osFormat";
+
+/**
+ * Image extension that appends the session token to OS asset-delivery URLs at
+ * RENDER time only (P6 T5). The stored `src` attribute (and therefore the
+ * serialized markdown) stays token-free; only the displayed <img> carries the
+ * transient `?token=`, so tokens never leak into saved content.
+ */
+const OsImage = Image.extend({
+  renderHTML({ HTMLAttributes }) {
+    const src = HTMLAttributes.src;
+    const withToken =
+      typeof src === "string" ? (osAssetSrc(src) ?? src) : src;
+    return ["img", { ...HTMLAttributes, src: withToken }];
+  },
+});
 
 /**
  * The OS editor's extension set (plans/07042026-alloro-os-admin-port P3 T4),
@@ -27,7 +43,7 @@ export function buildOsEditorExtensions(): Extensions {
         HTMLAttributes: { rel: "noopener noreferrer nofollow" },
       },
     }),
-    Image.configure({ inline: false }),
+    OsImage.configure({ inline: false }),
     Table.configure({ resizable: false }),
     TableRow,
     // GFM table cells are inline-only — restrict cells to paragraphs so the

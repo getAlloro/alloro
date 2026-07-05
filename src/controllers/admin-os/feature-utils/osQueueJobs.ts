@@ -31,6 +31,23 @@ export async function enqueueOsIngest(documentId: string): Promise<void> {
   );
 }
 
+/**
+ * Queue the file-import conversion (docx/xlsx/pdf/md → markdown, P6). Idempotent
+ * by IMPORT id (§21.1): one job per uploaded file, so a batch of N files yields
+ * N convert jobs. Both documentId and importId ride the payload; the processor
+ * keys on importId.
+ */
+export async function enqueueOsConvert(
+  documentId: string,
+  importId: string
+): Promise<void> {
+  await getOsQueue("convert").add(
+    "os-convert",
+    { documentId, importId },
+    { ...OS_JOB_OPTIONS, jobId: `os-convert:${importId}` }
+  );
+}
+
 /** Queue the hard-delete purge for a trashed document. */
 export async function enqueueOsPurge(documentId: string): Promise<void> {
   await getOsQueue("purge").add(

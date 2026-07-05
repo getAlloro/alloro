@@ -1,4 +1,5 @@
 import { format, formatDistanceToNowStrict } from "date-fns";
+import { getAuthToken } from "../../../../api";
 import type { OsDocumentOwner } from "../../../../api/admin-os";
 
 /**
@@ -30,6 +31,24 @@ export function formatOsDateTime(iso: string): string {
 export function osOwnerLabel(owner: OsDocumentOwner | null): string {
   if (!owner) return "";
   return owner.name || owner.email || "";
+}
+
+/** Prefix matched by asset-delivery URLs the backend embeds in markdown. */
+const OS_ASSET_PATH = "/api/admin/os/assets/";
+
+/**
+ * Resolve an image src for rendering (P6 T5). The asset-delivery endpoint is
+ * super-admin gated and rendered inside an <img> that can't send an auth
+ * header, so OS asset URLs get the session token appended as `?token=` (the
+ * asset route accepts it there). Non-asset srcs (external https images) pass
+ * through untouched.
+ */
+export function osAssetSrc(src: string | undefined): string | undefined {
+  if (!src || !src.startsWith(OS_ASSET_PATH)) return src;
+  const token = getAuthToken();
+  if (!token) return src;
+  const separator = src.includes("?") ? "&" : "?";
+  return `${src}${separator}token=${encodeURIComponent(token)}`;
 }
 
 /**

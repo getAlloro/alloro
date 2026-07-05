@@ -34,6 +34,13 @@ export interface OsKnowledgeBaseConfig {
   importMaxFileMb: number;
   /** Maximum files accepted in one import batch. */
   importBatchMaxFiles: number;
+  /**
+   * Below this many extracted characters, a PDF page is flagged low-text in the
+   * import warnings (image-only / scanned pages; vision transcription deferred).
+   */
+  pdfLowTextChars: number;
+  /** Expiry of the presigned URL the asset-delivery redirect issues, seconds. */
+  assetUrlTtlSeconds: number;
   /** Edit-lock lifetime; heartbeats extend it, the reaper deletes past it. */
   lockTtlSeconds: number;
 }
@@ -47,6 +54,8 @@ const DEFAULTS: OsKnowledgeBaseConfig = {
   linkSuggestFloor: 0.5,
   importMaxFileMb: 25,
   importBatchMaxFiles: 20,
+  pdfLowTextChars: 20,
+  assetUrlTtlSeconds: 300,
   lockTtlSeconds: 120,
 };
 
@@ -118,6 +127,16 @@ export function parseOsKnowledgeBaseConfig(
       env,
       "OS_IMPORT_BATCH_MAX_FILES",
       DEFAULTS.importBatchMaxFiles
+    ),
+    pdfLowTextChars: parsePositiveIntegerEnv(
+      env,
+      "OS_PDF_LOW_TEXT_CHARS",
+      DEFAULTS.pdfLowTextChars
+    ),
+    assetUrlTtlSeconds: parsePositiveIntegerEnv(
+      env,
+      "OS_ASSET_URL_TTL_SECONDS",
+      DEFAULTS.assetUrlTtlSeconds
     ),
     lockTtlSeconds: parsePositiveIntegerEnv(
       env,

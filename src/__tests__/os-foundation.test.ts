@@ -37,6 +37,8 @@ describe("osKnowledgeBase config (§5.6)", () => {
       linkSuggestFloor: 0.5,
       importMaxFileMb: 25,
       importBatchMaxFiles: 20,
+      pdfLowTextChars: 20,
+      assetUrlTtlSeconds: 300,
       lockTtlSeconds: 120,
     });
   });

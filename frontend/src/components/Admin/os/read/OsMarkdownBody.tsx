@@ -1,7 +1,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { ReactNode } from "react";
-import { slugifyOsHeading } from "../shared/osFormat";
+import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import { osAssetSrc, slugifyOsHeading } from "../shared/osFormat";
 
 /**
  * Rendered markdown for the reading column and version previews — the house
@@ -32,6 +32,18 @@ function heading(Tag: "h1" | "h2" | "h3" | "h4" | "h5" | "h6") {
   };
 }
 
+/** Image renderer: append the session token to OS asset-delivery URLs (T5). */
+function OsMarkdownImage({ src, alt, ...rest }: ComponentPropsWithoutRef<"img">) {
+  return (
+    <img
+      src={osAssetSrc(typeof src === "string" ? src : undefined)}
+      alt={alt ?? ""}
+      loading="lazy"
+      {...rest}
+    />
+  );
+}
+
 const OS_PROSE_CLASSES = [
   "prose prose-gray max-w-none",
   // Spectral reading body (D13); chrome elsewhere stays Jakarta.
@@ -60,6 +72,7 @@ export function OsMarkdownBody({ markdown }: { markdown: string }) {
           h4: heading("h4"),
           h5: heading("h5"),
           h6: heading("h6"),
+          img: OsMarkdownImage,
         }}
       >
         {markdown}

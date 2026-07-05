@@ -174,6 +174,7 @@ export default function OsDocumentEdit() {
       ) : (
         !draftQuery.isError && (
           <OsEditor
+            documentId={documentId}
             content={content}
             onChange={setContent}
             isEditable={lock.isHeld && isSeeded}

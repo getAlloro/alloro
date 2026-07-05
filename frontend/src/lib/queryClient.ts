@@ -293,6 +293,10 @@ export const QUERY_KEYS = {
   // invalidation refreshes its Related rail too.
   adminOsLinks: (id: string | null) =>
     ["admin", "os", "document", id, "links"] as const,
+  // Import provenance poll (P6) — under the document prefix so a document
+  // invalidation refreshes its import status too.
+  adminOsDocumentImport: (id: string | null) =>
+    ["admin", "os", "document", id, "import"] as const,
   adminOsFolders: ["admin", "os", "folders"] as const,
   adminOsCategories: ["admin", "os", "categories"] as const,
   adminOsTrash: (params?: Record<string, unknown>) =>

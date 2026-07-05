@@ -62,6 +62,28 @@ export async function getFromS3(
 }
 
 /**
+ * Get a full S3 object as an in-memory Buffer.
+ *
+ * The OS import converter needs the archived file's raw bytes (docx/xlsx/pdf
+ * parsers all take a Buffer). Files are size-capped at the boundary
+ * (OS_IMPORT_MAX_FILE_MB) so buffering the whole object is bounded. Uses the
+ * AWS SDK's transformToByteArray() rather than manual stream draining.
+ */
+export async function getObjectBuffer(key: string): Promise<Buffer> {
+  const response = await s3.send(
+    new GetObjectCommand({
+      Bucket: bucket,
+      Key: key,
+    })
+  );
+  const bytes = await response.Body?.transformToByteArray();
+  if (!bytes) {
+    throw new Error(`S3 object ${key} returned an empty body.`);
+  }
+  return Buffer.from(bytes);
+}
+
+/**
  * Delete a file from S3
  */
 export async function deleteFromS3(key: string): Promise<void> {

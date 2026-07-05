@@ -39,11 +39,11 @@
     <header class="spec-hero">
       <div class="hero-topline">
         <p class="eyebrow">Alloro Plan Spec · Phase 6 of 7 · plans/07042026-alloro-os-admin-port</p>
-        <span class="status-pill">Pending Execution</span>
+        <span class="status-pill">Completed</span>
       </div>
       <h1>P6 — File Imports (docx · xlsx · pdf · md) &amp; Editor Assets</h1>
       <dl class="meta-grid">
-        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div class="status-card"><dt>Status</dt><dd>Completed</dd></div>
         <div><dt>Depends on</dt><dd>P2, P3 (P4 for auto-index)</dd></div>
         <div><dt>Size</dt><dd>Medium (~13 new files)</dd></div>
         <div><dt>Unlocks</dt><dd>Content seeding (D14 fresh start fills via imports)</dd></div>
@@ -141,6 +141,21 @@ cd /Users/rustinedave/Desktop/alloro/frontend && npm run build</pre>
         <li><input type="checkbox" disabled> Editor image paste/drop works; assets served via presigned redirect.</li>
         <li><input type="checkbox" disabled> Only the four listed deps added (presigner conditional, canvas deferred); gates green; pill + master index updated.</li>
       </ul>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-05</h3>
+        <p><strong>Change:</strong> P6 executed on worktree; all gates green (BE tsc 0, conventions --strict 0, phase vitest 15, full backend 301, integration 23, FE tsc 0, FE tests 47, FE build). Deps added: pdfjs-dist@5.6.205 (ESM-only 5.x — loaded via a <code>new Function("s","return import(s)")</code> shim so tsc's CJS downleveling can't rewrite the dynamic import to a broken require(); path <code>pdfjs-dist/legacy/build/pdf.mjs</code>; the conversion test injects the real library against a fixture and passes, proving the runtime path), turndown@7.2.4, @joplin/turndown-plugin-gfm@1.0.67, jszip@3.10.1, @types/turndown (dev); @aws-sdk/s3-request-presigner already present. Deviations: os.assets has no updated_at (added OsAssetModel.setS3Key; integration test caught this); os-foundation config-shape test updated for two new config keys.</p>
+        <p><strong>Reason:</strong> Execution deviation: pdfjs 5.x ESM packaging, real table schema, and config additions surfaced during the gate.</p>
+        <p><strong>Updated Done criteria:</strong> none new — but see the SECURITY DEVIATION below (asset auth), which adds a hardening follow-up before production.</p>
+      </article>
+      <article class="revision-entry">
+        <h3>Rev 2 - 2026-07-05 (SECURITY DEVIATION — asset auth)</h3>
+        <p><strong>Change:</strong> Asset delivery <code>GET /api/admin/os/assets/:id</code> is mounted before the global header-only auth gate with a custom <code>authenticateOsAsset</code> that accepts the super-admin session JWT via EITHER the Authorization header OR a <code>?token=</code> query param — because a markdown-embedded <code>&lt;img&gt;</code> cannot send an Authorization header. It 302-redirects to a short-lived presigned S3 URL (the token is NOT forwarded to S3).</p>
+        <p><strong>Reason:</strong> Execution deviation: the spec (T5) said "302 presigned URL" but did not specify how an <code>&lt;img&gt;</code> authenticates under Alloro's header-JWT (non-cookie) auth model; the agent chose the query-token path.</p>
+        <p><strong>Updated Done criteria:</strong> RISK (§5.3): the value placed in the URL is the FULL 7-day super-admin session JWT, which can land in the app server's access logs and the admin's browser history. Scope is limited (internal super-admin-only tool; one read-only route; token not sent to S3; same-origin so no third-party referrer leak) so severity is MODERATE, not severe. HARDENING FOLLOW-UP before production: replace the full session JWT with a short-lived (~5 min) asset-scoped token (<code>aud: os-asset</code>) minted for image URLs, or render images via an authenticated blob fetch (custom react-markdown img renderer). Tracked as a follow-up task; do not ship to prod without deciding.</p>
+      </article>
     </section>
   </main>
 </body>

@@ -26,6 +26,9 @@ export const OS_ACTIVITY_ACTIONS = [
   // P4 (plans/07042026-alloro-os-admin-port) — related-document link lifecycle.
   "link.accepted",
   "link.rejected",
+  // P6 — file import + editor/import image asset events.
+  "document.imported",
+  "asset.uploaded",
 ] as const;
 
 export type OsActivityAction = (typeof OS_ACTIVITY_ACTIONS)[number];
@@ -39,6 +42,8 @@ export const OS_ACTIVITY_TARGET_TYPES = [
   "lock",
   // P4 — target of link.accepted / link.rejected (os.document_links.id).
   "link",
+  // P6 — target of asset.uploaded (os.assets.id).
+  "asset",
 ] as const;
 
 export type OsActivityTargetType = (typeof OS_ACTIVITY_TARGET_TYPES)[number];

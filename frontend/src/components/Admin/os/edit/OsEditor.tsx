@@ -1,17 +1,27 @@
 import { useEffect, useRef } from "react";
+import type { Editor } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import {
   buildOsEditorExtensions,
   getOsEditorMarkdown,
 } from "./osEditorExtensions";
 import { OsEditorToolbar } from "./OsEditorToolbar";
+import { useOsImageUpload } from "../../../../hooks/useOsImageUpload";
 
 /**
- * WYSIWYG editor over markdown storage (P3 T4): tiptap-markdown parses the
- * stored markdown on load and serializes it back on every edit. The white
+ * WYSIWYG editor over markdown storage (P3 T4, P6 T4): tiptap-markdown parses
+ * the stored markdown on load and serializes it back on every edit. The white
  * pane is a genuinely bounded object (D13), so it may sit on the warm paper
- * surface. Read-only when the edit lock is held by someone else.
+ * surface. Read-only when the edit lock is held by someone else. Pasting or
+ * dropping an image uploads it as an os.asset and inserts a markdown image node
+ * pointing at the asset-delivery URL.
  */
+
+/** Pull image files out of a paste/drop payload (no-op for anything else). */
+function imageFilesFrom(list: FileList | null | undefined): File[] {
+  if (!list) return [];
+  return Array.from(list).filter((file) => file.type.startsWith("image/"));
+}
 
 const OS_EDITOR_PROSE_CLASSES = [
   "prose prose-gray max-w-none",
@@ -29,15 +39,43 @@ const OS_EDITOR_PROSE_CLASSES = [
 ].join(" ");
 
 export function OsEditor({
+  documentId,
   content,
   onChange,
   isEditable,
 }: {
+  documentId: string;
   content: string;
   onChange: (markdown: string) => void;
   isEditable: boolean;
 }) {
   const lastMarkdownRef = useRef(content);
+  // editorProps handlers are captured once by useEditor, so the live editor +
+  // latest upload fn + editable flag are read through refs (no re-instantiation).
+  const editorRef = useRef<Editor | null>(null);
+  const uploadImage = useOsImageUpload(documentId);
+  const uploadRef = useRef(uploadImage);
+  uploadRef.current = uploadImage;
+  const editableRef = useRef(isEditable);
+  editableRef.current = isEditable;
+
+  // Upload each image and insert an image node at `pos` (or the cursor).
+  const insertImages = (current: Editor, files: File[], pos?: number): void => {
+    let at = pos;
+    files.forEach((file) => {
+      void uploadRef.current(file).then((url) => {
+        if (!url) return;
+        const chain = current.chain().focus();
+        if (typeof at === "number") {
+          chain.insertContentAt(at, { type: "image", attrs: { src: url } });
+        } else {
+          chain.setImage({ src: url });
+        }
+        chain.run();
+        at = undefined; // subsequent images append at the cursor
+      });
+    });
+  };
 
   const editor = useEditor({
     extensions: buildOsEditorExtensions(),
@@ -45,6 +83,31 @@ export function OsEditor({
     editable: isEditable,
     editorProps: {
       attributes: { class: OS_EDITOR_PROSE_CLASSES },
+      handlePaste: (_view, event) => {
+        if (!editableRef.current) return false;
+        const images = imageFilesFrom(event.clipboardData?.files);
+        if (images.length === 0) return false;
+        const current = editorRef.current;
+        if (!current) return false;
+        event.preventDefault();
+        insertImages(current, images);
+        return true;
+      },
+      handleDrop: (view, event) => {
+        if (!editableRef.current) return false;
+        const dropEvent = event as DragEvent;
+        const images = imageFilesFrom(dropEvent.dataTransfer?.files);
+        if (images.length === 0) return false;
+        const current = editorRef.current;
+        if (!current) return false;
+        event.preventDefault();
+        const coords = view.posAtCoords({
+          left: dropEvent.clientX,
+          top: dropEvent.clientY,
+        });
+        insertImages(current, images, coords?.pos);
+        return true;
+      },
     },
     onUpdate: ({ editor: current }) => {
       const markdown = getOsEditorMarkdown(current);
@@ -52,6 +115,8 @@ export function OsEditor({
       onChange(markdown);
     },
   });
+  // Publish the live editor to the ref the paste/drop handlers read.
+  editorRef.current = editor;
 
   // Seed from an external content change (draft load / conflict reload)
   // without echoing an update back through onChange (spurious autosave).

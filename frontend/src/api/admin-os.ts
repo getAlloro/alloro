@@ -567,3 +567,92 @@ export async function adminOsUpdateLinkStatus(
     }),
   );
 }
+
+// ── Imports & assets (P6) ─────────────────────────────────────────────────────
+
+export type OsImportConverter = "docx" | "xlsx" | "pdf" | "markdown";
+export type OsImportStatus = "pending" | "converted" | "failed";
+
+/** One document started by a batch import (a doc + its provenance row). */
+export type OsImportStub = {
+  documentId: string;
+  importId: string;
+  title: string;
+  filename: string;
+  status: string;
+};
+
+/** A file the batch rejected before it became a document. */
+export type OsImportSkipped = {
+  filename: string;
+  reason: string;
+};
+
+/** POST /imports response — started documents + rejected files. */
+export type OsImportResult = {
+  documents: OsImportStub[];
+  skipped: OsImportSkipped[];
+};
+
+/** The os.document_imports row as the poll endpoint returns it. */
+export type OsDocumentImport = {
+  id: string;
+  document_id: string;
+  original_filename: string;
+  source_mime: string | null;
+  source_s3_key: string | null;
+  size_bytes: string | null;
+  converter: OsImportConverter | null;
+  status: OsImportStatus;
+  warnings: string[];
+  imported_by: number | null;
+  created_at: string;
+  converted_at: string | null;
+};
+
+export type OsUploadedAsset = {
+  id: string;
+  url: string;
+  mime: string;
+};
+
+/**
+ * Batch file import (multipart). Each file becomes its own document; an
+ * optional category/folder applies to the whole batch. 202 with the started
+ * documents + any skipped files.
+ */
+export async function adminOsImportFiles(input: {
+  files: File[];
+  category?: string | null;
+  folderId?: string | null;
+}): Promise<OsImportResult> {
+  const form = new FormData();
+  input.files.forEach((file) => form.append("files", file));
+  if (input.category) form.append("category", input.category);
+  if (input.folderId) form.append("folder_id", input.folderId);
+  return unwrap(await apiPost({ path: "/admin/os/imports", passedData: form }));
+}
+
+/** Poll the latest import provenance row for a document (status + warnings). */
+export async function adminOsGetDocumentImport(
+  documentId: string,
+): Promise<{ import: OsDocumentImport | null }> {
+  return unwrap(
+    await apiGet({ path: `/admin/os/documents/${documentId}/import` }),
+  );
+}
+
+/** Upload one editor image (multipart) → the asset URL to embed in markdown. */
+export async function adminOsUploadAsset(
+  documentId: string,
+  file: File,
+): Promise<{ asset: OsUploadedAsset }> {
+  const form = new FormData();
+  form.append("file", file);
+  return unwrap(
+    await apiPost({
+      path: `/admin/os/documents/${documentId}/assets`,
+      passedData: form,
+    }),
+  );
+}
