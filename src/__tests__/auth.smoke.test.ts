@@ -138,3 +138,18 @@ describe("POST /api/auth/otp/validate", () => {
     expect(typeof res.body.error).toBe("string");
   });
 });
+
+describe("SSO routing (GBP /google/callback collision regression)", () => {
+  it("routes /api/auth/google/callback to auth-sso, not the GBP controller", async () => {
+    // The GBP router also defines /google/callback; auth-sso must be mounted
+    // first so THIS handles the login callback. A bad state → auth-sso redirects
+    // (302) to the finish page with an error. The GBP controller would instead
+    // return a JSON 401 unauthorized_client — that's the bug this guards.
+    const res = await request(app).get(
+      "/api/auth/google/callback?state=bogus&code=bogus"
+    );
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toContain("/auth/google/finish");
+    expect(res.headers.location).toContain("error=");
+  });
+});

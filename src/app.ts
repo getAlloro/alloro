@@ -209,8 +209,13 @@ app.use("/api/gbp-automation", gbpAutomationRoutes);
 app.use("/api/patient-journey", patientJourneyRoutes);
 app.use("/api/clarity", clarityRoutes);
 app.use("/api/tasks", taskRoutes);
+// Google SSO admin login (plans/07052026-google-sso-admin-and-user-login).
+// MUST be mounted BEFORE /api/auth (authRoutes): the GBP router also defines a
+// vestigial `/google/callback` (routes/auth.ts:17) that would otherwise swallow
+// this login callback and exchange the code with the GBP client → unauthorized_client.
+// GBP's live redirect is /api/auth/callback; its other /google/* routes fall through.
+app.use("/api/auth/google", authSsoRoutes);
 app.use("/api/auth", authRoutes);
-app.use("/api/auth/google", authSsoRoutes); // Google SSO admin login (plans/07052026-google-sso-admin-and-user-login)
 app.use("/api/auth/otp", otpRoutes);
 app.use("/api/auth", authPasswordRoutes);
 app.use("/api/pms", pmsRoutes);
