@@ -1,0 +1,206 @@
+{
+  "plan": "plans/07042026-alloro-os-admin-port",
+  "generatedAt": "2026-07-04",
+  "status": "Not Run",
+  "items": [
+    {
+      "id": "T1",
+      "title": "OS tab exists and is super-admin gated",
+      "surface": "ui",
+      "precondition": "Logged into /admin as a SUPER_ADMIN_EMAILS user on dev",
+      "steps": [
+        "1. Open /admin — top bar shows Process · Projects · Support · OS",
+        "2. Click OS — full-width warm-paper surface loads with Library/Chat sub-tabs",
+        "3. Call GET /api/admin/os/ping with a non-super-admin JWT"
+      ],
+      "expected": "Tab renders; sub-tabs navigate; non-super-admin gets 403; unauthenticated gets 401",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T2",
+      "title": "Document lifecycle: create → edit → autosave → publish → history → restore",
+      "surface": "ui",
+      "precondition": "T1 passed",
+      "steps": [
+        "1. Library → New document → title it → editor opens",
+        "2. Type content incl. a heading + table + checklist; watch 'Saved · HH:MM' autosave stamp",
+        "3. Publish with a note → read view shows content, TOC, version 1",
+        "4. Edit again, change text, publish → history shows v2 with diff vs v1",
+        "5. Restore v1 → new version created with v1 content"
+      ],
+      "expected": "Full loop works; markdown round-trips (table + checklist intact); versions increment; restore never destroys history",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T3",
+      "title": "Indexing lifecycle + status dots + reindex",
+      "surface": "ui",
+      "precondition": "T2 passed; worker running on dev",
+      "steps": [
+        "1. After publish, row shows amber 'processing' pulse",
+        "2. Within ~30s dot turns green 'indexed'; summary/category/tags appear",
+        "3. Verify chunks: SELECT count(*) FROM os.document_chunks WHERE document_id = <id> — > 0"
+      ],
+      "expected": "Status transitions processing → indexed; AI metadata populated; chunks embedded at 1536 dims",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T4",
+      "title": "Library views: list, grouped, folders, drag-move, filters, metadata edit",
+      "surface": "ui",
+      "precondition": "≥3 documents exist across 2 categories",
+      "steps": [
+        "1. Toggle List ⇄ Grouped ⇄ Folders views",
+        "2. Drag a doc into a folder; drag a doc between category groups",
+        "3. Edit a category pill + tags + reassign owner from the read header",
+        "4. Filter by category, owner, status; sort by updated"
+      ],
+      "expected": "All three views render; drags persist; human metadata edits survive a reindex (meta_locked)",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T5",
+      "title": "Search: ⌘K palette with lexical + semantic results",
+      "surface": "ui",
+      "precondition": "T3 passed (indexed docs exist)",
+      "steps": [
+        "1. Press ⌘K inside the OS tab — palette opens",
+        "2. Type an exact title word — doc appears in results",
+        "3. Type a paraphrase of content (not literal words) — semantic section surfaces the right doc",
+        "4. Press ⌘K on /admin/mission-control — OS palette does NOT open"
+      ],
+      "expected": "Both search modes return the target doc with snippets; Enter navigates; palette scoped to OS routes",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T6",
+      "title": "Related documents: suggestions + accept/reject + manual add",
+      "surface": "ui",
+      "precondition": "≥2 topically similar indexed docs",
+      "steps": [
+        "1. Open a doc — Related rail shows AI-suggested links",
+        "2. Accept one, reject one; refresh — states persist",
+        "3. Manually add a related doc via the picker"
+      ],
+      "expected": "Suggestions appear post-index; accept/reject lifecycle sticks; manual links show as accepted",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T7",
+      "title": "Chat: grounded streaming answer with clickable citations",
+      "surface": "ui",
+      "precondition": "T3 passed; GEMINI_API_KEY live on dev",
+      "steps": [
+        "1. Chat sub-tab → New chat → ask a question answered by an indexed doc",
+        "2. Observe: thinking indicator → 'Searching…' → streamed tokens → citation chips",
+        "3. Click a citation chip — navigates to that document",
+        "4. Ask something the KB cannot answer (e.g. 'what is the capital of Mongolia')",
+        "5. Reload — conversation persists with auto-generated title"
+      ],
+      "expected": "Streams live with citations built from real chunks; out-of-scope question gets an honest refusal with zero citations; history + title persist",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T8",
+      "title": "Chat context attach (@-mention)",
+      "surface": "ui",
+      "precondition": "T7 passed",
+      "steps": [
+        "1. In the chat input, type @ and pick a document",
+        "2. Context chip appears; send a question about that doc",
+        "3. Remove the chip"
+      ],
+      "expected": "Attached doc is used for grounding; chips add/remove cleanly and persist per conversation",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T9",
+      "title": "Trash: archive → restore → delete forever; locks banner",
+      "surface": "ui",
+      "precondition": "T2 passed",
+      "steps": [
+        "1. Archive a doc — it leaves Library, appears in Trash (muted)",
+        "2. Restore it — returns with prior content and reindexes",
+        "3. Archive again → Delete forever (confirm) — gone; chunks purged",
+        "4. Open the same doc's editor in two browser tabs — second tab shows the lock banner read-only"
+      ],
+      "expected": "Trash lifecycle exact; purge removes chunks (SQL count = 0); concurrent edit blocked with a visible banner",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T10",
+      "title": "Imports: batch docx/xlsx/pdf/md → converted + indexed docs",
+      "surface": "ui",
+      "precondition": "P6 executed; sample files at hand",
+      "steps": [
+        "1. Library → Import → drop one .docx, one .xlsx, one .pdf, one .md (single batch, category assigned)",
+        "2. Watch per-file status: pending → converted; open each resulting doc",
+        "3. Import a text-poor scanned PDF — expect a visible warning on the import row"
+      ],
+      "expected": "All four convert to readable markdown docs (images preserved for docx), get the batch category, and index; warnings surface instead of silent failure",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T11",
+      "title": "Comments: threaded, editable, tombstoned — and no task UI anywhere",
+      "surface": "ui",
+      "precondition": "P7 executed",
+      "steps": [
+        "1. Comment on a doc from the read rail; reply to it",
+        "2. Edit your comment; delete the reply — 'Comment deleted' tombstone keeps the thread",
+        "3. Scan the entire OS tab for any task/assignee/due-date control"
+      ],
+      "expected": "Thread works with markdown; tombstone renders; zero task affordances exist (pmtool owns tasks)",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    },
+    {
+      "id": "T12",
+      "title": "Design parity with Alloro app light mode + no admin regressions",
+      "surface": "ui",
+      "precondition": "All phases Completed",
+      "steps": [
+        "1. Eyeball the OS tab against the client dashboard: warm paper #FAF8F3, Spectral doc titles, Jakarta chrome, mono meta, terracotta accents only on action/active",
+        "2. Confirm hairline-divided rows (no card-grid slop), skeleton loading, designed empty states",
+        "3. Click through Process / Projects / Support tabs and the client dashboard — unchanged"
+      ],
+      "expected": "OS reads as the same product family as the app's light mode; existing admin surfaces behave exactly as before",
+      "status": "pending",
+      "evidence": "",
+      "notes": "",
+      "waiver": ""
+    }
+  ]
+}

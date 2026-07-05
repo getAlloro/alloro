@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>P4 — Indexing &amp; Search · Alloro OS → Admin Port</title>
+  <style>
+    :root { color-scheme: light; --paper:#ffffff; --ink:#080808; --muted:#5f5f5f; --line:#d8d8d8; --soft:#f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.5; }
+    .spec-shell { width:min(1120px,calc(100% - 32px)); margin:0 auto; padding:48px 0; }
+    .spec-hero, .spec-card, .task-card { border:1px solid var(--line); border-radius:8px; background:var(--paper); }
+    .spec-hero { border-color:var(--ink); padding:32px; margin-bottom:20px; }
+    .hero-topline { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+    .spec-card { padding:28px; margin-top:16px; }
+    .task-card { padding:20px; background:var(--soft); margin-top:14px; }
+    .eyebrow, dt { color:var(--muted); font-size:0.78rem; font-weight:700; text-transform:uppercase; }
+    .eyebrow { margin:0; }
+    .status-pill { display:inline-flex; align-items:center; min-height:34px; padding:0 12px; border:1px solid var(--ink); border-radius:999px; background:var(--ink); color:var(--paper); font-size:0.78rem; font-weight:800; text-transform:uppercase; }
+    .status-card { border-color:var(--ink); }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { max-width:840px; margin-bottom:24px; font-size:clamp(2rem,5vw,3.6rem); line-height:0.95; }
+    h2 { font-size:1.35rem; } h3 { font-size:1rem; }
+    code { padding:0.1rem 0.3rem; border:1px solid var(--line); border-radius:4px; background:var(--soft); font-size:0.92em; }
+    pre { background:var(--soft); border:1px solid var(--line); border-radius:8px; padding:14px; overflow-x:auto; font-size:0.85rem; }
+    .meta-grid, .split-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+    .meta-grid { margin:0; }
+    .meta-grid div, .split-grid > div { border:1px solid var(--line); border-radius:8px; padding:16px; }
+    dd { margin:4px 0 0; font-weight:700; }
+    .task-card dl { display:grid; gap:8px; margin:0; }
+    .task-card dd { font-weight:500; }
+    .checklist { list-style:none; padding-left:0; }
+    .checklist li { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); }
+    @media (max-width:640px) { .spec-shell { width:min(100% - 20px,1120px); padding:24px 0; } .spec-hero,.spec-card { padding:20px; } }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec · Phase 4 of 7 · plans/07042026-alloro-os-admin-port</p>
+        <span class="status-pill">Pending Execution</span>
+      </div>
+      <h1>P4 — Indexing Pipeline, Semantic Search, ⌘K, Related Docs</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div><dt>Depends on</dt><dd>P2 (API) · P3 (UI hooks)</dd></div>
+        <div><dt>Size</dt><dd>Medium (~14 new files, 3 edits)</dd></div>
+        <div><dt>Unlocks</dt><dd>P5 (retrieval), P6 (auto-index)</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The "AI-indexed" half of the knowledge base: without ingest + retrieval there is no semantic search, no related docs, and no grounding for P5 chat. This phase turns the P1 stub processor into the real pipeline.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>On create/publish/reindex the <code>os-ingest</code> job runs: heading-aware chunking → batch OpenAI embeddings (1536) → atomic chunk replacement → Gemini metadata (summary/category/tags, honoring <code>meta_locked</code>; title-fallback on model failure) → top-5 link suggestions (cosine ≥ <code>OS_LINK_SUGGEST_FLOOR</code>) → weighted tsv rebuild → status <code>indexed</code>. Three attempts with backoff, then <code>processing_failed</code> + a visible Reindex path. Retrieval service exposes parameterized cosine search (floor <code>OS_SIMILARITY_FLOOR</code>, k=<code>OS_RETRIEVAL_K</code>, indexed+non-archived only). UI: live status dots (poll while processing), Reindex button, ⌘K command palette scoped to OS routes (FTS + semantic + recent + nav), and a real Related rail (accept/reject suggestions, manual add).</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Port sources</h3>
+      <ul>
+        <li><code>alloro-os/backend/src/services/rag/{IngestService,RetrievalService,chunk}.ts</code> — pipeline order, failure handling, floors.</li>
+        <li><code>alloro-os/backend/src/lib/{embeddings,llm}.ts</code> — provider seams incl. deterministic fake embedder + busy-error detection.</li>
+        <li><code>alloro-os/frontend/src/components/search/{CommandPalette,CommandPaletteMount,SearchResults}.tsx</code>, <code>components/links/RelatedDocuments.tsx</code>, <code>hooks/useCommandPalette.ts</code>.</li>
+      </ul>
+      <h3>Files to create</h3>
+      <ul>
+        <li><code>src/controllers/admin-os/feature-services/service.os-embeddings.ts</code> — axios OpenAI (analog <code>service.minds-embedding.ts</code>) + exported fake provider for tests; batch endpoint use; dimension asserted against config.</li>
+        <li><code>src/controllers/admin-os/feature-services/service.os-llm.ts</code> — Gemini via installed <code>@google/genai</code>: <code>generateDocMetadata()</code> (JSON summary/category/tags) + busy/retry classification; fake for tests. (Streaming chat method added in P5.)</li>
+        <li><code>src/controllers/admin-os/feature-services/{OsChunkService,OsIngestService,OsRetrievalService,OsLinkService}.ts</code> — chunker port; pipeline orchestration; cosine retrieval; suggestion/accept/reject/manual-link logic.</li>
+        <li><code>src/models/{OsDocumentChunkModel,OsDocumentLinkModel}.ts</code> — chunk replace-all in txn (§10.5); parameterized <code>&lt;=&gt;</code> cosine query (analog <code>MindBrainChunkModel.ts</code>).</li>
+        <li><code>AdminOsSearchController.ts</code> extension + <code>AdminOsLinksController.ts</code>; routes: <code>GET /search?q=&amp;mode=hybrid</code>, <code>POST /documents/:id/reindex</code>, <code>GET/POST/PATCH /documents/:id/links</code>.</li>
+        <li>Frontend: <code>components/Admin/os/search/{OsCommandPalette,OsSearchResults}.tsx</code> (mounted in OsShell, ⌘K listener active on OS routes only), <code>components/Admin/os/read/OsRelatedRail.tsx</code> (replaces placeholder), reindex button + polling status in <code>OsDocumentRow</code>/read header; hooks <code>useAdminOsSearch.ts</code>, <code>useAdminOsLinks.ts</code>, <code>useOsCommandPalette.ts</code>.</li>
+        <li>Tests: <code>src/__tests__/os-ingest.test.ts</code> (fake providers end-to-end), <code>os-retrieval.test.ts</code>, <code>os-links.test.ts</code>.</li>
+      </ul>
+      <h3>Files to edit</h3>
+      <ul><li><code>src/workers/processors/osIngest.processor.ts</code> (stub → real, calls OsIngestService per §21.3), <code>osPurge.processor.ts</code> (drop chunks + S3 keys), <code>frontend/src/pages/admin/os/OsShell.tsx</code> (palette mount).</li></ul>
+      <h3>Constitution</h3>
+      <p>§21.1–§21.4 (idempotent jobId <code>os-ingest:{documentId}</code>, 3 attempts backoff, failures logged with context, worker calls services), §10.2 (parameterized raw vector SQL in models only), §10.5, §7.4, §4.2 (floors/K from config), §20.2/§20.4 (fakes, failure paths). Analogs: <code>MindBrainChunkModel.ts</code>, <code>seoBulkGenerate.processor.ts</code>.</p>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk (phase-local)</h2>
+      <ul>
+        <li>Provider outages mid-ingest. <strong>Mitigation (ported):</strong> retry/backoff; metadata failure degrades to title-fallback (doc still becomes <code>indexed</code>); embedding failure → <code>processing_failed</code> + Reindex button.</li>
+        <li>Chunk replace vs concurrent retrieval. <strong>Mitigation:</strong> replace-all inside one transaction keyed by version_no; retrieval reads committed rows only.</li>
+        <li>Cost: re-embed on publish only (never autosave); batch embedding calls.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card"><h3>T1: Provider seams (embeddings + LLM metadata)</h3><dl>
+        <div><dt>Do</dt><dd><code>service.os-embeddings.ts</code> (real + fake, batch) and <code>service.os-llm.ts</code> (Gemini metadata JSON + busy classification + fake). Config-driven models; no keys outside env (§5.1).</dd></div>
+        <div><dt>Files</dt><dd>2 feature-services</dd></div>
+        <div><dt>Depends on</dt><dd>P2</dd></div>
+        <div><dt>Verify</dt><dd>fake determinism test; dimension assertion test</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T2: Chunker + chunk/link models</h3><dl>
+        <div><dt>Do</dt><dd>Port heading-aware chunker (heading_path retained for citations); chunk model with transactional replace-all + parameterized HNSW cosine query; link model with unique-pair upsert.</dd></div>
+        <div><dt>Files</dt><dd><code>OsChunkService.ts</code>, <code>OsDocumentChunkModel.ts</code>, <code>OsDocumentLinkModel.ts</code></dd></div>
+        <div><dt>Depends on</dt><dd>T1</dd></div>
+        <div><dt>Verify</dt><dd>chunker unit tests (headings, long sections); vector query returns nearest-first with floor cut</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T3: IngestService + real processors + reindex</h3><dl>
+        <div><dt>Do</dt><dd>Full pipeline per What; wire <code>osIngest</code>/<code>osPurge</code> processors to services; <code>POST /documents/:id/reindex</code> dedupes via jobId; status transitions exact (processing → indexed | processing_failed).</dd></div>
+        <div><dt>Files</dt><dd><code>OsIngestService.ts</code>, 2 processors, route/controller additions</dd></div>
+        <div><dt>Depends on</dt><dd>T2</dd></div>
+        <div><dt>Verify</dt><dd>end-to-end ingest test with fakes: doc → chunks(1536) + ai_index + suggestions + tsv + status=indexed; injected embed failure → processing_failed after 3 attempts</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T4: Retrieval + hybrid search API</h3><dl>
+        <div><dt>Do</dt><dd><code>OsRetrievalService</code> (floor/k config); search endpoint returns FTS section (P2 service) + semantic section (chunk hits with doc title + heading_path + snippet); links endpoints (suggested/accepted/rejected lifecycle + manual add + backlinks).</dd></div>
+        <div><dt>Files</dt><dd><code>OsRetrievalService.ts</code>, <code>OsLinkService.ts</code>, controllers/routes</dd></div>
+        <div><dt>Depends on</dt><dd>T3</dd></div>
+        <div><dt>Verify</dt><dd>retrieval excludes archived/unindexed; hybrid payload shape test</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T5: Frontend — dots, reindex, ⌘K, Related</h3><dl>
+        <div><dt>Do</dt><dd>Status dot poll (React Query <code>refetchInterval</code> while processing); Reindex button on failed docs; ⌘K palette (keyboard nav, sections: results/recent/actions) mounted in OsShell only; Related rail with accept/reject (wash hover, quiet buttons) + manual add picker.</dd></div>
+        <div><dt>Files</dt><dd>FE files listed in Context</dd></div>
+        <div><dt>Depends on</dt><dd>T4, P3</dd></div>
+        <div><dt>Verify</dt><dd>FE gate; palette scoped (no listener leak on other admin routes — unmount test)</dd></div>
+      </dl></article>
+    </section>
+
+    <section class="spec-card" id="gate">
+      <h2>Phase Gate</h2>
+      <pre>npx tsc --noEmit
+npm run check:conventions --strict
+npx vitest run src/__tests__/os-ingest.test.ts src/__tests__/os-retrieval.test.ts src/__tests__/os-links.test.ts
+npm test
+cd /Users/rustinedave/Desktop/alloro/frontend && npx tsc -p tsconfig.app.json --noEmit; echo "FE_TSC_EXIT:$?"
+cd /Users/rustinedave/Desktop/alloro/frontend && npm run build</pre>
+      <p>Post-deploy (dev) live smoke: create a doc via UI → dot turns green; <code>psql: SELECT count(*) FROM os.document_chunks</code> &gt; 0. Recorded in final acceptance T3/T5. <em>(Rev 1: schema-qualified name per master Rev 2.)</em></p>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> Ingest pipeline green end-to-end with fakes incl. failure → <code>processing_failed</code> → reindex recovery.</li>
+        <li><input type="checkbox" disabled> Retrieval floor/k config-driven; archived/unindexed never retrieved.</li>
+        <li><input type="checkbox" disabled> ⌘K palette works on OS routes only; Related rail live with full suggestion lifecycle.</li>
+        <li><input type="checkbox" disabled> Gates green; status pill + master index updated.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

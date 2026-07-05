@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>P2 — Library Backend · Alloro OS → Admin Port</title>
+  <style>
+    :root { color-scheme: light; --paper:#ffffff; --ink:#080808; --muted:#5f5f5f; --line:#d8d8d8; --soft:#f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.5; }
+    .spec-shell { width:min(1120px,calc(100% - 32px)); margin:0 auto; padding:48px 0; }
+    .spec-hero, .spec-card, .task-card { border:1px solid var(--line); border-radius:8px; background:var(--paper); }
+    .spec-hero { border-color:var(--ink); padding:32px; margin-bottom:20px; }
+    .hero-topline { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+    .spec-card { padding:28px; margin-top:16px; }
+    .task-card { padding:20px; background:var(--soft); margin-top:14px; }
+    .eyebrow, dt { color:var(--muted); font-size:0.78rem; font-weight:700; text-transform:uppercase; }
+    .eyebrow { margin:0; }
+    .status-pill { display:inline-flex; align-items:center; min-height:34px; padding:0 12px; border:1px solid var(--ink); border-radius:999px; background:var(--ink); color:var(--paper); font-size:0.78rem; font-weight:800; text-transform:uppercase; }
+    .status-card { border-color:var(--ink); }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { max-width:840px; margin-bottom:24px; font-size:clamp(2rem,5vw,3.6rem); line-height:0.95; }
+    h2 { font-size:1.35rem; } h3 { font-size:1rem; }
+    code { padding:0.1rem 0.3rem; border:1px solid var(--line); border-radius:4px; background:var(--soft); font-size:0.92em; }
+    pre { background:var(--soft); border:1px solid var(--line); border-radius:8px; padding:14px; overflow-x:auto; font-size:0.85rem; }
+    .meta-grid, .split-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+    .meta-grid { margin:0; }
+    .meta-grid div, .split-grid > div { border:1px solid var(--line); border-radius:8px; padding:16px; }
+    dd { margin:4px 0 0; font-weight:700; }
+    .task-card dl { display:grid; gap:8px; margin:0; }
+    .task-card dd { font-weight:500; }
+    .checklist { list-style:none; padding-left:0; }
+    .checklist li { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); }
+    @media (max-width:640px) { .spec-shell { width:min(100% - 20px,1120px); padding:24px 0; } .spec-hero,.spec-card { padding:20px; } }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec · Phase 2 of 7 · plans/07042026-alloro-os-admin-port</p>
+        <span class="status-pill">Pending Execution</span>
+      </div>
+      <h1>P2 — Library Backend: Documents, Versions, Folders, Trash, Locks, FTS</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div><dt>Depends on</dt><dd>P1 Completed</dd></div>
+        <div><dt>Size</dt><dd>Large-in-phase (~16 new files)</dd></div>
+        <div><dt>Unlocks</dt><dd>P3, P4, P6</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>The Library is the product core. A complete, tested HTTP API lets P3 build UI against real behavior and lets P4 hook indexing into an already-correct publish lifecycle.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Full document lifecycle over <code>/api/admin/os</code>: create (status <code>processing</code> + ingest enqueue), draft autosave, publish (draft → version N+1 → <code>current_version_id</code> → re-ingest enqueue), rename, metadata edit (category/tags/owner with <code>meta_locked</code>), folders (tree + move), categories registry, archive → trash → restore → purge (queued), edit-locks (acquire/heartbeat/release + conflict semantics), lexical search (weighted tsvector + <code>ts_headline</code> snippets), version list/diff/restore, and activity logging on every state change. All list endpoints paginate per §11.6.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Port sources (behavior contract)</h3>
+      <ul>
+        <li><code>alloro-os/backend/src/services/documents/{DocumentService,LockService,DocumentCategoryService}.ts</code>, <code>services/folders/FolderService.ts</code>, <code>services/deletion/DeletionService.ts</code>, <code>services/search/SearchService.ts</code> (FTS half), <code>utils/{slug,toc,diff}.ts</code>, models <code>DocumentModel/DocumentVersionModel/…</code>.</li>
+      </ul>
+      <h3>Files to create</h3>
+      <ul>
+        <li>Models (complete): <code>src/models/OsDocumentModel.ts</code> (list w/ filters + ai_index/owner joins, detail, create, rename, setStatus, archive/restore, tsv rebuild raw-parameterized), <code>OsDocumentVersionModel.ts</code>, <code>OsDocumentDraftModel.ts</code>, <code>OsDocumentAiIndexModel.ts</code>, <code>OsDocumentCategoryModel.ts</code>, <code>OsDocumentLockModel.ts</code>, <code>OsActivityModel.ts</code> (+ finish <code>OsFolderModel.ts</code>).</li>
+        <li>Feature services: <code>src/controllers/admin-os/feature-services/OsDocumentService.ts</code>, <code>OsFolderService.ts</code>, <code>OsCategoryService.ts</code>, <code>OsLockService.ts</code>, <code>OsTrashService.ts</code>, <code>OsFtsSearchService.ts</code>, <code>OsVersionService.ts</code> (list/diff via <code>diff</code>-style comparison/restore).</li>
+        <li>Controllers split by resource to respect §2.4 tiers: <code>AdminOsDocumentsController.ts</code>, <code>AdminOsFoldersController.ts</code>, <code>AdminOsTaxonomyController.ts</code> (categories), <code>AdminOsTrashController.ts</code>, <code>AdminOsLocksController.ts</code>, <code>AdminOsSearchController.ts</code>.</li>
+        <li>Validation: <code>src/validation/os.ts</code> — zod schemas applied at the route boundary (§11.2).</li>
+        <li>Routes: extend <code>src/routes/admin/os.ts</code> (thin, §7.2).</li>
+        <li>Tests: <code>src/__tests__/os-documents.test.ts</code>, <code>os-versions.test.ts</code>, <code>os-locks.test.ts</code>, <code>os-search-fts.test.ts</code>.</li>
+      </ul>
+      <h3>Key behaviors (port faithfully)</h3>
+      <ul>
+        <li>Publish is transactional (§10.5): insert version, bump <code>current_version_id</code>, clear draft, enqueue re-ingest — all-or-nothing.</li>
+        <li><code>meta_locked</code>: once category/tags are human-edited, re-ingest may update summary only.</li>
+        <li>Locks: acquire fails with <code>OS_LOCK_HELD</code> (409-mapped) if another live lock exists; heartbeat extends <code>expires_at</code> by <code>OS_LOCK_TTL_SECONDS</code>; owner release is idempotent.</li>
+        <li>Purge removes chunks/versions/drafts via cascade + S3 asset keys via queue job (job body carries keys; §21.1 idempotent).</li>
+        <li>tsv weights: title A · content B · summary C · tags C (rebuild helper shared with P4 ingest).</li>
+        <li>Slug: unique, regenerated on rename with collision suffix.</li>
+      </ul>
+      <h3>Constitution</h3>
+      <p>§7.1–§7.4, §8.1–§8.4, §9.1–§9.3, §10.1–§10.5, §11.2, §11.6, §2.4 (split controllers), §20.1–§20.2. Analog: <code>gbp-automation</code> service/controller split.</p>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk (phase-local)</h2>
+      <ul>
+        <li>Raw SQL for tsvector/ts_headline — keep parameterized inside models only (§10.2); reuse the vetted-literal lesson from the telemetry GROUP-BY incident: build shared SQL fragments as exported constants, never interpolate user input.</li>
+        <li>Publish/lock race: guard publish with an active-lock ownership check; covered by tests.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card"><h3>T1: Models complete</h3><dl>
+        <div><dt>Do</dt><dd>All eight models with typed rows in <code>src/types</code> or local interfaces; pagination shape §11.6; tsv rebuild + headline queries parameterized.</dd></div>
+        <div><dt>Files</dt><dd><code>src/models/Os*.ts</code> ×8</dd></div>
+        <div><dt>Depends on</dt><dd>P1</dd></div>
+        <div><dt>Verify</dt><dd>model unit tests (happy + error paths)</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T2: Document + version + draft services</h3><dl>
+        <div><dt>Do</dt><dd>Create/publish/autosave/rename/meta-edit flows with transactions, activity entries, ingest enqueues (stub processor from P1 completes them harmlessly until P4).</dd></div>
+        <div><dt>Files</dt><dd><code>feature-services/{OsDocumentService,OsVersionService}.ts</code></dd></div>
+        <div><dt>Depends on</dt><dd>T1</dd></div>
+        <div><dt>Verify</dt><dd>publish increments version_no; draft cleared; rollback on injected failure</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T3: Folders, categories, trash, locks services</h3><dl>
+        <div><dt>Do</dt><dd>Folder tree + move (cycle guard), category normalize/upsert, archive/restore/purge (queue), lock acquire/heartbeat/release semantics per Context.</dd></div>
+        <div><dt>Files</dt><dd><code>feature-services/{OsFolderService,OsCategoryService,OsTrashService,OsLockService}.ts</code></dd></div>
+        <div><dt>Depends on</dt><dd>T1</dd></div>
+        <div><dt>Verify</dt><dd>lock conflict test; folder cycle rejection; purge idempotency</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T4: FTS search service</h3><dl>
+        <div><dt>Do</dt><dd><code>websearch_to_tsquery</code> + weighted rank + <code>ts_headline</code> snippets; filters folder/category/tag/owner/status; excludes archived by default.</dd></div>
+        <div><dt>Files</dt><dd><code>feature-services/OsFtsSearchService.ts</code></dd></div>
+        <div><dt>Depends on</dt><dd>T1</dd></div>
+        <div><dt>Verify</dt><dd>search test: title beats body match; archived excluded</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T5: Controllers + validation + routes</h3><dl>
+        <div><dt>Do</dt><dd>Six thin controllers, zod boundary validation, routes wired; every handler try/catch → <code>handleOsError</code> (§3.1, §8.3).</dd></div>
+        <div><dt>Files</dt><dd><code>AdminOs*Controller.ts</code> ×6, <code>src/validation/os.ts</code>, <code>src/routes/admin/os.ts</code></dd></div>
+        <div><dt>Depends on</dt><dd>T2–T4</dd></div>
+        <div><dt>Verify</dt><dd>supertest CRUD round-trip suite</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T6: Phase tests</h3><dl>
+        <div><dt>Do</dt><dd>Four suites listed in Context; §20.2 coverage: envelope contract, error paths, lock conflicts. Synthetic data only (§20.4).</dd></div>
+        <div><dt>Files</dt><dd><code>src/__tests__/os-{documents,versions,locks,search-fts}.test.ts</code></dd></div>
+        <div><dt>Depends on</dt><dd>T1–T5</dd></div>
+        <div><dt>Verify</dt><dd>gate below</dd></div>
+      </dl></article>
+    </section>
+
+    <section class="spec-card" id="gate">
+      <h2>Phase Gate</h2>
+      <pre>npx tsc --noEmit
+npm run check:conventions --strict
+npx vitest run src/__tests__/os-documents.test.ts src/__tests__/os-versions.test.ts src/__tests__/os-locks.test.ts src/__tests__/os-search-fts.test.ts
+npm test   # full suite — no regressions</pre>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> Full CRUD + publish + trash + locks + FTS reachable over HTTP (supertest-proven) with §8.1 envelopes.</li>
+        <li><input type="checkbox" disabled> Publish transaction proven atomic; meta_locked honored; pagination on every list.</li>
+        <li><input type="checkbox" disabled> All queries in models; conventions gate green; full test suite green.</li>
+        <li><input type="checkbox" disabled> Status pill + master Phase Index updated.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

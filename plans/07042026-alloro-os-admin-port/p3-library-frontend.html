@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>P3 — Library Frontend · Alloro OS → Admin Port</title>
+  <style>
+    :root { color-scheme: light; --paper:#ffffff; --ink:#080808; --muted:#5f5f5f; --line:#d8d8d8; --soft:#f5f5f5; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.5; }
+    .spec-shell { width:min(1120px,calc(100% - 32px)); margin:0 auto; padding:48px 0; }
+    .spec-hero, .spec-card, .task-card { border:1px solid var(--line); border-radius:8px; background:var(--paper); }
+    .spec-hero { border-color:var(--ink); padding:32px; margin-bottom:20px; }
+    .hero-topline { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+    .spec-card { padding:28px; margin-top:16px; }
+    .task-card { padding:20px; background:var(--soft); margin-top:14px; }
+    .eyebrow, dt { color:var(--muted); font-size:0.78rem; font-weight:700; text-transform:uppercase; }
+    .eyebrow { margin:0; }
+    .status-pill { display:inline-flex; align-items:center; min-height:34px; padding:0 12px; border:1px solid var(--ink); border-radius:999px; background:var(--ink); color:var(--paper); font-size:0.78rem; font-weight:800; text-transform:uppercase; }
+    .status-card { border-color:var(--ink); }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { max-width:840px; margin-bottom:24px; font-size:clamp(2rem,5vw,3.6rem); line-height:0.95; }
+    h2 { font-size:1.35rem; } h3 { font-size:1rem; }
+    code { padding:0.1rem 0.3rem; border:1px solid var(--line); border-radius:4px; background:var(--soft); font-size:0.92em; }
+    pre { background:var(--soft); border:1px solid var(--line); border-radius:8px; padding:14px; overflow-x:auto; font-size:0.85rem; }
+    .meta-grid, .split-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+    .meta-grid { margin:0; }
+    .meta-grid div, .split-grid > div { border:1px solid var(--line); border-radius:8px; padding:16px; }
+    dd { margin:4px 0 0; font-weight:700; }
+    .task-card dl { display:grid; gap:8px; margin:0; }
+    .task-card dd { font-weight:500; }
+    .checklist { list-style:none; padding-left:0; }
+    .checklist li { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); }
+    @media (max-width:640px) { .spec-shell { width:min(100% - 20px,1120px); padding:24px 0; } .spec-hero,.spec-card { padding:20px; } }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec · Phase 3 of 7 · plans/07042026-alloro-os-admin-port</p>
+        <span class="status-pill">Pending Execution</span>
+      </div>
+      <h1>P3 — Library Frontend: Views, Reader, Editor, Trash</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>Pending Execution</dd></div>
+        <div><dt>Depends on</dt><dd>P2 Completed</dd></div>
+        <div><dt>Size</dt><dd>Large-in-phase (~28 new files)</dd></div>
+        <div><dt>Unlocks</dt><dd>P4 (UI hooks), P6, P7</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>This phase makes the OS tab genuinely usable: browse, read, write, version. It is also where the "match the Alloro app light mode" requirement is actually delivered — every component is recreated on Alloro tokens, not copied OS markup.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>Library page (list / grouped-by-category / folder-tree views with @dnd-kit drag-move, filters, sort), DocumentRead 3-pane (doc rail · 70ch Spectral reading column with TOC · right rail with History and placeholders for Related/Comments), DocumentEdit (TipTap + markdown storage, debounced draft autosave, lock banner + heartbeat, publish modal with note), version history with diff + restore, and Trash (restore / permanent-delete with confirm). Empty/loading/error states designed for every surface (skeletons matching row shapes — never a centered spinner).</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Design contract (D13 + OS DESIGN.md, re-expressed in Alloro tokens)</h3>
+      <ul>
+        <li>Surface: <code>bg-alloro-bg</code> (#FAF8F3) page, <code>bg-alloro-surface</code> white only for genuinely bounded objects (modals, editor pane). Lists are hairline-divided rows (<code>--color-line-soft</code>), NOT card grids.</li>
+        <li>Type: Spectral (<code>font-display</code>) for document titles + reading body only; Plus Jakarta (<code>font-sans</code>/<code>font-body</code>) for all chrome; JetBrains Mono (<code>font-mono</code>) for timestamps/status/counts with <code>tabular-nums</code>.</li>
+        <li>Accent <code>#D66853</code> (<code>alloro-orange</code>) for primary actions, active states, selection wash (<code>--color-accent-soft</code>) — never decoration. Status dots: indexed <code>alloro-success</code> · processing amber pulse (<code>--color-amber</code>) · failed <code>alloro-danger</code> · archived muted.</li>
+        <li>Radius: controls 9px, inputs 8px, surfaces 12px. Motion: 150–250ms ease-out, state-conveying only; honor <code>prefers-reduced-motion</code>.</li>
+        <li>Icons: lucide-react only.</li>
+      </ul>
+      <h3>Files to create</h3>
+      <ul>
+        <li>API: extend <code>frontend/src/api/admin-os.ts</code> (documents/folders/categories/versions/drafts/locks/trash — typed functions over <code>api/index.ts</code>).</li>
+        <li>Hooks: <code>frontend/src/hooks/queries/useAdminOsDocuments.ts</code>, <code>useAdminOsDocument.ts</code>, <code>useAdminOsDocumentMutations.ts</code>, <code>useAdminOsFolders.ts</code>, <code>useAdminOsVersions.ts</code>, <code>useAdminOsTrash.ts</code>, <code>useAdminOsLock.ts</code> (heartbeat interval), <code>useOsDraftAutosave.ts</code> (debounced) + <code>QUERY_KEYS.adminOs*</code> entries.</li>
+        <li>Components (<code>frontend/src/components/Admin/os/</code>): <code>library/{OsDocumentRow,OsLibraryToolbar,OsLibraryControls,OsFolderTree,OsGroupedView,OsOwnerPicker,OsCategoryPill,OsTagChips}.tsx</code>, <code>read/{OsDocRail,OsReadingColumn,OsDocumentToc,OsHistoryRail,OsInlineTitle}.tsx</code>, <code>edit/{OsEditor,OsEditorToolbar,OsPublishModal,OsLockBanner}.tsx</code>, <code>shared/{OsStatusDot,OsEmptyState,OsRowSkeleton}.tsx</code>.</li>
+        <li>Pages: replace P1 placeholders — <code>OsLibrary.tsx</code>, new <code>OsDocumentRead.tsx</code>, <code>OsDocumentEdit.tsx</code> (React.lazy route), <code>OsTrash.tsx</code>.</li>
+      </ul>
+      <h3>New dependencies (frontend — the complete P3 list)</h3>
+      <ul><li><code>tiptap-markdown</code>, <code>@tiptap/extension-image</code>, <code>@tiptap/extension-table</code>, <code>@tiptap/extension-task-list</code> — pinned to installed @tiptap v3 line. Reading view renders markdown via existing <code>react-markdown</code> + <code>remark-gfm</code> (house pattern), not <code>marked</code>.</li></ul>
+      <h3>Constitution</h3>
+      <p>§12.1–§12.4 (triad, feature folders, boundaries), §13.1–§13.3 (lazy editor route, hooks own logic), §14.1–§14.3, §15.1, §16.1–§16.3, §17.1–§17.5. Analogs: <code>api/admin-mission-control.ts</code> + its hooks; behavior reference <code>alloro-os/frontend/src/pages/{Library,DocumentRead,DocumentEdit}.tsx</code> and OS hooks <code>useDraftAutosave/useLockHeartbeat/useDocumentFilters</code>.</p>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk (phase-local)</h2>
+      <ul>
+        <li>TipTap markdown round-trip fidelity (tables/checklists). <strong>Mitigation:</strong> serialize via tiptap-markdown both ways; publish stores markdown only; add a round-trip unit test on representative content.</li>
+        <li>Bundle growth. <strong>Mitigation:</strong> <code>React.lazy</code> the edit route (OS precedent); verify chunk split in build output.</li>
+        <li>Visual QA is the owner's pass (session-feedback rule): this phase gates on tsc/lint/build only; look-and-feel lands in final acceptance T12.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card"><h3>T1: API modules + hooks + keys</h3><dl>
+        <div><dt>Do</dt><dd>Typed functions for every P2 endpoint; React Query hooks with key factory entries; mutations invalidate list/detail keys; errors surface via <code>react-hot-toast</code>.</dd></div>
+        <div><dt>Files</dt><dd><code>api/admin-os.ts</code>, <code>hooks/queries/useAdminOs*.ts</code> ×7, <code>lib/queryClient.ts</code></dd></div>
+        <div><dt>Depends on</dt><dd>P2</dd></div>
+        <div><dt>Verify</dt><dd>FE tsc; hooks colocate zero fetch calls (§14.2 grep clean)</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T2: Library page (3 views + filters + dnd)</h3><dl>
+        <div><dt>Do</dt><dd>List (hairline rows: Spectral title, Jakarta summary, mono meta + status dot), Grouped-by-category (drag between groups updates category), Folder tree (expand/collapse, drag doc→folder via @dnd-kit); filters category/tag/owner/status; sort updated/title; toolbar (New document, Import placeholder button disabled until P6).</dd></div>
+        <div><dt>Files</dt><dd><code>pages/admin/os/OsLibrary.tsx</code>, <code>components/Admin/os/library/*</code></dd></div>
+        <div><dt>Depends on</dt><dd>T1</dd></div>
+        <div><dt>Verify</dt><dd>FE tsc + build; dnd move fires the right mutation (unit-test the handler)</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T3: DocumentRead 3-pane</h3><dl>
+        <div><dt>Do</dt><dd>Left rail (doc list, active highlighted, filter box) · center 70ch Spectral column (react-markdown render, sticky TOC from headings, inline-editable title, category pill + tag chips + owner picker in header) · right rail (History list; Related/Comments sections render placeholders until P4/P7). Collapses below xl to center column.</dd></div>
+        <div><dt>Files</dt><dd><code>pages/admin/os/OsDocumentRead.tsx</code>, <code>components/Admin/os/read/*</code></dd></div>
+        <div><dt>Depends on</dt><dd>T1</dd></div>
+        <div><dt>Verify</dt><dd>FE tsc + build</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T4: DocumentEdit (TipTap)</h3><dl>
+        <div><dt>Do</dt><dd>Lazy-loaded editor: StarterKit + Image + Table + TaskList + tiptap-markdown; Jakarta toolbar; autosave → draft (800ms debounce, mono "Saved · 12:03" status); lock acquire on mount + heartbeat + banner when held by someone else (read-only mode); Publish modal (optional note) → publish mutation → navigate to read view.</dd></div>
+        <div><dt>Files</dt><dd><code>pages/admin/os/OsDocumentEdit.tsx</code>, <code>components/Admin/os/edit/*</code>, <code>hooks/useOsDraftAutosave.ts</code>, <code>hooks/queries/useAdminOsLock.ts</code></dd></div>
+        <div><dt>Depends on</dt><dd>T1</dd></div>
+        <div><dt>Verify</dt><dd>markdown round-trip test; lazy chunk present in build output</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T5: Versions + diff + restore UI</h3><dl>
+        <div><dt>Do</dt><dd>History rail lists versions (mono meta, human note); diff view (added/removed styling on the P2 diff payload); Restore with <code>useConfirm</code> → creates new version per P2 semantics.</dd></div>
+        <div><dt>Files</dt><dd><code>components/Admin/os/read/OsHistoryRail.tsx</code> (+ diff subview)</dd></div>
+        <div><dt>Depends on</dt><dd>T3</dd></div>
+        <div><dt>Verify</dt><dd>FE tsc + build</dd></div>
+      </dl></article>
+      <article class="task-card"><h3>T6: Trash UI</h3><dl>
+        <div><dt>Do</dt><dd>Archived rows (muted, neutral dot), Restore + Delete-forever (confirm modal, destructive styling); reachable from Library quiet link.</dd></div>
+        <div><dt>Files</dt><dd><code>pages/admin/os/OsTrash.tsx</code></dd></div>
+        <div><dt>Depends on</dt><dd>T1</dd></div>
+        <div><dt>Verify</dt><dd>FE tsc + build</dd></div>
+      </dl></article>
+    </section>
+
+    <section class="spec-card" id="gate">
+      <h2>Phase Gate</h2>
+      <pre>cd /Users/rustinedave/Desktop/alloro/frontend && npx tsc -p tsconfig.app.json --noEmit; echo "FE_TSC_EXIT:$?"
+cd /Users/rustinedave/Desktop/alloro/frontend && npm run lint
+cd /Users/rustinedave/Desktop/alloro/frontend && npm run build
+cd /Users/rustinedave/Desktop/alloro && npm run check:conventions   # FE findings advisory; zero NEW ones
+cd /Users/rustinedave/Desktop/alloro/frontend && npx vitest run src/**/os*.test.*   # round-trip + handler tests if colocated</pre>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled> Create → edit → autosave → publish → read → history → restore full loop works against dev API (exercised in final acceptance T2).</li>
+        <li><input type="checkbox" disabled> All three Library views + filters + drag-move implemented; Trash restore/purge wired.</li>
+        <li><input type="checkbox" disabled> Every surface has loading skeleton + empty + error states; zero raw fetch, zero console, zero any (§14.2/§17.1/§17.2).</li>
+        <li><input type="checkbox" disabled> Editor route is a separate lazy chunk; FE build green; status pill + master index updated.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
