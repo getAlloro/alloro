@@ -2,6 +2,32 @@
 
 All notable changes to Alloro App are documented here.
 
+## [0.0.153] - July 2026
+
+### Multi-Location Billing: Paid Location Adds + Cancellation Lifecycle
+
+Adding a location now walks the client through the new charge and takes payment before the location goes live, and locations can be cancelled and reopened without ever losing data. Built across two phases on `plans/07032026-multi-location-billing` and fully verified in dev test-mode — acceptance T1–T10 + B1–B10 all pass, including an agent-driven UI pass in a real browser. Not yet on production; the first live-mode run will be the main merge.
+
+**Key Changes:**
+- **Paid add-location flow (Phase A).** The Settings → Properties add-location wizard is now: name → pick Google Business Profile (required; already-linked profiles are filtered out) → billing summary (per-location price, current → new monthly total, prorated charge due today) → confirm → the prorated delta is charged on the card on file → **only then is the location created**. A declined card leaves nothing behind: the proration invoice is voided and the subscription quantity reverted. A new `LocationBillingService` owns the quote and the charge, which explicitly finalizes and pays the proration invoice synchronously — Stripe does not auto-charge subscription-update invoices at request time, so "create after paid" requires it.
+- **GBP reuse guard (fixes the One Endo "Add Location" crash).** A Google Business Profile can no longer back two locations in the same organization — the picker hides already-linked profiles and the server rejects a duplicate with a clear "already linked" message instead of the previous opaque 500.
+- **Billing card location summary.** The plan card now shows "N locations × $X/mo = $Z/mo", plus an amber "N location(s) ending <date>" note when a cancellation is scheduled.
+- **Cancellation lifecycle (Phase B).** Locations gain a status: active → pending_cancellation → cancelled. Cancelling stops the *next* invoice from including the location (the already-paid current period is untouched); the location stays fully usable until the period ends and can be reopened for free before then. After that it is marked cancelled — greyed out in Settings → Properties, removed from the sidebar switcher, with **all of its data retained forever** and reopenable (a paid re-add). Cancelling the last active location schedules the whole subscription to end at period close. The client hard-delete path is removed entirely — nothing is ever deleted.
+- **Billing-environment safety.** A new `STRIPE_MODE` guard refuses startup if the declared mode disagrees with the configured key, drops webhook events whose livemode mismatches, and treats production-cloned Stripe ids as inert no-ops — so a test-keyed dev server can never mutate a live subscription. A test-mode-only reset script supports repeatable dev billing tests.
+- **Recurring agents skip cancelled locations.** The Proofline and Practice Ranking agents no longer run for cancelled locations (pending-cancellation locations keep running until their period ends); archived organizations were already excluded everywhere.
+
+**Commits:**
+- `src/controllers/billing/feature-services/LocationBillingService.ts` + `feature-utils/` — quote + create-after-paid purchase, typed errors, shared billing emails
+- `src/controllers/locations/feature-services/LocationLifecycleService.ts` — cancel / reopen / finalize with the full Stripe branch matrix (quantity decrement, last-location subscription end, free vs paid reopen)
+- `src/workers/processors/locationCancellationFinalizer.processor.ts` — hourly period-boundary finalizer (idempotent)
+- `src/config/stripe.ts` — `STRIPE_MODE` guard + `getStripeMode()`; `src/routes/locations.ts` + `billing.ts` — quote / purchase / cancel / reopen endpoints, legacy silent-create locked to super-admin
+- `src/models/LocationModel.ts` + migration `20260703000000_add_location_cancellation_lifecycle` — status / cancel_effective_at / cancelled_at columns + (organization_id, status) index
+- `frontend/src/components/settings/` — `AddLocationWizard`, `PlanLocationSummary`, `LocationLifecycleDialogs`, `PropertiesTab` lifecycle UI; `frontend/src/api/{locations,billing}.ts` — quote / purchase / cancel / reopen client functions
+- `src/controllers/agents/feature-services/service.{proofline,ranking}-executor.ts` — skip cancelled locations
+- `scripts/billing-reset-test-org.ts` — test-mode-only billing reset
+
+**Deferred / accepted (owner sign-off, July 2026):** the non-agent recurring systems (review sync, GBP local posts, data harvest, PMS jobs) still process cancelled locations — deferred to a follow-up workflow-gating plan; the 3DS/SCA live-card path is treated as a payment-failure fallback (untested live); the cancelled-primary edge and concurrent-mutation races are accepted. The first execution in live Stripe mode is the production merge.
+
 ## [0.0.152] - July 2026
 
 ### SEO Generator: Lessons Packaged Into the Prompts + a Source-of-Truth Doc

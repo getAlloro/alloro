@@ -254,6 +254,30 @@
                   <code>plans/07022026-seo-audit-canonical-check</code> (both Passed).
                 </td>
               </tr>
+              <tr>
+                <td>Client dashboard</td>
+                <td>Multi-location billing: paid location adds + cancellation lifecycle</td>
+                <td>Client dashboard admins on Settings &rarr; Properties and Billing</td>
+                <td>Deployed to dev, dev-verified (incl. real-browser UI pass); not yet on production</td>
+                <td>Needs classification</td>
+                <td>
+                  Adding a location now shows a billing summary (per-location price, new
+                  monthly total, prorated amount due today) and takes payment before the
+                  location is created &mdash; a declined card leaves nothing behind.
+                  Locations can be cancelled (end-of-period, all data kept forever) and
+                  reopened: free before the period ends, a paid re-add after. The Billing
+                  card shows &ldquo;N locations &times; $X/mo = $Z/mo&rdquo;. Also fixes the
+                  One Endo &ldquo;Add Location&rdquo; 500 (GBP-reuse guard), adds a
+                  <code>STRIPE_MODE</code> safety guard, and stops recurring agents
+                  (Proofline/Ranking) from running on cancelled locations. Changelog
+                  0.0.153. See
+                  <code>plans/07032026-multi-location-billing/test-results.json</code>
+                  (T1&ndash;T10 + B1&ndash;B10 Passed). First live-Stripe run is the main
+                  merge; non-agent recurring systems still process cancelled locations
+                  (owner-accepted, deferred to a follow-up gating plan). Owner to confirm
+                  whether the client-value story joins a customer email.
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
