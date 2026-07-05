@@ -2,9 +2,13 @@ import type { SupportTicketMessage } from "../../api/support";
 
 export type SupportMessageThreadProps = {
   messages: SupportTicketMessage[];
+  maskStaffName?: boolean;
 };
 
-export function SupportMessageThread({ messages }: SupportMessageThreadProps) {
+export function SupportMessageThread({
+  messages,
+  maskStaffName = false,
+}: SupportMessageThreadProps) {
   return (
     <div className="space-y-3">
       {messages.map((message) => {
@@ -20,7 +24,11 @@ export function SupportMessageThread({ messages }: SupportMessageThreadProps) {
           >
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
-                {isClient ? "You" : message.authorName || "Alloro Support"}
+                {isClient
+                  ? "You"
+                  : maskStaffName
+                    ? "Alloro"
+                    : message.authorName || "Alloro Support"}
               </p>
               <time className="text-xs font-medium text-slate-400">
                 {formatDate(message.createdAt)}

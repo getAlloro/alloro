@@ -74,7 +74,10 @@ export function SupportTicketDetail({
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.03),0_1px_3px_rgba(0,0,0,0.05)] sm:p-6">
-      <div className="mb-5 flex flex-col gap-4 border-b border-slate-100 pb-5 sm:flex-row sm:items-start sm:justify-between">
+      <div className="mb-5 flex flex-col gap-3 border-b border-slate-100 pb-5">
+        <div>
+          <SupportStatusBadge status={ticket.status} />
+        </div>
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
             {ticket.publicId} - {type.label}
@@ -88,7 +91,6 @@ export function SupportTicketDetail({
             </p>
           )}
         </div>
-        <SupportStatusBadge status={ticket.status} />
       </div>
 
       <SupportTicketAttachments
@@ -96,7 +98,7 @@ export function SupportTicketDetail({
         attachments={attachments}
       />
 
-      <SupportMessageThread messages={messages} />
+      <SupportMessageThread messages={messages} maskStaffName />
 
       {canReply && (
         <form onSubmit={handleSubmit} className="mt-5 space-y-3">

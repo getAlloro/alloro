@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Support Help Desk — Pill Placement & Author Mask Spec</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #ffffff;
+      --ink: #080808;
+      --muted: #5f5f5f;
+      --line: #d8d8d8;
+      --soft: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .spec-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
+    .spec-hero, .spec-card, .task-card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .spec-hero { border-color: var(--ink); padding: 32px; margin-bottom: 20px; }
+    .hero-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .spec-card { padding: 28px; margin-top: 16px; }
+    .task-card { padding: 20px; background: var(--soft); margin-top: 14px; }
+    .eyebrow, dt { color: var(--muted); font-size: 0.78rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .eyebrow { margin: 0; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .status-card { border-color: var(--ink); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 840px; margin-bottom: 24px; font-size: clamp(2.25rem, 6vw, 5rem); line-height: 0.95; letter-spacing: 0; }
+    h2 { font-size: 1.35rem; letter-spacing: 0; }
+    h3 { font-size: 1rem; letter-spacing: 0; }
+    code { padding: 0.1rem 0.3rem; border: 1px solid var(--line); border-radius: 4px; background: var(--soft); font-size: 0.92em; }
+    .meta-grid, .split-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .meta-grid { margin: 0; }
+    .meta-grid div, .split-grid > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    dd { margin: 4px 0 0; font-weight: 700; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+    .revision-entry { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; }
+    @media (max-width: 640px) {
+      .spec-shell { width: min(100% - 20px, 1120px); padding: 24px 0; }
+      .spec-hero, .spec-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="spec-shell">
+    <header class="spec-hero">
+      <div class="hero-topline">
+        <p class="eyebrow">Alloro Plan Spec</p>
+        <span class="status-pill">In Progress</span>
+      </div>
+      <h1>Support Help Desk — Pill Placement &amp; Author Mask</h1>
+      <dl class="meta-grid">
+        <div class="status-card"><dt>Status</dt><dd>In Progress</dd></div>
+        <div><dt>Plan Folder</dt><dd>plans/07052026-support-help-desk-pill-and-author-mask</dd></div>
+        <div><dt>Size</dt><dd>Small</dd></div>
+        <div><dt>Risk</dt><dd>Level 1</dd></div>
+      </dl>
+    </header>
+
+    <section class="spec-card" id="why">
+      <h2>Why</h2>
+      <p>Two client-facing polish issues on the Help desk ticket detail. (1) When a ticket title is long, the status pill ("Waiting on you") is squeezed into a narrow right-hand column and wraps mid-phrase across two lines. (2) The message thread shows the real name of the Alloro team member who replied; the client should just see "Alloro" so individual staff identities are not exposed to clients.</p>
+    </section>
+
+    <section class="spec-card" id="what">
+      <h2>What</h2>
+      <p>On the client Help desk ticket detail: the status pill moves <strong>above</strong> the ticket ID/title (stacked, left-aligned) and never breaks mid-phrase. In the client message thread, non-client (staff) authors render as <strong>"Alloro"</strong> instead of the person's name. The admin support panel is unchanged — admins still see the real replier name.</p>
+    </section>
+
+    <section class="spec-card" id="context">
+      <h2>Context</h2>
+      <h3>Relevant Files</h3>
+      <ul>
+        <li><code>frontend/src/components/support/SupportTicketDetail.tsx</code> - client ticket detail; owns the header (pill + title) and renders the thread.</li>
+        <li><code>frontend/src/components/support/SupportMessageThread.tsx</code> - shared thread; renders each message's author name. Used by BOTH client detail and admin panel.</li>
+        <li><code>frontend/src/components/support/SupportStatusBadge.tsx</code> - the status pill.</li>
+        <li><code>frontend/src/components/Admin/support/AdminSupportTicketPanel.tsx</code> - admin panel; also renders <code>SupportMessageThread</code>. Must keep real names — left unchanged (no new prop passed).</li>
+      </ul>
+      <h3>Patterns To Follow</h3>
+      <ul>
+        <li>Constitution §1.3 / §13.3 — boolean prop reads as a question/state: <code>maskStaffName</code>.</li>
+        <li>§13.2 lean presentational components; §17.1 no <code>console.*</code>; §17.2 no <code>any</code>; §12.3 files already in the <code>components/support/</code> feature folder.</li>
+      </ul>
+      <p><strong>Reference file:</strong> <code>frontend/src/components/support/SupportMessageThread.tsx</code> - existing optional-prop and Tailwind conventions matched in place.</p>
+    </section>
+
+    <section class="spec-card" id="constraints">
+      <h2>Constraints</h2>
+      <div class="split-grid">
+        <div>
+          <h3>Must</h3>
+          <ul>
+            <li>Mask staff name on the <strong>client</strong> thread only, via an opt-in prop.</li>
+            <li>Keep the admin panel showing real names.</li>
+            <li>Pill above the title; pill text never wraps.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Must Not</h3>
+          <ul>
+            <li>No hard-coded global mask in the shared component.</li>
+            <li>No new dependencies; no refactor of unrelated support code.</li>
+            <li>No backend/API change — display-only.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Out Of Scope</h3>
+      <ul>
+        <li>Ticket list card layout, composer, attachments, status logic.</li>
+        <li>Any backend author-name storage change (names still stored; only client display is masked).</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="risk">
+      <h2>Risk</h2>
+      <p><strong>Level:</strong> 1 (Suggestion / low risk — display-only, no data or auth change).</p>
+      <h3>Risks Identified</h3>
+      <ul>
+        <li><code>SupportMessageThread</code> is shared by client and admin. <strong>Mitigation:</strong> mask is an opt-in prop (<code>maskStaffName</code>, default <code>false</code>); only the client detail passes it, so the admin panel is untouched.</li>
+      </ul>
+      <p><strong>Blast radius:</strong> two consumers of <code>SupportMessageThread</code> — <code>SupportTicketDetail.tsx</code> (client, opts in) and <code>AdminSupportTicketPanel.tsx</code> (admin, unchanged). <code>SupportStatusBadge</code> consumers: same two surfaces; adding <code>whitespace-nowrap</code> is safe everywhere.</p>
+      <h3>Pushback</h3>
+      <ul>
+        <li>Masking is display-only — the real author name is still in the API payload/DB. If true confidentiality from the client were required, the backend would have to stop sending it. For this ask (UI presentation), display masking is the correct, minimal change.</li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="tasks">
+      <h2>Tasks</h2>
+      <article class="task-card">
+        <h3>T1: Pill above the title</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Replace the header's <code>sm:flex-row … justify-between</code> layout with a vertical stack: status pill on its own row above the ID/title block.</dd></div>
+          <div><dt>Files</dt><dd><code>SupportTicketDetail.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: long-title ticket shows pill above the title, not squeezed on the right.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T2: Pill never wraps</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add <code>whitespace-nowrap</code> to the badge span.</dd></div>
+          <div><dt>Files</dt><dd><code>SupportStatusBadge.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: "Waiting on you" stays on one line.</dd></div>
+        </dl>
+      </article>
+      <article class="task-card">
+        <h3>T3: Mask staff author name to "Alloro" (client only)</h3>
+        <dl>
+          <div><dt>Do</dt><dd>Add optional <code>maskStaffName</code> prop; when true, non-client authors render "Alloro". Pass the prop from the client detail; leave the admin panel unchanged.</dd></div>
+          <div><dt>Files</dt><dd><code>SupportMessageThread.tsx</code>, <code>SupportTicketDetail.tsx</code></dd></div>
+          <div><dt>Depends on</dt><dd>none</dd></div>
+          <div><dt>Verify</dt><dd>Manual: client thread shows "Alloro"; admin panel still shows the real name.</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="spec-card" id="done">
+      <h2>Done</h2>
+      <ul class="checklist">
+        <li><input type="checkbox" disabled checked> <code>tsc -p tsconfig.app.json --noEmit</code> - zero errors</li>
+        <li><input type="checkbox" disabled checked> <code>eslint</code> on the three changed files - clean</li>
+        <li><input type="checkbox" disabled> Manual: client ticket detail — pill above the title, one line, on a long-title ticket</li>
+        <li><input type="checkbox" disabled> Manual: client thread — staff replies show "Alloro"</li>
+        <li><input type="checkbox" disabled> Manual: admin support panel — replies still show the real staff name (no regression)</li>
+        <li><input type="checkbox" disabled> Branch off <code>main</code>, PR opened into <code>main</code>, same commit merged into <code>dev/dave</code></li>
+      </ul>
+    </section>
+
+    <section class="spec-card" id="revision-log">
+      <h2>Revision Log</h2>
+      <article class="revision-entry">
+        <h3>Rev 1 - 2026-07-05</h3>
+        <p><strong>Change:</strong> Initial build under <code>-i</code>. T1–T3 implemented on branch <code>fix/support-help-desk-pill-author</code> (off <code>origin/main</code>). Header stacked with pill above title; <code>whitespace-nowrap</code> on badge; <code>maskStaffName</code> prop added and passed by client detail only.</p>
+        <p><strong>Reason:</strong> User request (client-facing Help desk polish).</p>
+        <p><strong>Updated Done criteria:</strong> build + lint checked (pass); three manual UI checks + the branch/PR/dev-merge step remain for owner verification on dev.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
